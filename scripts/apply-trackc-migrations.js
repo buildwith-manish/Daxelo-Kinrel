@@ -22,7 +22,7 @@ const MIGRATIONS_DIR = path.join(__dirname, '..', 'supabase', 'migrations');
 const TRACKC_MIGRATIONS = [
   '20260711000001_trackc_create_constitution.sql',
   '20260711000002_trackc_create_family_decision.sql',
-  '20260711000003_trackc_create_aura_timeline.sql',
+  '20260711000003_trackc_create_kinrel_timeline.sql',
   '20260711000004_trackc_create_timeline_triggers.sql',
   '20260711000005_trackc_create_ai_insight.sql',
   '20260711000006_trackc_create_learning_signal.sql',

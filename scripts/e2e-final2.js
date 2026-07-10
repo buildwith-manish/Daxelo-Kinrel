@@ -95,7 +95,7 @@ async function main() {
   }
 
   // 4. AI Insights
-  console.log('\n4. AURA Intelligence:');
+  console.log('\n4. Kinrel Intelligence:');
   if (decisionId) {
     const ir = await api('POST', `/api/v1/families/${familyId}/decisions/${decisionId}/insights/request`, {
       kinds: ['decision_analysis', 'pros_cons'],
@@ -176,7 +176,7 @@ async function main() {
   console.log('\n11. Timeline append-only:');
   if (timelineEventId) {
     try {
-      await pg.query(`UPDATE "AURATimelineEvent" SET title = 'HACKED' WHERE id = $1`, [timelineEventId]);
+      await pg.query(`UPDATE "KinrelTimelineEvent" SET title = 'HACKED' WHERE id = $1`, [timelineEventId]);
       check('UPDATE blocked', false);
     } catch (e) { check('UPDATE blocked', true); }
   }

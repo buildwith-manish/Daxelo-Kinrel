@@ -108,7 +108,7 @@ async function main() {
   }
 
   // 4. AI Insights
-  console.log('\n4. AURA Intelligence (AI):');
+  console.log('\n4. Kinrel Intelligence (AI):');
   if (decisionId) {
     const ir = await api('POST', `/api/v1/families/${familyId}/decisions/${decisionId}/insights/request`, {
       kinds: ['decision_analysis', 'pros_cons'],
@@ -125,7 +125,7 @@ async function main() {
   }
 
   // 5. Learning
-  console.log('\n5. AURA Learning:');
+  console.log('\n5. Kinrel Learning:');
   const lp = await api('GET', `/api/v1/families/${familyId}/learning/profile`);
   check('GET learning profile', ok(lp.status), `status ${lp.status}`);
   const sg = await api('POST', `/api/v1/families/${familyId}/learning/signals`, {
@@ -134,7 +134,7 @@ async function main() {
   check('POST learning signal', ok(sg.status), `status ${sg.status}`);
 
   // 6. Search
-  console.log('\n6. AURA Search:');
+  console.log('\n6. Kinrel Search:');
   const ri = await api('POST', `/api/v1/families/${familyId}/search/reindex`);
   check('POST reindex', ok(ri.status), `status ${ri.status}`);
   if (ok(ri.status)) console.log(`    reindexed ${ri.data.reindexed || ri.data.data?.reindexed || '?'} entities`);
@@ -145,7 +145,7 @@ async function main() {
   check('GET suggest', ok(su.status), `status ${su.status}`);
 
   // 7. Secretary
-  console.log('\n7. AURA Secretary:');
+  console.log('\n7. Kinrel Secretary:');
   const ar = await api('POST', `/api/v1/families/${familyId}/secretary/artifacts`, {
     title: 'Test Meeting', heldAt: new Date().toISOString(), participants: [userId],
     agenda: ['A1'], discussionPoints: [], decisions: [],
@@ -160,7 +160,7 @@ async function main() {
   }
 
   // 8. Analytics
-  console.log('\n8. AURA Analytics:');
+  console.log('\n8. Kinrel Analytics:');
   const tr = await api('POST', `/api/v1/families/${familyId}/analytics/trigger?granularity=weekly`);
   check('POST trigger snapshot', ok(tr.status), `status ${tr.status}`);
   const sm = await api('GET', `/api/v1/families/${familyId}/analytics/summary`);
@@ -200,7 +200,7 @@ async function main() {
   console.log('\n11. Timeline append-only:');
   if (timelineEventId) {
     try {
-      await pg.query(`UPDATE "AURATimelineEvent" SET title = 'HACKED' WHERE id = $1`, [timelineEventId]);
+      await pg.query(`UPDATE "KinrelTimelineEvent" SET title = 'HACKED' WHERE id = $1`, [timelineEventId]);
       check('Timeline UPDATE blocked', false, 'UPDATE succeeded!');
     } catch (e) {
       check('Timeline UPDATE blocked', true);

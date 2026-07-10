@@ -1,6 +1,6 @@
-// test/features/aura/aura_archetype_card_test.dart
+// test/features/kinrel_intelligence/kinrel_archetype_card_test.dart
 //
-// Phase 18 — AURA archetype card tests.
+// Phase 18 — Kinrel archetype card tests.
 //
 // Verifies the card renders each of the 6 archetype types without
 // throwing, and that the archetype name + confidence meter are visible.
@@ -8,16 +8,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:kinrel/features/aura/data/aura_model.dart';
-import 'package:kinrel/features/aura/widgets/aura_archetype_card.dart';
+import 'package:kinrel/features/kinrel_intelligence/data/kinrel_model.dart';
+import 'package:kinrel/features/kinrel_intelligence/widgets/kinrel_archetype_card.dart';
 
-AuraArchetype _archetype(ArchetypeType type, [double confidence = 0.75]) =>
-    AuraArchetype(key: type, confidence: confidence);
+KinrelArchetype _archetype(ArchetypeType type, [double confidence = 0.75]) =>
+    KinrelArchetype(key: type, confidence: confidence);
 
-AuraSymbolParameters _params() => const AuraSymbolParameters(
+KinrelSymbolParameters _params() => const KinrelSymbolParameters(
       ringCount: 3,
       spokeCount: 6,
-      innerPatternType: AuraInnerPattern.lotus,
+      innerPatternType: KinrelInnerPattern.lotus,
       outerRingRadiusPct: 0.8,
       patternComplexity: 4,
       primaryColorHex: '#C8853A',
@@ -27,14 +27,14 @@ AuraSymbolParameters _params() => const AuraSymbolParameters(
     );
 
 void main() {
-  group('AuraArchetypeCard', () {
+  group('KinrelArchetypeCard', () {
     testWidgets('renders each archetype type without throwing',
         (tester) async {
       for (final type in ArchetypeType.values) {
         await tester.pumpWidget(
           MaterialApp(
             home: Scaffold(
-              body: AuraArchetypeCard(
+              body: KinrelArchetypeCard(
                 archetype: _archetype(type),
                 symbol: _params(),
               ),
@@ -56,7 +56,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: AuraArchetypeCard(
+            body: KinrelArchetypeCard(
               archetype: _archetype(ArchetypeType.banyan),
               symbol: _params(),
               memberCount: 42,
@@ -72,7 +72,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: AuraArchetypeCard(
+            body: KinrelArchetypeCard(
               archetype: _archetype(ArchetypeType.banyan),
               symbol: _params(),
               compact: true,

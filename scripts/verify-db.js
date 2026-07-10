@@ -11,7 +11,7 @@ async function main() {
   // 1. All Track C tables exist
   const expectedTables = [
     'FamilyConstitution','ConstitutionVersion','ConstitutionArticle','ConstitutionClause',
-    'FamilyDecision','DecisionVote','AURATimelineEvent','AIInsight',
+    'FamilyDecision','DecisionVote','KinrelTimelineEvent','AIInsight',
     'LearningSignal','FamilyBehaviorProfile','FamilyBehaviorProfileHistory',
     'SmartReminder','DecisionMemory','DecisionImpact','MeetingArtifact',
     'SearchIndex','FamilyAnalyticsSnapshot','GlobalLearningDefaults',
@@ -23,22 +23,22 @@ async function main() {
   console.log(`Tables: ${found.size}/${expectedTables.length} ${missing.length ? 'MISSING: ' + missing.join(',') : '✅'}`);
 
   // 2. Partitioning
-  const r2 = await client.query(`SELECT c.relname, pt.partstrat FROM pg_partitioned_table pt JOIN pg_class c ON c.oid = pt.partrelid WHERE c.relname IN ('FamilyDecision','AURATimelineEvent','AIInsight','LearningSignal')`);
+  const r2 = await client.query(`SELECT c.relname, pt.partstrat FROM pg_partitioned_table pt JOIN pg_class c ON c.oid = pt.partrelid WHERE c.relname IN ('FamilyDecision','KinrelTimelineEvent','AIInsight','LearningSignal')`);
   console.log(`Partitioned tables: ${r2.rows.length}/4 ${r2.rows.length === 4 ? '✅' : '❌'}`);
   for (const row of r2.rows) {
     const pc = await client.query(`SELECT count(*) as n FROM pg_inherits JOIN pg_class c ON c.oid = inhrelid JOIN pg_class p ON p.oid = inhparent WHERE p.relname = $1`, [row.relname]);
-    const expected = row.relname === 'FamilyDecision' || row.relname === 'AURATimelineEvent' ? 32 : 16;
+    const expected = row.relname === 'FamilyDecision' || row.relname === 'KinrelTimelineEvent' ? 32 : 16;
     console.log(`  ${row.relname}: ${pc.rows[0].n} partitions (expected ${expected}) ${pc.rows[0].n == expected ? '✅' : '❌'}`);
   }
 
   // 3. RLS enabled
-  const rlsTables = ['FamilyConstitution','ConstitutionVersion','ConstitutionArticle','ConstitutionClause','FamilyDecision','DecisionVote','AURATimelineEvent','AIInsight','LearningSignal','FamilyBehaviorProfile','FamilyBehaviorProfileHistory','SmartReminder','DecisionMemory','DecisionImpact','MeetingArtifact','SearchIndex','FamilyAnalyticsSnapshot'];
+  const rlsTables = ['FamilyConstitution','ConstitutionVersion','ConstitutionArticle','ConstitutionClause','FamilyDecision','DecisionVote','KinrelTimelineEvent','AIInsight','LearningSignal','FamilyBehaviorProfile','FamilyBehaviorProfileHistory','SmartReminder','DecisionMemory','DecisionImpact','MeetingArtifact','SearchIndex','FamilyAnalyticsSnapshot'];
   const r3 = await client.query(`SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname='public' AND tablename = ANY($1)`, [rlsTables]);
   const rlsEnabled = r3.rows.filter(r => r.rowsecurity).length;
   console.log(`RLS enabled: ${rlsEnabled}/${rlsTables.length} ${rlsEnabled === rlsTables.length ? '✅' : '❌'}`);
 
   // 4. RLS policies count
-  const r4 = await client.query(`SELECT count(*) as n FROM pg_policies WHERE schemaname='public' AND tablename IN ('FamilyDecision','AURATimelineEvent','AIInsight','LearningSignal')`);
+  const r4 = await client.query(`SELECT count(*) as n FROM pg_policies WHERE schemaname='public' AND tablename IN ('FamilyDecision','KinrelTimelineEvent','AIInsight','LearningSignal')`);
   console.log(`RLS policies on key tables: ${r4.rows[0].n} ${r4.rows[0].n >= 8 ? '✅' : '⚠️ (expected ≥8)'}`);
 
   // 5. Timeline append-only triggers

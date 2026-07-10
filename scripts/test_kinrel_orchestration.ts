@@ -1,27 +1,27 @@
-// scripts/test_aura_orchestration.ts
+// scripts/test_kinrel_orchestration.ts
 //
-// AURA Phase 5 — Validation Script for the orchestration + persistence layer
+// Kinrel Phase 5 — Validation Script for the orchestration + persistence layer
 //
 // This script instantiates the real Prisma client (connecting to the live
-// Supabase DB via DATABASE_URL) and runs the full AuraOrchestrationService
+// Supabase DB via DATABASE_URL) and runs the full KinrelOrchestrationService
 // against a real family. It then queries the DB directly to verify:
-//   1. FamilyAura row was upserted with correct values
-//   2. FamilyAuraHistory snapshot was created
-//   3. MemberAuraRole rows were upserted (one per member)
-//   4. The AuraQueryService returns the expected API shape
-//   5. RLS: a non-member cannot read the AURA (verified via direct DB query)
+//   1. FamilyKinrel row was upserted with correct values
+//   2. FamilyKinrelHistory snapshot was created
+//   3. MemberKinrelRole rows were upserted (one per member)
+//   4. The KinrelQueryService returns the expected API shape
+//   5. RLS: a non-member cannot read the Kinrel (verified via direct DB query)
 //
 // Run:
 //   DATABASE_URL=postgresql://... \
 //   DIRECT_URL=postgresql://... \
-//   bun scripts/test_aura_orchestration.ts
+//   bun scripts/test_kinrel_orchestration.ts
 
 import { PrismaClient } from '@prisma/client';
-import { GraphAnalysisService } from '../server/src/aura/graph-analysis.service';
-import { ArchetypeClassifierService } from '../server/src/aura/archetype-classifier.service';
-import { AuraParameterGeneratorService } from '../server/src/aura/aura-parameter-generator.service';
-import { RoleGlyphService } from '../server/src/aura/role-glyph.service';
-import { AuraOrchestrationService } from '../server/src/aura/aura-orchestration.service';
+import { GraphAnalysisService } from '../server/src/kinrel-intelligence/graph-analysis.service';
+import { ArchetypeClassifierService } from '../server/src/kinrel-intelligence/archetype-classifier.service';
+import { KinrelParameterGeneratorService } from '../server/src/kinrel-intelligence/kinrel-parameter-generator.service';
+import { RoleGlyphService } from '../server/src/kinrel-intelligence/role-glyph.service';
+import { KinrelOrchestrationService } from '../server/src/kinrel-intelligence/kinrel-orchestration.service';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SETUP
@@ -30,9 +30,9 @@ import { AuraOrchestrationService } from '../server/src/aura/aura-orchestration.
 const prisma = new PrismaClient();
 const graphAnalysis = new GraphAnalysisService(prisma as any);
 const classifier = new ArchetypeClassifierService();
-const paramGenerator = new AuraParameterGeneratorService();
+const paramGenerator = new KinrelParameterGeneratorService();
 const roleGlyph = new RoleGlyphService(prisma as any);
-const orchestration = new AuraOrchestrationService(
+const orchestration = new KinrelOrchestrationService(
   prisma as any,
   graphAnalysis,
   classifier,
@@ -48,7 +48,7 @@ const TEST_FAMILY_ID = 'cmr1xhyo7bivcw8rzx0hlguyi'; // Yakshitha Poojary
 
 async function main() {
   console.log('══════════════════════════════════════════════════════════════════════════');
-  console.log('AURA Phase 5 — Orchestration + Persistence Validation');
+  console.log('Kinrel Phase 5 — Orchestration + Persistence Validation');
   console.log('══════════════════════════════════════════════════════════════════════════');
   console.log();
 
@@ -75,13 +75,13 @@ async function main() {
   console.log(`  Active relationships: ${relationships}`);
   console.log();
 
-  // ── Pre-test: clean up any existing AURA rows for this family ─────────
+  // ── Pre-test: clean up any existing Kinrel rows for this family ─────────
   // (so we test a fresh insert, not an update)
-  console.log('── Pre-test: cleaning up any existing AURA rows ─────────────────');
-  const deleted = await prisma.familyAura.deleteMany({ where: { familyId: TEST_FAMILY_ID } });
-  const deletedHistory = await prisma.familyAuraHistory.deleteMany({ where: { familyId: TEST_FAMILY_ID } });
-  const deletedRoles = await prisma.memberAuraRole.deleteMany({ where: { familyId: TEST_FAMILY_ID } });
-  console.log(`  Deleted: ${deleted.count} FamilyAura, ${deletedHistory.count} FamilyAuraHistory, ${deletedRoles.count} MemberAuraRole`);
+  console.log('── Pre-test: cleaning up any existing Kinrel rows ─────────────────');
+  const deleted = await prisma.familyKinrel.deleteMany({ where: { familyId: TEST_FAMILY_ID } });
+  const deletedHistory = await prisma.familyKinrelHistory.deleteMany({ where: { familyId: TEST_FAMILY_ID } });
+  const deletedRoles = await prisma.memberKinrelRole.deleteMany({ where: { familyId: TEST_FAMILY_ID } });
+  console.log(`  Deleted: ${deleted.count} FamilyKinrel, ${deletedHistory.count} FamilyKinrelHistory, ${deletedRoles.count} MemberKinrelRole`);
   console.log();
 
   // ── TEST 1: Run computeAndSave() ──────────────────────────────────────
@@ -95,44 +95,44 @@ async function main() {
   console.log(`  ✅ computeAndSave() completed in ${elapsedMs}ms`);
   console.log();
 
-  // ── TEST 2: Verify FamilyAura row ─────────────────────────────────────
-  console.log('── TEST 2: Verify FamilyAura row in DB ────────────────────────');
-  const aura = await prisma.familyAura.findUnique({
+  // ── TEST 2: Verify FamilyKinrel row ─────────────────────────────────────
+  console.log('── TEST 2: Verify FamilyKinrel row in DB ────────────────────────');
+  const kinrel = await prisma.familyKinrel.findUnique({
     where: { familyId: TEST_FAMILY_ID },
   });
-  if (!aura) {
-    console.log('  ❌ FamilyAura row not found!');
+  if (!kinrel) {
+    console.log('  ❌ FamilyKinrel row not found!');
     process.exit(1);
   }
 
-  const auraChecks: Array<[string, boolean, string]> = [
-    ['familyId matches',          aura.familyId === TEST_FAMILY_ID, aura.familyId],
-    ['memberCount matches',       aura.memberCount === memberPersons, `${aura.memberCount} vs ${memberPersons}`],
-    ['edgeCount matches',         aura.edgeCount === relationships, `${aura.edgeCount} vs ${relationships}`],
-    ['generationDepth >= 1',      aura.generationDepth >= 1, `${aura.generationDepth}`],
-    ['clusteringCoefficient in [0,1]', Number(aura.clusteringCoefficient) >= 0 && Number(aura.clusteringCoefficient) <= 1, `${aura.clusteringCoefficient}`],
-    ['graphDiameter >= 0',        aura.graphDiameter >= 0, `${aura.graphDiameter}`],
-    ['avgDegree >= 0',            Number(aura.avgDegree) >= 0, `${aura.avgDegree}`],
-    ['distinctLineages >= 1',     aura.distinctLineages >= 1, `${aura.distinctLineages}`],
-    ['ringCount in [1,8]',        aura.ringCount >= 1 && aura.ringCount <= 8, `${aura.ringCount}`],
-    ['spokeCount in [3,12]',      aura.spokeCount >= 3 && aura.spokeCount <= 12, `${aura.spokeCount}`],
-    ['innerPatternType is valid', ['lotus','grid','diamond','star','web','spiral'].includes(aura.innerPatternType), aura.innerPatternType],
-    ['outerRingRadiusPct in [0.5,0.95]', Number(aura.outerRingRadiusPct) >= 0.5 && Number(aura.outerRingRadiusPct) <= 0.95, `${aura.outerRingRadiusPct}`],
-    ['patternComplexity in [1,10]', aura.patternComplexity >= 1 && aura.patternComplexity <= 10, `${aura.patternComplexity}`],
-    ['primaryColorHex is valid hex', /^#[0-9a-f]{6}$/.test(aura.primaryColorHex), aura.primaryColorHex],
-    ['secondaryColorHex is valid hex', /^#[0-9a-f]{6}$/.test(aura.secondaryColorHex), aura.secondaryColorHex],
-    ['accentColorHex is valid hex', /^#[0-9a-f]{6}$/.test(aura.accentColorHex), aura.accentColorHex],
-    ['pulseSpeedMs in [2000,6000]', aura.pulseSpeedMs >= 2000 && aura.pulseSpeedMs <= 6000, `${aura.pulseSpeedMs}`],
-    ['archetypeKey is valid',     ['banyan','river_delta','confluence','spine','lotus','forest'].includes(aura.archetypeKey), aura.archetypeKey],
-    ['archetypeConfidence in [0,1]', Number(aura.archetypeConfidence) >= 0 && Number(aura.archetypeConfidence) <= 1, `${aura.archetypeConfidence}`],
-    ['languageDistribution is object', typeof aura.languageDistribution === 'object' && aura.languageDistribution !== null, JSON.stringify(aura.languageDistribution)],
-    ['computedAt is recent',      Date.now() - aura.computedAt.getTime() < 60000, aura.computedAt.toISOString()],
-    ['maxBetweennessNode is set', aura.maxBetweennessNode !== null, aura.maxBetweennessNode ?? 'null'],
-    ['rootNode is set',           aura.rootNode !== null, aura.rootNode ?? 'null'],
+  const kinrelChecks: Array<[string, boolean, string]> = [
+    ['familyId matches',          kinrel.familyId === TEST_FAMILY_ID, kinrel.familyId],
+    ['memberCount matches',       kinrel.memberCount === memberPersons, `${kinrel.memberCount} vs ${memberPersons}`],
+    ['edgeCount matches',         kinrel.edgeCount === relationships, `${kinrel.edgeCount} vs ${relationships}`],
+    ['generationDepth >= 1',      kinrel.generationDepth >= 1, `${kinrel.generationDepth}`],
+    ['clusteringCoefficient in [0,1]', Number(kinrel.clusteringCoefficient) >= 0 && Number(kinrel.clusteringCoefficient) <= 1, `${kinrel.clusteringCoefficient}`],
+    ['graphDiameter >= 0',        kinrel.graphDiameter >= 0, `${kinrel.graphDiameter}`],
+    ['avgDegree >= 0',            Number(kinrel.avgDegree) >= 0, `${kinrel.avgDegree}`],
+    ['distinctLineages >= 1',     kinrel.distinctLineages >= 1, `${kinrel.distinctLineages}`],
+    ['ringCount in [1,8]',        kinrel.ringCount >= 1 && kinrel.ringCount <= 8, `${kinrel.ringCount}`],
+    ['spokeCount in [3,12]',      kinrel.spokeCount >= 3 && kinrel.spokeCount <= 12, `${kinrel.spokeCount}`],
+    ['innerPatternType is valid', ['lotus','grid','diamond','star','web','spiral'].includes(kinrel.innerPatternType), kinrel.innerPatternType],
+    ['outerRingRadiusPct in [0.5,0.95]', Number(kinrel.outerRingRadiusPct) >= 0.5 && Number(kinrel.outerRingRadiusPct) <= 0.95, `${kinrel.outerRingRadiusPct}`],
+    ['patternComplexity in [1,10]', kinrel.patternComplexity >= 1 && kinrel.patternComplexity <= 10, `${kinrel.patternComplexity}`],
+    ['primaryColorHex is valid hex', /^#[0-9a-f]{6}$/.test(kinrel.primaryColorHex), kinrel.primaryColorHex],
+    ['secondaryColorHex is valid hex', /^#[0-9a-f]{6}$/.test(kinrel.secondaryColorHex), kinrel.secondaryColorHex],
+    ['accentColorHex is valid hex', /^#[0-9a-f]{6}$/.test(kinrel.accentColorHex), kinrel.accentColorHex],
+    ['pulseSpeedMs in [2000,6000]', kinrel.pulseSpeedMs >= 2000 && kinrel.pulseSpeedMs <= 6000, `${kinrel.pulseSpeedMs}`],
+    ['archetypeKey is valid',     ['banyan','river_delta','confluence','spine','lotus','forest'].includes(kinrel.archetypeKey), kinrel.archetypeKey],
+    ['archetypeConfidence in [0,1]', Number(kinrel.archetypeConfidence) >= 0 && Number(kinrel.archetypeConfidence) <= 1, `${kinrel.archetypeConfidence}`],
+    ['languageDistribution is object', typeof kinrel.languageDistribution === 'object' && kinrel.languageDistribution !== null, JSON.stringify(kinrel.languageDistribution)],
+    ['computedAt is recent',      Date.now() - kinrel.computedAt.getTime() < 60000, kinrel.computedAt.toISOString()],
+    ['maxBetweennessNode is set', kinrel.maxBetweennessNode !== null, kinrel.maxBetweennessNode ?? 'null'],
+    ['rootNode is set',           kinrel.rootNode !== null, kinrel.rootNode ?? 'null'],
   ];
 
   let test2Pass = true;
-  for (const [label, ok, detail] of auraChecks) {
+  for (const [label, ok, detail] of kinrelChecks) {
     if (!ok) test2Pass = false;
     console.log(`    ${ok ? '✅' : '❌'} ${label.padEnd(40)} ${detail}`);
   }
@@ -140,20 +140,20 @@ async function main() {
   console.log(`  Test 2 result: ${test2Pass ? '✅ PASSED' : '❌ FAILED'}`);
   console.log();
 
-  // Print the full FamilyAura row for visual inspection
-  console.log('  Full FamilyAura row:');
-  console.log(JSON.stringify(aura, null, 2));
+  // Print the full FamilyKinrel row for visual inspection
+  console.log('  Full FamilyKinrel row:');
+  console.log(JSON.stringify(kinrel, null, 2));
   console.log();
 
-  // ── TEST 3: Verify FamilyAuraHistory snapshot ─────────────────────────
-  console.log('── TEST 3: Verify FamilyAuraHistory snapshot ───────────────────');
-  const history = await prisma.familyAuraHistory.findMany({
+  // ── TEST 3: Verify FamilyKinrelHistory snapshot ─────────────────────────
+  console.log('── TEST 3: Verify FamilyKinrelHistory snapshot ───────────────────');
+  const history = await prisma.familyKinrelHistory.findMany({
     where: { familyId: TEST_FAMILY_ID },
     orderBy: { capturedAt: 'desc' },
   });
   const historyChecks: Array<[string, boolean, string]> = [
     ['exactly 1 history row created', history.length === 1, `${history.length}`],
-    ['archetypeKey matches FamilyAura', history.length > 0 && history[0].archetypeKey === aura.archetypeKey, `${history[0]?.archetypeKey}`],
+    ['archetypeKey matches FamilyKinrel', history.length > 0 && history[0].archetypeKey === kinrel.archetypeKey, `${history[0]?.archetypeKey}`],
     ['archetypeChanged is false (first computation)', history.length > 0 && history[0].archetypeChanged === false, `${history[0]?.archetypeChanged}`],
     ['previousArchetype is null (first computation)', history.length > 0 && history[0].previousArchetype === null, `${history[0]?.previousArchetype}`],
     ['triggerEventType is manual_recompute', history.length > 0 && history[0].triggerEventType === 'manual_recompute', `${history[0]?.triggerEventType}`],
@@ -169,9 +169,9 @@ async function main() {
   console.log(`  Test 3 result: ${test3Pass ? '✅ PASSED' : '❌ FAILED'}`);
   console.log();
 
-  // ── TEST 4: Verify MemberAuraRole rows ────────────────────────────────
-  console.log('── TEST 4: Verify MemberAuraRole rows ──────────────────────────');
-  const roles = await prisma.memberAuraRole.findMany({
+  // ── TEST 4: Verify MemberKinrelRole rows ────────────────────────────────
+  console.log('── TEST 4: Verify MemberKinrelRole rows ──────────────────────────');
+  const roles = await prisma.memberKinrelRole.findMany({
     where: { familyId: TEST_FAMILY_ID },
   });
 
@@ -210,7 +210,7 @@ async function main() {
   console.log();
 
   // Print full roles for visual inspection
-  console.log('  Full MemberAuraRole rows:');
+  console.log('  Full MemberKinrelRole rows:');
   for (const r of roles) {
     console.log(`    memberId=${r.memberId.substring(0,12)}  role=${r.roleKey.padEnd(10)}  shape=${r.glyphShape.padEnd(24)}  color=${r.glyphColorHex}  betw=${Number(r.betweennessScore).toFixed(4)}  deg=${r.degreeCount}  gen=${r.generationIndex}`);
   }
@@ -225,22 +225,22 @@ async function main() {
     triggerMemberId: null,
   });
 
-  const auraAfterUpdate = await prisma.familyAura.findUnique({
+  const kinrelAfterUpdate = await prisma.familyKinrel.findUnique({
     where: { familyId: TEST_FAMILY_ID },
   });
-  const historyAfterUpdate = await prisma.familyAuraHistory.count({
+  const historyAfterUpdate = await prisma.familyKinrelHistory.count({
     where: { familyId: TEST_FAMILY_ID },
   });
-  const rolesAfterUpdate = await prisma.memberAuraRole.count({
+  const rolesAfterUpdate = await prisma.memberKinrelRole.count({
     where: { familyId: TEST_FAMILY_ID },
   });
 
   const test5Checks: Array<[string, boolean, string]> = [
-    ['FamilyAura still has 1 row (upsert, not insert)', true, '1 row'], // we know it's unique-constrained
-    ['FamilyAura id unchanged (update, not delete+insert)', auraAfterUpdate?.id === aura.id, `${auraAfterUpdate?.id} vs ${aura.id}`],
-    ['FamilyAura computedAt was refreshed', auraAfterUpdate && aura && auraAfterUpdate.computedAt > aura.computedAt, `${auraAfterUpdate?.computedAt.toISOString()}`],
-    ['FamilyAuraHistory now has 2 rows (1 new snapshot)', historyAfterUpdate === 2, `${historyAfterUpdate}`],
-    ['MemberAuraRole still has correct count (upsert)', rolesAfterUpdate === memberPersons, `${rolesAfterUpdate} vs ${memberPersons}`],
+    ['FamilyKinrel still has 1 row (upsert, not insert)', true, '1 row'], // we know it's unique-constrained
+    ['FamilyKinrel id unchanged (update, not delete+insert)', kinrelAfterUpdate?.id === kinrel.id, `${kinrelAfterUpdate?.id} vs ${kinrel.id}`],
+    ['FamilyKinrel computedAt was refreshed', kinrelAfterUpdate && kinrel && kinrelAfterUpdate.computedAt > kinrel.computedAt, `${kinrelAfterUpdate?.computedAt.toISOString()}`],
+    ['FamilyKinrelHistory now has 2 rows (1 new snapshot)', historyAfterUpdate === 2, `${historyAfterUpdate}`],
+    ['MemberKinrelRole still has correct count (upsert)', rolesAfterUpdate === memberPersons, `${rolesAfterUpdate} vs ${memberPersons}`],
   ];
 
   let test5Pass = true;
@@ -254,7 +254,7 @@ async function main() {
 
   // ── TEST 6: Verify the second history row marks archetypeChanged=false ─
   console.log('── TEST 6: Verify second history snapshot ──────────────────────');
-  const historyRows = await prisma.familyAuraHistory.findMany({
+  const historyRows = await prisma.familyKinrelHistory.findMany({
     where: { familyId: TEST_FAMILY_ID },
     orderBy: { capturedAt: 'asc' },
   });
@@ -289,10 +289,10 @@ async function main() {
 
   // ── CLEANUP ───────────────────────────────────────────────────────────
   console.log('── Cleanup: removing test rows from live DB ────────────────────');
-  const del1 = await prisma.familyAura.deleteMany({ where: { familyId: TEST_FAMILY_ID } });
-  const del2 = await prisma.familyAuraHistory.deleteMany({ where: { familyId: TEST_FAMILY_ID } });
-  const del3 = await prisma.memberAuraRole.deleteMany({ where: { familyId: TEST_FAMILY_ID } });
-  console.log(`  Deleted: ${del1.count} FamilyAura, ${del2.count} FamilyAuraHistory, ${del3.count} MemberAuraRole`);
+  const del1 = await prisma.familyKinrel.deleteMany({ where: { familyId: TEST_FAMILY_ID } });
+  const del2 = await prisma.familyKinrelHistory.deleteMany({ where: { familyId: TEST_FAMILY_ID } });
+  const del3 = await prisma.memberKinrelRole.deleteMany({ where: { familyId: TEST_FAMILY_ID } });
+  console.log(`  Deleted: ${del1.count} FamilyKinrel, ${del2.count} FamilyKinrelHistory, ${del3.count} MemberKinrelRole`);
   console.log('  ✅ Live DB is clean');
 }
 

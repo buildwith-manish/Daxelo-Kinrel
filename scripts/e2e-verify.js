@@ -115,7 +115,7 @@ async function main() {
   }
 
   // ── 4. AI Insights ───────────────────────────────────────────────────
-  console.log('\n4. AURA Intelligence (AI):');
+  console.log('\n4. Kinrel Intelligence (AI):');
   if (decisionId) {
     const ir = await api('POST', `/api/v1/families/${familyId}/decisions/${decisionId}/insights/request`, {
       kinds: ['decision_analysis', 'pros_cons'],
@@ -132,7 +132,7 @@ async function main() {
   }
 
   // ── 5. Learning ──────────────────────────────────────────────────────
-  console.log('\n5. AURA Learning:');
+  console.log('\n5. Kinrel Learning:');
   const lp = await api('GET', `/api/v1/families/${familyId}/learning/profile`);
   check('GET learning profile', lp.status === 200, `status ${lp.status}: ${JSON.stringify(lp.data).slice(0,200)}`);
 
@@ -142,7 +142,7 @@ async function main() {
   check('POST learning signal', sg.status === 200 || sg.status === 201, `status ${sg.status}`);
 
   // ── 6. Search ────────────────────────────────────────────────────────
-  console.log('\n6. AURA Search:');
+  console.log('\n6. Kinrel Search:');
   const ri = await api('POST', `/api/v1/families/${familyId}/search/reindex`);
   check('POST reindex', ri.status === 200, `status ${ri.status}: ${JSON.stringify(ri.data).slice(0,200)}`);
 
@@ -153,7 +153,7 @@ async function main() {
   check('GET suggest', su.status === 200, `status ${su.status}`);
 
   // ── 7. Secretary ─────────────────────────────────────────────────────
-  console.log('\n7. AURA Secretary:');
+  console.log('\n7. Kinrel Secretary:');
   const ar = await api('POST', `/api/v1/families/${familyId}/secretary/artifacts`, {
     title: 'Test Meeting', heldAt: new Date().toISOString(), participants: [userId],
     agenda: ['Item 1'], discussionPoints: [{ point: 'P1', perspectives: [{userId, perspective:'ok'}] }],
@@ -171,7 +171,7 @@ async function main() {
   }
 
   // ── 8. Analytics ─────────────────────────────────────────────────────
-  console.log('\n8. AURA Analytics:');
+  console.log('\n8. Kinrel Analytics:');
   const tr = await api('POST', `/api/v1/families/${familyId}/analytics/trigger?granularity=weekly`);
   check('POST trigger snapshot', tr.status === 200, `status ${tr.status}: ${JSON.stringify(tr.data).slice(0,200)}`);
 
@@ -222,14 +222,14 @@ async function main() {
   if (timelineEventId) {
     // Try to UPDATE a timeline event directly via DB — should fail
     try {
-      await pg.query(`UPDATE "AURATimelineEvent" SET title = 'HACKED' WHERE id = $1`, [timelineEventId]);
+      await pg.query(`UPDATE "KinrelTimelineEvent" SET title = 'HACKED' WHERE id = $1`, [timelineEventId]);
       check('Timeline UPDATE blocked by trigger', false, 'UPDATE succeeded — trigger not working!');
     } catch (e) {
       check('Timeline UPDATE blocked by trigger', e.message.includes('append-only'), `error: ${e.message.slice(0,80)}`);
     }
     // Try to DELETE
     try {
-      await pg.query(`DELETE FROM "AURATimelineEvent" WHERE id = $1`, [timelineEventId]);
+      await pg.query(`DELETE FROM "KinrelTimelineEvent" WHERE id = $1`, [timelineEventId]);
       check('Timeline DELETE blocked by trigger', false, 'DELETE succeeded — trigger not working!');
     } catch (e) {
       check('Timeline DELETE blocked by trigger', e.message.includes('append-only'), `error: ${e.message.slice(0,80)}`);

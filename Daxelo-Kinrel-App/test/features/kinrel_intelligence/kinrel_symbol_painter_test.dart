@@ -1,6 +1,6 @@
-// test/features/aura/aura_symbol_painter_test.dart
+// test/features/kinrel_intelligence/kinrel_symbol_painter_test.dart
 //
-// Phase 18 — AURA symbol painter tests.
+// Phase 18 — Kinrel symbol painter tests.
 //
 // Verifies the painter renders without throwing for edge-case parameter
 // combinations: 0 members (still produces a valid symbol), 1 member,
@@ -11,8 +11,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:kinrel/features/aura/data/aura_model.dart';
-import 'package:kinrel/features/aura/widgets/aura_symbol_painter.dart';
+import 'package:kinrel/features/kinrel_intelligence/data/kinrel_model.dart';
+import 'package:kinrel/features/kinrel_intelligence/widgets/kinrel_symbol_painter.dart';
 
 /// A no-op canvas that records nothing — used purely to drive paint()
 /// without needing a real rendering surface. Painters don't care what
@@ -23,10 +23,10 @@ class _NullCanvas implements Canvas {
 }
 
 void main() {
-  AuraSymbolParameters params({
+  KinrelSymbolParameters params({
     int ringCount = 2,
     int spokeCount = 4,
-    AuraInnerPattern pattern = AuraInnerPattern.lotus,
+    KinrelInnerPattern pattern = KinrelInnerPattern.lotus,
     double outerPct = 0.85,
     int complexity = 3,
     String primary = '#C8853A',
@@ -34,7 +34,7 @@ void main() {
     String accent = '#2D8A4E',
     int pulseMs = 3000,
   }) =>
-      AuraSymbolParameters(
+      KinrelSymbolParameters(
         ringCount: ringCount,
         spokeCount: spokeCount,
         innerPatternType: pattern,
@@ -48,12 +48,12 @@ void main() {
 
   final canvas = _NullCanvas() as Canvas;
 
-  group('AuraSymbolPainter', () {
+  group('KinrelSymbolPainter', () {
     testWidgets('renders without throwing for a 0-member family',
         (tester) async {
       // 0-member family still gets sensible defaults from the backend
       // (ringCount=2, spokeCount=4, complexity=3).
-      final painter = AuraSymbolPainter(
+      final painter = KinrelSymbolPainter(
         parameters: params(),
         progress: 0.5,
       );
@@ -66,7 +66,7 @@ void main() {
     testWidgets('renders without throwing for a 1-member family',
         (tester) async {
       // Single-member family: minimal rings/spokes.
-      final painter = AuraSymbolPainter(
+      final painter = KinrelSymbolPainter(
         parameters: params(
           ringCount: 2,
           spokeCount: 3,
@@ -83,7 +83,7 @@ void main() {
     testWidgets('renders without throwing for a very large family',
         (tester) async {
       // Very large family: max rings/spokes/complexity.
-      final painter = AuraSymbolPainter(
+      final painter = KinrelSymbolPainter(
         parameters: params(
           ringCount: 8,
           spokeCount: 12,
@@ -100,8 +100,8 @@ void main() {
 
     testWidgets('renders every inner pattern without throwing',
         (tester) async {
-      for (final pattern in AuraInnerPattern.values) {
-        final painter = AuraSymbolPainter(
+      for (final pattern in KinrelInnerPattern.values) {
+        final painter = KinrelSymbolPainter(
           parameters: params(pattern: pattern, complexity: 6),
           progress: 0.5,
         );
@@ -115,7 +115,7 @@ void main() {
 
     testWidgets('handles zero-size canvas without throwing',
         (tester) async {
-      final painter = AuraSymbolPainter(
+      final painter = KinrelSymbolPainter(
         parameters: params(),
         progress: 0.5,
       );
@@ -127,7 +127,7 @@ void main() {
 
     testWidgets('handles malformed colour strings gracefully',
         (tester) async {
-      final painter = AuraSymbolPainter(
+      final painter = KinrelSymbolPainter(
         parameters: params(
           primary: 'not-a-color',
           secondary: '',
@@ -143,8 +143,8 @@ void main() {
     });
 
     test('shouldRepaint returns true when parameters change', () {
-      final p1 = AuraSymbolPainter(parameters: params(), progress: 0.0);
-      final p2 = AuraSymbolPainter(
+      final p1 = KinrelSymbolPainter(parameters: params(), progress: 0.0);
+      final p2 = KinrelSymbolPainter(
         parameters: params(ringCount: 5),
         progress: 0.0,
       );
@@ -153,15 +153,15 @@ void main() {
 
     test('shouldRepaint returns true when progress changes', () {
       final p = params();
-      final p1 = AuraSymbolPainter(parameters: p, progress: 0.0);
-      final p2 = AuraSymbolPainter(parameters: p, progress: 0.5);
+      final p1 = KinrelSymbolPainter(parameters: p, progress: 0.0);
+      final p2 = KinrelSymbolPainter(parameters: p, progress: 0.5);
       expect(p2.shouldRepaint(p1), isTrue);
     });
 
     test('shouldRepaint returns false when nothing changes', () {
       final p = params();
-      final p1 = AuraSymbolPainter(parameters: p, progress: 0.5);
-      final p2 = AuraSymbolPainter(parameters: p, progress: 0.5);
+      final p1 = KinrelSymbolPainter(parameters: p, progress: 0.5);
+      final p2 = KinrelSymbolPainter(parameters: p, progress: 0.5);
       expect(p2.shouldRepaint(p1), isFalse);
     });
   });

@@ -1,6 +1,6 @@
-// test/features/aura/aura_share_card_test.dart
+// test/features/kinrel_intelligence/kinrel_share_card_test.dart
 //
-// Phase 18 — AURA share card tests.
+// Phase 18 — Kinrel share card tests.
 //
 // Verifies the share card widget renders without throwing and that the
 // captureAndShare helper handles the "render object not yet laid out"
@@ -14,15 +14,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:kinrel/features/aura/data/aura_model.dart';
-import 'package:kinrel/features/aura/widgets/aura_share_card.dart';
+import 'package:kinrel/features/kinrel_intelligence/data/kinrel_model.dart';
+import 'package:kinrel/features/kinrel_intelligence/widgets/kinrel_share_card.dart';
 
-AuraModel _aura() => AuraModel(
+KinrelModel _aura() => KinrelModel(
       familyId: 'fam-test',
-      symbol: const AuraSymbolParameters(
+      symbol: const KinrelSymbolParameters(
         ringCount: 3,
         spokeCount: 6,
-        innerPatternType: AuraInnerPattern.lotus,
+        innerPatternType: KinrelInnerPattern.lotus,
         outerRingRadiusPct: 0.8,
         patternComplexity: 4,
         primaryColorHex: '#C8853A',
@@ -30,11 +30,11 @@ AuraModel _aura() => AuraModel(
         accentColorHex: '#2D8A4E',
         pulseSpeedMs: 3000,
       ),
-      archetype: const AuraArchetype(
+      archetype: const KinrelArchetype(
         key: ArchetypeType.banyan,
         confidence: 0.85,
       ),
-      metrics: const AuraMetrics(
+      metrics: const KinrelMetrics(
         memberCount: 12,
         generationDepth: 3,
         edgeCount: 18,
@@ -51,14 +51,14 @@ AuraModel _aura() => AuraModel(
     );
 
 void main() {
-  group('AuraShareCard', () {
+  group('KinrelShareCard', () {
     testWidgets('renders without throwing', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: AuraShareCard(
+            body: KinrelShareCard(
               boundaryKey: GlobalKey(),
-              aura: _aura(),
+              kinrel: _aura(),
               familyName: 'Sharma Family',
             ),
           ),
@@ -82,9 +82,9 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: AuraShareCard(
+            body: KinrelShareCard(
               boundaryKey: unattachedKey,
-              aura: _aura(),
+              kinrel: _aura(),
               familyName: 'Test',
             ),
           ),
@@ -92,7 +92,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // The boundaryKey points at the AuraShareCard's own context, but
+      // The boundaryKey points at the KinrelShareCard's own context, but
       // captureAndShare expects the RenderRepaintBoundary. Since we
       // didn't wrap the card in an outer RepaintBoundary keyed by the
       // same GlobalKey, findRenderObject() will return a non-boundary
@@ -100,7 +100,7 @@ void main() {
       //
       // This is the expected behaviour: captureAndShare must not throw
       // when invoked from a context that isn't a real RepaintBoundary.
-      final result = await AuraShareCard.captureAndShare(
+      final result = await KinrelShareCard.captureAndShare(
         boundaryKey: unattachedKey,
         familyName: 'Test',
       );
@@ -114,7 +114,7 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: SizedBox.shrink())),
       );
-      final result = await AuraShareCard.captureAndShare(
+      final result = await KinrelShareCard.captureAndShare(
         boundaryKey: unusedKey,
         familyName: 'Test',
       );

@@ -52,7 +52,7 @@ const TEST_POST_AUTHOR_NAME = `PulseTestAuthor_${TEST_MARKER}`;
 //   None have linkedUserId set.
 //   No existing FamilyPosts.
 //   No existing Sparqs by family users.
-//   No FamilyAura row (archetype = "unknown").
+//   No FamilyKinrel row (archetype = "unknown").
 //
 // Test data we'll insert:
 //   1. A new Person with dateOfBirth=today → birthday collector fires (priority 50)
@@ -72,11 +72,11 @@ const TEST_POST_AUTHOR_NAME = `PulseTestAuthor_${TEST_MARKER}`;
 //   notExpected: on_this_day, memory_orbit
 //
 // Greeting: "Good morning, Yakshitha. Here's your family today."
-// familyArchetype: "unknown" (no FamilyAura row for this family)
+// familyArchetype: "unknown" (no FamilyKinrel row for this family)
 // languageCode: "en"
 //
 // After recordInteraction('call') on the first item:
-//   karmaAwarded = 10 * 1.0 = 10  (no AURA role → multiplier=1.0, base call=10)
+//   karmaAwarded = 10 * 1.0 = 10  (no Kinrel role → multiplier=1.0, base call=10)
 //   BriefInteraction row created
 //   DailyBrief.callsInitiated = 1
 //   DailyBrief.karmaEarned = 10

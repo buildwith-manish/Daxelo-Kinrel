@@ -1,6 +1,6 @@
 // scripts/test_parameter_generator.ts
 //
-// AURA Phase 4 — Validation Script for AuraParameterGeneratorService
+// Kinrel Phase 4 — Validation Script for KinrelParameterGeneratorService
 //
 // Tests the parameter generator against 4 hand-predicted metric sets covering:
 //   1. Synthetic graph from Phase 2 (banyan, multi-language)
@@ -16,9 +16,9 @@
 //
 // Run:  bun scripts/test_parameter_generator.ts
 
-import { AuraParameterGeneratorService, AuraSymbolParameters } from '../server/src/aura/aura-parameter-generator.service';
-import { GraphMetrics } from '../server/src/aura/graph-metrics';
-import { ArchetypeKey } from '../server/src/aura/archetype-classifier.service';
+import { KinrelParameterGeneratorService, KinrelSymbolParameters } from '../server/src/kinrel-intelligence/kinrel-parameter-generator.service';
+import { GraphMetrics } from '../server/src/kinrel-intelligence/graph-metrics';
+import { ArchetypeKey } from '../server/src/kinrel-intelligence/archetype-classifier.service';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST CASES
@@ -29,7 +29,7 @@ interface TestCase {
   description: string;
   archetype: ArchetypeKey;
   metrics: GraphMetrics;
-  predicted: AuraSymbolParameters;
+  predicted: KinrelSymbolParameters;
 }
 
 const testCases: TestCase[] = [
@@ -178,12 +178,12 @@ const testCases: TestCase[] = [
 // RUN TESTS
 // ═══════════════════════════════════════════════════════════════════════════
 
-const generator = new AuraParameterGeneratorService();
+const generator = new KinrelParameterGeneratorService();
 const EPSILON = 0.005;
 let allTestsPass = true;
 
 console.log('══════════════════════════════════════════════════════════════════════════');
-console.log('AURA Phase 4 — Parameter Generator Validation');
+console.log('Kinrel Phase 4 — Parameter Generator Validation');
 console.log('══════════════════════════════════════════════════════════════════════════');
 console.log();
 
@@ -294,7 +294,7 @@ async function runPipelineTest() {
   console.log();
 
   // ── Phase 2: Graph metrics ──
-  const { computeGraphMetrics } = await import('../server/src/aura/graph-metrics');
+  const { computeGraphMetrics } = await import('../server/src/kinrel-intelligence/graph-metrics');
   const nodes = (persons ?? []).map((p: any) => ({ id: p.id }));
   const edges = (relationships ?? []).map((r: any) => ({
     fromId: r.fromPersonId,
@@ -311,7 +311,7 @@ async function runPipelineTest() {
   console.log();
 
   // ── Phase 3: Archetype classification ──
-  const { ArchetypeClassifierService } = await import('../server/src/aura/archetype-classifier.service');
+  const { ArchetypeClassifierService } = await import('../server/src/kinrel-intelligence/archetype-classifier.service');
   const classifier = new ArchetypeClassifierService();
   const classification = classifier.classify(metrics);
   console.log('  Phase 3 (archetype):');

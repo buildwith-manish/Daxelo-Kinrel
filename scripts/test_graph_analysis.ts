@@ -1,14 +1,14 @@
 // scripts/test_graph_analysis.ts
 //
-// AURA Phase 2 — Validation Script
+// Kinrel Phase 2 — Validation Script
 //
-// Tests the pure graph computation in server/src/aura/graph-metrics.ts against:
+// Tests the pure graph computation in server/src/kinrel-intelligence/graph-metrics.ts against:
 //   1. A hand-checkable synthetic test graph (7 members, 9 edges, 3 generations)
 //   2. A real family from the live Supabase DB
 //
 // Run:  bun scripts/test_graph_analysis.ts
 
-import { computeGraphMetrics, GraphNode, GraphEdge, GraphMetrics } from '../server/src/aura/graph-metrics';
+import { computeGraphMetrics, GraphNode, GraphEdge, GraphMetrics } from '../server/src/kinrel-intelligence/graph-metrics';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PART 1: SYNTHETIC TEST GRAPH
