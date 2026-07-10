@@ -280,8 +280,8 @@ export class SupabaseRealtimeService implements OnModuleInit, OnModuleDestroy {
 
       this.broadcastFamilyUpdate(familyId, event);
 
-      // ── Emit domain events for AURA recompute triggers ────────────
-      // Only Person and Relationship changes affect the AURA graph.
+      // ── Emit domain events for Kinrel recompute triggers ────────────
+      // Only Person and Relationship changes affect the Kinrel graph.
       // FamilyInvite changes don't change graph topology.
       if (table === 'Person' || table === 'Relationship') {
         const memberId =
@@ -289,32 +289,32 @@ export class SupabaseRealtimeService implements OnModuleInit, OnModuleDestroy {
           record?.fromPersonId || // Relationship.fromPersonId
           record?.toPersonId; // Relationship.toPersonId
 
-        const auraEventName = `family.${resourceName}.${
+        const kinrelEventName = `family.${resourceName}.${
           table === 'Person' ? (action === 'created' ? 'added' : action === 'deleted' ? 'removed' : 'updated') : action
         }`;
 
-        // Map to the canonical AURA event names that AuraEventListener listens to:
+        // Map to the canonical Kinrel event names that KinrelEventListener listens to:
         //   family.member.added | family.member.removed | family.member.updated
         //   family.relationship.created | family.relationship.deleted | family.relationship.updated
-        let auraEvent: string | null = null;
+        let kinrelEvent: string | null = null;
         if (table === 'Person') {
-          if (action === 'created') auraEvent = 'family.member.added';
-          else if (action === 'deleted') auraEvent = 'family.member.removed';
-          else if (action === 'updated') auraEvent = 'family.member.updated';
+          if (action === 'created') kinrelEvent = 'family.member.added';
+          else if (action === 'deleted') kinrelEvent = 'family.member.removed';
+          else if (action === 'updated') kinrelEvent = 'family.member.updated';
         } else if (table === 'Relationship') {
-          if (action === 'created') auraEvent = 'family.relationship.created';
-          else if (action === 'deleted') auraEvent = 'family.relationship.deleted';
-          else if (action === 'updated') auraEvent = 'family.relationship.updated';
+          if (action === 'created') kinrelEvent = 'family.relationship.created';
+          else if (action === 'deleted') kinrelEvent = 'family.relationship.deleted';
+          else if (action === 'updated') kinrelEvent = 'family.relationship.updated';
         }
 
-        if (auraEvent) {
-          this.eventEmitter.emit(auraEvent, {
+        if (kinrelEvent) {
+          this.eventEmitter.emit(kinrelEvent, {
             familyId,
             memberId,
             eventType: action,
           });
           this.logger.debug(
-            `Emitted AURA event: ${auraEvent} (familyId: ${familyId}, memberId: ${memberId ?? 'none'})`,
+            `Emitted Kinrel event: ${kinrelEvent} (familyId: ${familyId}, memberId: ${memberId ?? 'none'})`,
           );
         }
       }

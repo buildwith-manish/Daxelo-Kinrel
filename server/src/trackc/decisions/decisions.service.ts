@@ -1,5 +1,5 @@
 // =============================================================================
-// Track C v2.0 — AURA Governance: Decisions
+// Track C v2.0 — Kinrel Governance: Decisions
 // decisions.service.ts
 // =============================================================================
 // Implements Section 6.2 (decision endpoints) + Section 10.2 (workflows) +

@@ -23,7 +23,7 @@ import { Injectable, Logger, ForbiddenException, NotFoundException } from '@nest
 import { PrismaService } from '../prisma/prisma.service';
 import { InteractionType } from './brief-types';
 
-// Karma awarded per interaction type. Tied to AURA role multipliers in Phase 6.
+// Karma awarded per interaction type. Tied to Kinrel role multipliers in Phase 6.
 const KARMA_BY_INTERACTION: Record<InteractionType, number> = {
   call: 10,
   message: 5,
@@ -33,7 +33,7 @@ const KARMA_BY_INTERACTION: Record<InteractionType, number> = {
   snooze: 0,
 };
 
-// AURA role multipliers (Phase 6 will refine these)
+// Kinrel role multipliers (Phase 6 will refine these)
 const KARMA_ROLE_MULTIPLIER: Record<string, number> = {
   root: 1.5,
   anchor: 1.3,
@@ -217,7 +217,7 @@ export class PulseQueryService {
    *   2. Create BriefInteraction row
    *   3. Update BriefItem.interactedAt + interactionType (denormalized for fast queries)
    *   4. Update DailyBrief aggregates (interactionCount, callsInitiated, messagesSent, etc.)
-   *   5. Award karma: look up the user's AURA role in this family, compute
+   *   5. Award karma: look up the user's Kinrel role in this family, compute
    *      KARMA_BY_INTERACTION[type] * KARMA_ROLE_MULTIPLIER[roleKey], round, then
    *      upsert FamilyKarma row + append to recentReasons.
    * Returns the awarded karma amount.
@@ -244,14 +244,14 @@ export class PulseQueryService {
     if (!item) throw new NotFoundException('Brief item not found');
     if (item.userId !== userId) throw new ForbiddenException('Not your brief item');
 
-    // 2. Lookup user's AURA role for karma multiplier
+    // 2. Lookup user's Kinrel role for karma multiplier
     let roleKey: string | null = null;
     const linkedPerson = await this.prisma.person.findFirst({
       where: { linkedUserId: userId, deletedAt: null },
       select: { id: true },
     });
     if (linkedPerson) {
-      const role = await this.prisma.memberAuraRole
+      const role = await this.prisma.memberKinrelRole
         .findUnique({
           where: {
             familyId_memberId: {

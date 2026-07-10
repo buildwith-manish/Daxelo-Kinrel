@@ -109,26 +109,26 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           ),
         ),
         actions: [
-          // AURA — Ancestral Unified Relationship Archetype. Gated by
-          // kEnableAura so it ships dark and can be flipped on per build.
-          if (kEnableAura)
+          // Kinrel — Family Relationship Intelligence. Gated by
+          // kEnableKinrel so it ships dark and can be flipped on per build.
+          if (kEnableKinrel)
             IconButton(
               icon: const Icon(Icons.auto_awesome_outlined),
-              tooltip: 'AURA',
+              tooltip: 'Kinrel',
               onPressed: () {
                 final detail = ref
                     .read(familyDetailProvider(widget.familyId))
                     .valueOrNull;
                 final familyName = detail?.family.name;
                 context.push(
-                  '/family/${widget.familyId}/aura',
+                  '/family/${widget.familyId}/kinrel',
                   extra: familyName != null
                       ? <String, dynamic>{'familyName': familyName}
                       : null,
                 );
               },
             ),
-          // Track C v2.0 — AURA Governance Engine (Constitution, Decisions, Timeline)
+          // Track C v2.0 — Kinrel Governance Engine (Constitution, Decisions, Timeline)
           IconButton(
             icon: const Icon(Icons.gavel),
             tooltip: 'Family Governance',
@@ -187,7 +187,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           // ════════════════════════════════════════════════════════════
           // PREMIUM FAMILY SPACE — exactly 5 sections (4 scroll + 1 dock)
           //
-          // 1. Hero (AURA symbol + family name + member/link caption)
+          // 1. Hero (Kinrel symbol + family name + member/link caption)
           // 2. Truth Streak (the one "moment" — terracotta gradient)
           // 3. [FIXED DOCK] Quick-jump navigation row (Members, Games,
           //    Calendar, Memories, Chat — pinned to bottom, always visible)

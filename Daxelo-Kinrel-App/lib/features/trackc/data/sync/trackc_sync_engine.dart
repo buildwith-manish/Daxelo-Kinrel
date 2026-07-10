@@ -1,5 +1,5 @@
 // =============================================================================
-// Track C v2.0 — AURA Governance Engine — Flutter Sync Engine
+// Track C v2.0 — Kinrel Governance Engine — Flutter Sync Engine
 // =============================================================================
 // Implements Section 7 of the FINAL v2.0 spec:
 //   - Watermark protocol (per-device per-family)

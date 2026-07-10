@@ -113,7 +113,7 @@ export class SyncDeltaService {
         take: limit,
       }),
       // Timeline events use occurredAt (no updatedAt; append-only)
-      this.prisma.aURATimelineEvent.findMany({
+      this.prisma.kinrelTimelineEvent.findMany({
         where: { familyId: { in: familyIds }, occurredAt: { gt: sinceDate } },
         take: limit,
         orderBy: { occurredAt: 'asc' },

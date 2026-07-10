@@ -187,69 +187,69 @@
   "languageName": "English",
   "@languageName": { "description": "Name of this language in its own script" },
 
-  "auraNavLabel": "AURA",
-  "@auraNavLabel": { "description": "Nav/drawer label for the AURA feature" },
+  "kinrelNavLabel": "Kinrel",
+  "@kinrelNavLabel": { "description": "Nav/drawer label for the Kinrel feature" },
 
-  "auraScreenTitle": "AURA",
-  "@auraScreenTitle": { "description": "AppBar title on the AURA screen" },
+  "kinrelScreenTitle": "Kinrel",
+  "@kinrelScreenTitle": { "description": "AppBar title on the Kinrel screen" },
 
-  "auraEmptyTitle": "AURA has not been computed yet",
-  "@auraEmptyTitle": { "description": "Title shown when AURA is not yet computed" },
+  "kinrelEmptyTitle": "Kinrel has not been computed yet",
+  "@kinrelEmptyTitle": { "description": "Title shown when Kinrel is not yet computed" },
 
-  "auraEmptyBody": "AURA analyses your family graph to generate a unique symbol and archetype. This usually takes a few seconds.",
-  "@auraEmptyBody": { "description": "Body copy for the AURA empty state" },
+  "kinrelEmptyBody": "Kinrel analyses your family graph to generate a unique symbol and archetype. This usually takes a few seconds.",
+  "@kinrelEmptyBody": { "description": "Body copy for the Kinrel empty state" },
 
-  "auraGenerateButton": "Generate AURA",
-  "@auraGenerateButton": { "description": "Button label to trigger AURA computation" },
+  "kinrelGenerateButton": "Generate Kinrel",
+  "@kinrelGenerateButton": { "description": "Button label to trigger Kinrel computation" },
 
-  "auraRecomputeButton": "Recompute",
-  "@auraRecomputeButton": { "description": "Button label to recompute AURA" },
+  "kinrelRecomputeButton": "Recompute",
+  "@kinrelRecomputeButton": { "description": "Button label to recompute Kinrel" },
 
-  "auraLoadingTitle": "Computing AURA…",
-  "@auraLoadingTitle": { "description": "Loading message shown during AURA computation" },
+  "kinrelLoadingTitle": "Computing Kinrel…",
+  "@kinrelLoadingTitle": { "description": "Loading message shown during Kinrel computation" },
 
-  "auraCachedBanner": "Showing cached AURA — offline mode",
-  "@auraCachedBanner": { "description": "Banner shown when the displayed AURA is from the offline cache" },
+  "kinrelCachedBanner": "Showing cached Kinrel — offline mode",
+  "@kinrelCachedBanner": { "description": "Banner shown when the displayed Kinrel is from the offline cache" },
 
-  "auraErrorTitle": "Could not load AURA",
-  "@auraErrorTitle": { "description": "Error title when AURA fetch fails" },
+  "kinrelErrorTitle": "Could not load Kinrel",
+  "@kinrelErrorTitle": { "description": "Error title when Kinrel fetch fails" },
 
-  "auraShareTooltip": "Share AURA",
-  "@auraShareTooltip": { "description": "Tooltip for the AURA share icon" },
+  "kinrelShareTooltip": "Share Kinrel",
+  "@kinrelShareTooltip": { "description": "Tooltip for the Kinrel share icon" },
 
-  "auraShareText": "Our family's AURA — {familyName}",
-  "@auraShareText": {
-    "description": "Share-sheet text attached to the AURA PNG",
+  "kinrelShareText": "Our family's Kinrel — {familyName}",
+  "@kinrelShareText": {
+    "description": "Share-sheet text attached to the Kinrel PNG",
     "placeholders": {
       "familyName": { "type": "String", "example": "Sharma Family" }
     }
   },
 
-  "auraTimelineTitle": "AURA Timeline",
-  "@auraTimelineTitle": { "description": "Header for the AURA timeline widget" },
+  "kinrelTimelineTitle": "Kinrel Timeline",
+  "@kinrelTimelineTitle": { "description": "Header for the Kinrel timeline widget" },
 
-  "auraTimelineEmptyTitle": "No AURA history yet",
-  "@auraTimelineEmptyTitle": { "description": "Title for the empty AURA timeline state" },
+  "kinrelTimelineEmptyTitle": "No Kinrel history yet",
+  "@kinrelTimelineEmptyTitle": { "description": "Title for the empty Kinrel timeline state" },
 
-  "auraTimelineEmptyBody": "As your family grows, snapshots of how the AURA evolved will appear here.",
-  "@auraTimelineEmptyBody": { "description": "Body for the empty AURA timeline state" },
+  "kinrelTimelineEmptyBody": "As your family grows, snapshots of how the Kinrel evolved will appear here.",
+  "@kinrelTimelineEmptyBody": { "description": "Body for the empty Kinrel timeline state" },
 
-  "auraMemberCountCaption": "{count} members",
-  "@auraMemberCountCaption": {
-    "description": "Caption showing the family's member count on the AURA card",
+  "kinrelMemberCountCaption": "{count} members",
+  "@kinrelMemberCountCaption": {
+    "description": "Caption showing the family's member count on the Kinrel card",
     "placeholders": {
       "count": { "type": "int", "example": "42" }
     }
   },
 
-  "auraConfidenceLabel": "{percent}% match",
-  "@auraConfidenceLabel": {
-    "description": "Confidence meter label on the AURA archetype card",
+  "kinrelConfidenceLabel": "{percent}% match",
+  "@kinrelConfidenceLabel": {
+    "description": "Confidence meter label on the Kinrel archetype card",
     "placeholders": {
       "percent": { "type": "int", "example": "87" }
     }
   },
 
-  "auraFeatureDisabled": "AURA is not available.",
-  "@auraFeatureDisabled": { "description": "Message shown when AURA is feature-flagged off" }
+  "kinrelFeatureDisabled": "Kinrel is not available.",
+  "@kinrelFeatureDisabled": { "description": "Message shown when Kinrel is feature-flagged off" }
 }

@@ -1,8 +1,8 @@
 // =============================================================================
-// Track C v2.0 — AURA Timeline
+// Track C v2.0 — Kinrel Timeline
 // timeline.controller.ts
 // =============================================================================
-// REST endpoints for the AURA Timeline. Section 6.3.
+// REST endpoints for the Kinrel Timeline. Section 6.3.
 //
 // Per the spec: NO PATCH or DELETE endpoints exist by design.
 // =============================================================================

@@ -10,13 +10,13 @@
 **Daxelo Kinrel** is an Indian family relationship intelligence app (Flutter + NestJS + Supabase). It maps kinship across 7 Indian languages with a graph-first architecture.
 
 **The vision**: Build three pillars that make the app unfireable from a phone:
-1. **AURA** (already built) — Family identity crest generated from graph topology. Festival-level engagement.
+1. **Kinrel** (already built) — Family identity crest generated from graph topology. Festival-level engagement.
 2. **Pulse** (in progress) — Daily 7am personalized family intelligence brief. The "WhatsApp chat" daily driver.
 3. **Pitru** (next) — Ancestral voice memory with AI persona. The forever lock-in.
 
 **Plus 10 addictiveness features** that layer across Pulse + Pitru:
 - Kinrel Streaks (connection streaks between pairs)
-- Family Karma (invisible social currency, tied to AURA roles)
+- Family Karma (invisible social currency, tied to Kinrel roles)
 - Relationship Weather (per-pair emotional climate: sunny/cloudy/stormy)
 - Memory Orbits (memories resurface on anniversaries + festivals)
 - Blessing Chain (elders record blessings, scheduled delivery on birthdays/festivals)
@@ -69,11 +69,11 @@ Daxelo-Kinrel/
 ├── Daxelo-Kinrel-App/        # Flutter app (web + mobile)
 ├── server/                    # NestJS backend (TypeScript + Prisma)
 │   ├── src/
-│   │   ├── aura/              # ✅ AURA — COMPLETE (Phases 1-6)
+│   │   ├── kinrel-intelligence/              # ✅ Kinrel — COMPLETE (Phases 1-6)
 │   │   ├── pulse/             # 🚧 Pulse — IN PROGRESS (Phase 1 partial)
 │   │   ├── modules/           # Existing modules (auth, families, graph, etc.)
 │   │   └── app.module.ts
-│   └── prisma/schema.prisma   # Prisma schema (includes AURA + Pulse models)
+│   └── prisma/schema.prisma   # Prisma schema (includes Kinrel + Pulse models)
 ├── supabase/migrations/       # SQL migrations (applied to live DB)
 └── scripts/                   # Test/validation scripts
 ```
@@ -82,32 +82,32 @@ Daxelo-Kinrel/
 
 ## 3. What's Already Built (DO NOT redo)
 
-### AURA — COMPLETE ✅ (6 phases, deployed to production)
+### Kinrel — COMPLETE ✅ (6 phases, deployed to production)
 
-**Migration:** `supabase/migrations/20260708010000_create_aura_tables.sql` (applied live)
-- 3 tables: `FamilyAura`, `FamilyAuraHistory`, `MemberAuraRole`
+**Migration:** `supabase/migrations/20260708010000_create_kinrel_tables.sql` (applied live)
+- 3 tables: `FamilyKinrel`, `FamilyKinrelHistory`, `MemberKinrelRole`
 - RLS: 12 policies (family members SELECT, service_role writes)
-- Realtime: `FamilyAura` + `MemberAuraRole` in `supabase_realtime` publication
+- Realtime: `FamilyKinrel` + `MemberKinrelRole` in `supabase_realtime` publication
 - Prisma models in `server/prisma/schema.prisma`
 
-**NestJS services** (in `server/src/aura/`):
+**NestJS services** (in `server/src/kinrel-intelligence/`):
 - `graph-metrics.ts` — pure computation (Brandes betweenness, BFS generations, clustering, lineage, language distribution). Validated against hand-computed test graph — all 30+ metrics match.
 - `graph-analysis.service.ts` — NestJS wrapper, loads from Prisma
 - `archetype-classifier.service.ts` — 6 archetypes (banyan, river_delta, confluence, spine, lotus, forest) with 8-language names. Validated against 5 test cases.
-- `aura-parameter-generator.service.ts` — symbol math (rings, spokes, colors, pulse). Validated against 4 test cases with exact hex matches.
+- `kinrel-parameter-generator.service.ts` — symbol math (rings, spokes, colors, pulse). Validated against 4 test cases with exact hex matches.
 - `role-glyph.service.ts` — per-member role classification (root/anchor/bridge/weaver/leaf/twin_node)
-- `aura-orchestration.service.ts` — main coordinator: graph→classify→params→upsert→history→roles. Bug fixed: `archetypeChanged=false` on first computation.
-- `aura-query.service.ts` — read queries with family membership verification
-- `aura.controller.ts` — REST: `GET /aura/:familyId`, `/roles`, `/history`; `POST /recompute`
-- `aura-event.listener.ts` — listens to 6 domain events, 2s debounce, triggers recompute. Bug fixed: FK validation for deleted persons.
-- `aura.module.ts` — wires all providers
+- `kinrel-orchestration.service.ts` — main coordinator: graph→classify→params→upsert→history→roles. Bug fixed: `archetypeChanged=false` on first computation.
+- `kinrel-query.service.ts` — read queries with family membership verification
+- `kinrel.controller.ts` — REST: `GET /kinrel-intelligence/:familyId`, `/roles`, `/history`; `POST /recompute`
+- `kinrel-event.listener.ts` — listens to 6 domain events, 2s debounce, triggers recompute. Bug fixed: FK validation for deleted persons.
+- `kinrel.module.ts` — wires all providers
 
 **EventEmitter integration:**
 - `@nestjs/event-emitter` installed and `EventEmitterModule.forRoot()` registered in `app.module.ts`
 - `SupabaseRealtimeService` (in `server/src/modules/realtime/supabase-realtime.service.ts`) modified to emit domain events (`family.member.added`, `family.relationship.created`, etc.) when Person/Relationship changes occur
 
 **Test scripts** (in `scripts/`):
-- `test_graph_analysis.ts`, `test_archetype_classifier.ts`, `test_parameter_generator.ts`, `test_aura_orchestration.ts`, `test_aura_event_listener.ts`
+- `test_graph_analysis.ts`, `test_archetype_classifier.ts`, `test_parameter_generator.ts`, `test_kinrel_orchestration.ts`, `test_kinrel_event_listener.ts`
 
 ### Pulse — IN PROGRESS 🚧 (Phase 1 partial)
 
@@ -161,7 +161,7 @@ All endpoints require JWT auth (global `JwtAuthGuard`). Use `@CurrentUser('id')`
 - Use `OnModuleInit` to call `briefGeneratorService.setCollectors([...all collectors])` after DI resolves
 - Export `BriefGeneratorService` (for the cron job to use)
 
-**4.4 Register `PulseModule` in `app.module.ts`** (next to `AuraModule`)
+**4.4 Register `PulseModule` in `app.module.ts`** (next to `KinrelModule`)
 
 **4.5 Write the daily 7am cron:**
 - Use `@nestjs/schedule` (already installed — `ScheduleModule.forRoot()` is registered)
@@ -180,11 +180,11 @@ All endpoints require JWT auth (global `JwtAuthGuard`). Use `@CurrentUser('id')`
 
 ### Pulse Phase 2-6 (after Phase 1 validates)
 
-- **P-2**: Brief collectors deep-dive (graph-aware personalization using AURA roles + relationship closeness)
+- **P-2**: Brief collectors deep-dive (graph-aware personalization using Kinrel roles + relationship closeness)
 - **P-3**: Push notification delivery via FCM (the `deliveredAt` field on DailyBrief)
 - **P-4**: Relationship Weather computation algorithm (interaction frequency + sentiment scoring)
 - **P-5**: Connection Streaks tracking (hook into chat/call events)
-- **P-6**: Family Karma scoring (karma rules per interaction type, tied to AURA roles)
+- **P-6**: Family Karma scoring (karma rules per interaction type, tied to Kinrel roles)
 
 ### Pitru (after Pulse validates daily engagement)
 
@@ -252,7 +252,7 @@ Before marking any phase complete:
 
 > *Daxelo Kinrel is the only app that knows your family well enough to tell you, every morning, who needs you today — and keeps your grandmother's voice alive forever.*
 
-- **AURA** = brand identity (the crest on the door). Festival-level engagement. Already built.
+- **Kinrel** = brand identity (the crest on the door). Festival-level engagement. Already built.
 - **Pulse** = daily driver (the reason people walk in every day). The "WhatsApp chat" moment.
 - **Pitru** = lock-in (the reason they never leave). Ancestral voice memory + AI persona.
 

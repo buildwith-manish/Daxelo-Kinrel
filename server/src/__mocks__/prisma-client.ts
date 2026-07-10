@@ -82,7 +82,7 @@ export class PrismaClient {
   familyConnection = makeModelMock();
   familyMilestone = makeModelMock();
 
-  // ── Agent-7 Track C (AURA Governance) models ──────────────────────
+  // ── Agent-7 Track C (Kinrel Governance) models ──────────────────────
   // Constitution lifecycle
   familyConstitution = makeModelMockWithDeleteMany();
   constitutionVersion = makeModelMockWithDeleteMany();
@@ -95,26 +95,26 @@ export class PrismaClient {
   decisionMemory = makeModelMock();
   decisionImpact = makeModelMock();
 
-  // AURA Timeline
-  aURATimelineEvent = makeModelMock();
+  // Kinrel Timeline
+  kinrelTimelineEvent = makeModelMock();
 
-  // AURA Intelligence
+  // Kinrel Intelligence
   aIInsight = makeModelMockWithDeleteMany();
   aICostBudget = makeModelMock();
 
-  // AURA Learning
+  // Kinrel Learning
   learningSignal = makeModelMock();
   familyBehaviorProfile = makeModelMock();
   familyBehaviorProfileHistory = makeModelMock();
   globalLearningDefaults = makeModelMock();
 
-  // AURA Search
+  // Kinrel Search
   searchIndex = makeModelMockWithDeleteMany();
 
-  // AURA Analytics
+  // Kinrel Analytics
   familyAnalyticsSnapshot = makeModelMock();
 
-  // AURA Secretary
+  // Kinrel Secretary
   meetingArtifact = makeModelMockWithDeleteMany();
 
   // Smart Reminders

@@ -8,7 +8,7 @@ async function main() {
   // 1. Verify all Track C tables exist
   const expectedTables = [
     'FamilyConstitution','ConstitutionVersion','ConstitutionArticle','ConstitutionClause',
-    'FamilyDecision','DecisionVote','AURATimelineEvent','AIInsight',
+    'FamilyDecision','DecisionVote','KinrelTimelineEvent','AIInsight',
     'LearningSignal','FamilyBehaviorProfile','FamilyBehaviorProfileHistory',
     'SmartReminder','DecisionMemory','DecisionImpact','MeetingArtifact',
     'SearchIndex','FamilyAnalyticsSnapshot','GlobalLearningDefaults',
@@ -28,7 +28,7 @@ async function main() {
     SELECT c.relname, pt.partstrat
     FROM pg_partitioned_table pt
     JOIN pg_class c ON c.oid = pt.partrelid
-    WHERE c.relname IN ('FamilyDecision','AURATimelineEvent','AIInsight','LearningSignal')
+    WHERE c.relname IN ('FamilyDecision','KinrelTimelineEvent','AIInsight','LearningSignal')
   `);
   console.log(`Partitioned tables: ${r2.rows.length}/4`);
   for (const row of r2.rows) {
@@ -45,7 +45,7 @@ async function main() {
   const r3 = await client.query(`
     SELECT tablename FROM pg_tables
     WHERE schemaname = 'public' AND rowsecurity = true
-    AND tablename IN ('FamilyConstitution','FamilyDecision','AURATimelineEvent','AIInsight','LearningSignal','FamilyBehaviorProfile','SmartReminder','DecisionMemory','DecisionImpact','MeetingArtifact','SearchIndex','FamilyAnalyticsSnapshot')
+    AND tablename IN ('FamilyConstitution','FamilyDecision','KinrelTimelineEvent','AIInsight','LearningSignal','FamilyBehaviorProfile','SmartReminder','DecisionMemory','DecisionImpact','MeetingArtifact','SearchIndex','FamilyAnalyticsSnapshot')
   `);
   console.log(`RLS-enabled tables: ${r3.rows.length}/12`);
 

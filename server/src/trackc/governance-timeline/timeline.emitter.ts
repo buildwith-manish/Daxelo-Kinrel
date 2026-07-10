@@ -1,8 +1,8 @@
 // =============================================================================
-// Track C v2.0 — AURA Timeline
+// Track C v2.0 — Kinrel Timeline
 // timeline.emitter.ts
 // =============================================================================
-// Single entry point for appending events to the AURA Timeline.
+// Single entry point for appending events to the Kinrel Timeline.
 //
 // Other modules call `timelineEmitter.append(...)` to record governance events.
 // This service guarantees:
@@ -55,7 +55,7 @@ export class TimelineEmitter {
       const schema = TimelineEventPayloadSchemas[params.kind];
       const payload = schema ? schema(params.payload ?? {}) : (params.payload ?? {});
 
-      const event = await this.prisma.aURATimelineEvent.create({
+      const event = await this.prisma.kinrelTimelineEvent.create({
         data: {
           familyId: params.familyId,
           kind: params.kind,

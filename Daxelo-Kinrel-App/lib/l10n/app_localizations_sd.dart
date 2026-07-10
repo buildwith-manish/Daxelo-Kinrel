@@ -185,61 +185,61 @@ class SSd extends S {
   String get languageName => 'सिन्धी';
 
   @override
-  String get auraNavLabel => 'AURA';
+  String get kinrelNavLabel => 'Kinrel';
 
   @override
-  String get auraScreenTitle => 'AURA';
+  String get kinrelScreenTitle => 'Kinrel';
 
   @override
-  String get auraEmptyTitle => 'AURA has not been computed yet';
+  String get kinrelEmptyTitle => 'Kinrel has not been computed yet';
 
   @override
-  String get auraEmptyBody =>
-      'AURA analyses your family graph to generate a unique symbol and archetype. This usually takes a few seconds.';
+  String get kinrelEmptyBody =>
+      'Kinrel analyses your family graph to generate a unique symbol and archetype. This usually takes a few seconds.';
 
   @override
-  String get auraGenerateButton => 'Generate AURA';
+  String get kinrelGenerateButton => 'Generate Kinrel';
 
   @override
-  String get auraRecomputeButton => 'Recompute';
+  String get kinrelRecomputeButton => 'Recompute';
 
   @override
-  String get auraLoadingTitle => 'Computing AURA…';
+  String get kinrelLoadingTitle => 'Computing Kinrel…';
 
   @override
-  String get auraCachedBanner => 'Showing cached AURA — offline mode';
+  String get kinrelCachedBanner => 'Showing cached Kinrel — offline mode';
 
   @override
-  String get auraErrorTitle => 'Could not load AURA';
+  String get kinrelErrorTitle => 'Could not load Kinrel';
 
   @override
-  String get auraShareTooltip => 'Share AURA';
+  String get kinrelShareTooltip => 'Share Kinrel';
 
   @override
-  String auraShareText(String familyName) {
-    return 'Our family\'s AURA — $familyName';
+  String kinrelShareText(String familyName) {
+    return 'Our family\'s Kinrel — $familyName';
   }
 
   @override
-  String get auraTimelineTitle => 'AURA Timeline';
+  String get kinrelTimelineTitle => 'Kinrel Timeline';
 
   @override
-  String get auraTimelineEmptyTitle => 'No AURA history yet';
+  String get kinrelTimelineEmptyTitle => 'No Kinrel history yet';
 
   @override
-  String get auraTimelineEmptyBody =>
-      'As your family grows, snapshots of how the AURA evolved will appear here.';
+  String get kinrelTimelineEmptyBody =>
+      'As your family grows, snapshots of how the Kinrel evolved will appear here.';
 
   @override
-  String auraMemberCountCaption(int count) {
+  String kinrelMemberCountCaption(int count) {
     return '$count members';
   }
 
   @override
-  String auraConfidenceLabel(int percent) {
+  String kinrelConfidenceLabel(int percent) {
     return '$percent% match';
   }
 
   @override
-  String get auraFeatureDisabled => 'AURA is not available.';
+  String get kinrelFeatureDisabled => 'Kinrel is not available.';
 }

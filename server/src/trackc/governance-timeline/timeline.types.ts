@@ -1,8 +1,8 @@
 // =============================================================================
-// Track C v2.0 — AURA Timeline
+// Track C v2.0 — Kinrel Timeline
 // timeline.types.ts
 // =============================================================================
-// Shared types and per-kind payload schemas for AURA Timeline events.
+// Shared types and per-kind payload schemas for Kinrel Timeline events.
 // Section 11.1 of the FINAL v2.0 spec.
 // =============================================================================
 

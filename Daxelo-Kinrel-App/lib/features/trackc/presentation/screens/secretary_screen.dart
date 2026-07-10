@@ -1,5 +1,5 @@
 // =============================================================================
-// Track C v2.0 — AURA Secretary Screen
+// Track C v2.0 — Kinrel Secretary Screen
 // =============================================================================
 // Browse meeting artifacts. Draft → Reviewed → Published lifecycle.
 // =============================================================================
@@ -19,7 +19,7 @@ class TrackcSecretaryScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('AURA Secretary')),
+      appBar: AppBar(title: const Text('Kinrel Secretary')),
       body: FutureBuilder<List<dynamic>>(
         future: familyId == null ? null : api.listArtifacts(familyId),
         builder: (context, snapshot) {

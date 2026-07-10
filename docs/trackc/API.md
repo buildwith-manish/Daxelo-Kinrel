@@ -116,7 +116,7 @@ Update an impact milestone (mark completed, add evidence, etc.).
 
 ---
 
-## AURA Timeline
+## Kinrel Timeline
 
 ### `GET /families/{familyId}/timeline?kind=decision_resolved&cursor=...`
 List timeline events. Optional `kind` filter (CSV for multiple). Cursor pagination on `occurredAt`.
@@ -145,7 +145,7 @@ Append a correction event. The original event is NEVER mutated (DB trigger).
 
 ---
 
-## AURA Intelligence
+## Kinrel Intelligence
 
 ### `POST /families/{familyId}/decisions/{decisionId}/insights/request`
 Request one or more insights. Returns cached insights immediately; generates new ones synchronously if circuit is closed and budget remains.
@@ -185,7 +185,7 @@ Allowed reasons: `not_relevant`, `already_known`, `too_prescriptive`, `other`.
 
 ---
 
-## AURA Learning Engine
+## Kinrel Learning Engine
 
 ### `GET /families/{familyId}/learning/profile`
 Get the family's behavior profile. Returns global defaults if `confidenceScore < 0.4`.
@@ -213,7 +213,7 @@ Ingest a client-side signal (e.g. reminder dismissed, insight accepted).
 
 ---
 
-## AURA Search
+## Kinrel Search
 
 ### `GET /families/{familyId}/search?q=trip&entityType=decision&limit=20`
 Universal search. Uses Postgres tsvector + GIN index. Ranking: `ts_rank_cd × boostedScore`.
@@ -226,7 +226,7 @@ Autocomplete. Returns up to 10 distinct titles matching the prefix.
 
 ---
 
-## AURA Secretary
+## Kinrel Secretary
 
 ### `POST /families/{familyId}/secretary/artifacts`
 Create a new meeting artifact. Generates draft minutes via LLM (with PII redaction). Extracts action items.
@@ -245,7 +245,7 @@ Edit the draft minutes (Markdown). Only allowed while status=draft or reviewed.
 
 ---
 
-## AURA Analytics
+## Kinrel Analytics
 
 ### `GET /families/{familyId}/analytics/snapshots?granularity=weekly&from=...&to=...`
 List snapshots. Up to 52 returned (1 year of weekly).

@@ -24,7 +24,7 @@
 //   - The listener is idempotent: if a MemorialProfile already exists, it does nothing
 //
 // Note: the listener is defensive — any error is caught and logged, never thrown
-// (an event handler error would crash the EventEmitter and break AURA recompute too).
+// (an event handler error would crash the EventEmitter and break Kinrel recompute too).
 
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';

@@ -3,7 +3,7 @@
 // BriefGeneratorService — the orchestrator that builds the daily brief.
 //
 // Pipeline (per user):
-//   1. Load context: User, Family, FamilyAura (if exists), MemberAuraRole (if exists)
+//   1. Load context: User, Family, FamilyKinrel (if exists), MemberKinrelRole (if exists)
 //   2. Build BriefCollectorContext
 //   3. Run all 6 collectors in parallel via Promise.allSettled
 //      (each collector is defensive — a rejection is logged but doesn't break the brief)
@@ -371,16 +371,16 @@ export class BriefGeneratorService implements OnModuleInit {
       select: { id: true, familyId: true },
     });
 
-    // 3. Look up FamilyAura (current archetype for this family)
-    const aura = await this.prisma.familyAura.findUnique({
+    // 3. Look up FamilyKinrel (current archetype for this family)
+    const kinrel = await this.prisma.familyKinrel.findUnique({
       where: { familyId: fm.familyId },
       select: { archetypeKey: true },
     });
 
-    // 4. Look up MemberAuraRole for this user's Person (if any)
+    // 4. Look up MemberKinrelRole for this user's Person (if any)
     let userRoleKey: string | null = null;
     if (linkedPerson) {
-      const role = await this.prisma.memberAuraRole.findUnique({
+      const role = await this.prisma.memberKinrelRole.findUnique({
         where: {
           familyId_memberId: {
             familyId: fm.familyId,
@@ -402,7 +402,7 @@ export class BriefGeneratorService implements OnModuleInit {
         id: fm.family.id,
         primaryLanguage: fm.family.primaryLanguage,
       },
-      familyArchetype: aura?.archetypeKey ?? 'unknown',
+      familyArchetype: kinrel?.archetypeKey ?? 'unknown',
       userPersonId: linkedPerson?.id ?? null,
       userRoleKey,
     };

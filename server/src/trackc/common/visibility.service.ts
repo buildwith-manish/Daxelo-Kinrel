@@ -3,7 +3,7 @@
 // visibility.service.ts
 // =============================================================================
 // Pure helpers + an injectable service that implements the role- and age-based
-// visibility matrix for the AURA Governance module.
+// visibility matrix for the Kinrel Governance module.
 //
 // AGE RULE (fail-open, not fail-closed):
 //   - `isMinorUser(dateOfBirth)` returns true ONLY when dateOfBirth is known

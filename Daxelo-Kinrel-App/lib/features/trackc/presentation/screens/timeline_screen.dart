@@ -1,5 +1,5 @@
 // =============================================================================
-// Track C v2.0 — AURA Timeline Screen
+// Track C v2.0 — Kinrel Timeline Screen
 // =============================================================================
 // Append-only family history. Filter by kind. Tap for detail + corrections.
 //
@@ -72,7 +72,7 @@ class _TrackcTimelineScreenState extends ConsumerState<TrackcTimelineScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AURA Timeline'),
+        title: const Text('Kinrel Timeline'),
         actions: [
           // "Show raw log" toggle — admin-only
           if (caps.isAdmin)
@@ -167,7 +167,7 @@ class _TrackcTimelineScreenState extends ConsumerState<TrackcTimelineScreen> {
                         const Text('No timeline events yet'),
                         const SizedBox(height: 8),
                         Text(
-                          'Governance events will appear here as your family uses AURA.',
+                          'Governance events will appear here as your family uses Kinrel.',
                           style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                           textAlign: TextAlign.center,
                         ),

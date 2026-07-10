@@ -34,9 +34,9 @@ const bool kEnableLanguagePicker = true;
 /// Audio pronunciation of kinship terms via flutter_tts.
 const bool kEnableAudioPronunciation = true;
 
-/// AURA — Ancestral Unified Relationship Archetype.
-/// Gates the AURA nav entry, the home-screen cover replacement, and the
-/// /aura route so the feature can ship dark and be turned on per build.
-/// Backend (server/src/aura/*) is already live; this flag controls only
+/// Kinrel — Family Relationship Intelligence.
+/// Gates the Kinrel nav entry, the home-screen cover replacement, and the
+/// /kinrel route so the feature can ship dark and be turned on per build.
+/// Backend (server/src/kinrel-intelligence/*) is already live; this flag controls only
 /// the Flutter UI surface.
-const bool kEnableAura = true;
+const bool kEnableKinrel = true;

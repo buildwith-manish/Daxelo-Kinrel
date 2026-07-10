@@ -35,8 +35,8 @@ import '../../core/constants/brand_typography.dart';
 import '../../core/constants/feature_flags.dart';
 import '../../core/kinship/kinship_edge_style.dart';
 import '../../core/widgets/cached_avatar.dart';
-import '../../features/aura/providers/aura_provider.dart';
-import '../../features/aura/widgets/role_glyph_badge.dart';
+import '../../features/kinrel_intelligence/providers/kinrel_provider.dart';
+import '../../features/kinrel_intelligence/widgets/role_glyph_badge.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // NODE STATE ENUM
@@ -330,8 +330,8 @@ class GraphNode extends ConsumerStatefulWidget {
   /// (linkedUserId is null). Shows a small "Pending" badge on the node.
   final bool isUnclaimed;
 
-  /// Optional family ID — when provided AND kEnableAura is true, the
-  /// node shows an AURA role glyph badge (root/anchor/bridge/weaver/leaf/
+  /// Optional family ID — when provided AND kEnableKinrel is true, the
+  /// node shows an Kinrel role glyph badge (root/anchor/bridge/weaver/leaf/
   /// twin_node) on the bottom-right of the avatar. Pass null to skip
   /// the badge (e.g. on preview nodes outside a family context).
   final String? familyId;
@@ -873,11 +873,11 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                 ),
               ),
             ),
-          // AURA role glyph badge (top-right) — shows the member's role
-          // within the family AURA (root/anchor/bridge/weaver/leaf/twin_node).
+          // Kinrel role glyph badge (top-right) — shows the member's role
+          // within the family Kinrel (root/anchor/bridge/weaver/leaf/twin_node).
           // Rendered only when the feature flag is on AND a familyId is
           // provided AND the provider has a role for this member.
-          if (kEnableAura && widget.familyId != null)
+          if (kEnableKinrel && widget.familyId != null)
             Positioned(
               right: 0,
               top: 0,
@@ -1020,9 +1020,9 @@ class _ShimmerPainter extends CustomPainter {
   }
 }
 
-/// AURA role glyph badge for a single [GraphNode]. Watches
+/// Kinrel role glyph badge for a single [GraphNode]. Watches
 /// [memberRoleGlyphProvider] for the (familyId, memberId) pair and
-/// renders nothing if AURA hasn't been computed or the member has no
+/// renders nothing if Kinrel hasn't been computed or the member has no
 /// role row yet — keeps the existing node visuals untouched.
 class _NodeRoleGlyphBadge extends ConsumerWidget {
   const _NodeRoleGlyphBadge({

@@ -171,7 +171,7 @@ async function main() {
   }
 
   // ── 6. AI Insights ───────────────────────────────────────────────────
-  console.log('\n6. AURA Intelligence (AI Insights):');
+  console.log('\n6. Kinrel Intelligence (AI Insights):');
   if (decisionId) {
     const insRes = await apiCall('POST', `/api/v1/families/${familyId}/decisions/${decisionId}/insights/request`, {
       kinds: ['decision_analysis', 'pros_cons'],
@@ -189,7 +189,7 @@ async function main() {
   }
 
   // ── 7. Learning ──────────────────────────────────────────────────────
-  console.log('\n7. AURA Learning:');
+  console.log('\n7. Kinrel Learning:');
   const lpRes = await apiCall('GET', `/api/v1/families/${familyId}/learning/profile`);
   check('GET learning profile', lpRes.status === 200, `status ${lpRes.status}: ${JSON.stringify(lpRes.data).slice(0, 200)}`);
   if (lpRes.status === 200) {
@@ -205,7 +205,7 @@ async function main() {
   check('POST learning signal', sigRes.status === 200 || sigRes.status === 201, `status ${sigRes.status}: ${JSON.stringify(sigRes.data).slice(0, 200)}`);
 
   // ── 8. Search ────────────────────────────────────────────────────────
-  console.log('\n8. AURA Search:');
+  console.log('\n8. Kinrel Search:');
   const reindexRes = await apiCall('POST', `/api/v1/families/${familyId}/search/reindex`);
   check('POST reindex', reindexRes.status === 200, `status ${reindexRes.status}: ${JSON.stringify(reindexRes.data).slice(0, 200)}`);
   if (reindexRes.status === 200) console.log(`    reindexed ${reindexRes.data.reindexed} entities`);
@@ -218,7 +218,7 @@ async function main() {
   check('GET suggest', sugRes.status === 200, `status ${sugRes.status}`);
 
   // ── 9. Secretary ─────────────────────────────────────────────────────
-  console.log('\n9. AURA Secretary:');
+  console.log('\n9. Kinrel Secretary:');
   const artRes = await apiCall('POST', `/api/v1/families/${familyId}/secretary/artifacts`, {
     title: 'Family Meeting — Test',
     heldAt: new Date().toISOString(),
@@ -239,7 +239,7 @@ async function main() {
   }
 
   // ── 10. Analytics ────────────────────────────────────────────────────
-  console.log('\n10. AURA Analytics:');
+  console.log('\n10. Kinrel Analytics:');
   const trigRes = await apiCall('POST', `/api/v1/families/${familyId}/analytics/trigger?granularity=weekly`);
   check('POST trigger snapshot', trigRes.status === 200, `status ${trigRes.status}: ${JSON.stringify(trigRes.data).slice(0, 200)}`);
 

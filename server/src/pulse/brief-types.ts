@@ -3,7 +3,7 @@
 // PULSE — Pure types and constants for the daily brief.
 //
 // This file has ZERO NestJS dependencies — it can be unit-tested standalone with `bun`.
-// (Same pattern as AURA's `graph-metrics.ts` and `archetype-classifier.service.ts`.)
+// (Same pattern as Kinrel's `graph-metrics.ts` and `archetype-classifier.service.ts`.)
 //
 // Contents:
 //   1. BriefItemType enum (6 item types — the "6-item brief" UX)
@@ -157,10 +157,10 @@ export interface BriefCollectorContext {
   briefDate: Date; // the day this brief is for (DATE, 00:00 local)
   userLanguageCode: string; // ISO-639-1 ('en', 'hi', 'ta', 'te', 'kn', 'mr', 'gu', 'bn')
   userDisplayName: string | null; // for greeting personalization
-  familyArchetype: string; // from AURA, or 'unknown' if AURA hasn't run yet
+  familyArchetype: string; // from Kinrel, or 'unknown' if Kinrel hasn't run yet
   /** The user's Person node, if linked. null if user has no linkedPerson. */
   userPersonId: string | null;
-  /** The user's AURA role in this family, if computed. null if no AURA yet. */
+  /** The user's Kinrel role in this family, if computed. null if no Kinrel yet. */
   userRoleKey: string | null;
   /**
    * Phase 2: Personalization service (with cached family graph loaded).
@@ -174,7 +174,7 @@ export interface BriefCollectorContext {
       graphDistance: number;
       generationDistance: number;
       relationshipSemantic: number;
-      auraRoleMatch: number;
+      kinrelRoleMatch: number;
       sharedConnections: number;
       hopCount: number | null;
       notes: string[];
@@ -202,7 +202,7 @@ export interface BriefResult {
 // 9. GREETINGS — 8-language "Good morning, {name}" templates
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// Supported languages (matches AURA's language distribution):
+// Supported languages (matches Kinrel's language distribution):
 //   en — English     (default fallback)
 //   hi — Hindi       (Devanagari)
 //   ta — Tamil

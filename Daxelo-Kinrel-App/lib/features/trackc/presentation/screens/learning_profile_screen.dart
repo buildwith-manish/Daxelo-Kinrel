@@ -1,5 +1,5 @@
 // =============================================================================
-// Track C v2.0 — AURA Learning Profile Screen
+// Track C v2.0 — Kinrel Learning Profile Screen
 // =============================================================================
 // Shows what the Learning Engine has learned about the family, with a reset
 // button (admin-only). Section 9.5 transparency commitment.
@@ -52,7 +52,7 @@ class _AdminLearningProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AURA Learning'),
+        title: const Text('Kinrel Learning'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -131,7 +131,7 @@ class _AdminLearningProfileScreen extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            'AURA is still learning your family\'s patterns. Personalization kicks in after 30 signals.',
+                            'Kinrel is still learning your family\'s patterns. Personalization kicks in after 30 signals.',
                             style: TextStyle(color: Colors.orange.shade900, fontSize: 13),
                           ),
                         ),
@@ -243,7 +243,7 @@ class _AdminLearningProfileScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'AURA Learning stores only pseudonymous shapes — never raw text or PII. '
+                      'Kinrel Learning stores only pseudonymous shapes — never raw text or PII. '
                       'Every signal is a count, duration, or day-of-week bucket. '
                       'Reset returns to defaults; previous versions retained 90 days for audit.',
                       style: TextStyle(color: Colors.blue.shade900, fontSize: 13),
@@ -340,7 +340,7 @@ class _MemberLearningSummaryScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AURA Learning'),
+        title: const Text('Kinrel Learning'),
         // No reset button for non-admins
       ),
       body: summaryAsync.when(

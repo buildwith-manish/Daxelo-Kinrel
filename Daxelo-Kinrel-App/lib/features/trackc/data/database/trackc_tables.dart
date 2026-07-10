@@ -1,10 +1,10 @@
 // =============================================================================
-// Track C v2.0 — AURA Governance Engine — Flutter Drift Schema
+// Track C v2.0 — Kinrel Governance Engine — Flutter Drift Schema
 // =============================================================================
 // Offline mirror of all tier-1 entities (Section 7.1 strong consistency tier):
 //   - FamilyConstitution + Version + Article + Clause
 //   - FamilyDecision + DecisionVote
-//   - AURATimelineEvent (read-only mirror)
+//   - KinrelTimelineEvent (read-only mirror)
 //   - DecisionMemory + DecisionImpact
 //   - MeetingArtifact
 //
@@ -128,7 +128,7 @@ class TrackcDecisionVotes extends Table {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// TABLE: AURA Timeline (tier 1 — read-only mirror)
+// TABLE: Kinrel Timeline (tier 1 — read-only mirror)
 // ────────────────────────────────────────────────────────────────────────────
 
 class TrackcTimelineEvents extends Table {

@@ -24,8 +24,8 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/constants/graph_canvas_config.dart';
 import '../../../../shared/utils/node_colors.dart';
-import '../../../aura/providers/aura_provider.dart';
-import '../../../aura/widgets/role_glyph_badge.dart';
+import '../../../kinrel_intelligence/providers/kinrel_provider.dart';
+import '../../../kinrel_intelligence/widgets/role_glyph_badge.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // PERSON NODE WIDGET

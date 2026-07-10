@@ -1,5 +1,5 @@
 // =============================================================================
-// Track C v2.0 — AURA Governance Engine
+// Track C v2.0 — Kinrel Governance Engine
 // trackc.module.ts
 // =============================================================================
 // Top-level aggregator module. Import this from app.module.ts to enable all
@@ -8,12 +8,12 @@
 // Module composition (Section 3.2):
 //   - constitution
 //   - decisions
-//   - governance-timeline (AURA Timeline)
-//   - aura-intelligence
-//   - aura-learning
-//   - aura-secretary
-//   - aura-search
-//   - aura-analytics
+//   - governance-timeline (Kinrel Timeline)
+//   - kinrel-intelligence
+//   - kinrel-learning
+//   - kinrel-secretary
+//   - kinrel-search
+//   - kinrel-analytics
 //   - governance-sync
 // =============================================================================
 
@@ -22,11 +22,11 @@ import { TrackcCommonModule } from './common/trackc-common.module';
 import { ConstitutionModule } from './constitution/constitution.module';
 import { DecisionsModule } from './decisions/decisions.module';
 import { GovernanceTimelineModule } from './governance-timeline/timeline.module';
-import { AuraIntelligenceModule } from './aura-intelligence/intelligence.module';
-import { AuraLearningModule } from './aura-learning/learning.module';
-import { AuraSecretaryModule } from './aura-secretary/secretary.module';
-import { AuraSearchModule } from './aura-search/search.module';
-import { AuraAnalyticsModule } from './aura-analytics/analytics.module';
+import { KinrelIntelligenceModule } from './kinrel-intelligence/intelligence.module';
+import { KinrelLearningModule } from './kinrel-learning/learning.module';
+import { KinrelSecretaryModule } from './kinrel-secretary/secretary.module';
+import { KinrelSearchModule } from './kinrel-search/search.module';
+import { KinrelAnalyticsModule } from './kinrel-analytics/analytics.module';
 import { GovernanceSyncModule } from './governance-sync/sync.module';
 import { TrackcWorkers } from './trackc.workers';
 
@@ -36,11 +36,11 @@ import { TrackcWorkers } from './trackc.workers';
     ConstitutionModule,
     DecisionsModule,
     GovernanceTimelineModule,
-    AuraIntelligenceModule,
-    AuraLearningModule,
-    AuraSecretaryModule,
-    AuraSearchModule,
-    AuraAnalyticsModule,
+    KinrelIntelligenceModule,
+    KinrelLearningModule,
+    KinrelSecretaryModule,
+    KinrelSearchModule,
+    KinrelAnalyticsModule,
     GovernanceSyncModule,
   ],
   providers: [TrackcWorkers],
@@ -49,11 +49,11 @@ import { TrackcWorkers } from './trackc.workers';
     ConstitutionModule,
     DecisionsModule,
     GovernanceTimelineModule,
-    AuraIntelligenceModule,
-    AuraLearningModule,
-    AuraSecretaryModule,
-    AuraSearchModule,
-    AuraAnalyticsModule,
+    KinrelIntelligenceModule,
+    KinrelLearningModule,
+    KinrelSecretaryModule,
+    KinrelSearchModule,
+    KinrelAnalyticsModule,
     GovernanceSyncModule,
   ],
 })

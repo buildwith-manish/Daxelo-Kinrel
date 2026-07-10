@@ -441,107 +441,107 @@ abstract class S {
   /// **'English'**
   String get languageName;
 
-  /// Nav/drawer label for the AURA feature
+  /// Nav/drawer label for the Kinrel feature
   ///
   /// In en, this message translates to:
-  /// **'AURA'**
-  String get auraNavLabel;
+  /// **'Kinrel'**
+  String get kinrelNavLabel;
 
-  /// AppBar title on the AURA screen
+  /// AppBar title on the Kinrel screen
   ///
   /// In en, this message translates to:
-  /// **'AURA'**
-  String get auraScreenTitle;
+  /// **'Kinrel'**
+  String get kinrelScreenTitle;
 
-  /// Title shown when AURA is not yet computed
+  /// Title shown when Kinrel is not yet computed
   ///
   /// In en, this message translates to:
-  /// **'AURA has not been computed yet'**
-  String get auraEmptyTitle;
+  /// **'Kinrel has not been computed yet'**
+  String get kinrelEmptyTitle;
 
-  /// Body copy for the AURA empty state
+  /// Body copy for the Kinrel empty state
   ///
   /// In en, this message translates to:
-  /// **'AURA analyses your family graph to generate a unique symbol and archetype. This usually takes a few seconds.'**
-  String get auraEmptyBody;
+  /// **'Kinrel analyses your family graph to generate a unique symbol and archetype. This usually takes a few seconds.'**
+  String get kinrelEmptyBody;
 
-  /// Button label to trigger AURA computation
+  /// Button label to trigger Kinrel computation
   ///
   /// In en, this message translates to:
-  /// **'Generate AURA'**
-  String get auraGenerateButton;
+  /// **'Generate Kinrel'**
+  String get kinrelGenerateButton;
 
-  /// Button label to recompute AURA
+  /// Button label to recompute Kinrel
   ///
   /// In en, this message translates to:
   /// **'Recompute'**
-  String get auraRecomputeButton;
+  String get kinrelRecomputeButton;
 
-  /// Loading message shown during AURA computation
+  /// Loading message shown during Kinrel computation
   ///
   /// In en, this message translates to:
-  /// **'Computing AURA…'**
-  String get auraLoadingTitle;
+  /// **'Computing Kinrel…'**
+  String get kinrelLoadingTitle;
 
-  /// Banner shown when the displayed AURA is from the offline cache
+  /// Banner shown when the displayed Kinrel is from the offline cache
   ///
   /// In en, this message translates to:
-  /// **'Showing cached AURA — offline mode'**
-  String get auraCachedBanner;
+  /// **'Showing cached Kinrel — offline mode'**
+  String get kinrelCachedBanner;
 
-  /// Error title when AURA fetch fails
+  /// Error title when Kinrel fetch fails
   ///
   /// In en, this message translates to:
-  /// **'Could not load AURA'**
-  String get auraErrorTitle;
+  /// **'Could not load Kinrel'**
+  String get kinrelErrorTitle;
 
-  /// Tooltip for the AURA share icon
+  /// Tooltip for the Kinrel share icon
   ///
   /// In en, this message translates to:
-  /// **'Share AURA'**
-  String get auraShareTooltip;
+  /// **'Share Kinrel'**
+  String get kinrelShareTooltip;
 
-  /// Share-sheet text attached to the AURA PNG
+  /// Share-sheet text attached to the Kinrel PNG
   ///
   /// In en, this message translates to:
-  /// **'Our family\'s AURA — {familyName}'**
-  String auraShareText(String familyName);
+  /// **'Our family\'s Kinrel — {familyName}'**
+  String kinrelShareText(String familyName);
 
-  /// Header for the AURA timeline widget
+  /// Header for the Kinrel timeline widget
   ///
   /// In en, this message translates to:
-  /// **'AURA Timeline'**
-  String get auraTimelineTitle;
+  /// **'Kinrel Timeline'**
+  String get kinrelTimelineTitle;
 
-  /// Title for the empty AURA timeline state
+  /// Title for the empty Kinrel timeline state
   ///
   /// In en, this message translates to:
-  /// **'No AURA history yet'**
-  String get auraTimelineEmptyTitle;
+  /// **'No Kinrel history yet'**
+  String get kinrelTimelineEmptyTitle;
 
-  /// Body for the empty AURA timeline state
+  /// Body for the empty Kinrel timeline state
   ///
   /// In en, this message translates to:
-  /// **'As your family grows, snapshots of how the AURA evolved will appear here.'**
-  String get auraTimelineEmptyBody;
+  /// **'As your family grows, snapshots of how the Kinrel evolved will appear here.'**
+  String get kinrelTimelineEmptyBody;
 
-  /// Caption showing the family's member count on the AURA card
+  /// Caption showing the family's member count on the Kinrel card
   ///
   /// In en, this message translates to:
   /// **'{count} members'**
-  String auraMemberCountCaption(int count);
+  String kinrelMemberCountCaption(int count);
 
-  /// Confidence meter label on the AURA archetype card
+  /// Confidence meter label on the Kinrel archetype card
   ///
   /// In en, this message translates to:
   /// **'{percent}% match'**
-  String auraConfidenceLabel(int percent);
+  String kinrelConfidenceLabel(int percent);
 
-  /// Message shown when AURA is feature-flagged off
+  /// Message shown when Kinrel is feature-flagged off
   ///
   /// In en, this message translates to:
-  /// **'AURA is not available.'**
-  String get auraFeatureDisabled;
+  /// **'Kinrel is not available.'**
+  String get kinrelFeatureDisabled;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

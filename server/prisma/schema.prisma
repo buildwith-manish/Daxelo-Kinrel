@@ -649,13 +649,13 @@ model Family {
   // ── v2.2: Person-Link Invitations for this family ──
   personLinkInvitations PersonLinkInvitation[]
 
-  // ── AURA: Ancestral Unified Relationship Archetype ──
-  // One-to-one: each family has at most one current AURA snapshot.
-  familyAura      FamilyAura?
-  // One-to-many: historical AURA snapshots for the Timeline widget.
-  auraHistory     FamilyAuraHistory[]
-  // One-to-many: per-member role glyph classifications within this family's AURA.
-  memberAuraRoles MemberAuraRole[]
+  // ── Kinrel: Ancestral Unified Relationship Archetype ──
+  // One-to-one: each family has at most one current Kinrel snapshot.
+  familyKinrel      FamilyKinrel?
+  // One-to-many: historical Kinrel snapshots for the Timeline widget.
+  kinrelHistory     FamilyKinrelHistory[]
+  // One-to-many: per-member role glyph classifications within this family's Kinrel.
+  memberKinrelRoles MemberKinrelRole[]
 
   // ── Thinking of You ──
   thinkingOfYouTaps ThinkingOfYouTap[]
@@ -684,13 +684,13 @@ model Family {
   // ── Social System Fields ──
   isPublic Boolean @default(false) // Family visibility: true = non-members can see tree (read-only)
 
-  // ── Track C v2.0 — AURA Governance Engine back-relations ──
+  // ── Track C v2.0 — Kinrel Governance Engine back-relations ──
   constitution                 FamilyConstitution?           @relation("FamilyConstitution")
   constitutionVersions         ConstitutionVersion[]         @relation("ConstitutionVersionFamily")
   constitutionArticles         ConstitutionArticle[]         @relation("ConstitutionArticleFamily")
   constitutionClauses          ConstitutionClause[]          @relation("ConstitutionClauseFamily")
   decisions                    FamilyDecision[]              @relation("FamilyDecisions")
-  timelineEvents               AURATimelineEvent[]           @relation("FamilyTimelineEvents")
+  timelineEvents               KinrelTimelineEvent[]           @relation("FamilyTimelineEvents")
   aiInsights                   AIInsight[]                   @relation("FamilyAIInsights")
   learningSignals              LearningSignal[]              @relation("FamilyLearningSignals")
   behaviorProfile              FamilyBehaviorProfile?        @relation("FamilyBehaviorProfile")
@@ -792,18 +792,18 @@ model Person {
   permissionsGranted  Permission[]      @relation("PermissionGrantor")
   permissionsReceived Permission[]      @relation("PermissionGrantee")
 
-  // ── AURA back-relations ──
-  // A Person can be the anchor (max betweenness) of multiple FamilyAura rows
+  // ── Kinrel back-relations ──
+  // A Person can be the anchor (max betweenness) of multiple FamilyKinrel rows
   // (one per family they belong to — typically one, but Prisma requires a list
-  // because maxBetweennessNode is not @unique on FamilyAura).
-  anchoredFamilyAura   FamilyAura[]        @relation("PersonMaxBetweenness")
-  // A Person can be the root (oldest ancestor) of multiple FamilyAura rows.
-  rootedFamilyAura     FamilyAura[]        @relation("PersonRootNode")
-  // A Person can be the trigger of multiple FamilyAuraHistory snapshots over time.
-  triggeredAuraHistory FamilyAuraHistory[] @relation("PersonTriggerMember")
-  // A Person has at most one MemberAuraRole per family — but Prisma infers
+  // because maxBetweennessNode is not @unique on FamilyKinrel).
+  anchoredFamilyKinrel   FamilyKinrel[]        @relation("PersonMaxBetweenness")
+  // A Person can be the root (oldest ancestor) of multiple FamilyKinrel rows.
+  rootedFamilyKinrel     FamilyKinrel[]        @relation("PersonRootNode")
+  // A Person can be the trigger of multiple FamilyKinrelHistory snapshots over time.
+  triggeredKinrelHistory FamilyKinrelHistory[] @relation("PersonTriggerMember")
+  // A Person has at most one MemberKinrelRole per family — but Prisma infers
   // one-to-many from the non-unique memberId FK, so it's a list.
-  auraRoles            MemberAuraRole[]
+  kinrelRoles            MemberKinrelRole[]
 
   // ── PULSE back-relations ──
   briefItemsAsTarget BriefItem[]           @relation("BriefItemTargetPerson")
@@ -1254,10 +1254,10 @@ model Relationship {
   validFrom        DateTime? @map("valid_from")
   validTo          DateTime? @map("valid_to")
   verifiedAt       DateTime?
-  // AURA: ISO-639-1 language tag the user chose for this relationship
+  // Kinrel: ISO-639-1 language tag the user chose for this relationship
   // when adding it in the app UI (e.g. "hi" for Hindi, "ta" for Tamil).
   // Used by computeLanguageDistribution() to derive the family's
-  // linguistic fingerprint for the AURA colour palette. When null,
+  // linguistic fingerprint for the Kinrel colour palette. When null,
   // the type→language lookup table is used as a fallback.
   languageTag      String? // e.g. "hi", "ta", "te", "en"
   createdAt        DateTime  @default(now())
@@ -2192,29 +2192,29 @@ model SparqEcho {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// AURA — Ancestral Unified Relationship Archetype
+// Kinrel — Ancestral Unified Relationship Archetype
 // ═══════════════════════════════════════════════════════════════════════════
-// Three tables that store the computed AURA parameters for each family.
-// Migration: supabase/migrations/20260708010000_create_aura_tables.sql
+// Three tables that store the computed Kinrel parameters for each family.
+// Migration: supabase/migrations/20260708010000_create_kinrel_tables.sql
 //
 // Computation flow:
 //   Family graph changes (Person / Relationship CRUD)
-//     → AuraEventListener debounces 2s
-//     → AuraOrchestrationService.computeAndSave(familyId)
+//     → KinrelEventListener debounces 2s
+//     → KinrelOrchestrationService.computeAndSave(familyId)
 //       → GraphAnalysisService.computeMetrics()  (Brandes, BFS, clustering, …)
 //       → ArchetypeClassifierService.classify()  (6 archetypes)
-//       → AuraParameterGeneratorService.generate() (geometry + colors + pulse)
-//       → upsert FamilyAura + push FamilyAuraHistory snapshot
-//       → RoleGlyphService.computeAndSaveRoles() → upsert MemberAuraRole rows
-//     → Supabase Realtime broadcasts the new FamilyAura row to Flutter
+//       → KinrelParameterGeneratorService.generate() (geometry + colors + pulse)
+//       → upsert FamilyKinrel + push FamilyKinrelHistory snapshot
+//       → RoleGlyphService.computeAndSaveRoles() → upsert MemberKinrelRole rows
+//     → Supabase Realtime broadcasts the new FamilyKinrel row to Flutter
 //
 // RLS: family members can SELECT; only service_role can INSERT/UPDATE/DELETE.
-// Realtime: FamilyAura + MemberAuraRole are in the supabase_realtime publication.
+// Realtime: FamilyKinrel + MemberKinrelRole are in the supabase_realtime publication.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Current AURA parameters for a family. One row per family.
+/// Current Kinrel parameters for a family. One row per family.
 /// Updated every time the family graph changes (debounced 2s).
-model FamilyAura {
+model FamilyKinrel {
   id       String @id @default(cuid())
   familyId String @unique
 
@@ -2233,7 +2233,7 @@ model FamilyAura {
   // Example: {"hi": 0.5, "ta": 0.3, "gu": 0.2}
   languageDistribution Json @default("{}")
 
-  // ── AURA Symbol Parameters ──
+  // ── Kinrel Symbol Parameters ──
   ringCount          Int     @default(2) // 1–8
   spokeCount         Int     @default(4) // 3–12
   innerPatternType   String  @default("lotus") // lotus|grid|diamond|star|web|spiral
@@ -2261,13 +2261,13 @@ model FamilyAura {
   @@index([familyId])
 }
 
-/// Snapshot history of AURA parameters over time. Used by the AURA Timeline widget.
-/// A new row is inserted every time the AURA is recomputed (debounced).
-model FamilyAuraHistory {
+/// Snapshot history of Kinrel parameters over time. Used by the Kinrel Timeline widget.
+/// A new row is inserted every time the Kinrel is recomputed (debounced).
+model FamilyKinrelHistory {
   id       String @id @default(cuid())
   familyId String
 
-  // ── Snapshot of the full AURA parameters at this point in time ──
+  // ── Snapshot of the full Kinrel parameters at this point in time ──
   memberCount       Int
   generationDepth   Int
   archetypeKey      String
@@ -2301,9 +2301,9 @@ model FamilyAuraHistory {
   @@index([familyId, capturedAt(sort: Desc)])
 }
 
-/// Each member's computed role within the family AURA. One row per member per family.
+/// Each member's computed role within the family Kinrel. One row per member per family.
 /// Updated when graph changes affect role assignments.
-model MemberAuraRole {
+model MemberKinrelRole {
   id       String @id @default(cuid())
   familyId String
   memberId String
@@ -2344,7 +2344,7 @@ model MemberAuraRole {
 //   3. "BriefInteraction"     — analytics: which item the user tapped + karma
 //   4. "RelationshipWeather"  — per-pair emotional climate (sunny/cloudy/stormy)
 //   5. "ConnectionStreak"     — daily-interaction streaks between pairs
-//   6. "FamilyKarma"          — invisible social currency tied to AURA roles
+//   6. "FamilyKarma"          — invisible social currency tied to Kinrel roles
 //
 // Migration: supabase/migrations/20260708020000_create_pulse_tables.sql (applied live)
 // RLS: family members SELECT, service_role ALL on every table.
@@ -2363,7 +2363,7 @@ model DailyBrief {
 
   // ── Header content ──
   greeting        String // e.g. "Good morning, Manish. Here's your family today."
-  familyArchetype String // e.g. "confluence" (from AURA, or "unknown" if no AURA)
+  familyArchetype String // e.g. "confluence" (from Kinrel, or "unknown" if no Kinrel)
   languageCode    String @default("en") // ISO-639-1 code used for localization
 
   // ── Full structured brief payload (JSONB) ──
@@ -2542,7 +2542,7 @@ model ConnectionStreak {
 }
 
 /// Family Karma — invisible social currency per user per family.
-/// Tied to AURA roles: karma awarded differs by role (root/anchor/bridge/weaver/leaf).
+/// Tied to Kinrel roles: karma awarded differs by role (root/anchor/bridge/weaver/leaf).
 /// Updated whenever a BriefInteraction is recorded.
 model FamilyKarma {
   id       String @id @default(cuid())
@@ -2555,7 +2555,7 @@ model FamilyKarma {
   karmaThisMonth Int    @default(0)
   karmaTrend     String @default("steady") // up | steady | down
 
-  // ── Karma broken down by AURA role (debugging + future gamification) ──
+  // ── Karma broken down by Kinrel role (debugging + future gamification) ──
   karmaAsRoot   Int @default(0)
   karmaAsAnchor Int @default(0)
   karmaAsBridge Int @default(0)
@@ -3011,7 +3011,7 @@ model ThinkingOfYouTap {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// TRACK C v2.0 — AURA GOVERNANCE ENGINE
+// TRACK C v2.0 — Kinrel GOVERNANCE ENGINE
 // ═════════════════════════════════════════════════════════════════════════
 // Implements the FINAL v2.0 specification.
 // All tables created by migrations 20260711000001_trackc_* through
@@ -3146,7 +3146,7 @@ model FamilyDecision {
   insights              AIInsight[]
   reminders             SmartReminder[]
   meetingArtifacts      MeetingArtifact[]
-  timelineEvents        AURATimelineEvent[] @relation("DecisionTimelineEvents")
+  timelineEvents        KinrelTimelineEvent[] @relation("DecisionTimelineEvents")
 
   @@id([id, familyId])
   @@index([familyId, status])
@@ -3174,10 +3174,10 @@ model DecisionVote {
   @@map("DecisionVote")
 }
 
-// ── AURA Timeline (Section 5.4) ──────────────────────────────────────────
+// ── Kinrel Timeline (Section 5.4) ──────────────────────────────────────────
 // Append-only — DB trigger rejects UPDATE/DELETE. Composite PK (id, familyId).
 
-model AURATimelineEvent {
+model KinrelTimelineEvent {
   id                String    @default(cuid()) @db.Text
   familyId          String   @db.Text
   kind              String   @db.Text
@@ -3192,8 +3192,8 @@ model AURATimelineEvent {
   createdAt         DateTime @default(now()) @db.Timestamptz
 
   family            Family              @relation("FamilyTimelineEvents", fields: [familyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  parentEvent       AURATimelineEvent?  @relation("TimelineCorrection", fields: [parentEventId, familyId], references: [id, familyId], onDelete: NoAction, onUpdate: NoAction)
-  corrections       AURATimelineEvent[] @relation("TimelineCorrection")
+  parentEvent       KinrelTimelineEvent?  @relation("TimelineCorrection", fields: [parentEventId, familyId], references: [id, familyId], onDelete: NoAction, onUpdate: NoAction)
+  corrections       KinrelTimelineEvent[] @relation("TimelineCorrection")
   decision          FamilyDecision?     @relation("DecisionTimelineEvents", fields: [targetEntityId, familyId], references: [id, familyId], onDelete: NoAction, onUpdate: NoAction)
 
   @@id([id, familyId])
@@ -3201,7 +3201,7 @@ model AURATimelineEvent {
   @@index([familyId, kind, occurredAt])
   @@index([targetEntityType, targetEntityId])
   @@index([parentEventId])
-  @@map("AURATimelineEvent")
+  @@map("KinrelTimelineEvent")
 }
 
 // ── AIInsight (Section 5.5) ──────────────────────────────────────────────
@@ -3238,7 +3238,7 @@ model AIInsight {
   @@map("AIInsight")
 }
 
-// ── AURA Learning Engine (Section 5.6) ───────────────────────────────────
+// ── Kinrel Learning Engine (Section 5.6) ───────────────────────────────────
 // LearningSignal is hash-partitioned. Composite PK (id, familyId).
 
 model LearningSignal {
@@ -3382,7 +3382,7 @@ model MeetingArtifact {
   draftMinutesMd   String    @default("") @db.Text
   finalMinutesMd   String?   @db.Text
   status           String    @default("draft") @db.Text // draft|reviewed|published
-  /// Visibility control for AURA Secretary artifacts.
+  /// Visibility control for Kinrel Secretary artifacts.
   /// 'family' = visible to all family members once published (default).
   /// 'participants_only' = visible only to participants + admins, even after publish.
   visibility       String    @default("family") @db.Text
@@ -3521,7 +3521,7 @@ model SearchEmbedding {
 // user's typical engagement hour instead of a fixed time for everyone.
 //
 // The underlying data-collection pattern already exists in Track C
-// (aura-learning records `reminder_action` signals per family). This table
+// (kinrel-learning records `reminder_action` signals per family). This table
 // is the per-user generalization — the scheduler reads it directly without
 // going through the family-scoped FamilyBehaviorProfile.
 
@@ -3570,7 +3570,7 @@ model BriefEngagement {
 
 model LearnedClosenessWeights {
   id                    String   @id @default("current") @db.Text
-  weights               Json     @default("{\"graphDistance\":0.30,\"generationDistance\":0.15,\"relationshipSemantic\":0.35,\"auraRoleMatch\":0.10,\"sharedConnections\":0.10}")
+  weights               Json     @default("{\"graphDistance\":0.30,\"generationDistance\":0.15,\"relationshipSemantic\":0.35,\"kinrelRoleMatch\":0.10,\"sharedConnections\":0.10}")
   bias                  Float    @default(0)
   trainSamples          Int      @default(0)
   validationSamples     Int      @default(0)

@@ -1,6 +1,6 @@
 // scripts/test_archetype_classifier.ts
 //
-// AURA Phase 3 — Validation Script for ArchetypeClassifierService
+// Kinrel Phase 3 — Validation Script for ArchetypeClassifierService
 //
 // Tests the classifier against 5 hand-predicted metric sets covering
 // every archetype (banyan, spine, lotus, confluence, forest) plus the
@@ -13,8 +13,8 @@
 //
 // Run:  bun scripts/test_archetype_classifier.ts
 
-import { ArchetypeClassifierService, ArchetypeKey } from '../server/src/aura/archetype-classifier.service';
-import { GraphMetrics } from '../server/src/aura/graph-metrics';
+import { ArchetypeClassifierService, ArchetypeKey } from '../server/src/kinrel-intelligence/archetype-classifier.service';
+import { GraphMetrics } from '../server/src/kinrel-intelligence/graph-metrics';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST CASES
@@ -231,7 +231,7 @@ const EPSILON = 0.005;
 let allTestsPass = true;
 
 console.log('══════════════════════════════════════════════════════════════════════════');
-console.log('AURA Phase 3 — Archetype Classifier Validation');
+console.log('Kinrel Phase 3 — Archetype Classifier Validation');
 console.log('══════════════════════════════════════════════════════════════════════════');
 console.log();
 

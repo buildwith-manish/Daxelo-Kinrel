@@ -1,0 +1,265 @@
+// lib/features/kinrel_intelligence/widgets/kinrel_share_card.dart
+//
+// Kinrel — Share Card (Phase 14).
+//
+// Renders a visually polished "shareable" version of the family's Kinrel
+// (symbol + archetype name + family name + Daxelo/Kinrel branding),
+// wrapped in a RepaintBoundary so the parent screen can capture it as
+// a PNG and hand the bytes to `share_plus`.
+//
+// Implementation note (deviation #3 from the implementation guide):
+//   - We do NOT use the `screenshot` package — `share_plus` is already
+//     a dependency, and Flutter's built-in `RepaintBoundary` +
+//     `RenderRepaintBoundary.toImage()` is a solved problem.
+//   - The capture is exposed via a GlobalKey passed in by the parent
+//     so the parent owns the share-sheet invocation.
+
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:share_plus/share_plus.dart';
+
+import '../../../core/constants/feature_flags.dart';
+import '../data/archetype_strings.dart';
+import '../data/kinrel_model.dart';
+import 'kinrel_symbol_widget.dart';
+
+// Bug 12 fix: conditional import for web download.
+// On web, `share_plus` falls back to a random-filename download which
+// is confusing UX. We branch on kIsWeb and call `downloadPngOnWeb`
+// (which uses dart:html Blob + <a download>) for a deterministic
+// filename. On native platforms `downloadPngOnWeb` is a no-op stub
+// and we use `share_plus` instead.
+import 'share_download_stub.dart'
+    if (dart.library.html) 'share_download_web.dart' as web_download;
+
+/// A self-contained share card. Wrap with a [RepaintBoundary] keyed by
+/// [boundaryKey] and call [captureAndShare] to export + share the PNG.
+class KinrelShareCard extends StatelessWidget {
+  const KinrelShareCard({
+    super.key,
+    required this.boundaryKey,
+    required this.kinrel,
+    required this.familyName,
+  });
+
+  /// GlobalKey that the parent assigns to the wrapping RepaintBoundary.
+  /// [captureAndShare] reads it to find the RenderRepaintBoundary.
+  final GlobalKey boundaryKey;
+
+  /// The Kinrel payload to render. Only `symbol` + `archetype` are used.
+  final KinrelModel kinrel;
+
+  /// Family name, shown under the archetype. Caller passes this in
+  /// (the KinrelModel itself doesn't carry the family name).
+  final String familyName;
+
+  @override
+  Widget build(BuildContext context) {
+    // Bug 8 fix: use the backend's localized archetype name + description
+    // when available, falling back to the hardcoded English bundle.
+    final locale = Localizations.localeOf(context).languageCode;
+    final strings = archetypeStrings(
+      kinrel.archetype.key,
+      definition: kinrel.archetype.definition,
+      locale: locale,
+    );
+    final primary = _parseColor(kinrel.symbol.primaryColorHex);
+    final secondary = _parseColor(kinrel.symbol.secondaryColorHex);
+    final accent = _parseColor(kinrel.symbol.accentColorHex);
+
+    return Container(
+      width: 320,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF13141E),
+            const Color(0xFF191B2C),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: primary.withValues(alpha: 0.3), width: 1),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Branding header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.auto_awesome, size: 14, color: accent),
+              const SizedBox(width: 4),
+              Text(
+                'Kinrel',
+                style: TextStyle(
+                  color: primary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Symbol preview (static, no animation — for deterministic PNG)
+          StaticKinrelSymbol(
+            parameters: kinrel.symbol,
+            archetypeKey: kinrel.archetype.key,
+            size: 200,
+          ),
+          const SizedBox(height: 16),
+
+          // Archetype name
+          Text(
+            strings.name,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: primary,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Poetic description (first line only — keeps the card compact)
+          Text(
+            strings.description.split('\n').first,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFFC9B4A8),
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Family name
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: secondary.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: secondary.withValues(alpha: 0.4)),
+            ),
+            child: Text(
+              familyName,
+              style: TextStyle(
+                color: secondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Footer — Daxelo / Kinrel branding
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.favorite, size: 10, color: accent.withValues(alpha: 0.7)),
+              const SizedBox(width: 4),
+              Text(
+                'Made with love by Daxelo',
+                style: TextStyle(
+                  color: const Color(0xFF8A7A72),
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Capture this widget as a PNG and share it via the native share sheet
+  /// (mobile/desktop) or trigger a browser download (web).
+  ///
+  /// Returns `true` if the share/download was opened successfully. The
+  /// parent typically wraps this in a try/catch and shows a SnackBar
+  /// on failure.
+  ///
+  /// Phase 19.1 privacy check: the captured PNG contains only the
+  /// archetype name, family name, and symbol — no member counts, no
+  /// graph structure, no individual member roles. Safe to share publicly.
+  ///
+  /// Bug 12 fix: on web, `share_plus` falls back to a random-filename
+  /// download (no native share sheet on most desktop browsers). We
+  /// branch on kIsWeb and use a deterministic `<a download>` click
+  /// instead so the user gets `kinrel_<FamilyName>.png` in their
+  /// Downloads folder.
+  static Future<bool> captureAndShare({
+    required GlobalKey boundaryKey,
+    required String familyName,
+    String? shareText,
+  }) async {
+    try {
+      final renderObject = boundaryKey.currentContext?.findRenderObject();
+      if (renderObject == null) {
+        debugPrint('⚠️ KinrelShareCard: boundary render object is null');
+        return false;
+      }
+      final boundary = renderObject as RenderRepaintBoundary;
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) {
+        debugPrint('⚠️ KinrelShareCard: toByteData returned null');
+        return false;
+      }
+      final bytes = byteData.buffer.asUint8List();
+
+      // Use the family name (sanitized) as the filename.
+      final safeName = familyName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+      final filename = 'kinrel_$safeName.png';
+
+      if (kIsWeb) {
+        // Web: trigger a deterministic browser download.
+        final ok = web_download.downloadPngOnWeb(
+          Uint8List.fromList(bytes),
+          filename,
+        );
+        if (!ok) {
+          debugPrint('⚠️ KinrelShareCard: web download failed');
+        }
+        return ok;
+      }
+
+      // Native: use the native share sheet via share_plus.
+      final xfile = XFile.fromData(
+        Uint8List.fromList(bytes),
+        name: filename,
+        mimeType: 'image/png',
+      );
+      await Share.shareXFiles(
+        [xfile],
+        text: shareText ?? "Our family's Kinrel — $familyName",
+      );
+      return true;
+    } catch (e) {
+      debugPrint('⚠️ KinrelShareCard capture/share failed: $e');
+      return false;
+    }
+  }
+}
+
+Color _parseColor(String hex) {
+  var h = hex.trim();
+  if (h.startsWith('#')) h = h.substring(1);
+  if (h.length == 6) {
+    final value = int.tryParse('FF$h', radix: 16);
+    if (value != null) return Color(value);
+  }
+  return const Color(0xFFC8853A);
+}
+
+// Suppress analyzer warning about unused import in non-flagged builds.
+// ignore: unused_element
+const _kFlag = kEnableKinrel;

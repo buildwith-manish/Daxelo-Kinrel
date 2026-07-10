@@ -1,5 +1,5 @@
 // =============================================================================
-// Track C v2.0 — AURA Governance: Decisions
+// Track C v2.0 — Kinrel Governance: Decisions
 // decisions.state-machine.ts
 // =============================================================================
 // Pure functions for the decision state machine. Section 10.2 + 10.3.

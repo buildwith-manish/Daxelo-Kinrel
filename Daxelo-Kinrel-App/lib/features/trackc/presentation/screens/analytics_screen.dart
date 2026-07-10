@@ -1,5 +1,5 @@
 // =============================================================================
-// Track C v2.0 — AURA Analytics Screen
+// Track C v2.0 — Kinrel Analytics Screen
 // =============================================================================
 // Private family insights. NO leaderboards, NO cross-family comparisons.
 // =============================================================================
@@ -18,7 +18,7 @@ class TrackcAnalyticsScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('AURA Analytics')),
+      appBar: AppBar(title: const Text('Kinrel Analytics')),
       body: summaryAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Failed to load: $e')),

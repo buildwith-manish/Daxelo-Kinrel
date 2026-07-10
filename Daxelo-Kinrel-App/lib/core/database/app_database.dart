@@ -248,20 +248,20 @@ class CachedRelationshipKeys extends Table {
   Set<Column> get primaryKey => {familyId, viewerPersonId, targetPersonId};
 }
 
-// ── v3.0 (schemaVersion 8): AURA offline cache ─────────────────────────
-// Stores the last-computed AURA payload per family so the symbol widget
-// can render even when offline. The `data` column is the full AuraModel
+// ── v3.0 (schemaVersion 8): Kinrel offline cache ─────────────────────────
+// Stores the last-computed Kinrel payload per family so the symbol widget
+// can render even when offline. The `data` column is the full KinrelModel
 // JSON; `rolesJson` is the JSON array of RoleGlyph rows. Mirrors the
 // existing CachedProfiles / CachedFamilies pattern (id + familyId +
 // JSON blob + cachedAt) so it integrates with the existing cache
 // invalidation helpers.
 //
-// Naming: plural table name (`CachedAuras`) so Drift generates a
-// singular row class (`CachedAura`) and `CachedAurasCompanion` —
+// Naming: plural table name (`CachedKinrels`) so Drift generates a
+// singular row class (`CachedKinrel`) and `CachedKinrelsCompanion` —
 // matches the existing CachedProfiles / CachedFamilies convention.
-class CachedAuras extends Table {
+class CachedKinrels extends Table {
   TextColumn get familyId => text()();
-  TextColumn get data => text()(); // full AuraModel JSON
+  TextColumn get data => text()(); // full KinrelModel JSON
   TextColumn get rolesJson => text().withDefault(const Constant('[]'))();
   DateTimeColumn get cachedAt => dateTime()();
 
@@ -294,8 +294,8 @@ class CachedAuras extends Table {
   // v2.2: Viewer-Driven Relationship Engine
   CachedViewerEntries,
   CachedRelationshipKeys,
-  // v3.0 (schemaVersion 8): AURA offline cache
-  CachedAuras,
+  // v3.0 (schemaVersion 8): Kinrel offline cache
+  CachedKinrels,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
@@ -388,11 +388,11 @@ class AppDatabase extends _$AppDatabase {
             );
           }
           if (from < 8) {
-            // v7 → v8: AURA — Ancestral Unified Relationship Archetype.
-            // One row per family storing the last-computed AURA payload
+            // v7 → v8: Kinrel — Family Relationship Intelligence.
+            // One row per family storing the last-computed Kinrel payload
             // as JSON so the symbol widget can render offline. See
-            // lib/features/aura/data/aura_model.dart for the schema.
-            await migrator.createTable(cachedAuras);
+            // lib/features/kinrel_intelligence/data/kinrel_model.dart for the schema.
+            await migrator.createTable(cachedKinrels);
           }
         },
       );
@@ -787,24 +787,24 @@ class AppDatabase extends _$AppDatabase {
     await delete(cachedUsernames).go();
     await delete(cachedFamilyIds).go();
     await delete(cachedMemories).go();
-    await delete(cachedAuras).go();
+    await delete(cachedKinrels).go();
   });
 
-  // ── AURA cache (schemaVersion 8) ───────────────────────────────────
-  // Stores the last-computed AURA payload per family so the symbol
+  // ── Kinrel cache (schemaVersion 8) ───────────────────────────────────
+  // Stores the last-computed Kinrel payload per family so the symbol
   // widget can render offline. The `data` column holds the full
-  // AuraModel JSON; `rolesJson` holds the JSON array of RoleGlyph rows.
+  // KinrelModel JSON; `rolesJson` holds the JSON array of RoleGlyph rows.
   // Both are written through on every successful Supabase fetch.
 
-  Future<CachedAura?> getCachedAura(String familyId) =>
-      (select(cachedAuras)..where((t) => t.familyId.equals(familyId)))
+  Future<CachedKinrel?> getCachedKinrel(String familyId) =>
+      (select(cachedKinrels)..where((t) => t.familyId.equals(familyId)))
           .getSingleOrNull();
 
-  Future<void> upsertCachedAura(CachedAurasCompanion entry) =>
-      into(cachedAuras).insertOnConflictUpdate(entry);
+  Future<void> upsertCachedKinrel(CachedKinrelsCompanion entry) =>
+      into(cachedKinrels).insertOnConflictUpdate(entry);
 
-  Future<void> deleteCachedAura(String familyId) =>
-      (delete(cachedAuras)..where((t) => t.familyId.equals(familyId))).go();
+  Future<void> deleteCachedKinrel(String familyId) =>
+      (delete(cachedKinrels)..where((t) => t.familyId.equals(familyId))).go();
 
   Future<void> clearAll() async {
     await transaction(() async {

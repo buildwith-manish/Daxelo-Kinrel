@@ -3,10 +3,10 @@
 // PULSE Phase 2 — Pure graph-aware personalization computations.
 //
 // This file has ZERO NestJS dependencies — it can be unit-tested standalone with `bun`.
-// (Same pattern as AURA's `graph-metrics.ts` and `brief-types.ts`.)
+// (Same pattern as Kinrel's `graph-metrics.ts` and `brief-types.ts`.)
 //
 // It computes a 0.0–1.0 "closeness score" between two Persons in a family,
-// derived from graph topology + AURA roles + relationship semantics.
+// derived from graph topology + Kinrel roles + relationship semantics.
 // This score becomes the `relevanceScore` field on BriefItem rows, and is used
 // by the orchestrator to reorder items when priorities are close.
 //
@@ -32,7 +32,7 @@
 //                                     niece/nephew = 0.7; in-law = 0.5;
 //                                     unrelated = 0.1. Weight: 35%
 //
-//   4. AURA role match (0-1)       — if BOTH Persons have AURA roles, score
+//   4. Kinrel role match (0-1)       — if BOTH Persons have Kinrel roles, score
 //                                     based on complementary roles:
 //                                       anchor + leaf    = 0.9 (anchor cares for leaf)
 //                                       bridge + weaver  = 0.8 (bridge connects, weaver maintains)
@@ -45,7 +45,7 @@
 //                                     relationship neighbors. 1.0 if all
 //                                     neighbors shared, 0.0 if none. Weight: 10%
 //
-// Final: closeness = 0.30*dist + 0.15*gen + 0.35*sem + 0.10*aura + 0.10*shared
+// Final: closeness = 0.30*dist + 0.15*gen + 0.35*sem + 0.10*kinrel + 0.10*shared
 // Range: 0.0 – 1.0
 //
 // Edge cases:
@@ -71,8 +71,8 @@ export interface RelationshipEdge {
   relationshipType: string; // e.g. 'father', 'mother', 'spouse', 'cousin'
 }
 
-/** AURA role for a Person (from MemberAuraRole). */
-export interface AuraRole {
+/** Kinrel role for a Person (from MemberKinrelRole). */
+export interface KinrelRole {
   personId: string;
   roleKey: string; // root | anchor | bridge | weaver | leaf | twin_node
 }
@@ -83,7 +83,7 @@ export interface ClosenessInput {
   targetPersonId: string;
   persons: PersonNode[];
   relationships: RelationshipEdge[];
-  auraRoles: AuraRole[];
+  kinrelRoles: KinrelRole[];
 }
 
 /** Output bundle — full breakdown for debugging + transparency. */
@@ -92,7 +92,7 @@ export interface ClosenessResult {
   graphDistance: number; // 0.0 – 1.0
   generationDistance: number; // 0.0 – 1.0
   relationshipSemantic: number; // 0.0 – 1.0
-  auraRoleMatch: number; // 0.0 – 1.0
+  kinrelRoleMatch: number; // 0.0 – 1.0
   sharedConnections: number; // 0.0 – 1.0
   hopCount: number | null; // null if disconnected
   notes: string[];
@@ -169,7 +169,7 @@ const RELATIONSHIP_SEMANTIC: Record<string, number> = {
 const DEFAULT_SEMANTIC = 0.3;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AURA role pair scores
+// Kinrel role pair scores
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // These capture "how much does this role-pair naturally care about each other":
@@ -180,7 +180,7 @@ const DEFAULT_SEMANTIC = 0.3;
 //
 // We use a Map keyed by sorted `roleA|roleB` strings.
 //
-const AURA_ROLE_PAIR_SCORE: Record<string, number> = {
+const KINREL_ROLE_PAIR_SCORE: Record<string, number> = {
   'anchor|leaf': 0.9,
   'anchor|root': 0.85,
   'anchor|bridge': 0.7,
@@ -226,7 +226,7 @@ export function computeCloseness(input: ClosenessInput): ClosenessResult {
       graphDistance: 0.5,
       generationDistance: 0.5,
       relationshipSemantic: 0.5,
-      auraRoleMatch: 0.5,
+      kinrelRoleMatch: 0.5,
       sharedConnections: 0.5,
       hopCount: null,
       notes: ['User has no linkedPerson — returning neutral 0.5'],
@@ -240,7 +240,7 @@ export function computeCloseness(input: ClosenessInput): ClosenessResult {
       graphDistance: 1.0,
       generationDistance: 1.0,
       relationshipSemantic: 1.0,
-      auraRoleMatch: 1.0,
+      kinrelRoleMatch: 1.0,
       sharedConnections: 1.0,
       hopCount: 0,
       notes: ['Target is the user themselves'],
@@ -303,17 +303,17 @@ export function computeCloseness(input: ClosenessInput): ClosenessResult {
     notes.push('No direct relationship → 0.1');
   }
 
-  // ── 4. AURA role match ───────────────────────────────────────────────
-  const userRole = input.auraRoles.find((r) => r.personId === input.userPersonId)?.roleKey;
-  const targetRole = input.auraRoles.find((r) => r.personId === input.targetPersonId)?.roleKey;
-  let auraRoleMatch: number;
+  // ── 4. Kinrel role match ───────────────────────────────────────────────
+  const userRole = input.kinrelRoles.find((r) => r.personId === input.userPersonId)?.roleKey;
+  const targetRole = input.kinrelRoles.find((r) => r.personId === input.targetPersonId)?.roleKey;
+  let kinrelRoleMatch: number;
   if (!userRole || !targetRole) {
-    auraRoleMatch = 0.5;
-    notes.push('Missing AURA role for one or both Persons → 0.5');
+    kinrelRoleMatch = 0.5;
+    notes.push('Missing Kinrel role for one or both Persons → 0.5');
   } else {
     const pairKey = [userRole, targetRole].sort().join('|');
-    auraRoleMatch = AURA_ROLE_PAIR_SCORE[pairKey] ?? 0.5;
-    notes.push(`AURA role pair '${userRole}'↔'${targetRole}' → ${auraRoleMatch}`);
+    kinrelRoleMatch = KINREL_ROLE_PAIR_SCORE[pairKey] ?? 0.5;
+    notes.push(`Kinrel role pair '${userRole}'↔'${targetRole}' → ${kinrelRoleMatch}`);
   }
 
   // ── 5. Shared connections (Jaccard) ──────────────────────────────────
@@ -335,7 +335,7 @@ export function computeCloseness(input: ClosenessInput): ClosenessResult {
     0.30 * graphDistance +
     0.15 * generationDistance +
     0.35 * relationshipSemantic +
-    0.10 * auraRoleMatch +
+    0.10 * kinrelRoleMatch +
     0.10 * sharedConnections;
 
   return {
@@ -343,7 +343,7 @@ export function computeCloseness(input: ClosenessInput): ClosenessResult {
     graphDistance,
     generationDistance,
     relationshipSemantic,
-    auraRoleMatch,
+    kinrelRoleMatch,
     sharedConnections,
     hopCount,
     notes,
