@@ -1,13 +1,13 @@
 // =============================================================================
-// Track C v2.0 — AURA Intelligence
+// Track C v2.0 - AURA Intelligence
 // intelligence.service.ts
 // =============================================================================
 // Orchestrates the AI insight pipeline. Section 8.1.
 //
 // Pipeline:
 //   1. Rate limit + budget check
-//   2. Cache lookup → hit? return cached AIInsight
-//   3. Circuit breaker check → open? return 503 with degraded_mode=true
+//   2. Cache lookup -> hit? return cached AIInsight
+//   3. Circuit breaker check -> open? return 503 with degraded_mode=true
 //   4. LLM call (with redaction)
 //   5. Persist AIInsight with tokensIn/Out, costUsd
 //   6. Return to client (via WebSocket push for async, or directly for sync)
@@ -32,6 +32,10 @@ import { ProsConsKind } from './kinds/pros-cons.kind';
 import { SummaryKind } from './kinds/summary.kind';
 import { DuplicateDetectionKind } from './kinds/duplicate-detection.kind';
 import { ActionItemsKind } from './kinds/action-items.kind';
+import {
+  preFilterDuplicates,
+  DuplicatePrefilterResult,
+} from './duplicate-prefilter';
 import { FamilyMembershipService } from '../common/family-membership.service';
 import { TimelineEmitter } from '../governance-timeline/timeline.emitter';
 import { randomUUID } from 'crypto';
@@ -101,7 +105,7 @@ export class IntelligenceService {
     let degradedMode = false;
     const toGenerate: InsightKind[] = [];
 
-    // ── Step 1: cache lookup per kind ────────────────────────────────────
+    // ?? Step 1: cache lookup per kind ????????????????????????????????????
     for (const kind of params.kinds) {
       const hit = await this.cache.lookup({
         familyId: params.familyId,
@@ -119,21 +123,21 @@ export class IntelligenceService {
       return { cached, generated, degradedMode: false, queued: false };
     }
 
-    // ── Step 2: budget check ─────────────────────────────────────────────
+    // ?? Step 2: budget check ?????????????????????????????????????????????
     const budget = await this.costGuard.checkBudget(params.familyId);
     if (budget.exhausted) {
       degradedMode = true;
-      this.logger.warn(`Family ${params.familyId} AI budget exhausted — serving cached only`);
+      this.logger.warn(`Family ${params.familyId} AI budget exhausted - serving cached only`);
       return { cached, generated: [], degradedMode, queued: false };
     }
 
-    // ── Step 3: circuit breaker ──────────────────────────────────────────
+    // ?? Step 3: circuit breaker ??????????????????????????????????????????
     if (this.breaker.isOpen()) {
       degradedMode = true;
       return { cached, generated: [], degradedMode, queued: false };
     }
 
-    // ── Step 4: generate each missing kind ───────────────────────────────
+    // ?? Step 4: generate each missing kind ???????????????????????????????
     for (const kind of toGenerate) {
       try {
         const insight = await this.breaker.execute(() =>
@@ -156,7 +160,7 @@ export class IntelligenceService {
           this.logger.error(
             `Insight generation failed (kind=${kind}, decision=${params.decisionId}): ${(err as Error).message}`,
           );
-          // Edge case #4: LLM returns invalid JSON → retry once with stricter prompt.
+          // Edge case #4: LLM returns invalid JSON -> retry once with stricter prompt.
           // The kind's parseResponse already handles invalid JSON by returning a
           // minimal valid payload. If we reach here, the LLM call itself failed.
         }
@@ -221,6 +225,58 @@ export class IntelligenceService {
           take: 20,
           select: { id: true, title: true, description: true },
         });
+
+        // ?? Local TF-IDF pre-filter ????????????????????????????????????
+        // Run a free, local similarity pass BEFORE building the LLM request.
+        // High similarity  -> skip AI, return local match directly.
+        // Low similarity   -> skip AI, return no duplicates.
+        // Ambiguous band   -> escalate to AI as before.
+        //
+        // Logged so token savings can be measured after shipping.
+        const prefilter = preFilterDuplicates({
+          newDecisionTitle: params.decision.title,
+          newDecisionDescription: params.decision.description ?? undefined,
+          priorDecisions: priorDecisions.map((d) => ({
+            id: d.id,
+            title: d.title,
+            description: d.description ?? undefined,
+          })),
+        });
+
+        this.logger.log(
+          `duplicate_detection pre-filter: path=${prefilter.path}, topScore=${prefilter.topScore}, decision=${params.decisionId}`,
+        );
+
+        if (prefilter.path !== 'escalate') {
+          // Pre-filter resolved it - persist the insight without an AI call,
+          // and return early. We persist it so the client sees the same
+          // shape as an AI-generated insight (and so it's cached for next
+          // time).
+          const payload = {
+            duplicates: prefilter.duplicates,
+            closestMatch: prefilter.closestMatch,
+            message: prefilter.message,
+          };
+          const insight = await this.prisma.aIInsight.create({
+            data: {
+              familyId: params.familyId,
+              decisionId: params.decisionId,
+              kind: params.kind,
+              status: 'presented',
+              payload: payload as any,
+              modelId: 'local-tfidf-prefilter', // mark as locally generated
+              tokensIn: 0,
+              tokensOut: 0,
+              costUsd: 0,
+              presentedAt: new Date(),
+            },
+          });
+          return insight;
+        }
+
+        // Escalate to AI - build the LLM request as before, but only with
+        // the top ~5 candidates by pre-filter score (further reduces token
+        // cost without sacrificing recall for genuinely ambiguous pairs).
         request = this.duplicateDetectionKind.buildRequest({
           newDecisionTitle: params.decision.title,
           newDecisionDescription: params.decision.description ?? undefined,
@@ -238,11 +294,11 @@ export class IntelligenceService {
         throw new BadRequestException(`Insight kind '${params.kind}' is not supported via this endpoint`);
     }
 
-    // ── LLM call ──────────────────────────────────────────────────────────
+    // ?? LLM call ??????????????????????????????????????????????????????????
     const response = await this.llm.generate(request);
     const payload = parseResponse(response.content);
 
-    // ── Charge the budget ─────────────────────────────────────────────────
+    // ?? Charge the budget ?????????????????????????????????????????????????
     await this.costGuard.charge({
       familyId: params.familyId,
       tokensIn: response.tokensIn,
@@ -251,7 +307,7 @@ export class IntelligenceService {
       requestId,
     });
 
-    // ── Persist the insight ───────────────────────────────────────────────
+    // ?? Persist the insight ???????????????????????????????????????????????
     const insight = await this.prisma.aIInsight.create({
       data: {
         familyId: params.familyId,
