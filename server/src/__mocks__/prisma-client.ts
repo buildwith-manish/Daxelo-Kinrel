@@ -122,4 +122,22 @@ export class PrismaClient {
 
   // Governance sync watermarks
   syncWatermark = makeModelMock();
+
+  // ── ML spec item #3 — Semantic search embeddings ────────────────
+  searchEmbedding = makeModelMockWithDeleteMany();
+
+  // ── ML spec item #1 — Moderation (existing tables, mocks added) ─
+  contentReport = makeModelMock();
+  moderationCase = makeModelMock();
+  moderationActionItem = makeModelMock();
+  moderationAppeal = makeModelMock();
+  moderationAuditLog = makeModelMock();
+  notificationPreference = makeModelMock();
+
+  // ── ML spec item #7 — Per-user engagement profile ────────────────
+  userEngagementProfile = makeModelMockWithDeleteMany();
+
+  // ── ML spec item #5 — Brief engagement tracking + learned weights ─
+  briefEngagement = makeModelMockWithDeleteMany();
+  learnedClosenessWeights = makeModelMock();
 }

@@ -3,8 +3,11 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  OnModuleDestroy,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ModerationClassifier } from './moderation.classifier';
 
 // Simple rule-based content classification
 const CLASSIFICATION_RULES: {
@@ -52,8 +55,18 @@ const CLASSIFICATION_RULES: {
 ];
 
 @Injectable()
-export class ModerationService {
-  constructor(private prisma: PrismaService) {}
+export class ModerationService implements OnModuleDestroy {
+  private readonly logger = new Logger(ModerationService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private readonly classifier: ModerationClassifier,
+  ) {}
+
+  async onModuleDestroy() {
+    // Release the model from memory when the module is torn down
+    await this.classifier.dispose();
+  }
 
   /**
    * Submit a content report.
@@ -158,7 +171,20 @@ export class ModerationService {
   }
 
   /**
-   * Classify content using simple rule-based analysis (not AI).
+   * Classify content using a hybrid regex + local ML model pipeline.
+   *
+   * Pipeline (per Section "Content moderation" of the ML implementation spec):
+   *   1. Regex fast-pass - catches literal slurs, threats, PII patterns in O(1).
+   *   2. If regex doesn't match AND content is long enough (>=12 chars), route
+   *      to the local transformer model (Xenova/toxic-bert) for semantic
+   *      classification. This catches paraphrased threats, leetspeak slurs,
+   *      and non-English phrasing that regex misses.
+   *   3. Short content (<12 chars) is allowed through without model scoring -
+   *      not worth the inference cost, and the model is unreliable on tiny inputs.
+   *
+   * The result shape (category/action/priority/confidence/flaggedCategories)
+   * is unchanged from the previous regex-only implementation, so downstream
+   * code (report handling, admin queue, audit logs) needs no changes.
    */
   async classifyContent(
     adminId: string,
@@ -168,22 +194,45 @@ export class ModerationService {
       contentPreview: string;
     },
   ) {
-    // Run content through classification rules
-    let matchedCategory = 'safe';
-    let matchedAction = 'allow';
-    let matchedPriority = 'normal';
-    let confidence = 0.5;
+    // ?? Step 1: regex fast-pass ????????????????????????????????????????
+    let regexCategory = 'safe';
+    let regexAction = 'allow';
+    let regexPriority = 'normal';
     const flaggedCategories: string[] = [];
 
     for (const rule of CLASSIFICATION_RULES) {
       if (rule.pattern.test(data.contentPreview)) {
-        matchedCategory = rule.category;
-        matchedAction = rule.action;
-        matchedPriority = rule.priority;
-        confidence = 0.85;
+        regexCategory = rule.category;
+        regexAction = rule.action;
+        regexPriority = rule.priority;
         flaggedCategories.push(rule.category);
       }
     }
+
+    // ?? Step 2: model classification (only if regex didn't match) ?????
+    const classification = await this.classifier.classify(data.contentPreview, {
+      category: regexCategory,
+      action: regexAction,
+      priority: regexPriority,
+    });
+
+    // Merge flagged categories from both passes (regex may have caught PII
+    // while the model caught toxicity - both should be recorded)
+    const mergedFlagged = Array.from(
+      new Set([...flaggedCategories, ...classification.flaggedCategories]),
+    );
+
+    const matchedCategory = classification.category;
+    const matchedAction = classification.action;
+    const matchedPriority = classification.priority;
+    const confidence = classification.confidence;
+
+    // Log which path was taken - useful for measuring model hit-rate and
+    // validating that the regex pass isn't shadowing the model.
+    this.logger.debug?.(
+      `classifyContent: source=${classification.source}, category=${matchedCategory}, ` +
+        `confidence=${confidence.toFixed(2)}, flags=[${mergedFlagged.join(',')}]`,
+    );
 
     // Update or create ModerationCase
     const existingCase = await this.prisma.moderationCase.findFirst({
@@ -201,7 +250,7 @@ export class ModerationService {
           category: matchedCategory,
           autoAction: matchedAction,
           confidence,
-          flaggedCategories,
+          flaggedCategories: mergedFlagged,
           priority: matchedPriority,
           contentPreview: data.contentPreview.substring(0, 500),
         },
@@ -217,6 +266,8 @@ export class ModerationService {
             category: matchedCategory,
             action: matchedAction,
             confidence,
+            source: classification.source,
+            modelScores: classification.modelScores,
           }),
         },
       });
@@ -232,7 +283,11 @@ export class ModerationService {
           result: matchedAction,
           reason: matchedCategory,
           confidence,
-          metadata: JSON.stringify({ flaggedCategories }),
+          metadata: JSON.stringify({
+            flaggedCategories: mergedFlagged,
+            source: classification.source,
+            modelScores: classification.modelScores,
+          }),
         },
       });
     }
@@ -243,8 +298,10 @@ export class ModerationService {
       category: matchedCategory,
       autoAction: matchedAction,
       confidence,
-      flaggedCategories,
+      flaggedCategories: mergedFlagged,
       priority: matchedPriority,
+      source: classification.source,
+      modelScores: classification.modelScores,
     };
   }
 
