@@ -12,10 +12,15 @@ const makeModelMock = () => ({
   findFirst: jest.fn().mockResolvedValue(null),
   findMany: jest.fn().mockResolvedValue([]),
   create: jest.fn().mockResolvedValue({}),
+  createMany: jest.fn().mockResolvedValue({ count: 0 }),
   update: jest.fn().mockResolvedValue({}),
+  updateMany: jest.fn().mockResolvedValue({ count: 0 }),
   delete: jest.fn().mockResolvedValue({}),
+  deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
   upsert: jest.fn().mockResolvedValue({}),
   count: jest.fn().mockResolvedValue(0),
+  groupBy: jest.fn().mockResolvedValue([]),
+  aggregate: jest.fn().mockResolvedValue({}),
 });
 
 const makeModelMockWithDeleteMany = () => ({
@@ -28,7 +33,10 @@ export class PrismaClient {
   $disconnect = jest.fn().mockResolvedValue(undefined);
   $transaction = jest.fn((fn: any) => (typeof fn === 'function' ? fn(this) : Promise.resolve()));
   $queryRaw = jest.fn().mockResolvedValue([]);
+  $queryRawUnsafe = jest.fn().mockResolvedValue([]);
   $executeRaw = jest.fn().mockResolvedValue(0);
+  $executeRawUnsafe = jest.fn().mockResolvedValue(0);
+  $on = jest.fn();
 
   // ── Core models ──────────────────────────────────────────────────
   user = makeModelMock();
@@ -73,4 +81,45 @@ export class PrismaClient {
   blockedUser = makeModelMock();
   familyConnection = makeModelMock();
   familyMilestone = makeModelMock();
+
+  // ── Agent-7 Track C (AURA Governance) models ──────────────────────
+  // Constitution lifecycle
+  familyConstitution = makeModelMockWithDeleteMany();
+  constitutionVersion = makeModelMockWithDeleteMany();
+  constitutionArticle = makeModelMockWithDeleteMany();
+  constitutionClause = makeModelMockWithDeleteMany();
+
+  // Decisions + voting
+  familyDecision = makeModelMockWithDeleteMany();
+  decisionVote = makeModelMock();
+  decisionMemory = makeModelMock();
+  decisionImpact = makeModelMock();
+
+  // AURA Timeline
+  aURATimelineEvent = makeModelMock();
+
+  // AURA Intelligence
+  aIInsight = makeModelMockWithDeleteMany();
+  aICostBudget = makeModelMock();
+
+  // AURA Learning
+  learningSignal = makeModelMock();
+  familyBehaviorProfile = makeModelMock();
+  familyBehaviorProfileHistory = makeModelMock();
+  globalLearningDefaults = makeModelMock();
+
+  // AURA Search
+  searchIndex = makeModelMockWithDeleteMany();
+
+  // AURA Analytics
+  familyAnalyticsSnapshot = makeModelMock();
+
+  // AURA Secretary
+  meetingArtifact = makeModelMockWithDeleteMany();
+
+  // Smart Reminders
+  smartReminder = makeModelMock();
+
+  // Governance sync watermarks
+  syncWatermark = makeModelMock();
 }
