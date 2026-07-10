@@ -109,7 +109,7 @@ export class ConstitutionService {
         });
       }
 
-      // Create new draft version with articles + clauses
+      // Create new draft version first (without nested articles)
       const draft = await tx.constitutionVersion.create({
         data: {
           constitutionId: constitution.id,
@@ -118,25 +118,45 @@ export class ConstitutionService {
           status: 'draft',
           articleCount: input.articles.length,
           clauseCount: input.articles.reduce((acc, a) => acc + a.clauses.length, 0),
-          articles: {
-            create: input.articles.map((article, ai) => ({
-              familyId,
-              orderIndex: article.orderIndex ?? ai,
-              title: article.title,
-              intent: article.intent ?? null,
-              clauses: {
-                create: article.clauses.map((clause, ci) => ({
-                  familyId,
-                  orderIndex: clause.orderIndex ?? ci,
-                  text: clause.text,
-                  intent: clause.intent ?? null,
-                })) as any,
-              },
-            })) as any,
-          },
         },
+      });
+
+      // Create articles + clauses separately (avoids Prisma nested create type issues)
+      for (let ai = 0; ai < input.articles.length; ai++) {
+        const article = input.articles[ai];
+        const createdArticle = await tx.constitutionArticle.create({
+          data: {
+            versionId: draft.id,
+            familyId,
+            orderIndex: article.orderIndex ?? ai,
+            title: article.title,
+            intent: article.intent ?? null,
+          },
+        });
+
+        for (let ci = 0; ci < article.clauses.length; ci++) {
+          const clause = article.clauses[ci];
+          await tx.constitutionClause.create({
+            data: {
+              articleId: createdArticle.id,
+              versionId: draft.id,
+              familyId,
+              orderIndex: clause.orderIndex ?? ci,
+              text: clause.text,
+              intent: clause.intent ?? null,
+            },
+          });
+        }
+      }
+
+      // Re-fetch with relations
+      const draftWithRelations = await tx.constitutionVersion.findUnique({
+        where: { id: draft.id },
         include: {
-          articles: { orderBy: { orderIndex: 'asc' }, include: { clauses: { orderBy: { orderIndex: 'asc' } } } },
+          articles: {
+            orderBy: { orderIndex: 'asc' },
+            include: { clauses: { orderBy: { orderIndex: 'asc' } } },
+          },
         },
       });
 
@@ -151,7 +171,7 @@ export class ConstitutionService {
         },
       });
 
-      return draft;
+      return draftWithRelations;
     });
   }
 
