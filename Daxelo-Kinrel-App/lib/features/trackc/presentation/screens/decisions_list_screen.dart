@@ -6,9 +6,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../providers/trackc_providers.dart';
-import 'decision_detail_screen.dart';
+import 'decision_create_screen.dart';
 
 class TrackcDecisionsListScreen extends ConsumerStatefulWidget {
   const TrackcDecisionsListScreen({super.key});
@@ -56,19 +57,25 @@ class _TrackcDecisionsListScreenState extends ConsumerState<TrackcDecisionsListS
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateDialog(context),
+        onPressed: () async {
+          // Launch the multi-step create wizard. Returns true if a decision
+          // was created, in which case we invalidate the providers so the
+          // list refreshes.
+          final created = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (_) => const TrackcDecisionCreateScreen(),
+              fullscreenDialog: true,
+            ),
+          );
+          if (created == true) {
+            ref.invalidate(decisionsProvider(null));
+            ref.invalidate(decisionsProvider('open'));
+            ref.invalidate(decisionsProvider('resolved'));
+          }
+        },
         icon: const Icon(Icons.add),
         label: const Text('New decision'),
       ),
-    );
-  }
-
-  void _showCreateDialog(BuildContext context) {
-    // For brevity, this opens a simple dialog. A full create-decision form
-    // would be a separate screen with title, description, type, options,
-    // quorum, deadline pickers.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Decision creation form — see decision_create_screen.dart')),
     );
   }
 }
@@ -111,12 +118,16 @@ class _DecisionList extends ConsumerWidget {
             final d = decisions[i];
             return _DecisionCard(
               decision: d,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => TrackcDecisionDetailScreen(decisionId: d['id'] as String),
-                ),
-              ),
+              onTap: () {
+                final familyId = ref.read(selectedFamilyIdProvider) ?? '';
+                context.pushNamed(
+                  'trackc-decision-detail',
+                  pathParameters: {
+                    'id': familyId,
+                    'decisionId': d['id'] as String,
+                  },
+                );
+              },
             );
           },
         );

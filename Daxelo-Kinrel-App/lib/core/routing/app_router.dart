@@ -193,6 +193,11 @@ import '../../shared/widgets/dk_components.dart';
 import '../../core/family/family_provider.dart';
 import '../../features/profile/data/profile_provider.dart';
 import '../../features/trackc/presentation/screens/trackc_hub_screen.dart';
+import '../../features/trackc/presentation/screens/constitution_screen.dart';
+import '../../features/trackc/presentation/screens/decisions_list_screen.dart';
+import '../../features/trackc/presentation/screens/decision_detail_screen.dart';
+import '../../features/trackc/presentation/screens/timeline_screen.dart';
+import '../../features/trackc/presentation/providers/trackc_providers.dart';
 
 /// Key for accessing the router's navigator state
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -292,6 +297,42 @@ class _PrefetchFamilyDetailState extends ConsumerState<_PrefetchFamilyDetail> {
     Future.microtask(() {
       if (mounted) {
         ref.read(familyDetailProvider(widget.familyId).future).catchError((_) => null);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+/// Sets the `selectedFamilyIdProvider` for Track C sub-routes.
+///
+/// `TrackcHubScreen` does this in its `initState`, but when deep-linking
+/// directly into a sub-route (e.g. `/family/<id>/governance/decisions/<x>`),
+/// the hub's `initState` doesn't run. This wrapper ensures every Track C
+/// sub-screen enters with the correct family context for its Riverpod
+/// providers (`constitutionProvider`, `decisionsProvider`, etc.) regardless
+/// of entry point.
+class _TrackcFamilyScope extends ConsumerStatefulWidget {
+  const _TrackcFamilyScope({
+    required this.familyId,
+    required this.child,
+  });
+
+  final String familyId;
+  final Widget child;
+
+  @override
+  ConsumerState<_TrackcFamilyScope> createState() => _TrackcFamilyScopeState();
+}
+
+class _TrackcFamilyScopeState extends ConsumerState<_TrackcFamilyScope> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(selectedFamilyIdProvider.notifier).state = widget.familyId;
       }
     });
   }
@@ -727,6 +768,21 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       // ── Track C v2.0 — AURA Governance Engine ──────────────────────────
+      // The governance hub is the parent shell. Nested sub-routes enable deep
+      // linking (e.g. notifications or external links can point directly to
+      // /family/<id>/governance/decisions/<decisionId>) and let the system
+      // back button manage the navigation stack properly via GoRouter.
+      //
+      // The `:id` path param is inherited by all child routes — GoRouter
+      // cascades path parameters down the route tree, so child builders can
+      // read `state.pathParameters['id']` without re-declaring it.
+      //
+      // Sub-routes implemented per audit item #4 (v2 spec):
+      //   /family/:id/governance/constitution
+      //   /family/:id/governance/decisions
+      //   /family/:id/governance/decisions/:decisionId
+      //   /family/:id/governance/timeline
+      //   /family/:id/governance/timeline/:eventId
       GoRoute(
         path: '/family/:id/governance',
         pageBuilder: (context, state) {
@@ -736,6 +792,85 @@ final routerProvider = Provider<GoRouter>((ref) {
             child: TrackcHubScreen(familyId: familyId),
           );
         },
+        routes: [
+          GoRoute(
+            path: 'constitution',
+            name: 'trackc-constitution',
+            pageBuilder: (context, state) {
+              final familyId = state.pathParameters['id']!;
+              // Set the selected family for providers that depend on it
+              return _fastFadePage(
+                key: state.pageKey,
+                child: _TrackcFamilyScope(
+                  familyId: familyId,
+                  child: const TrackcConstitutionScreen(),
+                ),
+              );
+            },
+          ),
+          GoRoute(
+            path: 'decisions',
+            name: 'trackc-decisions',
+            pageBuilder: (context, state) {
+              final familyId = state.pathParameters['id']!;
+              return _fastFadePage(
+                key: state.pageKey,
+                child: _TrackcFamilyScope(
+                  familyId: familyId,
+                  child: const TrackcDecisionsListScreen(),
+                ),
+              );
+            },
+            routes: [
+              GoRoute(
+                path: ':decisionId',
+                name: 'trackc-decision-detail',
+                pageBuilder: (context, state) {
+                  final familyId = state.pathParameters['id']!;
+                  final decisionId = state.pathParameters['decisionId']!;
+                  return _fastFadePage(
+                    key: state.pageKey,
+                    child: _TrackcFamilyScope(
+                      familyId: familyId,
+                      child: TrackcDecisionDetailScreen(decisionId: decisionId),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+          GoRoute(
+            path: 'timeline',
+            name: 'trackc-timeline',
+            pageBuilder: (context, state) {
+              final familyId = state.pathParameters['id']!;
+              return _fastFadePage(
+                key: state.pageKey,
+                child: _TrackcFamilyScope(
+                  familyId: familyId,
+                  child: const TrackcTimelineScreen(),
+                ),
+              );
+            },
+            routes: [
+              GoRoute(
+                path: ':eventId',
+                name: 'trackc-timeline-event',
+                pageBuilder: (context, state) {
+                  final familyId = state.pathParameters['id']!;
+                  final eventId = state.pathParameters['eventId']!;
+                  return _fastFadePage(
+                    key: state.pageKey,
+                    child: _TrackcFamilyScope(
+                      familyId: familyId,
+                      child: TrackcTimelineEventDetailScreen(eventId: eventId),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
       ),
       GoRoute(
         path: '/family/:id',

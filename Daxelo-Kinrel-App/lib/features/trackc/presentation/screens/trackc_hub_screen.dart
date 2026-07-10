@@ -13,11 +13,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../providers/trackc_providers.dart';
-import 'constitution_screen.dart';
-import 'decisions_list_screen.dart';
-import 'timeline_screen.dart';
 import 'learning_profile_screen.dart';
 import 'analytics_screen.dart';
 import 'search_screen.dart';
@@ -54,6 +52,10 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
           IconButton(
             icon: const Icon(Icons.search),
             tooltip: 'Search',
+            // Search has no deep-link route of its own yet — it's still a
+            // push-on-stack detail screen. We use Navigator.push here so the
+            // behavior matches what existed before; if/when a route is added,
+            // switch to context.pushNamed('trackc-search').
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const TrackcSearchScreen()),
@@ -125,7 +127,11 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
 
           const SizedBox(height: 24),
 
-          // Feature grid
+          // Feature grid — Governance section uses GoRouter sub-routes so the
+          // system back button and deep links work correctly. Intelligence
+          // sub-screens (Learning, Analytics, Secretary) keep Navigator.push
+          // for now — they're leaf screens that don't need deep-link support
+          // and don't yet have their own routes.
           Text('Governance', style: theme.textTheme.titleSmall?.copyWith(color: Colors.grey[700])),
           const SizedBox(height: 8),
           _FeatureCard(
@@ -133,24 +139,30 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
             title: 'Constitution',
             subtitle: 'Family rules + amendments',
             color: const Color(0xFF2D8A4E),
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const TrackcConstitutionScreen())),
+            onTap: () => context.pushNamed(
+              'trackc-constitution',
+              pathParameters: {'id': widget.familyId},
+            ),
           ),
           _FeatureCard(
             icon: Icons.how_to_vote,
             title: 'Decisions',
             subtitle: 'Active + past decisions',
             color: const Color(0xFF1E88E5),
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const TrackcDecisionsListScreen())),
+            onTap: () => context.pushNamed(
+              'trackc-decisions',
+              pathParameters: {'id': widget.familyId},
+            ),
           ),
           _FeatureCard(
             icon: Icons.history_edu,
             title: 'AURA Timeline',
             subtitle: 'Append-only family history',
             color: const Color(0xFF8E24AA),
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const TrackcTimelineScreen())),
+            onTap: () => context.pushNamed(
+              'trackc-timeline',
+              pathParameters: {'id': widget.familyId},
+            ),
           ),
 
           const SizedBox(height: 24),

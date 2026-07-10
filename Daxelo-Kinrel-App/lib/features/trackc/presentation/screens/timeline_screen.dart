@@ -6,6 +6,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../providers/trackc_providers.dart';
 
@@ -142,18 +143,19 @@ class _TrackcTimelineScreenState extends ConsumerState<TrackcTimelineScreen> {
   }
 }
 
-class _TimelineTile extends StatelessWidget {
+class _TimelineTile extends ConsumerWidget {
   const _TimelineTile({required this.event});
 
   final Map<String, dynamic> event;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final kind = event['kind'] as String? ?? '';
     final title = event['title'] as String? ?? '';
     final description = event['description'] as String?;
     final occurredAt = event['occurredAt'] as String?;
     final actorId = event['actorId'] as String?;
+    final eventId = event['id'] as String?;
 
     final (icon, color) = _kindVisual(kind);
 
@@ -187,37 +189,52 @@ class _TimelineTile extends StatelessWidget {
           Expanded(
             child: Card(
               margin: const EdgeInsets.only(bottom: 8),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              child: InkWell(
+                onTap: eventId == null
+                    ? null
+                    : () {
+                        final familyId = ref.read(selectedFamilyIdProvider) ?? '';
+                        context.pushNamed(
+                          'trackc-timeline-event',
+                          pathParameters: {
+                            'id': familyId,
+                            'eventId': eventId,
+                          },
+                        );
+                      },
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                            ),
                           ),
-                        ),
+                          Text(
+                            _formatRelative(occurredAt),
+                            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                      if (description != null && description!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(description, style: TextStyle(fontSize: 13, color: Colors.grey[700])),
+                      ],
+                      if (actorId != null) ...[
+                        const SizedBox(height: 4),
                         Text(
-                          _formatRelative(occurredAt),
-                          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                          'by ${actorId.length > 8 ? '${actorId.substring(0, 8)}…' : actorId}',
+                          style: TextStyle(fontSize: 11, color: Colors.grey[500], fontStyle: FontStyle.italic),
                         ),
                       ],
-                    ),
-                    if (description != null && description!.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(description, style: TextStyle(fontSize: 13, color: Colors.grey[700])),
                     ],
-                    if (actorId != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'by ${actorId.length > 8 ? '${actorId.substring(0, 8)}…' : actorId}',
-                        style: TextStyle(fontSize: 11, color: Colors.grey[500], fontStyle: FontStyle.italic),
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -256,5 +273,165 @@ class _TimelineTile extends StatelessWidget {
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     if (diff.inDays < 7) return '${diff.inDays}d ago';
     return '${d.day}/${d.month}/${d.year}';
+  }
+}
+
+// =============================================================================
+// TrackcTimelineEventDetailScreen — full view of a single timeline event.
+// Deep-linkable via /family/:id/governance/timeline/:eventId.
+// =============================================================================
+
+class TrackcTimelineEventDetailScreen extends ConsumerWidget {
+  const TrackcTimelineEventDetailScreen({super.key, required this.eventId});
+
+  final String eventId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final familyId = ref.watch(selectedFamilyIdProvider);
+    final timelineAsync = ref.watch(timelineProvider(null));
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Event Detail')),
+      body: timelineAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Failed to load: $e')),
+        data: (events) {
+          final event = events.firstWhere(
+            (e) => (e['id'] as String?) == eventId,
+            orElse: () => <String, dynamic>{},
+          );
+          if (event.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.event_busy, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  const Text('Event not found'),
+                  const SizedBox(height: 4),
+                  Text(
+                    familyId == null
+                        ? 'No family context available.'
+                        : 'This event may have been pruned. Reload the timeline.',
+                    style: TextStyle(color: Colors.grey[600]),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final kind = event['kind'] as String? ?? '';
+          final title = event['title'] as String? ?? '';
+          final description = event['description'] as String?;
+          final occurredAt = event['occurredAt'] as String?;
+          final actorId = event['actorId'] as String?;
+          final payload = event['payload'];
+
+          final theme = Theme.of(context);
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          kind.split('_').map((w) => w[0].toUpperCase() + w.substring(1)).join(' '),
+                          style: TextStyle(
+                            color: theme.colorScheme.onPrimaryContainer,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(title,
+                          style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                      if (description != null && description!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(description, style: theme.textTheme.bodyMedium),
+                      ],
+                      const SizedBox(height: 16),
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      if (occurredAt != null)
+                        _DetailRow(label: 'Occurred', value: _formatFull(occurredAt)),
+                      if (actorId != null)
+                        _DetailRow(label: 'Actor', value: actorId),
+                    ],
+                  ),
+                ),
+              ),
+              if (payload != null) ...[
+                const SizedBox(height: 16),
+                Text('Payload', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      _prettyPrint(payload),
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  String _formatFull(String iso) {
+    final d = DateTime.tryParse(iso);
+    if (d == null) return iso;
+    return '${d.toLocal()}';
+  }
+
+  String _prettyPrint(dynamic obj) {
+    try {
+      // Treat the payload as a Map and pretty-print it
+      if (obj is Map) {
+        return obj.entries.map((e) => '${e.key}: ${e.value}').join('\n');
+      }
+      return obj.toString();
+    } catch (_) {
+      return obj.toString();
+    }
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+          ),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+        ],
+      ),
+    );
   }
 }
