@@ -72,7 +72,7 @@ CREATE POLICY "brief_engagement_update" ON public."BriefEngagement"
   FOR UPDATE TO service_role USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "brief_engagement_delete" ON public."BriefEngagement";
-CREATE POLICY IF EXISTS "brief_engagement_delete" ON public."BriefEngagement"
+CREATE POLICY "brief_engagement_delete" ON public."BriefEngagement"
   FOR DELETE TO service_role USING (true);
 
 COMMENT ON TABLE public."BriefEngagement" IS 'ML spec item #5 prerequisite: Per-user brief item engagement tracking. Records open/tap/dismiss events with snapshotted closeness signal scores for training learned weights.';
