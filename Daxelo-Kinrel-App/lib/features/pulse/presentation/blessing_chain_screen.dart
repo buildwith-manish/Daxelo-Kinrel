@@ -69,7 +69,6 @@ class _BlessingChainScreenState extends ConsumerState<BlessingChainScreen>
 }
 
 class _BlessingsForMeTab extends ConsumerWidget {
-  final bool embedded;
   const _BlessingsForMeTab();
 
   @override
@@ -111,7 +110,6 @@ class _BlessingsForMeTab extends ConsumerWidget {
 }
 
 class _FamilyBlessingsTab extends ConsumerWidget {
-  final bool embedded;
   const _FamilyBlessingsTab();
 
   @override
@@ -151,7 +149,6 @@ class _FamilyBlessingsTab extends ConsumerWidget {
 }
 
 class _BlessingCard extends ConsumerWidget {
-  final bool embedded;
   final BlessingChain blessing;
   final bool isForMe;
 
