@@ -930,9 +930,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // ── Family Archive (Phase 3: unified Photos/Timeline/Audio) ──
-      ),
-
       // ── Family Members (extracted from FamilyDetailScreen) ──────
       GoRoute(
         path: '/family/:id/members',
@@ -1732,7 +1729,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/memory-vault',
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: const MemoryVaultScreen()),
-      ),
       ),
 
       // ── Phase B: Occasion Reminders ───────────────────────────────
