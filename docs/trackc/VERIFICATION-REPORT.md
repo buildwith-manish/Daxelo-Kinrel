@@ -27,7 +27,7 @@
 ### Database (Supabase PostgreSQL)
 - ✅ 22 SQL migrations applied (20 original + 2 fix migrations)
 - ✅ 20 Track C tables created with correct schema
-- ✅ 4 partitioned tables: FamilyDecision (32), AURATimelineEvent (32), AIInsight (16), LearningSignal (16) = 96 partitions
+- ✅ 4 partitioned tables: FamilyDecision (32), KinrelTimelineEvent (32), AIInsight (16), LearningSignal (16) = 96 partitions
 - ✅ RLS enabled on 17 family-scoped tables
 - ✅ RLS policies block cross-family access (verified: user2 gets 404 on family1's constitution)
 - ✅ Timeline append-only trigger (UPDATE blocked, DELETE allowed for cascade)
@@ -43,10 +43,10 @@
 - ✅ Decision state machine: duplicate vote → 409 Conflict (verified)
 - ✅ Timeline: GET list (returns events), POST correct (appends correction), GET export
 - ✅ Timeline events emitted automatically on constitution publish + decision create (verified in DB)
-- ✅ AURA Learning: GET profile, POST signals, POST reset
-- ✅ AURA Search: POST reindex (6 entities), GET search (tsvector + GIN), GET suggest
-- ✅ AURA Secretary: POST create artifact (with LLM draft minutes), GET list, POST publish
-- ✅ AURA Analytics: POST trigger snapshot, GET summary (with trend)
+- ✅ Kinrel Learning: GET profile, POST signals, POST reset
+- ✅ Kinrel Search: POST reindex (6 entities), GET search (tsvector + GIN), GET suggest
+- ✅ Kinrel Secretary: POST create artifact (with LLM draft minutes), GET list, POST publish
+- ✅ Kinrel Analytics: POST trigger snapshot, GET summary (with trend)
 - ✅ Sync: GET delta (with watermark + X-Device-Id), POST push (with idempotency)
 - ✅ JWT authentication working (NestJS-issued tokens)
 - ✅ Application-layer authorization (FamilyMembershipService) on all endpoints
@@ -144,7 +144,7 @@
 
 7. **Sync push rejected empty operations array** — Validation required non-empty array. Fixed: empty array is valid (returns empty result).
 
-8. **ActionItemsKind + LLM_PROVIDER not exported** — SecretaryModule couldn't inject these from AuraIntelligenceModule. Fixed: added to exports array.
+8. **ActionItemsKind + LLM_PROVIDER not exported** — SecretaryModule couldn't inject these from KinrelIntelligenceModule. Fixed: added to exports array.
 
 9. **Controller route double 'api' prefix** — Controllers used `@Controller('api/v1/...')` but server has `setGlobalPrefix('api')`. Fixed: changed to `@Controller('v1/...')`.
 

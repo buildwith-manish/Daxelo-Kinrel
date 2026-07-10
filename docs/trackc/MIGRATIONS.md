@@ -31,7 +31,7 @@ supabase db push
 # Or, apply one at a time for finer control:
 supabase migration up --file 20260711000001_trackc_create_constitution.sql
 supabase migration up --file 20260711000002_trackc_create_family_decision.sql
-supabase migration up --file 20260711000003_trackc_create_aura_timeline.sql
+supabase migration up --file 20260711000003_trackc_create_kinrel_timeline.sql
 supabase migration up --file 20260711000004_trackc_create_timeline_triggers.sql
 supabase migration up --file 20260711000005_trackc_create_ai_insight.sql
 supabase migration up --file 20260711000006_trackc_create_learning_signal.sql
@@ -66,7 +66,7 @@ supabase migration up --file 20260711000020_trackc_seed_global_defaults.sql
    ```sql
    SELECT tablename FROM pg_tables
    WHERE schemaname = 'public' AND tablename IN (
-     'FamilyConstitution','FamilyDecision','AURATimelineEvent','AIInsight',
+     'FamilyConstitution','FamilyDecision','KinrelTimelineEvent','AIInsight',
      'LearningSignal','FamilyBehaviorProfile','SmartReminder','DecisionMemory',
      'DecisionImpact','MeetingArtifact','SearchIndex','FamilyAnalyticsSnapshot',
      'GlobalLearningDefaults','AICostBudget','SyncWatermark'
@@ -79,7 +79,7 @@ supabase migration up --file 20260711000020_trackc_seed_global_defaults.sql
    SELECT tablename, rowsecurity
    FROM pg_tables
    WHERE schemaname = 'public' AND tablename IN (
-     'FamilyConstitution','FamilyDecision','AURATimelineEvent','AIInsight',
+     'FamilyConstitution','FamilyDecision','KinrelTimelineEvent','AIInsight',
      'LearningSignal','FamilyBehaviorProfile','SmartReminder','DecisionMemory',
      'DecisionImpact','MeetingArtifact','SearchIndex','FamilyAnalyticsSnapshot'
    );
@@ -91,7 +91,7 @@ supabase migration up --file 20260711000020_trackc_seed_global_defaults.sql
    SELECT c.relname, pt.partstrat
    FROM pg_partitioned_table pt
    JOIN pg_class c ON c.oid = pt.partrelid
-   WHERE c.relname IN ('FamilyDecision','AURATimelineEvent','AIInsight','LearningSignal');
+   WHERE c.relname IN ('FamilyDecision','KinrelTimelineEvent','AIInsight','LearningSignal');
    ```
    Expect 4 rows with `partstrat = 'h'` (hash).
 

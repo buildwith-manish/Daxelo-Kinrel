@@ -8,9 +8,9 @@ All 8 ADRs from Section 17 of the FINAL v2.0 spec, mapped to their implementatio
 
 **Status:** Accepted · **Implemented in:** `supabase/migrations/20260711000004_trackc_create_timeline_triggers.sql`
 
-**Context:** The AURA Timeline must never be edited or deleted. Application-layer enforcement is brittle — a bug in any code path that updates the table would compromise the audit trail.
+**Context:** The Kinrel Timeline must never be edited or deleted. Application-layer enforcement is brittle — a bug in any code path that updates the table would compromise the audit trail.
 
-**Decision:** Use Postgres triggers to reject UPDATE and DELETE on `AURATimelineEvent`. The trigger function `enforce_timeline_append_only()` raises an exception with `check_violation` SQLSTATE on any UPDATE or DELETE attempt.
+**Decision:** Use Postgres triggers to reject UPDATE and DELETE on `KinrelTimelineEvent`. The trigger function `enforce_timeline_append_only()` raises an exception with `check_violation` SQLSTATE on any UPDATE or DELETE attempt.
 
 **Consequences:**
 - Corrections are explicit new events with `kind='correction'` and `parentEventId` pointing to the original event.
@@ -26,9 +26,9 @@ All 8 ADRs from Section 17 of the FINAL v2.0 spec, mapped to their implementatio
 
 ## ADR-002: Materialized behavior profile instead of per-call ML
 
-**Status:** Accepted · **Implemented in:** `server/src/trackc/aura-learning/learning.profile-builder.ts`
+**Status:** Accepted · **Implemented in:** `server/src/trackc/kinrel-learning/learning.profile-builder.ts`
 
-**Context:** The AURA Learning Engine needs to personalize AI suggestions in <50ms. A trained per-family ML model would be operationally expensive, privacy-risky (weights encode behavior), hard to debug, and brittle at small sample sizes.
+**Context:** The Kinrel Learning Engine needs to personalize AI suggestions in <50ms. A trained per-family ML model would be operationally expensive, privacy-risky (weights encode behavior), hard to debug, and brittle at small sample sizes.
 
 **Decision:** Compute a `FamilyBehaviorProfile` nightly via a pg-boss worker (`trackc-learning-recompute`). Serve single-row reads at inference time. Confidence gating (Section 9.4) prevents overfitting:
 - `confidenceScore < 0.4` → use global defaults
@@ -72,7 +72,7 @@ All 8 ADRs from Section 17 of the FINAL v2.0 spec, mapped to their implementatio
 
 **Decision:** Hash-partition on `familyId`:
 - `FamilyDecision` → 32 partitions
-- `AURATimelineEvent` → 32 partitions
+- `KinrelTimelineEvent` → 32 partitions
 - `AIInsight` → 16 partitions
 - `LearningSignal` → 16 partitions
 
@@ -91,7 +91,7 @@ Each partitioned table uses a **composite primary key** `(id, familyId)`. Foreig
 
 ## ADR-005: LLM provider behind circuit breaker + cost ceiling
 
-**Status:** Accepted · **Implemented in:** `server/src/trackc/aura-intelligence/{intelligence.circuit-breaker.ts, intelligence.cost-guard.ts, llm-provider.ts, llm-providers/}`
+**Status:** Accepted · **Implemented in:** `server/src/trackc/kinrel-intelligence/{intelligence.circuit-breaker.ts, intelligence.cost-guard.ts, llm-provider.ts, llm-providers/}`
 
 **Context:** LLM costs and outages must not break the app. A single LLM provider outage should not cascade into application errors.
 
@@ -190,7 +190,7 @@ CREATE POLICY "trackc_<table>_update" ON public."<Table>"
 Special cases:
 - `DecisionVote`: INSERT requires `userId = auth.uid()` (you can only cast your own vote).
 - `SmartReminder`: SELECT and UPDATE require `targetUserId = auth.uid()` (you can only see/snooze your own reminders).
-- `AURATimelineEvent`: only SELECT and INSERT policies (UPDATE/DELETE forbidden by trigger).
+- `KinrelTimelineEvent`: only SELECT and INSERT policies (UPDATE/DELETE forbidden by trigger).
 - `SearchIndex`, `FamilyAnalyticsSnapshot`, `FamilyBehaviorProfile`: SELECT-only (writes via pg-boss).
 
 **Consequences:**

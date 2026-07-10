@@ -17,7 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/features/kinrel_intelligence/data/kinrel_model.dart';
 import 'package:kinrel/features/kinrel_intelligence/widgets/kinrel_share_card.dart';
 
-KinrelModel _aura() => KinrelModel(
+KinrelModel _kinrel() => KinrelModel(
       familyId: 'fam-test',
       symbol: const KinrelSymbolParameters(
         ringCount: 3,
@@ -58,7 +58,7 @@ void main() {
           home: Scaffold(
             body: KinrelShareCard(
               boundaryKey: GlobalKey(),
-              kinrel: _aura(),
+              kinrel: _kinrel(),
               familyName: 'Sharma Family',
             ),
           ),
@@ -84,7 +84,7 @@ void main() {
           home: Scaffold(
             body: KinrelShareCard(
               boundaryKey: unattachedKey,
-              kinrel: _aura(),
+              kinrel: _kinrel(),
               familyName: 'Test',
             ),
           ),

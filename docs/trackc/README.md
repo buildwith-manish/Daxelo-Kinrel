@@ -1,4 +1,4 @@
-# Track C v2.0 — AURA Governance Engine
+# Track C v2.0 — Kinrel Governance Engine
 
 Production-ready implementation of the Kinrel family governance system. Implements the FINAL v2.0 specification (spec version 2.0.0-final, dated 2026-07-09).
 
@@ -11,12 +11,12 @@ Production-ready implementation of the Kinrel family governance system. Implemen
 | **Common** | `common/` | RealtimeService proxy, FamilyMembershipService (requireMember / requireAdmin / getElderUserIds) |
 | **Constitution** | `constitution/` | Draft → Publish → Amend lifecycle. Versioned immutable publications. Amendment opens a `constitution_amend` FamilyDecision. |
 | **Decisions** | `decisions/` | 4 decision types (simple_vote, consensus, elder_council, constitution_amend). Pure-function state machine. Quorum computation. Lifecycle (planned → started → in_progress → completed). Memory + Impact milestones. |
-| **AURA Timeline** | `governance-timeline/` | Append-only event log. DB-trigger-enforced immutability. Corrections as new `kind=correction` rows. PDF + JSON export. |
-| **AURA Intelligence** | `aura-intelligence/` | LLM provider interface (OpenAI + Mock). Circuit breaker (10%/60s → 5min open). Cost guard (50K tokens/day/family). PII redaction. 5 kind handlers. Per-kind cache TTLs. |
-| **AURA Learning Engine** | `aura-learning/` | Pseudonymous signal ingestion. Nightly FamilyBehaviorProfile recompute. Confidence gating (0 → 0.4 → 0.7). 50/50 blend in transition zone. Sub-50ms inference reads. |
-| **AURA Secretary** | `aura-secretary/` | Structured MeetingArtifact. LLM-generated draft minutes. Action item extraction. Draft → Reviewed → Published lifecycle. |
-| **AURA Search** | `aura-search/` | Postgres tsvector + GIN index. Relevance ranking (ts_rank_cd × boostedScore). Reindex worker. Suggest endpoint. |
-| **AURA Analytics** | `aura-analytics/` | Weekly/monthly/quarterly snapshots. Anomaly detector (governance_dormant, quorum_decline, participation_decline, slow_decisions). Trend vs prior period. |
+| **Kinrel Timeline** | `governance-timeline/` | Append-only event log. DB-trigger-enforced immutability. Corrections as new `kind=correction` rows. PDF + JSON export. |
+| **Kinrel Intelligence** | `kinrel-intelligence/` | LLM provider interface (OpenAI + Mock). Circuit breaker (10%/60s → 5min open). Cost guard (50K tokens/day/family). PII redaction. 5 kind handlers. Per-kind cache TTLs. |
+| **Kinrel Learning Engine** | `kinrel-learning/` | Pseudonymous signal ingestion. Nightly FamilyBehaviorProfile recompute. Confidence gating (0 → 0.4 → 0.7). 50/50 blend in transition zone. Sub-50ms inference reads. |
+| **Kinrel Secretary** | `kinrel-secretary/` | Structured MeetingArtifact. LLM-generated draft minutes. Action item extraction. Draft → Reviewed → Published lifecycle. |
+| **Kinrel Search** | `kinrel-search/` | Postgres tsvector + GIN index. Relevance ranking (ts_rank_cd × boostedScore). Reindex worker. Suggest endpoint. |
+| **Kinrel Analytics** | `kinrel-analytics/` | Weekly/monthly/quarterly snapshots. Anomaly detector (governance_dormant, quorum_decline, participation_decline, slow_decisions). Trend vs prior period. |
 | **Governance Sync** | `governance-sync/` | Delta endpoint (per-device watermark, parallel fetch of 15 entity types). Push endpoint (outbox drain with idempotency, LWW conflict resolution). |
 | **Workers** | `trackc.workers.ts` | pg-boss scheduled jobs (deadline sweeper, learning recompute, analytics weekly, search reindex, retention purges). |
 
@@ -28,7 +28,7 @@ Production-ready implementation of the Kinrel family governance system. Implemen
 |---|---|---|
 | 01 | `trackc_create_constitution.sql` | FamilyConstitution + Version + Article + Clause + monotonic updatedAt trigger |
 | 02 | `trackc_create_family_decision.sql` | FamilyDecision + DecisionVote |
-| 03 | `trackc_create_aura_timeline.sql` | AURATimelineEvent (append-only) |
+| 03 | `trackc_create_kinrel_timeline.sql` | KinrelTimelineEvent (append-only) |
 | 04 | `trackc_create_timeline_triggers.sql` | DB triggers rejecting UPDATE/DELETE (ADR-001) |
 | 05 | `trackc_create_ai_insight.sql` | Consolidated AIInsight table (ADR-003) |
 | 06 | `trackc_create_learning_signal.sql` | LearningSignal (pseudonymous) |
@@ -53,7 +53,7 @@ Production-ready implementation of the Kinrel family governance system. Implemen
 
 - `FamilyConstitution`, `ConstitutionVersion`, `ConstitutionArticle`, `ConstitutionClause`
 - `FamilyDecision` (composite PK `id+familyId`, hash-partitioned), `DecisionVote`
-- `AURATimelineEvent` (composite PK, append-only via DB trigger)
+- `KinrelTimelineEvent` (composite PK, append-only via DB trigger)
 - `AIInsight` (composite PK, kind discriminator)
 - `LearningSignal` (composite PK), `FamilyBehaviorProfile`, `FamilyBehaviorProfileHistory`
 - `SmartReminder`, `DecisionMemory`, `DecisionImpact`, `MeetingArtifact`
@@ -99,8 +99,8 @@ See [./MIGRATIONS.md](./MIGRATIONS.md) for the migration runbook.
 | Phase | Spec weeks | Status |
 |---|---|---|
 | **C1** Governance Foundation | 4 | ✅ Migrations + Prisma + Constitution + Decisions + Timeline modules + tests |
-| **C2** AURA Timeline Surface | 2 | ✅ Timeline list/detail/correction/export endpoints |
-| **C3** AURA Intelligence | 4 | ✅ AIInsight + circuit breaker + cost guard + 5 kind handlers + cache + redaction |
-| **C4** AURA Learning Engine | 3 | ✅ Signal ingestor + profile builder + inference + confidence gating + reset |
+| **C2** Kinrel Timeline Surface | 2 | ✅ Timeline list/detail/correction/export endpoints |
+| **C3** Kinrel Intelligence | 4 | ✅ AIInsight + circuit breaker + cost guard + 5 kind handlers + cache + redaction |
+| **C4** Kinrel Learning Engine | 3 | ✅ Signal ingestor + profile builder + inference + confidence gating + reset |
 | **C5** Secretary + Search + Analytics | 4 | ✅ MeetingArtifact + SearchIndex + reindex worker + snapshots + anomaly detector |
 | **C6** Production Hardening | 2 | ⏳ Unit tests done; load/chaos/security audit deferred (require production environment) |
