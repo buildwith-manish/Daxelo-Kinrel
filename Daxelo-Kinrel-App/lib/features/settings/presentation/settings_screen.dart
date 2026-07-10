@@ -290,6 +290,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               },
             ),
             _divider(),
+            // Silent Alarms — moved here from the Pulse hub.
+            // Passive background nudge system, not something you "go do" —
+            // same reasoning as Kinrel Learning.
+            _SettingsRow(
+              icon: Icons.notifications_off_outlined,
+              label: 'Silent Alarms',
+              subtitle: 'Private nudges when someone goes quiet',
+              onTap: () => context.push('/pulse/alarms'),
+            ),
+            _divider(),
             _SettingsDeleteRow(
               label: 'Delete my account',
               onTap: () {
