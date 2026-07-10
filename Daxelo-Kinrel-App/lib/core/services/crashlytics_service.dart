@@ -17,6 +17,13 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import '../config/app_environment.dart';
 
+// ── Web-safe Platform check ───────────────────────────────────────────
+// dart:io's Platform.isAndroid / Platform.isIOS throw
+// `Unsupported operation: Platform._operatingSystem` on Flutter Web.
+// Always guard these calls with `kIsWeb` first.
+// Crashlytics is mobile-only (Android + iOS) — on web/desktop it is
+// a no-op and all logError/log calls degrade to debugPrint.
+
 /// Whether Firebase has been successfully initialized.
 bool _firebaseInitialized = false;
 
@@ -45,7 +52,14 @@ final List<String> _actionBreadcrumbs = [];
 /// This method configures Crashlytics error handlers and sets up
 /// environment tagging. It does NOT call Firebase.initializeApp() again.
 Future<void> initCrashlytics() async {
-  // Only init on mobile platforms
+  // Only init on mobile platforms.
+  // On web, dart:io's Platform.isAndroid throws
+  // `Unsupported operation: Platform._operatingSystem`, so we guard
+  // with kIsWeb first. Crashlytics is mobile-only anyway.
+  if (kIsWeb) {
+    debugPrint('⏭️ Firebase Crashlytics skipped — web platform');
+    return;
+  }
   if (!Platform.isAndroid && !Platform.isIOS) {
     debugPrint('⏭️ Firebase Crashlytics skipped — not a mobile platform');
     return;

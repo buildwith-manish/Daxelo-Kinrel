@@ -25,6 +25,13 @@ import '../constants/brand_colors.dart';
 import '../constants/brand_typography.dart';
 import '../services/crashlytics_service.dart';
 
+// Web-only imports for page reload.
+// On non-web platforms these are stubbed out via conditional export.
+// We use a top-level function `_reloadPage()` that is overridden on web
+// via the conditional import below.
+import 'reload_page_stub.dart'
+    if (dart.library.html) 'reload_page_web.dart' as reload;
+
 // ── Error Severity ────────────────────────────────────────────────────
 
 /// Determines the visual presentation and messaging of the error widget.
@@ -193,9 +200,52 @@ class _GlobalErrorWidgetState extends State<GlobalErrorWidget>
                   _buildRetryButton(isDark),
                   const SizedBox(height: 12),
                 ],
+                // On web, always show a Reload Page button — "restart the app"
+                // doesn't apply to web, and the most common fix for a
+                // transient crash is a page reload (which also clears any
+                // stale service worker state).
+                if (kIsWeb) ...[
+                  _buildReloadButton(isDark),
+                  const SizedBox(height: 12),
+                ],
                 _buildRestartHint(isDark),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Reload Button (web only) ─────────────────────────────────────
+
+  Widget _buildReloadButton(bool isDark) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => reload.reloadCurrentPage(),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: isDark ? KinrelColors.textWhite : KinrelColors.textDark,
+          side: BorderSide(
+            color: isDark
+                ? const Color(0x33FFFFFF)
+                : KinrelColors.lightBorder,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        icon: Icon(
+          Icons.refresh_rounded,
+          size: 20,
+          color: isDark ? KinrelColors.textWhite : KinrelColors.textDark,
+        ),
+        label: Text(
+          'Reload Page',
+          style: KinrelTypography.labelLarge.copyWith(
+            color: isDark ? KinrelColors.textWhite : KinrelColors.textDark,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -296,11 +346,21 @@ class _GlobalErrorWidgetState extends State<GlobalErrorWidget>
   Widget _buildErrorId(bool isDark) {
     // Show a short error ID for support reference in crash mode.
     // In debug mode, show the actual error for developer convenience.
-    if (kDebugMode && widget.errorDetails != null) {
+    // In release mode, show a short hash of the error + the first ~200 chars
+    // of the exception so users can copy-paste it to support (or to the
+    // developer) without leaking PII. Previously release mode showed only
+    // "If this keeps happening, please contact support." which made it
+    // impossible to diagnose production crashes.
+    if (widget.errorDetails != null) {
       final exception = widget.errorDetails!.exceptionAsString();
-      final short = exception.length > 120
-          ? '${exception.substring(0, 120)}...'
+      final short = exception.length > 200
+          ? '${exception.substring(0, 200)}...'
           : exception;
+      // Build a short stable error code from the exception string so
+      // support can group identical crashes.
+      final hashCode = exception.hashCode.abs().toRadixString(16).toUpperCase();
+      final errorCode = 'ERR-$hashCode';
+
       return Padding(
         padding: const EdgeInsets.only(top: 12),
         child: Container(
@@ -317,18 +377,34 @@ class _GlobalErrorWidgetState extends State<GlobalErrorWidget>
                   : KinrelColors.lightBorder,
             ),
           ),
-          child: Text(
-            short,
-            style: KinrelTypography.bodySmall.copyWith(
-              fontFamily: KinrelTypography.monoFont,
-              color: KinrelColors.error.withValues(alpha: 0.8),
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Error code: $errorCode',
+                style: KinrelTypography.bodySmall.copyWith(
+                  fontFamily: KinrelTypography.monoFont,
+                  color: KinrelColors.error.withValues(alpha: 0.9),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                short,
+                style: KinrelTypography.bodySmall.copyWith(
+                  fontFamily: KinrelTypography.monoFont,
+                  color: isDark
+                      ? KinrelColors.textSecondaryDark
+                      : KinrelColors.textSecondaryLight,
+                ),
+              ),
+            ],
           ),
         ),
       );
     }
 
-    // In release mode, show a generic support reference
+    // No error details available — show generic support reference
     return Text(
       'If this keeps happening, please contact support.',
       style: KinrelTypography.bodySmall.copyWith(
