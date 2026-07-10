@@ -62,13 +62,18 @@ class TrackcAnalyticsScreen extends ConsumerWidget {
                     Icon(Icons.date_range, color: theme.colorScheme.primary),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        '${_formatDate(periodStart)} – ${_formatDate(periodEnd)}',
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${_formatDate(periodStart)} – ${_formatDate(periodEnd)}',
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          Text('Weekly', style: TextStyle(color: Colors.grey[600])),
+                        ],
                       ),
-                      Text('Weekly', style: TextStyle(color: Colors.grey[600])),
-                    ],
+                    ),
+                  ],
                   ),
                 ),
               ),
