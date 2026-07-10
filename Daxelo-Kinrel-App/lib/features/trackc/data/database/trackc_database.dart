@@ -15,7 +15,6 @@
 // =============================================================================
 
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart' show NativeDatabase;
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -47,32 +46,19 @@ class TrackcDatabase extends _$TrackcDatabase {
 
   /// Whether Drift is supported on the current platform.
   /// Returns false on web (sqlite3.wasm not configured).
+  /// The [trackcDatabaseProvider] checks this and returns null on web
+  /// so [TrackcDatabase] is never constructed on web.
   static bool get isWebSupported => !kIsWeb;
 
   static QueryExecutor _openConnection() {
     // On web, driftDatabase() throws
     // "Invalid argument(s): When compiling to the web, the `web`
     //  parameter needs to be set."
-    // because the `web` parameter (WasmConfiguration) isn't provided.
-    // We never actually call this on web — the trackcDatabaseProvider
-    // returns null on web. But the constructor still calls this method,
-    // so we need to guard it.
-    //
-    // The driftDatabase() function itself checks kIsWeb internally
-    // and throws the error. So we can't prevent the throw by not
-    // calling it — the constructor always calls _openConnection().
-    //
-    // Instead, we catch the error here and return a no-op
-    // NativeDatabase.memory() that will never be used (the provider
-    // returns null on web before any query is made).
-    try {
-      return driftDatabase(name: 'trackc_governance');
-    } catch (e) {
-      // Web: driftDatabase() threw because `web` param isn't set.
-      // Return an in-memory database that will never be queried
-      // (the trackcDatabaseProvider returns null on web).
-      return NativeDatabase.memory();
-    }
+    // This method is NEVER CALLED on web because the
+    // trackcDatabaseProvider returns null on web (kIsWeb guard)
+    // before constructing TrackcDatabase(). The guard is in
+    // trackc_providers.dart.
+    return driftDatabase(name: 'trackc_governance');
   }
 
   // ── Constitution ──────────────────────────────────────────────────────────
