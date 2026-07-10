@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional, forwardRef, Inject } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FcmService } from './fcm.service';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
+import { UserEngagementService } from './user-engagement.service';
 
 // ── Types & Interfaces ─────────────────────────────────────────────────
 
@@ -106,6 +107,7 @@ export class NotificationsV2Service {
     private readonly prisma: PrismaService,
     private readonly fcmService: FcmService,
     private readonly gateway: KinrelGateway,
+    @Optional() private readonly userEngagementService?: UserEngagementService,
   ) {}
 
   // ── Specific notification triggers ─────────────────────────────────
@@ -941,7 +943,7 @@ export class NotificationsV2Service {
 
     const now = new Date();
 
-    await this.prisma.notification.updateMany({
+    const result = await this.prisma.notification.updateMany({
       where: {
         id: { in: notificationIds },
         userId, // Ensure user can only mark their own notifications
@@ -962,6 +964,21 @@ export class NotificationsV2Service {
       },
       data: { status: 'read' },
     });
+
+    // ── ML spec item #7 — Record engagement signal ────────────────────
+    // Each notification-mark-as-read is a real engagement event. We feed
+    // it into the user's engagement profile so the scheduler can learn
+    // when this user typically opens notifications. Only counted if at
+    // least one notification was actually newly marked as read (avoids
+    // double-counting when the user toggles read/unread).
+    if (result.count > 0 && this.userEngagementService) {
+      // Fire-and-forget — don't block the API response on engagement recording
+      this.userEngagementService
+        .recordEngagement(userId, now)
+        .catch(() => {
+          // best-effort — see UserEngagementService for error handling
+        });
+    }
   }
 
   /**

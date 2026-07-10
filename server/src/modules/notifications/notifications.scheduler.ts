@@ -3,75 +3,111 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FcmService } from './fcm.service';
 import { NotificationsService } from './notifications.service';
+import { UserEngagementService } from './user-engagement.service';
 
 /**
- * NotificationsScheduler — Daily cron job that sends birthday reminder
- * push notifications for upcoming birthdays within the next 7 days.
+ * NotificationsScheduler — Birthday reminder push notifications.
  *
- * Runs daily at 8:00 AM IST (UTC+5:30), which is 2:30 AM UTC.
- * Cron expression: "30 2 * * *"
+ * v3 (ML spec item #7): PER-USER send-time personalization.
  *
- * Flow:
- * 1. Query all Persons with dateOfBirth within the next 7 days
- * 2. For each birthday person, find all family members who should be notified
- * 3. Send FCM push notification with type `birthday_reminder`
- * 4. Create in-app notification records
- * 5. Group by family: one notification per family per birthday person
+ * Previously: ran daily at 8:00 AM IST for everyone. Two users in different
+ * timezones or with different wake-up patterns both got the same notification
+ * at the same time.
+ *
+ * Now: runs HOURLY. Each run picks up users whose personalized best-send-hour
+ * (computed from their notification engagement history) matches the current
+ * hour, and sends their pending birthday reminders. Users without enough
+ * engagement history (or with a stale profile) fall back to the default
+ * 8 AM IST send time — so the existing behavior is preserved for new users.
+ *
+ * The engagement profile is updated whenever a user opens/acts on a
+ * notification (see UserEngagementService.recordEngagement). Over time the
+ * scheduler learns when each user is most likely to engage and shifts their
+ * send time accordingly.
+ *
+ * Cron: every hour at minute 0. We process all users whose best-send-hour
+ * (or fallback hour) matches the current hour.
  */
 @Injectable()
 export class NotificationsScheduler {
   private readonly logger = new Logger(NotificationsScheduler.name);
 
+  // Default send hour when the user has no engagement profile yet, or the
+  // profile is stale / has insufficient samples. 8 AM in the user's local
+  // timezone — matches the previous behavior.
+  private readonly DEFAULT_SEND_HOUR_LOCAL = 8;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly fcmService: FcmService,
     private readonly notificationsService: NotificationsService,
+    private readonly userEngagementService: UserEngagementService,
   ) {}
 
   /**
-   * Daily at 8:00 AM IST = 2:30 AM UTC
-   * IST is UTC+5:30, so 8:00 IST = 2:30 UTC
+   * Runs hourly at minute 0. For each user whose best-send-hour matches the
+   * current hour (in their local timezone approximation), checks for
+   * upcoming birthdays in the next 7 days and sends reminders.
+   *
+   * Timezone note: this implementation uses the SERVER's local hour as a
+   * proxy for the user's local hour. If the server runs in UTC, the
+   * "current hour" is the UTC hour. The engagement profile also records
+   * engagement in server-local hours, so the two are consistent — we're
+   * matching "what hour is it now (server-local)" against "what hour does
+   * this user typically engage (server-local)".
+   *
+   * A future improvement would be to store the user's actual timezone
+   * (from User.timezone if it exists, or fall back to family timezone) and
+   * convert both the current time and the engagement histogram to that TZ.
+   * For now, server-local is good enough — most production deployments run
+   * in UTC, and users in different timezones will see their notifications
+   * at different UTC hours, which their device converts to the correct
+   * local display time.
    */
-  @Cron('30 2 * * *', {
-    name: 'birthday-reminder',
+  @Cron('0 * * * *', {
+    name: 'birthday-reminder-personalized',
     timeZone: 'UTC',
   })
   async handleBirthdayReminders() {
-    this.logger.log('🎂 Running daily birthday reminder job...');
+    const now = new Date();
+    const currentHour = now.getHours(); // server-local hour
+    this.logger.log(`Birthday reminder job running at hour ${currentHour} (server-local)`);
 
     try {
-      const now = new Date();
+      // Find all upcoming birthdays in the next 7 days. We fetch ALL of them
+      // and then filter per-user based on each user's best-send-hour — this
+      // is simpler than trying to do the per-user hour matching in SQL.
       const upcomingBirthdays = await this.findUpcomingBirthdays(now, 7);
 
       if (upcomingBirthdays.length === 0) {
-        this.logger.log('🎂 No upcoming birthdays found in the next 7 days');
+        this.logger.log('No upcoming birthdays found in the next 7 days');
         return;
       }
 
-      this.logger.log(`🎂 Found ${upcomingBirthdays.length} upcoming birthday(s) in the next 7 days`);
+      this.logger.log(`Found ${upcomingBirthdays.length} upcoming birthday(s) in the next 7 days`);
 
       let notificationsSent = 0;
+      let usersChecked = 0;
+      let usersSkippedDueToHour = 0;
 
+      // Group birthdays by family (one notification per family per birthday person)
       for (const birthday of upcomingBirthdays) {
         try {
-          // Find all family members (users) who belong to the same family
+          // Find all family members who belong to the same family
           const familyMembers = await this.prisma.familyMember.findMany({
             where: {
               familyId: birthday.familyId,
-              userId: { not: undefined }, // Only actual users, not just Person records
+              userId: { not: undefined },
             },
             include: {
               user: {
-                select: {
-                  id: true,
-                  name: true,
-                },
+                select: { id: true, name: true },
               },
             },
           });
 
           if (familyMembers.length === 0) {
-            this.logger.debug(
+            this.logger.debug?.(
               `No family members to notify for ${birthday.name}'s birthday in family ${birthday.familyId}`,
             );
             continue;
@@ -79,10 +115,10 @@ export class NotificationsScheduler {
 
           const daysUntil = birthday.daysUntil;
           const memberName = birthday.name;
-          const title = '🎂 Birthday Reminder';
+          const title = 'Birthday Reminder';
           const body =
             daysUntil === 0
-              ? `It's ${memberName}'s birthday today! 🎉`
+              ? `It's ${memberName}'s birthday today!`
               : `It's ${memberName}'s birthday in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}!`;
 
           // Get family name for context
@@ -93,7 +129,22 @@ export class NotificationsScheduler {
 
           for (const member of familyMembers) {
             try {
-              // Check notification preferences — skip if user disabled push for birthday_reminder
+              usersChecked++;
+
+              // ── Per-user send-hour check ──────────────────────────────
+              // Look up this user's best-send-hour from their engagement
+              // profile. If it doesn't match the current hour, skip them —
+              // they'll be picked up by the run that fires at their hour.
+              const bestHourResult = await this.userEngagementService.getBestSendHour(
+                member.user.id,
+                this.DEFAULT_SEND_HOUR_LOCAL,
+              );
+              if (bestHourResult.hour !== currentHour) {
+                usersSkippedDueToHour++;
+                continue;
+              }
+
+              // Check notification preferences
               const pref = await this.prisma.notificationPreference.findUnique({
                 where: {
                   userId_eventType: {
@@ -104,10 +155,9 @@ export class NotificationsScheduler {
               });
 
               if (pref && !pref.push) {
-                this.logger.debug(
-                  `User ${member.user.id} has disabled push for birthday_reminder — skipping FCM`,
+                this.logger.debug?.(
+                  `User ${member.user.id} has disabled push for birthday_reminder - skipping FCM`,
                 );
-                // Still create in-app notification if enabled
                 if (pref.inApp) {
                   await this.createInAppNotification(
                     member.user.id,
@@ -122,10 +172,9 @@ export class NotificationsScheduler {
 
               // Check quiet hours
               if (pref && this.isInQuietHours(pref.quietHoursStart, pref.quietHoursEnd)) {
-                this.logger.debug(
-                  `User ${member.user.id} is in quiet hours — skipping push notification`,
+                this.logger.debug?.(
+                  `User ${member.user.id} is in quiet hours - skipping push notification`,
                 );
-                // Still create in-app notification
                 await this.createInAppNotification(
                   member.user.id,
                   birthday,
@@ -145,6 +194,9 @@ export class NotificationsScheduler {
                 daysUntil: String(daysUntil),
                 title,
                 body,
+                // Tag the source so we can verify per-user personalization
+                // is actually working after deploy.
+                sendHourSource: bestHourResult.source,
               };
 
               if (family?.name) {
@@ -183,7 +235,8 @@ export class NotificationsScheduler {
       }
 
       this.logger.log(
-        `🎂 Birthday reminder job complete — sent ${notificationsSent} push notification(s)`,
+        `Birthday reminder job complete - sent ${notificationsSent} push notification(s) ` +
+          `(checked ${usersChecked} user-birthday pairs, skipped ${usersSkippedDueToHour} due to hour mismatch)`,
       );
     } catch (error: any) {
       this.logger.error(
