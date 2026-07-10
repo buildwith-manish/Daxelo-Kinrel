@@ -74,11 +74,11 @@ class TrackcAnalyticsScreen extends ConsumerWidget {
                       ),
                     ),
                   ],
-                  ),
                 ),
               ),
+            ),
 
-              const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
               // Anomalies
               if (anomalies.isNotEmpty) ...[
@@ -137,7 +137,7 @@ class TrackcAnalyticsScreen extends ConsumerWidget {
                 ],
               ),
 
-              const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
               // Additional metrics
               Card(
@@ -184,8 +184,7 @@ class TrackcAnalyticsScreen extends ConsumerWidget {
             ],
           );
         },
-      ),
-    );
+      );
 
     // In embedded mode, return the body directly (no Scaffold/AppBar).
     // The parent Decisions screen provides the chrome.
