@@ -1,5 +1,5 @@
 -- =============================================================================
--- Track C v2.0 — AURA Secretary: Add visibility column to MeetingArtifact
+-- Track C v2.0 — Kinrel Secretary: Add visibility column to MeetingArtifact
 -- =============================================================================
 -- Adds a `visibility` column to control per-artifact access:
 --   'family'           = visible to all family members once published (default)
