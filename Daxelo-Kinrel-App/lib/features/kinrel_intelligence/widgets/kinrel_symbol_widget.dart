@@ -1,15 +1,15 @@
-// lib/features/aura/widgets/aura_symbol_widget.dart
+// lib/features/kinrel_intelligence/widgets/kinrel_symbol_widget.dart
 //
-// AURA — Animated Symbol Widget (Phase 10).
+// Kinrel — Animated Symbol Widget (Phase 10).
 //
-// Wraps [AuraSymbolPainter] in a StatefulWidget with an AnimationController
+// Wraps [KinrelSymbolPainter] in a StatefulWidget with an AnimationController
 // that drives the breathing/pulse effect. The pulse period comes from
-// AuraSymbolParameters.pulseSpeedMs (2000–6000ms) — high-connectivity
+// KinrelSymbolParameters.pulseSpeedMs (2000–6000ms) — high-connectivity
 // families breathe faster, sparse families breathe slower.
 //
 // Memoization / performance (Phase 19.2):
-//   - The widget takes the AuraSymbolParameters directly (not the whole
-//     AuraModel) so parent rebuilds triggered by unrelated model fields
+//   - The widget takes the KinrelSymbolParameters directly (not the whole
+//     KinrelModel) so parent rebuilds triggered by unrelated model fields
 //     (e.g. metrics) don't restart the animation.
 //   - The AnimationController is only restarted when pulseSpeedMs changes.
 //   - The CustomPaint uses a `child`-less repaint boundary implicitly
@@ -18,11 +18,11 @@
 
 import 'package:flutter/material.dart';
 
-import '../data/aura_model.dart';
-import 'aura_symbol_painter.dart';
+import '../data/kinrel_model.dart';
+import 'kinrel_symbol_painter.dart';
 
-class AuraSymbolWidget extends StatefulWidget {
-  const AuraSymbolWidget({
+class KinrelSymbolWidget extends StatefulWidget {
+  const KinrelSymbolWidget({
     super.key,
     required this.parameters,
     this.size = 220,
@@ -31,7 +31,7 @@ class AuraSymbolWidget extends StatefulWidget {
   });
 
   /// Symbol parameters. When these change, the painter is rebuilt.
-  final AuraSymbolParameters parameters;
+  final KinrelSymbolParameters parameters;
 
   /// Square dimension of the painted symbol.
   final double size;
@@ -46,10 +46,10 @@ class AuraSymbolWidget extends StatefulWidget {
   final bool animate;
 
   @override
-  State<AuraSymbolWidget> createState() => _AuraSymbolWidgetState();
+  State<KinrelSymbolWidget> createState() => _KinrelSymbolWidgetState();
 }
 
-class _AuraSymbolWidgetState extends State<AuraSymbolWidget>
+class _KinrelSymbolWidgetState extends State<KinrelSymbolWidget>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
@@ -68,7 +68,7 @@ class _AuraSymbolWidgetState extends State<AuraSymbolWidget>
   }
 
   @override
-  void didUpdateWidget(covariant AuraSymbolWidget oldWidget) {
+  void didUpdateWidget(covariant KinrelSymbolWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     // Restart the controller only if the pulse period changed — avoids
     // restarting the animation on every parent rebuild (Phase 19.2).
@@ -102,7 +102,7 @@ class _AuraSymbolWidgetState extends State<AuraSymbolWidget>
           width: widget.size,
           height: widget.size,
           child: CustomPaint(
-            painter: AuraSymbolPainter(
+            painter: KinrelSymbolPainter(
               parameters: widget.parameters,
               progress: t,
               archetypeKey: widget.archetypeKey,
@@ -117,15 +117,15 @@ class _AuraSymbolWidgetState extends State<AuraSymbolWidget>
 /// Lightweight static variant for use in places where animation would
 /// be distracting (e.g. tiny cover thumbnails). Renders a single frame
 /// at progress=0 with no ticker overhead.
-class StaticAuraSymbol extends StatelessWidget {
-  const StaticAuraSymbol({
+class StaticKinrelSymbol extends StatelessWidget {
+  const StaticKinrelSymbol({
     super.key,
     required this.parameters,
     this.size = 64,
     this.archetypeKey,
   });
 
-  final AuraSymbolParameters parameters;
+  final KinrelSymbolParameters parameters;
   final double size;
   final ArchetypeType? archetypeKey;
 
@@ -135,7 +135,7 @@ class StaticAuraSymbol extends StatelessWidget {
       width: size,
       height: size,
       child: CustomPaint(
-        painter: AuraSymbolPainter(
+        painter: KinrelSymbolPainter(
           parameters: parameters,
           progress: 0,
           archetypeKey: archetypeKey,

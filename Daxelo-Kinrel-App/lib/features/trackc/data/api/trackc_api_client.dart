@@ -1,5 +1,5 @@
 // =============================================================================
-// Track C v2.0 — AURA Governance Engine — Flutter API Client
+// Track C v2.0 — Kinrel Governance Engine — Flutter API Client
 // =============================================================================
 // Thin typed wrapper around Dio for the Track C REST endpoints.
 // Section 6 of the FINAL v2.0 spec.
@@ -198,7 +198,7 @@ class TrackcApiClient {
     return r.data as String;
   }
 
-  // ── AURA Intelligence ─────────────────────────────────────────────────────
+  // ── Kinrel Intelligence ─────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> requestInsights(
     String familyId,
@@ -246,7 +246,7 @@ class TrackcApiClient {
     return r.data as Map<String, dynamic>;
   }
 
-  // ── AURA Learning ─────────────────────────────────────────────────────────
+  // ── Kinrel Learning ─────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getLearningProfile(String familyId) async {
     final r = await _dio.get('/api/v1/families/$familyId/learning/profile');
@@ -268,7 +268,7 @@ class TrackcApiClient {
     );
   }
 
-  // ── AURA Search ───────────────────────────────────────────────────────────
+  // ── Kinrel Search ───────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> search(
     String familyId,
@@ -293,7 +293,7 @@ class TrackcApiClient {
     return (r.data as Map<String, dynamic>)['suggestions'] as List<dynamic>;
   }
 
-  // ── AURA Secretary ────────────────────────────────────────────────────────
+  // ── Kinrel Secretary ────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> createArtifact(
     String familyId,
@@ -328,7 +328,7 @@ class TrackcApiClient {
     return r.data as Map<String, dynamic>;
   }
 
-  // ── AURA Analytics ────────────────────────────────────────────────────────
+  // ── Kinrel Analytics ────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getAnalyticsSummary(
     String familyId, {

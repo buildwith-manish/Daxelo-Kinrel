@@ -1,4 +1,4 @@
-// lib/features/aura/widgets/share_download_stub.dart
+// lib/features/kinrel_intelligence/widgets/share_download_stub.dart
 //
 // Stub for non-web platforms. The web download helper is a no-op on
 // mobile/desktop because those platforms use the native share sheet
@@ -6,7 +6,7 @@
 //
 // This file is selected when dart:html is NOT available (i.e., on
 // native platforms). On web, share_download_web.dart is selected
-// instead via the conditional import in aura_share_card.dart.
+// instead via the conditional import in kinrel_share_card.dart.
 
 import 'dart:typed_data';
 

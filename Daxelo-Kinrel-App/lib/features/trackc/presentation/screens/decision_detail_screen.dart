@@ -223,7 +223,7 @@ class _TrackcDecisionDetailScreenState extends ConsumerState<TrackcDecisionDetai
 
               // AI Insights
               const SizedBox(height: 24),
-              Text('AURA Intelligence', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+              Text('Kinrel Intelligence', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               insightsAsync.when(
                 loading: () => const SizedBox(height: 80, child: Center(child: CircularProgressIndicator())),

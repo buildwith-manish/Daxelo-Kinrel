@@ -1,30 +1,30 @@
-// lib/features/aura/widgets/aura_timeline.dart
+// lib/features/kinrel_intelligence/widgets/kinrel_timeline.dart
 //
-// AURA — Timeline Widget (Phase 13).
+// Kinrel — Timeline Widget (Phase 13).
 //
-// Scrubable horizontal timeline of historical AURA snapshots. Each
+// Scrubable horizontal timeline of historical Kinrel snapshots. Each
 // snapshot is rendered as a small dot; tapping a dot loads that
 // snapshot's archetype + symbol parameters into the parent screen so
-// the user can see how their family's AURA evolved over time.
+// the user can see how their family's Kinrel evolved over time.
 //
-// Data comes from `GET /aura/:familyId/history` → AuraHistorySnapshot[].
+// Data comes from `GET /kinrel-intelligence/:familyId/history` → KinrelHistorySnapshot[].
 // When the list is empty, the widget renders a friendly empty state.
 
 import 'package:flutter/material.dart';
 
 import '../data/archetype_strings.dart';
-import '../data/aura_model.dart';
+import '../data/kinrel_model.dart';
 
-class AuraTimeline extends StatelessWidget {
-  const AuraTimeline({
+class KinrelTimeline extends StatelessWidget {
+  const KinrelTimeline({
     super.key,
     required this.snapshots,
     required this.selectedIndex,
     required this.onSelect,
   });
 
-  /// Historical AURA snapshots, ordered oldest → newest.
-  final List<AuraHistorySnapshot> snapshots;
+  /// Historical Kinrel snapshots, ordered oldest → newest.
+  final List<KinrelHistorySnapshot> snapshots;
 
   /// Index of the currently-selected snapshot. -1 = none selected
   /// (the parent screen typically selects the last one on load).
@@ -50,12 +50,12 @@ class AuraTimeline extends StatelessWidget {
             Icon(Icons.history, size: 32, color: theme.colorScheme.outline),
             const SizedBox(height: 8),
             Text(
-              'No AURA history yet',
+              'No Kinrel history yet',
               style: theme.textTheme.titleSmall,
             ),
             const SizedBox(height: 4),
             Text(
-              'As your family grows, snapshots of how the AURA evolved '
+              'As your family grows, snapshots of how the Kinrel evolved '
               'will appear here.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
@@ -73,7 +73,7 @@ class AuraTimeline extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
           child: Text(
-            'AURA Timeline',
+            'Kinrel Timeline',
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w700,
             ),
@@ -108,7 +108,7 @@ class _TimelineDot extends StatelessWidget {
     required this.onTap,
   });
 
-  final AuraHistorySnapshot snapshot;
+  final KinrelHistorySnapshot snapshot;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -116,7 +116,7 @@ class _TimelineDot extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     // Bug 8 fix: history snapshots don't carry the localized definition
-    // (it's only on the current-AURA endpoint), so we fall back to the
+    // (it's only on the current-Kinrel endpoint), so we fall back to the
     // hardcoded English bundle for timeline dots. The name shown is
     // short (e.g. "Banyan" without "The ") so the locale difference is
     // minimal in this compact view.
@@ -147,7 +147,7 @@ class _TimelineDot extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Mini AURA preview — just the rings colour.
+            // Mini Kinrel preview — just the rings colour.
             Container(
               width: 28,
               height: 28,

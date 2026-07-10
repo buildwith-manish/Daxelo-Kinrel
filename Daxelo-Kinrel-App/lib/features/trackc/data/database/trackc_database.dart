@@ -1,5 +1,5 @@
 // =============================================================================
-// Track C v2.0 — AURA Governance Engine — Flutter Drift Database
+// Track C v2.0 — Kinrel Governance Engine — Flutter Drift Database
 // =============================================================================
 // Wraps the Track C tables into a separate Drift database. Keeping it
 // separate from the main AppDatabase avoids regenerating the existing

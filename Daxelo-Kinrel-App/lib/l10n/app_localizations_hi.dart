@@ -185,50 +185,50 @@ class SHi extends S {
   String get languageName => 'हिन्दी';
 
   @override
-  String get auraNavLabel => 'AURA';
+  String get auraNavLabel => 'Kinrel';
 
   @override
-  String get auraScreenTitle => 'AURA';
+  String get auraScreenTitle => 'Kinrel';
 
   @override
-  String get auraEmptyTitle => 'AURA has not been computed yet';
+  String get auraEmptyTitle => 'Kinrel has not been computed yet';
 
   @override
   String get auraEmptyBody =>
-      'AURA analyses your family graph to generate a unique symbol and archetype. This usually takes a few seconds.';
+      'Kinrel analyses your family graph to generate a unique symbol and archetype. This usually takes a few seconds.';
 
   @override
-  String get auraGenerateButton => 'Generate AURA';
+  String get auraGenerateButton => 'Generate Kinrel';
 
   @override
   String get auraRecomputeButton => 'Recompute';
 
   @override
-  String get auraLoadingTitle => 'Computing AURA…';
+  String get auraLoadingTitle => 'Computing Kinrel…';
 
   @override
-  String get auraCachedBanner => 'Showing cached AURA — offline mode';
+  String get auraCachedBanner => 'Showing cached Kinrel — offline mode';
 
   @override
-  String get auraErrorTitle => 'Could not load AURA';
+  String get auraErrorTitle => 'Could not load Kinrel';
 
   @override
-  String get auraShareTooltip => 'Share AURA';
+  String get auraShareTooltip => 'Share Kinrel';
 
   @override
   String auraShareText(String familyName) {
-    return 'Our family\'s AURA — $familyName';
+    return 'Our family\'s Kinrel — $familyName';
   }
 
   @override
-  String get auraTimelineTitle => 'AURA Timeline';
+  String get auraTimelineTitle => 'Kinrel Timeline';
 
   @override
-  String get auraTimelineEmptyTitle => 'No AURA history yet';
+  String get auraTimelineEmptyTitle => 'No Kinrel history yet';
 
   @override
   String get auraTimelineEmptyBody =>
-      'As your family grows, snapshots of how the AURA evolved will appear here.';
+      'As your family grows, snapshots of how the Kinrel evolved will appear here.';
 
   @override
   String auraMemberCountCaption(int count) {
@@ -241,5 +241,5 @@ class SHi extends S {
   }
 
   @override
-  String get auraFeatureDisabled => 'AURA is not available.';
+  String get auraFeatureDisabled => 'Kinrel is not available.';
 }

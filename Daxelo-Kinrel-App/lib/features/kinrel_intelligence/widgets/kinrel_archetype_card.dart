@@ -1,23 +1,23 @@
-// lib/features/aura/widgets/aura_archetype_card.dart
+// lib/features/kinrel_intelligence/widgets/kinrel_archetype_card.dart
 //
-// AURA — Archetype Card (Phase 11).
+// Kinrel — Archetype Card (Phase 11).
 //
 // Displays the family's archetype name + poetic 2-line description +
-// confidence meter, with a small AURA symbol preview on the left.
+// confidence meter, with a small Kinrel symbol preview on the left.
 //
-// Designed to be dropped into the AURA screen, the family detail screen,
+// Designed to be dropped into the Kinrel screen, the family detail screen,
 // or anywhere else that wants to surface "what kind of family is this?".
-// The card itself is stateless — it just renders from AuraArchetype +
-// AuraSymbolParameters.
+// The card itself is stateless — it just renders from KinrelArchetype +
+// KinrelSymbolParameters.
 
 import 'package:flutter/material.dart';
 
 import '../data/archetype_strings.dart';
-import '../data/aura_model.dart';
-import 'aura_symbol_widget.dart';
+import '../data/kinrel_model.dart';
+import 'kinrel_symbol_widget.dart';
 
-class AuraArchetypeCard extends StatelessWidget {
-  const AuraArchetypeCard({
+class KinrelArchetypeCard extends StatelessWidget {
+  const KinrelArchetypeCard({
     super.key,
     required this.archetype,
     required this.symbol,
@@ -26,10 +26,10 @@ class AuraArchetypeCard extends StatelessWidget {
   });
 
   /// The archetype classification to display.
-  final AuraArchetype archetype;
+  final KinrelArchetype archetype;
 
   /// Symbol parameters — used for the small preview on the left.
-  final AuraSymbolParameters symbol;
+  final KinrelSymbolParameters symbol;
 
   /// Optional member count, shown as a small caption.
   final int? memberCount;
@@ -65,7 +65,7 @@ class AuraArchetypeCard extends StatelessWidget {
         crossAxisAlignment: compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
         children: [
           // ── Symbol preview ─────────────────────────────────────────
-          StaticAuraSymbol(
+          StaticKinrelSymbol(
             parameters: symbol,
             archetypeKey: archetype.key,
             size: compact ? 48 : 80,

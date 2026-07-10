@@ -1,14 +1,14 @@
 // =============================================================================
-// Track C v2.0 — AURA Governance Hub Screen
+// Track C v2.0 — Kinrel Governance Hub Screen
 // =============================================================================
 // Main entry screen for Track C features. Provides navigation to:
 //   - Constitution
 //   - Decisions
 //   - Timeline
-//   - AURA Learning profile
-//   - AURA Analytics
-//   - AURA Search
-//   - AURA Secretary
+//   - Kinrel Learning profile
+//   - Kinrel Analytics
+//   - Kinrel Search
+//   - Kinrel Secretary
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -47,7 +47,7 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AURA Governance'),
+        title: const Text('Kinrel Governance'),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
@@ -108,7 +108,7 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('AURA Governance Engine',
+                            Text('Kinrel Governance Engine',
                                 style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                             const SizedBox(height: 4),
                             Text(
@@ -156,7 +156,7 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
           ),
           _FeatureCard(
             icon: Icons.history_edu,
-            title: 'AURA Timeline',
+            title: 'Kinrel Timeline',
             subtitle: 'Append-only family history',
             color: const Color(0xFF8E24AA),
             onTap: () => context.pushNamed(
@@ -170,7 +170,7 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
           const SizedBox(height: 8),
           _FeatureCard(
             icon: Icons.insights,
-            title: 'AURA Learning',
+            title: 'Kinrel Learning',
             subtitle: 'Adaptive profile + reset',
             color: const Color(0xFFD81B60),
             onTap: () => Navigator.push(context,
@@ -178,7 +178,7 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
           ),
           _FeatureCard(
             icon: Icons.bar_chart,
-            title: 'AURA Analytics',
+            title: 'Kinrel Analytics',
             subtitle: 'Private family insights',
             color: const Color(0xFFF4511E),
             onTap: () => Navigator.push(context,
@@ -186,7 +186,7 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
           ),
           _FeatureCard(
             icon: Icons.description,
-            title: 'AURA Secretary',
+            title: 'Kinrel Secretary',
             subtitle: 'Meeting minutes + action items',
             color: const Color(0xFF00897B),
             onTap: () => Navigator.push(context,

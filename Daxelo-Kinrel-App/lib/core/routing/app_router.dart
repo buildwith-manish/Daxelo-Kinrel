@@ -177,7 +177,7 @@ import '../../features/pulse/presentation/festival_screen.dart';
 import '../../features/pulse/presentation/silent_alarms_screen.dart';
 import '../../features/pulse/presentation/family_chronicle_screen.dart';
 import '../../features/pulse/presentation/memorials_screen.dart';
-import '../../features/aura/presentation/aura_screen.dart';
+import '../../features/kinrel_intelligence/presentation/kinrel_screen.dart';
 import '../../core/constants/feature_flags.dart';
 import '../../presentation/screens/invite/invite_screen.dart';
 import '../../presentation/screens/family_tree/family_tree_screen.dart';
@@ -767,7 +767,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ),
       ),
-      // ── Track C v2.0 — AURA Governance Engine ──────────────────────────
+      // ── Track C v2.0 — Kinrel Governance Engine ──────────────────────────
       // The governance hub is the parent shell. Nested sub-routes enable deep
       // linking (e.g. notifications or external links can point directly to
       // /family/<id>/governance/decisions/<decisionId>) and let the system
@@ -1013,18 +1013,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // ── Family AURA (Ancestral Unified Relationship Archetype) ──
-      // Gated by kEnableAura so the feature ships dark and can be
+      // ── Family Kinrel (Ancestral Unified Relationship Archetype) ──
+      // Gated by kEnableKinrel so the feature ships dark and can be
       // flipped on per build. The screen itself also re-checks the
       // flag in case it's opened via deep link.
       GoRoute(
-        path: '/family/:id/aura',
+        path: '/family/:id/kinrel',
         pageBuilder: (context, state) {
-          if (!kEnableAura) {
+          if (!kEnableKinrel) {
             return _fastFadePage(
               key: state.pageKey,
               child: const Scaffold(
-                body: Center(child: Text('AURA is not available.')),
+                body: Center(child: Text('Kinrel is not available.')),
               ),
             );
           }
@@ -1034,7 +1034,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               : null;
           return _fastFadePage(
             key: state.pageKey,
-            child: AuraScreen(
+            child: KinrelScreen(
               familyId: state.pathParameters['id']!,
               familyName: familyName,
             ),

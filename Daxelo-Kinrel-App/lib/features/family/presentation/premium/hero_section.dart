@@ -4,10 +4,10 @@
 //
 // Replaces the old _FeedHeader + _GraphPreviewCard with a single hero:
 //   • Faint animated mandala/yantra background derived from the
-//     family's own AURA symbol parameters — every family's hero is
+//     family's own Kinrel symbol parameters — every family's hero is
 //     uniquely theirs.
-//   • AURA symbol large and centered (or family initial fallback when
-//     AURA hasn't been computed yet).
+//   • Kinrel symbol large and centered (or family initial fallback when
+//     Kinrel hasn't been computed yet).
 //   • Family name in Display type (32px) below the symbol.
 //   • Member + relationship count as a single Caption line — this
 //     folds the old "Family Graph" card's data into the hero. The
@@ -25,9 +25,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/family/family_provider.dart';
-import '../../../aura/data/aura_model.dart';
-import '../../../aura/providers/aura_provider.dart';
-import '../../../aura/widgets/aura_symbol_widget.dart';
+import '../../../kinrel_intelligence/data/kinrel_model.dart';
+import '../../../kinrel_intelligence/providers/kinrel_provider.dart';
+import '../../../kinrel_intelligence/widgets/kinrel_symbol_widget.dart';
 import 'design_system.dart';
 import 'mandala_painter.dart';
 
@@ -55,8 +55,8 @@ class HeroSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final auraState = ref.watch(auraProvider(familyId));
-    final aura = auraState.aura;
+    final kinrelState = ref.watch(kinrelProvider(familyId));
+    final kinrel = kinrelState.kinrel;
 
     // Collapse progress: 0 = expanded, 1 = collapsed.
     final collapse = (scrollOffset / 200).clamp(0.0, 1.0);
@@ -97,16 +97,16 @@ class HeroSection extends ConsumerWidget {
             children: [
               // ── Layer 1: Animated mandala background ────────────────
               // Faint (6% opacity), breathing slowly behind the avatar.
-              // Derived from the family's AURA symbol parameters so every
+              // Derived from the family's Kinrel symbol parameters so every
               // family's hero is uniquely theirs.
-              if (aura != null)
+              if (kinrel != null)
                 Positioned.fill(
                   child: _BreathingMandala(
-                    parameters: aura.symbol,
+                    parameters: kinrel.symbol,
                   ),
                 )
               else
-                // Fallback: static concentric rings when AURA not computed.
+                // Fallback: static concentric rings when Kinrel not computed.
                 Positioned.fill(
                   child: CustomPaint(
                     painter: _StaticHeroBackground(),
@@ -118,14 +118,14 @@ class HeroSection extends ConsumerWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // AURA symbol (or family initial fallback) with a
+                    // Kinrel symbol (or family initial fallback) with a
                     // persistent graph-icon badge on the ring so the
                     // tap target is obvious without reading caption text.
                     if (symbolSize > 10)
                       Opacity(
                         opacity: nameOpacity,
                         child: _HeroSymbolWithGraphBadge(
-                          aura: aura,
+                          kinrel: kinrel,
                           familyName: familyName,
                           size: symbolSize,
                         ),
@@ -243,12 +243,12 @@ class HeroSection extends ConsumerWidget {
 }
 
 /// A slowly breathing mandala background. Uses a 6-second animation
-/// cycle (slower than the main AURA symbol's 2–6s pulse) so the hero
+/// cycle (slower than the main Kinrel symbol's 2–6s pulse) so the hero
 /// feels calm and meditative.
 class _BreathingMandala extends StatefulWidget {
   const _BreathingMandala({required this.parameters});
 
-  final AuraSymbolParameters parameters;
+  final KinrelSymbolParameters parameters;
 
   @override
   State<_BreathingMandala> createState() => _BreathingMandalaState();
@@ -300,7 +300,7 @@ class _BreathingMandalaState extends State<_BreathingMandala>
   }
 }
 
-/// Static concentric-ring background used when AURA hasn't been
+/// Static concentric-ring background used when Kinrel hasn't been
 /// computed yet. Same visual language as the mandala but with fixed
 /// parameters so the hero doesn't look empty on first load.
 class _StaticHeroBackground extends CustomPainter {
@@ -336,8 +336,8 @@ class _StaticHeroBackground extends CustomPainter {
   bool shouldRepaint(covariant _StaticHeroBackground old) => false;
 }
 
-/// Family-initial avatar shown when AURA hasn't been computed yet.
-/// Same size slot as the AURA symbol so the hero layout is stable.
+/// Family-initial avatar shown when Kinrel hasn't been computed yet.
+/// Same size slot as the Kinrel symbol so the hero layout is stable.
 class _FamilyInitialAvatar extends StatelessWidget {
   const _FamilyInitialAvatar({
     required this.familyName,
@@ -382,7 +382,7 @@ class _FamilyInitialAvatar extends StatelessWidget {
   }
 }
 
-/// The AURA symbol (or family-initial fallback) wrapped in a Stack with
+/// The Kinrel symbol (or family-initial fallback) wrapped in a Stack with
 /// a persistent graph-icon badge on the bottom-right of the ring.
 ///
 /// Bug 2 fix: "Tap to explore graph" as small caption text doesn't read
@@ -393,12 +393,12 @@ class _FamilyInitialAvatar extends StatelessWidget {
 /// hero opens the graph.
 class _HeroSymbolWithGraphBadge extends StatelessWidget {
   const _HeroSymbolWithGraphBadge({
-    required this.aura,
+    required this.kinrel,
     required this.familyName,
     required this.size,
   });
 
-  final AuraModel? aura;
+  final KinrelModel? kinrel;
   final String familyName;
   final double size;
 
@@ -414,11 +414,11 @@ class _HeroSymbolWithGraphBadge extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // The AURA symbol or family-initial avatar.
-          if (aura != null)
-            StaticAuraSymbol(
-              parameters: aura!.symbol,
-              archetypeKey: aura!.archetype.key,
+          // The Kinrel symbol or family-initial avatar.
+          if (kinrel != null)
+            StaticKinrelSymbol(
+              parameters: kinrel!.symbol,
+              archetypeKey: kinrel!.archetype.key,
               size: size,
             )
           else

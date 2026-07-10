@@ -1,9 +1,9 @@
-// lib/features/aura/widgets/role_glyph_badge.dart
+// lib/features/kinrel_intelligence/widgets/role_glyph_badge.dart
 //
-// AURA — Role Glyph Badge (Phase 12).
+// Kinrel — Role Glyph Badge (Phase 12).
 //
 // A small badge that gets dropped onto a member's avatar to show their
-// AURA role (root / anchor / bridge / weaver / leaf / twin_node).
+// Kinrel role (root / anchor / bridge / weaver / leaf / twin_node).
 //
 // The badge is intentionally tiny (16px) and uses only the role's glyph
 // color + a single-letter label, so it works on avatars of any size
@@ -18,9 +18,9 @@
 import 'package:flutter/material.dart';
 
 import '../data/archetype_strings.dart';
-import '../data/aura_model.dart';
+import '../data/kinrel_model.dart';
 
-/// A small badge showing a member's AURA role.
+/// A small badge showing a member's Kinrel role.
 ///
 /// Drop this on top of a member avatar (e.g. as the bottom-right child
 /// of a Stack) to surface their role within the family graph. The badge
@@ -34,7 +34,7 @@ class RoleGlyphBadge extends StatelessWidget {
   });
 
   /// The role glyph to render. Pass `null` (via [RoleGlyphBadge.none])
-  /// if AURA hasn't been computed yet — the badge renders nothing.
+  /// if Kinrel hasn't been computed yet — the badge renders nothing.
   final RoleGlyph? role;
 
   /// Diameter of the badge circle.

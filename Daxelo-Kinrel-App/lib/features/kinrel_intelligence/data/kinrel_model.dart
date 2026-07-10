@@ -1,22 +1,22 @@
-// lib/features/aura/data/aura_model.dart
+// lib/features/kinrel_intelligence/data/kinrel_model.dart
 //
-// AURA — Ancestral Unified Relationship Archetype
+// Kinrel — Family Relationship Intelligence
 // Pure data models mirroring the JSON shape returned by the backend
-// AURA endpoints (see server/src/aura/aura-query.service.ts).
+// Kinrel endpoints (see server/src/kinrel-intelligence/kinrel-query.service.ts).
 //
 // Endpoints (all require JWT auth):
-//   GET /aura/:familyId          → AuraModel
-//   GET /aura/:familyId/roles    → { familyId, roles: List<RoleGlyph> }
-//   GET /aura/:familyId/history  → { familyId, history: List<AuraHistorySnapshot> }
+//   GET /kinrel-intelligence/:familyId          → KinrelModel
+//   GET /kinrel-intelligence/:familyId/roles    → { familyId, roles: List<RoleGlyph> }
+//   GET /kinrel-intelligence/:familyId/history  → { familyId, history: List<KinrelHistorySnapshot> }
 //
 // These models are NOT generated — they are hand-written so the Flutter
 // client owns the contract independently of any code generator.
 
 import 'dart:convert';
 
-/// Inner pattern drawn at the centre of the AURA symbol.
-/// Mirrors `InnerPattern` from aura-parameter-generator.service.ts.
-enum AuraInnerPattern {
+/// Inner pattern drawn at the centre of the Kinrel symbol.
+/// Mirrors `InnerPattern` from kinrel-parameter-generator.service.ts.
+enum KinrelInnerPattern {
   lotus,
   grid,
   diamond,
@@ -26,22 +26,22 @@ enum AuraInnerPattern {
 
   /// Parse from the backend string. Falls back to [lotus] for unknown
   /// values so a future backend addition never crashes the client.
-  static AuraInnerPattern fromString(String? value) {
+  static KinrelInnerPattern fromString(String? value) {
     switch (value) {
       case 'lotus':
-        return AuraInnerPattern.lotus;
+        return KinrelInnerPattern.lotus;
       case 'grid':
-        return AuraInnerPattern.grid;
+        return KinrelInnerPattern.grid;
       case 'diamond':
-        return AuraInnerPattern.diamond;
+        return KinrelInnerPattern.diamond;
       case 'star':
-        return AuraInnerPattern.star;
+        return KinrelInnerPattern.star;
       case 'web':
-        return AuraInnerPattern.web;
+        return KinrelInnerPattern.web;
       case 'spiral':
-        return AuraInnerPattern.spiral;
+        return KinrelInnerPattern.spiral;
       default:
-        return AuraInnerPattern.lotus;
+        return KinrelInnerPattern.lotus;
     }
   }
 
@@ -96,10 +96,10 @@ enum ArchetypeType {
   }
 }
 
-/// Visual symbol parameters for a family's AURA. Mirrors the `symbol`
-/// block of the GET /aura/:familyId response.
-class AuraSymbolParameters {
-  const AuraSymbolParameters({
+/// Visual symbol parameters for a family's Kinrel. Mirrors the `symbol`
+/// block of the GET /kinrel-intelligence/:familyId response.
+class KinrelSymbolParameters {
+  const KinrelSymbolParameters({
     required this.ringCount,
     required this.spokeCount,
     required this.innerPatternType,
@@ -113,7 +113,7 @@ class AuraSymbolParameters {
 
   final int ringCount; // 1–8
   final int spokeCount; // 3–12
-  final AuraInnerPattern innerPatternType;
+  final KinrelInnerPattern innerPatternType;
   final double outerRingRadiusPct; // 0.50–0.95
   final int patternComplexity; // 1–10
   final String primaryColorHex; // #RRGGBB
@@ -121,12 +121,12 @@ class AuraSymbolParameters {
   final String accentColorHex;
   final int pulseSpeedMs; // 2000–6000
 
-  factory AuraSymbolParameters.fromJson(Map<String, dynamic> json) {
-    return AuraSymbolParameters(
+  factory KinrelSymbolParameters.fromJson(Map<String, dynamic> json) {
+    return KinrelSymbolParameters(
       ringCount: _readInt(json, 'ringCount', 2),
       spokeCount: _readInt(json, 'spokeCount', 4),
       innerPatternType:
-          AuraInnerPattern.fromString(json['innerPatternType'] as String?),
+          KinrelInnerPattern.fromString(json['innerPatternType'] as String?),
       outerRingRadiusPct:
           _readDouble(json, 'outerRingRadiusPct', 0.85),
       patternComplexity: _readInt(json, 'patternComplexity', 3),
@@ -152,10 +152,10 @@ class AuraSymbolParameters {
         'pulseSpeedMs': pulseSpeedMs,
       };
 
-  AuraSymbolParameters copyWith({
+  KinrelSymbolParameters copyWith({
     int? ringCount,
     int? spokeCount,
-    AuraInnerPattern? innerPatternType,
+    KinrelInnerPattern? innerPatternType,
     double? outerRingRadiusPct,
     int? patternComplexity,
     String? primaryColorHex,
@@ -163,7 +163,7 @@ class AuraSymbolParameters {
     String? accentColorHex,
     int? pulseSpeedMs,
   }) =>
-      AuraSymbolParameters(
+      KinrelSymbolParameters(
         ringCount: ringCount ?? this.ringCount,
         spokeCount: spokeCount ?? this.spokeCount,
         innerPatternType: innerPatternType ?? this.innerPatternType,
@@ -178,8 +178,8 @@ class AuraSymbolParameters {
 }
 
 /// Raw graph metrics snapshot, surfaced for the timeline + debugging UI.
-class AuraMetrics {
-  const AuraMetrics({
+class KinrelMetrics {
+  const KinrelMetrics({
     required this.memberCount,
     required this.generationDepth,
     required this.edgeCount,
@@ -203,7 +203,7 @@ class AuraMetrics {
   final String? maxBetweennessNode;
   final String? rootNode;
 
-  factory AuraMetrics.fromJson(Map<String, dynamic> json) {
+  factory KinrelMetrics.fromJson(Map<String, dynamic> json) {
     final rawDist = json['languageDistribution'];
     final Map<String, double> dist = {};
     if (rawDist is Map) {
@@ -215,7 +215,7 @@ class AuraMetrics {
         }
       });
     }
-    return AuraMetrics(
+    return KinrelMetrics(
       memberCount: _readInt(json, 'memberCount', 0),
       generationDepth: _readInt(json, 'generationDepth', 1),
       edgeCount: _readInt(json, 'edgeCount', 0),
@@ -244,9 +244,9 @@ class AuraMetrics {
       };
 }
 
-/// Archetype classification attached to a family's AURA.
-class AuraArchetype {
-  const AuraArchetype({
+/// Archetype classification attached to a family's Kinrel.
+class KinrelArchetype {
+  const KinrelArchetype({
     required this.key,
     required this.confidence,
     this.definition,
@@ -260,15 +260,15 @@ class AuraArchetype {
   /// locale code (e.g. {'en': 'The Banyan', 'hi': 'बरगद', ...}).
   /// The Flutter client uses this to render the user's locale instead
   /// of the hardcoded English strings in archetype_strings.dart.
-  final AuraArchetypeDefinition? definition;
+  final KinrelArchetypeDefinition? definition;
 
-  factory AuraArchetype.fromJson(Map<String, dynamic> json) {
+  factory KinrelArchetype.fromJson(Map<String, dynamic> json) {
     final defJson = json['definition'] as Map<String, dynamic>?;
-    return AuraArchetype(
+    return KinrelArchetype(
       key: ArchetypeType.fromString(json['key'] as String?),
       confidence: _readDouble(json, 'confidence', 0.5),
       definition:
-          defJson == null ? null : AuraArchetypeDefinition.fromJson(defJson),
+          defJson == null ? null : KinrelArchetypeDefinition.fromJson(defJson),
     );
   }
 
@@ -281,8 +281,8 @@ class AuraArchetype {
 
 /// Localized archetype strings — mirrors the backend's
 /// ArchetypeDefinition.names / .descriptions maps (8 languages each).
-class AuraArchetypeDefinition {
-  const AuraArchetypeDefinition({
+class KinrelArchetypeDefinition {
+  const KinrelArchetypeDefinition({
     required this.names,
     required this.descriptions,
   });
@@ -293,7 +293,7 @@ class AuraArchetypeDefinition {
   /// Locale code → 2-line poetic description.
   final Map<String, String> descriptions;
 
-  factory AuraArchetypeDefinition.fromJson(Map<String, dynamic> json) {
+  factory KinrelArchetypeDefinition.fromJson(Map<String, dynamic> json) {
     Map<String, String> _readStringMap(Map<String, dynamic>? m) {
       if (m == null) return const {};
       return m.map(
@@ -301,7 +301,7 @@ class AuraArchetypeDefinition {
       );
     }
 
-    return AuraArchetypeDefinition(
+    return KinrelArchetypeDefinition(
       names: _readStringMap(json['names'] as Map<String, dynamic>?),
       descriptions:
           _readStringMap(json['descriptions'] as Map<String, dynamic>?),
@@ -330,9 +330,9 @@ class AuraArchetypeDefinition {
   }
 }
 
-/// Full AURA payload returned by `GET /aura/:familyId`.
-class AuraModel {
-  const AuraModel({
+/// Full Kinrel payload returned by `GET /kinrel-intelligence/:familyId`.
+class KinrelModel {
+  const KinrelModel({
     required this.familyId,
     required this.symbol,
     required this.archetype,
@@ -342,22 +342,22 @@ class AuraModel {
   });
 
   final String familyId;
-  final AuraSymbolParameters symbol;
-  final AuraArchetype archetype;
-  final AuraMetrics metrics;
+  final KinrelSymbolParameters symbol;
+  final KinrelArchetype archetype;
+  final KinrelMetrics metrics;
   final DateTime computedAt;
   final DateTime updatedAt;
 
-  factory AuraModel.fromJson(Map<String, dynamic> json) {
-    return AuraModel(
+  factory KinrelModel.fromJson(Map<String, dynamic> json) {
+    return KinrelModel(
       familyId: (json['familyId'] as String?) ?? '',
-      symbol: AuraSymbolParameters.fromJson(
+      symbol: KinrelSymbolParameters.fromJson(
         (json['symbol'] as Map<String, dynamic>?) ?? const {},
       ),
-      archetype: AuraArchetype.fromJson(
+      archetype: KinrelArchetype.fromJson(
         (json['archetype'] as Map<String, dynamic>?) ?? const {},
       ),
-      metrics: AuraMetrics.fromJson(
+      metrics: KinrelMetrics.fromJson(
         (json['metrics'] as Map<String, dynamic>?) ?? const {},
       ),
       computedAt: _readDate(json['computedAt']) ?? DateTime.now(),
@@ -375,20 +375,20 @@ class AuraModel {
       };
 
   /// Encode the whole model as a JSON string for storage in the Drift
-  /// cache table (`CachedAura.data` text column).
+  /// cache table (`CachedKinrel.data` text column).
   String encode() => jsonEncode(toJson());
 
-  static AuraModel decode(String jsonString) {
+  static KinrelModel decode(String jsonString) {
     final decoded = jsonDecode(jsonString);
     if (decoded is! Map<String, dynamic>) {
-      throw FormatException('CachedAura.data is not a JSON object');
+      throw FormatException('CachedKinrel.data is not a JSON object');
     }
-    return AuraModel.fromJson(decoded);
+    return KinrelModel.fromJson(decoded);
   }
 }
 
-/// One member's role glyph within the family AURA. Mirrors the rows
-/// returned by `GET /aura/:familyId/roles`.
+/// One member's role glyph within the family Kinrel. Mirrors the rows
+/// returned by `GET /kinrel-intelligence/:familyId/roles`.
 class RoleGlyph {
   const RoleGlyph({
     required this.memberId,
@@ -436,9 +436,9 @@ class RoleGlyph {
       };
 }
 
-/// One historical snapshot from `GET /aura/:familyId/history`.
-class AuraHistorySnapshot {
-  const AuraHistorySnapshot({
+/// One historical snapshot from `GET /kinrel-intelligence/:familyId/history`.
+class KinrelHistorySnapshot {
+  const KinrelHistorySnapshot({
     required this.id,
     required this.memberCount,
     required this.generationDepth,
@@ -463,7 +463,7 @@ class AuraHistorySnapshot {
   final ArchetypeType archetypeKey;
   final int ringCount;
   final int spokeCount;
-  final AuraInnerPattern innerPatternType;
+  final KinrelInnerPattern innerPatternType;
   final String primaryColorHex;
   final String secondaryColorHex;
   final String accentColorHex;
@@ -478,7 +478,7 @@ class AuraHistorySnapshot {
   /// before the migration that added this column.
   final Map<String, double> languageDistribution;
 
-  factory AuraHistorySnapshot.fromJson(Map<String, dynamic> json) {
+  factory KinrelHistorySnapshot.fromJson(Map<String, dynamic> json) {
     final rawDist = json['languageDistribution'];
     final Map<String, double> dist = {};
     if (rawDist is Map) {
@@ -490,7 +490,7 @@ class AuraHistorySnapshot {
         }
       });
     }
-    return AuraHistorySnapshot(
+    return KinrelHistorySnapshot(
       id: (json['id'] as String?) ?? '',
       memberCount: _readInt(json, 'memberCount', 0),
       generationDepth: _readInt(json, 'generationDepth', 1),
@@ -498,7 +498,7 @@ class AuraHistorySnapshot {
           json['archetypeKey'] as String?),
       ringCount: _readInt(json, 'ringCount', 2),
       spokeCount: _readInt(json, 'spokeCount', 4),
-      innerPatternType: AuraInnerPattern.fromString(
+      innerPatternType: KinrelInnerPattern.fromString(
           json['innerPatternType'] as String?),
       primaryColorHex:
           (json['primaryColorHex'] as String?) ?? '#C8853A',

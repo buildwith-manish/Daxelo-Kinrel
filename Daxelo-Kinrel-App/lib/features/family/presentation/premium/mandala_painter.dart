@@ -3,16 +3,16 @@
 // DAXELO KINREL — Mandala / Yantra Hero Background
 //
 // The hero background isn't a generic gradient — it's a faint animated
-// yantra/mandala line-pattern derived from the family's own AURA symbol,
+// yantra/mandala line-pattern derived from the family's own Kinrel symbol,
 // barely visible, breathing slowly behind the avatar. The same motif is
 // reused as a subtle divider between sections instead of hairlines.
 //
 // This is what separates "well-built app" from "10/10 distinctive":
 // the premium feeling comes from a visual grammar rooted in Indian
-// kinship geometry (which the AURA research already validated as
+// kinship geometry (which the Kinrel research already validated as
 // unoccupied territory), not from copying iOS large-title patterns.
 //
-// The painter takes the same AuraSymbolParameters as the main AURA
+// The painter takes the same KinrelSymbolParameters as the main Kinrel
 // symbol (ring count, spoke count, inner pattern, colours) but renders
 // at much lower opacity (~6%) so it reads as a textured background,
 // not a foreground graphic. A slow breathing animation (driven by
@@ -22,10 +22,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../../aura/data/aura_model.dart';
+import '../../../kinrel_intelligence/data/kinrel_model.dart';
 
 /// A faint mandala/yantra pattern painted behind the hero section.
-/// Derived from the family's AURA symbol parameters so every family's
+/// Derived from the family's Kinrel symbol parameters so every family's
 /// hero background is uniquely theirs.
 class MandalaPainter extends CustomPainter {
   MandalaPainter({
@@ -34,7 +34,7 @@ class MandalaPainter extends CustomPainter {
     this.opacity = 0.06,
   });
 
-  final AuraSymbolParameters parameters;
+  final KinrelSymbolParameters parameters;
 
   /// Breathing progress in [0, 1]. Drives a subtle scale pulse.
   final double progress;
@@ -51,7 +51,7 @@ class MandalaPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
 
     // Breathing scale: 0.97 → 1.03 (very subtle, slower than the
-    // main AURA symbol's 0.92→1.0 so the background feels calmer).
+    // main Kinrel symbol's 0.92→1.0 so the background feels calmer).
     final breathe = 0.97 + 0.06 * (0.5 + 0.5 * progress);
 
     final color = _parseColor(parameters.primaryColorHex)
@@ -94,8 +94,8 @@ class MandalaPainter extends CustomPainter {
     }
 
     // ── Layer 3: Inner yantra geometry ────────────────────────────
-    // Pick a simple yantra shape based on the AURA inner pattern.
-    // These are simpler than the full AuraSymbolPainter patterns —
+    // Pick a simple yantra shape based on the Kinrel inner pattern.
+    // These are simpler than the full KinrelSymbolPainter patterns —
     // the goal is a textured background, not a detailed symbol.
     final innerR = outerRadius * 0.40;
     _drawYantraInner(
@@ -120,7 +120,7 @@ class MandalaPainter extends CustomPainter {
     Canvas canvas,
     Offset center,
     double radius,
-    AuraInnerPattern pattern,
+    KinrelInnerPattern pattern,
     int complexity,
     Color color,
     Color accentColor,
@@ -132,7 +132,7 @@ class MandalaPainter extends CustomPainter {
       ..strokeWidth = 0.7;
 
     switch (pattern) {
-      case AuraInnerPattern.lotus:
+      case KinrelInnerPattern.lotus:
         // 8-petal lotus (yantra classic)
         final petals = 8;
         for (var i = 0; i < petals; i++) {
@@ -160,7 +160,7 @@ class MandalaPainter extends CustomPainter {
         }
         break;
 
-      case AuraInnerPattern.grid:
+      case KinrelInnerPattern.grid:
         // Square grid (yantra chakra)
         final n = (3 + complexity ~/ 3).clamp(3, 6);
         final step = (radius * 2) / n;
@@ -180,7 +180,7 @@ class MandalaPainter extends CustomPainter {
         }
         break;
 
-      case AuraInnerPattern.diamond:
+      case KinrelInnerPattern.diamond:
         // Nested diamonds (Vastu purusha mandala)
         final layers = (2 + complexity ~/ 3).clamp(2, 4);
         for (var l = 1; l <= layers; l++) {
@@ -195,7 +195,7 @@ class MandalaPainter extends CustomPainter {
         }
         break;
 
-      case AuraInnerPattern.star:
+      case KinrelInnerPattern.star:
         // 8-pointed star (Sri Yantra upward triangle hint)
         final path = Path();
         final points = 8;
@@ -215,7 +215,7 @@ class MandalaPainter extends CustomPainter {
         canvas.drawPath(path, paint);
         break;
 
-      case AuraInnerPattern.web:
+      case KinrelInnerPattern.web:
         // Radial web (jalajantra)
         final nodes = 8;
         for (var i = 0; i < nodes; i++) {
@@ -250,7 +250,7 @@ class MandalaPainter extends CustomPainter {
         }
         break;
 
-      case AuraInnerPattern.spiral:
+      case KinrelInnerPattern.spiral:
         // Spiral (kundalini)
         final turns = 2.5;
         final steps = 80;

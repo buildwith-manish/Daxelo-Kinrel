@@ -1,4 +1,4 @@
-// lib/features/aura/widgets/share_download_web.dart
+// lib/features/kinrel_intelligence/widgets/share_download_web.dart
 //
 // Web implementation of PNG download. Creates a Blob URL and triggers
 // a synthetic <a download> click so the user gets a deterministic
@@ -6,7 +6,7 @@
 // in the Downloads folder).
 //
 // This file is selected via the conditional import in
-// aura_share_card.dart when dart:html is available (i.e., on web).
+// kinrel_share_card.dart when dart:html is available (i.e., on web).
 
 import 'dart:html' show Blob, Url, AnchorElement, document;
 import 'dart:typed_data';

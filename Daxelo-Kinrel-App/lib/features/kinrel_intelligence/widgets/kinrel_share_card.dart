@@ -1,8 +1,8 @@
-// lib/features/aura/widgets/aura_share_card.dart
+// lib/features/kinrel_intelligence/widgets/kinrel_share_card.dart
 //
-// AURA — Share Card (Phase 14).
+// Kinrel — Share Card (Phase 14).
 //
-// Renders a visually polished "shareable" version of the family's AURA
+// Renders a visually polished "shareable" version of the family's Kinrel
 // (symbol + archetype name + family name + Daxelo/Kinrel branding),
 // wrapped in a RepaintBoundary so the parent screen can capture it as
 // a PNG and hand the bytes to `share_plus`.
@@ -24,8 +24,8 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/constants/feature_flags.dart';
 import '../data/archetype_strings.dart';
-import '../data/aura_model.dart';
-import 'aura_symbol_widget.dart';
+import '../data/kinrel_model.dart';
+import 'kinrel_symbol_widget.dart';
 
 // Bug 12 fix: conditional import for web download.
 // On web, `share_plus` falls back to a random-filename download which
@@ -38,11 +38,11 @@ import 'share_download_stub.dart'
 
 /// A self-contained share card. Wrap with a [RepaintBoundary] keyed by
 /// [boundaryKey] and call [captureAndShare] to export + share the PNG.
-class AuraShareCard extends StatelessWidget {
-  const AuraShareCard({
+class KinrelShareCard extends StatelessWidget {
+  const KinrelShareCard({
     super.key,
     required this.boundaryKey,
-    required this.aura,
+    required this.kinrel,
     required this.familyName,
   });
 
@@ -50,11 +50,11 @@ class AuraShareCard extends StatelessWidget {
   /// [captureAndShare] reads it to find the RenderRepaintBoundary.
   final GlobalKey boundaryKey;
 
-  /// The AURA payload to render. Only `symbol` + `archetype` are used.
-  final AuraModel aura;
+  /// The Kinrel payload to render. Only `symbol` + `archetype` are used.
+  final KinrelModel kinrel;
 
   /// Family name, shown under the archetype. Caller passes this in
-  /// (the AuraModel itself doesn't carry the family name).
+  /// (the KinrelModel itself doesn't carry the family name).
   final String familyName;
 
   @override
@@ -63,13 +63,13 @@ class AuraShareCard extends StatelessWidget {
     // when available, falling back to the hardcoded English bundle.
     final locale = Localizations.localeOf(context).languageCode;
     final strings = archetypeStrings(
-      aura.archetype.key,
-      definition: aura.archetype.definition,
+      kinrel.archetype.key,
+      definition: kinrel.archetype.definition,
       locale: locale,
     );
-    final primary = _parseColor(aura.symbol.primaryColorHex);
-    final secondary = _parseColor(aura.symbol.secondaryColorHex);
-    final accent = _parseColor(aura.symbol.accentColorHex);
+    final primary = _parseColor(kinrel.symbol.primaryColorHex);
+    final secondary = _parseColor(kinrel.symbol.secondaryColorHex);
+    final accent = _parseColor(kinrel.symbol.accentColorHex);
 
     return Container(
       width: 320,
@@ -96,7 +96,7 @@ class AuraShareCard extends StatelessWidget {
               Icon(Icons.auto_awesome, size: 14, color: accent),
               const SizedBox(width: 4),
               Text(
-                'AURA',
+                'Kinrel',
                 style: TextStyle(
                   color: primary,
                   fontSize: 11,
@@ -109,9 +109,9 @@ class AuraShareCard extends StatelessWidget {
           const SizedBox(height: 16),
 
           // Symbol preview (static, no animation — for deterministic PNG)
-          StaticAuraSymbol(
-            parameters: aura.symbol,
-            archetypeKey: aura.archetype.key,
+          StaticKinrelSymbol(
+            parameters: kinrel.symbol,
+            archetypeKey: kinrel.archetype.key,
             size: 200,
           ),
           const SizedBox(height: 16),
@@ -194,7 +194,7 @@ class AuraShareCard extends StatelessWidget {
   /// Bug 12 fix: on web, `share_plus` falls back to a random-filename
   /// download (no native share sheet on most desktop browsers). We
   /// branch on kIsWeb and use a deterministic `<a download>` click
-  /// instead so the user gets `aura_<FamilyName>.png` in their
+  /// instead so the user gets `kinrel_<FamilyName>.png` in their
   /// Downloads folder.
   static Future<bool> captureAndShare({
     required GlobalKey boundaryKey,
@@ -204,21 +204,21 @@ class AuraShareCard extends StatelessWidget {
     try {
       final renderObject = boundaryKey.currentContext?.findRenderObject();
       if (renderObject == null) {
-        debugPrint('⚠️ AuraShareCard: boundary render object is null');
+        debugPrint('⚠️ KinrelShareCard: boundary render object is null');
         return false;
       }
       final boundary = renderObject as RenderRepaintBoundary;
       final image = await boundary.toImage(pixelRatio: 3.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
-        debugPrint('⚠️ AuraShareCard: toByteData returned null');
+        debugPrint('⚠️ KinrelShareCard: toByteData returned null');
         return false;
       }
       final bytes = byteData.buffer.asUint8List();
 
       // Use the family name (sanitized) as the filename.
       final safeName = familyName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
-      final filename = 'aura_$safeName.png';
+      final filename = 'kinrel_$safeName.png';
 
       if (kIsWeb) {
         // Web: trigger a deterministic browser download.
@@ -227,7 +227,7 @@ class AuraShareCard extends StatelessWidget {
           filename,
         );
         if (!ok) {
-          debugPrint('⚠️ AuraShareCard: web download failed');
+          debugPrint('⚠️ KinrelShareCard: web download failed');
         }
         return ok;
       }
@@ -240,11 +240,11 @@ class AuraShareCard extends StatelessWidget {
       );
       await Share.shareXFiles(
         [xfile],
-        text: shareText ?? "Our family's AURA — $familyName",
+        text: shareText ?? "Our family's Kinrel — $familyName",
       );
       return true;
     } catch (e) {
-      debugPrint('⚠️ AuraShareCard capture/share failed: $e');
+      debugPrint('⚠️ KinrelShareCard capture/share failed: $e');
       return false;
     }
   }
@@ -262,4 +262,4 @@ Color _parseColor(String hex) {
 
 // Suppress analyzer warning about unused import in non-flagged builds.
 // ignore: unused_element
-const _kFlag = kEnableAura;
+const _kFlag = kEnableKinrel;

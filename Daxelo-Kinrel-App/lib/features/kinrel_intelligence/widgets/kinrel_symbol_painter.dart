@@ -1,10 +1,10 @@
-// lib/features/aura/widgets/aura_symbol_painter.dart
+// lib/features/kinrel_intelligence/widgets/kinrel_symbol_painter.dart
 //
-// AURA — Symbol Painter (Phase 9).
+// Kinrel — Symbol Painter (Phase 9).
 //
-// Pure CustomPainter that draws the AURA symbol from an AuraModel's
+// Pure CustomPainter that draws the Kinrel symbol from an KinrelModel's
 // symbol parameters. No animation here — animation lives in
-// aura_symbol_widget.dart which wraps this painter in an AnimatedBuilder.
+// kinrel_symbol_widget.dart which wraps this painter in an AnimatedBuilder.
 //
 // Visual structure (outside-in):
 //   1. Outer rings — `ringCount` concentric circles, outermost at
@@ -15,11 +15,11 @@
 //   4. Pattern complexity — controls subdivision count of the inner
 //      pattern (e.g. petal count for lotus, grid resolution for grid).
 //
-// Colours come straight from the AuraSymbolParameters — primary is used
+// Colours come straight from the KinrelSymbolParameters — primary is used
 // for outer rings + spokes, secondary for the inner pattern, accent for
 // highlights (dots on rings, intersections).
 //
-// All math is pure: given the same AuraModel it always draws the same
+// All math is pure: given the same KinrelModel it always draws the same
 // symbol, so it's safe to use in tests and in RepaintBoundary-based
 // PNG export.
 
@@ -27,17 +27,17 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-import '../data/aura_model.dart';
+import '../data/kinrel_model.dart';
 
-class AuraSymbolPainter extends CustomPainter {
-  AuraSymbolPainter({
+class KinrelSymbolPainter extends CustomPainter {
+  KinrelSymbolPainter({
     required this.parameters,
     this.progress = 0.0,
     this.archetypeKey,
   });
 
-  /// Symbol parameters from AuraModel.symbol.
-  final AuraSymbolParameters parameters;
+  /// Symbol parameters from KinrelModel.symbol.
+  final KinrelSymbolParameters parameters;
 
   /// Animation progress in [0.0, 1.0]. 0 = fully contracted, 1 = fully
   /// expanded. Drives the breathing/pulse effect when used inside an
@@ -132,7 +132,7 @@ class AuraSymbolPainter extends CustomPainter {
     required Canvas canvas,
     required Offset center,
     required double radius,
-    required AuraInnerPattern pattern,
+    required KinrelInnerPattern pattern,
     required int complexity,
     required Color color,
     required Color accent,
@@ -145,22 +145,22 @@ class AuraSymbolPainter extends CustomPainter {
       ..strokeWidth = 1.4;
 
     switch (pattern) {
-      case AuraInnerPattern.lotus:
+      case KinrelInnerPattern.lotus:
         _drawLotus(canvas, center, radius, complexity, paint, progress);
         break;
-      case AuraInnerPattern.grid:
+      case KinrelInnerPattern.grid:
         _drawGrid(canvas, center, radius, complexity, paint);
         break;
-      case AuraInnerPattern.diamond:
+      case KinrelInnerPattern.diamond:
         _drawDiamond(canvas, center, radius, complexity, paint);
         break;
-      case AuraInnerPattern.star:
+      case KinrelInnerPattern.star:
         _drawStar(canvas, center, radius, complexity, paint);
         break;
-      case AuraInnerPattern.web:
+      case KinrelInnerPattern.web:
         _drawWeb(canvas, center, radius, complexity, paint);
         break;
-      case AuraInnerPattern.spiral:
+      case KinrelInnerPattern.spiral:
         _drawSpiral(canvas, center, radius, complexity, paint, progress);
         break;
     }
@@ -343,7 +343,7 @@ class AuraSymbolPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant AuraSymbolPainter old) {
+  bool shouldRepaint(covariant KinrelSymbolPainter old) {
     return old.parameters != parameters ||
         old.progress != progress ||
         old.archetypeKey != archetypeKey;

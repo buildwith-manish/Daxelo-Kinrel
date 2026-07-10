@@ -23,8 +23,8 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
-import '../../../features/aura/providers/aura_provider.dart';
-import '../../../features/aura/widgets/aura_symbol_widget.dart';
+import '../../../features/kinrel_intelligence/providers/kinrel_provider.dart';
+import '../../../features/kinrel_intelligence/widgets/kinrel_symbol_widget.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../family/presentation/join_family_screen.dart';
@@ -1331,14 +1331,14 @@ class _HeroFamilyCard extends ConsumerWidget {
                   ),
                 ),
 
-                // AURA symbol overlay (Phase 16.1) — replaces the
+                // Kinrel symbol overlay (Phase 16.1) — replaces the
                 // generic dotted-K-graph background with the family's
-                // actual AURA symbol when AURA has been computed and
+                // actual Kinrel symbol when Kinrel has been computed and
                 // the feature flag is on. Falls back to the dotted
-                // pattern above when no AURA is cached yet.
-                if (kEnableAura)
+                // pattern above when no Kinrel is cached yet.
+                if (kEnableKinrel)
                   Positioned.fill(
-                    child: _HeroAuraOverlay(familyId: familyId),
+                    child: _HeroKinrelOverlay(familyId: familyId),
                   ),
 
                 // Content
@@ -1884,24 +1884,24 @@ class _FeatureTile {
   final String route;
 }
 
-/// Phase 16.1: overlays the family's AURA symbol on the hero family
-/// card. Renders nothing (transparent) when AURA hasn't been computed
+/// Phase 16.1: overlays the family's Kinrel symbol on the hero family
+/// card. Renders nothing (transparent) when Kinrel hasn't been computed
 /// yet, so the dotted K-graph background remains visible.
 ///
-/// Watches [auraProvider] so the symbol appears instantly once the
-/// AURA finishes computing (e.g. after the user taps "Generate AURA"
-/// on the AURA screen and navigates back).
-class _HeroAuraOverlay extends ConsumerWidget {
-  const _HeroAuraOverlay({required this.familyId});
+/// Watches [kinrelProvider] so the symbol appears instantly once the
+/// Kinrel finishes computing (e.g. after the user taps "Generate Kinrel"
+/// on the Kinrel screen and navigates back).
+class _HeroKinrelOverlay extends ConsumerWidget {
+  const _HeroKinrelOverlay({required this.familyId});
 
   final String familyId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(auraProvider(familyId));
-    final aura = state.aura;
-    if (aura == null) {
-      // No AURA yet — let the dotted K-graph show through.
+    final state = ref.watch(kinrelProvider(familyId));
+    final kinrel = state.kinrel;
+    if (kinrel == null) {
+      // No Kinrel yet — let the dotted K-graph show through.
       return const SizedBox.shrink();
     }
     // Low-opacity so the family name + stats stay readable on top.
@@ -1912,9 +1912,9 @@ class _HeroAuraOverlay extends ConsumerWidget {
           padding: const EdgeInsets.all(12),
           child: Align(
             alignment: Alignment.centerRight,
-            child: StaticAuraSymbol(
-              parameters: aura.symbol,
-              archetypeKey: aura.archetype.key,
+            child: StaticKinrelSymbol(
+              parameters: kinrel.symbol,
+              archetypeKey: kinrel.archetype.key,
               size: 220,
             ),
           ),

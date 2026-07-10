@@ -1,10 +1,10 @@
-// lib/features/aura/data/archetype_strings.dart
+// lib/features/kinrel_intelligence/data/archetype_strings.dart
 //
-// AURA — Archetype display strings (Phase 11.2).
+// Kinrel — Archetype display strings (Phase 11.2).
 //
 // Source of truth for the 6 archetype names + 2-line poetic descriptions.
 // Mirrors the backend `ARCHETYPES` table in
-// server/src/aura/archetype-classifier.service.ts.
+// server/src/kinrel-intelligence/archetype-classifier.service.ts.
 //
 // The descriptions live in code (not in .arb) because:
 //   1. They are 8-language poetic copy — localizing via .arb would inflate
@@ -14,11 +14,11 @@
 //      archetype set requires a code change here anyway.
 //
 // Per the implementation guide deviation #6: only `app_en.arb` is hand-
-// edited for the rest of the AURA UI (nav label, empty/loading/error states).
+// edited for the rest of the Kinrel UI (nav label, empty/loading/error states).
 // The 30 non-English .arb files remain on the English fallback until a
 // follow-up translation pass.
 
-import 'aura_model.dart';
+import 'kinrel_model.dart';
 
 /// Display strings for one archetype.
 class ArchetypeStrings {
@@ -41,10 +41,10 @@ class ArchetypeStrings {
 /// the locale-specific name + description from the backend's 8-language
 /// bundle. Fall back to the hardcoded English strings in this file when
 /// the backend response didn't include a definition (e.g. older server
-/// builds, or cached AuraModel rows written before this fix shipped).
+/// builds, or cached KinrelModel rows written before this fix shipped).
 ArchetypeStrings archetypeStrings(
   ArchetypeType type, {
-  AuraArchetypeDefinition? definition,
+  KinrelArchetypeDefinition? definition,
   String locale = 'en',
 }) {
   // Bug 8: prefer the backend's localized bundle when available.
