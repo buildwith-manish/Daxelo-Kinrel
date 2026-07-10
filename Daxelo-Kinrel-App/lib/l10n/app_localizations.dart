@@ -445,103 +445,103 @@ abstract class S {
   ///
   /// In en, this message translates to:
   /// **'Kinrel'**
-  String get auraNavLabel;
+  String get kinrelNavLabel;
 
   /// AppBar title on the Kinrel screen
   ///
   /// In en, this message translates to:
   /// **'Kinrel'**
-  String get auraScreenTitle;
+  String get kinrelScreenTitle;
 
   /// Title shown when Kinrel is not yet computed
   ///
   /// In en, this message translates to:
   /// **'Kinrel has not been computed yet'**
-  String get auraEmptyTitle;
+  String get kinrelEmptyTitle;
 
   /// Body copy for the Kinrel empty state
   ///
   /// In en, this message translates to:
   /// **'Kinrel analyses your family graph to generate a unique symbol and archetype. This usually takes a few seconds.'**
-  String get auraEmptyBody;
+  String get kinrelEmptyBody;
 
   /// Button label to trigger Kinrel computation
   ///
   /// In en, this message translates to:
   /// **'Generate Kinrel'**
-  String get auraGenerateButton;
+  String get kinrelGenerateButton;
 
   /// Button label to recompute Kinrel
   ///
   /// In en, this message translates to:
   /// **'Recompute'**
-  String get auraRecomputeButton;
+  String get kinrelRecomputeButton;
 
   /// Loading message shown during Kinrel computation
   ///
   /// In en, this message translates to:
   /// **'Computing Kinrel…'**
-  String get auraLoadingTitle;
+  String get kinrelLoadingTitle;
 
   /// Banner shown when the displayed Kinrel is from the offline cache
   ///
   /// In en, this message translates to:
   /// **'Showing cached Kinrel — offline mode'**
-  String get auraCachedBanner;
+  String get kinrelCachedBanner;
 
   /// Error title when Kinrel fetch fails
   ///
   /// In en, this message translates to:
   /// **'Could not load Kinrel'**
-  String get auraErrorTitle;
+  String get kinrelErrorTitle;
 
   /// Tooltip for the Kinrel share icon
   ///
   /// In en, this message translates to:
   /// **'Share Kinrel'**
-  String get auraShareTooltip;
+  String get kinrelShareTooltip;
 
   /// Share-sheet text attached to the Kinrel PNG
   ///
   /// In en, this message translates to:
   /// **'Our family\'s Kinrel — {familyName}'**
-  String auraShareText(String familyName);
+  String kinrelShareText(String familyName);
 
   /// Header for the Kinrel timeline widget
   ///
   /// In en, this message translates to:
   /// **'Kinrel Timeline'**
-  String get auraTimelineTitle;
+  String get kinrelTimelineTitle;
 
   /// Title for the empty Kinrel timeline state
   ///
   /// In en, this message translates to:
   /// **'No Kinrel history yet'**
-  String get auraTimelineEmptyTitle;
+  String get kinrelTimelineEmptyTitle;
 
   /// Body for the empty Kinrel timeline state
   ///
   /// In en, this message translates to:
   /// **'As your family grows, snapshots of how the Kinrel evolved will appear here.'**
-  String get auraTimelineEmptyBody;
+  String get kinrelTimelineEmptyBody;
 
   /// Caption showing the family's member count on the Kinrel card
   ///
   /// In en, this message translates to:
   /// **'{count} members'**
-  String auraMemberCountCaption(int count);
+  String kinrelMemberCountCaption(int count);
 
   /// Confidence meter label on the Kinrel archetype card
   ///
   /// In en, this message translates to:
   /// **'{percent}% match'**
-  String auraConfidenceLabel(int percent);
+  String kinrelConfidenceLabel(int percent);
 
   /// Message shown when Kinrel is feature-flagged off
   ///
   /// In en, this message translates to:
   /// **'Kinrel is not available.'**
-  String get auraFeatureDisabled;
+  String get kinrelFeatureDisabled;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {
