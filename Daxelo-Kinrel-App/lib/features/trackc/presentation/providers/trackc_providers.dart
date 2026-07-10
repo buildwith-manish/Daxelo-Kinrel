@@ -6,6 +6,7 @@
 // =============================================================================
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -16,8 +17,19 @@ import '../../data/database/trackc_database.dart';
 import '../../data/sync/trackc_sync_engine.dart';
 
 // ── Database (singleton) ─────────────────────────────────────────────────────
+// WEB: Returns null on web because Drift requires sqlite3.wasm +
+// drift_worker.js which aren't configured. All Track C providers that
+// depend on the database check for null and fall back to API-only mode
+// (no local cache, no offline sync). This prevents the
+// "When compiling to the web, the `web` parameter needs to be set."
+// crash that was triggered whenever a Track C screen was opened.
 
-final trackcDatabaseProvider = Provider<TrackcDatabase>((ref) {
+final trackcDatabaseProvider = Provider<TrackcDatabase?>((ref) {
+  if (kIsWeb) {
+    // Web: Drift is not available — return null so all consumers
+    // skip local database operations and use the NestJS API directly.
+    return null;
+  }
   final db = TrackcDatabase();
   ref.onDispose(db.close);
   return db;
@@ -66,8 +78,15 @@ final trackcSyncEngineProvider = Provider<TrackcSyncEngine?>((ref) {
   final deviceId = ref.watch(deviceIdProvider).maybeWhen(data: (d) => d, orElse: () => null);
   if (deviceId == null) return null;
 
+  // WEB: trackcDatabaseProvider returns null on web — no offline sync.
+  // The TrackcSyncEngine requires a non-null database, so we return
+  // null here. All Track C providers that watch this provider check
+  // for null and fall back to API-only mode.
+  final db = ref.watch(trackcDatabaseProvider);
+  if (db == null) return null;
+
   final engine = TrackcSyncEngine(
-    db: ref.watch(trackcDatabaseProvider),
+    db: db,
     api: ref.watch(trackcApiClientProvider),
     userId: user.id,
     deviceId: deviceId,

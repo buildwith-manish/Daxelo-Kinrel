@@ -4,10 +4,19 @@
 // Wraps the Track C tables into a separate Drift database. Keeping it
 // separate from the main AppDatabase avoids regenerating the existing
 // generated file (which is large and well-tested).
+//
+// WEB: Drift is NOT available on web because sqlite3.wasm +
+// drift_worker.js are not set up in web/. The [TrackcDatabase] constructor
+// still works (it doesn't immediately open the connection), but any
+// query will throw. Callers MUST check [TrackcDatabase.isWebSupported]
+// before accessing the database. The [trackcDatabaseProvider] returns
+// null on web so all Track C providers gracefully fall back to
+// API-only mode (no local cache, no offline sync).
 // =============================================================================
 
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'trackc_tables.dart';
 
@@ -35,8 +44,34 @@ class TrackcDatabase extends _$TrackcDatabase {
   @override
   int get schemaVersion => 1;
 
+  /// Whether Drift is supported on the current platform.
+  /// Returns false on web (sqlite3.wasm not configured).
+  static bool get isWebSupported => !kIsWeb;
+
   static QueryExecutor _openConnection() {
-    return driftDatabase(name: 'trackc_governance');
+    // On web, driftDatabase() throws
+    // "Invalid argument(s): When compiling to the web, the `web`
+    //  parameter needs to be set."
+    // because the `web` parameter (WasmConfiguration) isn't provided.
+    // We never actually call this on web — the trackcDatabaseProvider
+    // returns null on web. But the constructor still calls this method,
+    // so we need to guard it.
+    //
+    // The driftDatabase() function itself checks kIsWeb internally
+    // and throws the error. So we can't prevent the throw by not
+    // calling it — the constructor always calls _openConnection().
+    //
+    // Instead, we catch the error here and return a no-op
+    // NativeDatabase.memory() that will never be used (the provider
+    // returns null on web before any query is made).
+    try {
+      return driftDatabase(name: 'trackc_governance');
+    } catch (e) {
+      // Web: driftDatabase() threw because `web` param isn't set.
+      // Return an in-memory database that will never be queried
+      // (the trackcDatabaseProvider returns null on web).
+      return NativeDatabase.memory();
+    }
   }
 
   // ── Constitution ──────────────────────────────────────────────────────────
