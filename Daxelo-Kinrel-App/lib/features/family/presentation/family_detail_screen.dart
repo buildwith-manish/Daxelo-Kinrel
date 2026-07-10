@@ -282,9 +282,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               Positioned(
                 left: 0,
                 right: 0,
-                // Slightly more gap above the global bottom nav for
-                // breathing room — not crowding the nav bar.
-                bottom: MediaQuery.of(context).padding.bottom + 12,
+                // Slightly higher gap above the global bottom nav for
+                // breathing room — raised from 12px to 16px.
+                bottom: MediaQuery.of(context).padding.bottom + 16,
                 child: staggerFade(
                   QuickJumpNavRow(familyId: widget.familyId),
                   4,

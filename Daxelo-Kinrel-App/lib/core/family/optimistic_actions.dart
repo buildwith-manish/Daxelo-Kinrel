@@ -685,13 +685,30 @@ Future<void> updatePersonOptimistic({
   int? birthYear,
   bool? isAnchor,
 }) async {
-  final db = ref.read(isarProvider);
+  // WEB: Drift is not available on web — skip the optimistic cache update
+  // and go directly to the API call. The error "IsarDatabase not initialized"
+  // was thrown because isarProvider throws StateError on web.
+  // On native platforms, Drift is available and the optimistic update works.
+  final bool dbAvailable = IsarDatabase.isInitialized;
+  dynamic db;
+  if (dbAvailable) {
+    try {
+      db = ref.read(isarProvider);
+    } catch (_) {
+      dbAvailable = false;
+    }
+  }
+
   final debounceKey = 'update_person_$personId';
 
-  // 1. Snapshot current Drift row for rollback
-  final snapshot = await _snapshotPerson(db, personId);
+  // 1. Snapshot current Drift row for rollback (skip on web)
+  dynamic snapshot;
+  if (dbAvailable && db != null) {
+    snapshot = await _snapshotPerson(db, personId);
+  }
 
-  // 2. Merge updated fields into the existing data JSON
+  // 2. Merge updated fields into the existing data JSON (skip on web)
+  if (dbAvailable && db != null) {
   try {
     final existing = snapshot;
     if (existing != null) {
@@ -762,8 +779,10 @@ Future<void> updatePersonOptimistic({
       ref.invalidate(familyMembersProvider(familyId));
       ref.invalidate(familyDetailProvider(familyId));
     } catch (e) {
-      // 7. On failure: restore snapshot
-      await _restorePersonSnapshot(db, snapshot);
+      // 7. On failure: restore snapshot (skip on web — no Drift)
+      if (dbAvailable && db != null && snapshot != null) {
+        await _restorePersonSnapshot(db, snapshot);
+      }
       ref.invalidate(familyMembersProvider(familyId));
       ref.invalidate(familyDetailProvider(familyId));
       debugPrint('⚠️ Optimistic update person failed, rolled back: $e');

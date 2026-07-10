@@ -35,12 +35,20 @@ class TrackcDecisionsListScreen extends ConsumerStatefulWidget {
 class _TrackcDecisionsListScreenState extends ConsumerState<TrackcDecisionsListScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
+  int _currentTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
     // 5 tabs: Open, Resolved, All, Minutes (Secretary), Trends (Analytics)
     _tabController = TabController(length: 5, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.index != _currentTabIndex) {
+        setState(() {
+          _currentTabIndex = _tabController.index;
+        });
+      }
+    });
   }
 
   @override
@@ -54,6 +62,7 @@ class _TrackcDecisionsListScreenState extends ConsumerState<TrackcDecisionsListS
     // VISIBILITY MATRIX: hide the "New decision" FAB for viewers + minors.
     final familyId = ref.watch(selectedFamilyIdProvider) ?? '';
     final caps = ref.watch(trackcCapabilitiesProvider(familyId));
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -61,12 +70,21 @@ class _TrackcDecisionsListScreenState extends ConsumerState<TrackcDecisionsListS
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
+          tabAlignment: TabAlignment.center,
+          labelColor: theme.colorScheme.primary,
+          unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+          labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          unselectedLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          indicatorSize: TabBarIndicatorSize.label,
+          dividerColor: Colors.transparent,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          labelPadding: const EdgeInsets.symmetric(horizontal: 12),
           tabs: const [
-            Tab(text: 'Open', icon: Icon(Icons.how_to_vote)),
-            Tab(text: 'Resolved', icon: Icon(Icons.task_alt)),
-            Tab(text: 'All', icon: Icon(Icons.list)),
-            Tab(text: 'Minutes', icon: Icon(Icons.description)),
-            Tab(text: 'Trends', icon: Icon(Icons.trending_up)),
+            Tab(text: 'Open', icon: Icon(Icons.how_to_vote, size: 18)),
+            Tab(text: 'Resolved', icon: Icon(Icons.task_alt, size: 18)),
+            Tab(text: 'All', icon: Icon(Icons.list, size: 18)),
+            Tab(text: 'Minutes', icon: Icon(Icons.description, size: 18)),
+            Tab(text: 'Trends', icon: Icon(Icons.trending_up, size: 18)),
           ],
         ),
       ),
@@ -84,7 +102,7 @@ class _TrackcDecisionsListScreenState extends ConsumerState<TrackcDecisionsListS
       ),
       // Hide FAB entirely for viewers + minors (they can't create decisions)
       // Also hide when on Minutes or Trends tab (those have their own actions)
-      floatingActionButton: caps.canAct && _tabController.index < 3
+      floatingActionButton: caps.canAct && _currentTabIndex < 3
           ? FloatingActionButton.extended(
               onPressed: () async {
                 final created = await Navigator.of(context).push<bool>(
@@ -99,8 +117,11 @@ class _TrackcDecisionsListScreenState extends ConsumerState<TrackcDecisionsListS
                   ref.invalidate(decisionsProvider('resolved'));
                 }
               },
-              icon: const Icon(Icons.add),
-              label: const Text('New decision'),
+              icon: const Icon(Icons.add, size: 22),
+              label: const Text(
+                'New Decision',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
             )
           : null,
     );

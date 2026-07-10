@@ -746,10 +746,18 @@ class _FamilyGraphEngineViewState
       isAnchor: (p['isAnchor'] as bool?) ?? false,
       photoUrl: p['photoUrl'] as String?,
       isDeceased: (p['isDeceased'] as bool?) ?? false,
-      // Show "Pending" badge on manually-added Person nodes that haven't
-      // been claimed by a linked Kinrel user yet (linkedUserId is null).
-      isUnclaimed: p['linkedUserId'] == null ||
-          (p['linkedUserId'] as String?)?.isEmpty == true,
+      // The "Pending" badge was previously shown for ANY person without
+      // a linkedUserId (i.e., not yet claimed by a Kinrel account). But
+      // most family tree members (grandparents, children, etc.) are
+      // added as Person nodes without Kinrel accounts — they're real
+      // family members, not pending invitations. Showing "Pending" on
+      // them is misleading.
+      //
+      // The badge is now disabled by default. It should only be shown
+      // when there's an actual pending invitation for this person,
+      // which requires checking the FamilyInvite table — not available
+      // at the graph node level without an additional query.
+      isUnclaimed: false,
       // Pass familyId so GraphNode can render the Kinrel role glyph badge
       // (root/anchor/bridge/weaver/leaf/twin_node) on the node when
       // kEnableKinrel is true.

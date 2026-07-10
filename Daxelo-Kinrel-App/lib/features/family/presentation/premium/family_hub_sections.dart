@@ -618,24 +618,24 @@ class QuickJumpNavRow extends ConsumerWidget {
     final unreadCount = ref.watch(unreadCountProvider);
 
     // ── Ultra-compact floating pill dock ────────────────────────────
-    // Reads as a small secondary icon toolbar / segmented control,
-    // NOT a primary navigation bar. Roughly half the height of the
-    // previous version.
+    // Fixed-size buttons — tapping only highlights, never expands.
+    // All buttons remain evenly spaced and fully visible at all times.
     //
     // Key dimensions:
-    //   - Horizontal margin: 20px each side (clear gutter from edges)
-    //   - Border radius: 24px (pill on the smaller container)
-    //   - Internal padding: 2px (minimal)
-    //   - Icon size: 16px (small supporting icons, not primary nav)
-    //   - Label size: 9px (compact caption text)
-    //   - Gap icon→label: 2px (tight)
+    //   - Horizontal margin: 16px each side (slightly tighter gutter)
+    //   - Border radius: 20px (pill on the smaller container)
+    //   - Internal padding: 3px vertical, 2px horizontal
+    //   - Icon size: 14px (compact supporting icons)
+    //   - Label size: 8px (compact caption text)
+    //   - Gap icon→label: 1px (tight)
+    //   - Each chip: fixed width via Expanded (equal spacing, no expansion)
     //   - Shadow: multi-layer for floating elevation
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         decoration: BoxDecoration(
           color: KinrelColors.darkCard,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: KinrelColors.textWhite.withValues(alpha: 0.06),
             width: 1,
@@ -658,7 +658,7 @@ class QuickJumpNavRow extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: 2,
-            vertical: 3,
+            vertical: 4,
           ),
           child: Row(
             children: [
@@ -729,20 +729,24 @@ class _QuickJumpChip extends StatelessWidget {
         ? FamilyHubSurface.accent
         : FamilyHubSurface.iconMuted;
 
+    // Fixed-size chip — no AnimatedScale, no expansion, no layout shift.
+    // Tapping only triggers navigation; the chip never changes size.
+    // The parent Row uses Expanded for each chip, ensuring equal width
+    // and stable layout regardless of which button is tapped.
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
+      child: SizedBox(
+        height: 36, // Fixed height — prevents any vertical expansion
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Small supporting icon — 16px reads as secondary toolbar,
-            // not primary navigation.
+            // Compact icon — 14px
             Stack(
               clipBehavior: Clip.none,
               children: [
-                Icon(icon, size: 16, color: color),
+                Icon(icon, size: 14, color: color),
                 if (badgeCount > 0)
                   Positioned(
                     right: -4,
@@ -776,12 +780,12 @@ class _QuickJumpChip extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 1),
             Text(
               label,
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
-                fontSize: 9,
+                fontSize: 8,
                 fontWeight: FontWeight.w500,
                 color: color,
               ),
