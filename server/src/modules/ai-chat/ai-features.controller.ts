@@ -37,7 +37,7 @@ export class AiFeaturesController {
     @CurrentUser('id') userId: string,
     @Param('id') familyId: string,
   ) {
-    return this.aiFeaturesService.generateFamilySummary(userId, familyId);
+    return this.aiFeaturesService.generateFamilySummary(userId, familyId, true);
   }
 
   // ── Generate Family History Summary ─────────────────────────────────
@@ -47,7 +47,7 @@ export class AiFeaturesController {
     @CurrentUser('id') userId: string,
     @Param('id') familyId: string,
   ) {
-    return this.aiFeaturesService.generateHistorySummary(userId, familyId);
+    return this.aiFeaturesService.generateHistorySummary(userId, familyId, true);
   }
 
   // ── Smart Search ────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ export class AiFeaturesController {
     @CurrentUser('id') userId: string,
     @Body() dto: SmartSearchDto,
   ) {
-    return this.aiFeaturesService.smartSearch(userId, dto);
+    return this.aiFeaturesService.smartSearch(userId, dto, true);
   }
 
   // ── General AI Chat ─────────────────────────────────────────────────

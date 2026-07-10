@@ -119,7 +119,7 @@ export class SparqController {
 
   @Get(':id/chain')
   @ApiOperation({ summary: 'Get all Sparqs in a chain' })
-  getChain(@Param('id') sparqId: string) {
+  getChain(@Param('id') sparqId: string, @CurrentUser('id') userId: string) {
     return this.sparqService.getChain(sparqId);
   }
 

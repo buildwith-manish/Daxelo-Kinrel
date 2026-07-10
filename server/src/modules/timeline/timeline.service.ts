@@ -60,7 +60,16 @@ export class TimelineService {
   // ── Read Operations ───────────────────────────────────────────────
 
   /** Returns paginated family posts ordered by newest first with cursor-based pagination. */
-  async getTimeline(familyId: string, limit: number = 20, cursor?: string) {
+  private async assertMember(familyId: string, userId: string) {
+    const m = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId } },
+    });
+    if (!m) throw new ForbiddenException('Not a member of this family');
+    return m;
+  }
+
+  async getTimeline(familyId: string, userId: string, limit: number = 20, cursor?: string) {
+    await this.assertMember(familyId, userId);
     const posts = await this.prisma.familyPost.findMany({
       where: { familyId },
       orderBy: { createdAt: 'desc' },
@@ -175,7 +184,7 @@ export class TimelineService {
     const post = await this.prisma.familyPost.create({
       data: {
         familyId,
-        authorId,
+        userId,
         postType,
         content: JSON.stringify(content),
         reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 0, comments: [] }),
@@ -203,7 +212,8 @@ export class TimelineService {
    * emoji, the reaction is removed (un-react). Otherwise it is added.
    * Returns the updated reactions object.
    */
-  async toggleReaction(postId: string, userId: string, emoji: string) {
+  async toggleReaction(familyId: string, postId: string, userId: string, emoji: string) {
+    await this.assertMember(familyId, userId);
     // Verify post exists
     const post = await this.prisma.familyPost.findUnique({ where: { id: postId } });
     if (!post) {
@@ -318,7 +328,7 @@ export class TimelineService {
 
     const newComment: CommentData = {
       id: this.generateId(),
-      authorId,
+      userId,
       authorName,
       body: dto.body,
       parentId: dto.parentId ?? null,

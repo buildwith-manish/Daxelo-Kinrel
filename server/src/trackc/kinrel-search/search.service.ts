@@ -333,7 +333,7 @@ export class SearchService implements OnModuleDestroy {
    * Reindex all entities for a family. Admin-only; triggered by the controller
    * which enqueues a pg-boss job.
    */
-  async reindexFamily(familyId: string): Promise<{ reindexed: number }> {
+  async reindexFamily(familyId: string, userId?: string): Promise<{ reindexed: number }> {
     let count = 0;
 
     // Decisions

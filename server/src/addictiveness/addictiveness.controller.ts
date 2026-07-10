@@ -274,6 +274,7 @@ export class AddictivenessController {
   @HttpCode(HttpStatus.OK)
   async generateQuests(@Query('familyId') familyId: string) {
     if (!familyId) throw new BadRequestException('familyId is required');
+    await this.assertFamilyAdmin(userId, familyId);
     return this.familyQuestService.generateQuestsForFamily(familyId);
   }
 
@@ -306,6 +307,7 @@ export class AddictivenessController {
   @HttpCode(HttpStatus.OK)
   async generateChronicle(@Query('familyId') familyId: string) {
     if (!familyId) throw new BadRequestException('familyId is required');
+    await this.assertFamilyAdmin(userId, familyId);
     return this.familyChronicleService.generateChronicle(familyId);
   }
 }

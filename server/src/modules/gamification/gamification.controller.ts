@@ -72,7 +72,7 @@ export class GamificationController {
   @Get('leaderboard')
   @ApiOperation({ summary: 'Get leaderboard with optional filters' })
   @ApiResponse({ status: 200, description: 'Leaderboard retrieved' })
-  async getLeaderboard(@Query() query: LeaderboardQueryDto) {
+  async getLeaderboard(@Query() query: LeaderboardQueryDto, @CurrentUser('id') requestUserId: string) {
     return this.gamificationService.getLeaderboard(query);
   }
 

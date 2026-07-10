@@ -30,7 +30,7 @@ export class AiChatController {
   // GET /api/v1/ai-chat/relationship-explanation?familyId=x&from=x&to=x
   @Get('relationship-explanation')
   async getRelationshipExplanation(
-    @CurrentUser('id') _userId: string,
+    @CurrentUser('id') userId: string,
     @Query('familyId') familyId: string,
     @Query('from') fromPersonId: string,
     @Query('to') toPersonId: string,
@@ -46,10 +46,10 @@ export class AiChatController {
   // GET /api/v1/ai-chat/family-summary/:familyId
   @Get('family-summary/:familyId')
   async getFamilySummary(
-    @CurrentUser('id') _userId: string,
+    @CurrentUser('id') userId: string,
     @Param('familyId') familyId: string,
   ) {
-    return this.aiChatService.getFamilySummary(familyId);
+    return this.aiChatService.getFamilySummary(familyId, userId);
   }
 
   // ── Get Smart Search Suggestions ─────────────────────────────────────

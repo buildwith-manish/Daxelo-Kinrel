@@ -1,4 +1,6 @@
 import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { FeatureFlagsService } from './feature-flags.service';
 import { Public } from '../../common/decorators/public.decorator';
 

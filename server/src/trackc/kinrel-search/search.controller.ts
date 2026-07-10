@@ -49,10 +49,12 @@ export class SearchController {
   }
 
   @Post('reindex')
-  reindex(
+  async reindex(
     @Param('familyId') familyId: string,
     @CurrentUser('id') userId: string,
   ) {
+    await this.membership.requireAdmin(userId, familyId);
     return this.service.reindexFamily(familyId);
+  }
   }
 }

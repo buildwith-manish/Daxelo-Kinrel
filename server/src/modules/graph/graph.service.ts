@@ -1108,6 +1108,10 @@ export class GraphService {
     return positions;
   }
 
+  async assertMember(userId: string, familyId: string) {
+    return this.requireFamilyMember(userId, familyId);
+  }
+
   private async requireFamilyMember(userId: string, familyId: string) {
     const membership = await this.prisma.familyMember.findUnique({
       where: { familyId_userId: { familyId, userId } },

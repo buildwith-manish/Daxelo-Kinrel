@@ -24,6 +24,8 @@ import {
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { KinrelOrchestrationService } from './kinrel-orchestration.service';
 import { KinrelQueryService } from './kinrel-query.service';
+import { PrismaService } from '../../prisma/prisma.service';
+import { ForbiddenException } from '@nestjs/common';
 
 @Controller('kinrel')
 export class KinrelController {
@@ -32,7 +34,18 @@ export class KinrelController {
   constructor(
     private readonly orchestration: KinrelOrchestrationService,
     private readonly query: KinrelQueryService,
+    private readonly prisma: PrismaService,
   ) {}
+
+  private async assertAdmin(userId: string, familyId: string) {
+    const membership = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId } },
+    });
+    if (!membership) throw new ForbiddenException('Not a member of this family');
+    if (membership.role !== 'admin' && membership.role !== 'owner') {
+      throw new ForbiddenException('Only admins can trigger recomputation');
+    }
+  }
 
   // GET /kinrel/:familyId
   // Returns the current Kinrel parameters for a family.
@@ -75,6 +88,9 @@ export class KinrelController {
     @Param('familyId') familyId: string,
     @CurrentUser('id') userId: string,
   ) {
+    // SECURITY: verify the requesting user is an admin of this family
+    await this.assertAdmin(userId, familyId);
+
     // Bug 6 fix: pass null for triggerMemberId. The field has an FK
     // constraint against Person.id (the graph node ID), but `userId`
     // is a Supabase auth User ID — a completely different entity.

@@ -122,6 +122,14 @@ export class StoriesService {
   /** Gets active (non-expired) stories for a family, grouped by user.
    *  Applies audience filtering: PUBLIC stories visible to all,
    *  FAMILY_ONLY stories only to family members. */
+  private async assertMember(familyId: string, userId: string) {
+    const m = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId } },
+    });
+    if (!m) throw new ForbiddenException('Not a member of this family');
+    return m;
+  }
+
   async findByFamily(familyId: string, userId?: string) {
     const now = new Date();
 
