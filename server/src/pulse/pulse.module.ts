@@ -24,6 +24,8 @@ import { FeedHighlightCollector } from './collectors/feed-highlight.collector';
 import { OnThisDayCollector } from './collectors/on-this-day.collector';
 import { WeatherCollector } from './collectors/weather.collector';
 import { MemoryOrbitCollector } from './collectors/memory-orbit.collector';
+import { BriefEngagementService } from './brief-engagement.service';
+import { ClosenessWeightsTrainer } from './closeness-weights';
 import { FcmModule } from '../modules/notifications/fcm.module';
 
 @Module({
@@ -39,6 +41,9 @@ import { FcmModule } from '../modules/notifications/fcm.module';
     PulseCronService,
     PersonalizationService,
     PulsePushListener,
+    // ML spec item #5: engagement tracking + learned-weights trainer
+    BriefEngagementService,
+    ClosenessWeightsTrainer,
     // Collectors (each injects PrismaService via PrismaModule @Global)
     BirthdayCollector,
     InactivityCollector,
@@ -47,7 +52,7 @@ import { FcmModule } from '../modules/notifications/fcm.module';
     WeatherCollector,
     MemoryOrbitCollector,
   ],
-  exports: [BriefGeneratorService, PulseQueryService, PulseCronService, PersonalizationService],
+  exports: [BriefGeneratorService, PulseQueryService, PulseCronService, PersonalizationService, BriefEngagementService, ClosenessWeightsTrainer],
 })
 export class PulseModule implements OnModuleInit {
   constructor(

@@ -34,8 +34,17 @@ import {
   applyClosenessTieBreaker,
   computeCloseness,
 } from './closeness';
+import { FIXED_WEIGHTS } from './closeness-weights';
 
-const GRAPH_CACHE_TTL_MS = 60_000; // 1 minute — prevents stale data across long requests
+const GRAPH_CACHE_TTL_MS = 60_000;
+const LEARNED_WEIGHTS_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
+
+interface LearnedWeightsCache {
+  weights: typeof FIXED_WEIGHTS;
+  bias: number;
+  beatsFixed: boolean;
+  loadedAt: number;
+} // 1 minute — prevents stale data across long requests
 
 @Injectable()
 export class PersonalizationService {
@@ -52,6 +61,9 @@ export class PersonalizationService {
       loadedAt: number;
     }
   >();
+
+  // Learned-weights cache (global, not per-family)
+  private learnedWeightsCache: LearnedWeightsCache | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -154,7 +166,86 @@ export class PersonalizationService {
       auraRoles: cached.auraRoles,
     };
 
-    return computeCloseness(input);
+    const result = computeCloseness(input);
+
+    // v3 (ML spec item #5): if learned weights are available AND beat the
+    // fixed baseline, recompute the total score using the learned weights
+    // instead of the hardcoded 0.30/0.15/0.35/0.10/0.10 blend.
+    //
+    // We do this ASYNCHRONOUSLY (fire-and-forget) the first time, then
+    // cache the result. Subsequent calls within LEARNED_WEIGHTS_CACHE_TTL_MS
+    // reuse the cached weights synchronously.
+    //
+    // If loading fails or no learned model exists, we fall back to the
+    // fixed-formula total that computeCloseness() already returned.
+    if (this.learnedWeightsCache && this.learnedWeightsCache.beatsFixed) {
+      const w = this.learnedWeightsCache.weights;
+      const b = this.learnedWeightsCache.bias;
+      const learnedTotal =
+        w.graphDistance * result.graphDistance +
+        w.generationDistance * result.generationDistance +
+        w.relationshipSemantic * result.relationshipSemantic +
+        w.auraRoleMatch * result.auraRoleMatch +
+        w.sharedConnections * result.sharedConnections +
+        b;
+      // Clamp to [0, 1] — the bias term can push outside the range
+      result.total = Math.max(0, Math.min(1, Math.round(learnedTotal * 1000) / 1000));
+      result.notes.push(`Learned weights applied (bias=${b.toFixed(3)})`);
+    } else {
+      // Try to load learned weights in the background for next time.
+      // We don't block the current call — the fixed weights are fine for now.
+      this.maybeLoadLearnedWeights().catch(() => {
+        // best-effort
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * v3 (ML spec item #5): lazily load the learned closeness weights from
+   * LearnedClosenessWeights. Cached for LEARNED_WEIGHTS_CACHE_TTL_MS.
+   * If the table doesn't exist or no row exists, silently falls back to
+   * the fixed weights.
+   */
+  private async maybeLoadLearnedWeights(): Promise<void> {
+    if (this.learnedWeightsCache && Date.now() - this.learnedWeightsCache.loadedAt < LEARNED_WEIGHTS_CACHE_TTL_MS) {
+      return;
+    }
+    try {
+      const row = await this.prisma.learnedClosenessWeights.findUnique({
+        where: { id: 'current' },
+      });
+      if (!row || !row.beatsFixed) {
+        // No learned model, or the learned model didn't beat the fixed
+        // baseline — keep using fixed weights.
+        this.learnedWeightsCache = null;
+        return;
+      }
+      const w = row.weights as any;
+      this.learnedWeightsCache = {
+        weights: {
+          graphDistance: Number(w.graphDistance) || FIXED_WEIGHTS.graphDistance,
+          generationDistance: Number(w.generationDistance) || FIXED_WEIGHTS.generationDistance,
+          relationshipSemantic: Number(w.relationshipSemantic) || FIXED_WEIGHTS.relationshipSemantic,
+          auraRoleMatch: Number(w.auraRoleMatch) || FIXED_WEIGHTS.auraRoleMatch,
+          sharedConnections: Number(w.sharedConnections) || FIXED_WEIGHTS.sharedConnections,
+        },
+        bias: Number(row.bias) || 0,
+        beatsFixed: true,
+        loadedAt: Date.now(),
+      };
+      this.logger.debug?.(
+        `PersonalizationService: loaded learned weights (val acc=${(row.validationAccuracy * 100).toFixed(1)}%, ` +
+          `+${((row.validationAccuracy - row.fixedBaselineAccuracy) * 100).toFixed(1)}pp over fixed)`,
+      );
+    } catch (err) {
+      // Table may not exist yet (migration not applied) — fall back silently
+      this.logger.debug?.(
+        `Failed to load learned weights: ${(err as Error).message} — using fixed weights`,
+      );
+      this.learnedWeightsCache = null;
+    }
   }
 
   /**
