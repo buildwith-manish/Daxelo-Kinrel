@@ -84,8 +84,13 @@ class _AuraScreenState extends ConsumerState<AuraScreen> {
         ],
       ),
       body: _buildBody(context, state, familyName),
+      // Bug 21 fix: drop the `state.notComputed` clause — when a cached
+      // AURA is shown (state.aura != null) the user should always be able
+      // to recompute. The "notComputed" flag can be true simultaneously
+      // with a non-null cached aura (see Bug 11), which previously hid
+      // the FAB even though there was something to recompute.
       floatingActionButton:
-          state.notComputed || state.aura == null || state.isRecomputing
+          state.aura == null || state.isRecomputing
               ? null
               : FloatingActionButton.extended(
                   onPressed: () => _onRecompute(),
@@ -178,75 +183,87 @@ class _AuraScreenState extends ConsumerState<AuraScreen> {
 
     // ── Have AURA data (fresh or cached) ───────────────────────────
     final aura = state.aura!;
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    // Bug 5 fix: the share card is no longer a ListView child. It's
+    // rendered in an offscreen `Positioned` inside a `Stack` so that:
+    //   1. It is ALWAYS built + laid out at natural size (so
+    //      `_shareKey.currentContext` is never null when the user
+    //      taps Share before scrolling).
+    //   2. It is never painted on screen (Positioned at left: -10000).
+    // Previously it was a regular ListView child which meant (a) it
+    // was visible to the user when they scrolled down, and (b) it
+    // was lazily built so Share failed if tapped before scrolling.
+    return Stack(
       children: [
-        if (state.isFromCache)
-          Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Theme.of(context)
-                  .colorScheme
-                  .surfaceContainerHighest
-                  .withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.cloud_off,
-                    size: 14, color: Theme.of(context).colorScheme.outline),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Showing cached AURA — offline mode',
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
+        ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            if (state.isFromCache)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ],
+                child: Row(
+                  children: [
+                    Icon(Icons.cloud_off,
+                        size: 14, color: Theme.of(context).colorScheme.outline),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Showing cached AURA — offline mode',
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // ── 1. Symbol ─────────────────────────────────────────────
+            Center(
+              child: AuraSymbolWidget(
+                parameters: aura.symbol,
+                archetypeKey: aura.archetype.key,
+                size: 280,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // ── 2. Archetype card ─────────────────────────────────────
+            AuraArchetypeCard(
+              archetype: aura.archetype,
+              symbol: aura.symbol,
+              memberCount: aura.metrics.memberCount,
+            ),
+            const SizedBox(height: 24),
+
+            // ── 3. Timeline ───────────────────────────────────────────
+            AuraTimeline(
+              snapshots: state.history,
+              selectedIndex: _selectedHistoryIndex,
+              onSelect: (i) => setState(() => _selectedHistoryIndex = i),
+            ),
+            const SizedBox(height: 80), // FAB clearance
+          ],
+        ),
+        // ── Offscreen share card (always built, never painted) ────
+        Positioned(
+          left: -10000,
+          top: 0,
+          child: RepaintBoundary(
+            key: _shareKey,
+            child: AuraShareCard(
+              boundaryKey: _shareKey,
+              aura: aura,
+              familyName: familyName,
             ),
           ),
-
-        // ── 1. Symbol ─────────────────────────────────────────────
-        Center(
-          child: AuraSymbolWidget(
-            parameters: aura.symbol,
-            archetypeKey: aura.archetype.key,
-            size: 280,
-          ),
         ),
-        const SizedBox(height: 24),
-
-        // ── 2. Archetype card ─────────────────────────────────────
-        AuraArchetypeCard(
-          archetype: aura.archetype,
-          symbol: aura.symbol,
-          memberCount: aura.metrics.memberCount,
-        ),
-        const SizedBox(height: 24),
-
-        // ── 3. Timeline ───────────────────────────────────────────
-        AuraTimeline(
-          snapshots: state.history,
-          selectedIndex: _selectedHistoryIndex,
-          onSelect: (i) => setState(() => _selectedHistoryIndex = i),
-        ),
-        const SizedBox(height: 24),
-
-        // ── 4. Hidden share card (captured by RepaintBoundary) ────
-        // Rendered offscreen so it's ready when the user taps Share.
-        // Using Offstage(offstage: false) so the boundary is laid out
-        // and can be captured — but visually it's pushed below the
-        // visible viewport via the ListView padding.
-        RepaintBoundary(
-          key: _shareKey,
-          child: AuraShareCard(
-            boundaryKey: _shareKey,
-            aura: aura,
-            familyName: familyName,
-          ),
-        ),
-        const SizedBox(height: 80), // FAB clearance
       ],
     );
   }
@@ -264,6 +281,16 @@ class _AuraScreenState extends ConsumerState<AuraScreen> {
   }
 
   Future<void> _onRecompute() async {
+    // Bug 6 fix: capture the previous computedAt BEFORE the recompute
+    // call. We then poll until the server returns an AURA whose
+    // computedAt is strictly newer than this baseline. Previously
+    // the code compared against `DateTime.now()` (the client clock)
+    // captured AFTER the recompute returned. If the client clock was
+    // even 1 second ahead of the server clock, the poll never
+    // detected the fresh AURA and ran all 5 iterations.
+    final prevComputedAt =
+        ref.read(auraProvider(widget.familyId)).aura?.computedAt;
+
     final ok = await ref
         .read(auraProvider(widget.familyId).notifier)
         .recompute();
@@ -275,17 +302,14 @@ class _AuraScreenState extends ConsumerState<AuraScreen> {
       }
       return;
     }
-    // Bug 5 fix: poll with exponential backoff until the new AURA appears.
+    // Poll with exponential backoff until the new AURA appears.
     // The backend runs graph algorithms asynchronously after returning 202.
     // For a family with 40+ members, Brandes + clustering can take longer
     // than the previous hardcoded 3-second delay on a cold Render instance.
-    // The single poll after 3s returned the stale AURA, so users thought
-    // the recompute failed.
     //
     // Strategy: poll 5 times with delays of [2, 3, 5, 8, 13] seconds
     // (Fibonacci-ish backoff). Stop early when the fetched AURA's
-    // computedAt is newer than the moment we triggered the recompute.
-    final triggerTime = DateTime.now();
+    // computedAt is newer than the previous baseline.
     final delays = [
       const Duration(seconds: 2),
       const Duration(seconds: 3),
@@ -301,8 +325,11 @@ class _AuraScreenState extends ConsumerState<AuraScreen> {
           .load(includeHistory: true);
       if (!mounted) return;
       final newAura = ref.read(auraProvider(widget.familyId)).aura;
-      if (newAura != null && newAura.computedAt.isAfter(triggerTime)) {
-        // Fresh AURA has landed — stop polling.
+      // Fresh AURA has landed if computedAt moved forward from the
+      // previous value (or if there was no previous value).
+      if (newAura != null &&
+          (prevComputedAt == null ||
+              newAura.computedAt.isAfter(prevComputedAt))) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

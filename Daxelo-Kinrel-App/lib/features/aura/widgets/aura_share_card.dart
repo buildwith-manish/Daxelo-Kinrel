@@ -17,6 +17,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:share_plus/share_plus.dart';
@@ -25,6 +26,15 @@ import '../../../core/constants/feature_flags.dart';
 import '../data/archetype_strings.dart';
 import '../data/aura_model.dart';
 import 'aura_symbol_widget.dart';
+
+// Bug 12 fix: conditional import for web download.
+// On web, `share_plus` falls back to a random-filename download which
+// is confusing UX. We branch on kIsWeb and call `downloadPngOnWeb`
+// (which uses dart:html Blob + <a download>) for a deterministic
+// filename. On native platforms `downloadPngOnWeb` is a no-op stub
+// and we use `share_plus` instead.
+import 'share_download_stub.dart'
+    if (dart.library.html) 'share_download_web.dart' as web_download;
 
 /// A self-contained share card. Wrap with a [RepaintBoundary] keyed by
 /// [boundaryKey] and call [captureAndShare] to export + share the PNG.
@@ -170,15 +180,22 @@ class AuraShareCard extends StatelessWidget {
     );
   }
 
-  /// Capture this widget as a PNG and share it via the native share sheet.
+  /// Capture this widget as a PNG and share it via the native share sheet
+  /// (mobile/desktop) or trigger a browser download (web).
   ///
-  /// Returns `true` if the share sheet was opened successfully. The
+  /// Returns `true` if the share/download was opened successfully. The
   /// parent typically wraps this in a try/catch and shows a SnackBar
   /// on failure.
   ///
   /// Phase 19.1 privacy check: the captured PNG contains only the
   /// archetype name, family name, and symbol — no member counts, no
   /// graph structure, no individual member roles. Safe to share publicly.
+  ///
+  /// Bug 12 fix: on web, `share_plus` falls back to a random-filename
+  /// download (no native share sheet on most desktop browsers). We
+  /// branch on kIsWeb and use a deterministic `<a download>` click
+  /// instead so the user gets `aura_<FamilyName>.png` in their
+  /// Downloads folder.
   static Future<bool> captureAndShare({
     required GlobalKey boundaryKey,
     required String familyName,
@@ -201,9 +218,24 @@ class AuraShareCard extends StatelessWidget {
 
       // Use the family name (sanitized) as the filename.
       final safeName = familyName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+      final filename = 'aura_$safeName.png';
+
+      if (kIsWeb) {
+        // Web: trigger a deterministic browser download.
+        final ok = web_download.downloadPngOnWeb(
+          Uint8List.fromList(bytes),
+          filename,
+        );
+        if (!ok) {
+          debugPrint('⚠️ AuraShareCard: web download failed');
+        }
+        return ok;
+      }
+
+      // Native: use the native share sheet via share_plus.
       final xfile = XFile.fromData(
         Uint8List.fromList(bytes),
-        name: 'aura_$safeName.png',
+        name: filename,
         mimeType: 'image/png',
       );
       await Share.shareXFiles(

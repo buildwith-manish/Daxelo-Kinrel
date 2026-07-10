@@ -173,7 +173,16 @@ export class AuraParameterGeneratorService {
   ): Pick<AuraSymbolParameters, 'primaryColorHex' | 'secondaryColorHex' | 'accentColorHex'> {
     const entries = Object.entries(ratios)
       .map(([lang, ratio]) => ({ lang, ratio, hue: LANGUAGE_HUES[lang] ?? 0 }))
-      .sort((a, b) => b.ratio - a.ratio);
+      // Bug 17 fix: added deterministic tiebreaker `a.lang.localeCompare(b.lang)`.
+      // For small families (e.g. 2 edges → 50%/50%), multiple languages can
+      // have identical ratios. The previous comparator `b.ratio - a.ratio`
+      // is not stable for ties — V8's TimSort IS stable, but other JS
+      // engines (and any future engine change) might not be. Without a
+      // tiebreaker the primary/secondary colors could flip between
+      // recomputes for the same family, making the AURA symbol look
+      // inconsistent. The deterministic lang-name tiebreaker ensures
+      // the same input always produces the same color order.
+      .sort((a, b) => b.ratio - a.ratio || a.lang.localeCompare(b.lang));
 
     const [first, second, ...rest] = entries;
 

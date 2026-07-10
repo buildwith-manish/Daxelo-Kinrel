@@ -100,6 +100,17 @@ class AnalyticsService {
   FirebaseAnalytics? get _analyticsInstance {
     if (_analyticsInitTried) return _analytics;
     _analyticsInitTried = true;
+    // WEB: FirebaseAnalytics requires a GA4 measurementId in the Firebase
+    // web config + a loaded gtag.js. This project doesn't have either set
+    // up, so calling FirebaseAnalytics.instance on web throws a minified
+    // JS-interop TypeError ("Instance of 'minified:a7f': type 'minified:a7f'
+    // is not a subtype of type 'minified:a0'") that the in-method try-catch
+    // cannot reliably suppress (the throw happens during promise resolution).
+    // Skip on web entirely — analytics is mobile-only for this project.
+    if (kIsWeb) {
+      _analytics = null;
+      return _analytics;
+    }
     try {
       _analytics = FirebaseAnalytics.instance;
     } catch (e) {
@@ -114,6 +125,15 @@ class AnalyticsService {
 
   /// Initialize analytics — called once at startup.
   Future<void> init() async {
+    // WEB: FirebaseAnalytics doesn't work on web in this project —
+    // skip init entirely so we never instantiate the FirebaseAnalytics
+    // singleton (which is what triggers the JS-interop TypeError).
+    if (kIsWeb) {
+      _enabled = false;
+      debugPrint('📊 Analytics disabled on web — FirebaseAnalytics not configured');
+      return;
+    }
+
     // Disable analytics in dev environment
     if (AppEnvironmentConfig.current.isDev) {
       _enabled = false;

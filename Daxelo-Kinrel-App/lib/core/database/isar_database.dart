@@ -84,7 +84,9 @@ class IsarDatabase {
   }
 
   /// Clear all data including pending operations (full reset).
+  /// No-op if the database is not initialized (e.g. on web).
   static Future<void> clearAll() async {
+    if (_instance == null) return;
     await _instance!.clearAll();
   }
 
@@ -99,6 +101,8 @@ class IsarDatabase {
 }
 
 /// Riverpod provider for the AppDatabase instance.
+/// Throws `StateError` if read on web (where Drift is unavailable).
+/// Always guard with `IsarDatabase.isInitialized` before reading.
 final isarProvider = Provider<AppDatabase>((ref) {
   return IsarDatabase.instance;
 });

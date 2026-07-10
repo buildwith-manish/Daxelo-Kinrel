@@ -14,17 +14,33 @@ const int _maxRetries = 5;
 /// Manages offline write operations that need to be synced when online.
 /// Stores failed write operations in Drift and retries them when
 /// connectivity is restored.
+///
+/// WEB: On Flutter Web, Drift is unavailable (sqlite3.wasm + drift_worker.js
+/// are not set up). All methods early-return as no-ops on web. The
+/// `IsarDatabase.isInitialized` guard prevents the "IsarDatabase not
+/// initialized" error that was previously logged on every web launch.
 class OfflineQueueManager {
   final Ref _ref;
 
   OfflineQueueManager(this._ref);
 
-  AppDatabase get _db => _ref.read(isarProvider);
+  /// Get the Drift database, or null on web/uninitialized.
+  /// Always use this getter — never call `_ref.read(isarProvider)` directly.
+  AppDatabase? get _db {
+    if (!IsarDatabase.isInitialized) return null;
+    try {
+      return _ref.read(isarProvider);
+    } catch (_) {
+      return null;
+    }
+  }
+
   ConnectivityService get _connectivity => _ref.read(connectivityServiceProvider);
   bool get _isOnline => _connectivity.isOnline;
 
   /// Enqueue a write operation for later sync.
   /// Use this when a network write fails due to being offline.
+  /// No-op on web (Drift is unavailable).
   Future<void> enqueue({
     required String operationType,
     required String collection,
@@ -32,7 +48,12 @@ class OfflineQueueManager {
     Map<String, dynamic>? payload,
     int priority = 1,
   }) async {
-    await _db.upsertPendingOperation(PendingOperationsCompanion(
+    final db = _db;
+    if (db == null) {
+      // Web / not initialized — operations are lost (web is online-only).
+      return;
+    }
+    await db.upsertPendingOperation(PendingOperationsCompanion(
       operationType: Value(operationType),
       collection: Value(collection),
       recordId: Value(recordId),
@@ -52,11 +73,15 @@ class OfflineQueueManager {
 
   /// Process all pending operations in priority order.
   /// Called when connectivity is restored or periodically.
+  /// Returns 0 on web (no Drift database).
   Future<int> processPendingOperations() async {
     if (!_isOnline) return 0;
 
+    final db = _db;
+    if (db == null) return 0;
+
     // Get all non-processing operations, sorted by priority then creation time
-    final pending = await _db.getPendingOperations();
+    final pending = await db.getPendingOperations();
 
     if (pending.isEmpty) return 0;
 
@@ -67,7 +92,7 @@ class OfflineQueueManager {
 
     for (final op in pending) {
       // Mark as processing
-      await _db.upsertPendingOperation(PendingOperationsCompanion(
+      await db.upsertPendingOperation(PendingOperationsCompanion(
         id: Value(op.id),
         operationType: Value(op.operationType),
         collection: Value(op.collection),
@@ -84,13 +109,13 @@ class OfflineQueueManager {
         await _executeOperation(op);
 
         // Success — remove from queue
-        await _db.deletePendingOperation(op.id);
+        await db.deletePendingOperation(op.id);
 
         successCount++;
         debugPrint('✅ Synced: ${op.operationType} on ${op.collection}');
       } catch (e) {
         // Failed — increment retry count and mark as not processing
-        await _db.upsertPendingOperation(PendingOperationsCompanion(
+        await db.upsertPendingOperation(PendingOperationsCompanion(
           id: Value(op.id),
           operationType: Value(op.operationType),
           collection: Value(op.collection),
@@ -185,24 +210,33 @@ class OfflineQueueManager {
 
   /// Remove operations that have exceeded the maximum retry count.
   Future<void> _cleanExpiredOperations() async {
-    final expired = await _db.getExpiredOperations();
+    final db = _db;
+    if (db == null) return;
+
+    final expired = await db.getExpiredOperations();
 
     if (expired.isNotEmpty) {
       for (final op in expired) {
-        await _db.deletePendingOperation(op.id);
+        await db.deletePendingOperation(op.id);
       }
       debugPrint('🗑️ Removed ${expired.length} expired operations');
     }
   }
 
   /// Get the count of pending operations.
+  /// Returns 0 on web (no Drift database).
   Future<int> getPendingCount() async {
-    return _db.pendingOperationCount();
+    final db = _db;
+    if (db == null) return 0;
+    return db.pendingOperationCount();
   }
 
   /// Clear all pending operations (e.g., on logout).
+  /// No-op on web (no Drift database).
   Future<void> clearAll() async {
-    await _db.clearPendingOperations();
+    final db = _db;
+    if (db == null) return;
+    await db.clearPendingOperations();
   }
 }
 

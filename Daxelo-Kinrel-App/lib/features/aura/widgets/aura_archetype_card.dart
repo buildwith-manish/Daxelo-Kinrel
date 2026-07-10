@@ -87,7 +87,13 @@ class AuraArchetypeCard extends StatelessWidget {
                 if (!compact) ...[
                   const SizedBox(height: 6),
                   Text(
-                    strings.description.replaceAll('\\n', '\n'),
+                    // Bug 9 fix: removed the no-op `.replaceAll('\\n', '\n')`.
+                    // The archetype_strings.dart and backend ARCHETYPES already
+                    // contain real newline characters (Dart single-quoted
+                    // strings interpret `\n` as a single newline char). The
+                    // replaceAll was searching for the literal 2-char sequence
+                    // backslash-n which never matched, producing no change.
+                    strings.description,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       height: 1.4,
                       color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
@@ -143,7 +149,14 @@ class _ConfidenceMeter extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Text(
-          '$pct% match',
+          // Bug 16 fix: label is "$pct% confidence" instead of "$pct% match".
+          // The backend's confidence formula `0.5 + (winner - runnerUp) / 6`
+          // caps at ~0.833 for current archetypes (MAX_POSSIBLE_SCORE = 3 but
+          // the highest actual checksTotal is 2). "Match" implies the
+          // archetype fits the family X%, which is misleading when the cap
+          // is 83%. "Confidence" is honest — it's the classifier's confidence
+          // in its own pick, with built-in headroom for future archetypes.
+          '$pct% confidence',
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: color,
                 fontWeight: FontWeight.w600,

@@ -10,15 +10,31 @@
 //   GET /aura/:familyId/roles    → getMemberRoles(familyId, userId)
 //   GET /aura/:familyId/history  → getAuraHistory(familyId, userId)
 
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ArchetypeClassifierService,
   ArchetypeDefinition,
 } from './archetype-classifier.service';
 
+// Bug 15 fix: the canonical list of valid archetype keys. Kept in sync
+// with `ArchetypeKey` in archetype-classifier.service.ts. If a new
+// archetype is added there, add it here too. We use this to validate
+// the DB-stored `archetypeKey` before passing it to `getDefinition`,
+// so a stale/typo'd key in the DB doesn't silently fall back to lotus.
+const VALID_ARCHETYPE_KEYS = new Set<string>([
+  'banyan',
+  'river_delta',
+  'confluence',
+  'spine',
+  'lotus',
+  'forest',
+]);
+
 @Injectable()
 export class AuraQueryService {
+  private readonly logger = new Logger(AuraQueryService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly classifier: ArchetypeClassifierService,
@@ -82,10 +98,17 @@ export class AuraQueryService {
         // English. The backend already has these strings in
         // ARCHETYPES[].names / .descriptions — they were just never
         // sent to the client.
+        //
+        // Bug 15 fix: validate `archetypeKey` against the known keys
+        // before calling `getDefinition`. If the DB holds a stale/typo'd
+        // key (e.g. from a manual edit or a renamed archetype),
+        // `getDefinition` would silently fall back to ARCHETYPES[4]
+        // (lotus) — the user would see a Lotus symbol but the row's
+        // archetypeKey would still say something else, so the next
+        // recompute could flip it back. We log a warning so the
+        // mismatch is visible in server logs.
         definition: this._definitionToPlainObject(
-          this.classifier.getDefinition(
-            aura.archetypeKey as any,
-          ),
+          this._safeGetDefinition(aura.archetypeKey),
         ),
       },
       // Raw metrics for debugging / advanced display
@@ -118,6 +141,27 @@ export class AuraQueryService {
       names: def.names,
       descriptions: def.descriptions,
     };
+  }
+
+  /**
+   * Bug 15 fix: validate `archetypeKey` against the known keys before
+   * calling `getDefinition`. If the DB holds a stale/typo'd key (e.g.
+   * from a manual edit, a renamed archetype, or a row written by an
+   * older version of the classifier), `getDefinition` would silently
+   * fall back to ARCHETYPES[4] (lotus). We log a warning so the
+   * mismatch is visible in server logs, then return the lotus
+   * definition as a safe fallback.
+   */
+  private _safeGetDefinition(archetypeKey: string): ArchetypeDefinition {
+    if (!VALID_ARCHETYPE_KEYS.has(archetypeKey)) {
+      this.logger.warn(
+        `Unknown archetypeKey "${archetypeKey}" in DB — falling back to lotus. ` +
+          `This usually means the row was written by an older app version ` +
+          `or manually edited. A recompute will fix it.`,
+      );
+      return this.classifier.getDefinition('lotus');
+    }
+    return this.classifier.getDefinition(archetypeKey as never);
   }
 
   /**

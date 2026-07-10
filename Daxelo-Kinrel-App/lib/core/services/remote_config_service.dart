@@ -35,7 +35,20 @@ class RemoteConfigService {
   /// Should be called once in main.dart after Firebase is initialized.
   /// Uses a 12-hour fetch timeout and 1-hour minimum fetch interval
   /// in production (0 in dev for instant testing).
+  ///
+  /// WEB: Skipped — Firebase Remote Config requires web-specific setup
+  /// (API key + app ID + measurementId in the Firebase web config).
+  /// This project runs in Supabase-only mode on web, so Remote Config
+  /// falls back to the hardcoded defaults in [_defaults]. All getters
+  /// (getBool/getDouble/getInt/getString) already use the same
+  /// `_defaults` map when `_initialized == false`.
   Future<void> init() async {
+    if (kIsWeb) {
+      _initialized = false;
+      debugPrint('🔧 RemoteConfig skipped on web — using defaults');
+      return;
+    }
+
     try {
       _remoteConfig = FirebaseRemoteConfig.instance;
 

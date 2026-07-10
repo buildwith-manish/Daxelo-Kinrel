@@ -210,10 +210,20 @@ class AuraNotifier extends StateNotifier<AuraState> {
 
       if (auraJson == null) {
         // 404 — AURA not yet computed for this family.
+        // Bug 11 fix: only set `notComputed = true` if we have NO
+        // cached AURA to fall back on. Previously this unconditionally
+        // set `notComputed = true` even when a cached AURA was already
+        // shown (state.aura != null), which caused the FAB to be
+        // hidden (Bug 21) and the user couldn't recompute.
+        // When a cache exists, keep showing it and mark `isFromCache`
+        // so the UI shows the "offline" banner.
+        final hasCache = state.aura != null;
         state = state.copyWith(
           isLoading: false,
-          notComputed: true,
-          isFromCache: false,
+          notComputed: !hasCache,
+          isFromCache: hasCache,
+          // If no cache, clear stale aura so UI shows "Generate AURA".
+          clearAura: !hasCache,
         );
         return;
       }
@@ -339,14 +349,24 @@ class AuraNotifier extends StateNotifier<AuraState> {
   }
 
   /// Load only the historical snapshots (for the timeline widget).
+  ///
+  /// Bug 10 fix: set `isLoading: true` while the fetch is in flight
+  /// (so the UI can show a spinner) and `clearError: true` on success
+  /// (so a stale error from an earlier `load()` doesn't persist).
   Future<void> loadHistory() async {
     final client = _client;
     if (client == null) return;
+    state = state.copyWith(isLoading: true);
     try {
       final history = await _fetchHistory(client);
-      state = state.copyWith(history: history);
+      state = state.copyWith(
+        history: history,
+        isLoading: false,
+        clearError: true,
+      );
     } catch (e) {
       debugPrint('⚠️ AURA history fetch failed: $e');
+      state = state.copyWith(isLoading: false);
     }
   }
 

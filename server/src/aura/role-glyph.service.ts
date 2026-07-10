@@ -89,6 +89,22 @@ export class RoleGlyphService {
       (a, b) => (metrics.betweennessMap[b] ?? 0) - (metrics.betweennessMap[a] ?? 0),
     );
 
+    // Bug 18 fix: compute relative betweenness thresholds based on the
+    // max betweenness in this family, instead of hardcoded absolute
+    // constants. The previous constants (0.05 / 0.02) were calibrated
+    // for small families (~5 members) but starved large families
+    // (n=100+) where Brandes betweenness normalized by ((n-1)(n-2))/2
+    // rarely exceeds 0.02 even for the most central node. With relative
+    // thresholds, the anchor is "betweenness ≥ 50% of the family's max"
+    // and a bridge is "≥ 20% of the family's max", which scales
+    // correctly across family sizes.
+    const maxBetweenness =
+      sortedByBetweenness.length > 0
+        ? metrics.betweennessMap[sortedByBetweenness[0]] ?? 0
+        : 0;
+    const anchorThreshold = maxBetweenness * 0.5;
+    const bridgeThreshold = maxBetweenness * 0.2;
+
     // Bug 2 fix: exclude the root node when finding the anchor. In typical
     // Indian families the patriarch is BOTH root AND highest-betweenness,
     // so the previous code (which checked root first in the per-member
@@ -126,9 +142,13 @@ export class RoleGlyphService {
       let roleKey: RoleKey;
       if (memberId === metrics.rootNodeId) {
         roleKey = 'root';
-      } else if (memberId === anchorId && betweenness > 0.05) {
+      } else if (memberId === anchorId && betweenness >= anchorThreshold) {
+        // Bug 18 fix: relative threshold (50% of family's max betweenness)
+        // instead of hardcoded 0.05. Scales correctly across family sizes.
         roleKey = 'anchor';
-      } else if (bridgeIds.has(memberId) && betweenness > 0.02) {
+      } else if (bridgeIds.has(memberId) && betweenness >= bridgeThreshold) {
+        // Bug 18 fix: relative threshold (20% of family's max betweenness)
+        // instead of hardcoded 0.02.
         roleKey = 'bridge';
       } else if (leafNodes.has(memberId)) {
         // Bug 4 fix: leaf checked BEFORE twin_node so genuine terminal
