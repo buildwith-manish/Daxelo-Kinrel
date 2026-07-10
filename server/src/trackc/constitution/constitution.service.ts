@@ -110,7 +110,6 @@ export class ConstitutionService {
       }
 
       // Create new draft version with articles + clauses
-      // Use unchecked create so we can pass familyId/versionId as scalars
       const draft = await tx.constitutionVersion.create({
         data: {
           constitutionId: constitution.id,
@@ -121,7 +120,6 @@ export class ConstitutionService {
           clauseCount: input.articles.reduce((acc, a) => acc + a.clauses.length, 0),
           articles: {
             create: input.articles.map((article, ai) => ({
-              versionId: undefined as any, // auto-connected by nested create
               familyId,
               orderIndex: article.orderIndex ?? ai,
               title: article.title,
@@ -129,14 +127,12 @@ export class ConstitutionService {
               clauses: {
                 create: article.clauses.map((clause, ci) => ({
                   familyId,
-                  articleId: undefined as any, // auto-connected by nested create
-                  versionId: undefined as any, // auto-connected by nested create
                   orderIndex: clause.orderIndex ?? ci,
                   text: clause.text,
                   intent: clause.intent ?? null,
-                })),
+                })) as any,
               },
-            })),
+            })) as any,
           },
         },
         include: {
