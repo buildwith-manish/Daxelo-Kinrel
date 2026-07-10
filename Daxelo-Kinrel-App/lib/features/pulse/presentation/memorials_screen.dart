@@ -11,9 +11,10 @@ import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 
 class MemorialsScreen extends ConsumerWidget {
+  final bool embedded;
   final String familyId;
 
-  const MemorialsScreen({super.key, required this.familyId});
+  const MemorialsScreen({super.key, this.embedded = false, required this.familyId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

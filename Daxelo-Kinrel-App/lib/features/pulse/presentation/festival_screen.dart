@@ -11,7 +11,8 @@ import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 
 class FestivalScreen extends ConsumerWidget {
-  const FestivalScreen({super.key});
+  final bool embedded;
+  const FestivalScreen({super.key, this.embedded = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

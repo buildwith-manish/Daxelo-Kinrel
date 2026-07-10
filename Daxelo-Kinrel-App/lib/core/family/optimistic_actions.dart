@@ -1130,24 +1130,23 @@ Future<Person> addMemberOptimistic({
 
 /// Optimistic add family event — shows in list immediately.
 ///
+/// DELETED: The events/ feature was removed as dead code (demo data, no
+/// persistence). This function is kept commented out for reference in case
+/// events are revived with a real backend.
+///
 /// Since events are currently demo/local-only, the "confirm with server"
 /// step is a placeholder. The event is added immediately to the
 /// [eventsProvider] state. When a real API is connected, the
 /// [onConfirm] callback can fire the API call and remove the
 /// event on failure.
-Future<EventModel> addEventOptimistic({
-  required WidgetRef ref,
-  required EventModel event,
-}) async {
-  // 1. Create with a pending ID if not already set
-  final pendingId = event.id.isEmpty
-      ? 'pending_event_${DateTime.now().millisecondsSinceEpoch}'
-      : event.id;
-  final optimisticEvent = event.copyWith(id: pendingId);
-
-  // 2. Add to events list immediately
-  ref.read(eventsProvider.notifier).addEvent(optimisticEvent);
-
-  // 3. Return the optimistic event (caller can track it for rollback)
-  return optimisticEvent;
-}
+// Future<EventModel> addEventOptimistic({
+//   required WidgetRef ref,
+//   required EventModel event,
+// }) async {
+//   final pendingId = event.id.isEmpty
+//       ? 'pending_event_${DateTime.now().millisecondsSinceEpoch}'
+//       : event.id;
+//   final optimisticEvent = event.copyWith(id: pendingId);
+//   ref.read(eventsProvider.notifier).addEvent(optimisticEvent);
+//   return optimisticEvent;
+// }

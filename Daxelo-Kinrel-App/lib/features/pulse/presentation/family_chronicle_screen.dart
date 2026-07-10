@@ -11,9 +11,10 @@ import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 
 class FamilyChronicleScreen extends ConsumerWidget {
+  final bool embedded;
   final String familyId;
 
-  const FamilyChronicleScreen({super.key, required this.familyId});
+  const FamilyChronicleScreen({super.key, this.embedded = false, required this.familyId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

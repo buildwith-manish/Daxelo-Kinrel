@@ -11,13 +11,16 @@ import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 
 class BlessingChainScreen extends ConsumerStatefulWidget {
-  const BlessingChainScreen({super.key});
+  final bool embedded;
+  const BlessingChainScreen({super.key, this.embedded = false});
 
   @override
   ConsumerState<BlessingChainScreen> createState() => _BlessingChainScreenState();
+  final bool embedded;
 }
 
 class _BlessingChainScreenState extends ConsumerState<BlessingChainScreen>
+  final bool embedded;
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
@@ -68,6 +71,7 @@ class _BlessingChainScreenState extends ConsumerState<BlessingChainScreen>
 }
 
 class _BlessingsForMeTab extends ConsumerWidget {
+  final bool embedded;
   const _BlessingsForMeTab();
 
   @override
@@ -109,6 +113,7 @@ class _BlessingsForMeTab extends ConsumerWidget {
 }
 
 class _FamilyBlessingsTab extends ConsumerWidget {
+  final bool embedded;
   const _FamilyBlessingsTab();
 
   @override
@@ -148,6 +153,7 @@ class _FamilyBlessingsTab extends ConsumerWidget {
 }
 
 class _BlessingCard extends ConsumerWidget {
+  final bool embedded;
   final BlessingChain blessing;
   final bool isForMe;
 
