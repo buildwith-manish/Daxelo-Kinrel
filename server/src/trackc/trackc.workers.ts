@@ -79,18 +79,47 @@ export class TrackcWorkers implements OnModuleInit {
       await this.boss.work('trackc-profile-history-purge', this.handleProfileHistoryPurge.bind(this));
       await this.boss.work('trackc-insight-purge', this.handleInsightPurge.bind(this));
 
-      // ── Schedule recurring jobs (idempotent — publishAfter uses job name as key) ──
-      // Every 5 minutes
-      await this.boss.publishAfter('trackc-deadline-sweeper', {}, '5-min-schedule', new Date(Date.now() + 5 * 60 * 1000));
-      // Hourly
-      await this.boss.publishAfter('trackc-search-reindex', {}, 'hourly-schedule', new Date(Date.now() + 60 * 60 * 1000));
-      // Daily at 02:00 UTC
-      await this.scheduleDaily('trackc-learning-recompute', 2, 0);
-      await this.scheduleDaily('trackc-profile-history-purge', 3, 0);
-      await this.scheduleDaily('trackc-insight-purge', 4, 0);
-      // Weekly (Sundays at 01:00 UTC)
-      await this.scheduleWeekly('trackc-analytics-weekly', 0, 1);
-      await this.scheduleWeekly('trackc-signal-purge', 0, 1);
+      // ── Schedule recurring jobs via pg-boss native cron ────────────────
+      // ADR-006: All scheduled work uses pg-boss v10+ `schedule()` so the
+      // queue manager itself owns the recurrence. Previously this used
+      // `publishAfter(...)`, which is one-shot and requires the handler to
+      // self-reschedule — that approach silently broke in production: each
+      // job fired exactly once shortly after server start and never again.
+      //
+      // `schedule(name, cron, data, options)` is idempotent for the same
+      // (name, cron) pair across restarts — pg-boss stores the schedule in
+      // its own table and de-dupes on insert.
+      //
+      // Cron expressions here are 5-field standard cron (minute hour day-of-
+      // month month day-of-week) in UTC.
+      try {
+        // Every 5 minutes — auto-expire decisions past their deadline
+        await this.boss.schedule('trackc-deadline-sweeper', '*/5 * * * *', {});
+        // Hourly — incremental search index refresh
+        await this.boss.schedule('trackc-search-reindex', '0 * * * *', {});
+        // Daily at 02:00 UTC — recompute family behavior profiles
+        await this.boss.schedule('trackc-learning-recompute', '0 2 * * *', {});
+        // Daily at 03:00 UTC — purge old profile-history snapshots (90d)
+        await this.boss.schedule('trackc-profile-history-purge', '0 3 * * *', {});
+        // Daily at 04:00 UTC — purge old AI insights (365d)
+        await this.boss.schedule('trackc-insight-purge', '0 4 * * *', {});
+        // Weekly Sundays at 01:00 UTC — analytics snapshots for all families
+        await this.boss.schedule('trackc-analytics-weekly', '0 1 * * 0', {});
+        // Weekly Sundays at 01:30 UTC — purge learning signals older than 365d
+        await this.boss.schedule('trackc-signal-purge', '30 1 * * 0', {});
+
+        this.logger.log('pg-boss recurring schedules registered (cron-based, idempotent across restarts)');
+      } catch (schedErr) {
+        // `schedule()` throws if a schedule with the same name but a *different*
+        // cron expression already exists. This happens when operators change a
+        // cron expression in code but pg-boss still has the old one stored.
+        // Recovery: call boss.unschedule(name) first, then schedule again.
+        this.logger.error(
+          `Failed to register one or more pg-boss schedules: ${(schedErr as Error).message}. ` +
+            `If this is a cron-expression change, run boss.unschedule(name) for the affected job and restart.`,
+          (schedErr as Error).stack,
+        );
+      }
     } catch (err) {
       this.logger.error(`Failed to start pg-boss: ${(err as Error).message}`);
       this.logger.warn('Track C workers disabled — server will continue but background jobs will not run.');
@@ -214,23 +243,11 @@ export class TrackcWorkers implements OnModuleInit {
   }
 
   // ── Scheduling helpers ─────────────────────────────────────────────────
-
-  private async scheduleDaily(jobName: string, hourUtc: number, minuteUtc: number): Promise<void> {
-    const next = new Date();
-    next.setUTCHours(hourUtc, minuteUtc, 0, 0);
-    if (next <= new Date()) {
-      next.setUTCDate(next.getUTCDate() + 1);
-    }
-    await this.boss.publishAfter(jobName, {}, `${jobName}-schedule`, next);
-  }
-
-  private async scheduleWeekly(jobName: string, dayOfWeek: number, hourUtc: number): Promise<void> {
-    const next = new Date();
-    next.setUTCHours(hourUtc, 0, 0, 0);
-    const daysUntil = (dayOfWeek - next.getUTCDay() + 7) % 7;
-    next.setUTCDate(next.getUTCDate() + (daysUntil === 0 && next <= new Date() ? 7 : daysUntil));
-    await this.boss.publishAfter(jobName, {}, `${jobName}-schedule`, next);
-  }
+  // NOTE: scheduleDaily() and scheduleWeekly() were removed when this module
+  // switched from one-shot `publishAfter()` to native `boss.schedule()` cron.
+  // If you need to compute "next fire time" for ad-hoc one-shots, prefer the
+  // cron expressions above — they are idempotent across restarts and survive
+  // process crashes.
 
   private startOfWeek(date: Date): Date {
     const d = new Date(date);
