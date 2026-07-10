@@ -322,8 +322,7 @@ final _profileSummaryProvider =
     FutureProvider.family<Map<String, dynamic>?, String>((ref, familyId) async {
   try {
     final api = ref.watch(trackcApiClientProvider);
-    final result = await api.get('/families/$familyId/learning/profile/summary');
-    return result as Map<String, dynamic>?;
+    return await api.getLearningProfileSummary(familyId);
   } catch (_) {
     return null;
   }

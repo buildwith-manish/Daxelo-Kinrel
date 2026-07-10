@@ -253,6 +253,14 @@ class TrackcApiClient {
     return r.data as Map<String, dynamic>;
   }
 
+  /// Plain-language summary of the learning profile — available to ALL
+  /// members (including minors). Returns a pre-templated sentence, never
+  /// raw signal fields.
+  Future<Map<String, dynamic>> getLearningProfileSummary(String familyId) async {
+    final r = await _dio.get('/api/v1/families/$familyId/learning/profile/summary');
+    return r.data as Map<String, dynamic>;
+  }
+
   Future<void> resetLearningProfile(String familyId, {String reason = 'user_request'}) async {
     await _dio.post(
       '/api/v1/families/$familyId/learning/reset',
