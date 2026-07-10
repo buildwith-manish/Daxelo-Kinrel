@@ -47,7 +47,7 @@ PRIOR DECISIONS
 ${priors.join('\n---\n') || '(no prior decisions)'}`;
 
     return {
-      modelId: 'gpt-4o-mini',
+      modelId: 'glm-4.7-flash',
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },

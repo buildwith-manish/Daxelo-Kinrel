@@ -37,7 +37,7 @@ Outcome: ${outcome || '(pending)'}
 Resolution note: ${note || '(none)'}`;
 
     return {
-      modelId: 'gpt-4o-mini',
+      modelId: 'glm-4.7-flash',
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },

@@ -58,7 +58,7 @@ Deadline: ${params.deadlineHours.toFixed(1)} hours from now
 Return JSON with keys: qualityScore, strengths, risks, recommendation, confidenceLevel.`;
 
     return {
-      modelId: 'gpt-4o-mini',
+      modelId: 'glm-4.7-flash',
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },

@@ -3124,8 +3124,8 @@ model FamilyDecision {
   type                  String    @db.Text // simple_vote|consensus|elder_council|constitution_amend
   status                String    @default("open") @db.Text // open|resolved|expired|cancelled
   outcome               String?   @db.Text
-  options               String[]  @default([])
-  eligibleUserIds       String[]  @default([])
+  options               Json      @default("[]")
+  eligibleUserIds       Json      @default("[]")
   quorumPct             Int       @default(50)
   showVotesLive         Boolean   @default(false)
   deadlineAt            DateTime  @db.Timestamptz
@@ -3333,10 +3333,10 @@ model DecisionMemory {
   familyId                      String   @db.Text
   decisionId                    String   @unique @db.Text
   summaryText                   String   @db.Text
-  keyTakeaways                  String[] @default([])
-  searchKeywords                String[] @default([])
-  relatedConstitutionArticleIds String[] @default([])
-  relatedMemoryIds              String[] @default([])
+  keyTakeaways                  Json     @default("[]")
+  searchKeywords                Json     @default("[]")
+  relatedConstitutionArticleIds Json     @default("[]")
+  relatedMemoryIds              Json     @default("[]")
   meetingArtifactId             String?  @db.Text
   createdAt                     DateTime @default(now()) @db.Timestamptz
   updatedAt                     DateTime @default(now()) @updatedAt @db.Timestamptz
@@ -3356,7 +3356,7 @@ model DecisionImpact {
   milestoneText String   @db.Text
   dueDate       DateTime? @db.Timestamptz
   completedAt   DateTime? @db.Timestamptz
-  evidenceUrls  String[] @default([])
+  evidenceUrls  Json     @default("[]")
   notes         String?  @db.Text
   createdAt     DateTime @default(now()) @db.Timestamptz
   updatedAt     DateTime @default(now()) @updatedAt @db.Timestamptz
@@ -3374,8 +3374,8 @@ model MeetingArtifact {
   decisionId       String?   @db.Text
   title            String    @db.Text
   heldAt           DateTime  @db.Timestamptz
-  participants     String[]  @default([])
-  agenda           String[]  @default([])
+  participants     Json      @default("[]")
+  agenda           Json      @default("[]")
   discussionPoints Json      @default("[]")
   decisions        Json      @default("[]")
   actionItems      Json      @default("[]")
@@ -3403,7 +3403,7 @@ model SearchIndex {
   entityId      String   @db.Text
   title         String   @default("") @db.Text
   body          String   @default("") @db.Text
-  keywords      String[] @default([])
+  keywords      Json     @default("[]")
   boostedScore  Decimal  @default(1.0) @db.Decimal(8, 4)
   updatedAt     DateTime @default(now()) @updatedAt @db.Timestamptz
 

@@ -120,7 +120,7 @@ export class SyncPushService {
         if (decision.status !== 'open') {
           throw { status: 409, message: 'Decision is no longer open for voting', name: 'ConflictError' };
         }
-        if (!decision.eligibleUserIds.includes(userId)) {
+        if (!(decision.eligibleUserIds as string[]).includes(userId)) {
           throw new ForbiddenException('Not eligible to vote on this decision');
         }
         try {

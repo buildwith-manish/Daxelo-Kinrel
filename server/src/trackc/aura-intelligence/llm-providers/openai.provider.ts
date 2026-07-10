@@ -18,7 +18,7 @@ import {
 export interface OpenAIProviderConfig {
   apiKey: string;
   baseUrl?: string; // default https://api.openai.com/v1
-  defaultModelId?: string; // default 'gpt-4o-mini'
+  defaultModelId?: string; // default 'glm-4.7-flash'
 }
 
 @Injectable()
@@ -40,7 +40,7 @@ export class OpenAIProvider implements LLMProvider {
   // Rough per-1K-token cost in USD. Used for budget tracking.
   // Real cost is read from API response when available; this is a fallback.
   private readonly costTable: Record<string, { in: number; out: number }> = {
-    'gpt-4o-mini': { in: 0.00015, out: 0.0006 },
+    'glm-4.7-flash': { in: 0.00015, out: 0.0006 },
     'gpt-4o': { in: 0.0025, out: 0.01 },
     'gpt-4.1-mini': { in: 0.0004, out: 0.0016 },
     'gpt-4.1': { in: 0.002, out: 0.008 },
@@ -49,7 +49,7 @@ export class OpenAIProvider implements LLMProvider {
   constructor(config: OpenAIProviderConfig) {
     this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl ?? 'https://api.openai.com/v1';
-    this.defaultModelId = config.defaultModelId ?? 'gpt-4o-mini';
+    this.defaultModelId = config.defaultModelId ?? 'glm-4.7-flash';
   }
 
   async generate(req: LLMRequest): Promise<LLMResponse> {

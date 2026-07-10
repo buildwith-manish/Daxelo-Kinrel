@@ -177,7 +177,7 @@ ${decisionsText}`;
 
     try {
       const response = await this.llm.generate({
-        modelId: 'gpt-4o-mini',
+        modelId: 'glm-4.7-flash',
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: user },

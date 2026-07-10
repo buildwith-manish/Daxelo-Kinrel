@@ -14,7 +14,7 @@ export interface LLMMessage {
 }
 
 export interface LLMRequest {
-  /** Model identifier (e.g. "gpt-4o-mini-2026-07"). Recorded on AIInsight for audit. */
+  /** Model identifier (e.g. "glm-4.7-flash-2026-07"). Recorded on AIInsight for audit. */
   modelId: string;
   messages: LLMMessage[];
   /** Max output tokens. Server caps at 4000 (Section 8.3). */

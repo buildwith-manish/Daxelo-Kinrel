@@ -187,7 +187,7 @@ export class DecisionsService {
     const decision = await this.getOne(familyId, decisionId);
 
     // Verify voter is eligible
-    if (!decision.eligibleUserIds.includes(actorId)) {
+    if (!(decision.eligibleUserIds as string[]).includes(actorId)) {
       throw new ForbiddenException('You are not an eligible voter for this decision');
     }
 
@@ -203,8 +203,8 @@ export class DecisionsService {
       quorumPct: decision.quorumPct,
     });
 
-    if (!decision.options.includes(option)) {
-      throw new BadRequestException(`'${option}' is not a valid option. Valid: ${decision.options.join(', ')}`);
+    if (!(decision.options as string[]).includes(option)) {
+      throw new BadRequestException(`'${option}' is not a valid option. Valid: ${(decision.options as string[]).join(', ')}`);
     }
 
     try {
@@ -265,13 +265,13 @@ export class DecisionsService {
     let elderEligibleCount: number | undefined;
     let elderTallies: Record<string, number> | undefined;
     if (decision.type === 'elder_council') {
-      elderEligibleCount = decision.eligibleUserIds.length;
+      elderEligibleCount = (decision.eligibleUserIds as string[]).length;
       elderTallies = tallies;
     }
 
     const result = computeQuorum({
       type: decision.type as DecisionType,
-      eligibleCount: decision.eligibleUserIds.length,
+      eligibleCount: (decision.eligibleUserIds as string[]).length,
       voteCount: votes.length,
       quorumPct: decision.quorumPct,
       voteTallies: tallies,

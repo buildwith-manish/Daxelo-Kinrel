@@ -22,8 +22,11 @@ export class ConstitutionController {
   constructor(private readonly service: ConstitutionService) {}
 
   @Get()
-  get(@Param('familyId') familyId: string) {
-    return this.service.getConstitution(familyId);
+  get(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.service.getConstitution(familyId, userId);
   }
 
   @Post('draft')
@@ -47,13 +50,20 @@ export class ConstitutionController {
   }
 
   @Get('versions')
-  versions(@Param('familyId') familyId: string) {
-    return this.service.listVersions(familyId);
+  versions(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.service.listVersions(familyId, userId);
   }
 
   @Get('versions/:versionId')
-  version(@Param('familyId') familyId: string, @Param('versionId') versionId: string) {
-    return this.service.getVersion(familyId, versionId);
+  version(
+    @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
+    @Param('versionId') versionId: string,
+  ) {
+    return this.service.getVersion(familyId, versionId, userId);
   }
 
   @Post('amend')

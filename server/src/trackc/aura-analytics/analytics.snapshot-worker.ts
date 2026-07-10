@@ -80,7 +80,7 @@ export class AnalyticsSnapshotWorker {
       where: { familyId, votedAt: { gte: periodStart, lt: periodEnd } },
       _count: true,
     });
-    const totalEligible = decisionsInPeriod.reduce((acc, d) => acc + d.eligibleUserIds.length, 0);
+    const totalEligible = decisionsInPeriod.reduce((acc, d) => acc + (d.eligibleUserIds as string[]).length, 0);
     const totalVotes = voteCounts.reduce((acc, v) => acc + v._count, 0);
     const participationRate = totalEligible > 0 ? totalVotes / totalEligible : 0;
 

@@ -49,7 +49,10 @@ export class GovernanceSyncController {
     @CurrentUser('id') userId: string,
     @Body() body: { operations: PushOperation[] },
   ) {
-    if (!body?.operations?.length) throw new BadRequestException('operations must be non-empty');
+    if (!body?.operations || !Array.isArray(body.operations)) {
+      throw new BadRequestException('operations array is required');
+    }
+    // Empty array is OK — returns empty result
     return this.pushService.push({ userId, operations: body.operations });
   }
 }

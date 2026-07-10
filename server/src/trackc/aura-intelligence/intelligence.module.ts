@@ -72,7 +72,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
         const zaiApiKey = config.get<string>('ZAI_API_KEY');
         const zaiEnabled = config.get<string>('ZAI_PROVIDER_ENABLED')?.toLowerCase();
         const zaiBaseUrl = config.get<string>('ZAI_BASE_URL');
-        const zaiModel = config.get<string>('ZAI_DEFAULT_MODEL') ?? 'glm-4.6';
+        const zaiModel = config.get<string>('ZAI_DEFAULT_MODEL') ?? 'glm-4.7-flash';
         const zaiToken = config.get<string>('ZAI_TOKEN');
         const zaiUserId = config.get<string>('ZAI_USER_ID');
         const zaiChatId = config.get<string>('ZAI_CHAT_ID');
@@ -106,7 +106,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
         // ── Priority 3: OpenAI (paid) ────────────────────────────────────
         const openaiApiKey = config.get<string>('OPENAI_API_KEY');
         const openaiBaseUrl = config.get<string>('OPENAI_BASE_URL');
-        const openaiModel = config.get<string>('OPENAI_DEFAULT_MODEL') ?? 'gpt-4o-mini';
+        const openaiModel = config.get<string>('OPENAI_DEFAULT_MODEL') ?? 'glm-4.7-flash';
         if (openaiApiKey && openaiApiKey.length > 10) {
           logger.log(`Using OpenAI LLM provider (model=${openaiModel}) — PAID`);
           return new OpenAIProvider({ apiKey: openaiApiKey, baseUrl: openaiBaseUrl, defaultModelId: openaiModel });

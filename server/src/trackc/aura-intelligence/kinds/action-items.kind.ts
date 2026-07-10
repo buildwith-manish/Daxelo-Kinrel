@@ -43,7 +43,7 @@ Decisions:
 ${params.decisions.map((d) => `- ${this.redaction.redact(d).redacted}`).join('\n')}`;
 
     return {
-      modelId: 'gpt-4o-mini',
+      modelId: 'glm-4.7-flash',
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: user },

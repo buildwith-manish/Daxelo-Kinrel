@@ -55,21 +55,24 @@ export class SearchService {
     const entityTypeFilter = params.entityType ? `AND "entityType" = '${params.entityType.replace(/'/g, "''")}'` : '';
     const results: any[] = await this.prisma.$queryRawUnsafe(
       `
-      SELECT
-        "id",
-        "entityType",
-        "entityId",
-        "title",
-        "body",
-        "keywords",
-        "boostedScore",
-        ts_rank_cd(search_tsvector, query) AS rank
-      FROM public."SearchIndex",
-           plainto_tsquery('english', $1) query
-      WHERE "familyId" = $2
-        ${entityTypeFilter}
-        AND search_tsvector @@ query
-      ORDER BY rank * "boostedScore" DESC
+      WITH search_results AS (
+        SELECT
+          "id",
+          "entityType",
+          "entityId",
+          "title",
+          "body",
+          "keywords",
+          "boostedScore",
+          ts_rank_cd(search_tsvector, query) AS rank_score
+        FROM public."SearchIndex",
+             plainto_tsquery('english', $1) query
+        WHERE "familyId" = $2
+          ${entityTypeFilter}
+          AND search_tsvector @@ query
+      )
+      SELECT * FROM search_results
+      ORDER BY rank_score * "boostedScore" DESC
       LIMIT $3
       `,
       sanitizedQuery,
@@ -193,8 +196,8 @@ export class SearchService {
         entityType: 'memory',
         entityId: m.decisionId,
         title: `Memory: ${m.summaryText.slice(0, 80)}`,
-        body: `${m.summaryText}\n${m.keyTakeaways.join('\n')}`,
-        keywords: m.searchKeywords,
+        body: `${m.summaryText}\n${(m.keyTakeaways as string[]).join('\n')}`,
+        keywords: (m.searchKeywords as string[]),
         boostedScore: 1.5,
       });
       count++;

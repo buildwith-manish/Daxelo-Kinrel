@@ -25,7 +25,7 @@
 //   - ZAI_TOKEN: The JWT token from your z-ai config (REQUIRED for production)
 //   - ZAI_API_KEY: Optional. Defaults to 'Z.ai' (the public key)
 //   - ZAI_BASE_URL: Optional. Defaults to https://internal-api.z.ai/v1
-//   - ZAI_DEFAULT_MODEL: Optional. Defaults to 'glm-4.6'
+//   - ZAI_DEFAULT_MODEL: Optional. Defaults to 'glm-4.7-flash'
 //   - ZAI_USER_ID: Optional. Your Z.ai user ID (from config)
 //   - ZAI_CHAT_ID: Optional. A chat session ID
 //
@@ -82,7 +82,7 @@ export class ZaiProvider implements LLMProvider {
   constructor(config: ZaiProviderConfig = {}) {
     this.apiKey = config.apiKey || 'Z.ai';
     this.baseUrl = config.baseUrl || 'https://internal-api.z.ai/v1';
-    this.defaultModelId = config.defaultModelId || 'glm-4.6';
+    this.defaultModelId = config.defaultModelId || 'glm-4.7-flash';
     this.token = config.token;
     this.userId = config.userId;
     this.chatId = config.chatId;

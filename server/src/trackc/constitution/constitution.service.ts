@@ -47,7 +47,10 @@ export class ConstitutionService {
   /**
    * Get the family's constitution (current published version + draft if exists).
    */
-  async getConstitution(familyId: string) {
+  async getConstitution(familyId: string, userId: string) {
+    // Security: verify family membership before returning data
+    await this.membership.requireMember(userId, familyId);
+
     let constitution = await this.prisma.familyConstitution.findUnique({
       where: { familyId },
       include: {
@@ -90,7 +93,7 @@ export class ConstitutionService {
       throw new BadRequestException('Constitution must have at least one article');
     }
 
-    const constitution = await this.getConstitution(familyId);
+    const constitution = await this.getConstitution(familyId, actorId);
 
     return this.prisma.$transaction(async (tx) => {
       // Determine next version number
@@ -107,6 +110,7 @@ export class ConstitutionService {
       }
 
       // Create new draft version with articles + clauses
+      // Use unchecked create so we can pass familyId/versionId as scalars
       const draft = await tx.constitutionVersion.create({
         data: {
           constitutionId: constitution.id,
@@ -117,6 +121,7 @@ export class ConstitutionService {
           clauseCount: input.articles.reduce((acc, a) => acc + a.clauses.length, 0),
           articles: {
             create: input.articles.map((article, ai) => ({
+              versionId: undefined as any, // auto-connected by nested create
               familyId,
               orderIndex: article.orderIndex ?? ai,
               title: article.title,
@@ -124,12 +129,14 @@ export class ConstitutionService {
               clauses: {
                 create: article.clauses.map((clause, ci) => ({
                   familyId,
+                  articleId: undefined as any, // auto-connected by nested create
+                  versionId: undefined as any, // auto-connected by nested create
                   orderIndex: clause.orderIndex ?? ci,
                   text: clause.text,
                   intent: clause.intent ?? null,
-                })) as any,
+                })),
               },
-            })) as any,
+            })),
           },
         },
         include: {
@@ -159,7 +166,7 @@ export class ConstitutionService {
   async publish(familyId: string, actorId: string, changeSummary?: string) {
     await this.membership.requireAdmin(actorId, familyId);
 
-    const constitution = await this.getConstitution(familyId);
+    const constitution = await this.getConstitution(familyId, actorId);
     if (!constitution.draftVersionId) {
       throw new BadRequestException('No draft to publish. Create or edit a draft first.');
     }
@@ -249,8 +256,9 @@ export class ConstitutionService {
   /**
    * List all versions of the constitution (published + drafts + superseded).
    */
-  async listVersions(familyId: string) {
-    const constitution = await this.getConstitution(familyId);
+  async listVersions(familyId: string, userId: string) {
+    await this.membership.requireMember(userId, familyId);
+    const constitution = await this.getConstitution(familyId, userId);
     return this.prisma.constitutionVersion.findMany({
       where: { constitutionId: constitution.id },
       orderBy: { versionNumber: 'desc' },
@@ -260,7 +268,8 @@ export class ConstitutionService {
     });
   }
 
-  async getVersion(familyId: string, versionId: string) {
+  async getVersion(familyId: string, versionId: string, userId: string) {
+    await this.membership.requireMember(userId, familyId);
     const version = await this.prisma.constitutionVersion.findUnique({
       where: { id: versionId },
       include: {
@@ -293,7 +302,7 @@ export class ConstitutionService {
   ) {
     await this.membership.requireAdmin(actorId, familyId);
 
-    const constitution = await this.getConstitution(familyId);
+    const constitution = await this.getConstitution(familyId, actorId);
     if (!constitution.currentVersionId) {
       throw new BadRequestException('Cannot amend — no published constitution. Publish v1 first.');
     }

@@ -24,6 +24,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { TimelineService } from './timeline.service';
 import { TimelineExporter } from './timeline.exporter';
 import { TimelineKind, TIMELINE_KINDS } from './timeline.types';
+import { FamilyMembershipService } from '../common/family-membership.service';
 
 @Controller('v1/families/:familyId/timeline')
 @UseGuards(JwtAuthGuard)
@@ -31,16 +32,19 @@ export class TimelineController {
   constructor(
     private readonly service: TimelineService,
     private readonly exporter: TimelineExporter,
+    private readonly membership: FamilyMembershipService,
   ) {}
 
   @Get()
-  list(
+  async list(
     @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
     @Query('kind') kind?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
-    // kind can be a single kind or a CSV of kinds
+    await this.membership.requireMember(userId, familyId);
+
     let parsedKind: TimelineKind | TimelineKind[] | undefined;
     if (kind) {
       const kinds = kind.split(',').map((k) => k.trim()) as TimelineKind[];
@@ -62,18 +66,20 @@ export class TimelineController {
   @Get('export')
   async exportTimeline(
     @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
     @Query('format') format: 'pdf' | 'json' = 'json',
     @Query('year') year?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Res() res?: Response,
   ) {
+    await this.membership.requireMember(userId, familyId);
+
     if (format === 'json') {
       const data = await this.service.exportJson(familyId, { from, to });
       return data;
     }
 
-    // PDF: return print-ready HTML
     const { html, eventCount } = await this.exporter.exportPdfHtml(familyId, {
       year: year ? parseInt(year, 10) : undefined,
       from,
@@ -89,35 +95,41 @@ export class TimelineController {
   }
 
   @Get(':eventId')
-  getOne(
+  async getOne(
     @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
     @Param('eventId') eventId: string,
   ) {
+    await this.membership.requireMember(userId, familyId);
     return this.service.getOne(familyId, eventId);
   }
 
   @Get(':eventId/corrections')
-  getCorrections(
+  async getCorrections(
     @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
     @Param('eventId') eventId: string,
   ) {
+    await this.membership.requireMember(userId, familyId);
     return this.service.getCorrections(familyId, eventId);
   }
 
   @Post(':eventId/correct')
   async correct(
     @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
     @Param('eventId') eventId: string,
-    @CurrentUser('id') actorId: string,
     @Body() body: { correctedFields: Record<string, { from: any; to: any }>; note?: string },
   ) {
+    await this.membership.requireAdmin(userId, familyId);
+
     if (!body?.correctedFields || typeof body.correctedFields !== 'object') {
       throw new BadRequestException('correctedFields is required');
     }
     return this.service.appendCorrection(
       familyId,
       eventId,
-      actorId,
+      userId,
       body.correctedFields,
       body.note,
     );
