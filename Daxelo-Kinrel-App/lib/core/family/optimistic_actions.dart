@@ -709,48 +709,49 @@ Future<void> updatePersonOptimistic({
 
   // 2. Merge updated fields into the existing data JSON (skip on web)
   if (dbAvailable && db != null) {
-  try {
-    final existing = snapshot;
-    if (existing != null) {
-      final dataMap = existing.data.isNotEmpty
-          ? Map<String, dynamic>.from(
-              json.decode(existing.data) as Map<String, dynamic>)
-          : <String, dynamic>{};
+    try {
+      final existing = snapshot;
+      if (existing != null) {
+        final dataMap = existing.data.isNotEmpty
+            ? Map<String, dynamic>.from(
+                json.decode(existing.data) as Map<String, dynamic>)
+            : <String, dynamic>{};
 
-      // Apply only the fields that are explicitly provided
-      if (name != null) dataMap['name'] = name;
-      if (gender != null) dataMap['gender'] = gender;
-      if (dateOfBirth != null) dataMap['dateOfBirth'] = dateOfBirth;
-      if (anniversaryDate != null) dataMap['anniversaryDate'] = anniversaryDate;
-      if (city != null) dataMap['city'] = city;
-      if (gotra != null) dataMap['gotra'] = gotra;
-      if (isDeceased != null) dataMap['isDeceased'] = isDeceased;
-      if (birthYear != null) dataMap['birthYear'] = birthYear;
-      if (isAnchor != null) dataMap['isAnchor'] = isAnchor;
-      dataMap['updatedAt'] = DateTime.now().toIso8601String();
+        // Apply only the fields that are explicitly provided
+        if (name != null) dataMap['name'] = name;
+        if (gender != null) dataMap['gender'] = gender;
+        if (dateOfBirth != null) dataMap['dateOfBirth'] = dateOfBirth;
+        if (anniversaryDate != null) dataMap['anniversaryDate'] = anniversaryDate;
+        if (city != null) dataMap['city'] = city;
+        if (gotra != null) dataMap['gotra'] = gotra;
+        if (isDeceased != null) dataMap['isDeceased'] = isDeceased;
+        if (birthYear != null) dataMap['birthYear'] = birthYear;
+        if (isAnchor != null) dataMap['isAnchor'] = isAnchor;
+        dataMap['updatedAt'] = DateTime.now().toIso8601String();
 
-      // Determine the display name for the Drift name column
-      final displayName = name ?? existing.name;
+        // Determine the display name for the Drift name column
+        final displayName = name ?? existing.name;
 
-      // 3. Upsert updated row into Drift
-      await db.upsertPerson(CachedPersonsCompanion(
-        id: Value(personId),
-        familyId: Value(existing.familyId),
-        name: Value(displayName),
-        data: Value(_jsonEncode(dataMap)),
-        bloodGroup: Value(existing.bloodGroup),
-        education: Value(existing.education),
-        biography: Value(existing.biography),
-        email: Value(existing.email),
-        phone: Value(existing.phone),
-        anniversaryDate: Value(existing.anniversaryDate),
-        relationshipType: Value(existing.relationshipType),
-        username: Value(existing.username),
-        cachedAt: Value(DateTime.now()),
-      ));
+        // 3. Upsert updated row into Drift
+        await db.upsertPerson(CachedPersonsCompanion(
+          id: Value(personId),
+          familyId: Value(existing.familyId),
+          name: Value(displayName),
+          data: Value(_jsonEncode(dataMap)),
+          bloodGroup: Value(existing.bloodGroup),
+          education: Value(existing.education),
+          biography: Value(existing.biography),
+          email: Value(existing.email),
+          phone: Value(existing.phone),
+          anniversaryDate: Value(existing.anniversaryDate),
+          relationshipType: Value(existing.relationshipType),
+          username: Value(existing.username),
+          cachedAt: Value(DateTime.now()),
+        ));
+      }
+    } catch (e) {
+      debugPrint('⚠️ Optimistic update person: could not update Drift: $e');
     }
-  } catch (e) {
-    debugPrint('⚠️ Optimistic update person: could not update Drift: $e');
   }
 
   // 4. Invalidate providers so UI updates immediately
