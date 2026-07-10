@@ -170,6 +170,8 @@ import '../../features/pulse/presentation/festival_screen.dart';
 import '../../features/pulse/presentation/silent_alarms_screen.dart';
 import '../../features/pulse/presentation/family_chronicle_screen.dart';
 import '../../features/pulse/presentation/memorials_screen.dart';
+import '../../features/pulse/presentation/celebrations_screen.dart';
+import '../../features/pulse/presentation/family_legacy_screen.dart';
 import '../../features/kinrel_intelligence/presentation/kinrel_screen.dart';
 import '../../core/constants/feature_flags.dart';
 import '../../presentation/screens/family_tree/family_tree_screen.dart';
@@ -1842,6 +1844,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             child: FamilyChronicleScreen(familyId: familyId),
           );
         },
+      ),
+      GoRoute(
+        path: '/pulse/celebrations',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const CelebrationsScreen()),
+      ),
+      GoRoute(
+        path: '/pulse/legacy',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const FamilyLegacyScreen()),
       ),
       GoRoute(
         path: '/pulse/memorials',

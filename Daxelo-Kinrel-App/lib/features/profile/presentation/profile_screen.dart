@@ -44,6 +44,7 @@ import '../../social/data/providers/follow_provider.dart';
 
 import '../../social/presentation/widgets/sparq_ring_avatar.dart';
 import '../../../core/services/image_cache_manager.dart';
+import '../../trackc/presentation/screens/learning_profile_screen.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
 const Color _orange = Color(0xFFE8612A);
@@ -395,6 +396,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 label: 'Download my data',
                 subtitle: _dataExportRequested ? 'Request pending' : null,
                 onTap: () => _showDataExportSheet(context),
+              ),
+              _divider(),
+              // Kinrel Learning profile — moved here from the Governance hub.
+              // Invisible infra that powers suggestions; needs a transparency/
+              // reset screen but doesn't belong in governance nav.
+              _SettingsRow(
+                icon: Icons.lightbulb_outline,
+                label: 'Kinrel Learning Profile',
+                subtitle: 'View what Kinrel has learned + reset',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const TrackcLearningProfileScreen(),
+                  ),
+                ),
+              ),
+              _divider(),
+              // Silent Alarms — moved here from the Pulse hub.
+              // Passive background nudge system, not something you "go do."
+              _SettingsRow(
+                icon: Icons.notifications_off_outlined,
+                label: 'Silent Alarms',
+                subtitle: 'Private nudges when someone goes quiet',
+                onTap: () => context.push('/pulse/alarms'),
               ),
               _divider(),
               _SettingsDeleteRow(
