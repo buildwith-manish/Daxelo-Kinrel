@@ -16,11 +16,9 @@ class BlessingChainScreen extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<BlessingChainScreen> createState() => _BlessingChainScreenState();
-  final bool embedded;
 }
 
 class _BlessingChainScreenState extends ConsumerState<BlessingChainScreen>
-  final bool embedded;
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 

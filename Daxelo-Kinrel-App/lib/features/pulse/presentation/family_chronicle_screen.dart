@@ -14,7 +14,7 @@ class FamilyChronicleScreen extends ConsumerWidget {
   final bool embedded;
   final String familyId;
 
-  const FamilyChronicleScreen({super.key, this.embedded = false, required this.familyId});
+  const FamilyChronicleScreen({super.key, this.embedded = false, this.familyId = ''});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

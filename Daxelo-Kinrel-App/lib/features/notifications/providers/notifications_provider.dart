@@ -369,16 +369,20 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
       // Retry the Supabase query with exponential backoff (500ms, 1500ms).
       // The old NestJS /api/notifications/v2 fallback was removed when the
       // v2 controller was deleted as dead code.
+      final retryClient = _ref.read(supabaseProvider);
+      final retryUserId = retryClient?.auth.currentUser?.id;
+      if (retryClient == null || retryUserId == null) return;
+
       for (final delay in [500, 1500]) {
         await Future.delayed(Duration(milliseconds: delay));
         try {
-          final retryResponse = await client
+          final retryResponse = await retryClient
               .from('Notification')
               .select('''
                 id, eventType, title, body, createdAt, read,
                 familyId, data, actorId
               ''')
-              .eq('userId', userId)
+              .eq('userId', retryUserId)
               .order('createdAt', ascending: false)
               .limit(50)
               .timeout(const Duration(seconds: 10));

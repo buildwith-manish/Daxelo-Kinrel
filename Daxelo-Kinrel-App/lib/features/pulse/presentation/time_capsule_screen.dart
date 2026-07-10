@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/networking/dio_client.dart';
+import '../../trackc/presentation/providers/trackc_providers.dart';
 import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 

@@ -14,7 +14,7 @@ class MemorialsScreen extends ConsumerWidget {
   final bool embedded;
   final String familyId;
 
-  const MemorialsScreen({super.key, this.embedded = false, required this.familyId});
+  const MemorialsScreen({super.key, this.embedded = false, this.familyId = ''});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
