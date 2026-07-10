@@ -1,5 +1,5 @@
 // =============================================================================
-// Track C v2.0 — AURA Timeline
+// Track C v2.0 — Kinrel Timeline
 // timeline.service.ts
 // =============================================================================
 // Read-only service for browsing the timeline + correction append.
@@ -105,7 +105,7 @@ export class TimelineService {
       }
     }
 
-    const items = await this.prisma.aURATimelineEvent.findMany({
+    const items = await this.prisma.kinrelTimelineEvent.findMany({
       where: {
         familyId,
         ...(kinds && kinds.length > 0 ? { kind: { in: kinds } } : {}),
@@ -153,7 +153,7 @@ export class TimelineService {
       await this.membership.requireMember(userId, familyId);
     }
 
-    const event = await this.prisma.aURATimelineEvent.findUnique({
+    const event = await this.prisma.kinrelTimelineEvent.findUnique({
       where: { id_familyId: { id: eventId, familyId } },
     });
     if (!event) throw new NotFoundException('Timeline event not found');
@@ -170,7 +170,7 @@ export class TimelineService {
    * Get corrections for a specific event.
    */
   async getCorrections(familyId: string, eventId: string) {
-    return this.prisma.aURATimelineEvent.findMany({
+    return this.prisma.kinrelTimelineEvent.findMany({
       where: { familyId, parentEventId: eventId, kind: 'correction' },
       orderBy: { occurredAt: 'asc' },
     });
@@ -189,7 +189,7 @@ export class TimelineService {
     note?: string,
   ) {
     // Verify the original event exists in this family
-    const original = await this.prisma.aURATimelineEvent.findUnique({
+    const original = await this.prisma.kinrelTimelineEvent.findUnique({
       where: { id_familyId: { id: eventId, familyId } },
     });
     if (!original) throw new NotFoundException('Original timeline event not found');
@@ -227,7 +227,7 @@ export class TimelineService {
       if (opts.to) where.occurredAt.lte = new Date(opts.to);
     }
 
-    const events = await this.prisma.aURATimelineEvent.findMany({
+    const events = await this.prisma.kinrelTimelineEvent.findMany({
       where,
       orderBy: { occurredAt: 'asc' },
       // Section 19 edge case #13: Timeline export > 10MB → paginated.

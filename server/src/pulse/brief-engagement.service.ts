@@ -13,7 +13,7 @@
 //   recordEngagement({
 //     userId, familyId, briefDate, itemKey, itemType, targetPersonId,
 //     signalScores: { graphDistance, generationDistance, relationshipSemantic,
-//                     auraRoleMatch, sharedConnections },
+//                     kinrelRoleMatch, sharedConnections },
 //     engagementType: 'opened' | 'tapped' | 'dismissed' | 'snoozed' | 'skipped',
 //   })
 //
@@ -34,7 +34,7 @@ export interface BriefSignalScores {
   graphDistance: number;
   generationDistance: number;
   relationshipSemantic: number;
-  auraRoleMatch: number;
+  kinrelRoleMatch: number;
   sharedConnections: number;
 }
 
@@ -137,7 +137,7 @@ export class BriefEngagementService {
         graphDistance: 0.5,
         generationDistance: 0.5,
         relationshipSemantic: 0.5,
-        auraRoleMatch: 0.5,
+        kinrelRoleMatch: 0.5,
         sharedConnections: 0.5,
       };
       try {
@@ -147,7 +147,7 @@ export class BriefEngagementService {
             graphDistance: Number(parsed.graphDistance) || 0.5,
             generationDistance: Number(parsed.generationDistance) || 0.5,
             relationshipSemantic: Number(parsed.relationshipSemantic) || 0.5,
-            auraRoleMatch: Number(parsed.auraRoleMatch) || 0.5,
+            kinrelRoleMatch: Number(parsed.kinrelRoleMatch) || 0.5,
             sharedConnections: Number(parsed.sharedConnections) || 0.5,
           };
         }

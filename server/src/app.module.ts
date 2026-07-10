@@ -43,7 +43,7 @@ import { StoriesModule } from './modules/stories/stories.module';
 import { FollowModule } from './modules/follow/follow.module';
 import { SparqModule } from './modules/sparq/sparq.module';
 import { RedlightModule } from './modules/games/redlight.module';
-import { AuraModule } from './aura/aura.module';
+import { KinrelModule } from './kinrel-intelligence/kinrel.module';
 import { ThinkingModule } from './modules/thinking/thinking.module';
 import { PulseModule } from './pulse/pulse.module';
 import { PitruModule } from './pitru/pitru.module';
@@ -101,7 +101,7 @@ import { TrackcModule } from './trackc/trackc.module';
     // ── Schedule module (cron jobs) ──────────────────────────
     ScheduleModule.forRoot(),
 
-    // ── Event emitter (for AURA domain events) ──────────────
+    // ── Event emitter (for Kinrel domain events) ──────────────
     EventEmitterModule.forRoot(),
 
     // ── Health check ────────────────────────────────────────
@@ -160,8 +160,8 @@ import { TrackcModule } from './trackc/trackc.module';
     // ── Game modules ─────────────────────────────────────────────
     RedlightModule,
 
-    // ── AURA: Ancestral Unified Relationship Archetype ──────────
-    AuraModule,
+    // ── Kinrel: Family Relationship Intelligence ──────────
+    KinrelModule,
     ThinkingModule,
 
     // ── PULSE: Daily Family Intelligence Brief ────────────────
@@ -173,8 +173,8 @@ import { TrackcModule } from './trackc/trackc.module';
     // ── ADDICTIVENESS: Festival + Blessing Chain + Time Capsule + Quests + Alarms + Chronicle ─
     AddictivenessModule,
 
-    // ── TRACK C v2.0: AURA Governance Engine ─────────────────────
-    // Constitution + Decisions + Timeline + AURA Intelligence + Learning +
+    // ── TRACK C v2.0: Kinrel Governance Engine ─────────────────────
+    // Constitution + Decisions + Timeline + Kinrel Intelligence + Learning +
     // Secretary + Search + Analytics + Offline Sync
     // See /docs/trackc/ for spec + ADRs.
     TrackcModule,

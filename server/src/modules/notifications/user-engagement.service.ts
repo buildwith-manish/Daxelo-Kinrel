@@ -1,7 +1,7 @@
 // =============================================================================
 // ML spec item #7 — User Engagement Profile Service
 // =============================================================================
-// Generalizes Track C's `reminderActionRate` concept out of aura-learning
+// Generalizes Track C's `reminderActionRate` concept out of kinrel-learning
 // into a shared per-user engagement-time signal.
 //
 // Responsibilities:

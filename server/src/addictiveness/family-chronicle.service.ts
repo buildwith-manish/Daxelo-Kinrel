@@ -11,7 +11,7 @@
 //   Chapter 2: "Growing the Family" — marriages, births, migrations
 //   Chapter 3: "The Current Generation" — who's here now, what they're doing
 //   Chapter 4: "Stories Worth Telling" — curated Sparqs + ancestral memories
-//   Chapter 5: "The Family Today" — AURA archetype, what makes this family unique
+//   Chapter 5: "The Family Today" — Kinrel archetype, what makes this family unique
 //
 // Monthly cron generates a new chapter or updates existing ones with recent events.
 //
@@ -77,8 +77,8 @@ export class FamilyChronicleService {
       orderBy: { generationIndex: 'asc' },
     });
 
-    // 3. Load AURA archetype
-    const aura = await this.prisma.familyAura.findUnique({
+    // 3. Load Kinrel archetype
+    const kinrel = await this.prisma.familyKinrel.findUnique({
       where: { familyId },
       select: {
         archetypeKey: true,
@@ -116,7 +116,7 @@ export class FamilyChronicleService {
     const chapters = this.generateChapters({
       family,
       persons,
-      aura,
+      kinrel,
       recentSparqs,
       memories,
     });
@@ -127,7 +127,7 @@ export class FamilyChronicleService {
     });
 
     const title = `The Chronicle of the ${family.name} Family`;
-    const subtitle = this.generateSubtitle(family, aura, persons.length);
+    const subtitle = this.generateSubtitle(family, kinrel, persons.length);
 
     const now = new Date();
     const nextMonth = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -241,7 +241,7 @@ export class FamilyChronicleService {
   private generateChapters(data: {
     family: any;
     persons: any[];
-    aura: any;
+    kinrel: any;
     recentSparqs: any[];
     memories: any[];
   }): any[] {
@@ -391,8 +391,8 @@ export class FamilyChronicleService {
       });
     }
 
-    // Chapter 5: The Family Today (AURA archetype)
-    if (data.aura) {
+    // Chapter 5: The Family Today (Kinrel archetype)
+    if (data.kinrel) {
       const archetypeDescriptions: Record<string, string> = {
         banyan: 'a Banyan tree — deeply rooted, with branches that reach wide and shelter many generations',
         river_delta: 'a river delta — multiple streams converging, bringing together different lineages and traditions',
@@ -401,13 +401,13 @@ export class FamilyChronicleService {
         lotus: 'a lotus — centered and balanced, with each member playing a distinct role',
         forest: 'a forest — a diverse collection of individuals, each growing in their own direction yet connected underground',
       };
-      const archetypeDesc = archetypeDescriptions[data.aura.archetypeKey] || 'a unique family structure';
+      const archetypeDesc = archetypeDescriptions[data.kinrel.archetypeKey] || 'a unique family structure';
 
       let content = `The ${data.family.name} family is ${archetypeDesc}. `;
-      content += `With ${data.aura.memberCount} members across ${data.aura.generationDepth} generation${data.aura.generationDepth === 1 ? '' : 's'}, `;
-      content += `the family spans ${data.aura.distinctLineages} distinct lineage${data.aura.distinctLineages === 1 ? '' : 's'}. `;
+      content += `With ${data.kinrel.memberCount} members across ${data.kinrel.generationDepth} generation${data.kinrel.generationDepth === 1 ? '' : 's'}, `;
+      content += `the family spans ${data.kinrel.distinctLineages} distinct lineage${data.kinrel.distinctLineages === 1 ? '' : 's'}. `;
 
-      const langDist = data.aura.languageDistribution as Record<string, number>;
+      const langDist = data.kinrel.languageDistribution as Record<string, number>;
       if (langDist && Object.keys(langDist).length > 0) {
         const langNames: Record<string, string> = {
           en: 'English', hi: 'Hindi', ta: 'Tamil', te: 'Telugu',
@@ -427,10 +427,10 @@ export class FamilyChronicleService {
         content,
         generatedAt: now,
         sourceData: {
-          archetype: data.aura.archetypeKey,
-          memberCount: data.aura.memberCount,
-          generationDepth: data.aura.generationDepth,
-          distinctLineages: data.aura.distinctLineages,
+          archetype: data.kinrel.archetypeKey,
+          memberCount: data.kinrel.memberCount,
+          generationDepth: data.kinrel.generationDepth,
+          distinctLineages: data.kinrel.distinctLineages,
         },
       });
     }
@@ -438,9 +438,9 @@ export class FamilyChronicleService {
     return chapters;
   }
 
-  private generateSubtitle(family: any, aura: any, memberCount: number): string {
-    if (aura) {
-      return `A story spanning ${aura.generationDepth} generation${aura.generationDepth === 1 ? '' : 's'}, with ${memberCount} members and ${aura.distinctLineages} lineage${aura.distinctLineages === 1 ? '' : 's'}.`;
+  private generateSubtitle(family: any, kinrel: any, memberCount: number): string {
+    if (kinrel) {
+      return `A story spanning ${kinrel.generationDepth} generation${kinrel.generationDepth === 1 ? '' : 's'}, with ${memberCount} members and ${kinrel.distinctLineages} lineage${kinrel.distinctLineages === 1 ? '' : 's'}.`;
     }
     return `A story of ${memberCount} family member${memberCount === 1 ? '' : 's'}.`;
   }

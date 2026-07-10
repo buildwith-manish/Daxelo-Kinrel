@@ -3,7 +3,7 @@
 // PersonalizationService — wraps the pure closeness.ts functions for NestJS use.
 //
 // Responsibilities:
-//   1. Load the family graph (Persons + Relationships + AURA roles) ONCE per
+//   1. Load the family graph (Persons + Relationships + Kinrel roles) ONCE per
 //      brief generation, then cache it for the duration of the request.
 //   2. Provide computeClosenessForTarget(targetPersonId) that collectors can
 //      call to get a ClosenessResult without each collector loading the graph.
@@ -30,7 +30,7 @@ import {
   ClosenessResult,
   PersonNode,
   RelationshipEdge,
-  AuraRole,
+  KinrelRole,
   applyClosenessTieBreaker,
   computeCloseness,
 } from './closeness';
@@ -57,7 +57,7 @@ export class PersonalizationService {
       userPersonId: string | null;
       persons: PersonNode[];
       relationships: RelationshipEdge[];
-      auraRoles: AuraRole[];
+      kinrelRoles: KinrelRole[];
       loadedAt: number;
     }
   >();
@@ -116,12 +116,12 @@ export class PersonalizationService {
       relationshipType: r.relationshipType,
     }));
 
-    // Load AURA roles for all members
-    const roles = await this.prisma.memberAuraRole.findMany({
+    // Load Kinrel roles for all members
+    const roles = await this.prisma.memberKinrelRole.findMany({
       where: { familyId },
       select: { memberId: true, roleKey: true },
     });
-    const auraRoles: AuraRole[] = roles.map((r) => ({
+    const kinrelRoles: KinrelRole[] = roles.map((r) => ({
       personId: r.memberId,
       roleKey: r.roleKey,
     }));
@@ -130,12 +130,12 @@ export class PersonalizationService {
       userPersonId,
       persons: personNodes,
       relationships: edges,
-      auraRoles,
+      kinrelRoles,
       loadedAt: Date.now(),
     });
 
     this.logger.debug?.(
-      `PersonalizationService: loaded graph for family ${familyId} — ${personNodes.length} persons, ${edges.length} edges, ${auraRoles.length} AURA roles`,
+      `PersonalizationService: loaded graph for family ${familyId} — ${personNodes.length} persons, ${edges.length} edges, ${kinrelRoles.length} Kinrel roles`,
     );
   }
 
@@ -151,7 +151,7 @@ export class PersonalizationService {
         graphDistance: 0.5,
         generationDistance: 0.5,
         relationshipSemantic: 0.5,
-        auraRoleMatch: 0.5,
+        kinrelRoleMatch: 0.5,
         sharedConnections: 0.5,
         hopCount: null,
         notes: ['No graph loaded — returning neutral 0.5'],
@@ -163,7 +163,7 @@ export class PersonalizationService {
       targetPersonId,
       persons: cached.persons,
       relationships: cached.relationships,
-      auraRoles: cached.auraRoles,
+      kinrelRoles: cached.kinrelRoles,
     };
 
     const result = computeCloseness(input);
@@ -185,7 +185,7 @@ export class PersonalizationService {
         w.graphDistance * result.graphDistance +
         w.generationDistance * result.generationDistance +
         w.relationshipSemantic * result.relationshipSemantic +
-        w.auraRoleMatch * result.auraRoleMatch +
+        w.kinrelRoleMatch * result.kinrelRoleMatch +
         w.sharedConnections * result.sharedConnections +
         b;
       // Clamp to [0, 1] — the bias term can push outside the range
@@ -228,7 +228,7 @@ export class PersonalizationService {
           graphDistance: Number(w.graphDistance) || FIXED_WEIGHTS.graphDistance,
           generationDistance: Number(w.generationDistance) || FIXED_WEIGHTS.generationDistance,
           relationshipSemantic: Number(w.relationshipSemantic) || FIXED_WEIGHTS.relationshipSemantic,
-          auraRoleMatch: Number(w.auraRoleMatch) || FIXED_WEIGHTS.auraRoleMatch,
+          kinrelRoleMatch: Number(w.kinrelRoleMatch) || FIXED_WEIGHTS.kinrelRoleMatch,
           sharedConnections: Number(w.sharedConnections) || FIXED_WEIGHTS.sharedConnections,
         },
         bias: Number(row.bias) || 0,

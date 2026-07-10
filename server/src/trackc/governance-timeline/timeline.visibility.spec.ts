@@ -53,7 +53,7 @@ describe('TimelineService — visibility matrix', () => {
   // ── Test: default list returns only summary event types ─────────────
   it('default list (no raw) returns only summary event types', async () => {
     // Simulate DB returning events of all kinds
-    prisma.aURATimelineEvent.findMany.mockResolvedValue([
+    prisma.kinrelTimelineEvent.findMany.mockResolvedValue([
       { id: 'e1', familyId: 'fam_1', kind: 'decision_created', occurredAt: new Date() },
       { id: 'e2', familyId: 'fam_1', kind: 'decision_voted', occurredAt: new Date() },
       { id: 'e3', familyId: 'fam_1', kind: 'decision_resolved', occurredAt: new Date() },
@@ -64,7 +64,7 @@ describe('TimelineService — visibility matrix', () => {
     const result = await service.list('fam_1', { userId: 'u_member' });
 
     // The DB query should filter to summary kinds only
-    const findManyCall = prisma.aURATimelineEvent.findMany.mock.calls[0][0];
+    const findManyCall = prisma.kinrelTimelineEvent.findMany.mock.calls[0][0];
     const kindsInQuery = findManyCall.where.kind?.in;
     expect(kindsInQuery).toBeDefined();
     // Every kind in the query must be in the summary whitelist
@@ -89,7 +89,7 @@ describe('TimelineService — visibility matrix', () => {
 
   // ── Test: raw=true succeeds for admin ───────────────────────────────
   it('raw=true succeeds for admin and returns all event types', async () => {
-    prisma.aURATimelineEvent.findMany.mockResolvedValue([
+    prisma.kinrelTimelineEvent.findMany.mockResolvedValue([
       { id: 'e1', familyId: 'fam_1', kind: 'decision_voted', occurredAt: new Date() },
       { id: 'e2', familyId: 'fam_1', kind: 'member_joined', occurredAt: new Date() },
     ]);
@@ -97,14 +97,14 @@ describe('TimelineService — visibility matrix', () => {
     const result = await service.list('fam_1', { raw: true, userId: 'u_admin' });
 
     // In raw mode, no kind filter should be applied (all kinds returned)
-    const findManyCall = prisma.aURATimelineEvent.findMany.mock.calls[0][0];
+    const findManyCall = prisma.kinrelTimelineEvent.findMany.mock.calls[0][0];
     expect(findManyCall.where.kind).toBeUndefined();
     expect(result.mode).toBe('raw');
   });
 
   // ── Test: non-admin requesting a non-summary kind gets empty result ─
   it('non-admin requesting decision_voted gets filtered to empty (not in whitelist)', async () => {
-    prisma.aURATimelineEvent.findMany.mockResolvedValue([]);
+    prisma.kinrelTimelineEvent.findMany.mockResolvedValue([]);
 
     await service.list('fam_1', {
       kind: 'decision_voted' as any,
@@ -112,14 +112,14 @@ describe('TimelineService — visibility matrix', () => {
     });
 
     // The query should have kind: { in: [] } (filtered out)
-    const findManyCall = prisma.aURATimelineEvent.findMany.mock.calls[0][0];
+    const findManyCall = prisma.kinrelTimelineEvent.findMany.mock.calls[0][0];
     // kinds array was filtered to empty since decision_voted is not in summary
     expect(findManyCall.where.kind?.in).toEqual([]);
   });
 
   // ── Test: non-admin requesting a summary kind gets it ───────────────
   it('non-admin requesting decision_created (summary kind) gets it', async () => {
-    prisma.aURATimelineEvent.findMany.mockResolvedValue([
+    prisma.kinrelTimelineEvent.findMany.mockResolvedValue([
       { id: 'e1', familyId: 'fam_1', kind: 'decision_created', occurredAt: new Date() },
     ]);
 
@@ -128,13 +128,13 @@ describe('TimelineService — visibility matrix', () => {
       userId: 'u_member',
     });
 
-    const findManyCall = prisma.aURATimelineEvent.findMany.mock.calls[0][0];
+    const findManyCall = prisma.kinrelTimelineEvent.findMany.mock.calls[0][0];
     expect(findManyCall.where.kind?.in).toEqual(['decision_created']);
   });
 
   // ── Test: getOne for non-summary event requires admin ───────────────
   it('getOne for non-summary event (decision_voted) requires admin for non-admin user', async () => {
-    prisma.aURATimelineEvent.findUnique.mockResolvedValue({
+    prisma.kinrelTimelineEvent.findUnique.mockResolvedValue({
       id: 'e1', familyId: 'fam_1', kind: 'decision_voted', occurredAt: new Date(),
     });
 
@@ -149,7 +149,7 @@ describe('TimelineService — visibility matrix', () => {
 
   // ── Test: getOne for summary event allows any member ────────────────
   it('getOne for summary event (decision_created) allows any member', async () => {
-    prisma.aURATimelineEvent.findUnique.mockResolvedValue({
+    prisma.kinrelTimelineEvent.findUnique.mockResolvedValue({
       id: 'e1', familyId: 'fam_1', kind: 'decision_created', occurredAt: new Date(),
     });
 

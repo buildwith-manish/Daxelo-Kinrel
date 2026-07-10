@@ -129,8 +129,8 @@ export class SilentAlarmService {
     let escalated = 0;
     let resolved = 0;
 
-    // 1. Find the family's bridge role (from MemberAuraRole)
-    const bridgeRole = await this.prisma.memberAuraRole.findFirst({
+    // 1. Find the family's bridge role (from MemberKinrelRole)
+    const bridgeRole = await this.prisma.memberKinrelRole.findFirst({
       where: { familyId, roleKey: 'bridge' },
       select: { memberId: true },
     });

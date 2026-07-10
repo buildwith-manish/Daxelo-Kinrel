@@ -2,7 +2,7 @@
 // ML spec item #5 — Learned Closeness Weights (logistic regression)
 // =============================================================================
 // Replaces the hardcoded weights in closeness.ts:
-//   fixed: 0.30*dist + 0.15*gen + 0.35*sem + 0.10*aura + 0.10*shared
+//   fixed: 0.30*dist + 0.15*gen + 0.35*sem + 0.10*kinrel + 0.10*shared
 //
 // With weights learned from actual user engagement data via logistic
 // regression. The training data comes from BriefEngagement rows
@@ -54,7 +54,7 @@ export const FIXED_WEIGHTS: BriefSignalWeights = {
   graphDistance: 0.30,
   generationDistance: 0.15,
   relationshipSemantic: 0.35,
-  auraRoleMatch: 0.10,
+  kinrelRoleMatch: 0.10,
   sharedConnections: 0.10,
 };
 export const FIXED_BIAS = 0; // fixed formula has no bias term
@@ -63,7 +63,7 @@ export interface BriefSignalWeights {
   graphDistance: number;
   generationDistance: number;
   relationshipSemantic: number;
-  auraRoleMatch: number;
+  kinrelRoleMatch: number;
   sharedConnections: number;
 }
 
@@ -95,7 +95,7 @@ export class ClosenessWeightsTrainer {
     'graphDistance',
     'generationDistance',
     'relationshipSemantic',
-    'auraRoleMatch',
+    'kinrelRoleMatch',
     'sharedConnections',
   ];
 

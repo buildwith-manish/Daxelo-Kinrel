@@ -1,5 +1,5 @@
 // =============================================================================
-// Track C v2.0 — AURA Governance: Constitution
+// Track C v2.0 — Kinrel Governance: Constitution
 // constitution.service.ts
 // =============================================================================
 // Implements Section 10.1 (constitution lifecycle) + Section 6.2 endpoints.

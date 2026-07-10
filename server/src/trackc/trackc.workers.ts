@@ -18,9 +18,9 @@
 import { Injectable, OnModuleInit, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DecisionsService } from './decisions/decisions.service';
-import { ProfileBuilder } from './aura-learning/learning.profile-builder';
-import { AnalyticsSnapshotWorker } from './aura-analytics/analytics.snapshot-worker';
-import { SearchService } from './aura-search/search.service';
+import { ProfileBuilder } from './kinrel-learning/learning.profile-builder';
+import { AnalyticsSnapshotWorker } from './kinrel-analytics/analytics.snapshot-worker';
+import { SearchService } from './kinrel-search/search.service';
 
 // PgBoss is loaded dynamically so the server can boot even if pg-boss isn't installed.
 let PgBoss: any;
