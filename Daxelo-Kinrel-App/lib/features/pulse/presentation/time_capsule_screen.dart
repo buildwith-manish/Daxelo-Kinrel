@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
+import '../../../core/services/supabase_service.dart';
+import '../../../core/networking/dio_client.dart';
 import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
 
@@ -88,11 +90,198 @@ class TimeCapsuleScreen extends ConsumerWidget {
   }
 
   void _showCreateDialog(BuildContext context, WidgetRef ref) {
-    // For MVP, navigate to a create route. A full form would be a separate screen.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Time capsule creation form — coming in next iteration. Use POST /api/addictiveness/time-capsules for now.'),
-        duration: Duration(seconds: 3),
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => _TimeCapsuleCreateSheet(parentContext: context, ref: ref),
+    );
+  }
+}
+
+class _TimeCapsuleCreateSheet extends StatefulWidget {
+  final BuildContext parentContext;
+  final WidgetRef ref;
+
+  const _TimeCapsuleCreateSheet({required this.parentContext, required this.ref});
+
+  @override
+  State<_TimeCapsuleCreateSheet> createState() => _TimeCapsuleCreateSheetState();
+}
+
+class _TimeCapsuleCreateSheetState extends State<_TimeCapsuleCreateSheet> {
+  final _messageController = TextEditingController();
+  DateTime? _revealDate;
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_messageController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please write a message.')),
+      );
+      return;
+    }
+    if (_revealDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please pick a reveal date.')),
+      );
+      return;
+    }
+    if (_revealDate!.isBefore(DateTime.now().add(const Duration(days: 1)))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Reveal date must be at least 1 day in the future.')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final client = widget.ref.read(supabaseProvider);
+      if (client == null) throw Exception('Not authenticated');
+
+      final userId = client.auth.currentUser?.id;
+      if (userId == null) throw Exception('Not signed in');
+
+      // POST to the addictiveness backend
+      final dio = widget.ref.read(dioProvider);
+      await dio.post(
+        '/api/addictiveness/time-capsules',
+        data: {
+          'familyId': widget.ref.read(selectedFamilyIdProvider),
+          'senderId': userId,
+          'recipientId': userId, // Self-addressed by default; UI could add recipient picker
+          'revealAt': _revealDate!.toIso8601String(),
+          'message': _messageController.text.trim(),
+        },
+      );
+
+      // Invalidate the list provider so the new capsule appears
+      widget.ref.invalidate(capsulesForMeProvider);
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(widget.parentContext).showSnackBar(
+          const SnackBar(
+            content: Text('Time capsule sealed! It will open on the chosen date.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to create: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text('Seal a Time Capsule',
+            style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          Text('Write a message to the future. It locks until the reveal date.',
+            style: TextStyle(color: Colors.white54, fontSize: 13),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _messageController,
+            maxLines: 4,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Dear future family...',
+              hintStyle: TextStyle(color: Colors.white38),
+              filled: true,
+              fillColor: KinrelColors.darkElevated,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Reveal date picker
+          InkWell(
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                firstDate: DateTime.now().add(const Duration(days: 1)),
+                lastDate: DateTime.now().add(const Duration(days: 365 * 10)),
+                initialDate: DateTime.now().add(const Duration(days: 30)),
+              );
+              if (picked != null) setState(() => _revealDate = picked);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: KinrelColors.darkElevated,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_today, color: KinrelColors.tealAccent, size: 20),
+                  const SizedBox(width: 12),
+                  Text(
+                    _revealDate == null
+                        ? 'Pick a reveal date'
+                        : 'Reveals on ${_revealDate!.day}/${_revealDate!.month}/${_revealDate!.year}',
+                    style: TextStyle(color: _revealDate == null ? Colors.white38 : Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _isSubmitting ? null : _submit,
+              style: FilledButton.styleFrom(
+                backgroundColor: KinrelColors.tealAccent,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _isSubmitting
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Seal Capsule', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
       ),
     );
   }
