@@ -15,6 +15,7 @@
 // =============================================================================
 
 import 'package:drift/drift.dart';
+import 'package:drift/native.dart' show NativeDatabase;
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
