@@ -3,8 +3,6 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { NotificationsScheduler } from './notifications.scheduler';
-import { NotificationsV2Controller } from './notifications-v2.controller';
-import { NotificationsV2Service } from './notifications-v2.service';
 import { UserEngagementService } from './user-engagement.service';
 import { FcmModule } from './fcm.module';
 import { GatewayModule } from '../gateway/gateway.module';
@@ -18,8 +16,5 @@ import { PrismaModule } from '../../prisma/prisma.module';
     GatewayModule,
     PrismaModule,
   ],
-  controllers: [NotificationsController, NotificationsV2Controller],
-  providers: [NotificationsService, NotificationsScheduler, NotificationsV2Service, UserEngagementService],
-  exports: [NotificationsService, NotificationsV2Service, UserEngagementService],
 })
 export class NotificationsModule {}

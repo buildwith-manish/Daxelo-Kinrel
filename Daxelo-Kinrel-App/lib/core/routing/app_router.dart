@@ -61,7 +61,6 @@ import '../../features/family/presentation/family_qr_screen.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_builder_screen.dart';
 import '../../features/family/presentation/family_graph_screen.dart';
-import '../../features/family/presentation/family_archive_screen.dart';
 import '../../features/family/presentation/family_members_screen.dart';
 import '../../features/family/presentation/family_activity_screen.dart';
 import '../../features/chat/presentation/chat_inbox_screen.dart';
@@ -124,7 +123,6 @@ import '../../features/profile/presentation/two_factor_screen.dart';
 import '../../features/profile/presentation/help_center_screen.dart';
 import '../../features/profile/presentation/contact_support_screen.dart';
 import '../../features/profile/presentation/report_bug_screen.dart';
-import '../../features/profile/presentation/legal_screen.dart';
 import '../../presentation/screens/legal/privacy_policy_screen.dart';
 import '../../presentation/screens/legal/terms_of_service_screen.dart';
 import '../../features/profile/presentation/my_families_screen.dart';
@@ -143,11 +141,9 @@ import '../../features/social/presentation/screens/privacy_settings_screen.dart'
 import '../../features/feed/presentation/post_create_screen.dart';
 import '../../features/profile/presentation/member_timeline_screen.dart';
 import '../../features/ai_chat/presentation/ai_chat_screen.dart';
-import '../../features/voice_search/presentation/voice_search_screen.dart';
 import '../../features/festival_cards/presentation/festival_cards_screen.dart';
 import '../../features/quiz/presentation/quiz_screen.dart';
 import '../../features/referral/presentation/referral_screen.dart';
-// import '../../features/kinship/presentation/kinship_search_screen.dart';
 import '../../features/search/presentation/search_screen.dart';
 import '../../features/kinship/presentation/kinship_detail_screen.dart';
 import '../../features/kinship/presentation/global_kinship_screen.dart';
@@ -155,7 +151,6 @@ import '../../features/kinship/presentation/cross_cultural_comparison_screen.dar
 import '../../features/kinship/presentation/country_kinship_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/notifications/providers/notifications_provider.dart';
-import '../../features/events/presentation/events_screen.dart';
 import '../../features/memories/presentation/memories_screen.dart';
 import '../../features/family_map/presentation/family_map_screen.dart';
 import '../../features/memory_vault/presentation/memory_vault_screen.dart';
@@ -177,7 +172,6 @@ import '../../features/pulse/presentation/family_chronicle_screen.dart';
 import '../../features/pulse/presentation/memorials_screen.dart';
 import '../../features/kinrel_intelligence/presentation/kinrel_screen.dart';
 import '../../core/constants/feature_flags.dart';
-import '../../presentation/screens/invite/invite_screen.dart';
 import '../../presentation/screens/family_tree/family_tree_screen.dart';
 import '../../presentation/screens/premium/paywall_screen.dart';
 import '../../presentation/screens/debug/engagement_dashboard.dart';
@@ -935,14 +929,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── Family Archive (Phase 3: unified Photos/Timeline/Audio) ──
-      GoRoute(
-        path: '/family/:id/archive',
-        pageBuilder: (context, state) => _fastFadePage(
-          key: state.pageKey,
-          child: FamilyArchiveScreen(
-            familyId: state.pathParameters['id'],
-          ),
-        ),
       ),
 
       // ── Family Members (extracted from FamilyDetailScreen) ──────
@@ -1475,11 +1461,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── Events & Celebrations ──────────────────────────────────
-      GoRoute(
-        path: '/events',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const EventsScreen()),
-      ),
 
       // ── Oral History ────────────────────────────────────────────
       GoRoute(
@@ -1500,11 +1481,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/ai-chat',
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: AiChatScreen()),
-      ),
-      GoRoute(
-        path: '/voice-search',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: VoiceSearchScreen()),
       ),
       GoRoute(
         path: '/festival-cards',
@@ -1554,22 +1530,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/referral',
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: ReferralScreen()),
-      ),
-
-      // ── P5: Invite Screen ──────────────────────────────────────────
-      GoRoute(
-        path: '/invite',
-        pageBuilder: (context, state) {
-          final familyId = state.uri.queryParameters['familyId'] ?? '';
-          final familyName = state.uri.queryParameters['familyName'] ?? 'Family';
-          return _fastFadePage(
-            key: state.pageKey,
-            child: InviteScreen(
-              familyId: familyId,
-              familyName: familyName,
-            ),
-          );
-        },
       ),
 
       // ── P5: Premium Paywall ────────────────────────────────────────
@@ -1736,18 +1696,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       GoRoute(
-        path: '/legal/terms',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const LegalScreen(type: 'terms')),
-      ),
-      GoRoute(
-        path: '/legal/privacy',
-        pageBuilder: (context, state) => _fastFadePage(
-          key: state.pageKey,
-          child: const LegalScreen(type: 'privacy'),
-        ),
-      ),
-      GoRoute(
         path: '/profile/my-families',
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: const MyFamiliesScreen()),
@@ -1769,9 +1717,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── P5: Premium Paywall (alternative path) ────────────────────
-      GoRoute(
-        path: '/profile/premium',
-        pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: const PaywallScreen()),
       ),
 
@@ -1790,14 +1735,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: const MemoryVaultScreen()),
       ),
-      GoRoute(
-        path: '/memory-vault/detail/:memoryId',
-        pageBuilder: (context, state) => _fastFadePage(
-          key: state.pageKey,
-          child: MemoryDetailScreen(
-            memory: MemoryModel.placeholder(state.pathParameters['memoryId']!),
-          ),
-        ),
       ),
 
       // ── Phase B: Occasion Reminders ───────────────────────────────
@@ -1869,9 +1806,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: const DailyBriefScreen()),
       ),
-      GoRoute(
-        path: '/pulse/history',
-        pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: const DailyBriefScreen()),
       ),
       GoRoute(

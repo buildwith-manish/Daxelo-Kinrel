@@ -1712,7 +1712,7 @@ class _DiscoverFeaturesGrid extends StatelessWidget {
         subtitle: 'Explore terms',
         icon: Icons.menu_book_outlined,
         color: const Color(0xFFF59E0B), // amber
-        route: '/explore',
+        route: '/kinship/global',
       ),
       _FeatureTile(
         title: 'Quiz & Trivia',

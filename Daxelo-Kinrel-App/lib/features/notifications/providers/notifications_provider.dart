@@ -3,7 +3,7 @@
 // DAXELO KINREL — Notifications State Management
 //
 // Manages notification state using Riverpod StateNotifierProvider.
-// Loads notifications from the backend API /api/notifications/v2 with
+// Loads notifications from Supabase with retry fallback.
 // polling-based real-time refresh every 30 seconds.
 // Supports mark as read, mark all read, delete, and pin operations.
 // Includes notification types, preferences, and grouping.
@@ -366,27 +366,33 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
       state = state.copyWith(notifications: notifications);
     } catch (e) {
       debugPrint('⚠️ Failed to load notifications: $e');
-      // Fallback to NestJS API (will likely 401, but try anyway)
-      try {
-        final response = await _dio.get(
-          '/api/notifications/v2',
-          queryParameters: {'page': 1, 'limit': 50},
-        );
-        final data = response.data;
-        if (data is Map<String, dynamic>) {
-          final notificationsList =
-              data['notifications'] as List? ?? data['items'] as List? ?? [];
-          final notifications = notificationsList
+      // Retry the Supabase query with exponential backoff (500ms, 1500ms).
+      // The old NestJS /api/notifications/v2 fallback was removed when the
+      // v2 controller was deleted as dead code.
+      for (final delay in [500, 1500]) {
+        await Future.delayed(Duration(milliseconds: delay));
+        try {
+          final retryResponse = await client
+              .from('Notification')
+              .select('''
+                id, eventType, title, body, createdAt, read,
+                familyId, data, actorId
+              ''')
+              .eq('userId', userId)
+              .order('createdAt', ascending: false)
+              .limit(50)
+              .timeout(const Duration(seconds: 10));
+
+          final retryNotifications = retryResponse
               .map((e) => _mapNotification(e as Map<String, dynamic>))
               .toList();
-          state = state.copyWith(notifications: notifications);
-        } else if (data is List) {
-          final notifications = data
-              .map((e) => _mapNotification(e as Map<String, dynamic>))
-              .toList();
-          state = state.copyWith(notifications: notifications);
+
+          state = state.copyWith(notifications: retryNotifications);
+          return;
+        } catch (retryError) {
+          debugPrint('⚠️ Notification retry failed (${delay}ms): $retryError');
         }
-      } catch (_) {}
+      }
     }
   }
 

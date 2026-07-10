@@ -1392,7 +1392,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
               isSearching: _isSearching,
               onChanged: _onSearchChanged,
               onClear: _clearSearch,
-              onVoiceSearch: () => context.push('/voice-search'),
+              onVoiceSearch: () {} // Voice search deleted,
             ),
           ),
 

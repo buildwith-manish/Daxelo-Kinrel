@@ -26,7 +26,6 @@ import 'family_provider.dart';
 import 'optimistic_provider.dart';
 import '../database/isar_database.dart';
 import '../database/app_database.dart';
-import '../../features/events/providers/events_provider.dart';
 import '../../features/family/presentation/providers/family_graph_provider.dart';
 
 // ════════════════════════════════════════════════════════════════════

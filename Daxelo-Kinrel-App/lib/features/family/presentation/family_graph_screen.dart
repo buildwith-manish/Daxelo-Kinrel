@@ -293,7 +293,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           icon: const Icon(Icons.photo_library_outlined, size: 22),
           tooltip: 'Family Archive',
           onPressed: () {
-            context.push('/family/${widget.familyId}/archive');
+            // Archive removed — repoint to /memory-vault if needed
           },
         ),
         // v92: Chat button — quick access to family chat from the graph.
