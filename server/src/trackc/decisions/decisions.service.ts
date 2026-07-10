@@ -17,6 +17,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { TimelineEmitter } from '../governance-timeline/timeline.emitter';
 import { FamilyMembershipService } from '../common/family-membership.service';
+import { ConstitutionService } from '../constitution/constitution.service';
 import {
   DecisionType,
   assertCanVote,
@@ -48,6 +49,7 @@ export class DecisionsService {
     private readonly prisma: PrismaService,
     private readonly emitter: TimelineEmitter,
     private readonly membership: FamilyMembershipService,
+    private readonly constitutionService: ConstitutionService,
   ) {}
 
   async list(
@@ -319,6 +321,50 @@ export class DecisionsService {
         },
       });
 
+      // ── Constitution amendment resolution hook ───────────────────────
+      // Section 10.1 of the spec: when a `constitution_amend` decision
+      // resolves, the constitution must be either committed (approved) or
+      // discarded (rejected). Failing to do either leaves the constitution
+      // permanently locked (status='in_review', draftVersionId non-null).
+      //
+      // We run this *inside* the same transaction so that a commit/discard
+      // failure rolls back the resolution write — preventing the situation
+      // where the decision is marked resolved but the constitution is still
+      // locked. The constitution_amended timeline event is emitted by
+      // ConstitutionService.commitAmendment itself (best-effort, never throws).
+      if (decision.type === 'constitution_amend') {
+        try {
+          if (outcome === 'approved') {
+            this.logger.log(
+              `Constitution amendment approved — committing draft for family ${familyId} (decision ${decisionId})`,
+            );
+            await this.constitutionService.commitAmendment(
+              familyId,
+              decision.constitutionVersionId ?? '',
+              actorId,
+              tx,
+              decisionId,
+            );
+          } else if (outcome === 'rejected' || outcome === 'tie') {
+            // A tie on a binary approve/reject amendment is treated as a
+            // failure to reach supermajority → discard the draft.
+            this.logger.log(
+              `Constitution amendment ${outcome} — discarding draft for family ${familyId} (decision ${decisionId})`,
+            );
+            await this.constitutionService.discardDraft(familyId, actorId, tx);
+          }
+        } catch (commitErr) {
+          // CRITICAL: log loudly. The transaction will roll back, so the
+          // decision will remain 'open' — but the operator must investigate
+          // why the constitution commit/discard failed.
+          this.logger.error(
+            `Constitution amendment resolution failed for decision ${decisionId} (family ${familyId}, outcome ${outcome}): ${(commitErr as Error).message}`,
+            (commitErr as Error).stack,
+          );
+          throw commitErr; // rolls back the transaction
+        }
+      }
+
       return updated;
     });
   }
@@ -338,23 +384,46 @@ export class DecisionsService {
 
   private async expireInternal(familyId: string, decision: any, actorId: string | null) {
     assertCanTransitionStatus(decision.status, 'expired');
-    const updated = await this.prisma.familyDecision.update({
-      where: { id_familyId: { id: decision.id, familyId } },
-      data: { status: 'expired', resolvedAt: new Date() },
-    });
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.familyDecision.update({
+        where: { id_familyId: { id: decision.id, familyId } },
+        data: { status: 'expired', resolvedAt: new Date() },
+      });
 
-    await this.emitter.append({
-      familyId,
-      kind: 'decision_expired',
-      actorId,
-      targetEntityType: 'FamilyDecision',
-      targetEntityId: decision.id,
-      title: `Decision expired: ${decision.title}`,
-      payload: {
-        decisionId: decision.id,
-        voteCount: decision.votes?.length ?? 0,
-        eligibleCount: decision.eligibleUserIds?.length ?? 0,
-      },
+      await this.emitter.append({
+        familyId,
+        kind: 'decision_expired',
+        actorId,
+        targetEntityType: 'FamilyDecision',
+        targetEntityId: decision.id,
+        title: `Decision expired: ${decision.title}`,
+        payload: {
+          decisionId: decision.id,
+          voteCount: decision.votes?.length ?? 0,
+          eligibleCount: decision.eligibleUserIds?.length ?? 0,
+        },
+      });
+
+      // ── Constitution amendment expiration hook ─────────────────────
+      // An expired constitution_amend decision means the family failed to
+      // vote within the deadline. Per spec, the constitution must be
+      // unlocked (draft discarded) — otherwise it stays locked forever.
+      if (decision.type === 'constitution_amend') {
+        try {
+          this.logger.log(
+            `Constitution amendment expired — discarding draft for family ${familyId} (decision ${decision.id})`,
+          );
+          await this.constitutionService.discardDraft(familyId, actorId, tx);
+        } catch (discardErr) {
+          this.logger.error(
+            `Constitution amendment discard-on-expire failed for decision ${decision.id} (family ${familyId}): ${(discardErr as Error).message}`,
+            (discardErr as Error).stack,
+          );
+          throw discardErr; // roll back the expiration write — operator must investigate
+        }
+      }
+
+      return row;
     });
 
     return updated;
