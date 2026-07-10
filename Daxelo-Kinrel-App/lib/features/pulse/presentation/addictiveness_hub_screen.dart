@@ -1,19 +1,23 @@
 // lib/features/pulse/presentation/addictiveness_hub_screen.dart
 //
-// DAXELO KINREL — Addictiveness Features Hub
+// DAXELO KINREL — Family Intelligence Hub
 //
-// A single screen that links to all 7 addictiveness features:
-//   🌅 Daily Brief (Pulse)
-//   🎁 Blessing Chain (A-1)
-//   ⏰ Time Capsule (A-2)
-//   ✨ Family Quests (A-3)
-//   🔔 Silent Alarms (A-4)
-//   👵 Memorial (Pitru Pt-4)
-//   🪔 Festival Intelligence (A-6)
-//   📖 Family Chronicle (A-7)
+// CONSOLIDATED from 8 tiles → 4 based on how users think about the features:
+//   1. Daily Brief — the anchor/home screen (quests appear as cards inside it)
+//   2. Celebrations — blessing chain + festivals (occasion-triggered content)
+//   3. Time Capsule — compose-and-wait (genuinely different mode)
+//   4. Family Legacy — memorials + chronicle (preserve/look back at history)
 //
-// This is the entry point from the home screen — a single "Family Intelligence"
-// card that opens this hub.
+// What moved:
+//   - Family Quests → folded into Daily Brief (content OF the brief)
+//   - Silent Alarms → Settings (passive background nudge system, same
+//     reasoning as Kinrel Learning — invisible infra, not a destination)
+//   - Blessing Chain + Festivals → combined into "Celebrations"
+//   - Memorials + Family Chronicle → combined into "Family Legacy"
+//
+// Note: memorials/ is Pitru's UI living inside Pulse. Not a dupe — just
+// the memorial feature surfaced here alongside its natural companion
+// (the AI-generated family chronicle).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,6 +48,7 @@ class AddictivenessHubScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // ── 1. Daily Brief (anchor screen — quests appear as cards inside) ──
           const _HubCard(
             emoji: '🌅',
             title: 'Daily Brief',
@@ -52,33 +57,19 @@ class AddictivenessHubScreen extends ConsumerWidget {
             color: KinrelColors.orange,
           ),
           const SizedBox(height: 12),
-          _HubCard(
-            emoji: '✨',
-            title: 'Family Quests',
-            subtitle: 'Weekly missions to strengthen weak relationships',
-            route: '/pulse/quests',
-            color: KinrelColors.amber,
-            badgeProvider: activeQuestsProvider,
-          ),
-          const SizedBox(height: 12),
-          _HubCard(
-            emoji: '🔔',
-            title: 'Silent Alarms',
-            subtitle: 'Private nudges when someone goes quiet',
-            route: '/pulse/alarms',
-            color: KinrelColors.coral,
-            badgeProvider: silentAlarmsProvider,
-          ),
-          const SizedBox(height: 12),
+
+          // ── 2. Celebrations (blessing chain + festivals combined) ──
           _HubCard(
             emoji: '🎁',
-            title: 'Blessing Chain',
-            subtitle: 'Elder blessings, delivered on birthdays & festivals',
+            title: 'Celebrations',
+            subtitle: 'Blessings, festivals & occasion greetings',
             route: '/pulse/blessings',
             color: KinrelColors.gold,
             badgeProvider: blessingsForMeProvider,
           ),
           const SizedBox(height: 12),
+
+          // ── 3. Time Capsule (genuinely different mode — compose & wait) ──
           _HubCard(
             emoji: '⏰',
             title: 'Time Capsule',
@@ -88,30 +79,56 @@ class AddictivenessHubScreen extends ConsumerWidget {
             badgeProvider: capsulesForMeProvider,
           ),
           const SizedBox(height: 12),
-          const _HubCard(
-            emoji: '🪔',
-            title: 'Festivals',
-            subtitle: 'Indian festival calendar with 8-language greetings',
-            route: '/pulse/festivals',
-            color: KinrelColors.brightGold,
-          ),
-          const SizedBox(height: 12),
-          const _HubCard(
-            emoji: '👵',
-            title: 'Memorials',
-            subtitle: 'Living memorials for ancestors',
-            route: '/pulse/memorials',
-            color: KinrelColors.extendedPurple,
-          ),
-          const SizedBox(height: 12),
+
+          // ── 4. Family Legacy (memorials + chronicle combined) ──
           const _HubCard(
             emoji: '📖',
-            title: 'Family Chronicle',
-            subtitle: 'The story of your family, written by AI',
+            title: 'Family Legacy',
+            subtitle: 'Living memorials & your family chronicle',
             route: '/pulse/chronicle',
             color: KinrelColors.blue,
           ),
           const SizedBox(height: 32),
+
+          // ── Helper text for where things moved ────────────────────
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: Colors.white54),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Where did everything go?',
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '• Family Quests appear as cards in the Daily Brief\n'
+                  '• Silent Alarms moved to Settings (passive nudges)\n'
+                  '• Blessing Chain + Festivals combined into Celebrations\n'
+                  '• Memorials + Chronicle combined into Family Legacy',
+                  style: TextStyle(
+                    color: Colors.white38,
+                    fontSize: 12,
+                    height: 1.6,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

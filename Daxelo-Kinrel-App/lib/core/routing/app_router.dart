@@ -68,7 +68,6 @@ import '../../features/chat/presentation/chat_inbox_screen.dart';
 import '../../features/truth_streak/presentation/truth_streak_screen.dart';
 import '../../features/hot_seat/presentation/hot_seat_screen.dart';
 import '../../features/relation_riddles/presentation/relation_riddle_screen.dart';
-import '../../features/occasions/presentation/family_calendar_screen.dart';
 import '../../features/calendar/presentation/family_calendar_screen.dart' as cal;
 import '../../features/calendar/presentation/event_create_screen.dart';
 import '../../features/calendar/presentation/event_detail_screen.dart';
@@ -162,7 +161,6 @@ import '../../features/family_map/presentation/family_map_screen.dart';
 import '../../features/memory_vault/presentation/memory_vault_screen.dart';
 import '../../features/memory_vault/presentation/memory_detail_screen.dart';
 import '../../features/memory_vault/data/memory_model.dart';
-import '../../features/occasions/presentation/occasions_screen.dart';
 import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/share/presentation/share_screen.dart';
 import '../../features/oral_history/presentation/oral_history_screen.dart';
@@ -1803,11 +1801,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── Phase B: Occasion Reminders ───────────────────────────────
-      GoRoute(
-        path: '/occasions',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const OccasionsScreen()),
-      ),
+
 
       // ── Social System Routes ─────────────────────────────────────────
       GoRoute(
