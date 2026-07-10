@@ -1,28 +1,28 @@
 // server/src/addictiveness/silent-alarm.service.ts
 //
-// A-4 Silent Alarms — inactivity detection + private nudges to the bridge role.
+// A-4 Silent Alarms - inactivity detection + private nudges to the bridge role.
 //
 // Strategy:
 //   1. Daily 6am IST cron checks all Persons across all families
-//   2. For each Person inactive 7+ days:
-//      - Find the family's "bridge" role (from MemberAuraRole)
-//      - The bridge is the person most connected to both sides of the family
-//      - Create a SilentAlarm row (or update existing if already triggered)
-//      - Severity escalates: 7d=gentle, 14d=moderate, 21d+=urgent
-//   3. At 14d, escalate: notify all family admins too
-//   4. When the inactive Person becomes active again (User.updatedAt recent),
-//      auto-resolve the alarm
+//   2. For each Person, TWO checks run in parallel:
+//      a) Absolute-floor check (kept from v1): days inactive >= 7/14/21
+//         -> gentle / moderate / urgent. This catches TRULY inactive people
+//         regardless of their normal pattern.
+//      b) Adaptive per-person check (v3, ML spec item #6): the current
+//         inactivity gap is >N standard deviations above THAT PERSON'S own
+//         rolling mean gap-between-activity. A normally-very-active person
+//         going quiet for 5 days (below the 7d floor) gets flagged as
+//         unusual-for-them; a naturally-low-activity person at day 10
+//         doesn't get flagged if it's consistent with their baseline.
+//   3. The severity from (a) and (b) is maxed - the higher severity wins.
+//   4. Bridge role + family admins are notified (RLS enforced).
+//   5. When the inactive Person becomes active again, auto-resolve the alarm.
 //
 // Privacy:
 //   - The alarm is NOT shown to the inactive person (no guilt/shame)
 //   - Only the bridge + family admins can see it (RLS enforced)
 //   - The alarm includes suggestions for the bridge: "Call them directly",
 //     "Send a voice note", "Ask their sibling to check in"
-//
-// Why the bridge role?
-//   - The bridge is the family connector — they know both sides
-//   - They're the least likely to cause offense by reaching out
-//   - AURA identifies them via high betweenness centrality
 
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -31,6 +31,21 @@ const GENTLE_THRESHOLD_DAYS = 7;
 const MODERATE_THRESHOLD_DAYS = 14;
 const URGENT_THRESHOLD_DAYS = 21;
 
+// ?? Adaptive per-person baseline tuning ??????????????????????????????????????
+// Z_SCORE_THRESHOLD: how many stddev above the person's own mean gap counts
+//   as "unusual for them". 2.5sigma - same as the analytics anomaly detector.
+//
+// MIN_HISTORY_FOR_BASELINE: minimum number of prior activity gaps needed
+//   before the adaptive rule can fire. With <4 gaps the baseline is too
+//   noisy to trust.
+//
+// MAX_BASELINE_SAMPLE_SIZE: cap on how many recent gaps to include in the
+//   mean/stddev. ~30 gaps captures a month of daily activity, which is the
+//   natural cycle for most family interaction patterns.
+const Z_SCORE_THRESHOLD = 2.5;
+const MIN_HISTORY_FOR_BASELINE = 4;
+const MAX_BASELINE_SAMPLE_SIZE = 30;
+
 const SUGGESTIONS_BY_SEVERITY: Record<string, string[]> = {
   gentle: [
     'Send a quick "thinking of you" message',
@@ -38,13 +53,13 @@ const SUGGESTIONS_BY_SEVERITY: Record<string, string[]> = {
     'Ask about their day',
   ],
   moderate: [
-    'Call them directly — a voice is warmer than text',
+    'Call them directly - a voice is warmer than text',
     'Send a voice note instead of typing',
     'Ask their sibling or child to check in',
     'Share a memory you have together',
   ],
   urgent: [
-    'Call them urgently — it has been 3+ weeks',
+    'Call them urgently - it has been 3+ weeks',
     'Visit in person if possible',
     'Contact another family member who lives nearby',
     'Check if they need any help',
@@ -90,7 +105,7 @@ export class SilentAlarmService {
     }
 
     this.logger.log(
-      `SilentAlarm: scan complete — families=${families.length}, triggered=${alarmsTriggered}, escalated=${alarmsEscalated}, resolved=${alarmsResolved}, errors=${errors.length}`,
+      `SilentAlarm: scan complete - families=${families.length}, triggered=${alarmsTriggered}, escalated=${alarmsEscalated}, resolved=${alarmsResolved}, errors=${errors.length}`,
     );
 
     return {
@@ -178,8 +193,46 @@ export class SilentAlarmService {
         },
       });
 
-      if (daysInactive < GENTLE_THRESHOLD_DAYS) {
-        // Person is active — resolve any existing alarm
+      // ?? Compute the severity from BOTH rules ??????????????????????????
+      // (a) Absolute-floor rule (v1) - always applies
+      const floorSeverity = this.floorSeverity(daysInactive);
+
+      // (b) Adaptive per-person rule (v3) - only applies if the person has
+      //     enough activity history to compute a meaningful baseline.
+      //     We sample their recent "gaps between activity" by looking at
+      //     the timestamps of their recent interactions (posts, sparqs,
+      //     votes, comments). For now we approximate this by sampling
+      //     User.updatedAt history, but the right long-term source is an
+      //     activity log - see note in fetchPersonActivityGaps().
+      let adaptiveSeverity: 'none' | 'gentle' | 'moderate' | 'urgent' = 'none';
+      let adaptiveZ: number | undefined;
+      let baselineMeanDays: number | undefined;
+      try {
+        const gaps = await this.fetchPersonActivityGaps(person.id, person.linkedUserId);
+        if (gaps.length >= MIN_HISTORY_FOR_BASELINE) {
+          const baseline = stats(gaps);
+          if (baseline && baseline.stddev > 0) {
+            const z = (daysInactive - baseline.mean) / baseline.stddev;
+            if (z >= Z_SCORE_THRESHOLD) {
+              adaptiveSeverity = this.adaptiveSeverity(z, daysInactive);
+              adaptiveZ = z;
+              baselineMeanDays = baseline.mean;
+            }
+          }
+        }
+      } catch (err) {
+        // Don't let adaptive-rule failures block the floor-rule check
+        this.logger.debug?.(
+          `Adaptive baseline computation failed for person ${person.id}: ${(err as Error).message}`,
+        );
+      }
+
+      // Max the two severities - the higher one wins.
+      const severity = maxSeverity(floorSeverity, adaptiveSeverity);
+
+      // If neither rule fires, the person is active (or below all thresholds
+      // AND consistent with their baseline) - resolve any existing alarm.
+      if (severity === 'none') {
         if (existing) {
           await this.prisma.silentAlarm.update({
             where: { id: existing.id },
@@ -193,13 +246,17 @@ export class SilentAlarmService {
         continue;
       }
 
-      // Determine severity
-      const severity =
-        daysInactive >= URGENT_THRESHOLD_DAYS ? 'urgent' :
-        daysInactive >= MODERATE_THRESHOLD_DAYS ? 'moderate' :
-        'gentle';
-
-      const alarmMessage = this.buildAlarmMessage(person.name, daysInactive, severity);
+      // Append an adaptive-context note to the alarm message when the
+      // adaptive rule fired (so the bridge understands WHY this is being
+      // flagged even if daysInactive < 7).
+      const alarmMessage = this.buildAlarmMessage(
+        person.name,
+        daysInactive,
+        severity,
+        adaptiveSeverity !== 'none' && floorSeverity === 'none',
+        adaptiveZ,
+        baselineMeanDays,
+      );
       const suggestions = SUGGESTIONS_BY_SEVERITY[severity] ?? SUGGESTIONS_BY_SEVERITY.gentle;
 
       if (existing) {
@@ -242,6 +299,175 @@ export class SilentAlarmService {
     }
 
     return { triggered, escalated, resolved };
+  }
+
+  // ?? Severity helpers ??????????????????????????????????????????????????????
+
+  /**
+   * v1 absolute-floor severity. Always applies - catches truly inactive
+   * people regardless of their normal pattern.
+   */
+  private floorSeverity(daysInactive: number): 'none' | 'gentle' | 'moderate' | 'urgent' {
+    if (daysInactive >= URGENT_THRESHOLD_DAYS) return 'urgent';
+    if (daysInactive >= MODERATE_THRESHOLD_DAYS) return 'moderate';
+    if (daysInactive >= GENTLE_THRESHOLD_DAYS) return 'gentle';
+    return 'none';
+  }
+
+  /**
+   * v3 adaptive severity. Maps a z-score to a severity tier. Higher z =
+   * more unusual for this person -> higher severity.
+   *
+   * Note: adaptive severity is intentionally capped at 'moderate' for the
+   * typical 2.5-3.5sigma band. The 'urgent' tier is reserved for the absolute
+   * floor (21+ days) so that "unusual for them" never escalates past
+   * 'moderate' on its own - only "truly inactive by absolute standards"
+   * triggers urgent.
+   */
+  private adaptiveSeverity(z: number, daysInactive: number): 'none' | 'gentle' | 'moderate' | 'urgent' {
+    // Even with adaptive, we still require a minimum absolute threshold
+    // (3 days) before the adaptive rule can fire on its own. This prevents
+    // a person whose baseline is "activity every few hours" from being
+    // flagged as unusual-for-them just because they took a single weekend off.
+    if (daysInactive < 3) return 'none';
+    if (z >= 3.5) return 'moderate';
+    if (z >= Z_SCORE_THRESHOLD) return 'gentle';
+    return 'none';
+  }
+
+  // ?? Activity history ??????????????????????????????????????????????????????
+
+  /**
+   * Fetch the person's recent "gaps between activity" in days.
+   *
+   * We sample activity timestamps from multiple sources:
+   *   - FamilyPost authored by the person's linked user
+   *   - Sparq authored by the person's linked user
+   *   - DecisionVote cast by the person's linked user
+   *   - Comment authored by the person's linked user
+   *   - Story authored by the person's linked user
+   *
+   * We then sort them descending (most recent first) and compute the gap
+   * between each consecutive pair. The result is an array of gap-in-days
+   * values, oldest gap first. The most recent gap (today - last activity)
+   * is NOT included in the baseline - that's the value we're comparing
+   * against the baseline.
+   *
+   * If the person has no linkedUserId, we fall back to Person.updatedAt
+   * history - but Person.updatedAt only reflects edits to the Person row
+   * itself, not actual user activity. In that case the baseline will be
+   * sparse and the adaptive rule will mostly not fire (which is fine -
+   // the floor rule still catches truly inactive people).
+   */
+  private async fetchPersonActivityGaps(
+    personId: string,
+    linkedUserId: string | null,
+  ): Promise<number[]> {
+    if (!linkedUserId) {
+      // No linked user -> no real activity history. Return empty so the
+      // adaptive rule can't fire (the floor rule still applies).
+      return [];
+    }
+
+    // Gather activity timestamps from all sources. We take the most recent
+    // MAX_BASELINE_SAMPLE_SIZE+1 from each source (so after merging + sorting
+    // we still have enough samples). We use createdAt/updatedAt fields.
+    const sampleSize = MAX_BASELINE_SAMPLE_SIZE + 1;
+    const timestamps: Date[] = [];
+
+    // FamilyPost
+    try {
+      const posts = await this.prisma.familyPost.findMany({
+        where: { authorId: linkedUserId },
+        orderBy: { createdAt: 'desc' },
+        take: sampleSize,
+        select: { createdAt: true },
+      });
+      timestamps.push(...posts.map((p) => p.createdAt));
+    } catch {
+      // table may not exist in some envs
+    }
+
+    // Sparq
+    try {
+      const sparqs = await this.prisma.sparq.findMany({
+        where: { userId: linkedUserId },
+        orderBy: { createdAt: 'desc' },
+        take: sampleSize,
+        select: { createdAt: true },
+      });
+      timestamps.push(...sparqs.map((s) => s.createdAt));
+    } catch {
+      // table may not exist
+    }
+
+    // DecisionVote
+    try {
+      const votes = await this.prisma.decisionVote.findMany({
+        where: { userId: linkedUserId },
+        orderBy: { votedAt: 'desc' },
+        take: sampleSize,
+        select: { votedAt: true },
+      });
+      timestamps.push(...votes.map((v) => v.votedAt));
+    } catch {
+      // table may not exist
+    }
+
+    // Comment
+    try {
+      const comments = await this.prisma.comment.findMany({
+        where: { authorId: linkedUserId },
+        orderBy: { createdAt: 'desc' },
+        take: sampleSize,
+        select: { createdAt: true },
+      });
+      timestamps.push(...comments.map((c) => c.createdAt));
+    } catch {
+      // table may not exist
+    }
+
+    // Story
+    try {
+      const stories = await this.prisma.story.findMany({
+        where: { userId: linkedUserId },
+        orderBy: { createdAt: 'desc' },
+        take: sampleSize,
+        select: { createdAt: true },
+      });
+      timestamps.push(...stories.map((s) => s.createdAt));
+    } catch {
+      // table may not exist
+    }
+
+    if (timestamps.length < 2) return [];
+
+    // Sort descending (most recent first), dedupe, take top N+1
+    const sorted = timestamps.sort((a, b) => b.getTime() - a.getTime());
+    const unique: number[] = [];
+    let last = -1;
+    for (const t of sorted) {
+      const ms = t.getTime();
+      if (ms !== last) {
+        unique.push(ms);
+        last = ms;
+      }
+      if (unique.length >= MAX_BASELINE_SAMPLE_SIZE + 1) break;
+    }
+
+    // Compute gaps (in days) between consecutive timestamps. The most
+    // recent gap (now - sorted[0]) is EXCLUDED - that's the value we're
+    // comparing against the baseline, not part of the baseline itself.
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const gaps: number[] = [];
+    for (let i = 1; i < unique.length; i++) {
+      const gapDays = (unique[i - 1] - unique[i]) / msPerDay;
+      // Only count positive gaps (deduplication should prevent zeros, but
+      // guard anyway)
+      if (gapDays > 0) gaps.push(gapDays);
+    }
+
+    return gaps;
   }
 
   /** Get alarms for a bridge user (or family admin). */
@@ -313,19 +539,30 @@ export class SilentAlarmService {
     return { id: updated.id, status: updated.status };
   }
 
-  // ────────────────────────────────────────────────────────────────────────
+  // ????????????????????????????????????????????????????????????????????????
   // Helpers
-  // ────────────────────────────────────────────────────────────────────────
+  // ????????????????????????????????????????????????????????????????????????
 
-  private buildAlarmMessage(name: string, daysInactive: number, severity: string): string {
+  private buildAlarmMessage(
+    name: string,
+    daysInactive: number,
+    severity: string,
+    adaptiveOnly: boolean,
+    adaptiveZ?: number,
+    baselineMeanDays?: number,
+  ): string {
     const daysWord = daysInactive === 1 ? '1 day' : `${daysInactive} days`;
+    const adaptiveSuffix = adaptiveOnly && adaptiveZ !== undefined && baselineMeanDays !== undefined
+      ? ` (This is unusual for ${name} - their typical gap is ${baselineMeanDays.toFixed(1)} days, this is ${adaptiveZ.toFixed(1)}sigma above.)`
+      : '';
+
     if (severity === 'urgent') {
       return `${name} has been quiet for ${daysWord}. As the family bridge, you're the best person to reach out. Please check on them.`;
     }
     if (severity === 'moderate') {
-      return `${name} hasn't been active in ${daysWord}. A quick check-in from you would mean a lot.`;
+      return `${name} hasn't been active in ${daysWord}${adaptiveSuffix}. A quick check-in from you would mean a lot.`;
     }
-    return `${name} has been quiet for ${daysWord}. Consider sending them a message.`;
+    return `${name} has been quiet for ${daysWord}${adaptiveSuffix}. Consider sending them a message.`;
   }
 
   private serializeAlarm(a: any) {
@@ -349,4 +586,23 @@ export class SilentAlarmService {
       createdAt: a.createdAt.toISOString(),
     };
   }
+}
+
+// ?? Pure statistics helpers (mirrors analytics.anomaly-detector.ts) ??????????
+
+function stats(values: number[]): { count: number; mean: number; stddev: number } | undefined {
+  if (values.length === 0) return undefined;
+  const n = values.length;
+  const mean = values.reduce((a, b) => a + b, 0) / n;
+  if (n < 2) return { count: n, mean, stddev: 0 };
+  const variance = values.reduce((acc, v) => acc + (v - mean) ** 2, 0) / (n - 1);
+  return { count: n, mean, stddev: Math.sqrt(variance) };
+}
+
+function maxSeverity(
+  a: 'none' | 'gentle' | 'moderate' | 'urgent',
+  b: 'none' | 'gentle' | 'moderate' | 'urgent',
+): 'none' | 'gentle' | 'moderate' | 'urgent' {
+  const order = { none: 0, gentle: 1, moderate: 2, urgent: 3 } as const;
+  return order[a] >= order[b] ? a : b;
 }
