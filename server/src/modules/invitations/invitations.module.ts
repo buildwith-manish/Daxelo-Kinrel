@@ -7,5 +7,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [FamiliesModule, GatewayModule, forwardRef(() => NotificationsModule)],
+  controllers: [InvitationsController],
+  providers: [InvitationsService],
 })
 export class InvitationsModule {}

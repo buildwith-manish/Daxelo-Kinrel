@@ -7,5 +7,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
 
 @Module({
   imports: [KinshipModule, GraphModule, PrismaModule],
+  controllers: [AiChatController],
+  providers: [AiChatService],
 })
 export class AiChatModule {}
