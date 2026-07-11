@@ -491,21 +491,17 @@ class _ThresholdTeaser extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final streakAsync = ref.watch(truthStreakProvider(familyId));
+    final streak = ref.watch(truthStreakProvider(familyId));
+    final stats = streak.stats;
 
-    return streakAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (streak) {
-        final stats = streak.stats;
-        if (stats == null) return const SizedBox.shrink();
+    if (stats == null) return const SizedBox.shrink();
 
-        final current = stats.currentStreak;
-        final nextThreshold = _getNextThreshold(current);
-        if (nextThreshold == null) return const SizedBox.shrink();
+    final current = stats.currentStreak;
+    final nextThreshold = _getNextThreshold(current);
+    if (nextThreshold == null) return const SizedBox.shrink();
 
-        final progress = (current / nextThreshold).clamp(0.0, 1.0);
-        final daysLeft = nextThreshold - current;
+    final progress = (current / nextThreshold).clamp(0.0, 1.0);
+    final daysLeft = nextThreshold - current;
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -547,8 +543,6 @@ class _ThresholdTeaser extends ConsumerWidget {
             ],
           ),
         );
-      },
-    );
   }
 
   int? _getNextThreshold(int current) {
