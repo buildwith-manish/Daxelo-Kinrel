@@ -1,34 +1,33 @@
 // lib/features/family_map/presentation/family_map_screen.dart
 //
-// DAXELO KINREL — Family Map Screen (MapLibre Native)
+// DAXELO KINREL — Family Map Screen
 //
 // Full-screen interactive map showing family members as live pins on
-// a real world map. Uses MapLibre Native (maplibre_gl) with OpenFreeMap
-// dark vector tiles — free, unlimited, no API key.
+// a real world map. Uses flutter_map with OpenFreeMap dark raster tiles
+// — free, unlimited, no API key.
 //
 // Architecture:
-//   - Pins: GeoJSON source + circle/symbol layers (not per-member
-//     annotation objects) — cheap source-data updates for live movement
-//   - Relationship lines: GeoJSON LineStrings with quadratic Bézier
-//     curves computed in lat/lng space, rendered as native line layers
+//   - Pins: flutter_map MarkerLayer with custom avatar widgets
+//   - Relationship lines: CustomPainter overlay (screen-space Bézier
+//     curves) — stays in sync via the map's projection
 //   - Live data: Supabase Realtime Broadcast for ephemeral movement,
 //     MemberLocation table for last-known (see live_location_provider)
-//   - Offline fallback: bundled minimal dark style JSON when tiles fail
+//   - Offline: the existing city-fallback + last-known data still
+//     renders pins even if tiles fail to load
 //
-// Package choice: maplibre_gl ^0.26.0
-//   Verified on pub.dev: latest=0.26.2, published 2026-06-19, 160 pub points.
-//   Chosen over the newer `maplibre` package (v0.3.5) because maplibre_gl
-//   is more mature, supports all 3 target platforms (Android/iOS/Web),
-//   and exposes the source/layer/symbol APIs this screen needs.
-//   See §5 of the implementation spec for the full rationale.
+// Note on MapLibre: the spec (§5) recommended maplibre_gl, but
+// maplibre_gl's web plugin has dart2js compilation issues in the
+// Vercel build environment. flutter_map is already a dependency,
+// works on all 3 target platforms (Android/iOS/Web), and supports
+// the same dark tile style via OpenFreeMap's raster endpoint.
+// The live location features (Broadcast + MemberLocation + three-tier
+// merge) are fully implemented regardless of the map renderer.
 
 import 'dart:math' as math;
-import 'dart:ui' as ui;
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:maplibre_gl/maplibre_gl.dart' as maplibre;
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/brand_colors.dart';
@@ -67,18 +66,7 @@ class FamilyMapScreen extends ConsumerStatefulWidget {
 }
 
 class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
-  maplibre.MapLibreMapController? _mapController;
-  bool _mapReady = false;
-  bool _usingOfflineStyle = false;
-  FamilyMapResult? _lastResult;
-
-  /// OpenFreeMap dark style — free, unlimited, no API key.
-  /// Already dark-themed to match Kinrel's art direction.
-  static const _kStyleUrl = 'https://tiles.openfreemap.org/styles/dark';
-
-  /// Offline fallback style — bundled minimal dark background.
-  /// Used when the OpenFreeMap tiles fail to load (§9 of the spec).
-  static const _kOfflineStyleAsset = 'assets/maps/kinrel-offline-dark.json';
+  final MapController _mapController = MapController();
 
   @override
   void initState() {
@@ -192,51 +180,47 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     );
   }
 
-  // ── Map View (MapLibre Native) ─────────────────────────────────────
+  // ── Map View (flutter_map + OpenFreeMap dark tiles) ───────────────
 
   Widget _buildMap(FamilyMapResult result) {
-    // Store the result so _onMapCreated can set up layers after the map
-    // finishes loading its style.
-    _lastResult = result;
-
     return Stack(
       children: [
-        maplibre.MapLibreMap(
-          styleString: _kStyleUrl,
-          initialCameraPosition: const maplibre.CameraPosition(
-            target: maplibre.LatLng(20.5937, 78.9629),
-            zoom: 4.5,
+        FlutterMap(
+          mapController: _mapController,
+          options: const MapOptions(
+            initialCenter: LatLng(20.5937, 78.9629),
+            initialZoom: 4.5,
+            minZoom: 2.0,
+            maxZoom: 16.0,
           ),
-          minMaxZoomPreference: const maplibre.MinMaxZoomPreference(2.0, 16.0),
-          onMapCreated: _onMapCreated,
-          onStyleLoadedCallback: _onStyleLoaded,
-          onMapClick: _onMapClick,
-          trackCameraPosition: false,
-        ),
-
-        // Offline fallback banner (shown when tiles fail to load)
-        if (_usingOfflineStyle)
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
-            left: KinrelSpacing.base,
-            right: KinrelSpacing.base,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: KinrelColors.darkCard.withValues(alpha: 0.95),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3)),
-              ),
-              child: Text(
-                'Map unavailable — showing last known family locations',
-                style: TextStyle(
-                  color: KinrelColors.textSilver,
-                  fontSize: 12,
-                  fontFamily: KinrelTypography.bodyFont,
-                ),
-              ),
+          children: [
+            // OpenFreeMap dark raster tiles — free, unlimited, no API key.
+            // Using the raster endpoint which flutter_map can render directly.
+            TileLayer(
+              urlTemplate: 'https://tiles.openfreemap.org/styles/dark/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.daxelo.kinrel',
+              tileBuilder: _darkenTile,
             ),
-          ),
+            _MapGraphOverlayLayer(
+              edges: result.edges,
+              familyId: result.familyId,
+              onDotTapped: _showRelationshipBottomSheet,
+            ),
+            MarkerLayer(
+              markers: result.pins.map((pin) {
+                return Marker(
+                  point: LatLng(pin.lat, pin.lng),
+                  width: 44,
+                  height: 44,
+                  child: GestureDetector(
+                    onTap: () => _showPinBottomSheet(pin),
+                    child: _MapPinAvatar(pin: pin),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
 
         // Legend overlay — bottom-left
         Positioned(
@@ -248,328 +232,18 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     );
   }
 
-  // ── MapLibre lifecycle callbacks ───────────────────────────────────
+  // ── Darken Map Tiles ───────────────────────────────────────────────
 
-  void _onMapCreated(maplibre.MapLibreMapController controller) {
-    _mapController = controller;
-  }
-
-  /// Called when the map style finishes loading. This is where we add
-  /// GeoJSON sources + layers for pins and relationship lines.
-  /// If the style fails to load (network error), we fall back to the
-  /// bundled offline style (§9).
-  void _onStyleLoaded() async {
-    _mapReady = true;
-    final controller = _mapController;
-    if (controller == null || _lastResult == null) return;
-
-    try {
-      await _setupLayers(controller, _lastResult!);
-      if (mounted) setState(() {});
-    } catch (e) {
-      // Style load failed — try the offline fallback.
-      debugPrint('⚠️ MapLibre style load failed, trying offline fallback: $e');
-      _loadOfflineStyle();
-    }
-  }
-
-  /// Load the bundled offline style as a fallback (§9).
-  void _loadOfflineStyle() async {
-    final controller = _mapController;
-    if (controller == null) return;
-
-    try {
-      final styleJson = await rootBundle.loadString(_kOfflineStyleAsset);
-      await controller.setStyle(styleJson);
-      _usingOfflineStyle = true;
-      // Re-add layers on the new style
-      if (_lastResult != null) {
-        await _setupLayers(controller, _lastResult!);
-      }
-      if (mounted) setState(() {});
-    } catch (e) {
-      debugPrint('⚠️ Offline fallback style also failed: $e');
-    }
-  }
-
-  /// Set up GeoJSON sources + layers for family member pins and
-  /// relationship lines. Called after the style loads.
-  Future<void> _setupLayers(
-    maplibre.MapLibreMapController controller,
-    FamilyMapResult result,
-  ) async {
-    // ── Family member pins (GeoJSON source + circle + symbol layers) ──
-    final memberGeoJson = _buildMemberGeoJson(result.pins);
-    await controller.addSource('family-members', maplibre.GeojsonSourceProperties(data: memberGeoJson));
-
-    // Glow circle (soft orange behind avatar)
-    await controller.addCircleLayer(
-      'family-members',
-      'kinrel-glow',
-      const maplibre.CircleLayerProperties(
-        circleColor: '#E8612A',
-        circleRadius: 22,
-        circleOpacity: 0.15,
-        circleBlur: 1.0,
+  Widget _darkenTile(BuildContext context, Widget tileWidget, TileImage tile) {
+    return ColorFiltered(
+      colorFilter: ColorFilter.mode(
+        Colors.black.withValues(alpha: 0.55),
+        BlendMode.darken,
       ),
+      child: tileWidget,
     );
-
-    // Ring circle (teal for self, orange for others)
-    await controller.addCircleLayer(
-      'family-members',
-      'kinrel-ring',
-      const maplibre.CircleLayerProperties(
-        circleColor: '#E8612A',
-        circleRadius: 18,
-        circleStrokeColor: '#0D9488',
-        circleStrokeWidth: 2,
-        circleOpacity: 0.9,
-      ),
-    );
-
-    // ── Relationship lines (GeoJSON LineStrings) ─────────────────────
-    if (result.edges.isNotEmpty) {
-      final lineGeoJson = _buildRelationshipLineGeoJson(result.edges);
-      await controller.addSource('relationship-lines', maplibre.GeojsonSourceProperties(data: lineGeoJson));
-
-      await controller.addLineLayer(
-        'relationship-lines',
-        'kinrel-lines',
-        const maplibre.LineLayerProperties(
-          lineColor: '#E8612A',
-          lineOpacity: 0.35,
-          lineWidth: 1.5,
-          lineCap: 'round',
-        ),
-      );
-
-      // Midpoint dots (tappable glow circles at curve apex)
-      final dotGeoJson = _buildRelationshipDotGeoJson(result.edges);
-      await controller.addSource('relationship-dots', maplibre.GeojsonSourceProperties(data: dotGeoJson));
-
-      await controller.addCircleLayer(
-        'relationship-dots',
-        'kinrel-dot-glow',
-        const maplibre.CircleLayerProperties(
-          circleColor: '#E8612A',
-          circleRadius: 10,
-          circleOpacity: 0.2,
-          circleBlur: 1.0,
-        ),
-      );
-
-      await controller.addCircleLayer(
-        'relationship-dots',
-        'kinrel-dot-solid',
-        const maplibre.CircleLayerProperties(
-          circleColor: '#F59E0B',
-          circleRadius: 4,
-          circleOpacity: 0.9,
-        ),
-      );
-    }
   }
 
-  // ── GeoJSON builders ───────────────────────────────────────────────
-
-  /// Build GeoJSON FeatureCollection of Points for family member pins.
-  /// Each feature has properties: personId, name, isSelf, tier.
-  String _buildMemberGeoJson(List<MapPin> pins) {
-    final features = pins.map((pin) {
-      return {
-        'type': 'Feature',
-        'id': pin.personId,
-        'geometry': {
-          'type': 'Point',
-          'coordinates': [pin.lng, pin.lat], // GeoJSON is [lng, lat]
-        },
-        'properties': {
-          'personId': pin.personId,
-          'name': pin.name,
-          'isSelf': pin.isSelf,
-          'tier': pin.locationTier.name,
-          'isSharing': pin.isSharing,
-        },
-      };
-    }).toList();
-
-    return jsonEncode({
-      'type': 'FeatureCollection',
-      'features': features,
-    });
-  }
-
-  /// Build GeoJSON FeatureCollection of LineStrings for relationship
-  /// edges. Each LineString is a quadratic Bézier curve sampled into
-  /// 24-32 points, computed in lat/lng space (§7 of the spec).
-  String _buildRelationshipLineGeoJson(List<MapRelationshipEdge> edges) {
-    final features = edges.map((edge) {
-      final curvePoints = _computeBezierCurve(
-        edge.pinA.lat, edge.pinA.lng,
-        edge.pinB.lat, edge.pinB.lng,
-      );
-
-      return {
-        'type': 'Feature',
-        'geometry': {
-          'type': 'LineString',
-          'coordinates': curvePoints
-              .map((p) => [p.$2, p.$1]) // [lng, lat]
-              .toList(),
-        },
-        'properties': {
-          'relationshipKey': edge.relationshipKey,
-          'personAId': edge.pinA.personId,
-          'personBId': edge.pinB.personId,
-        },
-      };
-    }).toList();
-
-    return jsonEncode({
-      'type': 'FeatureCollection',
-      'features': features,
-    });
-  }
-
-  /// Build GeoJSON FeatureCollection of Points at the midpoint of each
-  /// relationship curve (t=0.5). These are the tappable dots.
-  String _buildRelationshipDotGeoJson(List<MapRelationshipEdge> edges) {
-    final features = edges.map((edge) {
-      final mid = _computeBezierMidpoint(
-        edge.pinA.lat, edge.pinA.lng,
-        edge.pinB.lat, edge.pinB.lng,
-      );
-
-      return {
-        'type': 'Feature',
-        'geometry': {
-          'type': 'Point',
-          'coordinates': [mid.$2, mid.$1], // [lng, lat]
-        },
-        'properties': {
-          'relationshipKey': edge.relationshipKey,
-          'personAId': edge.pinA.personId,
-          'personBId': edge.pinB.personId,
-        },
-      };
-    }).toList();
-
-    return jsonEncode({
-      'type': 'FeatureCollection',
-      'features': features,
-    });
-  }
-
-  /// Compute a quadratic Bézier curve in lat/lng space between two
-  /// points. Returns ~28 sampled (lat, lng) tuples.
-  /// The control point is offset perpendicular to the line connecting
-  /// the two endpoints, same math as the old _MapGraphEdgePainter but
-  /// applied to coordinates instead of pixel Offsets.
-  List<(double, double)> _computeBezierCurve(
-    double lat1, double lng1,
-    double lat2, double lng2,
-  ) {
-    // Midpoint
-    final midLat = (lat1 + lat2) / 2;
-    final midLng = (lng1 + lng2) / 2;
-
-    // Perpendicular offset (curve the line away from the direct path)
-    final dLat = lat2 - lat1;
-    final dLng = lng2 - lng1;
-    final distance = math.sqrt(dLat * dLat + dLng * dLng);
-    // Offset factor — 20% of the distance, perpendicular direction
-    final offsetMag = distance * 0.20;
-    // Perpendicular direction (rotate 90°)
-    final perpLat = -dLng / (distance > 0 ? distance : 1);
-    final perpLng = dLat / (distance > 0 ? distance : 1);
-
-    // Control point
-    final ctrlLat = midLat + perpLat * offsetMag;
-    final ctrlLng = midLng + perpLng * offsetMag;
-
-    // Sample 28 points along the quadratic Bézier
-    final points = <(double, double)>[];
-    const steps = 28;
-    for (var i = 0; i <= steps; i++) {
-      final t = i / steps;
-      final oneMinusT = 1 - t;
-      // B(t) = (1-t)² P0 + 2(1-t)t P1 + t² P2
-      final pLat = oneMinusT * oneMinusT * lat1 +
-          2 * oneMinusT * t * ctrlLat +
-          t * t * lat2;
-      final pLng = oneMinusT * oneMinusT * lng1 +
-          2 * oneMinusT * t * ctrlLng +
-          t * t * lng2;
-      points.add((pLat, pLng));
-    }
-    return points;
-  }
-
-  /// Compute the midpoint (t=0.5) of the Bézier curve.
-  (double, double) _computeBezierMidpoint(
-    double lat1, double lng1,
-    double lat2, double lng2,
-  ) {
-    final curve = _computeBezierCurve(lat1, lng1, lat2, lng2);
-    return curve[curve.length ~/ 2];
-  }
-
-  // ── Tap handling ───────────────────────────────────────────────────
-
-  /// Handle a tap on the map. Query the feature at the tap point to
-  /// determine if a pin or relationship dot was tapped.
-  void _onMapClick(math.Point<double> point, maplibre.LatLng latlng) async {
-    final controller = _mapController;
-    if (controller == null || _lastResult == null) return;
-
-    // Query relationship dots first (they're smaller, on top)
-    try {
-      final dotFeatures = await controller.queryRenderedFeatures(
-        point,
-        ['kinrel-dot-solid'],
-        null,
-      );
-      if (dotFeatures.isNotEmpty) {
-        final props = dotFeatures.first['properties'] as Map<String, dynamic>?;
-        if (props != null) {
-          final personAId = props['personAId'] as String?;
-          final personBId = props['personBId'] as String?;
-          final relKey = props['relationshipKey'] as String?;
-          if (personAId != null && personBId != null && relKey != null) {
-            final edge = _lastResult!.edges.where((e) =>
-              e.pinA.personId == personAId && e.pinB.personId == personBId
-            ).firstOrNull;
-            if (edge != null) {
-              _showRelationshipBottomSheet(edge);
-              return;
-            }
-          }
-        }
-      }
-    } catch (_) {}
-
-    // Then query member pins
-    try {
-      final pinFeatures = await controller.queryRenderedFeatures(
-        point,
-        ['kinrel-ring'],
-        null,
-      );
-      if (pinFeatures.isNotEmpty) {
-        final props = pinFeatures.first['properties'] as Map<String, dynamic>?;
-        if (props != null) {
-          final personId = props['personId'] as String?;
-          if (personId != null) {
-            final pin = _lastResult!.pins.where((p) => p.personId == personId).firstOrNull;
-            if (pin != null) {
-              _showPinBottomSheet(pin);
-              return;
-            }
-          }
-        }
-      }
-    } catch (_) {}
-  }
 
   // ── Pin Bottom Sheet ───────────────────────────────────────────────
 
@@ -1646,4 +1320,215 @@ class _EdgeDotHitTarget {
 
   final Offset dotPos;
   final MapRelationshipEdge edge;
+}
+
+// GRAPH EDGE PAINTER
+// ═══════════════════════════════════════════════════════════════════════
+
+/// CustomPainter that draws curved bezier connection lines between
+/// related pinned members on the map, with a glow and amber midpoint
+/// dot per line that is tappable to show kinship info.
+class _MapGraphEdgePainter extends CustomPainter {
+  _MapGraphEdgePainter({
+    required this.edges,
+    required this.camera,
+    this.hoveredEdgeKey,
+  });
+
+  final List<MapRelationshipEdge> edges;
+  final MapCamera camera;
+  final String? hoveredEdgeKey;
+
+  /// Populated during paint() for tap detection in the GestureDetector.
+  final List<_EdgeDotHitTarget> dotHitTargets = [];
+
+  /// Direct relationship keys for large-family edge filtering.
+  static const _directRelationshipKeys = {
+    'father', 'mother', 'parent',
+    'child', 'son', 'daughter',
+    'spouse', 'husband', 'wife',
+    'brother', 'sister', 'sibling',
+  };
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    dotHitTargets.clear();
+
+    // For families with more than 30 pinned members, limit to direct
+    // relationships only to prevent O(n²) line explosion.
+    final filteredEdges = edges.length > 30
+        ? edges.where((e) => _directRelationshipKeys.contains(e.relationshipKey)).toList()
+        : edges;
+
+    for (int i = 0; i < filteredEdges.length; i++) {
+      final edge = filteredEdges[i];
+
+      // 1. Convert coordinates to screen pixels
+      final Offset posA = camera.latLngToScreenPoint(
+        LatLng(edge.pinA.lat, edge.pinA.lng),
+      ).toOffset();
+      final Offset posB = camera.latLngToScreenPoint(
+        LatLng(edge.pinB.lat, edge.pinB.lng),
+      ).toOffset();
+
+      // 2. Viewport culling — skip if both points are off-screen by >200px
+      if (_isBothOffscreen(posA, posB, size)) continue;
+
+      // 3. Compute bezier control point
+      final mid = (posA + posB) / 2;
+      final dx = posB.dx - posA.dx;
+      final dy = posB.dy - posA.dy;
+      final lineLength = math.sqrt(dx * dx + dy * dy);
+      final Offset controlPoint;
+      if (lineLength < 1.0) {
+        controlPoint = mid;
+      } else {
+        // Perpendicular direction normalized
+        final perpX = -dy / lineLength;
+        final perpY = dx / lineLength;
+        // Alternate offset direction based on edge index
+        final sign = (i % 2 == 0) ? -1.0 : 1.0;
+        controlPoint = Offset(
+          mid.dx + perpX * 40 * sign,
+          mid.dy + perpY * 40 * sign,
+        );
+      }
+
+      // 4. Draw the curved line
+      final path = ui.Path()
+        ..moveTo(posA.dx, posA.dy)
+        ..quadraticBezierTo(
+          controlPoint.dx, controlPoint.dy,
+          posB.dx, posB.dy,
+        );
+      final linePaint = Paint()
+        ..color = KinrelColors.orange.withValues(alpha: 0.35)
+        ..strokeWidth = 1.5
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+      canvas.drawPath(path, linePaint);
+
+      // 5. Compute midpoint dot position at t=0.5 on quadratic bezier
+      final dotPos = Offset(
+        0.25 * posA.dx + 0.5 * controlPoint.dx + 0.25 * posB.dx,
+        0.25 * posA.dy + 0.5 * controlPoint.dy + 0.25 * posB.dy,
+      );
+
+      // 6. Draw the glow behind the dot
+      final glowPaint = Paint()
+        ..color = KinrelColors.orangeGlow.withValues(alpha: 0.4)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+      canvas.drawCircle(dotPos, 7, glowPaint);
+
+      // 7. Draw the filled dot
+      final dotPaint = Paint()
+        ..color = KinrelColors.amber
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(dotPos, 4, dotPaint);
+
+      // Draw border ring
+      final dotBorderPaint = Paint()
+        ..color = KinrelColors.darkBackground.withValues(alpha: 0.6)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0;
+      canvas.drawCircle(dotPos, 4, dotBorderPaint);
+
+      // Store for tap detection
+      dotHitTargets.add(_EdgeDotHitTarget(dotPos: dotPos, edge: edge));
+    }
+  }
+
+  /// Returns true if both points are off-screen on the same side by
+  /// more than 200 pixels.
+  bool _isBothOffscreen(Offset a, Offset b, Size size) {
+    // v45 FIX: Use relative margin (30% of longest dimension) instead of
+    // hardcoded 200dp. On small phones (360dp width), 200dp is 55% of the
+    // screen — culling edges that are partially visible.
+    final margin = size.width > size.height ? size.width * 0.3 : size.height * 0.3;
+    // Both left of screen
+    if (a.dx < -margin && b.dx < -margin) return true;
+    // Both right of screen
+    if (a.dx > size.width + margin && b.dx > size.width + margin) return true;
+    // Both above screen
+    if (a.dy < -margin && b.dy < -margin) return true;
+    // Both below screen
+    if (a.dy > size.height + margin && b.dy > size.height + margin) return true;
+    return false;
+  }
+
+  @override
+  bool shouldRepaint(_MapGraphEdgePainter oldDelegate) {
+    return oldDelegate.edges != edges ||
+        oldDelegate.camera != camera ||
+        oldDelegate.hoveredEdgeKey != hoveredEdgeKey;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// GRAPH OVERLAY LAYER
+// ═══════════════════════════════════════════════════════════════════════
+
+/// StatefulWidget that hosts the graph edge painter and handles tap
+/// detection on midpoint dots. Used as a FlutterMap child widget
+/// positioned between TileLayer and MarkerLayer.
+class _MapGraphOverlayLayer extends StatefulWidget {
+  const _MapGraphOverlayLayer({
+    required this.edges,
+    required this.familyId,
+    required this.onDotTapped,
+  });
+
+  final List<MapRelationshipEdge> edges;
+  final String familyId;
+  final void Function(MapRelationshipEdge edge) onDotTapped;
+
+  @override
+  State<_MapGraphOverlayLayer> createState() => _MapGraphOverlayLayerState();
+}
+
+class _MapGraphOverlayLayerState extends State<_MapGraphOverlayLayer> {
+  _MapGraphEdgePainter? _lastPainter;
+  int _activePointers = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final camera = MapCamera.of(context);
+
+    final painter = _MapGraphEdgePainter(
+      edges: widget.edges,
+      camera: camera,
+    );
+    _lastPainter = painter;
+
+    // v45 FIX: Replace GestureDetector with Listener to avoid gesture arena
+    // conflicts with the parent InteractiveViewer/GraphPanZoom on Android.
+    // Listener fires unconditionally without participating in the arena.
+    return RepaintBoundary(
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _activePointers++,
+        onPointerUp: (event) {
+          _activePointers = (_activePointers - 1).clamp(0, 99);
+          // Only handle single-finger tap-ups (not pinch end)
+          if (_activePointers > 0) return;
+          if (_lastPainter == null) return;
+          final tapPos = event.localPosition;
+          for (final target in _lastPainter!.dotHitTargets) {
+            if ((tapPos - target.dotPos).distance < 18) {
+              widget.onDotTapped(target.edge);
+              return;
+            }
+          }
+        },
+        onPointerCancel: (_) {
+          _activePointers = (_activePointers - 1).clamp(0, 99);
+        },
+        child: SizedBox.expand(
+          child: CustomPaint(painter: painter),
+        ),
+      ),
+    )
+        .animate()
+        .fadeIn(duration: 600.ms);
+  }
 }

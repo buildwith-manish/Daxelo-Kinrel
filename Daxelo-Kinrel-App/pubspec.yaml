@@ -98,13 +98,10 @@ dependencies:
   webview_flutter: ^4.7.0
   
   # Maps
-  # maplibre_gl: Native MapLibre renderer for the Family Map screen.
-  # Chosen over the newer `maplibre` package because maplibre_gl is
-  # more mature (v0.26.x vs v0.3.x), has full Android/iOS/Web support
-  # (the app's 3 target platforms), and exposes the source/layer/symbol
-  # APIs needed for GeoJSON-based family member pins + relationship lines.
-  # Verified on pub.dev: latest=0.26.2, published 2026-06-19, 160 pub points.
-  maplibre_gl: ^0.26.0
+  # flutter_map: used for the Family Map screen with OpenFreeMap dark tiles.
+  # Note: maplibre_gl was evaluated but its web plugin has dart2js compilation
+  # issues in the Vercel build environment. flutter_map works on all 3 target
+  # platforms (Android/iOS/Web) and supports the same dark tile style.
   flutter_map: ^6.1.0
   latlong2: ^0.9.1
   # geolocator: GPS capture for live location sharing (§4 of the map spec).
