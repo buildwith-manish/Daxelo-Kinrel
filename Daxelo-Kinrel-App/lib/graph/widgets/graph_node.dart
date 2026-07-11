@@ -26,6 +26,7 @@
 //   In-Law: Amber #F59E0B
 //   Extended: Slate #64748B
 
+import 'dart:math';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,7 +37,7 @@ import '../../core/constants/feature_flags.dart';
 import '../../core/kinship/kinship_edge_style.dart';
 import '../../core/widgets/cached_avatar.dart';
 import '../../features/kinrel_intelligence/providers/kinrel_provider.dart';
-import '../../features/kinrel_intelligence/widgets/role_glyph_badge.dart';
+import '../../features/kinrel_intelligence/widgets/role_glyph_badge.dart' show RoleGlyphBadge;
 
 // ═══════════════════════════════════════════════════════════════════════
 // NODE STATE ENUM
@@ -834,7 +835,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
             Positioned(
               right: extraPad / 2 - 4, bottom: extraPad / 2 - 4,
               child: RoleGlyphBadge(
-                familyId: widget.familyId!, personId: widget.personId, size: diameter * 0.3),
+                size: diameter * 0.3),
             ),
           // Expand indicator
           if (widget.relationshipKey != null &&
@@ -1209,7 +1210,7 @@ class _Pseudo3DNodePainter extends CustomPainter {
         ],
       ).createShader(rimRect);
     // Draw the rim as the bottom portion of the circle
-    canvas.drawArc(rimRect, 0, pi, false, rimPaint);
+    canvas.drawArc(rimRect, 0.0, pi, false, rimPaint);
 
     // ── Layer 3: Glass face ──────────────────────────────────────
     // Directional radial gradient: brighter TL, center = darkCard, darker BR.
@@ -1260,7 +1261,7 @@ class _Pseudo3DNodePainter extends CustomPainter {
       center: center,
       radius: radius - params.borderWidth - 1.0,
     );
-    canvas.drawCircle(hairlineRect.center, hairlineRect.radius, hairlinePaint);
+    canvas.drawCircle(hairlineRect.center, hairlineRect.width / 2, hairlinePaint);
 
     // ── Layer 5: Specular highlight ──────────────────────────────
     // Elliptical highlight near upper-left, low opacity, soft light on glass.
