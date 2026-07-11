@@ -31,8 +31,10 @@
 //   • Expand/collapse — long-press a node to toggle its descendants.
 
 import 'dart:async';
+import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/material.dart;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -68,7 +70,7 @@ import '../../features/family/presentation/services/graph_export_service.dart'
     show GraphExportService;
 import '../rendering/edge_path_cache.dart' show EdgePathCache;
 import '../rendering/viewport_culler.dart' show ViewportCuller;
-import 'graph_node.dart' show GraphNode;
+import 'graph_node.dart' show GraphNode, RelationshipColors;
 import 'graph_legend.dart' show GraphLegend;
 import 'graph_quick_actions.dart' show GraphQuickActions;
 import 'graph_relationship_labels.dart' show GraphPersonData;
@@ -609,9 +611,21 @@ class _FamilyGraphEngineViewState
           ),
         );
 
-        return ColoredBox(
-          color: KinrelColors.darkBackground,
-          child: GestureDetector(
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: const Alignment(0, -0.1),
+              radius: 1.3,
+              colors: [
+                Color.lerp(KinrelColors.darkBackground, RelationshipColors.self, 0.06)!,
+                KinrelColors.darkBackground,
+              ],
+              stops: const [0.0, 0.75],
+            ),
+          ),
+          child: CustomPaint(
+            painter: _DotGridPainter(color: Colors.white.withValues(alpha: 0.025)),
+            child: GestureDetector(
             // v72 FIX: Use translucent (NOT opaque) so child GraphNode
             // gesture detectors can receive tap/long-press events.
             // The previous `opaque` setting swallowed all touch events
@@ -647,6 +661,7 @@ class _FamilyGraphEngineViewState
                 },
               ),
             ),
+          ),
           ),
         );
       },
@@ -1938,24 +1953,24 @@ class _EngineEdgePainter extends CustomPainter {
     // v2.2 Fix 6: Null/empty guards — skip painting entirely if there
     // are no edges or no positions. This prevents crashes and wasted
     // CPU when the graph is empty or still loading.
-    if (edges.isEmpty) {
-      debugPrint('[EdgePainter] No edges to paint — edges list is empty');
-      return;
-    }
-    if (positions.isEmpty) {
-      debugPrint('[EdgePainter] No positions to paint — positions map is empty');
-      return;
-    }
+    if (edges.isEmpty) return;
+    if (positions.isEmpty) return;
 
-    debugPrint('[EdgePainter] Painting ${edges.length} edges with ${positions.length} positions');
-    debugPrint('[EdgePainter] Position keys: ${positions.keys.toList()}');
+    // §6: Removed debugPrint calls that ran on every repaint (perf tax).
+    // Only log in debug mode if explicitly needed.
 
-    int skippedCount = 0;
+    // §2: Selected edge now gets a glow pass underneath the crisp line.
+    final selectedGlow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 6.0
+      ..color = KinrelColors.orange.withValues(alpha: 0.30)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0);
 
     final selectedPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5
-      ..color = Colors.orange
+      ..color = KinrelColors.orange
+      ..strokeCap = StrokeCap.round
       ..isAntiAlias = true;
 
     for (final DedupedEdge deduped in edges) {
@@ -1963,8 +1978,6 @@ class _EngineEdgePainter extends CustomPainter {
       final Offset? s = positions[e.sourceId];
       final Offset? t = positions[e.targetId];
       if (s == null || t == null) {
-        skippedCount++;
-        debugPrint('[EdgePainter] SKIP edge ${e.id}: source=${e.sourceId}(${s != null ? "found" : "MISSING"}) target=${e.targetId}(${t != null ? "found" : "MISSING"})');
         continue;
       }
       // v64 (BUG-2 FIX): Pass the lateral offset so parallel edges
@@ -1996,6 +2009,8 @@ class _EngineEdgePainter extends CustomPainter {
       );
 
       if (e.id == selectedEdgeId) {
+        // §2: Two-pass draw for selected edge — glow + crisp line
+        canvas.drawPath(path, selectedGlow);
         canvas.drawPath(path, selectedPaint);
         continue;
       }
@@ -2036,6 +2051,15 @@ class _EngineEdgePainter extends CustomPainter {
         midpointSymbol = style.midpointSymbol;
       }
 
+      // §2: Two-pass draw — soft glow underneath, crisp line on top.
+      // The glow uses MaskFilter.blur for a 'lit' feel (like Miro/Linear).
+      final glowPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5.0
+        ..color = edgeColor.withValues(alpha: edgeAlpha * 0.25)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0)
+        ..isAntiAlias = true;
+
       final edgePaint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = style.strokeWidth.clamp(1.5, 5.0)
@@ -2043,7 +2067,10 @@ class _EngineEdgePainter extends CustomPainter {
         ..isAntiAlias = true
         ..strokeCap = StrokeCap.round;
 
-      // Apply dash pattern if the style is dashed.
+      // Draw glow first (solid, even for dashed lines)
+      canvas.drawPath(path, glowPaint);
+
+      // Apply dash pattern if the style is dashed (only on the crisp line).
       if (dashPattern.isNotEmpty && dashPattern.length >= 2) {
         for (final metric in path.computeMetrics()) {
           double pos = 0;
@@ -2098,10 +2125,6 @@ class _EngineEdgePainter extends CustomPainter {
         }
       }
     }
-
-    if (skippedCount > 0) {
-      debugPrint('[EdgePainter] Summary: ${edges.length} edges, $skippedCount skipped (missing positions), ${edges.length - skippedCount} drawn');
-    }
   }
 
   @override
@@ -2123,6 +2146,27 @@ class _Dot {
   const _Dot(this.pos, this.color);
   final Offset pos;
   final Color color;
+}
+
+/// Paints a very faint dot-grid on the graph background for spatial texture.
+/// Static (shouldRepaint returns false) — painted once, not per-frame.
+class _DotGridPainter extends CustomPainter {
+  const _DotGridPainter({required this.color, this.spacing = 32.0});
+  final Color color;
+  final double spacing;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    for (double y = 0; y < size.height; y += spacing) {
+      for (double x = 0; x < size.width; x += spacing) {
+        canvas.drawCircle(Offset(x, y), 1.0, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DotGridPainter oldDelegate) => false;
 }
 
 /// Draws every visible node as a dot in ONE painter — avoids thousands of

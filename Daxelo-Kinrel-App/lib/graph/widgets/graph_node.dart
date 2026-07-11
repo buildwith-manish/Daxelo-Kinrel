@@ -810,6 +810,21 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       ),
       child: Stack(
         children: [
+          // §4: Inner hairline ring — thin 1px white-alpha border just
+          // inside the colored border, creates a "refined bezel" look
+          // (like Linear/Arc avatar rings) instead of a flat colored ring.
+          Positioned.fill(
+            child: Container(
+              margin: const EdgeInsets.all(1.5),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  width: 1,
+                ),
+              ),
+            ),
+          ),
           // Background tint
           if (widget.nodeState == NodeState.selected ||
               widget.nodeState == NodeState.hover)

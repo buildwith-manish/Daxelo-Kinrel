@@ -5,6 +5,7 @@
 // A small bottom-left stats panel showing graph metrics: member count,
 // connection count, generation count, and an optional truncation warning.
 
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
@@ -61,19 +62,25 @@ class StatsPanel extends StatelessWidget {
     // on Android that can hide the child. The Container already has an
     // explicit opaque color (KinrelColors.darkCard) and its own decoration,
     // so no Material wrapper is needed.
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+    // §3: Frosted glass panel instead of flat navy box
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkCard.withValues(alpha: 0.55),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-        ],
-      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,6 +95,8 @@ class StatsPanel extends StatelessWidget {
             _TruncatedWarning(),
           ],
         ],
+      ),
+        ),
       ),
     );
   }
