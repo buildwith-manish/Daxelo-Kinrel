@@ -98,8 +98,18 @@ dependencies:
   webview_flutter: ^4.7.0
   
   # Maps
+  # maplibre_gl: Native MapLibre renderer for the Family Map screen.
+  # Chosen over the newer `maplibre` package because maplibre_gl is
+  # more mature (v0.26.x vs v0.3.x), has full Android/iOS/Web support
+  # (the app's 3 target platforms), and exposes the source/layer/symbol
+  # APIs needed for GeoJSON-based family member pins + relationship lines.
+  # Verified on pub.dev: latest=0.26.2, published 2026-06-19, 160 pub points.
+  maplibre_gl: ^0.26.0
   flutter_map: ^6.1.0
   latlong2: ^0.9.1
+  # geolocator: GPS capture for live location sharing (§4 of the map spec).
+  # Used by the map screen to broadcast the user's position to the family.
+  geolocator: ^13.0.0
 
   # Math/Graph
   collection: ^1.19.1
@@ -157,6 +167,7 @@ flutter:
   assets:
     - assets/data/kinship_core.json
     - assets/data/kinship_terms.json
+    - assets/maps/
     - assets/icons/
     - assets/icons/games/ghost-painter.png
     - assets/icons/games/freeze-dash.png

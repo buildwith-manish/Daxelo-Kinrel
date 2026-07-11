@@ -8,11 +8,17 @@
 // of members whose cities could not be resolved (unpinned).
 // Also resolves relationship edges between pinned members for
 // the graph overlay that draws curved connecting lines.
+//
+// Three-tier location merge (§4.5 of the map spec):
+//   1. Live broadcast position (if received within 2 min) — freshest
+//   2. Last-known MemberLocation row (from live_location_provider)
+//   3. City-fallback coordinate (kCityCoordinates lookup) — default
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/family/family_provider.dart';
 import '../data/city_coordinates.dart';
+import 'live_location_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // MAP PIN MODEL
@@ -27,6 +33,10 @@ class MapPin {
     required this.photoUrl,
     required this.lat,
     required this.lng,
+    this.isSelf = false,
+    this.locationTier = LocationTier.cityFallback,
+    this.isSharing = false,
+    this.updatedAt,
   });
 
   /// Unique ID of the person.
@@ -47,6 +57,21 @@ class MapPin {
   /// Resolved longitude.
   final double lng;
 
+  /// Whether this pin is the current user's claimed Person node.
+  final bool isSelf;
+
+  /// How fresh the location data is — drives pin visual treatment.
+  final LocationTier locationTier;
+
+  /// Whether this member has location sharing enabled.
+  final bool isSharing;
+
+  /// Timestamp of the last location update (UTC), if any.
+  final DateTime? updatedAt;
+
+  /// Whether this pin has a live position (within 2 minutes).
+  bool get isLive => locationTier == LocationTier.live;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -56,6 +81,27 @@ class MapPin {
 
   @override
   int get hashCode => personId.hashCode;
+
+  MapPin copyWith({
+    double? lat,
+    double? lng,
+    bool? isSelf,
+    LocationTier? locationTier,
+    bool? isSharing,
+    DateTime? updatedAt,
+  }) =>
+      MapPin(
+        personId: personId,
+        name: name,
+        city: city,
+        photoUrl: photoUrl,
+        lat: lat ?? this.lat,
+        lng: lng ?? this.lng,
+        isSelf: isSelf ?? this.isSelf,
+        locationTier: locationTier ?? this.locationTier,
+        isSharing: isSharing ?? this.isSharing,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -113,6 +159,11 @@ class FamilyMapResult {
   /// Number of distinct cities among pinned members.
   int get distinctCityCount =>
       pins.map((p) => p.city.toLowerCase()).toSet().length;
+
+  /// Count of members currently in the live (0-2 min) or recent (2-15 min)
+  /// tiers — i.e. genuinely "live" or freshly updated, not stale.
+  int get liveCount =>
+      pins.where((p) => p.isSharing && p.locationTier != LocationTier.cityFallback).length;
 }
 
 /// A member whose city could not be resolved to coordinates.
@@ -179,8 +230,35 @@ final familyMapProvider =
   final pins = <MapPin>[];
   final unpinned = <UnpinnedMember>[];
 
+  // ── Three-tier location merge (§4.5) ──────────────────────────────
+  // Watch live locations (broadcast + last-known) for this family.
+  // Live broadcast position (if fresh) overrides city-fallback.
+  final liveState = ref.watch(liveLocationProvider);
+  final liveLocations = liveState.locations;
+
   for (final person in members) {
     final city = person.city;
+
+    // Check for a live or last-known location for this person.
+    final live = liveLocations[person.id];
+    if (live != null) {
+      // Tier 1 or 2: use the live/last-known position.
+      pins.add(MapPin(
+        personId: person.id,
+        name: person.name,
+        city: city?.trim() ?? 'Live location',
+        photoUrl: person.photoUrl,
+        lat: live.lat,
+        lng: live.lng,
+        isSelf: false, // set below after we check currentUser
+        locationTier: computeTier(live.updatedAt),
+        isSharing: live.isSharing,
+        updatedAt: live.updatedAt,
+      ));
+      continue;
+    }
+
+    // Tier 3: city fallback.
     if (city == null || city.trim().isEmpty) {
       unpinned.add(UnpinnedMember(
         personId: person.id,
@@ -203,6 +281,7 @@ final familyMapProvider =
         photoUrl: person.photoUrl,
         lat: lat,
         lng: lng,
+        locationTier: LocationTier.cityFallback,
       ));
     } else {
       unpinned.add(UnpinnedMember(
