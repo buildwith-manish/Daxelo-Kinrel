@@ -271,9 +271,8 @@ class LiveLocationNotifier extends StateNotifier<LiveLocationState> {
     _channel?.unsubscribe();
     _channel = client.channel('family-map:$familyId');
 
-    _channel!.onBroadcast('location_move', (payload) {
-      final data = payload as Map<String, dynamic>?;
-      if (data == null) return;
+    _channel!.onBroadcast(event: 'location_move', callback: (payload) {
+      final data = payload;
 
       final personId = data['personId'] as String?;
       final lat = (data['lat'] as num?)?.toDouble();
