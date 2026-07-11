@@ -66,7 +66,7 @@ final crossFeatureMomentsProvider =
           id: e['id'] as String,
           type: 'oral_history',
           title: 'New oral history: ${e['title'] ?? 'Untitled'}',
-          subtitle: (e['transcription'] as String?)?.take(80),
+          subtitle: _truncate(e['transcription'] as String?, 80),
           createdAt: DateTime.tryParse(e['createdAt'] as String? ?? '') ?? DateTime.now(),
           deepLink: '/memories?familyId=$familyId',
         ));
@@ -122,6 +122,7 @@ final crossFeatureMomentsProvider =
   },
 );
 
-extension StringTake on String {
-  String? take(int n) => length > n ? '${substring(0, n)}...' : this;
+String? _truncate(String? s, int n) {
+  if (s == null) return null;
+  return s.length > n ? '${s.substring(0, n)}...' : s;
 }
