@@ -290,11 +290,9 @@ class CameraController extends ChangeNotifier {
     // node circle.
     //
     // Node dimensions mirror GraphLayoutService._nodeWidth/_nodeHeight
-    // (compact: 80×100, normal: 100×120). We use the normal (larger)
-    // size here as a safe upper bound — the extra padding just means
-    // the graph is framed slightly smaller, which is fine.
-    const nodeWidth = 100.0;
-    const nodeHeight = 120.0;
+    // Updated for _kNodeSize = 140×176 to account for pseudo-3D shadows.
+    const nodeWidth = 140.0;
+    const nodeHeight = 176.0;
 
     double minX = double.infinity;
     double minY = double.infinity;

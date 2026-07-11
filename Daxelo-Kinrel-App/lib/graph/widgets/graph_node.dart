@@ -672,6 +672,10 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                 fontSize: 14.0,
                 fontWeight: FontWeight.w600,
                 color: KinrelColors.textWhite,
+                letterSpacing: 0.15, // §5: subtle letter-spacing for hierarchy
+                shadows: const [ // §5: text-shadow for legibility over busy bg
+                  Shadow(blurRadius: 4, color: Colors.black54),
+                ],
               ),
               textAlign: TextAlign.center,
               maxLines: 1,

@@ -69,7 +69,7 @@ import '../../features/family/presentation/services/graph_export_service.dart'
     show GraphExportService;
 import '../rendering/edge_path_cache.dart' show EdgePathCache;
 import '../rendering/viewport_culler.dart' show ViewportCuller;
-import 'graph_node.dart' show GraphNode, RelationshipColors;
+import 'graph_node.dart' show GraphNode, RelationshipColors, NodeState;
 import 'graph_legend.dart' show GraphLegend;
 import 'graph_quick_actions.dart' show GraphQuickActions;
 import 'graph_relationship_labels.dart' show GraphPersonData;
@@ -140,7 +140,7 @@ class FamilyGraphEngineView extends ConsumerStatefulWidget {
 class _FamilyGraphEngineViewState
     extends ConsumerState<FamilyGraphEngineView> {
   /// Bounding box used for culling + node placement (circle + label).
-  static const Size _kNodeSize = Size(96, 120);
+  static const Size _kNodeSize = Size(140, 176);
 
   /// The visual circle diameter inside each node (GraphNode.nodeSize).
   /// The circle is at the TOP of the Column, so its visual center is
@@ -151,7 +151,13 @@ class _FamilyGraphEngineViewState
   ///          = 72/2 - 120/2 = 36 - 60 = -24
   /// Edge endpoints must use this offset so lines connect to the
   /// visual circle center, not the Positioned box center.
-  static const double _kCircleCenterYOffset = 36.0 - 60.0; // = -24.0
+  // Updated for _kNodeSize = 140×176: circle is at top of Column.
+  // Circle diameter = 72, so visual center is at 36px from top.
+  // Box center is at 88px (176/2). Offset = 36 - 88 = -52.
+  // But the Padding(24) shifts everything down by 24, so the actual
+  // visual center is at 36 + 24 = 60 from box top.
+  // Box center = 88. Offset = 60 - 88 = -28.
+  static const double _kCircleCenterYOffset = -28.0;
 
   /// Zoom thresholds for LOD tiers.
   static const double _kChipZoom = 0.55;
@@ -742,7 +748,7 @@ class _FamilyGraphEngineViewState
           // clips the shadow to the node's bounds, making it invisible.
           child: RepaintBoundary(
             child: Padding(
-              padding: const EdgeInsets.all(8.0),
+              padding: const EdgeInsets.all(24.0),
               child: node,
             ),
           ),
@@ -762,6 +768,11 @@ class _FamilyGraphEngineViewState
   ) {
     // v2.2: If this node IS the viewer, show "You" as the relation label.
     final bool isViewer = viewerPersonId != null && id == viewerPersonId;
+    // §4: Wire selectedNodeProvider to the node's NodeState so
+    // selection visually highlights the node.
+    final selectedId = ref.watch(selectedNodeProvider);
+    final nodeState = id == selectedId ? NodeState.selected : NodeState.normal;
+
     return GraphNode(
       personId: id,
       name: (p['name'] as String?) ?? '',
@@ -770,6 +781,7 @@ class _FamilyGraphEngineViewState
       isAnchor: (p['isAnchor'] as bool?) ?? false,
       photoUrl: p['photoUrl'] as String?,
       isDeceased: (p['isDeceased'] as bool?) ?? false,
+      nodeState: nodeState,
       // The "Pending" badge was previously shown for ANY person without
       // a linkedUserId (i.e., not yet claimed by a Kinrel account). But
       // most family tree members (grandparents, children, etc.) are
