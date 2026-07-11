@@ -1019,7 +1019,10 @@ class DKNavItem {
 /// Dark mode: semi-transparent background with blur, orange active,
 /// gold highlight.
 /// Light mode: white background, orange active.
-/// Height: 64px, rounded top corners.
+///
+/// Height: 80 px. Floats 12 px above the bottom safe-area inset
+/// (above the home indicator on gesture-bar devices). Rounded all
+/// four corners — reads as a detached capsule.
 ///
 /// ```dart
 /// DKBottomNav(
@@ -1051,39 +1054,54 @@ class DKBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLight = DKColors.isLight(context);
+    // Float gap above the bottom edge / home indicator.
+    // On gesture-bar phones, MediaQuery.paddingOf(context).bottom is ~34px.
+    // On Android with 3-button nav, it's ~0–48px.
+    // We always float at least 12px above that inset.
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    const floatGap = 12.0;
 
-    return Container(
-      height: 64,
-      decoration: BoxDecoration(
-        color: isLight
-            ? DKColors.lightCard
-            : DKColors.darkCard.withValues(alpha: 0.9),
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.xl),
-        ),
-        border: isLight
-            ? const Border(top: BorderSide(color: Color(0xFFE5E7EB), width: 1))
-            : Border.all(color: Color(0xFF3A3A4A), width: 0.5),
-        boxShadow: isLight
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, -2),
-                ),
-              ]
-            : null,
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 12,
+        right: 12,
+        bottom: bottomInset > 0 ? bottomInset + floatGap : floatGap,
       ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(KinrelRadius.xl),
+      child: Container(
+        height: 80, // was 64 — thicker, more substantial
+        decoration: BoxDecoration(
+          color: isLight
+              ? DKColors.lightCard
+              : DKColors.darkCard.withValues(alpha: 0.92),
+          // All four corners rounded now — floating capsule shape
+          borderRadius: BorderRadius.circular(KinrelRadius.xl),
+          border: isLight
+              ? Border.all(color: const Color(0xFFE5E7EB), width: 1)
+              : Border.all(color: const Color(0xFF3A3A4A), width: 0.5),
+          boxShadow: [
+            // Primary drop shadow — gives the float effect
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isLight ? 0.12 : 0.40),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+            // Secondary tight shadow — defines the capsule edge
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isLight ? 0.06 : 0.20),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        child: isLight
-            ? _buildContent(isLight)
-            : BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                child: _buildContent(isLight),
-              ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(KinrelRadius.xl),
+          child: isLight
+              ? _buildContent(isLight)
+              : BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                  child: _buildContent(isLight),
+                ),
+        ),
       ),
     );
   }
@@ -1151,8 +1169,8 @@ class _DKNavItemWidget extends StatelessWidget {
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: SizedBox(
-          // Accessibility: ensure minimum 48dp height for tap target
-          height: 64,
+          // Was 64. Match the parent container height so the tap target fills the bar.
+          height: 80,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -1177,25 +1195,25 @@ class _DKNavItemWidget extends StatelessWidget {
                   ],
                 ),
               ),
-              SizedBox(height: 2),
+              const SizedBox(height: 4), // was 2 — slightly more breathing room now that we have 16 extra px
               Text(
                 item.label,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 10,
+                  fontSize: 11, // was 10 — slightly larger now that we have room
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                   color: color,
                   height: 1.2,
                 ),
               ),
               if (isSelected) ...[
-                SizedBox(height: 2),
+                const SizedBox(height: 3), // was 2
                 Container(
-                  width: 16,
-                  height: 2,
+                  width: 18, // was 16
+                  height: 2.5, // was 2 — slightly chunkier indicator pill
                   decoration: BoxDecoration(
                     color: isLight ? DKColors.brandOrange : DKColors.brandGold,
-                    borderRadius: BorderRadius.circular(1),
+                    borderRadius: BorderRadius.circular(1.25),
                   ),
                 ),
               ],
