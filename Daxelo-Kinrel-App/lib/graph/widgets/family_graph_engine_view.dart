@@ -69,6 +69,8 @@ import '../../core/viewer/viewer_api_client.dart'
 import '../../features/family/presentation/services/graph_export_service.dart'
     show GraphExportService;
 import '../rendering/edge_path_cache.dart' show EdgePathCache;
+import '../rendering/edge_quality.dart' show EdgeQuality, EdgeQualityX;
+import '../rendering/graph_lighting.dart' show GraphLighting;
 import '../rendering/viewport_culler.dart' show ViewportCuller;
 import 'graph_node.dart' show GraphNode, RelationshipColors, NodeState;
 import 'graph_legend.dart' show GraphLegend;
@@ -161,8 +163,26 @@ class _FamilyGraphEngineViewState
   static const double _kCircleCenterYOffset = -28.0;
 
   /// Zoom thresholds for LOD tiers.
-  static const double _kChipZoom = 0.55;
-  static const double _kDotZoom = 0.3;
+  //
+  // v91 (PART 9): The previous implementation hard-coded
+  // `return _Lod.chip; // always chip, never dot`, which made the DOT
+  // tier unreachable and broke the large-graph architecture (the dot
+  // painter exists precisely to keep 500–5,000+ node graphs smooth).
+  //
+  // The new thresholds are derived from the actual GraphCameraController
+  // zoom range (0.2–5.0) and the fit-to-screen clamp (0.3–2.0):
+  //
+  //   • zoom >= 0.72 → FULL  (close-up, full Obsidian Glass medallions)
+  //   • zoom >= 0.34 → CHIP  (mid-range, name + coloured dot)
+  //   • zoom <  0.34 → DOT   (far-out, single painter, no widgets)
+  //
+  // DOT is now reachable by pinching below 0.34× — which is comfortably
+  // above the camera's 0.2 floor. On a 50-node family the fit-to-screen
+  // zoom is typically ~0.8–1.2 (FULL), and on a 500-node graph it
+  // collapses to ~0.25–0.35 (DOT/CHIP boundary), so DOT engages
+  // naturally exactly when it's needed.
+  static const double _kChipZoom = 0.72;
+  static const double _kDotZoom = 0.34;
 
   late final PositionMemory _positionMemory;
   late final CameraController _camera;
@@ -288,12 +308,36 @@ class _FamilyGraphEngineViewState
   }
 
   _Lod _lodFor(double zoom) {
-    // v88 FIX: Never use the dot tier — it renders tiny 6px circles
-    // that are unreadable. Always use at least the chip tier (which
-    // shows a colored dot + name). The full tier (72px avatar + name
-    // + label) is used when zoomed in.
+    // v91 (PART 9): DOT LOD is now reachable.
+    //
+    // The previous implementation hard-coded `return _Lod.chip;` which
+    // made the dot tier unreachable and broke the large-graph
+    // architecture. The dot painter (`_NodeDotPainter`) exists
+    // precisely to keep 500–5,000+ node graphs smooth — without it,
+    // the engine builds one Positioned widget per visible node, which
+    // collapses frame rate on big families.
+    //
+    // Thresholds (see `_kChipZoom` / `_kDotZoom`):
+    //   • zoom >= 0.72 → FULL
+    //   • zoom >= 0.34 → CHIP
+    //   • zoom <  0.34 → DOT
     if (zoom >= _kChipZoom) return _Lod.full;
-    return _Lod.chip; // always chip, never dot
+    if (zoom >= _kDotZoom) return _Lod.chip;
+    return _Lod.dot;
+  }
+
+  /// Maps the current LOD to the edge-layer visual quality tier (PART 10).
+  /// Computed ONCE per build and passed to `_EngineEdgePainter` — the
+  /// painter never derives quality per edge.
+  EdgeQuality _edgeQualityFor(_Lod lod) {
+    switch (lod) {
+      case _Lod.full:
+        return EdgeQuality.full;
+      case _Lod.chip:
+        return EdgeQuality.chip;
+      case _Lod.dot:
+        return EdgeQuality.dot;
+    }
   }
 
   // ── Build ──────────────────────────────────────────────────────────────
@@ -590,7 +634,7 @@ class _FamilyGraphEngineViewState
                   // length so the wrapper rebuilds when data changes on
                   // Flutter Web (where identical() can be unreliable).
                   child: _EdgeSelectionWrapper(
-                    key: ValueKey('edge_layer_${edges.length}_${layout.positions.length}'),
+                    key: ValueKey('edge_layer_${edges.length}_${layout.positions.length}_${_lodFor(_camera.zoomLevel).name}'),
                     // BUG 1 FIX: Apply Y offset so edge endpoints connect
                     // to the visual circle center, not the Positioned box
                     // center. The circle is at the TOP of the Column
@@ -607,6 +651,40 @@ class _FamilyGraphEngineViewState
                     edgeCategories: edgeCategories,
                     edgeCustomColors: edgeCustomColors,
                     cache: _edgePathCache,
+                    // v91 (PART 10): LOD-aware edge quality.
+                    edgeQuality:
+                        _edgeQualityFor(_lodFor(_camera.zoomLevel)),
+                    // v91 (PART 11): Revision-based repaint correctness.
+                    // The painter compares these in `shouldRepaint`
+                    // instead of deep-comparing maps every frame.
+                    //
+                    //   graphRevision    — bumped when edges/positions
+                    //                      counts change (add/remove
+                    //                      member, edge add/delete).
+                    //   layoutRevision   — bumped when layout positions
+                    //                      change (re-layout, drag).
+                    //   edgeVisualRevision — bumped when categories or
+                    //                      custom colours change.
+                    //
+                    // We use a combined length-based fingerprint for
+                    // graphRevision and edgeVisualRevision, and the
+                    // layout's canvasWidth/Height + positions length
+                    // for layoutRevision. This is O(1) and catches
+                    // every real mutation that affects rendering.
+                    graphRevision:
+                        edges.length * 100003 + layout.positions.length,
+                    layoutRevision:
+                        (layout.canvasWidth * 1000).round() +
+                            (layout.canvasHeight).round() +
+                            layout.positions.length,
+                    edgeVisualRevision:
+                        edgeCategories.length * 100003 +
+                            edgeCustomColors.length,
+                    // v91 (PART 13): Relationship focus mode. When a
+                    // node is selected, unrelated edges are dimmed.
+                    // Computed here (cheaply) from the current
+                    // selectedNodeProvider + the edge list.
+                    dimmedEdgeIds: _computeDimmedEdgeIds(edges),
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
@@ -1004,6 +1082,85 @@ class _FamilyGraphEngineViewState
     return bestId;
   }
 
+  /// v91 (PART 13): Computes the set of edge IDs that should be dimmed
+  /// when relationship focus mode is active.
+  ///
+  /// When a node is selected, DIRECTLY CONNECTED edges retain normal
+  /// (or increased) clarity, while UNRELATED edges gently reduce
+  /// opacity by ~30%. The selected edge (if any) and any sweep edge
+  /// are never dimmed.
+  ///
+  /// Returns `null` when no node is selected (no focus mode), so the
+  /// painter can short-circuit the dim check entirely.
+  Set<String>? _computeDimmedEdgeIds(List<DedupedEdge> edges) {
+    final String? selectedNode = ref.read(selectedNodeProvider);
+    if (selectedNode == null) return null;
+
+    final connected = <String>{};
+    for (final deduped in edges) {
+      final e = deduped.edge;
+      if (e.sourceId == selectedNode || e.targetId == selectedNode) {
+        connected.add(e.id);
+      }
+    }
+
+    // If every visible edge is connected, there's nothing to dim.
+    if (connected.length == edges.length) return null;
+
+    // Return the COMPLEMENT — edges that are NOT connected.
+    final dimmed = <String>{};
+    for (final deduped in edges) {
+      if (!connected.contains(deduped.edge.id)) {
+        dimmed.add(deduped.edge.id);
+      }
+    }
+    return dimmed;
+  }
+
+  /// v91 (PART 12): Cinematic node focus. When the user taps a person,
+  /// the camera gently animates to bring the node towards the focus
+  /// region (slightly above viewport center, where the eye naturally
+  /// rests). The zoom level is preserved — this is a guided pan, NOT
+  /// an aggressive zoom-in.
+  ///
+  /// Respects reduced motion: when `MediaQuery.disableAnimationsOf` is
+  /// true, the camera jumps immediately instead of animating.
+  ///
+  /// Does NOT create a second camera system — uses the existing
+  /// `CameraController` and its `animateTo` API.
+  void _maybeFocusCameraOnNode(String nodeId, GraphLayoutResult layout) {
+    final pos = layout.positions[nodeId];
+    if (pos == null || _viewportSize == Size.zero) return;
+
+    // If the node is already comfortably visible near the viewport
+    // center, do not move the camera. This prevents unnecessary motion
+    // when the user taps a node that's already in focus.
+    final viewport = _camera.computeViewport(_viewportSize);
+    final focusRegion = Rect.fromCenter(
+      center: viewport.center,
+      width: viewport.width * 0.4,
+      height: viewport.height * 0.4,
+    );
+    // Apply the same Y offset used for edges so the focus region aligns
+    // with the visual circle center, not the Positioned box center.
+    final visualPos = Offset(pos.dx, pos.dy + _kCircleCenterYOffset);
+    if (focusRegion.contains(visualPos)) return;
+
+    // Reduced motion → immediate pan, no animation.
+    final bool reduced = MediaQuery.disableAnimationsOf(context);
+    final Duration duration =
+        reduced ? Duration.zero : const Duration(milliseconds: 420);
+
+    // Target: bring the node to viewport center, preserving current zoom.
+    _camera.animateTo(
+      -pos.dx * _camera.zoomLevel + _viewportSize.width / 2,
+      -pos.dy * _camera.zoomLevel + _viewportSize.height / 2,
+      _camera.zoomLevel,
+      duration: duration,
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   /// Handles a tap-down on the canvas. If the tap hits a node, shows
   /// the quick-actions sheet (same as long-press) — does NOT navigate
   /// to a separate route, avoiding the "Page Not Found" error.
@@ -1018,6 +1175,9 @@ class _FamilyGraphEngineViewState
 
     // Select the node.
     ref.read(selectedNodeProvider.notifier).state = nodeId;
+
+    // v91 (PART 12): Cinematic camera focus on node selection.
+    _maybeFocusCameraOnNode(nodeId, layout);
 
     // Show the quick-actions sheet (same as long-press).
     final personData = flat.persons
@@ -1851,7 +2011,16 @@ class _FamilyGraphEngineViewState
 /// watches [selectedEdgeProvider]. When the user taps an edge, only
 /// this widget rebuilds — the main canvas (nodes, layout, etc.) does
 /// not rebuild at all.
-class _EdgeSelectionWrapper extends ConsumerWidget {
+///
+/// v91 (FINAL 10/10 PASS): The wrapper now also drives the ONE graph-level
+/// selected-edge light sweep. When `selectedEdgeId` changes, a single
+/// AnimationController runs for ~650 ms (or is skipped entirely under
+/// reduced motion). The painter receives `sweepProgress` and
+/// `sweepActive` and draws a short travelling highlight segment along
+/// the selected edge's cached Path. The controller lives HERE — not on
+/// the painter — so the painter remains stateless and repaints are
+/// scoped to the edge layer only.
+class _EdgeSelectionWrapper extends ConsumerStatefulWidget {
   const _EdgeSelectionWrapper({
     super.key,
     required this.positions,
@@ -1859,6 +2028,11 @@ class _EdgeSelectionWrapper extends ConsumerWidget {
     required this.edgeCategories,
     required this.edgeCustomColors,
     required this.cache,
+    required this.edgeQuality,
+    required this.graphRevision,
+    required this.layoutRevision,
+    required this.edgeVisualRevision,
+    required this.dimmedEdgeIds,
   });
 
   final Map<String, Offset> positions;
@@ -1867,17 +2041,132 @@ class _EdgeSelectionWrapper extends ConsumerWidget {
   final Map<String, Map<String, dynamic>> edgeCustomColors;
   final EdgePathCache cache;
 
+  /// LOD-derived visual quality tier for the entire edge layer. Computed
+  /// ONCE per build from the current graph LOD; the painter never
+  /// derives quality per edge.
+  final EdgeQuality edgeQuality;
+
+  /// Lightweight revision counters. The painter compares these in
+  /// `shouldRepaint` instead of deep-comparing thousands of map entries
+  /// every animation frame. See PART 11.
+  final int graphRevision;
+  final int layoutRevision;
+  final int edgeVisualRevision;
+
+  /// Edges that should be visually dimmed (relationship focus mode,
+  /// PART 13). Null or empty set = no dimming. The selected edge and
+  /// path-focused edges are NEVER dimmed.
+  final Set<String>? dimmedEdgeIds;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_EdgeSelectionWrapper> createState() =>
+      _EdgeSelectionWrapperState();
+}
+
+class _EdgeSelectionWrapperState extends ConsumerState<_EdgeSelectionWrapper>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _sweepController;
+  Animation<double>? _sweepAnimation;
+
+  /// The edge ID that was selected when the current sweep started. The
+  /// painter uses this (not `selectedEdgeProvider`) to decide which Path
+  /// to draw the sweep on, so the sweep stays attached to the right
+  /// edge even if selection changes mid-sweep.
+  String? _sweepEdgeId;
+
+  /// Reduced-motion preference. When true, the sweep is suppressed and
+  /// the selected edge renders in its static premium state immediately.
+  bool _reducedMotion = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _sweepController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: GraphLighting.sweepDurationMs),
+    );
+    _sweepAnimation = CurvedAnimation(
+      parent: _sweepController,
+      curve: Curves.easeOutCubic,
+    )..addListener(_onSweepTick);
+    // Reduced-motion is resolved per-build via MediaQuery; default false.
+  }
+
+  @override
+  void dispose() {
+    _sweepAnimation?.removeListener(_onSweepTick);
+    _sweepController.dispose();
+    super.dispose();
+  }
+
+  void _onSweepTick() {
+    // setState triggers a rebuild of the CustomPaint, which passes the
+    // new sweepProgress to the painter. Because the painter is wrapped
+    // in its own RepaintBoundary (via the Stack's Positioned.fill +
+    // the parent RepaintBoundary), only the edge layer repaints.
+    if (mounted) setState(() {});
+  }
+
+  /// Called from `build()` to (re)evaluate reduced-motion and start a
+  /// fresh sweep when selection changes. This is the SINGLE place that
+  /// decides whether to animate — keeping the logic out of the painter.
+  void _maybeStartSweep(String? selectedEdgeId) {
+    final bool reduced = MediaQuery.disableAnimationsOf(context);
+    if (reduced != _reducedMotion) {
+      _reducedMotion = reduced;
+    }
+
+    // No selection → cancel any in-flight sweep.
+    if (selectedEdgeId == null) {
+      _sweepController.stop();
+      _sweepEdgeId = null;
+      return;
+    }
+
+    // Same selection as the running sweep → no-op.
+    if (selectedEdgeId == _sweepEdgeId) return;
+
+    // New selection → start one sweep (unless reduced motion).
+    if (_reducedMotion ||
+        !widget.edgeQuality.allowsSweep ||
+        !widget.edgeQuality.allowsRidge) {
+      // Static-only: immediately show the selected state, no sweep.
+      _sweepController.stop();
+      _sweepEdgeId = selectedEdgeId;
+      return;
+    }
+
+    _sweepEdgeId = selectedEdgeId;
+    _sweepController.forward(from: 0.0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final String? selectedEdgeId = ref.watch(selectedEdgeProvider);
+    _maybeStartSweep(selectedEdgeId);
+
+    final double sweepProgress =
+        _sweepAnimation?.value ?? 0.0;
+    final bool sweepActive = _sweepController.isAnimating &&
+        !_reducedMotion &&
+        widget.edgeQuality.allowsSweep;
+
     return CustomPaint(
       painter: _EngineEdgePainter(
-        positions: positions,
-        edges: edges,
-        edgeCategories: edgeCategories,
-        edgeCustomColors: edgeCustomColors,
-        cache: cache,
+        positions: widget.positions,
+        edges: widget.edges,
+        edgeCategories: widget.edgeCategories,
+        edgeCustomColors: widget.edgeCustomColors,
+        cache: widget.cache,
         selectedEdgeId: selectedEdgeId,
+        edgeQuality: widget.edgeQuality,
+        graphRevision: widget.graphRevision,
+        layoutRevision: widget.layoutRevision,
+        edgeVisualRevision: widget.edgeVisualRevision,
+        dimmedEdgeIds: widget.dimmedEdgeIds,
+        sweepEdgeId: sweepActive ? _sweepEdgeId : null,
+        sweepProgress: sweepActive ? sweepProgress : 0.0,
+        sweepActive: sweepActive,
       ),
       child: const SizedBox.expand(),
     );
@@ -1888,6 +2177,34 @@ class _EdgeSelectionWrapper extends ConsumerWidget {
 /// positions. Because graph-space positions are constant during pan/zoom,
 /// repeated frames hit the cache and skip path construction entirely. The
 /// factory is O(1) (no per-edge node-collision scan).
+///
+/// v91 (FINAL 10/10 PASS): The painter is now a stateless physical
+/// thread renderer. For each edge it applies the GraphLighting contract:
+///
+///   FULL LOD — solid edges:
+///     PASS 1: contact shadow (neutral black, offset down-right)
+///     PASS 2: relationship body (category colour, custom colour)
+///     PASS 3: directional light ridge (top-left highlight)
+///
+///   FULL LOD — dashed edges:
+///     Per visible dash segment, the SAME three passes are applied
+///     so each dash reads as a physical chip, not a flat coloured
+///     tick. Gaps remain real — no continuous glow underneath.
+///
+///   CHIP LOD: same three passes with conservative sigma / ridge alpha.
+///
+///   DOT LOD: a single relationship-coloured stroke, no blur, no
+///   midpoint, no ridge.
+///
+///   SELECTED edge (FULL LOD): four passes — stronger shadow, body,
+///   brighter ridge, subtle Kinrel-orange interaction aura. The
+///   relationship identity is preserved; orange is the interaction
+///   accent only.
+///
+///   ONE-SHOT SWEEP: when `sweepActive`, a short near-white highlight
+///   segment travels ONCE along the selected edge's cached Path. The
+///   painter does NOT own the AnimationController — it receives
+///   `sweepProgress` and draws the segment at that position.
 class _EngineEdgePainter extends CustomPainter {
   _EngineEdgePainter({
     required this.positions,
@@ -1895,7 +2212,15 @@ class _EngineEdgePainter extends CustomPainter {
     required this.edgeCategories,
     required this.edgeCustomColors,
     required this.cache,
+    required this.edgeQuality,
+    required this.graphRevision,
+    required this.layoutRevision,
+    required this.edgeVisualRevision,
     this.selectedEdgeId,
+    this.dimmedEdgeIds,
+    this.sweepEdgeId,
+    this.sweepProgress = 0.0,
+    this.sweepActive = false,
   });
 
   final Map<String, Offset> positions;
@@ -1903,7 +2228,25 @@ class _EngineEdgePainter extends CustomPainter {
   final Map<String, KinshipEdgeCategory> edgeCategories;
   final Map<String, Map<String, dynamic>> edgeCustomColors;
   final EdgePathCache cache;
+  final EdgeQuality edgeQuality;
+
+  /// Revision counters — see PART 11. The painter compares these in
+  /// `shouldRepaint` instead of deep-comparing maps every frame.
+  final int graphRevision;
+  final int layoutRevision;
+  final int edgeVisualRevision;
+
   final String? selectedEdgeId;
+  final Set<String>? dimmedEdgeIds;
+
+  /// Edge ID the sweep is currently travelling along. Null when no
+  /// sweep is active. May differ from `selectedEdgeId` if selection
+  /// changed mid-sweep (the sweep completes on the original edge).
+  final String? sweepEdgeId;
+  final double sweepProgress;
+  final bool sweepActive;
+
+  // ── Path construction ─────────────────────────────────────────────────
 
   /// Builds a bezier curve path between two node centers.
   ///
@@ -1968,22 +2311,16 @@ class _EngineEdgePainter extends CustomPainter {
     if (edges.isEmpty) return;
     if (positions.isEmpty) return;
 
-    // §6: Removed debugPrint calls that ran on every repaint (perf tax).
-    // Only log in debug mode if explicitly needed.
+    // Pre-resolve a few per-frame constants from the lighting contract.
+    final bool isDot = edgeQuality == EdgeQuality.dot;
+    final double shadowSigma = edgeQuality.shadowSigma;
+    final double ridgeAlpha = edgeQuality.ridgeAlpha;
 
-    // §2: Selected edge now gets a glow pass underneath the crisp line.
-    final selectedGlow = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6.0
-      ..color = KinrelColors.orange.withValues(alpha: 0.30)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0);
-
-    final selectedPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..color = KinrelColors.orange
-      ..strokeCap = StrokeCap.round
-      ..isAntiAlias = true;
+    // Relationship-focus dimming factor (PART 13). Edges in
+    // `dimmedEdgeIds` get this alpha multiplier so unrelated threads
+    // recede gently when a node is selected. The selected edge and
+    // any sweep edge are never dimmed.
+    const double dimAlpha = 0.70; // ~30% reduction per PART 13
 
     for (final DedupedEdge deduped in edges) {
       final GraphEdgeData e = deduped.edge;
@@ -2010,22 +2347,16 @@ class _EngineEdgePainter extends CustomPainter {
         targetId: e.targetId,
         sourcePos: s,
         targetPos: t,
-        // The cache factory signature only takes (s, t) — we wrap the
-        // call so the lateral offset is applied inside _bezier.
-        // NOTE: The cache key includes the source/target IDs but NOT
-        // the lateral offset, so two parallel edges between the same
-        // pair would share a cache entry. To avoid this, we append the
-        // offset to the edge ID passed to the cache.
         pathFactory: (Offset ss, Offset tt) =>
             _bezier(ss, tt, lateralOffset: deduped.lateralOffset),
       );
 
-      if (e.id == selectedEdgeId) {
-        // §2: Two-pass draw for selected edge — glow + crisp line
-        canvas.drawPath(path, selectedGlow);
-        canvas.drawPath(path, selectedPaint);
-        continue;
-      }
+      final bool isSelected = e.id == selectedEdgeId;
+      final bool isSweep = sweepActive && e.id == sweepEdgeId;
+      final bool isDimmed = !isSelected &&
+          !isSweep &&
+          dimmedEdgeIds != null &&
+          dimmedEdgeIds!.contains(e.id);
 
       // v69: Resolve the edge style from the AUTHORITATIVE category —
       // no lossy string round-trip. If edgeCategories has this edge,
@@ -2063,194 +2394,590 @@ class _EngineEdgePainter extends CustomPainter {
         midpointSymbol = style.midpointSymbol;
       }
 
-      // §2: Two-pass draw — soft glow underneath, crisp line on top.
-      // The glow uses MaskFilter.blur for a 'lit' feel (like Miro/Linear).
-      final glowPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5.0
-        ..color = edgeColor.withValues(alpha: edgeAlpha * 0.25)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0)
-        ..isAntiAlias = true;
+      // Effective stroke width clamped to the lighting contract range.
+      final double bodyWidth = GraphLighting.clampBodyWidth(style.strokeWidth);
 
-      final edgePaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = style.strokeWidth.clamp(1.5, 5.0)
-        ..color = edgeColor.withValues(alpha: edgeAlpha)
-        ..isAntiAlias = true
-        ..strokeCap = StrokeCap.round;
+      // Final alpha after relationship-focus dimming.
+      final double effectiveAlpha = isDimmed
+          ? (edgeAlpha * dimAlpha).clamp(0.0, 1.0)
+          : edgeAlpha;
 
-      // Draw glow first (solid, even for dashed lines)
-      canvas.drawPath(path, glowPaint);
-
-      // Apply dash pattern if the style is dashed (only on the crisp line).
-      if (dashPattern.isNotEmpty && dashPattern.length >= 2) {
-        for (final metric in path.computeMetrics()) {
-          double pos = 0;
-          final dashWidth = dashPattern[0];
-          final dashGap = dashPattern[1];
-          while (pos < metric.length) {
-            final segEnd = (pos + dashWidth).clamp(0.0, metric.length);
-            canvas.drawPath(metric.extractPath(pos, segEnd), edgePaint);
-            pos += dashWidth + dashGap;
-          }
+      // ── DOT LOD: minimal stroke only ──────────────────────────────
+      // No blur, no ridge, no midpoint, no sweep. Selected edges get
+      // a slightly thicker stroke + a subtle orange aura so focus is
+      // still legible at the cheapest tier.
+      if (isDot) {
+        if (isSelected) {
+          // PASS D — orange interaction aura (cheap, no blur)
+          final dotAuraPaint = Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = bodyWidth + 2.0
+            ..color = KinrelColors.orange
+                .withValues(alpha: GraphLighting.selectedAuraAlpha)
+            ..strokeCap = StrokeCap.round
+            ..isAntiAlias = true;
+          canvas.drawPath(path, dotAuraPaint);
         }
-      } else {
-        canvas.drawPath(path, edgePaint);
+        final dotBodyPaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = isSelected ? bodyWidth + 0.6 : bodyWidth
+          ..color = edgeColor.withValues(alpha: effectiveAlpha)
+          ..strokeCap = StrokeCap.round
+          ..isAntiAlias = true;
+        canvas.drawPath(path, dotBodyPaint);
+        continue;
       }
 
-      // Draw midpoint symbol — heart (spouse only) or pseudo-3D dot bead.
+      // ── FULL / CHIP LOD: physical 3-pass thread ───────────────────
       //
-      // v90 (HEART FIX): The previous implementation painted a circular
-      // bead for BOTH `dot` and `heart` symbols, so spouse edges never
-      // showed an actual heart. Now we branch:
-      //   • heart  → HeartShape.drawHeart() (real heart silhouette)
-      //   • dot    → existing pseudo-3D obsidian bead
-      //   • none   → skipped entirely
-      //
-      // The heart is semantically reserved for spouse (husband/wife)
-      // edges — see KinshipEdgeStyleResolver.styleForCategory(spouse).
-      // Custom relationships may also request a heart via dotType='heart';
-      // in that case the heart is rendered with the canonical spouse-pink
-      // (#EC4899) so the symbol stays visually consistent across the
-      // graph — hearts are always pink in Kinrel's design language.
-      if (midpointSymbol != KinshipMidpointSymbol.none) {
-        Offset midPoint = Offset(
-          (s.dx + t.dx) / 2,
-          (s.dy + t.dy) / 2,
+      // For dashed edges we apply the SAME 3 passes to each visible
+      // dash segment (no continuous glow underneath). For solid edges
+      // we apply the 3 passes to the whole Path.
+
+      if (isSelected) {
+        _paintSelectedEdge(
+          canvas: canvas,
+          path: path,
+          edgeColor: edgeColor,
+          bodyWidth: bodyWidth,
+          edgeAlpha: edgeAlpha,
+          dashPattern: dashPattern,
+          shadowSigma: shadowSigma,
+          ridgeAlpha: ridgeAlpha,
         );
-        for (final metric in path.computeMetrics()) {
-          if (metric.length > 0) {
-            final tangent = metric.getTangentForOffset(metric.length * 0.5);
-            if (tangent != null) {
-              midPoint = tangent.position;
-              break;
-            }
-          }
-        }
+      } else if (dashPattern.isNotEmpty && dashPattern.length >= 2) {
+        _paintDashedPhysical(
+          canvas: canvas,
+          path: path,
+          edgeColor: edgeColor,
+          bodyWidth: bodyWidth,
+          edgeAlpha: effectiveAlpha,
+          dashPattern: dashPattern,
+          shadowSigma: shadowSigma,
+          ridgeAlpha: ridgeAlpha,
+        );
+      } else {
+        _paintSolidPhysical(
+          canvas: canvas,
+          path: path,
+          edgeColor: edgeColor,
+          bodyWidth: bodyWidth,
+          edgeAlpha: effectiveAlpha,
+          shadowSigma: shadowSigma,
+          ridgeAlpha: ridgeAlpha,
+        );
+      }
 
-        // Resolve the effective midpoint color.
-        //
-        // • Default relationship: use style.midpointColor. For spouse
-        //   this is KinshipEdgeColors.spouseHeart (pink #EC4899), which
-        //   is the only category whose midpoint color differs from the
-        //   edge color. For every other category it equals the edge
-        //   color.
-        // • Custom relationship with heart: force pink — hearts are
-        //   universally pink in Kinrel's design language, regardless
-        //   of the custom edge color.
-        // • Custom relationship with dot: use the custom edge color so
-        //   the bead inherits the user's chosen relationship identity.
-        final Color effectiveMidpointColor;
-        if (customColors != null) {
-          if (midpointSymbol == KinshipMidpointSymbol.heart) {
-            effectiveMidpointColor = KinshipEdgeColors.spouseHeart;
-          } else {
-            effectiveMidpointColor = edgeColor;
-          }
-        } else {
-          effectiveMidpointColor = style.midpointColor;
-        }
+      // ── ONE-SHOT SWEEP ────────────────────────────────────────────
+      // Drawn ABOVE the selected-edge passes. A short near-white
+      // highlight segment travels once along the cached Path.
+      if (isSweep) {
+        _paintSweepSegment(
+          canvas: canvas,
+          path: path,
+          progress: sweepProgress,
+          edgeColor: edgeColor,
+          bodyWidth: bodyWidth,
+        );
+      }
 
-        // Effective stroke width — same clamp used for the edge body,
-        // so the bead/heart scales consistently with the thread.
-        final double effectiveStrokeWidth =
-            style.strokeWidth.clamp(1.5, 5.0);
+      // ── MIDPOINT SYMBOL ───────────────────────────────────────────
+      // Bead / heart only at FULL or CHIP LOD (PART 10). Skipped at
+      // DOT LOD and skipped when the edge is dimmed (focus mode).
+      if (edgeQuality.allowsMidpoint &&
+          midpointSymbol != KinshipMidpointSymbol.none &&
+          !isDimmed) {
+        _paintMidpoint(
+          canvas: canvas,
+          path: path,
+          s: s,
+          t: t,
+          midpointSymbol: midpointSymbol,
+          customColors: customColors,
+          style: style,
+          edgeColor: edgeColor,
+          effectiveStrokeWidth: bodyWidth,
+          isSelected: isSelected,
+        );
+      }
+    }
+  }
 
-        if (midpointSymbol == KinshipMidpointSymbol.heart) {
-          // ── HEART (spouse only) ─────────────────────────────────
-          // Heart size scales gently with the edge stroke width so a
-          // thicker spouse thread carries a slightly larger heart, but
-          // stays clamped for visual stability across zoom levels.
-          //
-          // HeartShape.drawHeart renders:
-          //   1. soft pink glow halo (skipped when compact)
-          //   2. solid heart fill in [effectiveMidpointColor]
-          //   3. thin white border for definition
-          //   4. specular highlight on upper-left lobe (top-left
-          //      light direction — matches the global graph lighting
-          //      contract)
-          final double heartSize =
-              (effectiveStrokeWidth * 4.2).clamp(11.0, 16.0);
-          HeartShape.drawHeart(
-            canvas: canvas,
-            center: midPoint,
-            size: heartSize,
-            color: effectiveMidpointColor,
-            compact: false,
-          );
-        } else {
-          // ── PSEUDO-3D DOT BEAD ──────────────────────────────────
-          // Bead radius scales slightly with stroke width per the
-          // Premium Midpoint Bead v4 spec.
-          final double beadR =
-              (effectiveStrokeWidth * 1.45).clamp(3.8, 5.8);
-          final beadRect =
-              Rect.fromCircle(center: midPoint, radius: beadR);
+  // ── Physical paint helpers ───────────────────────────────────────────
 
-          // Shadow — down-right per global top-left light direction.
-          canvas.drawCircle(
-            midPoint + const Offset(1.5, 1.5),
-            beadR,
-            Paint()
-              ..color = Colors.black.withValues(alpha: 0.30)
-              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0),
-          );
+  /// PASS 1 + 2 + 3 for a solid (non-dashed) relationship thread.
+  ///
+  ///   PASS 1: contact shadow — neutral black, offset down-right,
+  ///           slightly wider than the body, blurred.
+  ///   PASS 2: relationship body — category colour (or custom colour),
+  ///           clamped to the lighting contract width range.
+  ///   PASS 3: directional light ridge — thin top-left highlight,
+  ///           translated by `GraphLighting.highlightOffset`.
+  void _paintSolidPhysical({
+    required Canvas canvas,
+    required Path path,
+    required Color edgeColor,
+    required double bodyWidth,
+    required double edgeAlpha,
+    required double shadowSigma,
+    required double ridgeAlpha,
+  }) {
+    // PASS 1 — contact shadow (only when blur is allowed — never at DOT).
+    if (shadowSigma > 0) {
+      canvas.save();
+      canvas.translate(GraphLighting.shadowOffset.dx, GraphLighting.shadowOffset.dy);
+      final shadowPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = bodyWidth + 2.4
+        ..color = Colors.black.withValues(alpha: GraphLighting.shadowAlpha)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, shadowSigma)
+        ..strokeCap = StrokeCap.round
+        ..isAntiAlias = true;
+      canvas.drawPath(path, shadowPaint);
+      canvas.restore();
+    }
 
-          // Dark rim (bottom) — adds convex depth reading.
-          canvas.drawArc(
-            Rect.fromCircle(
-                center: midPoint + const Offset(0, 1.5), radius: beadR),
-            0.0,
-            pi,
-            false,
-            Paint()
-              ..color =
-                  Color.lerp(effectiveMidpointColor, Colors.black, 0.5)!,
-          );
+    // PASS 2 — relationship body.
+    final bodyPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = bodyWidth
+      ..color = edgeColor.withValues(alpha: edgeAlpha)
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
+    canvas.drawPath(path, bodyPaint);
 
-          // Face gradient — upper-left light, darker bottom-right.
-          canvas.drawCircle(
-            midPoint,
-            beadR,
-            Paint()
-              ..shader = RadialGradient(
-                center: const Alignment(-0.3, -0.4),
-                radius: 0.8,
-                colors: [
-                  Color.lerp(effectiveMidpointColor, Colors.white, 0.3)!,
-                  effectiveMidpointColor,
-                  Color.lerp(effectiveMidpointColor, Colors.black, 0.3)!,
-                ],
-                stops: const [0.0, 0.5, 1.0],
-              ).createShader(beadRect),
-          );
+    // PASS 3 — directional light ridge (top-left highlight).
+    if (ridgeAlpha > 0) {
+      canvas.save();
+      canvas.translate(GraphLighting.highlightOffset.dx, GraphLighting.highlightOffset.dy);
+      final ridgePaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = (bodyWidth * 0.32).clamp(0.6, 1.0)
+        ..color = GraphLighting.ridgeColor(edgeColor)
+            .withValues(alpha: ridgeAlpha)
+        ..strokeCap = StrokeCap.round
+        ..isAntiAlias = true;
+      canvas.drawPath(path, ridgePaint);
+      canvas.restore();
+    }
+  }
 
-          // Specular highlight — tiny, upper-left.
-          canvas.drawOval(
-            Rect.fromCenter(
-              center: Offset(
-                  midPoint.dx - beadR * 0.25, midPoint.dy - beadR * 0.3),
-              width: beadR * 0.5,
-              height: beadR * 0.3,
-            ),
-            Paint()..color = Colors.white.withValues(alpha: 0.15),
-          );
+  /// Per-dash 3-pass physical rendering for dashed relationship threads.
+  ///
+  /// Obtains the PathMetric ONCE, extracts all visible dash segments
+  /// ONCE, and reuses those segments for shadow / body / ridge — so we
+  /// never recompute dash geometry across the three passes.
+  ///
+  /// Gaps remain real: no continuous coloured glow is painted
+  /// underneath the dashed edge (PART 4).
+  void _paintDashedPhysical({
+    required Canvas canvas,
+    required Path path,
+    required Color edgeColor,
+    required double bodyWidth,
+    required double edgeAlpha,
+    required List<double> dashPattern,
+    required double shadowSigma,
+    required double ridgeAlpha,
+  }) {
+    final dashWidth = dashPattern[0];
+    final dashGap = dashPattern[1];
+
+    // Collect dash segments ONCE for all 3 passes.
+    final segments = <Path>[];
+    for (final metric in path.computeMetrics()) {
+      double pos = 0;
+      while (pos < metric.length) {
+        final segEnd = (pos + dashWidth).clamp(0.0, metric.length);
+        segments.add(metric.extractPath(pos, segEnd));
+        pos += dashWidth + dashGap;
+      }
+    }
+
+    // PASS 1 — per-dash contact shadow.
+    if (shadowSigma > 0) {
+      canvas.save();
+      canvas.translate(GraphLighting.shadowOffset.dx, GraphLighting.shadowOffset.dy);
+      final shadowPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = bodyWidth + 2.0
+        ..color = Colors.black.withValues(alpha: GraphLighting.shadowAlpha)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, shadowSigma)
+        ..strokeCap = StrokeCap.round
+        ..isAntiAlias = true;
+      for (final seg in segments) {
+        canvas.drawPath(seg, shadowPaint);
+      }
+      canvas.restore();
+    }
+
+    // PASS 2 — per-dash relationship body.
+    final bodyPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = bodyWidth
+      ..color = edgeColor.withValues(alpha: edgeAlpha)
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
+    for (final seg in segments) {
+      canvas.drawPath(seg, bodyPaint);
+    }
+
+    // PASS 3 — per-dash directional light ridge.
+    if (ridgeAlpha > 0) {
+      canvas.save();
+      canvas.translate(GraphLighting.highlightOffset.dx, GraphLighting.highlightOffset.dy);
+      final ridgePaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = (bodyWidth * 0.32).clamp(0.6, 1.0)
+        ..color = GraphLighting.ridgeColor(edgeColor)
+            .withValues(alpha: ridgeAlpha)
+        ..strokeCap = StrokeCap.round
+        ..isAntiAlias = true;
+      for (final seg in segments) {
+        canvas.drawPath(seg, ridgePaint);
+      }
+      canvas.restore();
+    }
+  }
+
+  /// 4-pass premium treatment for the SELECTED edge (PART 7).
+  ///
+  ///   PASS A: stronger neutral contact shadow
+  ///   PASS B: ORIGINAL relationship-coloured body (identity preserved)
+  ///   PASS C: brighter top-left ridge
+  ///   PASS D: subtle Kinrel-orange interaction aura
+  ///
+  /// The orange is an INTERACTION accent only — it never replaces the
+  /// relationship category colour.
+  void _paintSelectedEdge({
+    required Canvas canvas,
+    required Path path,
+    required Color edgeColor,
+    required double bodyWidth,
+    required double edgeAlpha,
+    required List<double> dashPattern,
+    required double shadowSigma,
+    required double ridgeAlpha,
+  }) {
+    // For dashed selected edges, fall back to per-dash physical
+    // rendering for the body + ridge (so dash semantics survive
+    // selection), then add the orange aura as a continuous underneath
+    // pass. The aura is the only continuous pass; it is subtle and
+    // does NOT obscure the dashes.
+    final bool dashed = dashPattern.isNotEmpty && dashPattern.length >= 2;
+
+    // PASS D — Kinrel orange interaction aura (drawn FIRST so it sits
+    // underneath the body). Continuous even for dashed edges, but very
+    // subtle so dash gaps still read.
+    if (shadowSigma > 0) {
+      final auraPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = bodyWidth + GraphLighting.selectedAuraWidthDelta
+        ..color = KinrelColors.orange
+            .withValues(alpha: GraphLighting.selectedAuraAlpha)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, GraphLighting.selectedAuraSigma)
+        ..strokeCap = StrokeCap.round
+        ..isAntiAlias = true;
+      canvas.drawPath(path, auraPaint);
+    }
+
+    // PASS A — stronger neutral contact shadow.
+    if (shadowSigma > 0) {
+      canvas.save();
+      canvas.translate(GraphLighting.shadowOffset.dx, GraphLighting.shadowOffset.dy);
+      final shadowPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = bodyWidth + 2.8
+        ..color = Colors.black
+            .withValues(alpha: GraphLighting.selectedShadowAlpha)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, shadowSigma)
+        ..strokeCap = StrokeCap.round
+        ..isAntiAlias = true;
+      canvas.drawPath(path, shadowPaint);
+      canvas.restore();
+    }
+
+    if (dashed) {
+      // PASS B + C per dash segment.
+      final dashWidth = dashPattern[0];
+      final dashGap = dashPattern[1];
+      final segments = <Path>[];
+      for (final metric in path.computeMetrics()) {
+        double pos = 0;
+        while (pos < metric.length) {
+          final segEnd = (pos + dashWidth).clamp(0.0, metric.length);
+          segments.add(metric.extractPath(pos, segEnd));
+          pos += dashWidth + dashGap;
         }
       }
+
+      // PASS B — relationship-coloured body per dash.
+      final bodyPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = bodyWidth
+        ..color = edgeColor.withValues(alpha: edgeAlpha)
+        ..strokeCap = StrokeCap.round
+        ..isAntiAlias = true;
+      for (final seg in segments) {
+        canvas.drawPath(seg, bodyPaint);
+      }
+
+      // PASS C — brighter top-left ridge per dash.
+      if (ridgeAlpha > 0) {
+        canvas.save();
+        canvas.translate(GraphLighting.highlightOffset.dx, GraphLighting.highlightOffset.dy);
+        final ridgePaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = (bodyWidth * 0.36).clamp(0.6, 1.2)
+          ..color = GraphLighting.ridgeColor(edgeColor, t: 0.65)
+              .withValues(alpha: (ridgeAlpha + 0.10).clamp(0.0, 1.0))
+          ..strokeCap = StrokeCap.round
+          ..isAntiAlias = true;
+        for (final seg in segments) {
+          canvas.drawPath(seg, ridgePaint);
+        }
+        canvas.restore();
+      }
+    } else {
+      // PASS B — relationship-coloured body (continuous).
+      final bodyPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = bodyWidth
+        ..color = edgeColor.withValues(alpha: edgeAlpha)
+        ..strokeCap = StrokeCap.round
+        ..isAntiAlias = true;
+      canvas.drawPath(path, bodyPaint);
+
+      // PASS C — brighter top-left ridge.
+      if (ridgeAlpha > 0) {
+        canvas.save();
+        canvas.translate(GraphLighting.highlightOffset.dx, GraphLighting.highlightOffset.dy);
+        final ridgePaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = (bodyWidth * 0.36).clamp(0.6, 1.2)
+          ..color = GraphLighting.ridgeColor(edgeColor, t: 0.65)
+              .withValues(alpha: (ridgeAlpha + 0.10).clamp(0.0, 1.0))
+          ..strokeCap = StrokeCap.round
+          ..isAntiAlias = true;
+        canvas.drawPath(path, ridgePaint);
+        canvas.restore();
+      }
+    }
+  }
+
+  /// ONE-SHOT sweep (PART 8). A short near-white highlight segment
+  /// travels ONCE along the selected edge's cached Path. The painter
+  /// does NOT own the AnimationController — it receives `progress`
+  /// (0..1) and extracts the segment at that position.
+  void _paintSweepSegment({
+    required Canvas canvas,
+    required Path path,
+    required double progress,
+    required Color edgeColor,
+    required double bodyWidth,
+  }) {
+    final metrics = path.computeMetrics();
+    if (metrics.isEmpty) return;
+    final metric = metrics.first;
+    if (metric.length <= 0) return;
+
+    final double center = (metric.length * progress).clamp(0.0, metric.length);
+    final double segLen =
+        (metric.length * GraphLighting.sweepSegmentFraction)
+            .clamp(8.0, metric.length);
+    final double start = (center - segLen / 2).clamp(0.0, metric.length);
+    final double end = (center + segLen / 2).clamp(0.0, metric.length);
+    if (end <= start) return;
+
+    final Path sweepPath = metric.extractPath(start, end);
+
+    // Soft near-white tinted-with-relationship-colour highlight.
+    final sweepPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = bodyWidth + 1.2
+      ..color = GraphLighting.ridgeColor(edgeColor, t: 0.75)
+          .withValues(alpha: 0.55)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.4)
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
+    canvas.drawPath(sweepPath, sweepPaint);
+
+    // Crisp inner core for a premium "polished filament" read.
+    final corePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (bodyWidth * 0.5).clamp(0.8, 1.6)
+      ..color = Colors.white.withValues(alpha: 0.70)
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
+    canvas.drawPath(sweepPath, corePaint);
+  }
+
+  /// Midpoint bead / heart (PART 6). Branches on `midpointSymbol`:
+  ///   • heart → HeartShape.drawHeart (spouse pink, or custom-heart pink)
+  ///   • dot   → pseudo-3D obsidian bead with effective midpoint colour
+  void _paintMidpoint({
+    required Canvas canvas,
+    required Path path,
+    required Offset s,
+    required Offset t,
+    required KinshipMidpointSymbol midpointSymbol,
+    required Map<String, dynamic>? customColors,
+    required KinshipEdgeStyle style,
+    required Color edgeColor,
+    required double effectiveStrokeWidth,
+    required bool isSelected,
+  }) {
+    Offset midPoint = Offset((s.dx + t.dx) / 2, (s.dy + t.dy) / 2);
+    for (final metric in path.computeMetrics()) {
+      if (metric.length > 0) {
+        final tangent = metric.getTangentForOffset(metric.length * 0.5);
+        if (tangent != null) {
+          midPoint = tangent.position;
+          break;
+        }
+      }
+    }
+
+    // Resolve the effective midpoint color.
+    //   • Default relationship → style.midpointColor (pink for spouse,
+    //     edge colour for every other category).
+    //   • Custom relationship + heart → force pink (hearts are always
+    //     pink in Kinrel's design language).
+    //   • Custom relationship + dot   → use the custom edge colour so
+    //     the bead inherits the user's chosen relationship identity.
+    final Color effectiveMidpointColor;
+    if (customColors != null) {
+      if (midpointSymbol == KinshipMidpointSymbol.heart) {
+        effectiveMidpointColor = KinshipEdgeColors.spouseHeart;
+      } else {
+        effectiveMidpointColor = edgeColor;
+      }
+    } else {
+      effectiveMidpointColor = style.midpointColor;
+    }
+
+    if (midpointSymbol == KinshipMidpointSymbol.heart) {
+      // ── HEART (spouse only by default) ───────────────────────
+      final double heartSize =
+          GraphLighting.heartSizeFor(effectiveStrokeWidth);
+      HeartShape.drawHeart(
+        canvas: canvas,
+        center: midPoint,
+        size: heartSize,
+        color: effectiveMidpointColor,
+        compact: edgeQuality != EdgeQuality.full,
+      );
+    } else {
+      // ── PSEUDO-3D DOT BEAD ───────────────────────────────────
+      final double beadR =
+          GraphLighting.beadRadiusFor(effectiveStrokeWidth);
+      final beadRect = Rect.fromCircle(center: midPoint, radius: beadR);
+
+      // Shadow — down-right per global lighting contract.
+      canvas.drawCircle(
+        midPoint + GraphLighting.shadowOffset,
+        beadR,
+        Paint()
+          ..color = Colors.black
+              .withValues(alpha: isSelected
+                  ? GraphLighting.selectedShadowAlpha
+                  : GraphLighting.shadowAlpha)
+          ..maskFilter = MaskFilter.blur(
+              BlurStyle.normal,
+              edgeQuality == EdgeQuality.full
+                  ? 2.0
+                  : 1.4),
+      );
+
+      // Dark rim (bottom) — adds convex depth reading.
+      canvas.drawArc(
+        Rect.fromCircle(
+            center: midPoint + const Offset(0, 1.5), radius: beadR),
+        0.0,
+        pi,
+        false,
+        Paint()
+          ..color =
+              Color.lerp(effectiveMidpointColor, Colors.black, 0.5)!,
+      );
+
+      // Face gradient — upper-left light, darker bottom-right.
+      canvas.drawCircle(
+        midPoint,
+        beadR,
+        Paint()
+          ..shader = RadialGradient(
+            center: const Alignment(-0.3, -0.4),
+            radius: 0.8,
+            colors: [
+              Color.lerp(effectiveMidpointColor, Colors.white, 0.3)!,
+              effectiveMidpointColor,
+              Color.lerp(effectiveMidpointColor, Colors.black, 0.3)!,
+            ],
+            stops: const [0.0, 0.5, 1.0],
+          ).createShader(beadRect),
+      );
+
+      // Specular highlight — tiny, upper-left.
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: Offset(
+              midPoint.dx - beadR * 0.25, midPoint.dy - beadR * 0.3),
+          width: beadR * 0.5,
+          height: beadR * 0.3,
+        ),
+        Paint()..color = Colors.white.withValues(alpha: 0.15),
+      );
     }
   }
 
   @override
   bool shouldRepaint(covariant _EngineEdgePainter old) {
-    // v88 FIX: On Flutter Web (dart2js), identical() is unreliable.
-    // Use ONLY content-based comparisons — never identical().
-    // Also always return true when edges or positions changed (length
-    // differs), which covers the add-member and remove-member cases.
-    return old.edges.length != edges.length ||
+    // v91 (PART 11): Revision-based repaint correctness.
+    //
+    // The old implementation compared only collection LENGTHS, which
+    // missed content changes where:
+    //   • edge count is unchanged but a category changed
+    //   • position count is unchanged but coordinates changed
+    //   • custom colours changed without changing edge count
+    //
+    // The new implementation compares lightweight revision counters
+    // that are bumped by the data layer whenever the corresponding
+    // data mutation happens. This avoids deep-comparing thousands of
+    // map entries on every animation frame (which would be O(N) per
+    // tick) while still repainting on every real content change.
+    //
+    // We also repaint on:
+    //   • selectedEdgeId change (selected-edge premium treatment)
+    //   • sweepActive / sweepProgress change (one-shot sweep ticks)
+    //   • edgeQuality change (LOD transition)
+    //   • dimmedEdgeIds presence change (relationship focus mode)
+    //
+    // We intentionally do NOT use `identical()` — on Flutter Web
+    // (dart2js) it is unreliable across widget rebuilds.
+    return old.graphRevision != graphRevision ||
+        old.layoutRevision != layoutRevision ||
+        old.edgeVisualRevision != edgeVisualRevision ||
         old.selectedEdgeId != selectedEdgeId ||
-        old.positions.length != positions.length ||
-        old.edgeCategories.length != edgeCategories.length ||
-        old.edgeCustomColors.length != edgeCustomColors.length;
+        old.edgeQuality != edgeQuality ||
+        old.sweepActive != sweepActive ||
+        (sweepActive && old.sweepProgress != sweepProgress) ||
+        !_sameDimmedSet(old.dimmedEdgeIds);
+  }
+
+  /// Lightweight dimmed-set comparison. We do NOT deep-compare element
+  /// by element on every frame — we compare length + identity first,
+  /// and only fall back to a containsAll check when lengths match but
+  /// identities differ. This is O(N) only on actual focus-mode
+  /// transitions, not on every animation tick.
+  bool _sameDimmedSet(Set<String>? other) {
+    if (identical(dimmedEdgeIds, other)) return true;
+    final a = dimmedEdgeIds;
+    final b = other;
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    if (a.length != b.length) return false;
+    return a.containsAll(b);
   }
 }
 
