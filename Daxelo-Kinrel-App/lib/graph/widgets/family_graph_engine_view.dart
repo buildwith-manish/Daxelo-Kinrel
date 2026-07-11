@@ -31,9 +31,7 @@
 //   • Expand/collapse — long-press a node to toggle its descendants.
 
 import 'dart:async';
-import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
