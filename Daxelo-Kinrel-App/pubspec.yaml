@@ -104,8 +104,9 @@ dependencies:
   maplibre: ^0.3.5
   latlong2: ^0.9.1
   # geolocator: GPS capture for live location sharing on the Family Map.
-  # Verified on pub.dev: latest=14.0.3, supports Android/iOS/Web/macOS/Windows.
-  geolocator: ^14.0.3
+  # Pinned to ^14.0.2 (not ^14.0.3) because 14.0.3 requires
+  # package_info_plus ^10.0.0 which conflicts with our ^8.3.0.
+  geolocator: ^14.0.2
 
   # Math/Graph
   collection: ^1.19.1
