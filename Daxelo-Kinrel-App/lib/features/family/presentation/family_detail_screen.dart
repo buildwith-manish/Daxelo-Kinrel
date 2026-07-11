@@ -284,6 +284,15 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     ),
                   ),
 
+                  // 5. Discovery grid — wire all orphan modules into the hub.
+                  // These screens already work; this is purely nav wiring.
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      _DiscoveryGrid(familyId: widget.familyId),
+                      4,
+                    ),
+                  ),
+
                   // Bottom padding: must be >= dock height + dock's
                   // bottom offset + a small visible gap so the last
                   // content row is never hidden behind the dock.
@@ -3942,6 +3951,158 @@ class _SharedListTile extends StatelessWidget {
                 Icon(Icons.chevron_right, color: theme.colorScheme.outline),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DISCOVERY GRID
+// Wires all orphan modules into the family hub. These screens already
+// work — this is purely nav wiring (Phase 15a).
+// ═══════════════════════════════════════════════════════════════════════
+
+class _DiscoveryGrid extends StatelessWidget {
+  const _DiscoveryGrid({required this.familyId});
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tiles = <_DiscoveryTile>[
+      _DiscoveryTile(
+        icon: Icons.auto_awesome,
+        label: 'Family Intelligence',
+        subtitle: 'Pulse, brief, quests, blessings',
+        color: const Color(0xFFC8853A),
+        onTap: () => context.push('/pulse'),
+      ),
+      _DiscoveryTile(
+        icon: Icons.photo_library_outlined,
+        label: 'Memories',
+        subtitle: 'Photo vault & On This Day',
+        color: const Color(0xFF00897B),
+        onTap: () => context.push('/memory-vault?familyId=$familyId'),
+      ),
+      _DiscoveryTile(
+        icon: Icons.mic_none,
+        label: 'Oral History',
+        subtitle: 'Record family stories',
+        color: const Color(0xFFD81B60),
+        onTap: () => context.push('/oral-history?familyId=$familyId'),
+      ),
+      _DiscoveryTile(
+        icon: Icons.quiz_outlined,
+        label: 'Quiz',
+        subtitle: 'Family trivia & games',
+        color: const Color(0xFF1E88E5),
+        onTap: () => context.push('/quiz?familyId=$familyId'),
+      ),
+      _DiscoveryTile(
+        icon: Icons.emoji_events_outlined,
+        label: 'Achievements',
+        subtitle: 'Streaks, badges, stats',
+        color: const Color(0xFFF4511E),
+        onTap: () => context.push('/achievements'),
+      ),
+      _DiscoveryTile(
+        icon: Icons.memory,
+        label: 'Memories',
+        subtitle: 'Family activity feed',
+        color: const Color(0xFF8E24AA),
+        onTap: () => context.push('/memories?familyId=$familyId'),
+      ),
+    ];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              'Discover',
+              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              childAspectRatio: 0.85,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+            ),
+            itemCount: tiles.length,
+            itemBuilder: (context, i) => tiles[i],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiscoveryTile extends StatelessWidget {
+  const _DiscoveryTile({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: 9,
+                  color: theme.colorScheme.outline,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
       ),
