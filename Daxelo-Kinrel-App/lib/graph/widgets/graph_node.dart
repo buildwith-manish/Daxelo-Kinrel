@@ -709,11 +709,12 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   }
 
   // ── Circle Node Builder ────────────────────────────────────────────
+  // ── Circle Node Builder (Pseudo-3D) ─────────────────────────────────
 
   Widget _buildCircleNode() {
     final diameter = widget.nodeSize;
 
-    // Anonymous node: gray, no avatar, no name
+    // Anonymous node: gray, no avatar, no name (unchanged)
     if (widget.isAnonymous) {
       return Container(
         width: diameter,
@@ -736,233 +737,126 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       );
     }
 
-    // Anchor node: double-ring (outer teal 88dp glow, inner 72dp solid)
-    // with generation-based elevation shadow (most pronounced — closest
-    // to viewer).
-    if (widget.isAnchor) {
-      return SizedBox(
-        width: diameter + 16.0,
-        height: diameter + 16.0,
-        child: Center(
-          child: Container(
+    // Pseudo-3D node: all 6 layers painted by a single CustomPainter.
+    final nodeParams = _Pseudo3DParams(
+      diameter: diameter,
+      borderColor: widget.isAnchor ? RelationshipColors.self : _borderColor,
+      borderWidth: widget.isAnchor ? 3.0 : _borderWidth,
+      generationIndex: widget.generationIndex,
+      isAnchor: widget.isAnchor,
+      nodeState: widget.nodeState,
+      tintColor: _tintColor,
+      showTint: widget.nodeState == NodeState.selected ||
+          widget.nodeState == NodeState.hover,
+    );
+
+    final extraPad = widget.isAnchor ? 16.0 : 12.0;
+
+    return SizedBox(
+      width: diameter + extraPad,
+      height: diameter + extraPad,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Layers 1-6: CustomPainter renders the entire pseudo-3D node
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _Pseudo3DNodePainter(nodeParams),
+            ),
+          ),
+          // Content layer (initials/photo) clipped to the circle
+          Positioned(
+            left: extraPad / 2,
+            top: extraPad / 2,
             width: diameter,
             height: diameter,
-            clipBehavior: Clip.none,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                center: const Alignment(-0.3, -0.4),
-                radius: 0.9,
-                colors: [
-                  KinrelColors.darkElevated,
-                  KinrelColors.darkCard,
-                  Color.lerp(KinrelColors.darkCard, Colors.black, 0.4)!,
+            child: ClipOval(
+              child: Stack(
+                children: [
+                  if (nodeParams.showTint)
+                    Positioned.fill(child: Container(color: nodeParams.tintColor)),
+                  _buildCircleContent(diameter),
+                  if (widget.nodeState == NodeState.loading)
+                    Positioned.fill(
+                      child: AnimatedBuilder(
+                        animation: _shimmerAnimation,
+                        builder: (context, child) {
+                          return CustomPaint(
+                            painter: _ShimmerPainter(_shimmerAnimation.value),
+                          );
+                        },
+                      ),
+                    ),
+                  if (widget.nodeState == NodeState.error)
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(4.0),
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: KinrelColors.error,
+                        ),
+                        child: Icon(Icons.error_outline,
+                            size: diameter * 0.25, color: KinrelColors.textWhite),
+                      ),
+                    ),
                 ],
-                stops: const [0.0, 0.6, 1.0],
-              ),
-              border: Border.all(
-                color: RelationshipColors.self,
-                width: 3.0,
-              ),
-              boxShadow: [
-                // Teal spread glow (existing anchor ring)
-                BoxShadow(
-                  color: RelationshipColors.self.withValues(alpha: 0.25),
-                  blurRadius: 0.0,
-                  spreadRadius: 8.0,
-                ),
-                // 2.5D elevation shadow (generation-driven)
-                ..._elevationShadows,
-              ],
-            ),
-            child: _buildCircleContent(diameter),
-          ),
-        ),
-      );
-    }
-
-    // Standard node with relationship-colored ring
-    // 2.5D depth: elevation shadow is computed once from generationIndex
-    // + state via _elevationShadows getter — no per-frame recomputation.
-    // clipBehavior: Clip.none allows the BoxShadow to render OUTSIDE the
-    // Container bounds — without this, the shadow is clipped and invisible.
-    return Container(
-      width: diameter,
-      height: diameter,
-      clipBehavior: Clip.none,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          center: const Alignment(-0.3, -0.4),
-          radius: 0.9,
-          colors: [
-            KinrelColors.darkElevated,
-            KinrelColors.darkCard,
-            Color.lerp(KinrelColors.darkCard, Colors.black, 0.4)!,
-          ],
-          stops: const [0.0, 0.6, 1.0],
-        ),
-        border: Border.all(
-          color: _borderColor,
-          width: _borderWidth,
-        ),
-        boxShadow: _elevationShadows,
-      ),
-      child: Stack(
-        children: [
-          // §4: Inner hairline ring — thin 1px white-alpha border just
-          // inside the colored border, creates a "refined bezel" look
-          // (like Linear/Arc avatar rings) instead of a flat colored ring.
-          Positioned.fill(
-            child: Container(
-              margin: const EdgeInsets.all(1.5),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.06),
-                  width: 1,
-                ),
               ),
             ),
           ),
-          // Background tint
-          if (widget.nodeState == NodeState.selected ||
-              widget.nodeState == NodeState.hover)
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _tintColor,
-                ),
-              ),
-            ),
-          // Circle content (initials or photo)
-          _buildCircleContent(diameter),
-          // Loading: shimmer overlay
-          if (widget.nodeState == NodeState.loading)
-            Positioned.fill(
-              child: ClipOval(
-                child: AnimatedBuilder(
-                  animation: _shimmerAnimation,
-                  builder: (context, child) {
-                    return CustomPaint(
-                      painter: _ShimmerPainter(_shimmerAnimation.value),
-                    );
-                  },
-                ),
-              ),
-            ),
-          // Error: error icon overlay
-          if (widget.nodeState == NodeState.error)
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(4.0),
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: KinrelColors.error,
-                ),
-                child: Icon(
-                  Icons.error_outline,
-                  size: diameter * 0.25,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-            ),
-          // Private relationship: lock icon
+          // Private lock
           if (widget.isPrivate)
             Positioned(
-              right: 0,
-              top: 0,
+              right: extraPad / 2 - 2, top: extraPad / 2 - 2,
               child: Container(
                 padding: const EdgeInsets.all(2.0),
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: KinrelColors.darkCard,
-                  border: Border.all(
-                    color: KinrelColors.amber,
-                    width: 1.5,
-                  ),
+                  shape: BoxShape.circle, color: KinrelColors.darkCard,
+                  border: Border.all(color: KinrelColors.amber, width: 1.0),
                 ),
-                child: Icon(
-                  Icons.lock_outline,
-                  size: diameter * 0.2,
-                  color: KinrelColors.amber,
-                ),
+                child: Icon(Icons.lock, size: diameter * 0.12, color: KinrelColors.amber),
               ),
             ),
-          // Unclaimed Person: "Pending" badge (bottom-left)
+          // Pending badge
           if (widget.isUnclaimed)
             Positioned(
-              left: 0,
-              bottom: 0,
+              right: extraPad / 2 - 2, bottom: extraPad / 2 - 2,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
                 decoration: BoxDecoration(
-                  color: KinrelColors.orange,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: KinrelColors.darkCard,
-                    width: 1.5,
-                  ),
+                  color: KinrelColors.amber, borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  'Pending',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: diameter * 0.13,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
+                child: Text('Pending',
+                    style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: KinrelColors.darkCard)),
               ),
             ),
-          // Kinrel role glyph badge (top-right) — shows the member's role
-          // within the family Kinrel (root/anchor/bridge/weaver/leaf/twin_node).
-          // Rendered only when the feature flag is on AND a familyId is
-          // provided AND the provider has a role for this member.
-          if (kEnableKinrel && widget.familyId != null)
+          // Role glyph
+          if (widget.familyId != null && kEnableKinrel)
             Positioned(
-              right: 0,
-              top: 0,
-              child: _NodeRoleGlyphBadge(
-                familyId: widget.familyId!,
-                memberId: widget.personId,
-                diameter: diameter,
-              ),
+              right: extraPad / 2 - 4, bottom: extraPad / 2 - 4,
+              child: RoleGlyphBadge(
+                familyId: widget.familyId!, personId: widget.personId, size: diameter * 0.3),
             ),
           // Expand indicator
-          if (widget.nodeState == NodeState.expanded ||
-              widget.nodeState == NodeState.loading)
+          if (widget.relationshipKey != null &&
+              ExpandIndicators.expandLabelFor(widget.relationshipKey) != null)
             Positioned(
-              right: 0,
-              bottom: 0,
-              child: RotationTransition(
-                turns: _expandRotateController,
+              right: extraPad / 2 - 4, top: extraPad / 2 - 4,
+              child: GestureDetector(
+                onTap: () {},
                 child: Container(
-                  padding: const EdgeInsets.all(3.0),
+                  padding: const EdgeInsets.all(2.0),
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: KinrelColors.darkCard,
-                    border: Border.all(
-                      color: _borderColor,
-                      width: 1.5,
-                    ),
+                    shape: BoxShape.circle, color: KinrelColors.darkCard,
+                    border: Border.all(color: _borderColor, width: 1.0),
                   ),
-                  child: widget.nodeState == NodeState.loading
-                      ? SizedBox(
-                          width: diameter * 0.18,
-                          height: diameter * 0.18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 1.5,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(_borderColor),
-                          ),
-                        )
-                      : Icon(
-                          Icons.expand_more,
-                          size: diameter * 0.2,
-                          color: _borderColor,
-                        ),
+                  child: AnimatedBuilder(
+                    animation: _expandRotateController,
+                    builder: (context, child) =>
+                        Transform.rotate(angle: _expandRotateController.value * pi, child: child),
+                    child: widget.nodeState == NodeState.expanded
+                        ? Icon(Icons.expand_less, size: diameter * 0.2, color: _borderColor)
+                        : Icon(Icons.expand_more, size: diameter * 0.2, color: _borderColor),
+                  ),
                 ),
               ),
             ),
@@ -970,6 +864,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       ),
     );
   }
+
 
   /// Border width varies by state. Doubled in high contrast mode
   /// per V2.1 Blueprint §19 (WCAG AA minimum contrast 4.5:1).
@@ -1187,5 +1082,239 @@ class _NodeRoleGlyphBadge extends ConsumerWidget {
     // 14–22px so it's visible on compact nodes without crowding large ones.
     final size = (diameter * 0.35).clamp(14.0, 22.0);
     return RoleGlyphBadge(role: role, size: size);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PSEUDO-3D NODE PAINTER
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Immutable parameters for the pseudo-3D node painter.
+/// Computed once from generationIndex + state + color, NOT per-frame.
+class _Pseudo3DParams {
+  const _Pseudo3DParams({
+    required this.diameter,
+    required this.borderColor,
+    required this.borderWidth,
+    required this.generationIndex,
+    required this.isAnchor,
+    required this.nodeState,
+    required this.tintColor,
+    required this.showTint,
+  });
+
+  final double diameter;
+  final Color borderColor;
+  final double borderWidth;
+  final int generationIndex;
+  final bool isAnchor;
+  final NodeState nodeState;
+  final Color tintColor;
+  final bool showTint;
+
+  // Derived depth values (computed once, not per-frame)
+  double get shadowBlur {
+    if (isAnchor) return 18.0;
+    if (generationIndex < 0) return 14.0;
+    if (generationIndex > 0) return 7.0;
+    return 12.0;
+  }
+
+  double get shadowOffsetY {
+    if (isAnchor) return 7.0;
+    if (generationIndex < 0) return -2.0;
+    if (generationIndex > 0) return 3.0;
+    return 5.0;
+  }
+
+  double get shadowAlpha {
+    if (isAnchor) return 0.45;
+    if (generationIndex < 0) return 0.32;
+    if (generationIndex > 0) return 0.22;
+    return 0.38;
+  }
+
+  double get rimDepth => isAnchor ? 7.0 : (generationIndex == 0 ? 5.0 : 4.0);
+
+  double get highlightAlpha {
+    if (isAnchor) return 0.10;
+    if (generationIndex < 0) return 0.07;
+    if (generationIndex > 0) return 0.04;
+    return 0.06;
+  }
+
+  double get glowAlpha {
+    switch (nodeState) {
+      case NodeState.selected: return 0.35;
+      case NodeState.focused: return 0.30;
+      default: return 0.0;
+    }
+  }
+
+  double get glowBlur {
+    switch (nodeState) {
+      case NodeState.selected: return 12.0;
+      case NodeState.focused: return 10.0;
+      default: return 0.0;
+    }
+  }
+}
+
+/// Paints a pseudo-3D node in 6 layers using a single CustomPainter.
+/// All layers are drawn in one paint() call — no per-layer widget overhead.
+///
+/// Layer 1: Ambient shadow (soft, bottom-right offset)
+/// Layer 2: Extruded lower rim (dark arc at bottom)
+/// Layer 3: Glass face (directional radial gradient)
+/// Layer 4: Relationship border (brighter TL, darker BR)
+/// Layer 5: Specular highlight (elliptical, upper-left)
+/// Layer 6: Contact glow (selected/focused, tight)
+class _Pseudo3DNodePainter extends CustomPainter {
+  const _Pseudo3DNodePainter(this.params);
+
+  final _Pseudo3DParams params;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final d = params.diameter;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = d / 2;
+    final borderRect = Rect.fromCircle(center: center, radius: radius);
+
+    // ── Layer 1: Ambient shadow ──────────────────────────────────
+    // Soft dark shadow offset toward bottom-right, implies light from TL.
+    final shadowPaint = Paint()
+      ..color = Colors.black.withValues(alpha: params.shadowAlpha)
+      ..maskFilter = MaskFilter.blur(
+        BlurStyle.normal,
+        params.shadowBlur,
+      );
+    final shadowOffset = Offset(2.0, params.shadowOffsetY);
+    canvas.drawCircle(center + shadowOffset, radius, shadowPaint);
+
+    // ── Layer 2: Extruded lower rim ──────────────────────────────
+    // Dark arc at the bottom giving physical thickness.
+    final rimDepth = params.rimDepth;
+    final rimRect = Rect.fromCircle(
+      center: Offset(center.dx, center.dy + rimDepth * 0.5),
+      radius: radius,
+    );
+    final rimPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          KinrelColors.darkCard,
+          Color.lerp(KinrelColors.darkCard, Colors.black, 0.6)!,
+        ],
+      ).createShader(rimRect);
+    // Draw the rim as the bottom portion of the circle
+    canvas.drawArc(rimRect, 0, pi, false, rimPaint);
+
+    // ── Layer 3: Glass face ──────────────────────────────────────
+    // Directional radial gradient: brighter TL, center = darkCard, darker BR.
+    final facePaint = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-0.3, -0.4),
+        radius: 0.9,
+        colors: [
+          KinrelColors.darkElevated,
+          KinrelColors.darkCard,
+          Color.lerp(KinrelColors.darkCard, Colors.black, 0.35)!,
+        ],
+        stops: const [0.0, 0.55, 1.0],
+      ).createShader(borderRect);
+    canvas.drawCircle(center, radius - params.borderWidth * 0.5, facePaint);
+
+    // Tint overlay for selected/hover
+    if (params.showTint) {
+      final tintPaint = Paint()..color = params.tintColor;
+      canvas.drawCircle(center, radius - params.borderWidth * 0.5, tintPaint);
+    }
+
+    // ── Layer 4: Relationship border ─────────────────────────────
+    // Brighter on TL arc, darker on BR arc — simulated directional light.
+    // Draw as two arcs: TL half brighter, BR half darker.
+    final borderBright = params.borderColor;
+    final borderDark = Color.lerp(params.borderColor, Colors.black, 0.4)!;
+
+    final tlArcPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = params.borderWidth
+      ..shader = SweepGradient(
+        center: Alignment.center,
+        startAngle: pi, // start from left
+        endAngle: 2 * pi,
+        colors: [borderBright, borderDark, borderBright],
+        stops: const [0.0, 0.5, 1.0],
+        transform: GradientRotation(-pi * 0.75),
+      ).createShader(borderRect);
+    canvas.drawCircle(center, radius - params.borderWidth * 0.5, tlArcPaint);
+
+    // Inner hairline (1px white-alpha inside border)
+    final hairlinePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..color = Colors.white.withValues(alpha: 0.06);
+    final hairlineRect = Rect.fromCircle(
+      center: center,
+      radius: radius - params.borderWidth - 1.0,
+    );
+    canvas.drawCircle(hairlineRect.center, hairlineRect.radius, hairlinePaint);
+
+    // ── Layer 5: Specular highlight ──────────────────────────────
+    // Elliptical highlight near upper-left, low opacity, soft light on glass.
+    final highlightAlpha = params.highlightAlpha;
+    if (highlightAlpha > 0) {
+      final hlCenter = Offset(
+        center.dx - radius * 0.25,
+        center.dy - radius * 0.3,
+      );
+      final hlRect = Rect.fromCenter(
+        center: hlCenter,
+        width: radius * 0.6,
+        height: radius * 0.35,
+      );
+      final hlPaint = Paint()
+        ..shader = RadialGradient(
+          center: Alignment.center,
+          radius: 0.8,
+          colors: [
+            Colors.white.withValues(alpha: highlightAlpha),
+            Colors.white.withValues(alpha: 0.0),
+          ],
+        ).createShader(hlRect);
+      canvas.drawOval(hlRect, hlPaint);
+    }
+
+    // ── Layer 6: Contact glow ────────────────────────────────────
+    // Tight colored glow for selected/focused, hugs the node.
+    if (params.glowAlpha > 0) {
+      final glowPaint = Paint()
+        ..color = params.borderColor.withValues(alpha: params.glowAlpha)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, params.glowBlur)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(center, radius + 3.0, glowPaint);
+    }
+
+    // Anchor: teal spread ring
+    if (params.isAnchor) {
+      final anchorGlow = Paint()
+        ..color = RelationshipColors.self.withValues(alpha: 0.25)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(center, radius + 8.0, anchorGlow);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _Pseudo3DNodePainter old) {
+    // Only repaint when visual parameters actually change.
+    return old.params.diameter != params.diameter ||
+        old.params.borderColor != params.borderColor ||
+        old.params.borderWidth != params.borderWidth ||
+        old.params.generationIndex != params.generationIndex ||
+        old.params.isAnchor != params.isAnchor ||
+        old.params.nodeState != params.nodeState ||
+        old.params.showTint != params.showTint;
   }
 }

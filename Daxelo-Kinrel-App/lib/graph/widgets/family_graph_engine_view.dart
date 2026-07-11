@@ -2084,11 +2084,8 @@ class _EngineEdgePainter extends CustomPainter {
         canvas.drawPath(path, edgePaint);
       }
 
-      // Draw midpoint symbol (dot or heart) — NO text labels on edges.
+      // Draw midpoint symbol (dot or heart) — pseudo-3D bead.
       if (midpointSymbol != KinshipMidpointSymbol.none) {
-        // Compute the actual midpoint on the bezier path using PathMetrics.
-        // This is more accurate than manually computing control points
-        // because it accounts for the actual curve geometry.
         Offset midPoint = Offset(
           (s.dx + t.dx) / 2,
           (s.dy + t.dy) / 2,
@@ -2103,24 +2100,53 @@ class _EngineEdgePainter extends CustomPainter {
           }
         }
 
-        // Fix 3: Dot radius 4.0 (was 2.5), full opacity, heart stays 4.0.
-        if (midpointSymbol == KinshipMidpointSymbol.heart) {
-          canvas.drawCircle(
-            midPoint,
-            4.0,
-            Paint()
-              ..color = style.midpointColor
-              ..style = PaintingStyle.fill,
-          );
-        } else {
-          canvas.drawCircle(
-            midPoint,
-            4.0,
-            Paint()
-              ..color = style.midpointColor
-              ..style = PaintingStyle.fill,
-          );
-        }
+        // Pseudo-3D midpoint bead: shadow + rim + face + highlight
+        final beadR = 4.0;
+        final beadRect = Rect.fromCircle(center: midPoint, radius: beadR);
+
+        // Shadow
+        canvas.drawCircle(
+          midPoint + const Offset(1.5, 1.5),
+          beadR,
+          Paint()
+            ..color = Colors.black.withValues(alpha: 0.3)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0),
+        );
+
+        // Dark rim (bottom)
+        canvas.drawArc(
+          Rect.fromCircle(center: midPoint + const Offset(0, 1.5), radius: beadR),
+          0, pi, false,
+          Paint()..color = Color.lerp(style.midpointColor, Colors.black, 0.5)!,
+        );
+
+        // Face gradient
+        canvas.drawCircle(
+          midPoint,
+          beadR,
+          Paint()
+            ..shader = RadialGradient(
+              center: const Alignment(-0.3, -0.4),
+              radius: 0.8,
+              colors: [
+                Color.lerp(style.midpointColor, Colors.white, 0.3)!,
+                style.midpointColor,
+                Color.lerp(style.midpointColor, Colors.black, 0.3)!,
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ).createShader(beadRect),
+        );
+
+        // Specular highlight
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: Offset(midPoint.dx - beadR * 0.25, midPoint.dy - beadR * 0.3),
+            width: beadR * 0.5,
+            height: beadR * 0.3,
+          ),
+          Paint()
+            ..color = Colors.white.withValues(alpha: 0.15),
+        );
       }
     }
   }
