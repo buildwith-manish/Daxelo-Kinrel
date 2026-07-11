@@ -12,11 +12,27 @@
 //
 // The inverse relationship is gender-aware so the label is always
 // grammatically correct (e.g. father → son/daughter, not always "son").
+//
+// v92 (PART 16): The sheet now optionally shows the full viewer→target
+// kinship path when a `GraphKinshipPathFocus` is supplied. The path
+// section renders:
+//   • The resolved kinship term (e.g. "Cousin")
+//   • The ordered path: You → Mother → Sister → Daughter
+//   • The step count
+//   • A "Focus Path" action button (invokes the optional callback)
+//
+// The sheet does NOT generate relationship names itself — it consumes
+// the already-resolved `GraphKinshipPathFocus` model produced by the
+// `GraphPathFocusNotifier`. The painter never calls this sheet; the
+// graph widget does.
 
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+
+import '../interaction/graph_kinship_path_focus.dart'
+    show GraphKinshipPathFocus;
 
 // ═══════════════════════════════════════════════════════════════════════
 // PUBLIC API
@@ -26,6 +42,14 @@ class RelationshipInfoSheet {
   RelationshipInfoSheet._();
 
   /// Show the bottom sheet for a tapped edge.
+  ///
+  /// v92 (PART 16): [pathFocus] is optional. When supplied, the sheet
+  /// also renders the full viewer→target kinship path + step count +
+  /// a "Focus Path" action button (invokes [onFocusPath]).
+  ///
+  /// [stepIndex] and [stepCount] are optional and, when supplied,
+  /// render a "Path step X of Y" badge above the relationship name —
+  /// used when the tapped edge is part of an active path focus.
   static Future<void> show(
     BuildContext context, {
     required String sourceId,
@@ -35,6 +59,10 @@ class RelationshipInfoSheet {
     required String targetName,
     required String? targetGender,
     required String relationshipKey,
+    GraphKinshipPathFocus? pathFocus,
+    int? stepIndex,
+    int? stepCount,
+    VoidCallback? onFocusPath,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -47,6 +75,10 @@ class RelationshipInfoSheet {
         targetName: targetName,
         targetGender: targetGender,
         relationshipKey: relationshipKey,
+        pathFocus: pathFocus,
+        stepIndex: stepIndex,
+        stepCount: stepCount,
+        onFocusPath: onFocusPath,
       ),
     );
   }
@@ -63,6 +95,10 @@ class _RelationshipInfoContent extends StatelessWidget {
     required this.targetName,
     required this.targetGender,
     required this.relationshipKey,
+    this.pathFocus,
+    this.stepIndex,
+    this.stepCount,
+    this.onFocusPath,
   });
 
   final String sourceName;
@@ -70,6 +106,20 @@ class _RelationshipInfoContent extends StatelessWidget {
   final String targetName;
   final String? targetGender;
   final String relationshipKey;
+
+  /// v92 (PART 16): Optional full viewer→target kinship path. When
+  /// non-null, the sheet renders the path section below the
+  /// directional sentences.
+  final GraphKinshipPathFocus? pathFocus;
+
+  /// v92 (PART 16): Optional 1-indexed step position of the tapped
+  /// edge within the active path. Renders a "Path step X of Y" badge.
+  final int? stepIndex;
+  final int? stepCount;
+
+  /// v92 (PART 16): Optional callback for the "Focus Path" button.
+  /// When null, the button is hidden.
+  final VoidCallback? onFocusPath;
 
   static const Color _bg = Color(0xFF0F1318);
   static const Color _card = Color(0xFF1A1F2B);
@@ -87,104 +137,137 @@ class _RelationshipInfoContent extends StatelessWidget {
     final sourceColor = _avatarColor(sourceGender);
     final targetColor = _avatarColor(targetGender);
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: _bg,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ── Handle ──────────────────────────────────────────────────
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: _divider,
-              borderRadius: BorderRadius.circular(2),
+    // v92 (PART 16): Build a semantic label for screen readers.
+    final semanticLabel = StringBuffer()
+      ..write('Relationship between ')
+      ..write(sourceName)
+      ..write(' and ')
+      ..write(targetName)
+      ..write(', ')
+      ..write(fwd);
+    if (pathFocus != null && pathFocus!.resolvedRelationshipLabel != null) {
+      semanticLabel
+          ..write('. ')
+          ..write(pathFocus!.resolvedRelationshipLabel)
+          ..write('. Path has ')
+          ..write(pathFocus!.stepCount)
+          ..write(' steps.');
+    }
+
+    return Semantics(
+      label: semanticLabel.toString(),
+      container: true,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: _bg,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Handle ──────────────────────────────────────────────────
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: _divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          // ── Title ───────────────────────────────────────────────────
-          const Text(
-            'Connection',
-            style: TextStyle(
-              color: _textWhite,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
+            // ── Title ───────────────────────────────────────────────────
+            const Text(
+              'Connection',
+              style: TextStyle(
+                color: _textWhite,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-          // ── Avatar connector row ─────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Row(
-              children: [
-                // Source avatar
-                _PersonAvatar(
-                  initials: sourceInitials,
-                  name: sourceName,
-                  color: sourceColor,
-                ),
+            // ── Avatar connector row ─────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Row(
+                children: [
+                  // Source avatar
+                  _PersonAvatar(
+                    initials: sourceInitials,
+                    name: sourceName,
+                    color: sourceColor,
+                  ),
 
-                // Connector line with dot
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 22),
-                    child: _ConnectorLine(
-                      label: fwd,
-                      color: _orange,
+                  // Connector line with dot
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 22),
+                      child: _ConnectorLine(
+                        label: fwd,
+                        color: _orange,
+                      ),
                     ),
                   ),
-                ),
 
-                // Target avatar
-                _PersonAvatar(
-                  initials: targetInitials,
-                  name: targetName,
-                  color: targetColor,
-                ),
-              ],
+                  // Target avatar
+                  _PersonAvatar(
+                    initials: targetInitials,
+                    name: targetName,
+                    color: targetColor,
+                  ),
+                ],
+              ),
             ),
-          ),
 
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          // ── Divider ──────────────────────────────────────────────────
-          Container(height: 1, color: _divider),
+            // ── Divider ──────────────────────────────────────────────────
+            Container(height: 1, color: _divider),
 
-          // ── Relationship sentences ───────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 20,
+            // ── Relationship sentences ───────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 20,
+              ),
+              child: Column(
+                children: [
+                  _RelationRow(
+                    fromName: sourceName,
+                    relation: fwd,
+                    toName: targetName,
+                    arrowColor: _orange,
+                  ),
+                  const SizedBox(height: 12),
+                  _RelationRow(
+                    fromName: targetName,
+                    relation: inv,
+                    toName: sourceName,
+                    arrowColor: _orange.withValues(alpha: 0.7),
+                  ),
+                ],
+              ),
             ),
-            child: Column(
-              children: [
-                _RelationRow(
-                  fromName: sourceName,
-                  relation: fwd,
-                  toName: targetName,
-                  arrowColor: _orange,
-                ),
-                const SizedBox(height: 12),
-                _RelationRow(
-                  fromName: targetName,
-                  relation: inv,
-                  toName: sourceName,
-                  arrowColor: _orange.withValues(alpha: 0.7),
-                ),
-              ],
-            ),
-          ),
 
-          // ── Safe area bottom ─────────────────────────────────────────
-          SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
-        ],
+            // v92 (PART 16): Path section — only rendered when pathFocus
+            // is supplied AND has at least one step.
+            if (pathFocus != null && pathFocus!.stepCount > 0) ...[
+              Container(height: 1, color: _divider),
+              _PathFocusSection(
+                pathFocus: pathFocus!,
+                stepIndex: stepIndex,
+                stepCount: stepCount,
+                onFocusPath: onFocusPath,
+              ),
+            ],
+
+            // ── Safe area bottom ─────────────────────────────────────────
+            SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+          ],
+        ),
       ),
     );
   }
@@ -593,3 +676,245 @@ class _RelationRow extends StatelessWidget {
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// v92 (PART 16) — PATH FOCUS SECTION
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Renders the resolved viewer→target kinship path: the overall
+/// relationship term, the ordered path (You → Mother → Sister →
+/// Daughter), the step count, and an optional "Focus Path" button.
+///
+/// The section consumes a fully-resolved `GraphKinshipPathFocus` —
+/// it does NOT call RelationshipEngine or KinshipService itself.
+class _PathFocusSection extends StatelessWidget {
+  const _PathFocusSection({
+    required this.pathFocus,
+    this.stepIndex,
+    this.stepCount,
+    this.onFocusPath,
+  });
+
+  final GraphKinshipPathFocus pathFocus;
+  final int? stepIndex;
+  final int? stepCount;
+  final VoidCallback? onFocusPath;
+
+  static const Color _bg = _RelationshipInfoContent._bg;
+  static const Color _card = _RelationshipInfoContent._card;
+  static const Color _orange = _RelationshipInfoContent._orange;
+  static const Color _textWhite = _RelationshipInfoContent._textWhite;
+  static const Color _textSilver = _RelationshipInfoContent._textSilver;
+  static const Color _divider = _RelationshipInfoContent._divider;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = pathFocus.resolvedRelationshipLabel ?? 'Related';
+    final formattedLabel = _formatKey(label);
+    final pathNames = pathFocus.steps
+        .map((s) => s.personId == pathFocus.viewerPersonId
+            ? 'You'
+            : s.personName)
+        .toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Resolved kinship term ────────────────────────────────────
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  formattedLabel,
+                  style: const TextStyle(
+                    color: _textWhite,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              // Optional "Path step X of Y" badge.
+              if (stepIndex != null && stepCount != null) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _orange.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: _orange.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Text(
+                    'Step $stepIndex of $stepCount',
+                    style: const TextStyle(
+                      color: _orange,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${pathFocus.stepCount} relationship '
+            '${pathFocus.stepCount == 1 ? 'step' : 'steps'}',
+            style: const TextStyle(
+              color: _textSilver,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Ordered path ─────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: _card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _orange.withValues(alpha: 0.15),
+              ),
+            ),
+            child: _OrderedPathChip(names: pathNames),
+          ),
+
+          // ── Focus Path action ────────────────────────────────────────
+          if (onFocusPath != null) ...[
+            const SizedBox(height: 16),
+            Semantics(
+              button: true,
+              label:
+                  'Focus full kinship path from you to ${pathFocus.steps.last.personName}',
+              child: _FocusPathButton(onPressed: onFocusPath!),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static String _formatKey(String key) {
+    return key
+        .split('_')
+        .where((w) => w.isNotEmpty)
+        .map((w) => '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}')
+        .join(' ');
+  }
+}
+
+/// Renders the ordered path as a wrap of chips connected by arrows:
+///   You → Mother → Sister → Daughter
+class _OrderedPathChip extends StatelessWidget {
+  const _OrderedPathChip({required this.names});
+  final List<String> names;
+
+  @override
+  Widget build(BuildContext context) {
+    if (names.isEmpty) return const SizedBox.shrink();
+    final children = <Widget>[];
+    for (var i = 0; i < names.length; i++) {
+      final isFirst = i == 0;
+      final isLast = i == names.length - 1;
+      children.add(
+        Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: isFirst || isLast
+                ? _PathFocusSection._orange.withValues(alpha: 0.18)
+                : _PathFocusSection._card,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: (isFirst || isLast)
+                  ? _PathFocusSection._orange.withValues(alpha: 0.5)
+                  : _PathFocusSection._divider,
+            ),
+          ),
+          child: Text(
+            names[i],
+            style: TextStyle(
+              color: (isFirst || isLast)
+                  ? _PathFocusSection._orange
+                  : _PathFocusSection._textWhite,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+      if (!isLast) {
+        children.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Icon(
+              Icons.chevron_right_rounded,
+              color: _PathFocusSection._textSilver,
+              size: 16,
+            ),
+          ),
+        );
+      }
+    }
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 0,
+      runSpacing: 4,
+      children: children,
+    );
+  }
+}
+
+/// The "Focus Path" action button.
+class _FocusPathButton extends StatelessWidget {
+  const _FocusPathButton({required this.onPressed});
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: _PathFocusSection._orange.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: _PathFocusSection._orange.withValues(alpha: 0.5),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.center_focus_strong_rounded,
+                color: _PathFocusSection._orange,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Focus Path',
+                style: TextStyle(
+                  color: _PathFocusSection._orange,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+

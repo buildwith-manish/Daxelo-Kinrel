@@ -54,6 +54,14 @@ import '../engine/edge_dedup.dart' show DedupedEdge, EdgeDeduplicator;
 import '../interaction/camera_controller.dart' show CameraController;
 import '../interaction/expand_collapse.dart'
     show ExpandCollapseController, ExpandCollapseState;
+import '../interaction/graph_kinship_path_focus.dart'
+    show
+        GraphKinshipPathFocus,
+        GraphPathFocusNotifier,
+        GraphPathFocusState,
+        graphPathFocusProvider;
+import '../interaction/graph_path_trace_controller.dart'
+    show GraphPathTraceController, GraphPathTraceState, GraphPathTracePhase;
 import '../../core/constants/feature_flags.dart' show kEnableGraphShareExport;
 import '../../core/constants/brand_colors.dart' show KinrelColors;
 import '../../core/kinship/kinship_edge_style.dart';
@@ -76,6 +84,7 @@ import 'graph_node.dart' show GraphNode, RelationshipColors, NodeState;
 import 'graph_legend.dart' show GraphLegend;
 import 'graph_quick_actions.dart' show GraphQuickActions;
 import 'graph_relationship_labels.dart' show GraphPersonData;
+import 'relationship_info_sheet.dart' show RelationshipInfoSheet;
 
 /// LOD tiers, chosen by camera zoom.
 enum _Lod {
@@ -216,6 +225,15 @@ class _FamilyGraphEngineViewState
   Map<String, KinshipEdgeCategory>? _cachedRelationCategories;
   // v83: Cache custom colors per person (from customColors JSONB column)
   Map<String, Map<String, dynamic>>? _cachedCustomColors;
+
+  // v92 (PART 17): Cache the current deduped edges + positions (with
+  // the visual-circle Y offset applied) so the canvas tap handler can
+  // do geometric midpoint hit-testing without recomputing them.
+  // Updated once per build in the build method.
+  List<DedupedEdge> _currentEdges = const [];
+  Map<String, Offset> _currentPositionsWithOffset = const {};
+  Map<String, KinshipEdgeCategory> _currentEdgeCategories = const {};
+  Map<String, Map<String, dynamic>> _currentEdgeCustomColors = const {};
 
   // Repaint/recull throttling.
   Rect _lastCullViewport = Rect.zero;
@@ -602,6 +620,42 @@ class _FamilyGraphEngineViewState
           }
         }
 
+        // v92 (PARTS 14–16): Resolve the viewer→target kinship path.
+        // This is the SINGLE place path resolution happens — the
+        // painter NEVER calls RelationshipEngine. The resolved path
+        // is cached in `graphPathFocusProvider` and invalidated
+        // automatically when target / viewer / graphRevision change.
+        //
+        // The selected node IS the path target. When no node is
+        // selected the path is cleared.
+        final GraphKinshipPathFocus? pathFocus =
+            _resolvePathFocus(
+          viewerPersonId: viewerPersonId,
+          flat: flat,
+          edges: edges,
+          anchorId: anchorId,
+        );
+        // Watch the provider so the wrapper rebuilds when the path
+        // focus notifier updates (e.g. when trace state changes drive
+        // a re-resolve, or when the path is cleared).
+        ref.watch(graphPathFocusProvider);
+
+        // v92 (PART 17): Cache the current edges + positions + categories
+        // so the canvas tap handler can do midpoint hit-testing without
+        // recomputing them. The positions map includes the visual-circle
+        // Y offset so midpoint hit-testing matches the rendered edge
+        // geometry exactly.
+        _currentEdges = edges;
+        _currentEdgeCategories = edgeCategories;
+        _currentEdgeCustomColors = edgeCustomColors;
+        _currentPositionsWithOffset = {
+          for (final entry in layout.positions.entries)
+            entry.key: Offset(
+              entry.value.dx,
+              entry.value.dy + _kCircleCenterYOffset,
+            ),
+        };
+
         // Build the (transform-independent) content once. The AnimatedBuilder
         // below re-applies only the camera Transform per frame, so the cached
         // raster is reused while panning/zooming.
@@ -685,11 +739,16 @@ class _FamilyGraphEngineViewState
                     // Computed here (cheaply) from the current
                     // selectedNodeProvider + the edge list.
                     dimmedEdgeIds: _computeDimmedEdgeIds(edges),
+                    // v92 (PART 14): Kinship path focus. When a path is
+                    // resolved, its edges retain full clarity while
+                    // unrelated edges dim.
+                    pathFocusedEdgeIds: pathFocus?.orderedEdgeIds.toSet(),
+                    pathFocusActive: pathFocus != null,
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
                 ..._buildNodeLayer(
-                    layout, visible, personById, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId),
+                    layout, visible, personById, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId, flat),
               ],
             ),
           ),
@@ -726,7 +785,7 @@ class _FamilyGraphEngineViewState
             // so node taps never fire. We do a geometric hit-test here
             // (convert screen pos → graph space → check if inside any
             // node circle) and handle the tap directly.
-            onTapDown: (details) => _handleNodeTapDown(details, layout, flat, viewerPersonId),
+            onTapDown: (details) => _handleCanvasTapDown(details, layout, flat, viewerPersonId),
             onLongPressStart: (details) => _handleNodeLongPress(details, layout, flat, viewerPersonId),
             // v62: Double-tap to zoom in 2× toward the focal point,
             // toggles back to 1× on second double-tap.
@@ -761,6 +820,7 @@ class _FamilyGraphEngineViewState
     Map<String, KinshipEdgeCategory> relationCategoryById,
     Map<String, Map<String, dynamic>> customColorsByPersonId,
     String? viewerPersonId,
+    FlatGraphResult flat,
   ) {
     final _Lod lod = _lodFor(_camera.zoomLevel);
 
@@ -828,13 +888,163 @@ class _FamilyGraphEngineViewState
           child: RepaintBoundary(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
-              child: node,
+              // v92 (PART 19): Wrap the node in a Stack so we can
+              // overlay the +N collapsed-branch affordance chip.
+              child: _withBranchAffordance(node, id, flat),
             ),
           ),
         ),
       ));
     }
     return widgets;
+  }
+
+  /// v92 (PART 19): Wraps [node] in a Stack and overlays a "+N"
+  /// collapsed-branch affordance chip when the node has hidden
+  /// descendants. The chip is positioned at the bottom-right of the
+  /// node box, outside the visual circle, so it does not cover the
+  /// initials, name, or midpoint bead.
+  ///
+  /// The chip is only shown when:
+  ///   • the node has hidden descendants (descendants not in the
+  ///     current visible set)
+  ///   • the node is rendered at FULL LOD (the chip is meaningless
+  ///     at CHIP/DOT LOD where every node is already a dot)
+  ///
+  /// Tapping the chip calls `_toggleSubtree` to reveal the branch,
+  /// then gently adjusts the camera if the revealed branch would be
+  /// mostly outside the viewport.
+  Widget _withBranchAffordance(Widget node, String nodeId, FlatGraphResult flat) {
+    final hiddenCount = _hiddenDescendantsCount(nodeId, flat);
+    if (hiddenCount <= 0) return node;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        node,
+        // Position the chip at the bottom-right corner of the node box,
+        // just outside the visual circle. The visual circle is ~72px
+        // diameter centered at the top of the 140×176 box; the chip
+        // sits at the bottom-right where it won't overlap the face
+        // or the name.
+        Positioned(
+          right: -4,
+          bottom: 28,
+          child: _BranchAffordanceChip(
+            count: hiddenCount,
+            onTap: () => _handleBranchExpand(nodeId, flat),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// v92 (PART 19): Computes the number of hidden descendants for
+  /// [nodeId] — i.e. descendants that are NOT in the current visible
+  /// set managed by ExpandCollapseController.
+  ///
+  /// Returns 0 when:
+  ///   • the node has no descendants at all
+  ///   • all descendants are already visible
+  ///   • the visible set is empty (meaning "show everything")
+  int _hiddenDescendantsCount(String nodeId, FlatGraphResult flat) {
+    final allDescendants = _descendantsOf(nodeId, flat);
+    if (allDescendants.isEmpty) return 0;
+
+    // When visibleNodeIds is empty, the controller treats it as
+    // "show everything" — so nothing is hidden.
+    final visible = _expandCollapse.state.visibleNodeIds;
+    if (visible.isEmpty) return 0;
+
+    int hidden = 0;
+    for (final d in allDescendants) {
+      if (!visible.contains(d)) hidden++;
+    }
+    return hidden;
+  }
+
+  /// v92 (PART 19): Handle a tap on the +N branch affordance chip.
+  /// Reveals the hidden branch via the existing `_toggleSubtree`
+  /// architecture, then gently adjusts the camera if the revealed
+  /// branch would be mostly outside the viewport.
+  void _handleBranchExpand(String nodeId, FlatGraphResult flat) {
+    // Reduced motion → reveal immediately (no camera animation).
+    final bool reduced = MediaQuery.disableAnimationsOf(context);
+
+    // Reveal the branch via the existing toggle architecture.
+    _toggleSubtree(nodeId);
+
+    // After the layout rebuilds, gently adjust the camera to bring
+    // the newly-revealed descendants into view. We defer this to the
+    // next frame so the new positions are available.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _maybeAdjustCameraAfterExpand(nodeId, flat, reduced);
+    });
+  }
+
+  /// v92 (PART 19): After a branch is expanded, check whether the
+  /// newly-revealed descendants are mostly outside the viewport. If
+  /// so, gently pan the camera (preserving zoom) to bring them in.
+  void _maybeAdjustCameraAfterExpand(
+      String nodeId, FlatGraphResult flat, bool reduced) {
+    if (_viewportSize == Size.zero) return;
+
+    final layoutAsync = ref.read(graphLayoutProvider(widget.familyId));
+    final layout = layoutAsync.valueOrNull;
+    if (layout == null) return;
+
+    final descendants = _descendantsOf(nodeId, flat);
+    if (descendants.isEmpty) return;
+
+    // Compute the bounding box of the revealed descendants.
+    final revealedPositions = <Offset>[];
+    for (final d in descendants) {
+      final pos = layout.positions[d];
+      if (pos != null) revealedPositions.add(pos);
+    }
+    if (revealedPositions.isEmpty) return;
+
+    // Build the bounding box by folding the positions.
+    var bounds = Rect.fromPoints(
+      revealedPositions.first,
+      revealedPositions.first,
+    );
+    for (final pos in revealedPositions.skip(1)) {
+      bounds = Rect.fromPoints(
+        Offset(
+            min(bounds.left, pos.dx), min(bounds.top, pos.dy)),
+        Offset(
+            max(bounds.right, pos.dx), max(bounds.bottom, pos.dy)),
+      );
+    }
+
+    // Expand the bounds a bit for padding.
+    final paddedBounds = bounds.inflate(80);
+
+    // Check if the bounds are mostly outside the current viewport.
+    final viewport = _camera.computeViewport(_viewportSize);
+    final intersection = paddedBounds.intersect(viewport);
+    final visibleArea = intersection.width * intersection.height;
+    final totalArea = paddedBounds.width * paddedBounds.height;
+    if (totalArea <= 0) return;
+
+    // If >50% of the revealed bounds are outside the viewport, pan.
+    final visibleFraction = visibleArea / totalArea;
+    if (visibleFraction > 0.5) return;
+
+    // Pan the camera to center on the revealed bounds' center.
+    final center = paddedBounds.center;
+    final Duration duration = reduced
+        ? Duration.zero
+        : const Duration(milliseconds: 420);
+    _camera.animateTo(
+      -center.dx * _camera.zoomLevel + _viewportSize.width / 2,
+      -center.dy * _camera.zoomLevel + _viewportSize.height / 2,
+      _camera.zoomLevel,
+      duration: duration,
+      curve: Curves.easeOutCubic,
+    );
   }
 
   Widget _buildFullNode(
@@ -1117,6 +1327,91 @@ class _FamilyGraphEngineViewState
     return dimmed;
   }
 
+  /// v92 (PARTS 14–16): Resolve the viewer→target kinship path.
+  ///
+  /// The selected node is the path target. The viewer is the current
+  /// viewerPersonId. The path is resolved via the existing
+  /// `RelationshipEngine.resolvePath` (which delegates to
+  /// `GraphService.findPath` BFS) and post-processed into ordered
+  /// person IDs + ordered edge IDs by the
+  /// `GraphPathFocusNotifier`.
+  ///
+  /// This method is called ONCE per build — never inside paint().
+  /// The notifier caches the result and short-circuits when the
+  /// inputs (viewer, target, graphRevision) haven't changed.
+  ///
+  /// Returns the resolved `GraphKinshipPathFocus`, or null when:
+  ///   • no node is selected
+  ///   • viewer is null
+  ///   • viewer == selected node
+  ///   • no path exists
+  GraphKinshipPathFocus? _resolvePathFocus({
+    required String? viewerPersonId,
+    required FlatGraphResult flat,
+    required List<DedupedEdge> edges,
+    required String? anchorId,
+  }) {
+    final String? targetPersonId = ref.read(selectedNodeProvider);
+    if (targetPersonId == null || viewerPersonId == null) {
+      // Clear any previous focus when nothing is selected.
+      ref.read(graphPathFocusProvider.notifier).clear();
+      return null;
+    }
+
+    // Build the GraphPerson list + relationship tuples the engine needs.
+    final persons = <GraphPerson>[];
+    for (final p in flat.persons) {
+      persons.add(GraphPerson(
+        id: (p['id'] ?? '').toString(),
+        name: (p['name'] ?? '').toString(),
+        gender: p['gender'] as String?,
+        generationIndex:
+            (p['generationIndex'] as num?)?.toInt() ?? 0,
+        isAnchor: (p['isAnchor'] as bool?) ?? false,
+        photoUrl: p['photoUrl'] as String?,
+        isDeceased: (p['isDeceased'] as bool?) ?? false,
+      ));
+    }
+    final relationships = <({String fromId, String toId, String type})>[
+      for (final r in flat.relationships)
+        (
+          fromId: (r['fromPersonId'] ?? '').toString(),
+          toId: (r['toPersonId'] ?? '').toString(),
+          type: (r['relationshipKey'] ?? 'unknown').toString(),
+        ),
+    ];
+
+    // Resolve the structural classification for the overall label/key.
+    // Reuses the cached classification from relationCategoryById when
+    // possible (already computed for node coloring).
+    StructuralClassification? classification;
+    try {
+      classification = RelationshipEngine.instance.resolveClassification(
+        viewerPersonId: viewerPersonId,
+        targetPersonId: targetPersonId,
+        persons: persons,
+        relationships: relationships,
+      );
+    } catch (_) {
+      // Classification is best-effort — if it fails, the path is
+      // still resolved without a label.
+      classification = null;
+    }
+
+    final graphRevision =
+        edges.length * 100003 + flat.persons.length;
+
+    return ref.read(graphPathFocusProvider.notifier).resolve(
+          viewerPersonId: viewerPersonId,
+          targetPersonId: targetPersonId,
+          edges: edges,
+          persons: persons,
+          relationships: relationships,
+          graphRevision: graphRevision,
+          classification: classification,
+        );
+  }
+
   /// v91 (PART 12): Cinematic node focus. When the user taps a person,
   /// the camera gently animates to bring the node towards the focus
   /// region (slightly above viewport center, where the eye naturally
@@ -1158,6 +1453,167 @@ class _FamilyGraphEngineViewState
       _camera.zoomLevel,
       duration: duration,
       curve: Curves.easeOutCubic,
+    );
+  }
+
+  /// v92 (PART 17): Canvas tap dispatcher. Checks edge midpoints FIRST
+  /// (with a 48px invisible hit target), then falls back to node
+  /// hit-testing. This lets the user tap the small midpoint bead/heart
+  /// to open the relationship details sheet without enlarging the
+  /// visual bead to 48px.
+  ///
+  /// The hit-test order is:
+  ///   1. Edge midpoint (48px radius) — opens RelationshipInfoSheet
+  ///   2. Node (44px radius) — selects node + shows quick-actions sheet
+  ///
+  /// If neither hits, the tap is a no-op (canvas background tap).
+  void _handleCanvasTapDown(
+    TapDownDetails details,
+    GraphLayoutResult layout,
+    FlatGraphResult flat,
+    String? viewerPersonId,
+  ) {
+    // ── 1. Edge midpoint hit-test ──────────────────────────────────
+    final edgeId = _hitTestEdge(details.localPosition);
+    if (edgeId != null) {
+      _handleEdgeTap(edgeId, flat, viewerPersonId);
+      return;
+    }
+
+    // ── 2. Fall back to node hit-test ──────────────────────────────
+    _handleNodeTapDown(details, layout, flat, viewerPersonId);
+  }
+
+  /// v92 (PART 17): Geometric hit-test for edge midpoints. Returns the
+  /// edge ID whose midpoint is within 48 logical px of [screenPos], or
+  /// null if no edge hits.
+  ///
+  /// The 48px hit target is the spec'd accessible touch size (PART 21).
+  /// The VISUAL bead remains 4–6px — only the invisible hit region is
+  /// enlarged. If multiple edges overlap near the tap point, the
+  /// closest midpoint wins.
+  String? _hitTestEdge(Offset screenPos) {
+    if (_currentEdges.isEmpty || _currentPositionsWithOffset.isEmpty) {
+      return null;
+    }
+    final graphPos = _screenToGraphSpace(screenPos);
+    const hitRadius = 48.0; // PART 21: 44–48px touch target
+    String? bestId;
+    double bestDist = double.infinity;
+    for (final deduped in _currentEdges) {
+      final e = deduped.edge;
+      final s = _currentPositionsWithOffset[e.sourceId];
+      final t = _currentPositionsWithOffset[e.targetId];
+      if (s == null || t == null) continue;
+      // The midpoint is the visual center of the edge. For Bézier
+      // curves the actual PathMetric 50% tangent position may differ
+      // slightly, but for hit-testing the geometric midpoint is a
+      // close-enough approximation and is O(1) per edge.
+      final mid = Offset((s.dx + t.dx) / 2, (s.dy + t.dy) / 2);
+      final dist = (mid - graphPos).distance;
+      if (dist < hitRadius && dist < bestDist) {
+        bestDist = dist;
+        bestId = e.id;
+      }
+    }
+    return bestId;
+  }
+
+  /// v92 (PART 17): Handle a tap on an edge midpoint. Selects the edge
+  /// (drives the v91 premium selected-edge + one-shot sweep visual)
+  /// and opens the RelationshipInfoSheet with the relationship
+  /// details + optional path focus info.
+  ///
+  /// IMPORTANT: The heart symbol is a VISUAL choice — it does NOT
+  /// imply spouse semantics. The relationship label is always
+  /// resolved from the actual `relationshipKey` stored on the edge,
+  /// not from the midpoint symbol. A custom relationship with a heart
+  /// midpoint will show its actual custom name in the sheet.
+  void _handleEdgeTap(
+    String edgeId,
+    FlatGraphResult flat,
+    String? viewerPersonId,
+  ) {
+    // Find the deduped edge.
+    final deduped = _currentEdges
+        .where((d) => d.edge.id == edgeId)
+        .firstOrNull;
+    if (deduped == null) return;
+    final e = deduped.edge;
+
+    // Select the edge — drives the v91 premium selected-edge visual
+    // + the one-shot sweep.
+    ref.read(selectedEdgeProvider.notifier).state = edgeId;
+
+    // Resolve person A (source) and person B (target) from flat.persons.
+    final sourceMap = flat.persons
+        .where((p) => p['id'] == e.sourceId)
+        .firstOrNull;
+    final targetMap = flat.persons
+        .where((p) => p['id'] == e.targetId)
+        .firstOrNull;
+    if (sourceMap == null || targetMap == null) return;
+
+    final sourceName = (sourceMap['name'] as String?) ?? 'Unknown';
+    final targetName = (targetMap['name'] as String?) ?? 'Unknown';
+    final sourceGender = sourceMap['gender'] as String?;
+    final targetGender = targetMap['gender'] as String?;
+
+    // Resolve the relationship label from the actual relationshipKey.
+    // The heart symbol does NOT override this — heart is purely visual.
+    // PART 17 / PART 21: heart-symbol semantic separation proof.
+    final customColors = _currentEdgeCustomColors[e.id];
+    String relationshipKey = e.relationshipKey;
+    String? customRelationshipName;
+    if (customColors != null) {
+      // If the custom colors include a custom relationship name, use it.
+      // Otherwise fall back to the relationshipKey.
+      customRelationshipName =
+          customColors['relationshipName'] as String?;
+    }
+
+    // v92 (PART 16): Resolve the path focus (if any) to pass to the
+    // sheet. If the tapped edge is part of the active path, show the
+    // step index.
+    final pathFocus = ref.read(graphPathFocusProvider).focus;
+    int? stepIndex;
+    int? stepCount;
+    if (pathFocus != null && pathFocus.orderedEdgeIds.contains(e.id)) {
+      stepCount = pathFocus.stepCount;
+      stepIndex = pathFocus.orderedEdgeIds.indexOf(e.id) + 1;
+    }
+
+    // Open the relationship details sheet. The sheet shows:
+    //   • Person A → Person B with the relationship label
+    //   • Directional sentences (A is the X of B / B is the Y of A)
+    //   • Optional path focus section (if pathFocus is non-null)
+    //   • Optional "Focus Path" button (if pathFocus is multi-hop)
+    RelationshipInfoSheet.show(
+      context,
+      sourceId: e.sourceId,
+      sourceName: sourceName,
+      sourceGender: sourceGender,
+      targetId: e.targetId,
+      targetName: targetName,
+      targetGender: targetGender,
+      relationshipKey:
+          customRelationshipName ?? relationshipKey,
+      pathFocus: pathFocus,
+      stepIndex: stepIndex,
+      stepCount: stepCount,
+      onFocusPath: (pathFocus != null && pathFocus.isMultiHop)
+          ? () {
+              // Re-trigger the trace by re-selecting the target node.
+              // The trace controller will (re)start because the path
+              // is already resolved — _maybeStartTrace in the wrapper
+              // sees the same path and no-ops, so we explicitly reset
+              // and restart by toggling the selection.
+              Navigator.of(context).maybePop();
+              // Re-select the target to retrigger the trace.
+              ref.read(selectedNodeProvider.notifier).state =
+                  pathFocus.targetPersonId;
+            }
+          : null,
     );
   }
 
@@ -2020,6 +2476,19 @@ class _FamilyGraphEngineViewState
 /// the selected edge's cached Path. The controller lives HERE — not on
 /// the painter — so the painter remains stateless and repaints are
 /// scoped to the edge layer only.
+///
+/// v92 (PARTS 14–15): The wrapper now ALSO drives the sequential
+/// kinship path trace via a dedicated `GraphPathTraceController`.
+/// When a new path focus is resolved, the trace walks the ordered
+/// edges one-by-one (320 ms per edge for short paths, 250 ms for
+/// medium, 180 ms for long, capped at ~2200 ms total). The painter
+/// receives `traceEdgeId`, `traceProgress`, `traceActive`, and
+/// `completedEdgeIds` so it can render:
+///   • completed edges — normal path-focus state
+///   • current edge    — the moving sweep highlight (reusing the
+///                        existing sweep paint pass from v91)
+///   • future edges    — normal path-focus state
+/// Reduced motion → `revealAll()` instead of `startTrace()`.
 class _EdgeSelectionWrapper extends ConsumerStatefulWidget {
   const _EdgeSelectionWrapper({
     super.key,
@@ -2033,6 +2502,8 @@ class _EdgeSelectionWrapper extends ConsumerStatefulWidget {
     required this.layoutRevision,
     required this.edgeVisualRevision,
     required this.dimmedEdgeIds,
+    required this.pathFocusedEdgeIds,
+    required this.pathFocusActive,
   });
 
   final Map<String, Offset> positions;
@@ -2058,13 +2529,24 @@ class _EdgeSelectionWrapper extends ConsumerStatefulWidget {
   /// path-focused edges are NEVER dimmed.
   final Set<String>? dimmedEdgeIds;
 
+  /// v92 (PART 14): Edges that are part of the focused viewer→target
+  /// kinship path. These retain normal clarity (or slightly increased
+  /// clarity) while unrelated edges dim. The selected edge, sweep
+  /// edge, and trace edge are always included implicitly by the
+  /// painter — they do NOT need to be in this set.
+  final Set<String>? pathFocusedEdgeIds;
+
+  /// v92 (PART 14): True when a path focus is active (target selected
+  /// and path resolved). When false, `pathFocusedEdgeIds` is ignored.
+  final bool pathFocusActive;
+
   @override
   ConsumerState<_EdgeSelectionWrapper> createState() =>
       _EdgeSelectionWrapperState();
 }
 
 class _EdgeSelectionWrapperState extends ConsumerState<_EdgeSelectionWrapper>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _sweepController;
   Animation<double>? _sweepAnimation;
 
@@ -2074,8 +2556,19 @@ class _EdgeSelectionWrapperState extends ConsumerState<_EdgeSelectionWrapper>
   /// edge even if selection changes mid-sweep.
   String? _sweepEdgeId;
 
-  /// Reduced-motion preference. When true, the sweep is suppressed and
-  /// the selected edge renders in its static premium state immediately.
+  /// v92 (PART 15): The sequential path trace controller. One
+  /// controller for the entire edge layer — drives edge-by-edge
+  /// one-shot sweeps along the focused path.
+  late final GraphPathTraceController _traceController;
+
+  /// The ordered edge IDs of the path currently being traced (or
+  /// last traced). Used to detect when a new path is resolved so we
+  /// can (re)start the trace.
+  List<String> _lastTracedEdgeIds = const [];
+
+  /// Reduced-motion preference. When true, the sweep AND the trace
+  /// are suppressed and the selected edge / path render in their
+  /// static premium state immediately.
   bool _reducedMotion = false;
 
   @override
@@ -2089,6 +2582,8 @@ class _EdgeSelectionWrapperState extends ConsumerState<_EdgeSelectionWrapper>
       parent: _sweepController,
       curve: Curves.easeOutCubic,
     )..addListener(_onSweepTick);
+    _traceController = GraphPathTraceController()..attach(this);
+    _traceController.addListener(_onTraceTick);
     // Reduced-motion is resolved per-build via MediaQuery; default false.
   }
 
@@ -2096,14 +2591,16 @@ class _EdgeSelectionWrapperState extends ConsumerState<_EdgeSelectionWrapper>
   void dispose() {
     _sweepAnimation?.removeListener(_onSweepTick);
     _sweepController.dispose();
+    _traceController.removeListener(_onTraceTick);
+    _traceController.dispose();
     super.dispose();
   }
 
   void _onSweepTick() {
-    // setState triggers a rebuild of the CustomPaint, which passes the
-    // new sweepProgress to the painter. Because the painter is wrapped
-    // in its own RepaintBoundary (via the Stack's Positioned.fill +
-    // the parent RepaintBoundary), only the edge layer repaints.
+    if (mounted) setState(() {});
+  }
+
+  void _onTraceTick() {
     if (mounted) setState(() {});
   }
 
@@ -2140,16 +2637,62 @@ class _EdgeSelectionWrapperState extends ConsumerState<_EdgeSelectionWrapper>
     _sweepController.forward(from: 0.0);
   }
 
+  /// v92 (PART 15): Drive the sequential path trace. Called from
+  /// `build()` whenever the path focus changes. If the path is new
+  /// (different ordered edge IDs), the trace (re)starts. If reduced
+  /// motion is on, the path is revealed statically instead.
+  void _maybeStartTrace() {
+    final pathFocus = ref.read(graphPathFocusProvider).focus;
+
+    if (pathFocus == null || pathFocus.orderedEdgeIds.isEmpty) {
+      // No path → reset trace.
+      if (_lastTracedEdgeIds.isNotEmpty) {
+        _traceController.reset();
+        _lastTracedEdgeIds = const [];
+      }
+      return;
+    }
+
+    // Same path as already traced → no-op.
+    if (_listEquals(_lastTracedEdgeIds, pathFocus.orderedEdgeIds)) {
+      return;
+    }
+
+    _lastTracedEdgeIds = List.unmodifiable(pathFocus.orderedEdgeIds);
+
+    // DOT LOD: never animate the trace — reveal statically.
+    // CHIP LOD: also skip the trace for performance; reveal statically.
+    // FULL LOD: animate (unless reduced motion).
+    if (_reducedMotion ||
+        !widget.edgeQuality.allowsSweep ||
+        !widget.edgeQuality.allowsRidge) {
+      _traceController.revealAll(pathFocus.orderedEdgeIds);
+    } else {
+      _traceController.startTrace(pathFocus.orderedEdgeIds);
+    }
+  }
+
+  static bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final String? selectedEdgeId = ref.watch(selectedEdgeProvider);
     _maybeStartSweep(selectedEdgeId);
+    _maybeStartTrace();
 
-    final double sweepProgress =
-        _sweepAnimation?.value ?? 0.0;
+    final double sweepProgress = _sweepAnimation?.value ?? 0.0;
     final bool sweepActive = _sweepController.isAnimating &&
         !_reducedMotion &&
         widget.edgeQuality.allowsSweep;
+
+    // v92 (PART 15): Read the trace state once per build.
+    final traceState = _traceController.state;
 
     return CustomPaint(
       painter: _EngineEdgePainter(
@@ -2167,6 +2710,17 @@ class _EdgeSelectionWrapperState extends ConsumerState<_EdgeSelectionWrapper>
         sweepEdgeId: sweepActive ? _sweepEdgeId : null,
         sweepProgress: sweepActive ? sweepProgress : 0.0,
         sweepActive: sweepActive,
+        // v92 (PARTS 14–15): path focus + sequential trace state.
+        pathFocusedEdgeIds: widget.pathFocusActive
+            ? widget.pathFocusedEdgeIds
+            : null,
+        pathFocusActive: widget.pathFocusActive,
+        traceEdgeId: traceState.traceActive ? traceState.currentEdgeId : null,
+        traceProgress: traceState.traceActive ? traceState.traceProgress : 0.0,
+        traceActive: traceState.traceActive,
+        completedTraceEdgeIds: traceState.completedEdgeIds.isNotEmpty
+            ? traceState.completedEdgeIds
+            : null,
       ),
       child: const SizedBox.expand(),
     );
@@ -2205,6 +2759,16 @@ class _EdgeSelectionWrapperState extends ConsumerState<_EdgeSelectionWrapper>
 ///   segment travels ONCE along the selected edge's cached Path. The
 ///   painter does NOT own the AnimationController — it receives
 ///   `sweepProgress` and draws the segment at that position.
+///
+/// v92 (PARTS 14–15) PATH FOCUS + SEQUENTIAL TRACE:
+///   When `pathFocusActive` is true, edges in `pathFocusedEdgeIds`
+///   retain their relationship category colour (and custom colour)
+///   but receive a subtle clarity boost — they are NOT recoloured
+///   orange. Unrelated edges (those in `dimmedEdgeIds`) dim to ~70%
+///   alpha. The trace edge (when `traceActive`) receives the same
+///   moving sweep highlight as the selected-edge sweep, reusing the
+///   existing `_paintSweepSegment` pass. Completed trace edges
+///   remain statically focused via the path-focus state.
 class _EngineEdgePainter extends CustomPainter {
   _EngineEdgePainter({
     required this.positions,
@@ -2221,6 +2785,12 @@ class _EngineEdgePainter extends CustomPainter {
     this.sweepEdgeId,
     this.sweepProgress = 0.0,
     this.sweepActive = false,
+    this.pathFocusedEdgeIds,
+    this.pathFocusActive = false,
+    this.traceEdgeId,
+    this.traceProgress = 0.0,
+    this.traceActive = false,
+    this.completedTraceEdgeIds,
   });
 
   final Map<String, Offset> positions;
@@ -2245,6 +2815,23 @@ class _EngineEdgePainter extends CustomPainter {
   final String? sweepEdgeId;
   final double sweepProgress;
   final bool sweepActive;
+
+  /// v92 (PART 14): Edges in the focused viewer→target kinship path.
+  /// These retain full clarity while unrelated edges dim.
+  final Set<String>? pathFocusedEdgeIds;
+
+  /// v92 (PART 14): True when a path focus is active.
+  final bool pathFocusActive;
+
+  /// v92 (PART 15): Edge currently being traced by the sequential
+  /// path trace. Null when no trace is active.
+  final String? traceEdgeId;
+  final double traceProgress;
+  final bool traceActive;
+
+  /// v92 (PART 15): Edges already traced by the sequential trace.
+  /// These remain statically focused after their sweep completes.
+  final Set<String>? completedTraceEdgeIds;
 
   // ── Path construction ─────────────────────────────────────────────────
 
@@ -2353,8 +2940,22 @@ class _EngineEdgePainter extends CustomPainter {
 
       final bool isSelected = e.id == selectedEdgeId;
       final bool isSweep = sweepActive && e.id == sweepEdgeId;
+      // v92 (PART 14): path-focus state. A path-focused edge retains
+      // normal clarity (the dimAlpha does NOT apply to it). The
+      // selected edge and sweep edge are always treated as
+      // path-focused for dim purposes.
+      final bool isPathFocused = pathFocusActive &&
+          pathFocusedEdgeIds != null &&
+          pathFocusedEdgeIds!.contains(e.id);
+      // v92 (PART 15): sequential trace state.
+      final bool isTrace = traceActive && e.id == traceEdgeId;
+      final bool isCompletedTrace = completedTraceEdgeIds != null &&
+          completedTraceEdgeIds!.contains(e.id);
       final bool isDimmed = !isSelected &&
           !isSweep &&
+          !isPathFocused &&
+          !isTrace &&
+          !isCompletedTrace &&
           dimmedEdgeIds != null &&
           dimmedEdgeIds!.contains(e.id);
 
@@ -2397,10 +2998,16 @@ class _EngineEdgePainter extends CustomPainter {
       // Effective stroke width clamped to the lighting contract range.
       final double bodyWidth = GraphLighting.clampBodyWidth(style.strokeWidth);
 
-      // Final alpha after relationship-focus dimming.
+      // v92 (PART 14): Path-focused edges get a subtle clarity boost
+      // (~10% alpha lift, capped at 1.0). They retain their
+      // relationship category colour — orange is NOT applied here.
+      final double pathFocusBoost =
+          (isPathFocused || isCompletedTrace) ? 0.10 : 0.0;
+
+      // Final alpha after relationship-focus dimming + path-focus boost.
       final double effectiveAlpha = isDimmed
           ? (edgeAlpha * dimAlpha).clamp(0.0, 1.0)
-          : edgeAlpha;
+          : (edgeAlpha + pathFocusBoost).clamp(0.0, 1.0);
 
       // ── DOT LOD: minimal stroke only ──────────────────────────────
       // No blur, no ridge, no midpoint, no sweep. Selected edges get
@@ -2476,6 +3083,22 @@ class _EngineEdgePainter extends CustomPainter {
           canvas: canvas,
           path: path,
           progress: sweepProgress,
+          edgeColor: edgeColor,
+          bodyWidth: bodyWidth,
+        );
+      }
+
+      // v92 (PART 15): SEQUENTIAL TRACE SWEEP — drawn ABOVE the
+      // path-focus state. Reuses the same `_paintSweepSegment` pass
+      // as the selected-edge sweep, but driven by `traceProgress`
+      // along the current trace edge. Completed trace edges remain
+      // statically focused via the `isCompletedTrace` alpha boost
+      // applied above — no extra paint pass needed for them.
+      if (isTrace) {
+        _paintSweepSegment(
+          canvas: canvas,
+          path: path,
+          progress: traceProgress,
           edgeColor: edgeColor,
           bodyWidth: bodyWidth,
         );
@@ -2952,6 +3575,9 @@ class _EngineEdgePainter extends CustomPainter {
     //   • sweepActive / sweepProgress change (one-shot sweep ticks)
     //   • edgeQuality change (LOD transition)
     //   • dimmedEdgeIds presence change (relationship focus mode)
+    //   • pathFocusActive / pathFocusedEdgeIds change (PART 14)
+    //   • traceActive / traceProgress / traceEdgeId change (PART 15)
+    //   • completedTraceEdgeIds change (PART 15)
     //
     // We intentionally do NOT use `identical()` — on Flutter Web
     // (dart2js) it is unreliable across widget rebuilds.
@@ -2962,7 +3588,15 @@ class _EngineEdgePainter extends CustomPainter {
         old.edgeQuality != edgeQuality ||
         old.sweepActive != sweepActive ||
         (sweepActive && old.sweepProgress != sweepProgress) ||
-        !_sameDimmedSet(old.dimmedEdgeIds);
+        !_sameDimmedSet(old.dimmedEdgeIds) ||
+        // v92 (PART 14): path-focus changes
+        old.pathFocusActive != pathFocusActive ||
+        !_sameSet(old.pathFocusedEdgeIds, pathFocusedEdgeIds) ||
+        // v92 (PART 15): trace changes
+        old.traceActive != traceActive ||
+        old.traceEdgeId != traceEdgeId ||
+        (traceActive && old.traceProgress != traceProgress) ||
+        !_sameSet(old.completedTraceEdgeIds, completedTraceEdgeIds);
   }
 
   /// Lightweight dimmed-set comparison. We do NOT deep-compare element
@@ -2970,14 +3604,107 @@ class _EngineEdgePainter extends CustomPainter {
   /// and only fall back to a containsAll check when lengths match but
   /// identities differ. This is O(N) only on actual focus-mode
   /// transitions, not on every animation tick.
-  bool _sameDimmedSet(Set<String>? other) {
-    if (identical(dimmedEdgeIds, other)) return true;
-    final a = dimmedEdgeIds;
-    final b = other;
+  bool _sameDimmedSet(Set<String>? other) =>
+      _sameSet(dimmedEdgeIds, other);
+
+  /// v92: Generic lightweight set comparison used for dimmedEdgeIds,
+  /// pathFocusedEdgeIds, and completedTraceEdgeIds.
+  bool _sameSet(Set<String>? a, Set<String>? b) {
+    if (identical(a, b)) return true;
     if (a == null && b == null) return true;
     if (a == null || b == null) return false;
     if (a.length != b.length) return false;
     return a.containsAll(b);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v92 (PART 19) — +N COLLAPSED BRANCH AFFORDANCE
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A small "+N" chip overlaid on a node that has [count] hidden
+/// descendants. Tapping the chip reveals the branch via the existing
+/// ExpandCollapseController.
+///
+/// Visual design (per PART 19 spec):
+///   • dark Kinrel surface (#1A1F2B)
+///   • subtle border (orange @ 0.4 alpha)
+///   • restrained orange interaction accent
+///   • minimum accessible hit target (44×44)
+///   • visual element remains compact (the chip itself is small, but
+///     the hit area extends to 44px)
+class _BranchAffordanceChip extends StatelessWidget {
+  const _BranchAffordanceChip({
+    required this.count,
+    required this.onTap,
+  });
+
+  final int count;
+  final VoidCallback onTap;
+
+  static const Color _bg = Color(0xFF1A1F2B);
+  static const Color _orange = Color(0xFFE8863A);
+  static const Color _textWhite = Color(0xFFFFFFFF);
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '$count hidden family members. Expand branch.',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          // The visual chip is compact, but the hit area is the
+          // minimum accessible size (44×44) via the InkWell's
+          // automatic minimum size.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minWidth: 44,
+              minHeight: 44,
+            ),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: _bg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _orange.withValues(alpha: 0.4)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x40000000),
+                    blurRadius: 6,
+                    offset: Offset(1, 2),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.unfold_more_rounded,
+                      color: _orange,
+                      size: 12,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      '+$count',
+                      style: const TextStyle(
+                        color: _textWhite,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
