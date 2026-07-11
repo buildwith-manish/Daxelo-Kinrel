@@ -585,14 +585,22 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   // ── Animated Node Builder ──────────────────────────────────────────
 
   Widget _buildAnimatedNode({bool reduceMotion = false}) {
+    // 2.5D depth: ancestor nodes get a 1.5px upward visual offset to
+    // reinforce the "floating higher" effect from the elevation shadow.
+    // This is a static transform (no animation), applied to all states.
+    final yOffset = widget.generationIndex < 0 && !widget.isAnchor ? -1.5 : 0.0;
+
     // Focused state: pulsing glow
     if (widget.nodeState == NodeState.focused) {
       return AnimatedBuilder(
         animation: _pulseAnimation,
         builder: (context, child) {
-          return Transform.scale(
-            scale: _pulseAnimation.value,
-            child: child,
+          return Transform.translate(
+            offset: Offset(0, yOffset),
+            child: Transform.scale(
+              scale: _pulseAnimation.value,
+              child: child,
+            ),
           );
         },
         child: _buildNodeContent(),
@@ -601,9 +609,12 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
     // Hover state: scale up 7%
     if (widget.nodeState == NodeState.hover) {
-      return Transform.scale(
-        scale: 1.07,
-        child: _buildNodeContent(),
+      return Transform.translate(
+        offset: Offset(0, yOffset),
+        child: Transform.scale(
+          scale: 1.07,
+          child: _buildNodeContent(),
+        ),
       );
     }
 
@@ -612,11 +623,22 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       return AnimatedBuilder(
         animation: _errorPulseAnimation,
         builder: (context, child) {
-          return Opacity(
-            opacity: _errorPulseAnimation.value,
-            child: child,
+          return Transform.translate(
+            offset: Offset(0, yOffset),
+            child: Opacity(
+              opacity: _errorPulseAnimation.value,
+              child: child,
+            ),
           );
         },
+        child: _buildNodeContent(),
+      );
+    }
+
+    // Normal/selected/expanded/loading: static offset for ancestors
+    if (yOffset != 0) {
+      return Transform.translate(
+        offset: Offset(0, yOffset),
         child: _buildNodeContent(),
       );
     }
@@ -715,6 +737,8 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     }
 
     // Anchor node: double-ring (outer teal 88dp glow, inner 72dp solid)
+    // with generation-based elevation shadow (most pronounced — closest
+    // to viewer).
     if (widget.isAnchor) {
       return SizedBox(
         width: diameter + 16.0,
@@ -731,19 +755,14 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                 width: 3.0,
               ),
               boxShadow: [
+                // Teal spread glow (existing anchor ring)
                 BoxShadow(
                   color: RelationshipColors.self.withValues(alpha: 0.25),
                   blurRadius: 0.0,
                   spreadRadius: 8.0,
                 ),
-                // Selected state: additional glow
-                if (widget.nodeState == NodeState.selected)
-                  BoxShadow(
-                    color:
-                        RelationshipColors.self.withValues(alpha: 0.4),
-                    blurRadius: 12.0,
-                    spreadRadius: 4.0,
-                  ),
+                // 2.5D elevation shadow (generation-driven)
+                ..._elevationShadows,
               ],
             ),
             child: _buildCircleContent(diameter),
@@ -753,6 +772,8 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     }
 
     // Standard node with relationship-colored ring
+    // 2.5D depth: elevation shadow is computed once from generationIndex
+    // + state via _elevationShadows getter — no per-frame recomputation.
     return Container(
       width: diameter,
       height: diameter,
@@ -763,22 +784,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
           color: _borderColor,
           width: _borderWidth,
         ),
-        boxShadow: [
-          // Selected: accent border glow
-          if (widget.nodeState == NodeState.selected)
-            BoxShadow(
-              color: _borderColor.withValues(alpha: 0.4),
-              blurRadius: 12.0,
-              spreadRadius: 2.0,
-            ),
-          // Hover: elevated shadow
-          if (widget.nodeState == NodeState.hover)
-            BoxShadow(
-              color: _borderColor.withValues(alpha: 0.3),
-              blurRadius: 8.0,
-              spreadRadius: 2.0,
-            ),
-        ],
+        boxShadow: _elevationShadows,
       ),
       child: Stack(
         children: [
@@ -939,6 +945,92 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       _ => 2.5,
     };
     return _highContrast ? base * 2.0 : base;
+  }
+
+  // ── Generation-Based Elevation (2.5D depth) ────────────────────────
+  //
+  // Subtle Material-style elevation driven by generationIndex:
+  //   Ancestors (gen < 0): larger blur + slight upward offset → "floating higher"
+  //   Anchor   (gen == 0, isAnchor): most pronounced → "closest to viewer"
+  //   Descendants (gen > 0): smaller, tighter shadow → "flush/lower"
+  //
+  // These are STATIC per node (computed once from generationIndex + state),
+  // NOT recalculated every frame. No BackdropFilter, no saveLayer — just
+  // standard BoxShadow via BoxDecoration.
+  //
+  // Combined with state-driven shadows (selected/focused glow), the total
+  // never exceeds 2 shadow entries (guardrail per the spec).
+
+  List<BoxShadow> get _elevationShadows {
+    final gen = widget.generationIndex;
+    final isAnchor = widget.isAnchor;
+
+    // Base elevation shadow (generation-driven)
+    BoxShadow base;
+    if (isAnchor) {
+      // Anchor: most pronounced — closest to viewer
+      base = BoxShadow(
+        color: Colors.black.withValues(alpha: 0.40),
+        blurRadius: 16,
+        offset: const Offset(0, 6),
+        spreadRadius: 0,
+      );
+    } else if (gen < 0) {
+      // Ancestors: float higher — larger blur, slight upward offset
+      base = BoxShadow(
+        color: Colors.black.withValues(alpha: 0.30),
+        blurRadius: 12,
+        offset: const Offset(0, -2), // upward offset
+        spreadRadius: 0,
+      );
+    } else {
+      // Descendants: flush/lower — tighter shadow
+      base = BoxShadow(
+        color: Colors.black.withValues(alpha: 0.20),
+        blurRadius: 6,
+        offset: const Offset(0, 2),
+        spreadRadius: 0,
+      );
+    }
+
+    // State-driven additive shadows (selected/focused glow)
+    // These COMBINE with the base elevation, not replace it.
+    // Limit to max 2 total entries (base + one state glow).
+    if (widget.nodeState == NodeState.selected) {
+      return [
+        base,
+        BoxShadow(
+          color: _borderColor.withValues(alpha: 0.40),
+          blurRadius: 14,
+          spreadRadius: 2,
+        ),
+      ];
+    }
+    if (widget.nodeState == NodeState.focused) {
+      return [
+        base,
+        BoxShadow(
+          color: _borderColor.withValues(alpha: 0.35),
+          blurRadius: 10,
+          spreadRadius: 3,
+        ),
+      ];
+    }
+    // Hover: increase shadow on top of base elevation
+    if (widget.nodeState == NodeState.hover) {
+      return [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: isAnchor ? 0.50 : (gen < 0 ? 0.40 : 0.30)),
+          blurRadius: isAnchor ? 20 : (gen < 0 ? 16 : 10),
+          offset: isAnchor
+              ? const Offset(0, 8)
+              : (gen < 0 ? const Offset(0, -3) : const Offset(0, 3)),
+        ),
+      ];
+    }
+
+    // Normal/error/loading/expanded: just the base elevation
+    return [base];
   }
 
   // ── Circle Content (initials or photo) ─────────────────────────────
