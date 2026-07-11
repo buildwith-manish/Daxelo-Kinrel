@@ -201,7 +201,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
 
     return Stack(
       children: [
-        maplibre.MaplibreMap(
+        maplibre.MapLibreMap(
           styleString: _kStyleUrl,
           initialCameraPosition: const maplibre.CameraPosition(
             target: maplibre.LatLng(20.5937, 78.9629),
