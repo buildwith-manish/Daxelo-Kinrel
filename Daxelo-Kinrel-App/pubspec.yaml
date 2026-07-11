@@ -103,6 +103,9 @@ dependencies:
   # Uses MapLibre Native on Android/iOS, MapLibre GL JS on web.
   maplibre: ^0.3.5
   latlong2: ^0.9.1
+  # geolocator: GPS capture for live location sharing on the Family Map.
+  # Verified on pub.dev: latest=14.0.3, supports Android/iOS/Web/macOS/Windows.
+  geolocator: ^14.0.3
 
   # Math/Graph
   collection: ^1.19.1

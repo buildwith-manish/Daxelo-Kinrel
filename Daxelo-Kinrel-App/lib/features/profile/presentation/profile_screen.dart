@@ -45,6 +45,8 @@ import '../../social/data/providers/follow_provider.dart';
 import '../../social/presentation/widgets/sparq_ring_avatar.dart';
 import '../../../core/services/image_cache_manager.dart';
 import '../../trackc/presentation/screens/learning_profile_screen.dart';
+import '../../family_map/helpers/location_permission_helper.dart';
+import '../../family_map/providers/live_location_provider.dart';
 import 'account_switcher_sheet.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
@@ -155,6 +157,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   final _familyActivityProvider = StateProvider<bool>((ref) => true);
   final _twoFactorProvider = StateProvider<bool>((ref) => false);
   final _biometricLockProvider = StateProvider<bool>((ref) => false);
+  final _locationSharingProvider = StateProvider<bool>((ref) => false);
 
   @override
   Widget build(BuildContext context) {
@@ -397,6 +400,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 label: 'Biometric lock',
                 provider: _biometricLockProvider,
                 onChanged: (value) => _onBiometricToggle(value),
+              ),
+              _divider(),
+              // Family Map — live location sharing toggle.
+              // Off by default. When enabled, requests GPS permission,
+              // gets one fix, and starts the broadcast loop on the map
+              // screen. Other family members see your pin move in
+              // near-real-time.
+              _SettingsToggleRow(
+                icon: Icons.location_on_outlined,
+                label: 'Share my location with family',
+                provider: _locationSharingProvider,
+                onChanged: (value) => _onLocationSharingToggle(value),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 50, right: 16, bottom: 8),
+                child: Text(
+                  'When on, family members see your pin on the Family Map in near-real-time. '
+                  'Turn off anytime to stop sharing.',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 11,
+                    color: DKColors.isLight(context)
+                        ? const Color(0xFF9CA3AF)
+                        : const Color(0xFF8A7A72),
+                    height: 1.4,
+                  ),
+                ),
               ),
               _divider(),
               _SettingsRow(
@@ -1429,6 +1459,94 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       const storage = FlutterSecureStorage();
       await storage.write(key: key, value: value.toString());
     } catch (_) {}
+  }
+
+  // ── Location Sharing Toggle ────────────────────────────────────────
+  //
+  // When enabling: requests GPS permission, gets one fix, calls
+  // liveLocationProvider.setSharing(sharing: true). The broadcast loop
+  // starts automatically on the map screen when it detects isSharing=true.
+  //
+  // When disabling: calls setSharing(sharing: false). The broadcast loop
+  // stops automatically. The MemberLocation row stays but isSharing=false,
+  // so the pin disappears from other family members' maps.
+  //
+  // Never shows "sharing on" before permission is confirmed.
+  Future<void> _onLocationSharingToggle(bool enabling) async {
+    if (enabling) {
+      // Request permission first — never enable sharing without it.
+      final result = await requestLocationPermission();
+      if (result != PermissionResult.granted) {
+        // Permission denied — revert the toggle immediately.
+        ref.read(_locationSharingProvider.notifier).state = false;
+        if (result == PermissionResult.deniedForever) {
+          // Open app settings so the user can grant manually.
+          await openLocationSettings();
+        } else if (result == PermissionResult.serviceDisabled) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Please enable location services in your device settings.')),
+            );
+          }
+        }
+        return;
+      }
+
+      // Permission granted — get one GPS fix to seed the initial position.
+      final pos = await getCurrentPosition();
+      if (pos == null) {
+        ref.read(_locationSharingProvider.notifier).state = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not get your location. Try again.')),
+          );
+        }
+        return;
+      }
+
+      // Get the user's family + person ID for the MemberLocation row.
+      final familyId = ref.read(familyListProvider).valueOrNull?.first.id ?? '';
+      final members = ref.read(familyMembersProvider(familyId)).valueOrNull;
+      final userId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+      if (familyId.isEmpty || members == null || userId == null) {
+        ref.read(_locationSharingProvider.notifier).state = false;
+        return;
+      }
+      final myPerson = members.where((p) => p.linkedUserId == userId).firstOrNull;
+      if (myPerson == null) {
+        ref.read(_locationSharingProvider.notifier).state = false;
+        return;
+      }
+
+      // Enable sharing in the provider — the map screen will detect
+      // isSharing=true and start the broadcast loop automatically.
+      await ref.read(liveLocationProvider.notifier).setSharing(
+            sharing: true,
+            familyId: familyId,
+            personId: myPerson.id,
+            lat: pos.latitude,
+            lng: pos.longitude,
+          );
+    } else {
+      // Disabling sharing — cancel the broadcast + mark isSharing=false.
+      final familyId = ref.read(familyListProvider).valueOrNull?.first.id ?? '';
+      final members = ref.read(familyMembersProvider(familyId)).valueOrNull;
+      final userId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+      if (familyId.isNotEmpty && members != null && userId != null) {
+        final myPerson = members.where((p) => p.linkedUserId == userId).firstOrNull;
+        if (myPerson != null) {
+          // Use the last known position to set isSharing=false.
+          final lastPos = await getCurrentPosition();
+          await ref.read(liveLocationProvider.notifier).setSharing(
+                sharing: false,
+                familyId: familyId,
+                personId: myPerson.id,
+                lat: lastPos?.latitude ?? 0,
+                lng: lastPos?.longitude ?? 0,
+              );
+        }
+      }
+    }
   }
 
   Future<void> _onBiometricToggle(bool enabling) async {

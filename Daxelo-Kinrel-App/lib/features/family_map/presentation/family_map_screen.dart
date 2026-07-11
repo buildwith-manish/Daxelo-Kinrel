@@ -22,6 +22,7 @@
 //   Web: requires MapLibre GL JS ^5.0 in index.html (per package docs)
 // Style: https://tiles.openfreemap.org/styles/dark (free, no API key)
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -29,15 +30,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre/maplibre.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/graph/graph_provider.dart';
 import '../../../core/graph/graph_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/widgets/cached_avatar.dart';
 import '../providers/family_map_provider.dart';
+import '../providers/live_location_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // HELPER: Generate initials from name
@@ -68,14 +72,45 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   bool _styleLoaded = false;
   bool _buildingsAdded = false;
   FamilyMapResult? _lastResult;
+  Timer? _broadcastTimer;
+  Timer? _dbUpsertTimer;
+  DateTime? _lastDbUpsert;
 
   /// OpenFreeMap dark vector style — free, unlimited, no API key.
   /// Already dark-themed with building height data for 3D extrusion.
   static const _kStyleUrl = 'https://tiles.openfreemap.org/styles/dark';
 
   @override
+  void initState() {
+    super.initState();
+    // Start the live location provider when the map screen mounts.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final familyId = ref.read(familyListProvider).valueOrNull?.first.id;
+      if (familyId != null) {
+        ref.read(liveLocationProvider.notifier).start(familyId);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _stopBroadcastLoop();
+    ref.read(liveLocationProvider.notifier).stop();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final mapAsync = ref.watch(familyMapProvider);
+
+    // Watch live location state — start/stop the broadcast loop based
+    // on the current user's sharing preference.
+    final liveState = ref.watch(liveLocationProvider);
+    if (liveState.isSharing && _broadcastTimer == null) {
+      _startBroadcastLoop();
+    } else if (!liveState.isSharing && _broadcastTimer != null) {
+      _stopBroadcastLoop();
+    }
 
     return DKScaffold(
       backgroundColor: KinrelColors.darkBackground,
@@ -187,61 +222,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
           onStyleLoaded: _onStyleLoaded,
         ),
 
-        // ── Non-blocking empty-locations overlay ───────────────────
-        if (result.pins.isEmpty)
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 60,
-            left: KinrelSpacing.base,
-            right: KinrelSpacing.base,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 340),
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: KinrelColors.darkCard.withValues(alpha: 0.95),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: KinrelColors.orange.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.location_off_outlined,
-                        size: 32,
-                        color: KinrelColors.orange.withValues(alpha: 0.7),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No family locations yet',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: KinrelColors.textWhite,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Family members will appear here when a location becomes available.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 12,
-                          color: KinrelColors.textSilver,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
         // ── Legend overlay — bottom-left ───────────────────────────
+        // The map is ALWAYS fully visible and interactive — no empty-state
+        // card replaces it. The header subtitle "0 members located" is the
+        // only indicator of empty data.
         Positioned(
           left: KinrelSpacing.base,
           bottom: KinrelSpacing.base,
@@ -438,6 +422,69 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
       }
     } catch (e) {
       debugPrint('❌ queryRenderedFeatures failed: $e');
+    }
+  }
+
+  // ── Live location broadcast loop ────────────────────────────────────
+  //
+  // When the user has sharing enabled (toggled in Settings), the map
+  // screen captures GPS every 5s and broadcasts to the family channel,
+  // and upserts to MemberLocation at most once per 30s.
+
+  void _startBroadcastLoop() {
+    _broadcastTimer?.cancel();
+    _broadcastTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      await _captureAndBroadcast();
+    });
+  }
+
+  void _stopBroadcastLoop() {
+    _broadcastTimer?.cancel();
+    _broadcastTimer = null;
+    _dbUpsertTimer?.cancel();
+    _dbUpsertTimer = null;
+  }
+
+  Future<void> _captureAndBroadcast() async {
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 3),
+        ),
+      );
+      final familyId = ref.read(familyListProvider).valueOrNull?.first.id ?? '';
+      if (familyId.isEmpty) return;
+
+      // We need the current user's personId. Get it from the family
+      // members list — the Person whose linkedUserId matches the
+      // current Supabase auth user.
+      final members = ref.read(familyMembersProvider(familyId)).valueOrNull;
+      final userId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+      if (members == null || userId == null) return;
+      final myPerson = members.where((p) => p.linkedUserId == userId).firstOrNull;
+      if (myPerson == null) return;
+
+      ref.read(liveLocationProvider.notifier).broadcastMyLocation(
+            familyId: familyId,
+            personId: myPerson.id,
+            lat: pos.latitude,
+            lng: pos.longitude,
+          );
+
+      // Throttle DB writes to once per 30s.
+      final now = DateTime.now();
+      if (_lastDbUpsert == null || now.difference(_lastDbUpsert!).inSeconds >= 30) {
+        await ref.read(liveLocationProvider.notifier).upsertMyLocation(
+              familyId: familyId,
+              personId: myPerson.id,
+              lat: pos.latitude,
+              lng: pos.longitude,
+            );
+        _lastDbUpsert = now;
+      }
+    } catch (e) {
+      debugPrint('⚠️ Broadcast capture failed: $e');
     }
   }
 
