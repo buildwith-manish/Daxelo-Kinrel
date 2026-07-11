@@ -13,6 +13,7 @@
 // Package: maplibre_gl ^0.26.0 (verified on pub.dev)
 // Style: https://tiles.openfreemap.org/styles/dark (free, no API key)
 
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as maplibre;
@@ -255,8 +256,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     // OpenFreeMap uses the OpenMapTiles vector schema:
     //   source: "openmaptiles" (the vector tile source in the style)
     //   source-layer: "building"
-    //   height property: "height"
-    //   min_height property: "min_height"
+    //   height property: "render_height" (NOT "height" — OpenMapTiles
+    //     uses render_height for the extruded height value)
+    //   base property: "render_min_height" (NOT "min_height")
     try {
       await controller.addFillExtrusionLayer(
         'openmaptiles',
@@ -265,12 +267,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
           fillExtrusionColor: '#1a1a2e', // dark blue-grey for buildings
           fillExtrusionHeight: [
             'get',
-            'height'
-          ], // extrude to the building's height property
+            'render_height'
+          ], // extrude to the building's render_height property
           fillExtrusionBase: [
             'get',
-            'min_height'
-          ], // base elevation from min_height
+            'render_min_height'
+          ], // base elevation from render_min_height
           fillExtrusionOpacity: 0.8,
           fillExtrusionVerticalGradient: true,
         ),
@@ -280,11 +282,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
       );
       _buildingsAdded = true;
       debugPrint('✅ 3D building extrusion layer added successfully');
+      debugPrint('   Using render_height / render_min_height (OpenMapTiles schema)');
     } catch (e) {
       // Log the exact error so we can diagnose missing source/layer/property.
       debugPrint('❌ Failed to add 3D building extrusion: $e');
       debugPrint('   Expected source: "openmaptiles", source-layer: "building"');
-      debugPrint('   Expected properties: "height", "min_height"');
+      debugPrint('   Expected properties: "render_height", "render_min_height"');
     }
 
     // Add family member pins as a GeoJSON source + circle layers.
@@ -365,7 +368,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
       return;
     }
 
-    debugPrint('🚀 Flying to Bengaluru: zoom=16, tilt=45° for 3D building test');
+    debugPrint('🚀 Flying to Bengaluru: zoom=16.5, tilt=45° for 3D building test');
+    debugPrint('   3D buildings layer added: $_buildingsAdded');
     controller.animateCamera(
       maplibre.CameraUpdate.newCameraPosition(
         const maplibre.CameraPosition(
@@ -385,6 +389,84 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
         duration: Duration(seconds: 4),
       ),
     );
+
+    // ── Runtime feature query ───────────────────────────────────────
+    // After the camera animation completes (3s + buffer), query the
+    // rendered building features at the screen center to verify that
+    // the "render_height" property is actually present and non-zero.
+    // This catches the class of bug where the layer is "added" but
+    // visually flat because the property name is wrong — the layer
+    // doesn't throw, it just silently extrudes to height 0.
+    Future.delayed(const Duration(seconds: 5), () {
+      _queryBengaluruBuildingProperties();
+    });
+  }
+
+  /// Query rendered building features at the map center and log their
+  /// available property keys + render_height value. This verifies that
+  /// the OpenMapTiles "building" source-layer actually exposes the
+  /// "render_height" property that our fill-extrusion layer references.
+  void _queryBengaluruBuildingProperties() async {
+    final controller = _mapController;
+    if (controller == null || !_buildingsAdded) {
+      debugPrint('⚠️ Cannot query buildings — controller null or layer not added');
+      return;
+    }
+
+    try {
+      // Query at the center of the screen (Bengaluru after the fly-to).
+      final size = MediaQuery.of(context).size;
+      final centerPoint = math.Point<double>(size.width / 2, size.height / 2);
+
+      final features = await controller.queryRenderedFeatures(
+        centerPoint,
+        ['kinrel-3d-buildings'],
+        null,
+      );
+
+      if (features.isEmpty) {
+        debugPrint('⚠️ No building features found at Bengaluru center.');
+        debugPrint('   Possible causes:');
+        debugPrint('   - Zoom level too low (need 15+ for the minzoom filter)');
+        debugPrint('   - Source "openmaptiles" or source-layer "building" not in style');
+        debugPrint('   - Camera animation not yet complete');
+        return;
+      }
+
+      debugPrint('✅ Found ${features.length} building feature(s) at Bengaluru center');
+
+      // Log the properties of the first feature to verify render_height exists.
+      final firstFeature = features.first;
+      final props = firstFeature['properties'] as Map<String, dynamic>?;
+      if (props == null) {
+        debugPrint('   ⚠️ Feature has no properties — cannot verify render_height');
+        return;
+      }
+
+      debugPrint('   Available property keys: ${props.keys.toList()}');
+      debugPrint('   render_height = ${props['render_height']}');
+      debugPrint('   render_min_height = ${props['render_min_height']}');
+
+      // Also check the old property names to confirm they're NOT present.
+      if (props.containsKey('height')) {
+        debugPrint('   ℹ️ "height" (old name) = ${props['height']}');
+      }
+      if (props.containsKey('min_height')) {
+        debugPrint('   ℹ️ "min_height" (old name) = ${props['min_height']}');
+      }
+
+      // Final verdict
+      final rh = props['render_height'];
+      if (rh != null && rh is num && rh > 0) {
+        debugPrint('✅ render_height is present and non-zero ($rh) — 3D extrusion should be visible');
+      } else {
+        debugPrint('❌ render_height is null or zero — buildings will appear flat!');
+        debugPrint('   The fill-extrusion layer is referencing a property that');
+        debugPrint('   does not exist on the building features.');
+      }
+    } catch (e) {
+      debugPrint('❌ queryRenderedFeatures failed: $e');
+    }
   }
 
   // ── Pin Bottom Sheet ───────────────────────────────────────────────
