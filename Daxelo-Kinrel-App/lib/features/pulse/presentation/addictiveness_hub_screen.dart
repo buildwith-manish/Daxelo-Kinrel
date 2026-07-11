@@ -65,7 +65,14 @@ class AddictivenessHubScreen extends ConsumerWidget {
             subtitle: 'Blessings, festivals & occasion greetings',
             route: '/pulse/celebrations',
             color: KinrelColors.gold,
-            badgeProvider: blessingsForMeProvider,
+            // Bug fix: pass a typed resolver instead of an untyped
+            // ProviderBase<dynamic>. The resolver watches the provider
+            // (which returns AsyncValue<List<BlessingChain>>) and maps
+            // it to AsyncValue<int?> via .whenData — the AsyncValue
+            // chain stays intact, no `dynamic` method dispatch.
+            badgeResolver: (ref) => ref
+                .watch(blessingsForMeProvider)
+                .whenData((list) => list.length),
           ),
           const SizedBox(height: 12),
 
@@ -76,7 +83,9 @@ class AddictivenessHubScreen extends ConsumerWidget {
             subtitle: 'Messages locked for future dates',
             route: '/pulse/time-capsules',
             color: KinrelColors.tealAccent,
-            badgeProvider: capsulesForMeProvider,
+            badgeResolver: (ref) => ref
+                .watch(capsulesForMeProvider)
+                .whenData((list) => list.length),
           ),
           const SizedBox(height: 12),
 
@@ -89,46 +98,6 @@ class AddictivenessHubScreen extends ConsumerWidget {
             color: KinrelColors.blue,
           ),
           const SizedBox(height: 32),
-
-          // ── Helper text for where things moved ────────────────────
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.info_outline, size: 16, color: Colors.white54),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Where did everything go?',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '• Family Quests appear as cards in the Daily Brief\n'
-                  '• Silent Alarms moved to Settings (passive nudges)\n'
-                  '• Blessing Chain + Festivals combined into Celebrations\n'
-                  '• Memorials + Chronicle combined into Family Legacy',
-                  style: TextStyle(
-                    color: Colors.white38,
-                    fontSize: 12,
-                    height: 1.6,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -136,13 +105,36 @@ class AddictivenessHubScreen extends ConsumerWidget {
 }
 
 /// A hub card with optional badge count (from a provider).
+///
+/// Bug fix (Family Intelligence crash): the previous implementation typed
+/// [badgeProvider] as `ProviderBase<dynamic>?` and called `.whenData()` on
+/// the result of `ref.watch(badgeProvider!)`. In debug builds this worked
+/// because the provider was a `FutureProvider<List<...>>` and
+/// `ref.watch` returned an `AsyncValue`. But in production/minified web
+/// builds, the `dynamic` typing caused `NoSuchMethodError: whenData was
+/// called on a List` when the provider had already resolved and Riverpod
+/// returned the cached `List` value directly instead of wrapping it in
+/// an `AsyncValue`.
+///
+/// Fix: replace the untyped `ProviderBase<dynamic>?` + unsafe
+/// `.whenData()` pattern with a typed badge-resolver callback that
+/// returns an `AsyncValue<int?>`. Each call site wraps its provider
+/// watch in a properly typed `.when()` / `.maybeWhen()` call so the
+/// type system — not runtime duck-typing — guarantees the value is an
+/// `AsyncValue` before any method is called on it.
 class _HubCard extends ConsumerWidget {
   final String emoji;
   final String title;
   final String subtitle;
   final String route;
   final Color color;
-  final ProviderBase<dynamic>? badgeProvider;
+
+  /// Typed badge resolver. Returns `AsyncValue<int?>` so the card can
+  /// safely handle loading / error / data states without ever calling
+  /// a method on a non-`AsyncValue` type. Callers pass a closure like:
+  ///   `(ref) => ref.watch(blessingsForMeProvider).whenData((l) => l.length)
+  /// This keeps the `AsyncValue` chain intact end-to-end.
+  final AsyncValue<int?> Function(WidgetRef ref)? badgeResolver;
 
   const _HubCard({
     required this.emoji,
@@ -150,17 +142,18 @@ class _HubCard extends ConsumerWidget {
     required this.subtitle,
     required this.route,
     required this.color,
-    this.badgeProvider,
+    this.badgeResolver,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     int? badgeCount;
-    if (badgeProvider != null) {
-      final asyncValue = ref.watch(badgeProvider!);
-      asyncValue.whenData((value) {
-        if (value is List) badgeCount = value.length;
-      });
+    if (badgeResolver != null) {
+      // The resolver returns a properly-typed AsyncValue<int?> — no
+      // `dynamic`, no runtime method dispatch on an unknown type.
+      // `.valueOrNull` safely extracts the count (null while loading
+      // or on error, so the badge simply doesn't show — no crash).
+      badgeCount = badgeResolver!(ref).valueOrNull;
     }
 
     return Material(

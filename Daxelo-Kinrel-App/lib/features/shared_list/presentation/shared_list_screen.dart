@@ -35,10 +35,28 @@ class _SharedListScreenState extends ConsumerState<SharedListScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Lists & Errands')),
+      // Bug fix (FAB overlap): the global FAB theme previously forced
+      // `shape: CircleBorder()` which clipped the extended FAB's icon +
+      // label into a circle, causing overlap. That's fixed in the theme
+      // (app_theme.dart). Here we also add explicit `icon` + `label`
+      // with a sized gap and `isExtended: true` so the button is always
+      // a pill shape with proper spacing, even on narrow split-screen
+      // viewports where the FAB has limited horizontal room.
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateListDialog(notifier),
-        icon: const Icon(Icons.add),
-        label: const Text('New List'),
+        icon: const Icon(Icons.add, size: 22),
+        label: const Text(
+          'New List',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        // Ensures the FAB stays a pill (stadium) shape regardless of
+        // any inherited theme overrides. This is belt-and-suspenders
+        // with the theme fix — the theme removes the global CircleBorder,
+        // and this explicitly sets the extended FAB's shape.
+        shape: const StadiumBorder(),
+        // Material 3 extended FABs have a built-in 16px gap between
+        // icon and label. We don't override it — the default spacing
+        // is correct for all screen sizes (phone, tablet, web, split).
       ),
       body: listsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

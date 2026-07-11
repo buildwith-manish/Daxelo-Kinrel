@@ -142,7 +142,7 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
           _FeatureCard(
             icon: Icons.how_to_vote,
             title: 'Decisions',
-            subtitle: 'Vote, meet, track trends',
+            subtitle: 'Vote, meeting minutes & analytics trends',
             color: const Color(0xFF1E88E5),
             onTap: () => context.pushNamed(
               'trackc-decisions',
@@ -157,44 +157,6 @@ class _TrackcHubScreenState extends ConsumerState<TrackcHubScreen> {
             onTap: () => context.pushNamed(
               'trackc-timeline',
               pathParameters: {'id': widget.familyId},
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          // ── Helper text for where things moved ────────────────────
-          Card(
-            color: theme.colorScheme.surfaceContainerHighest,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.info_outline, size: 16, color: theme.colorScheme.outline),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Where did everything go?',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          color: theme.colorScheme.outline,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '• Meeting minutes live inside Decisions\n'
-                    '• Analytics trends live inside Decisions\n'
-                    '• Learning profile lives in Settings → Privacy',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.outline,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ),
         ],

@@ -855,19 +855,50 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
           ),
         );
 
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(ref.watch(fontScaleProvider)),
-          ),
-          child: Column(
-            children: [
-              const OfflineBanner(),
-              Expanded(
-                child: GameInviteListener(
-                  child: child ?? const SizedBox.shrink(),
+        // Bug fix (split-screen / keyboard white-screen):
+        //
+        // ROOT CAUSE: The previous builder returned a bare `Column`
+        // wrapping [OfflineBanner] + [Expanded(child)]. The Column
+        // itself has no background color, so when the keyboard opens
+        // or the viewport shrinks in split-screen/half-screen mode,
+        // any gap between the child's bottom and the viewport's bottom
+        // (caused by `Scaffold.resizeToAvoidBottomInset` shrinking the
+        // body) exposed the default white Material background — a
+        // jarring flash of white in an otherwise dark app.
+        //
+        // FIX:
+        // 1. Wrap the entire Column in a `ColoredBox` using the
+        //    effective scaffold background color (dark or light). This
+        //    guarantees NO white ever shows through, regardless of how
+        //    the child sizes itself.
+        // 2. The Column + Expanded pattern is kept (OfflineBanner
+        //    pinned to top, child fills the rest) — this is correct
+        //    because Scaffold.resizeToAvoidBottomInset handles the
+        //    keyboard inset INSIDE the child's own Scaffold, not here.
+        // 3. The ColoredBox fills the full screen, so even if the
+        //    child's Scaffold has `resizeToAvoidBottomInset: false`
+        //    (graph screen) and leaves a gap below the keyboard, that
+        //    gap is the dark color, not white.
+        final scaffoldBg = effectiveDark
+            ? const Color(0xFF131416) // KinrelColors.darkBackground
+            : const Color(0xFFF5F7FA); // light scaffold bg
+
+        return ColoredBox(
+          color: scaffoldBg,
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(ref.watch(fontScaleProvider)),
+            ),
+            child: Column(
+              children: [
+                const OfflineBanner(),
+                Expanded(
+                  child: GameInviteListener(
+                    child: child ?? const SizedBox.shrink(),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

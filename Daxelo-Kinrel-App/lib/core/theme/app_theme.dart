@@ -701,13 +701,31 @@ FloatingActionButtonThemeData _fabTheme(Brightness brightness) {
             .purple // #E8612A — orange FAB
       : KinrelColors.deepPurple; // #C44A18 — ember FAB
 
+  // Bug fix (Lists & Errands FAB overlap): the previous theme set
+  // `shape: CircleBorder()` globally. This forced EVERY FloatingActionButton
+  // — including `FloatingActionButton.extended` (which has an icon + label
+  // side-by-side) — into a circular shape. A circle clips the extended
+  // FAB's content, causing the icon, orange circular background, and
+  // "New List" label to overlap into one broken blob.
+  //
+  // Fix: remove the global `shape: CircleBorder()`. In Material 3:
+  //   - Regular `FloatingActionButton` defaults to a circle (correct).
+  //   - `FloatingActionButton.extended` defaults to a stadium/pill shape
+  //     (correct — gives the icon + label room to sit side-by-side).
+  // Setting `shape` globally overrode BOTH defaults with a circle, which
+  // is wrong for extended FABs. Removing it lets each FAB variant use its
+  // natural default shape.
+  //
+  // If a regular FAB ever needs a non-default shape, set `shape` on the
+  // individual widget — don't force it globally.
   return FloatingActionButtonThemeData(
     backgroundColor: primaryColor,
     foregroundColor: Colors.white,
     disabledElevation: 0,
     elevation: 2,
     highlightElevation: 4,
-    shape: CircleBorder(),
+    // `extendedShape` defaults to StadiumBorder in M3 — leave it unset
+    // so extended FABs render as pills, not circles.
     extendedTextStyle: KinrelTypography.labelLarge,
   );
 }
