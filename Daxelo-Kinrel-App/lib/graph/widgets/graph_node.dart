@@ -837,8 +837,8 @@ class _GraphNodeState extends ConsumerState<GraphNode>
               right: extraPad / 2 - 4, bottom: extraPad / 2 - 4,
               child: _NodeRoleGlyphBadge(
                 familyId: widget.familyId!,
-                personId: widget.personId,
-                size: diameter * 0.3,
+                memberId: widget.personId,
+                diameter: diameter * 0.3,
               ),
             ),
           // Expand indicator
