@@ -21,8 +21,10 @@ import {
   Query,
   ParseIntPipe,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { PrismaService } from '../prisma/prisma.service';
 import { FestivalService } from './festival.service';
 import { BlessingChainService, type CreateBlessingInput } from './blessing-chain.service';
 import { TimeCapsuleService, type CreateTimeCapsuleInput } from './time-capsule.service';
@@ -35,6 +37,7 @@ export class AddictivenessController {
   private readonly logger = new Logger(AddictivenessController.name);
 
   constructor(
+    private readonly prisma: PrismaService,
     private readonly festivalService: FestivalService,
     private readonly blessingChainService: BlessingChainService,
     private readonly timeCapsuleService: TimeCapsuleService,
@@ -42,6 +45,20 @@ export class AddictivenessController {
     private readonly silentAlarmService: SilentAlarmService,
     private readonly familyChronicleService: FamilyChronicleService,
   ) {}
+
+  /** Verify the user is an admin/owner of the family. Throws ForbiddenException if not. */
+  private async assertFamilyAdmin(userId: string, familyId: string): Promise<void> {
+    const membership = await this.prisma.familyMember.findUnique({
+      where: { familyId_userId: { familyId, userId } },
+      select: { role: true },
+    });
+    if (!membership) {
+      throw new ForbiddenException('You are not a member of this family');
+    }
+    if (membership.role !== 'admin' && membership.role !== 'owner') {
+      throw new ForbiddenException('Admin access required');
+    }
+  }
 
   // ────────────────────────────────────────────────────────────────────────
   // A-6 Festival Intelligence
@@ -272,7 +289,10 @@ export class AddictivenessController {
 
   @Post('quests/generate')
   @HttpCode(HttpStatus.OK)
-  async generateQuests(@Query('familyId') familyId: string) {
+  async generateQuests(
+    @CurrentUser('id') userId: string,
+    @Query('familyId') familyId: string,
+  ) {
     if (!familyId) throw new BadRequestException('familyId is required');
     await this.assertFamilyAdmin(userId, familyId);
     return this.familyQuestService.generateQuestsForFamily(familyId);
@@ -305,7 +325,10 @@ export class AddictivenessController {
 
   @Post('chronicle/generate')
   @HttpCode(HttpStatus.OK)
-  async generateChronicle(@Query('familyId') familyId: string) {
+  async generateChronicle(
+    @CurrentUser('id') userId: string,
+    @Query('familyId') familyId: string,
+  ) {
     if (!familyId) throw new BadRequestException('familyId is required');
     await this.assertFamilyAdmin(userId, familyId);
     return this.familyChronicleService.generateChronicle(familyId);

@@ -49,7 +49,7 @@ export class AiChatController {
     @CurrentUser('id') userId: string,
     @Param('familyId') familyId: string,
   ) {
-    return this.aiChatService.getFamilySummary(familyId, userId);
+    return this.aiChatService.getFamilySummary(familyId);
   }
 
   // ── Get Smart Search Suggestions ─────────────────────────────────────

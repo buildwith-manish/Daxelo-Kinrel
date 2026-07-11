@@ -24,7 +24,7 @@ import {
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { KinrelOrchestrationService } from './kinrel-orchestration.service';
 import { KinrelQueryService } from './kinrel-query.service';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { ForbiddenException } from '@nestjs/common';
 
 @Controller('kinrel')
