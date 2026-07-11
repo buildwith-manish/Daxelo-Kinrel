@@ -28,6 +28,7 @@ import '../../../../core/family/family_provider.dart';
 import '../../../kinrel_intelligence/data/kinrel_model.dart';
 import '../../../kinrel_intelligence/providers/kinrel_provider.dart';
 import '../../../kinrel_intelligence/widgets/kinrel_symbol_widget.dart';
+import '../../../truth_streak/providers/truth_streak_provider.dart';
 import 'design_system.dart';
 import 'mandala_painter.dart';
 
@@ -166,6 +167,19 @@ class HeroSection extends ConsumerWidget {
                         style: FamilyHubType.caption,
                       ),
                     ),
+                    // ── Threshold teaser ───────────────────────────────
+                    // Small persistent "next threshold" teaser so the hub
+                    // doesn't feel empty on days nothing's happening.
+                    // Shows the next Truth Streak threshold (daily reason
+                    // to open the app, like the old streak counter).
+                    if (symbolSize > 10)
+                      Opacity(
+                        opacity: nameOpacity * 0.8,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: _ThresholdTeaser(familyId: familyId),
+                        ),
+                      ),
                   ] else ...[
                     // Collapsed: show family name + caption inline.
                     Padding(
@@ -461,5 +475,87 @@ class _HeroSymbolWithGraphBadge extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// THRESHOLD TEASER
+// Small persistent "next threshold" teaser on the Hero section so
+// the hub doesn't feel empty on days nothing's happening.
+// Shows the next Truth Streak threshold with a progress bar.
+// ═══════════════════════════════════════════════════════════════════════
+
+class _ThresholdTeaser extends ConsumerWidget {
+  const _ThresholdTeaser({required this.familyId});
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final streakAsync = ref.watch(truthStreakProvider(familyId));
+
+    return streakAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (streak) {
+        final stats = streak.stats;
+        if (stats == null) return const SizedBox.shrink();
+
+        final current = stats.currentStreak;
+        final nextThreshold = _getNextThreshold(current);
+        if (nextThreshold == null) return const SizedBox.shrink();
+
+        final progress = (current / nextThreshold).clamp(0.0, 1.0);
+        final daysLeft = nextThreshold - current;
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: KinrelColors.orange.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: KinrelColors.orange.withValues(alpha: 0.2),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('🔥', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 6),
+              Text(
+                daysLeft > 0
+                    ? '$daysLeft day${daysLeft == 1 ? '' : 's'} to $nextThreshold-day streak'
+                    : 'New threshold unlocked!',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.orange,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Mini progress bar
+              SizedBox(
+                width: 40,
+                height: 4,
+                child: LinearProgressIndicator(
+                  value: progress,
+                  backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
+                  valueColor: AlwaysStoppedAnimation<Color>(KinrelColors.orange),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  int? _getNextThreshold(int current) {
+    const thresholds = [3, 7, 14, 30, 60, 90, 180, 365];
+    for (final t in thresholds) {
+      if (current < t) return t;
+    }
+    return null; // Past all thresholds
   }
 }

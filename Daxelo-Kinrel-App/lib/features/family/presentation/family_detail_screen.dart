@@ -37,6 +37,9 @@ import '../../games/shared/icons/game_icons.dart';
 import '../../games/shared/widgets/active_games_list.dart';
 import '../../games/shared/widgets/family_leaderboard_widget.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
+import '../../presence/presentation/presence_widget.dart';
+import '../../pulse/providers/cross_feature_moments_provider.dart';
+import '../../shared_list/presentation/shared_list_screen.dart';
 import 'premium/family_hub_sections.dart';
 import 'premium/hero_section.dart';
 
@@ -221,6 +224,16 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
                   const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
+                  // 1b. Presence row — who's home / at work / DND
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      PresenceRow(familyId: widget.familyId),
+                      0,
+                    ),
+                  ),
+
+                  const SliverToBoxAdapter(child: SizedBox(height: 4)),
+
                   // 2. Truth Streak — the "moment" (only elevated card).
                   SliverToBoxAdapter(
                     child: staggerFade(
@@ -251,6 +264,23 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                         familyId: widget.familyId,
                       ),
                       2,
+                    ),
+                  ),
+
+                  // 4b. Cross-feature Moments — oral history, memory vault,
+                  // quiz results surfaced as first-class pulse items.
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      _CrossFeatureMomentsCard(familyId: widget.familyId),
+                      3,
+                    ),
+                  ),
+
+                  // 4c. Shared Lists quick-access tile
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      _SharedListTile(familyId: widget.familyId),
+                      3,
                     ),
                   ),
 
@@ -3780,6 +3810,141 @@ class AddPersonSheetBridge {
       context,
       familyId: familyId,
       existingPerson: person,
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CROSS-FEATURE MOMENTS CARD
+// Surfaces oral_history clips, memory_vault items, and quiz results
+// as first-class items in the Family Pulse feed.
+// ═══════════════════════════════════════════════════════════════════════
+
+class _CrossFeatureMomentsCard extends ConsumerWidget {
+  const _CrossFeatureMomentsCard({required this.familyId});
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final momentsAsync = ref.watch(crossFeatureMomentsProvider(familyId));
+    final theme = Theme.of(context);
+
+    return momentsAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (moments) {
+        if (moments.isEmpty) return const SizedBox.shrink();
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text('✨', style: TextStyle(fontSize: 14)),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Recent Moments',
+                    style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...moments.map((m) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(m.emoji, style: const TextStyle(fontSize: 14)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(m.title, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500)),
+                          if (m.subtitle != null)
+                            Text(m.subtitle!, style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.outline, fontSize: 11,
+                            ), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      _timeAgo(m.createdAt),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline, fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inHours < 1) return '${diff.inMinutes}m';
+    if (diff.inHours < 24) return '${diff.inHours}h';
+    if (diff.inDays < 7) return '${diff.inDays}d';
+    return '${dt.day}/${dt.month}';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SHARED LIST TILE — quick access to the errand board
+// ═══════════════════════════════════════════════════════════════════════
+
+class _SharedListTile extends StatelessWidget {
+  const _SharedListTile({required this.familyId});
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Material(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => SharedListScreen(familyId: familyId)),
+          ),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                const Text('📋', style: TextStyle(fontSize: 18)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Lists & Errands', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                      Text('Groceries, chores, pick-up requests',
+                        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: theme.colorScheme.outline),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

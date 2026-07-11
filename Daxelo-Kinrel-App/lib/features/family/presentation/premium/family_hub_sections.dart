@@ -30,6 +30,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/family/family_provider.dart';
+import '../../../shared_list/presentation/shared_list_screen.dart';
 import '../../../games/shared/widgets/active_games_list.dart';
 import '../../../games/shared/widgets/family_leaderboard_widget.dart';
 import '../../../notifications/providers/notifications_provider.dart';
@@ -685,10 +686,12 @@ class QuickJumpNavRow extends ConsumerWidget {
               ),
               Expanded(
                 child: _QuickJumpChip(
-                  icon: Icons.photo_library_outlined,
-                  label: 'Memories',
-                  onTap: () =>
-                      context.push('/memories?familyId=$familyId'),
+                  icon: Icons.checklist_rounded,
+                  label: 'Lists',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => SharedListScreen(familyId: familyId)),
+                  ),
                 ),
               ),
               Expanded(
