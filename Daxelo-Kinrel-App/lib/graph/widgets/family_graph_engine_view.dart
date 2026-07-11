@@ -59,6 +59,7 @@ import '../../core/constants/brand_colors.dart' show KinrelColors;
 import '../../core/kinship/kinship_edge_style.dart';
 import '../../core/kinship/kinship_category_map.dart';
 import '../../core/kinship/structural_kinship_classifier.dart';
+import '../../core/kinship/heart_shape.dart' show HeartShape;
 import '../../core/kinship/kinship_service.dart' show KinshipService;
 import '../../core/relationship/relationship_engine.dart' show RelationshipEngine;
 import '../../core/services/graph_layout_service.dart' show GraphPerson;
@@ -2097,7 +2098,21 @@ class _EngineEdgePainter extends CustomPainter {
         canvas.drawPath(path, edgePaint);
       }
 
-      // Draw midpoint symbol (dot or heart) — pseudo-3D bead.
+      // Draw midpoint symbol — heart (spouse only) or pseudo-3D dot bead.
+      //
+      // v90 (HEART FIX): The previous implementation painted a circular
+      // bead for BOTH `dot` and `heart` symbols, so spouse edges never
+      // showed an actual heart. Now we branch:
+      //   • heart  → HeartShape.drawHeart() (real heart silhouette)
+      //   • dot    → existing pseudo-3D obsidian bead
+      //   • none   → skipped entirely
+      //
+      // The heart is semantically reserved for spouse (husband/wife)
+      // edges — see KinshipEdgeStyleResolver.styleForCategory(spouse).
+      // Custom relationships may also request a heart via dotType='heart';
+      // in that case the heart is rendered with the canonical spouse-pink
+      // (#EC4899) so the symbol stays visually consistent across the
+      // graph — hearts are always pink in Kinrel's design language.
       if (midpointSymbol != KinshipMidpointSymbol.none) {
         Offset midPoint = Offset(
           (s.dx + t.dx) / 2,
@@ -2113,53 +2128,114 @@ class _EngineEdgePainter extends CustomPainter {
           }
         }
 
-        // Pseudo-3D midpoint bead: shadow + rim + face + highlight
-        final beadR = 4.0;
-        final beadRect = Rect.fromCircle(center: midPoint, radius: beadR);
+        // Resolve the effective midpoint color.
+        //
+        // • Default relationship: use style.midpointColor. For spouse
+        //   this is KinshipEdgeColors.spouseHeart (pink #EC4899), which
+        //   is the only category whose midpoint color differs from the
+        //   edge color. For every other category it equals the edge
+        //   color.
+        // • Custom relationship with heart: force pink — hearts are
+        //   universally pink in Kinrel's design language, regardless
+        //   of the custom edge color.
+        // • Custom relationship with dot: use the custom edge color so
+        //   the bead inherits the user's chosen relationship identity.
+        final Color effectiveMidpointColor;
+        if (customColors != null) {
+          if (midpointSymbol == KinshipMidpointSymbol.heart) {
+            effectiveMidpointColor = KinshipEdgeColors.spouseHeart;
+          } else {
+            effectiveMidpointColor = edgeColor;
+          }
+        } else {
+          effectiveMidpointColor = style.midpointColor;
+        }
 
-        // Shadow
-        canvas.drawCircle(
-          midPoint + const Offset(1.5, 1.5),
-          beadR,
-          Paint()
-            ..color = Colors.black.withValues(alpha: 0.3)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0),
-        );
+        // Effective stroke width — same clamp used for the edge body,
+        // so the bead/heart scales consistently with the thread.
+        final double effectiveStrokeWidth =
+            style.strokeWidth.clamp(1.5, 5.0);
 
-        // Dark rim (bottom)
-        canvas.drawArc(
-          Rect.fromCircle(center: midPoint + const Offset(0, 1.5), radius: beadR),
-          0.0, pi, false,
-          Paint()..color = Color.lerp(style.midpointColor, Colors.black, 0.5)!,
-        );
+        if (midpointSymbol == KinshipMidpointSymbol.heart) {
+          // ── HEART (spouse only) ─────────────────────────────────
+          // Heart size scales gently with the edge stroke width so a
+          // thicker spouse thread carries a slightly larger heart, but
+          // stays clamped for visual stability across zoom levels.
+          //
+          // HeartShape.drawHeart renders:
+          //   1. soft pink glow halo (skipped when compact)
+          //   2. solid heart fill in [effectiveMidpointColor]
+          //   3. thin white border for definition
+          //   4. specular highlight on upper-left lobe (top-left
+          //      light direction — matches the global graph lighting
+          //      contract)
+          final double heartSize =
+              (effectiveStrokeWidth * 4.2).clamp(11.0, 16.0);
+          HeartShape.drawHeart(
+            canvas: canvas,
+            center: midPoint,
+            size: heartSize,
+            color: effectiveMidpointColor,
+            compact: false,
+          );
+        } else {
+          // ── PSEUDO-3D DOT BEAD ──────────────────────────────────
+          // Bead radius scales slightly with stroke width per the
+          // Premium Midpoint Bead v4 spec.
+          final double beadR =
+              (effectiveStrokeWidth * 1.45).clamp(3.8, 5.8);
+          final beadRect =
+              Rect.fromCircle(center: midPoint, radius: beadR);
 
-        // Face gradient
-        canvas.drawCircle(
-          midPoint,
-          beadR,
-          Paint()
-            ..shader = RadialGradient(
-              center: const Alignment(-0.3, -0.4),
-              radius: 0.8,
-              colors: [
-                Color.lerp(style.midpointColor, Colors.white, 0.3)!,
-                style.midpointColor,
-                Color.lerp(style.midpointColor, Colors.black, 0.3)!,
-              ],
-              stops: const [0.0, 0.5, 1.0],
-            ).createShader(beadRect),
-        );
+          // Shadow — down-right per global top-left light direction.
+          canvas.drawCircle(
+            midPoint + const Offset(1.5, 1.5),
+            beadR,
+            Paint()
+              ..color = Colors.black.withValues(alpha: 0.30)
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0),
+          );
 
-        // Specular highlight
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: Offset(midPoint.dx - beadR * 0.25, midPoint.dy - beadR * 0.3),
-            width: beadR * 0.5,
-            height: beadR * 0.3,
-          ),
-          Paint()
-            ..color = Colors.white.withValues(alpha: 0.15),
-        );
+          // Dark rim (bottom) — adds convex depth reading.
+          canvas.drawArc(
+            Rect.fromCircle(
+                center: midPoint + const Offset(0, 1.5), radius: beadR),
+            0.0,
+            pi,
+            false,
+            Paint()
+              ..color =
+                  Color.lerp(effectiveMidpointColor, Colors.black, 0.5)!,
+          );
+
+          // Face gradient — upper-left light, darker bottom-right.
+          canvas.drawCircle(
+            midPoint,
+            beadR,
+            Paint()
+              ..shader = RadialGradient(
+                center: const Alignment(-0.3, -0.4),
+                radius: 0.8,
+                colors: [
+                  Color.lerp(effectiveMidpointColor, Colors.white, 0.3)!,
+                  effectiveMidpointColor,
+                  Color.lerp(effectiveMidpointColor, Colors.black, 0.3)!,
+                ],
+                stops: const [0.0, 0.5, 1.0],
+              ).createShader(beadRect),
+          );
+
+          // Specular highlight — tiny, upper-left.
+          canvas.drawOval(
+            Rect.fromCenter(
+              center: Offset(
+                  midPoint.dx - beadR * 0.25, midPoint.dy - beadR * 0.3),
+              width: beadR * 0.5,
+              height: beadR * 0.3,
+            ),
+            Paint()..color = Colors.white.withValues(alpha: 0.15),
+          );
+        }
       }
     }
   }
