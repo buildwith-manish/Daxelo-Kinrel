@@ -8,11 +8,6 @@
 // of members whose cities could not be resolved (unpinned).
 // Also resolves relationship edges between pinned members for
 // the graph overlay that draws curved connecting lines.
-//
-// Three-tier location merge (§4.5 of the map spec):
-//   1. Live broadcast position (if received within 2 min) — freshest
-//   2. Last-known MemberLocation row (from live_location_provider)
-//   3. City-fallback coordinate (kCityCoordinates lookup) — default
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

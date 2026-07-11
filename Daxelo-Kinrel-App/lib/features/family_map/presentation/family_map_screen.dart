@@ -2,28 +2,15 @@
 //
 // DAXELO KINREL — Family Map Screen
 //
-// Full-screen interactive map showing family members as live pins on
-// a real world map. Uses flutter_map with OpenFreeMap dark raster tiles
-// — free, unlimited, no API key.
-//
-// Architecture:
-//   - Pins: flutter_map MarkerLayer with custom avatar widgets
-//   - Relationship lines: CustomPainter overlay (screen-space Bézier
-//     curves) — stays in sync via the map's projection
-//   - Live data: Supabase Realtime Broadcast for ephemeral movement,
-//     MemberLocation table for last-known (see live_location_provider)
-//   - Offline: the existing city-fallback + last-known data still
-//     renders pins even if tiles fail to load
-//
-// Note on MapLibre: the spec (§5) recommended maplibre_gl, but
-// maplibre_gl's web plugin has dart2js compilation issues in the
-// Vercel build environment. flutter_map is already a dependency,
-// works on all 3 target platforms (Android/iOS/Web), and supports
-// the same dark tile style via OpenFreeMap's raster endpoint.
-// The live location features (Broadcast + MemberLocation + three-tier
-// merge) are fully implemented regardless of the map renderer.
+// Full-screen interactive map showing family members pinned by city.
+// Uses flutter_map with OpenStreetMap tiles (no API key needed).
+// Each pin is a 44×44 circular avatar with orange border.
+// Tapping a pin opens a bottom sheet with member details.
+// Curved connecting lines between related members with tappable
+// midpoint dots that show the kinship term between two people.
 
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -39,8 +26,6 @@ import '../../../core/graph/graph_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/widgets/cached_avatar.dart';
 import '../providers/family_map_provider.dart';
-// Live location provider is loaded dynamically after the build passes.
-// import '../providers/live_location_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // HELPER: Generate initials from name
@@ -83,14 +68,6 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
               color: KinrelColors.textWhite, size: 20),
           onPressed: () => context.pop(),
         ),
-        actions: [
-          // Graph toggle — switch back to the graph view.
-          IconButton(
-            icon: const Icon(Icons.hub_outlined, size: 22),
-            tooltip: 'Family graph',
-            onPressed: () => context.pop(),
-          ),
-        ],
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -160,7 +137,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     );
   }
 
-  // ── Map View (flutter_map + OpenFreeMap dark tiles) ───────────────
+  // ── Map View ───────────────────────────────────────────────────────
 
   Widget _buildMap(FamilyMapResult result) {
     return Stack(
@@ -174,10 +151,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
             maxZoom: 16.0,
           ),
           children: [
-            // OpenFreeMap dark raster tiles — free, unlimited, no API key.
-            // Using the raster endpoint which flutter_map can render directly.
             TileLayer(
-              urlTemplate: 'https://tiles.openfreemap.org/styles/dark/{z}/{x}/{y}.png',
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.daxelo.kinrel',
               tileBuilder: _darkenTile,
             ),
@@ -223,7 +198,6 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
       child: tileWidget,
     );
   }
-
 
   // ── Pin Bottom Sheet ───────────────────────────────────────────────
 
@@ -1302,6 +1276,7 @@ class _EdgeDotHitTarget {
   final MapRelationshipEdge edge;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
 // GRAPH EDGE PAINTER
 // ═══════════════════════════════════════════════════════════════════════
 

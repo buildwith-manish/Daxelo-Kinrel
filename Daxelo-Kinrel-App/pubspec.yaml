@@ -98,7 +98,6 @@ dependencies:
   webview_flutter: ^4.7.0
   
   # Maps
-  # flutter_map: used for the Family Map screen with OpenFreeMap dark tiles.
   flutter_map: ^6.1.0
   latlong2: ^0.9.1
 
@@ -158,7 +157,6 @@ flutter:
   assets:
     - assets/data/kinship_core.json
     - assets/data/kinship_terms.json
-    - assets/maps/
     - assets/icons/
     - assets/icons/games/ghost-painter.png
     - assets/icons/games/freeze-dash.png
