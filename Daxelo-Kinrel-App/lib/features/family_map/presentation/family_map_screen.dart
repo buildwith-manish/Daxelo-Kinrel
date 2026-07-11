@@ -76,9 +76,17 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   Timer? _dbUpsertTimer;
   DateTime? _lastDbUpsert;
 
-  /// OpenFreeMap dark vector style — free, unlimited, no API key.
-  /// Already dark-themed with building height data for 3D extrusion.
-  static const _kStyleUrl = 'https://tiles.openfreemap.org/styles/dark';
+  /// Bundled Kinrel dark style — based on OpenFreeMap liberty style
+  /// (actively maintained, tuned label density) recolored dark with
+  /// Kinrel brand colors. Includes 3D building extrusion layer.
+  ///
+  /// The remote 'dark' style is abandoned per OpenFreeMap docs (no
+  /// label-density tuning → cluttered with foreign subdivisions at
+  /// low zoom). This bundled style fixes that by:
+  ///   - Raising minzoom for subdivisions/towns/villages
+  ///   - Keeping country labels (orange) + state labels (silver) only
+  ///   - Recoloring everything dark to match Kinrel's theme
+  static const _kStyleAsset = 'asset://assets/map_styles/kinrel_dark_style.json';
 
   @override
   void initState() {
@@ -211,9 +219,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
         // when the user zooms in to street level (zoom 15+).
         MapLibreMap(
           options: MapOptions(
-            initStyle: _kStyleUrl,
+            initStyle: _kStyleAsset,
             initCenter: Geographic(lon: 78.9629, lat: 20.5937),
-            initZoom: 4.5,
+            initZoom: 5.5, // slightly tighter than 4.5 — less clutter
             initPitch: 0, // flat at India level — 3D kicks in on zoom
             minZoom: 2,
             maxZoom: 18,
@@ -248,36 +256,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     final controller = _mapController;
     if (controller == null) return;
 
-    // Add 3D building extrusion layer.
-    // OpenFreeMap uses the OpenMapTiles vector schema:
-    //   source: "openmaptiles" (the vector tile source in the style)
-    //   source-layer: "building"
-    //   height property: "render_height" (NOT "height" — OpenMapTiles
-    //     uses render_height for the extruded height value)
-    //   base property: "render_min_height" (NOT "min_height")
-    try {
-      await style.addLayer(FillExtrusionStyleLayer(
-        id: 'kinrel-3d-buildings',
-        sourceId: 'openmaptiles',
-        sourceLayerId: 'building',
-        minZoom: 15, // only show 3D buildings at street level
-        maxZoom: 18,
-        paint: {
-          'fill-extrusion-color': '#1a1a2e',
-          'fill-extrusion-height': ['get', 'render_height'],
-          'fill-extrusion-base': ['get', 'render_min_height'],
-          'fill-extrusion-opacity': 0.8,
-          'fill-extrusion-vertical-gradient': true,
-        },
-      ));
-      _buildingsAdded = true;
-      debugPrint('✅ 3D building extrusion layer added successfully');
-      debugPrint('   Using render_height / render_min_height (OpenMapTiles schema)');
-    } catch (e) {
-      debugPrint('❌ Failed to add 3D building extrusion: $e');
-      debugPrint('   Expected source: "openmaptiles", source-layer: "building"');
-      debugPrint('   Expected properties: "render_height", "render_min_height"');
-    }
+    // 3D building extrusion is already in the bundled style JSON
+    // (kinrel_dark_style.json includes the "kinrel-3d-buildings"
+    // fill-extrusion layer with render_height/render_min_height).
+    // No need to add it programmatically — it loads with the style.
+    _buildingsAdded = true;
+    debugPrint('✅ Style loaded — 3D buildings layer is in the bundled style');
 
     // Add family member pins as a GeoJSON source + circle layers.
     if (_lastResult != null) {

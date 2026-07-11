@@ -164,6 +164,7 @@ flutter:
   assets:
     - assets/data/kinship_core.json
     - assets/data/kinship_terms.json
+    - assets/map_styles/
     - assets/icons/
     - assets/icons/games/ghost-painter.png
     - assets/icons/games/freeze-dash.png
