@@ -83,10 +83,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
             ),
             mapAsync.when(
               data: (result) {
-                final pinCount = result.pins.length;
-                final cityCount = result.distinctCityCount;
+                final locatedCount = result.pins.length;
                 return Text(
-                  '$pinCount member${pinCount == 1 ? '' : 's'} in $cityCount cit${cityCount == 1 ? 'y' : 'ies'}',
+                  '$locatedCount member${locatedCount == 1 ? '' : 's'} located',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
@@ -124,15 +123,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
           ),
         ),
         error: (error, stack) => _buildErrorState(error),
-        data: (result) {
-          if (result.pins.isEmpty && result.unpinnedCount == 0) {
-            return _buildNoMembersState();
-          }
-          if (result.pins.isEmpty) {
-            return _buildNoCitiesState(result);
-          }
-          return _buildMap(result);
-        },
+        // The map is ALWAYS rendered — even with 0 members, 0 cities,
+        // or 0 located pins. The map is the feature; pins are layers
+        // placed on top. Empty data = empty GeoJSON source = zero pins,
+        // NOT zero map. A small non-blocking overlay is shown on top
+        // when there are no located members.
+        data: (result) => _buildMap(result),
       ),
     );
   }
@@ -142,6 +138,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   Widget _buildMap(FamilyMapResult result) {
     return Stack(
       children: [
+        // ── Permanent map background ───────────────────────────────
+        // The map is ALWAYS rendered — even with 0 members, 0 cities,
+        // or 0 located pins. Empty data = empty MarkerLayer, NOT no map.
         FlutterMap(
           mapController: _mapController,
           options: const MapOptions(
@@ -177,7 +176,65 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
           ],
         ),
 
-        // Legend overlay — bottom-left
+        // ── Non-blocking empty-locations overlay ───────────────────
+        // Shown when no members have coordinates. Does NOT replace the
+        // map — the map is still fully interactive behind this card.
+        // The card is centered but small, so the user can still pan/
+        // zoom/rotate the map around it.
+        if (result.pins.isEmpty)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 60,
+            left: KinrelSpacing.base,
+            right: KinrelSpacing.base,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 340),
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.darkCard.withValues(alpha: 0.95),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: KinrelColors.orange.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.location_off_outlined,
+                        size: 32,
+                        color: KinrelColors.orange.withValues(alpha: 0.7),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No family locations yet',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: KinrelColors.textWhite,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Family members will appear here when a location becomes available.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 12,
+                          color: KinrelColors.textSilver,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+        // ── Legend overlay — bottom-left ───────────────────────────
         Positioned(
           left: KinrelSpacing.base,
           bottom: KinrelSpacing.base,
@@ -777,99 +834,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     );
   }
 
-  // ── Empty States ───────────────────────────────────────────────────
-
-  Widget _buildNoMembersState() {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(KinrelSpacing.xxl),
-        child: DKCard(
-          backgroundColor: KinrelColors.darkCard,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.map_outlined,
-                size: 56,
-                color: KinrelColors.textDim,
-              ),
-              SizedBox(height: KinrelSpacing.lg),
-              Text(
-                'No Family Members Yet',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: KinrelColors.textWhite,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: KinrelSpacing.sm),
-              Text(
-                'Add members to your family to see them on the map.',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 14,
-                  color: KinrelColors.textSilver,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNoCitiesState(FamilyMapResult result) {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(KinrelSpacing.xxl),
-        child: DKCard(
-          backgroundColor: KinrelColors.darkCard,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.location_off_rounded,
-                size: 56,
-                color: KinrelColors.amber,
-              ),
-              SizedBox(height: KinrelSpacing.lg),
-              Text(
-                'No Cities to Map',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: KinrelColors.textWhite,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: KinrelSpacing.sm),
-              Text(
-                'Add a city to your family members to see them on the map. '
-                '${result.unpinnedCount} member${result.unpinnedCount == 1 ? '' : 's'} waiting to be pinned.',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 14,
-                  color: KinrelColors.textSilver,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: KinrelSpacing.lg),
-              DKButton(
-                label: 'View Unpinned Members',
-                variant: DKButtonVariant.secondary,
-                size: DKButtonSize.md,
-                onPressed: () => _showUnpinnedSheet(result),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  // ── Error State ────────────────────────────────────────────────────
+  // Note: The map is always rendered — there is no "no members" or
+  // "no cities" full-page empty state. When there are no located
+  // members, the map shows with a small non-blocking overlay card.
+  // The only full-page replacement state is the error state below.
 
   Widget _buildErrorState(Object error) {
     return Center(
