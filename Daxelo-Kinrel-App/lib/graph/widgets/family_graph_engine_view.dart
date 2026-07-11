@@ -620,6 +620,7 @@ class _FamilyGraphEngineViewState
             behavior: HitTestBehavior.translucent,
             onScaleStart: _onScaleStart,
             onScaleUpdate: _onScaleUpdate,
+            onScaleEnd: _onScaleEnd,
             // v72 FIX: Add onTapDown + onLongPress for geometric node
             // hit-testing. The parent ScaleGestureRecognizer competes
             // with the child's TapGestureRecognizer in the gesture arena.
@@ -891,8 +892,18 @@ class _FamilyGraphEngineViewState
   // ── Gestures ───────────────────────────────────────────────────────────
 
   void _onScaleStart(ScaleStartDetails d) {
+    _camera.stopAnimation(); // cancel any in-flight fling/animateTo
     _lastFocal = d.focalPoint;
     _baseZoom = _camera.zoomLevel;
+  }
+
+  void _onScaleEnd(ScaleEndDetails d) {
+    // Only fling on a single-finger release with real velocity; ignore
+    // pinch-release jitter.
+    final v = d.velocity.pixelsPerSecond;
+    if (v.distance > 50) {
+      _camera.applyMomentum(v.dx, v.dy);
+    }
   }
 
   void _onScaleUpdate(ScaleUpdateDetails d) {

@@ -750,7 +750,16 @@ class _GraphNodeState extends ConsumerState<GraphNode>
             clipBehavior: Clip.none,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: KinrelColors.darkCard,
+              gradient: RadialGradient(
+                center: const Alignment(-0.3, -0.4),
+                radius: 0.9,
+                colors: [
+                  KinrelColors.darkElevated,
+                  KinrelColors.darkCard,
+                  Color.lerp(KinrelColors.darkCard, Colors.black, 0.4)!,
+                ],
+                stops: const [0.0, 0.6, 1.0],
+              ),
               border: Border.all(
                 color: RelationshipColors.self,
                 width: 3.0,
@@ -783,7 +792,16 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       clipBehavior: Clip.none,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: KinrelColors.darkCard,
+        gradient: RadialGradient(
+          center: const Alignment(-0.3, -0.4),
+          radius: 0.9,
+          colors: [
+            KinrelColors.darkElevated,
+            KinrelColors.darkCard,
+            Color.lerp(KinrelColors.darkCard, Colors.black, 0.4)!,
+          ],
+          stops: const [0.0, 0.6, 1.0],
+        ),
         border: Border.all(
           color: _borderColor,
           width: _borderWidth,
@@ -958,12 +976,14 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   //   Anchor   (gen == 0, isAnchor): most pronounced → "closest to viewer"
   //   Descendants (gen > 0): smaller, tighter shadow → "flush/lower"
   //
+  // Includes a paired highlight shadow (white, low alpha, opposite offset)
+  // so the dark drop shadow has something to contrast against on the
+  // near-black canvas background — without this, a black shadow on a
+  // near-black background is invisible (contrast bug).
+  //
   // These are STATIC per node (computed once from generationIndex + state),
   // NOT recalculated every frame. No BackdropFilter, no saveLayer — just
   // standard BoxShadow via BoxDecoration.
-  //
-  // Combined with state-driven shadows (selected/focused glow), the total
-  // never exceeds 2 shadow entries (guardrail per the spec).
 
   List<BoxShadow> get _elevationShadows {
     final gen = widget.generationIndex;
@@ -997,12 +1017,21 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       );
     }
 
+    // Highlight shadow — opposite direction from base, gives the eye
+    // something to contrast against on the near-black canvas.
+    final highlight = BoxShadow(
+      color: Colors.white.withValues(alpha: isAnchor ? 0.08 : 0.05),
+      blurRadius: 4,
+      offset: const Offset(0, -1.5),
+      spreadRadius: -1,
+    );
+
     // State-driven additive shadows (selected/focused glow)
-    // These COMBINE with the base elevation, not replace it.
-    // Limit to max 2 total entries (base + one state glow).
+    // These COMBINE with the base elevation + highlight, not replace it.
     if (widget.nodeState == NodeState.selected) {
       return [
         base,
+        highlight,
         BoxShadow(
           color: _borderColor.withValues(alpha: 0.40),
           blurRadius: 14,
@@ -1013,6 +1042,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     if (widget.nodeState == NodeState.focused) {
       return [
         base,
+        highlight,
         BoxShadow(
           color: _borderColor.withValues(alpha: 0.35),
           blurRadius: 10,
@@ -1020,7 +1050,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
         ),
       ];
     }
-    // Hover: increase shadow on top of base elevation
+    // Hover: increase shadow on top of base elevation + highlight
     if (widget.nodeState == NodeState.hover) {
       return [
         BoxShadow(
@@ -1030,11 +1060,12 @@ class _GraphNodeState extends ConsumerState<GraphNode>
               ? const Offset(0, 8)
               : (gen < 0 ? const Offset(0, -3) : const Offset(0, 3)),
         ),
+        highlight,
       ];
     }
 
-    // Normal/error/loading/expanded: just the base elevation
-    return [base];
+    // Normal/error/loading/expanded: base elevation + highlight
+    return [base, highlight];
   }
 
   // ── Circle Content (initials or photo) ─────────────────────────────

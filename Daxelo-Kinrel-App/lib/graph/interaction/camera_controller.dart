@@ -81,6 +81,11 @@ class CameraController extends ChangeNotifier {
   String? _focusedNodeId;
   bool _isAnimating = false;
 
+  /// Generation token for cancelling stale animation ticks.
+  /// Incremented by _cancelAnimation() so any in-flight tick()
+  /// closures self-terminate when they see a stale generation.
+  int _animationGeneration = 0;
+
   /// Velocity for momentum decay after pan gestures.
   double _velocityX = 0.0;
   double _velocityY = 0.0;
@@ -153,8 +158,9 @@ class CameraController extends ChangeNotifier {
   /// pixels per second. The camera decelerates to zero over
   /// [_momentumDecayDuration].
   void applyMomentum(double velocityX, double velocityY) {
-    _velocityX = velocityX;
-    _velocityY = velocityY;
+    const maxVelocity = 4000.0; // px/sec — clamp hard flicks
+    _velocityX = velocityX.clamp(-maxVelocity, maxVelocity);
+    _velocityY = velocityY.clamp(-maxVelocity, maxVelocity);
     _startMomentumDecay();
   }
 
@@ -357,6 +363,7 @@ class CameraController extends ChangeNotifier {
     Curve curve = Curves.easeInOut,
   }) {
     _cancelAnimation();
+    final myGeneration = ++_animationGeneration;
 
     // Use a ticker-based animation via a single-frame vsync.
     final startPanX = _panX;
@@ -372,6 +379,7 @@ class CameraController extends ChangeNotifier {
     final durationMs = duration.inMilliseconds;
 
     void tick() {
+      if (myGeneration != _animationGeneration) return; // superseded
       final elapsed =
           DateTime.now().difference(startTime).inMilliseconds;
       final t = (elapsed / durationMs).clamp(0.0, 1.0);
@@ -535,6 +543,7 @@ class CameraController extends ChangeNotifier {
   /// Starts momentum decay animation after a pan gesture ends.
   void _startMomentumDecay() {
     _cancelAnimation();
+    final myGeneration = ++_animationGeneration;
 
     final startPanX = _panX;
     final startPanY = _panY;
@@ -546,6 +555,7 @@ class CameraController extends ChangeNotifier {
     _isAnimating = true;
 
     void tick() {
+      if (myGeneration != _animationGeneration) return; // superseded
       final elapsed =
           DateTime.now().difference(startTime).inMilliseconds;
       final t = (elapsed / durationMs).clamp(0.0, 1.0);
@@ -574,12 +584,17 @@ class CameraController extends ChangeNotifier {
     tick();
   }
 
-  /// Cancels any active animation.
+  /// Cancels any active animation and invalidates in-flight tick() closures.
   void _cancelAnimation() {
     _isAnimating = false;
     _velocityX = 0.0;
     _velocityY = 0.0;
+    _animationGeneration++; // invalidates any in-flight tick() closures
   }
+
+  /// Public so gesture handlers can cancel a fling/animateTo when a new
+  /// gesture starts.
+  void stopAnimation() => _cancelAnimation();
 
   /// Sets the current family ID for position persistence.
   ///
