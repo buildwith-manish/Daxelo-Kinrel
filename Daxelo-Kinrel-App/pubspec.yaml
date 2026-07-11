@@ -99,14 +99,8 @@ dependencies:
   
   # Maps
   # flutter_map: used for the Family Map screen with OpenFreeMap dark tiles.
-  # Note: maplibre_gl was evaluated but its web plugin has dart2js compilation
-  # issues in the Vercel build environment. flutter_map works on all 3 target
-  # platforms (Android/iOS/Web) and supports the same dark tile style.
   flutter_map: ^6.1.0
   latlong2: ^0.9.1
-  # geolocator: GPS capture for live location sharing (§4 of the map spec).
-  # Used by the map screen to broadcast the user's position to the family.
-  geolocator: ^13.0.0
 
   # Math/Graph
   collection: ^1.19.1

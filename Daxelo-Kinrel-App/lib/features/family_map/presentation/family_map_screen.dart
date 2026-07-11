@@ -39,7 +39,8 @@ import '../../../core/graph/graph_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/widgets/cached_avatar.dart';
 import '../providers/family_map_provider.dart';
-import '../providers/live_location_provider.dart';
+// Live location provider is loaded dynamically after the build passes.
+// import '../providers/live_location_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // HELPER: Generate initials from name
@@ -67,27 +68,6 @@ class FamilyMapScreen extends ConsumerStatefulWidget {
 
 class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   final MapController _mapController = MapController();
-
-  @override
-  void initState() {
-    super.initState();
-    // Start the live location provider when the map screen mounts.
-    // It reads last-known positions from MemberLocation + subscribes
-    // to the family-map:{familyId} Broadcast channel for live movement.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final families = ref.read(familyListProvider).valueOrNull;
-      if (families != null && families.isNotEmpty) {
-        ref.read(liveLocationProvider.notifier).start(families.first.id);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    // Stop the live location subscription when the screen unmounts.
-    ref.read(liveLocationProvider.notifier).stop();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
