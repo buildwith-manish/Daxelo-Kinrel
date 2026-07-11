@@ -26,7 +26,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -152,64 +151,57 @@ class TierConfig {
 // FPS MONITOR
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Lightweight FPS monitor using Flutter's persistent frame callback.
-/// Tracks a rolling window of frame times and exposes the average FPS.
+/// Lightweight FPS estimator. Uses a periodic timer to sample the
+/// wall-clock time and estimate the effective frame rate. Less
+/// accurate than a real frame callback but works everywhere and
+/// doesn't require SchedulerBinding or TickerProvider.
 class FpsMonitor {
-  FpsMonitor({this.windowSize = 180}) : _frameTimes = []; // ~3s at 60fps
+  FpsMonitor();
 
-  final int windowSize;
-  final List<Duration> _frameTimes;
-  DateTime? _lastFrameTime;
-  bool _callbackRegistered = false;
-  VoidCallback? _onFpsUpdated;
+  double _currentFps = 60.0;
+  Timer? _sampleTimer;
+  int _frameCount = 0;
+  DateTime _lastSampleTime = DateTime.now();
 
-  /// Start monitoring. Uses SchedulerBinding's persistent frame callback
-  /// — no TickerProvider needed, works from any class.
+  /// Start monitoring. Calls [onFpsUpdated] every second with the
+  /// estimated FPS.
   void start(VoidCallback onFpsUpdated) {
     stop();
-    _onFpsUpdated = onFpsUpdated;
-    if (!_callbackRegistered) {
-      SchedulerBinding.instance.addPersistentFrameCallback(_onFrame);
-      _callbackRegistered = true;
-    }
-  }
+    _frameCount = 0;
+    _lastSampleTime = DateTime.now();
 
-  void _onFrame(Duration timeStamp) {
-    final now = DateTime.now();
-    if (_lastFrameTime != null) {
-      final delta = now.difference(_lastFrameTime!);
-      _frameTimes.add(delta);
-      if (_frameTimes.length > windowSize) {
-        _frameTimes.removeAt(0);
+    // Sample every 1 second — count how many "ticks" have passed.
+    // This is a rough heuristic: if the app is janky, the timer
+    // itself fires less precisely, indicating poor performance.
+    _sampleTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final now = DateTime.now();
+      final elapsed = now.difference(_lastSampleTime).inMilliseconds;
+      if (elapsed > 0) {
+        // Estimate FPS: if 1s of wall-clock took >1.1s, the app is
+        // struggling. We approximate FPS as 1000 / (elapsed / 60).
+        // If elapsed ≈ 1000ms, FPS ≈ 60. If elapsed ≈ 2000ms, FPS ≈ 30.
+        _currentFps = (1000.0 / elapsed) * 60.0;
+        _currentFps = _currentFps.clamp(1.0, 60.0);
       }
-    }
-    _lastFrameTime = now;
-    _onFpsUpdated?.call();
+      _lastSampleTime = now;
+      _frameCount = 0;
+      onFpsUpdated();
+    });
   }
 
   /// Stop monitoring.
   void stop() {
-    // Note: SchedulerBinding doesn't have a removePersistentFrameCallback
-    // in older Flutter versions. We stop updating by clearing the callback.
-    // The frame callback itself stays registered but does nothing.
-    _onFpsUpdated = null;
-    _lastFrameTime = null;
-    _frameTimes.clear();
+    _sampleTimer?.cancel();
+    _sampleTimer = null;
+    _currentFps = 60.0;
   }
 
-  /// Current average FPS over the rolling window. Returns 60 if no data.
-  double get currentFps {
-    if (_frameTimes.isEmpty) return 60.0;
-    final avgMicro = _frameTimes
-            .map((d) => d.inMicroseconds)
-            .reduce((a, b) => a + b) /
-        _frameTimes.length;
-    if (avgMicro == 0) return 60.0;
-    return 1000000.0 / avgMicro;
-  }
+  /// Current estimated FPS. Returns 60.0 if not monitoring.
+  double get currentFps => _currentFps;
 
-  /// Whether the monitor has enough data to be reliable (at least 30 frames).
-  bool get hasEnoughData => _frameTimes.length >= 30;
+  /// Whether the monitor has enough data to be reliable.
+  /// Always true for the timer-based approach (1 sample = enough).
+  bool get hasEnoughData => _sampleTimer != null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
