@@ -1098,8 +1098,30 @@ class _NodeRoleGlyphBadge extends ConsumerWidget {
 // PSEUDO-3D NODE PAINTER
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Immutable parameters for the pseudo-3D node painter.
-/// Computed once from generationIndex + state + color, NOT per-frame.
+
+// ═══════════════════════════════════════════════════════════════════════
+// PREMIUM OBSIDIAN GLASS MEDALLION — Pseudo-3D Node System
+// ═══════════════════════════════════════════════════════════════════════
+//
+// All depth parameters derive from `diameter` via a visual-scale factor.
+// Nothing is hardcoded in pixels — a 72px node gets ~5px extrusion,
+// an 88px node gets ~6.5px, etc. (7-9% of diameter, clamped).
+//
+// The painter renders 8 layers in a single paint() call:
+//   1. Ambient shadow (soft, BR offset)
+//   2. Extruded side wall (visible thickness, down-right)
+//   3. Curved dark glass face (directional gradient)
+//   4. Relationship colour edge-reflection (subtle, near rim)
+//   5. Outer rim (bezel: brighter TL, darker BR)
+//   6. Inner bevel (dark inset + thin TL highlight)
+//   7. Specular reflection (curved arc, upper-left)
+//   8. Contact glow (selected/focused only, tight)
+//
+// All gradients/shaders are created inside paint() from cached params.
+// shouldRepaint only fires on actual visual parameter changes.
+
+/// Immutable parameters for the obsidian glass node painter.
+/// Computed once from generationIndex + state + color + diameter.
 class _Pseudo3DParams {
   const _Pseudo3DParams({
     required this.diameter,
@@ -1121,63 +1143,80 @@ class _Pseudo3DParams {
   final Color tintColor;
   final bool showTint;
 
-  // Derived depth values (computed once, not per-frame)
+  // ── Visual scale (everything derives from diameter) ─────────────
+  // ~8% of diameter, clamped to 4-9px for reasonable bounds.
+  double get _scale => diameter / 72.0; // 1.0 at 72px, 1.22 at 88px
+
+  /// Extruded side wall depth: 7-9% of diameter, clamped 4-9px.
+  double get extrusionDepth => (diameter * 0.08).clamp(4.0, 9.0);
+
+  /// Bevel inset width: ~2.5% of diameter.
+  double get bevelWidth => (diameter * 0.025).clamp(1.5, 3.0);
+
+  /// Specular arc thickness: ~8% of diameter.
+  double get specularThickness => (diameter * 0.08).clamp(3.0, 7.0);
+
+  /// Shadow blur: scales with diameter + generation depth.
   double get shadowBlur {
-    if (isAnchor) return 18.0;
-    if (generationIndex < 0) return 14.0;
-    if (generationIndex > 0) return 7.0;
-    return 12.0;
+    final base = diameter * 0.18;
+    if (isAnchor) return base + 4.0;
+    if (generationIndex < 0) return base + 2.0;
+    if (generationIndex > 0) return base * 0.7;
+    return base;
   }
 
-  double get shadowOffsetY {
-    if (isAnchor) return 7.0;
-    if (generationIndex < 0) return -2.0;
-    if (generationIndex > 0) return 3.0;
-    return 5.0;
+  /// Shadow offset: down-right, scales with diameter.
+  Offset get shadowOffset {
+    final s = _scale;
+    if (isAnchor) return Offset(2.5 * s, 6.0 * s);
+    if (generationIndex < 0) return Offset(1.5 * s, 1.0 * s);
+    if (generationIndex > 0) return Offset(1.5 * s, 3.0 * s);
+    return Offset(2.0 * s, 4.0 * s);
   }
 
   double get shadowAlpha {
-    if (isAnchor) return 0.45;
-    if (generationIndex < 0) return 0.32;
+    if (isAnchor) return 0.50;
+    if (generationIndex < 0) return 0.35;
     if (generationIndex > 0) return 0.22;
-    return 0.38;
+    return 0.40;
   }
 
-  double get rimDepth => isAnchor ? 7.0 : (generationIndex == 0 ? 5.0 : 4.0);
-
-  double get highlightAlpha {
-    if (isAnchor) return 0.10;
-    if (generationIndex < 0) return 0.07;
-    if (generationIndex > 0) return 0.04;
-    return 0.06;
+  /// Specular highlight opacity: generation-dependent.
+  double get specularAlpha {
+    if (isAnchor) return 0.12;
+    if (generationIndex < 0) return 0.09;
+    if (generationIndex > 0) return 0.05;
+    return 0.08;
   }
 
+  /// Glow alpha for selected/focused.
   double get glowAlpha {
     switch (nodeState) {
-      case NodeState.selected: return 0.35;
-      case NodeState.focused: return 0.30;
+      case NodeState.selected: return 0.30;
+      case NodeState.focused: return 0.25;
       default: return 0.0;
     }
   }
 
-  double get glowBlur {
-    switch (nodeState) {
-      case NodeState.selected: return 12.0;
-      case NodeState.focused: return 10.0;
-      default: return 0.0;
-    }
+  double get glowBlur => diameter * 0.15;
+
+  /// Relationship colour reflection intensity near the rim.
+  double get rimReflectionAlpha {
+    if (isAnchor) return 0.15;
+    return 0.08;
   }
 }
 
-/// Paints a pseudo-3D node in 6 layers using a single CustomPainter.
-/// All layers are drawn in one paint() call — no per-layer widget overhead.
+/// Paints a premium obsidian glass medallion in 8 layers.
 ///
-/// Layer 1: Ambient shadow (soft, bottom-right offset)
-/// Layer 2: Extruded lower rim (dark arc at bottom)
-/// Layer 3: Glass face (directional radial gradient)
-/// Layer 4: Relationship border (brighter TL, darker BR)
-/// Layer 5: Specular highlight (elliptical, upper-left)
-/// Layer 6: Contact glow (selected/focused, tight)
+/// The node must look physically thick even in grayscale with all
+/// coloured glow disabled. The primary depth cues are:
+///   - Visible extruded side wall (down-right)
+///   - Directional face gradient (TL bright → BR dark)
+///   - Outer rim bezel (TL bright → BR dark)
+///   - Inner bevel (dark inset + TL highlight)
+///   - Curved specular reflection
+///   - Ambient shadow (BR offset)
 class _Pseudo3DNodePainter extends CustomPainter {
   const _Pseudo3DNodePainter(this.params);
 
@@ -1188,136 +1227,189 @@ class _Pseudo3DNodePainter extends CustomPainter {
     final d = params.diameter;
     final center = Offset(size.width / 2, size.height / 2);
     final radius = d / 2;
-    final borderRect = Rect.fromCircle(center: center, radius: radius);
+    final r = radius;
+    final bw = params.borderWidth;
+    final faceR = r - bw * 0.5; // face radius (inside border)
+    final extrusion = params.extrusionDepth;
 
-    // ── Layer 1: Ambient shadow ──────────────────────────────────
-    // Soft dark shadow offset toward bottom-right, implies light from TL.
+    // ── LAYER 1: Ambient shadow ───────────────────────────────────
+    final shadowRect = Rect.fromCircle(
+      center: center + params.shadowOffset,
+      radius: r,
+    );
     final shadowPaint = Paint()
       ..color = Colors.black.withValues(alpha: params.shadowAlpha)
-      ..maskFilter = MaskFilter.blur(
-        BlurStyle.normal,
-        params.shadowBlur,
-      );
-    final shadowOffset = Offset(2.0, params.shadowOffsetY);
-    canvas.drawCircle(center + shadowOffset, radius, shadowPaint);
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, params.shadowBlur);
+    canvas.drawCircle(center + params.shadowOffset, r, shadowPaint);
 
-    // ── Layer 2: Extruded lower rim ──────────────────────────────
-    // Dark arc at the bottom giving physical thickness.
-    final rimDepth = params.rimDepth;
-    final rimRect = Rect.fromCircle(
-      center: Offset(center.dx, center.dy + rimDepth * 0.5),
-      radius: radius,
-    );
-    final rimPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
+    // ── LAYER 2: Extruded side wall ──────────────────────────────
+    // Draw an offset circle behind the face, then fill the crescent
+    // between the face and the offset circle. The offset is down-right
+    // to match the global TL light source.
+    final wallOffset = Offset(extrusion * 0.35, extrusion * 0.7);
+    final wallCenter = center + wallOffset;
+    final wallR = r;
+    final wallRect = Rect.fromCircle(center: wallCenter, radius: wallR);
+
+    // Side wall gradient: lighter on TL (catches some light), darkest on BR.
+    final wallPaint = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-0.4, -0.5),
+        radius: 1.0,
         colors: [
-          KinrelColors.darkCard,
+          Color.lerp(KinrelColors.darkCard, Colors.black, 0.3)!,
           Color.lerp(KinrelColors.darkCard, Colors.black, 0.6)!,
+          Color.lerp(KinrelColors.darkCard, Colors.black, 0.85)!,
         ],
-      ).createShader(rimRect);
-    // Draw the rim as the bottom portion of the circle
-    canvas.drawArc(rimRect, 0.0, pi, false, rimPaint);
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(wallRect);
 
-    // ── Layer 3: Glass face ──────────────────────────────────────
-    // Directional radial gradient: brighter TL, center = darkCard, darker BR.
+    // Draw the full wall circle first (it will be partially covered by face)
+    canvas.drawCircle(wallCenter, wallR, wallPaint);
+
+    // ── LAYER 3: Curved dark glass face ──────────────────────────
+    // Directional radial gradient simulating curved glass:
+    // TL = slightly lighter (catches light), center = deep dark, BR = darker.
+    final faceRect = Rect.fromCircle(center: center, radius: faceR);
     final facePaint = Paint()
       ..shader = RadialGradient(
-        center: const Alignment(-0.3, -0.4),
-        radius: 0.9,
+        center: const Alignment(-0.25, -0.35),
+        radius: 0.85,
         colors: [
-          KinrelColors.darkElevated,
-          KinrelColors.darkCard,
-          Color.lerp(KinrelColors.darkCard, Colors.black, 0.35)!,
+          Color.lerp(KinrelColors.darkCard, Colors.white, 0.06)!, // subtle TL light
+          KinrelColors.darkCard,                                   // center
+          Color.lerp(KinrelColors.darkCard, Colors.black, 0.30)!,  // BR darker
+          Color.lerp(KinrelColors.darkCard, Colors.black, 0.50)!,  // edge vignette
         ],
-        stops: const [0.0, 0.55, 1.0],
-      ).createShader(borderRect);
-    canvas.drawCircle(center, radius - params.borderWidth * 0.5, facePaint);
+        stops: const [0.0, 0.4, 0.8, 1.0],
+      ).createShader(faceRect);
+    canvas.drawCircle(center, faceR, facePaint);
+
+    // ── LAYER 4: Relationship colour edge-reflection ─────────────
+    // Very subtle relationship colour bleeding onto the face near the rim.
+    // This is NOT a face fill — just a thin edge glow.
+    if (params.rimReflectionAlpha > 0) {
+      final reflectionRect = Rect.fromCircle(center: center, radius: faceR);
+      final reflectionPaint = Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.3, -0.4),
+          radius: 0.5,
+          colors: [
+            Colors.transparent,
+            Colors.transparent,
+            params.borderColor.withValues(alpha: params.rimReflectionAlpha),
+          ],
+          stops: const [0.0, 0.7, 1.0],
+        ).createShader(reflectionRect);
+      canvas.drawCircle(center, faceR, reflectionPaint);
+    }
 
     // Tint overlay for selected/hover
     if (params.showTint) {
-      final tintPaint = Paint()..color = params.tintColor;
-      canvas.drawCircle(center, radius - params.borderWidth * 0.5, tintPaint);
+      canvas.drawCircle(center, faceR, Paint()..color = params.tintColor);
     }
 
-    // ── Layer 4: Relationship border ─────────────────────────────
-    // Brighter on TL arc, darker on BR arc — simulated directional light.
-    // Draw as two arcs: TL half brighter, BR half darker.
+    // ── LAYER 5: Outer rim (bezel) ───────────────────────────────
+    // SweepGradient: brighter on TL arc, darker on BR arc.
+    // This makes the border look like a physical milled bezel.
+    final rimRect = Rect.fromCircle(center: center, radius: r - bw * 0.5);
     final borderBright = params.borderColor;
-    final borderDark = Color.lerp(params.borderColor, Colors.black, 0.4)!;
+    final borderDark = Color.lerp(params.borderColor, Colors.black, 0.5)!;
 
-    final tlArcPaint = Paint()
+    final rimPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = params.borderWidth
+      ..strokeWidth = bw
       ..shader = SweepGradient(
         center: Alignment.center,
-        startAngle: pi, // start from left
+        startAngle: 0.0,
         endAngle: 2 * pi,
-        colors: [borderBright, borderDark, borderBright],
-        stops: const [0.0, 0.5, 1.0],
-        transform: GradientRotation(-pi * 0.75),
-      ).createShader(borderRect);
-    canvas.drawCircle(center, radius - params.borderWidth * 0.5, tlArcPaint);
+        colors: [borderBright, borderDark, borderDark, borderBright],
+        stops: const [0.0, 0.25, 0.75, 1.0],
+        transform: GradientRotation(-pi * 0.75), // rotate so bright is at TL
+      ).createShader(rimRect);
+    canvas.drawCircle(center, r - bw * 0.5, rimPaint);
 
-    // Inner hairline (1px white-alpha inside border)
-    final hairlinePaint = Paint()
+    // ── LAYER 6: Inner bevel ─────────────────────────────────────
+    // Dark inset edge immediately inside the rim, then a thin TL highlight.
+    final bevelR = faceR - params.bevelWidth;
+    final bevelRect = Rect.fromCircle(center: center, radius: bevelR);
+
+    // Dark inset (full circle, thin stroke)
+    final insetPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0
-      ..color = Colors.white.withValues(alpha: 0.06);
-    final hairlineRect = Rect.fromCircle(
-      center: center,
-      radius: radius - params.borderWidth - 1.0,
-    );
-    canvas.drawCircle(hairlineRect.center, hairlineRect.width / 2, hairlinePaint);
+      ..strokeWidth = params.bevelWidth
+      ..color = Colors.black.withValues(alpha: 0.35);
+    canvas.drawCircle(center, faceR - params.bevelWidth * 0.5, insetPaint);
 
-    // ── Layer 5: Specular highlight ──────────────────────────────
-    // Elliptical highlight near upper-left, low opacity, soft light on glass.
-    final highlightAlpha = params.highlightAlpha;
-    if (highlightAlpha > 0) {
-      final hlCenter = Offset(
-        center.dx - radius * 0.25,
-        center.dy - radius * 0.3,
+    // TL highlight on the bevel (top-left arc only)
+    final bevelHighlightPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = params.bevelWidth * 0.6
+      ..color = Colors.white.withValues(alpha: 0.08);
+    // Draw TL arc (from ~180° to ~270° in canvas coords = left to top)
+    canvas.drawArc(bevelRect, pi, pi * 0.5, false, bevelHighlightPaint);
+
+    // ── LAYER 7: Specular reflection ─────────────────────────────
+    // Curved arc highlight on the upper-left quadrant.
+    // Shaped as a short arc following the node curvature, visible at
+    // mobile size, low opacity — suggests glass, not chrome.
+    final specAlpha = params.specularAlpha;
+    if (specAlpha > 0) {
+      // Main specular: elliptical arc in upper-left
+      final specR = r * 0.72;
+      final specRect = Rect.fromCircle(
+        center: Offset(center.dx - r * 0.12, center.dy - r * 0.18),
+        radius: specR,
       );
-      final hlRect = Rect.fromCenter(
-        center: hlCenter,
-        width: radius * 0.6,
-        height: radius * 0.35,
-      );
-      final hlPaint = Paint()
+      final specPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = params.specularThickness
+        ..strokeCap = StrokeCap.round
         ..shader = RadialGradient(
-          center: Alignment.center,
-          radius: 0.8,
+          center: const Alignment(-0.3, -0.4),
+          radius: 0.6,
           colors: [
-            Colors.white.withValues(alpha: highlightAlpha),
+            Colors.white.withValues(alpha: specAlpha),
+            Colors.white.withValues(alpha: specAlpha * 0.3),
             Colors.white.withValues(alpha: 0.0),
           ],
-        ).createShader(hlRect);
-      canvas.drawOval(hlRect, hlPaint);
+          stops: const [0.0, 0.6, 1.0],
+        ).createShader(specRect);
+      // Draw as an arc from ~200° to ~260° (upper-left quadrant)
+      canvas.drawArc(specRect, pi * 1.1, pi * 0.3, false, specPaint);
+
+      // Micro-highlight: tiny spot near top edge
+      final microPaint = Paint()
+        ..color = Colors.white.withValues(alpha: specAlpha * 0.5)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+      canvas.drawCircle(
+        Offset(center.dx - r * 0.05, center.dy - r * 0.45),
+        params.specularThickness * 0.3,
+        microPaint,
+      );
     }
 
-    // ── Layer 6: Contact glow ────────────────────────────────────
-    // Tight colored glow for selected/focused, hugs the node.
+    // ── LAYER 8: Contact glow ────────────────────────────────────
+    // Tight coloured glow for selected/focused — hugs the node.
     if (params.glowAlpha > 0) {
       final glowPaint = Paint()
         ..color = params.borderColor.withValues(alpha: params.glowAlpha)
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, params.glowBlur)
         ..style = PaintingStyle.fill;
-      canvas.drawCircle(center, radius + 3.0, glowPaint);
+      canvas.drawCircle(center, r + 2.0, glowPaint);
     }
 
-    // Anchor: teal spread ring
+    // Anchor: tight low-opacity ambient aura
     if (params.isAnchor) {
-      final anchorGlow = Paint()
-        ..color = RelationshipColors.self.withValues(alpha: 0.25)
+      final auraPaint = Paint()
+        ..color = RelationshipColors.self.withValues(alpha: 0.15)
         ..style = PaintingStyle.fill;
-      canvas.drawCircle(center, radius + 8.0, anchorGlow);
+      canvas.drawCircle(center, r + 5.0, auraPaint);
     }
   }
 
   @override
   bool shouldRepaint(covariant _Pseudo3DNodePainter old) {
-    // Only repaint when visual parameters actually change.
     return old.params.diameter != params.diameter ||
         old.params.borderColor != params.borderColor ||
         old.params.borderWidth != params.borderWidth ||
