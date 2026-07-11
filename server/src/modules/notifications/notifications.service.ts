@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
 
@@ -60,8 +60,22 @@ export class NotificationsService {
     return { items, total, page, limit };
   }
 
-  /** Marks a single notification as read. */
-  async markRead(notificationId: string) {
+  /** Marks a single notification as read. Verifies ownership so a user
+   *  cannot mark another user's notification as read. */
+  async markRead(notificationId: string, userId: string) {
+    // Verify the notification belongs to the requesting user before
+    // updating. This prevents IDOR — without this check, any authenticated
+    // user could mark any other user's notification as read by guessing IDs.
+    const notification = await this.prisma.notification.findUnique({
+      where: { id: notificationId },
+      select: { userId: true },
+    });
+    if (!notification) {
+      throw new NotFoundException('Notification not found');
+    }
+    if (notification.userId !== userId) {
+      throw new ForbiddenException('Cannot mark another user\'s notification');
+    }
     return this.prisma.notification.update({
       where: { id: notificationId },
       data: { read: true, readAt: new Date() },

@@ -34,7 +34,7 @@ export class ChatService {
     return this.prisma.familyPost.create({
       data: {
         familyId,
-        userId,
+        authorId: userId,
         postType: 'chat_message',
         content: JSON.stringify({ text: content }),
       },

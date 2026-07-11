@@ -56,11 +56,13 @@ export class TimelineController {
   @ApiResponse({ status: 200, description: 'Paginated family timeline posts' })
   async getTimeline(
     @Param('familyId') familyId: string,
+    @CurrentUser('id') userId: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ) {
     return this.timelineService.getTimeline(
       familyId,
+      userId,
       limit ? parseInt(limit, 10) : 20,
       cursor,
     );
@@ -86,12 +88,12 @@ export class TimelineController {
   @ApiParam({ name: 'postId', description: 'Post ID' })
   @ApiResponse({ status: 200, description: 'Reaction toggled; returns updated reactions' })
   async toggleReaction(
-    @Param('familyId') _familyId: string,
+    @Param('familyId') familyId: string,
     @Param('postId') postId: string,
     @CurrentUser('id') userId: string,
     @Body() dto: ReactDto,
   ) {
-    return this.timelineService.toggleReaction(postId, userId, dto.emoji);
+    return this.timelineService.toggleReaction(familyId, postId, userId, dto.emoji);
   }
 
   // ── Comments ──────────────────────────────────────────────────────
