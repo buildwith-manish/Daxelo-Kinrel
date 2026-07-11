@@ -4,10 +4,19 @@
 //
 // Maps graph metrics → one of 6 archetypes:
 //   banyan       — dense, multi-generational (high clustering, deep)
+//                  Display name: "The Deep Root" (religion-neutral — the
+//                  internal key `banyan` is kept for DB/back-compat, but
+//                  the user-facing name no longer references the sacred
+//                  fig species; the same dense-rooted meaning is preserved.)
 //   river_delta  — dispersed, wide (low clustering, long diameter)
 //   confluence   — many lineages merging (3+ distinct lineages)
 //   spine        — linear, deep (deep generations, low degree)
 //   lotus        — balanced center (mid clustering)
+//                  Display name: "The Radiant" (religion-neutral — the
+//                  internal key `lotus` is kept for DB/back-compat, but
+//                  the user-facing name + visual pattern no longer
+//                  reference the lotus flower; the same balanced-center
+//                  meaning is rendered as abstract radiating segments.)
 //   forest       — distributed, no single center (fallback)
 //
 // Algorithm:
@@ -74,15 +83,28 @@ export const ARCHETYPES: ArchetypeDefinition[] = [
       minClusteringCoefficient: 0.4,
       minGenerationDepth: 3,
     },
+    // NOTE: The display name was changed from "The Banyan" to
+    // "The Deep Root" for the global launch. The Banyan tree is a
+    // sacred fig species in Hinduism/Buddhism and India's national
+    // tree — naming a global archetype after it read as culturally
+    // specific. "The Deep Root" preserves the same dense, deeply-
+    // rooted, multi-generational meaning without referencing one
+    // specific sacred species. The internal `key: 'banyan'` is kept
+    // stable so existing DB rows (FamilyKinrel.archetypeKey,
+    // FamilyKinrelHistory.archetypeKey) still parse correctly — only
+    // the user-facing name changed. All 8 locale names updated to
+    // neutral translations of "Deep Root" (the old names were the
+    // local-language word for the banyan tree, which carries the same
+    // religious connotation in every Indic language).
     names: {
-      en: 'The Banyan',
-      hi: 'बरगद',
-      ta: 'ஆலமரம்',
-      te: 'మర్రిచెట్టు',
-      kn: 'ಆಲದ ಮರ',
-      ml: 'ആൽമരം',
-      mr: 'वटवृक्ष',
-      bn: 'বটগাছ',
+      en: 'The Deep Root',
+      hi: 'गहरी जड़',
+      ta: 'ஆழமான வேர்',
+      te: 'లోతైన వేరు',
+      kn: 'ಆಳವಾದ ಬೇರು',
+      ml: 'ആഴമേറിയ വേര്',
+      mr: 'खोल मूळ',
+      bn: 'গভীর শিকড়',
     },
     descriptions: {
       en: 'One or two roots hold the entire family in their shade.\nStrength passes through you, generation to generation.',
@@ -183,31 +205,49 @@ export const ARCHETYPES: ArchetypeDefinition[] = [
   },
   {
     key: 'lotus',
-    glyphStyle: 'lotus_petal',
+    glyphStyle: 'radiant_segments',
     weight: 2,
     thresholds: {
       minClusteringCoefficient: 0.25,
       maxClusteringCoefficient: 0.4,
     },
+    // NOTE: The display name was changed from "The Lotus" to
+    // "The Radiant" for the global launch. The lotus is a sacred
+    // symbol of purity/enlightenment in Hinduism and Buddhism and
+    // is loaded with Dharmic religious meaning. "The Radiant"
+    // preserves the same balanced-center, mid-clustering meaning
+    // without naming one specific religious flower — the visual
+    // pattern was also changed from literal lotus petals to
+    // abstract radiating segments (see ARCHETYPE_PATTERNS in
+    // kinrel-parameter-generator.service.ts and _drawRadiant in
+    // kinrel_symbol_painter.dart). The internal `key: 'lotus'` is
+    // kept stable so existing DB rows still parse correctly — only
+    // the user-facing name + visual changed. All 8 locale names
+    // updated to neutral translations of "Radiant" (the old names
+    // were the local-language word for the lotus flower, which
+    // carries the same religious connotation in every Indic
+    // language). Descriptions updated to remove the "petals"
+    // metaphor — now describes light/segments unfolding, which
+    // matches the new radiant visual pattern.
     names: {
-      en: 'The Lotus',
-      hi: 'कमल',
-      ta: 'தாமரை',
-      te: 'తామర',
-      kn: 'ಕಮಲ',
-      ml: 'താമര',
-      mr: 'कमळ',
-      bn: 'পদ্ম',
+      en: 'The Radiant',
+      hi: 'दीप्तिमान',
+      ta: 'ஒளிரும்',
+      te: 'తేజస్సు',
+      kn: 'ಪ್ರಕಾಶಮಯ',
+      ml: 'പ്രഭാസമയ',
+      mr: 'तेजस्वी',
+      bn: 'দীপ্তিময়',
     },
     descriptions: {
-      en: 'A strong center holds, while new petals are still unfolding.\nYour family is becoming — not yet complete, and more beautiful for it.',
-      hi: 'एक मजबूत केंद्र टिका है, जबकि नई पंखुड़ियाँ अभी खुल रही हैं।\nतुम्हारा परिवार बन रहा है — अभी पूरा नहीं, और इसीलिए और सुंदर।',
-      ta: 'ஒரு வலுவான மையம் நிற்கிறது, புதிய இதழ்கள் இன்னும் விரிகின்றன.\nஉங்கள் குடும்பம் தயாராகி வருகிறது — இன்னும் முழுமையடையவில்லை, அதனால் இன்னும் அழகு.',
-      te: 'బలమైన కేంద్రం నిలబడుతుంది, కొత్త రేకులు ఇంకా విచ్చుకుంటున్నాయి.\nమీ కుటుంబం రూపొందుతోంది — ఇంకా పూర్తి కాలేదు, అందుకే మరింత అందంగా ఉంది.',
-      kn: 'ಒಂದು ಬಲವಾದ ಕೇಂದ್ರ ನಿಲ್ಲುತ್ತದೆ, ಹೊಸ ದಳಗಳು ಇನ್ನೂ ತೆರೆದುಕೊಳ್ಳುತ್ತಿವೆ.\nನಿಮ್ಮ ಕುಟುಂಬ ರೂಪುಗೊಳ್ಳುತ್ತಿದೆ — ಇನ್ನೂ ಪೂರ್ಣವಾಗಿಲ್ಲ, ಆದ್ದರಿಂದ ಇನ್ನಷ್ಟು ಸುಂದರ.',
-      ml: 'ഒരു ശക്തമായ കേന്ദ്രം നിൽക്കുന്നു, പുതിയ ഇതളുകൾ ഇനിയും വിടരുന്നു.\nനിങ്ങളുടെ കുടുംബം രൂപപ്പെട്ടുകൊണ്ടിരിക്കുന്നു — ഇതേ പൂർണ്ണമായിട്ടില്ല, അതുകൊണ്ടാണ് കൂടുതൽ മനോഹരം.',
-      mr: 'एक मजबूत केंद्र टिकते, नवीन पाकळ्या अजून उलगडत आहेत.\nतुमचे कुटुंब तयार होत आहे — अजून पूर्ण नाही, आणि म्हणून अधिक सुंदर.',
-      bn: 'একটি শক্তিশালী কেন্দ্র ধরে আছে, নতুন পাপড়ি এখনও মেলছে।\nতোমার পরিবার তৈরি হচ্ছে — এখনও সম্পূর্ণ নয়, তাই আরও সুন্দর।',
+      en: 'A strong center holds, while new light unfolds around it.\nYour family is becoming — not yet complete, and more beautiful for it.',
+      hi: 'एक मजबूत केंद्र टिका है, जबकि नई दीप्ति इसके चारों ओर खुल रही है।\nतुम्हारा परिवार बन रहा है — अभी पूरा नहीं, और इसीलिए और सुंदर।',
+      ta: 'ஒரு வலுவான மையம் நிற்கிறது, புதிய ஒளி அதைச் சுற்றி விரிகிறது.\nஉங்கள் குடும்பம் தயாராகி வருகிறது — இன்னும் முழுமையடையவில்லை, அதனால் இன்னும் அழகு.',
+      te: 'బలమైన కేంద్రం నిలబడుతుంది, కొత్త తేజస్సు దాని చుట్టూ విచ్చుకుంటోంది.\nమీ కుటుంబం రూపొందుతోంది — ఇంకా పూర్తి కాలేదు, అందుకే మరింత అందంగా ఉంది.',
+      kn: 'ಒಂದು ಬಲವಾದ ಕೇಂದ್ರ ನಿಲ್ಲುತ್ತದೆ, ಹೊಸ ಪ್ರಕಾಶ ಅದರ ಸುತ್ತ ವಿಸ್ತರಿಸುತ್ತಿದೆ.\nನಿಮ್ಮ ಕುಟುಂಬ ರೂಪುಗೊಳ್ಳುತ್ತಿದೆ — ಇನ್ನೂ ಪೂರ್ಣವಾಗಿಲ್ಲ, ಆದ್ದರಿಂದ ಇನ್ನಷ್ಟು ಸುಂದರ.',
+      ml: 'ഒരു ശക്തമായ കേന്ദ്രം നിൽക്കുന്നു, പുതിയ പ്രഭ അതിന് ചുറ്റും വിരിയുന്നു.\nനിങ്ങളുടെ കുടുംബം രൂപപ്പെട്ടുകൊണ്ടിരിക്കുന്നു — ഇതേ പൂർണ്ണമായിട്ടില്ല, അതുകൊണ്ടാണ് കൂടുതൽ മനോഹരം.',
+      mr: 'एक मजबूत केंद्र टिकते, नवीन तेज त्याभोवती पसरत आहे.\nतुमचे कुटुंब तयार होत आहे — अजून पूर्ण नाही, आणि म्हणून अधिक सुंदर.',
+      bn: 'একটি শক্তিশালী কেন্দ্র ধরে আছে, নতুন দীপ্তি এর চারপাশে ছড়াচ্ছে।\nতোমার পরিবার তৈরি হচ্ছে — এখনও সম্পূর্ণ নয়, তাই আরও সুন্দর।',
     },
   },
   {
@@ -378,6 +418,12 @@ export class ArchetypeClassifierService {
   }
 
   getDefinition(key: ArchetypeKey): ArchetypeDefinition {
-    return ARCHETYPES.find((a) => a.key === key) ?? ARCHETYPES[4]; // lotus fallback
+    // Global-launch fix: the fallback was previously ARCHETYPES[4]
+    // (the lotus archetype — the most culturally-loaded option). When
+    // classification was ambiguous or the key was unknown, every
+    // family worldwide got defaulted to a Dharmic religious symbol.
+    // Now falls back to ARCHETYPES[5] (forest) — the most generic,
+    // geography/nature archetype with no cultural coding at all.
+    return ARCHETYPES.find((a) => a.key === key) ?? ARCHETYPES[5]; // forest fallback
   }
 }

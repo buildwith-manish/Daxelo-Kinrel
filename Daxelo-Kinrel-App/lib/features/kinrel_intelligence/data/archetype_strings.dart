@@ -27,7 +27,7 @@ class ArchetypeStrings {
     required this.description,
   });
 
-  /// Short display name (e.g. "The Banyan").
+  /// Short display name (e.g. "The Deep Root").
   final String name;
 
   /// Two-line poetic description. Newline separates the two lines so
@@ -57,10 +57,20 @@ ArchetypeStrings archetypeStrings(
   }
 
   // Fallback: hardcoded English strings (same as before).
+  //
+  // Global-launch fix: the `banyan` archetype display name was changed
+  // from "The Banyan" to "The Deep Root" (no longer references the
+  // sacred banyan fig species), and the `lotus` archetype display name
+  // was changed from "The Lotus" to "The Radiant" (no longer references
+  // the lotus flower — a Dharmic religious symbol). The lotus
+  // description was also updated to remove the "petals" metaphor,
+  // replacing it with "light unfolds" to match the new abstract
+  // radiating-segments visual pattern. Internal enum values are
+  // unchanged — only the user-facing strings changed.
   switch (type) {
     case ArchetypeType.banyan:
       return const ArchetypeStrings(
-        name: 'The Banyan',
+        name: 'The Deep Root',
         description:
             'One or two roots hold the entire family in their shade.\n'
             'Strength passes through you, generation to generation.',
@@ -88,9 +98,9 @@ ArchetypeStrings archetypeStrings(
       );
     case ArchetypeType.lotus:
       return const ArchetypeStrings(
-        name: 'The Lotus',
+        name: 'The Radiant',
         description:
-            'A strong center holds, while new petals are still unfolding.\n'
+            'A strong center holds, while new light unfolds around it.\n'
             'Your family is becoming — not yet complete, and more beautiful for it.',
       );
     case ArchetypeType.forest:

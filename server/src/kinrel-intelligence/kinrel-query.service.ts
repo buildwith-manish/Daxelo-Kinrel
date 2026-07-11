@@ -21,7 +21,11 @@ import {
 // with `ArchetypeKey` in archetype-classifier.service.ts. If a new
 // archetype is added there, add it here too. We use this to validate
 // the DB-stored `archetypeKey` before passing it to `getDefinition`,
-// so a stale/typo'd key in the DB doesn't silently fall back to lotus.
+// so a stale/typo'd key in the DB doesn't silently fall back to a
+// culturally-loaded default. (Global-launch fix: the previous fallback
+// was the `lotus` archetype — a Dharmic religious symbol — which meant
+// any unknown key defaulted every family worldwide to a religious
+// archetype. The fallback is now `forest`, the most generic archetype.)
 const VALID_ARCHETYPE_KEYS = new Set<string>([
   'banyan',
   'river_delta',
@@ -102,11 +106,14 @@ export class KinrelQueryService {
         // Bug 15 fix: validate `archetypeKey` against the known keys
         // before calling `getDefinition`. If the DB holds a stale/typo'd
         // key (e.g. from a manual edit or a renamed archetype),
-        // `getDefinition` would silently fall back to ARCHETYPES[4]
-        // (lotus) — the user would see a Lotus symbol but the row's
+        // `getDefinition` would silently fall back to ARCHETYPES[5]
+        // (forest) — the user would see a Forest symbol but the row's
         // archetypeKey would still say something else, so the next
         // recompute could flip it back. We log a warning so the
         // mismatch is visible in server logs.
+        // (Global-launch fix: the fallback was previously ARCHETYPES[4]
+        // (lotus), the most culturally-loaded archetype. Changed to
+        // ARCHETYPES[5] (forest) — the most generic, no cultural coding.)
         definition: this._definitionToPlainObject(
           this._safeGetDefinition(kinrel.archetypeKey),
         ),
@@ -148,18 +155,24 @@ export class KinrelQueryService {
    * calling `getDefinition`. If the DB holds a stale/typo'd key (e.g.
    * from a manual edit, a renamed archetype, or a row written by an
    * older version of the classifier), `getDefinition` would silently
-   * fall back to ARCHETYPES[4] (lotus). We log a warning so the
-   * mismatch is visible in server logs, then return the lotus
+   * fall back to ARCHETYPES[5] (forest). We log a warning so the
+   * mismatch is visible in server logs, then return the forest
    * definition as a safe fallback.
+   *
+   * Global-launch fix: the previous fallback was `lotus` — the most
+   * culturally-loaded archetype (Dharmic religious symbol). Changed to
+   * `forest` — the most generic, nature-based archetype with no
+   * cultural coding, so an unknown key no longer defaults every
+   * family worldwide to a religious archetype.
    */
   private _safeGetDefinition(archetypeKey: string): ArchetypeDefinition {
     if (!VALID_ARCHETYPE_KEYS.has(archetypeKey)) {
       this.logger.warn(
-        `Unknown archetypeKey "${archetypeKey}" in DB — falling back to lotus. ` +
+        `Unknown archetypeKey "${archetypeKey}" in DB — falling back to forest. ` +
           `This usually means the row was written by an older app version ` +
           `or manually edited. A recompute will fix it.`,
       );
-      return this.classifier.getDefinition('lotus');
+      return this.classifier.getDefinition('forest');
     }
     return this.classifier.getDefinition(archetypeKey as never);
   }

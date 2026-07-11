@@ -11,13 +11,22 @@
 //      `outerRingRadiusPct` of the canvas min dimension.
 //   2. Spokes — `spokeCount` radial lines from centre to outer ring.
 //   3. Inner pattern — drawn at the centre, shape depends on
-//      `innerPatternType` (lotus | grid | diamond | star | web | spiral).
+//      `innerPatternType` (lotus | grid | diamond | star | web | spiral | radiant).
 //   4. Pattern complexity — controls subdivision count of the inner
-//      pattern (e.g. petal count for lotus, grid resolution for grid).
+//      pattern (e.g. segment count for radiant, petal count for lotus,
+//      grid resolution for grid).
 //
 // Colours come straight from the KinrelSymbolParameters — primary is used
 // for outer rings + spokes, secondary for the inner pattern, accent for
 // highlights (dots on rings, intersections).
+//
+// Global-launch fix: the `lotus` archetype's visual pattern was switched
+// from literal flower petals (`_drawLotus`) to abstract radiating
+// segments (`_drawRadiant`). The `_drawLotus` method is KEPT for
+// backward compatibility — old DB rows with `innerPatternType: 'lotus'`
+// still render via `_drawLotus` until the next recompute writes
+// `radiant`. New classifications of the lotus archetype always write
+// `radiant` (see ARCHETYPE_PATTERNS in the backend parameter generator).
 //
 // All math is pure: given the same KinrelModel it always draws the same
 // symbol, so it's safe to use in tests and in RepaintBoundary-based
@@ -163,6 +172,9 @@ class KinrelSymbolPainter extends CustomPainter {
       case KinrelInnerPattern.spiral:
         _drawSpiral(canvas, center, radius, complexity, paint, progress);
         break;
+      case KinrelInnerPattern.radiant:
+        _drawRadiant(canvas, center, radius, complexity, paint, progress);
+        break;
     }
   }
 
@@ -199,6 +211,73 @@ class KinrelSymbolPainter extends CustomPainter {
       path.quadraticBezierTo(right.dx, right.dy, center.dx, center.dy);
       path.close();
       canvas.drawPath(path, paint);
+    }
+  }
+
+  /// Abstract radiating segments — the religion-neutral replacement for
+  /// the lotus flower petals. Mirrors the structure of [_drawLotus]
+  /// (same `complexity` → segment-count mapping, same `progress` →
+  /// rotation coupling) but renders symmetric radial line-arc pairs
+  /// instead of curved petal shapes. No botanical / religious imagery.
+  ///
+  /// Visual: each "segment" is a radial line from the centre out to
+  /// `radius`, with a small perpendicular arc cap at the outer end.
+  /// The result reads as a radiating compass / sun-burst — abstract
+  /// geometry, no single-culture ownership.
+  void _drawRadiant(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    int complexity,
+    Paint paint,
+    double progress,
+  ) {
+    // Same complexity → count mapping as _drawLotus so the visual
+    // density scales identically when the family grows.
+    final segmentCount = 4 + complexity.clamp(1, 8);
+    final arcRadius = radius * 0.16; // perpendicular arc cap length
+
+    for (var i = 0; i < segmentCount; i++) {
+      final angle = (2 * pi * i) / segmentCount + progress * 0.3;
+      final cosA = cos(angle);
+      final sinA = sin(angle);
+
+      // Radial line: centre → outer point.
+      final outer = Offset(
+        center.dx + radius * cosA,
+        center.dy + radius * sinA,
+      );
+      canvas.drawLine(center, outer, paint);
+
+      // Perpendicular arc cap at the outer end (symmetric, non-floral).
+      // Two short arcs on either side of the radial line, forming a
+      // small "T" cap that reads as a radiating tick, not a petal.
+      final perpAngle = angle + pi / 2;
+      final cosP = cos(perpAngle);
+      final sinP = sin(perpAngle);
+      final capLeft = Offset(
+        outer.dx + arcRadius * cosP,
+        outer.dy + arcRadius * sinP,
+      );
+      final capRight = Offset(
+        outer.dx - arcRadius * cosP,
+        outer.dy - arcRadius * sinP,
+      );
+      canvas.drawLine(capLeft, capRight, paint);
+
+      // Inner concentric arc — adds geometric depth without petal
+      // curvature. Drawn at 55% of the radius, spanning the angular
+      // gap between this segment and the next.
+      final innerR = radius * 0.55;
+      final halfGap = pi / segmentCount; // half the angle between segments
+      final arcRect = Rect.fromCircle(center: center, radius: innerR);
+      canvas.drawArc(
+        arcRect,
+        angle - halfGap * 0.8,
+        halfGap * 1.6,
+        false,
+        paint,
+      );
     }
   }
 

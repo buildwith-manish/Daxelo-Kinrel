@@ -209,12 +209,19 @@ class _GreetingHeader extends StatelessWidget {
   }
 
   String _archetypeEmoji(String archetype) {
+    // Global-launch fix: the `lotus` emoji 🪷 was a religious symbol
+    // (sacred lotus of Hinduism/Buddhism). Replaced with 🔆 (sun —
+    // abstract radiance, matches the renamed "The Radiant" archetype
+    // and its new abstract radiating-segments visual pattern). The
+    // `banyan` emoji 🌳 is a generic tree (not the sacred fig
+    // specifically) and still pairs well with the renamed "The Deep
+    // Root" archetype, so it is kept.
     switch (archetype) {
       case 'banyan': return '🌳';
       case 'river_delta': return '🌊';
       case 'confluence': return '🔀';
       case 'spine': return '🦴';
-      case 'lotus': return '🪷';
+      case 'lotus': return '🔆';
       case 'forest': return '🌲';
       default: return '✨';
     }

@@ -82,8 +82,10 @@ void main() {
       );
       await tester.pumpAndSettle();
       // In compact mode, the poetic description should NOT be rendered.
-      // The name "The Banyan" should still be there.
-      expect(find.text('The Banyan'), findsOneWidget);
+      // The name "The Deep Root" should still be there.
+      // (Global-launch fix: was "The Banyan" — renamed for religion-neutral
+      // global launch.)
+      expect(find.text('The Deep Root'), findsOneWidget);
       final strings = archetypeDescription(ArchetypeType.banyan);
       expect(find.text(strings), findsNothing);
     });
@@ -93,10 +95,13 @@ void main() {
 /// Lookup the expected display name for an archetype — duplicated from
 /// the production `archetype_strings.dart` so the test is independent
 /// of any future string edits.
+///
+/// Global-launch fix: `banyan` → "The Deep Root", `lotus` → "The Radiant"
+/// (religion-neutral display names; internal enum values unchanged).
 String archetypeName(ArchetypeType type) {
   switch (type) {
     case ArchetypeType.banyan:
-      return 'The Banyan';
+      return 'The Deep Root';
     case ArchetypeType.riverDelta:
       return 'The River Delta';
     case ArchetypeType.confluence:
@@ -104,7 +109,7 @@ String archetypeName(ArchetypeType type) {
     case ArchetypeType.spine:
       return 'The Spine';
     case ArchetypeType.lotus:
-      return 'The Lotus';
+      return 'The Radiant';
     case ArchetypeType.forest:
       return 'The Forest';
   }
@@ -112,6 +117,10 @@ String archetypeName(ArchetypeType type) {
 
 /// Mirror of the production description string, for the negative
 /// "compact mode hides description" assertion.
+///
+/// Global-launch fix: the `lotus` description was updated to remove the
+/// "petals" metaphor (now says "new light unfolds" to match the renamed
+/// "The Radiant" archetype and its abstract radiating-segments visual).
 String archetypeDescription(ArchetypeType type) {
   switch (type) {
     case ArchetypeType.banyan:
@@ -127,7 +136,7 @@ String archetypeDescription(ArchetypeType type) {
       return 'Yours is a family of deep roots and tall lineage.\n'
           'Every generation stands on the shoulders of the last.';
     case ArchetypeType.lotus:
-      return 'A strong center holds, while new petals are still unfolding.\n'
+      return 'A strong center holds, while new light unfolds around it.\n'
           'Your family is becoming — not yet complete, and more beautiful for it.';
     case ArchetypeType.forest:
       return 'Many trees, each strong in their own right.\n'

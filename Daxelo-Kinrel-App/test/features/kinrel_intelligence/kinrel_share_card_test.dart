@@ -68,7 +68,10 @@ void main() {
       // Family name should appear inside the card.
       expect(find.text('Sharma Family'), findsOneWidget);
       // Archetype name should appear.
-      expect(find.text('The Banyan'), findsOneWidget);
+      // (Global-launch fix: was "The Banyan" — renamed to "The Deep Root"
+      // for religion-neutral global launch. Internal ArchetypeType.banyan
+      // enum value is unchanged for DB backward compatibility.)
+      expect(find.text('The Deep Root'), findsOneWidget);
       // Branding text should appear.
       expect(find.text('Made with love by Daxelo'), findsOneWidget);
     });

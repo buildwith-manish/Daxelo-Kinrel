@@ -16,16 +16,37 @@ import 'dart:convert';
 
 /// Inner pattern drawn at the centre of the Kinrel symbol.
 /// Mirrors `InnerPattern` from kinrel-parameter-generator.service.ts.
+///
+/// Global-launch fix: the `lotus` archetype's visual pattern was
+/// switched from literal flower petals (`lotus`) to abstract radiating
+/// segments (`radiant`). The `lotus` enum value is KEPT for backward
+/// compatibility — old DB rows / cached KinrelModel JSON with
+/// `innerPatternType: 'lotus'` still parse without crashing, and the
+/// `_drawLotus` method in kinrel_symbol_painter.dart still renders
+/// petals for those legacy rows until the next recompute writes
+/// `radiant`. New classifications always write `radiant` for the lotus
+/// archetype (see ARCHETYPE_PATTERNS in the backend).
 enum KinrelInnerPattern {
   lotus,
   grid,
   diamond,
   star,
   web,
-  spiral;
+  spiral,
+  radiant;
 
-  /// Parse from the backend string. Falls back to [lotus] for unknown
-  /// values so a future backend addition never crashes the client.
+  /// Parse from the backend string.
+  ///
+  /// Global-launch fix: the default fallback was previously [lotus]
+  /// (the most culturally-loaded pattern — literal flower petals).
+  /// Changed to [diamond] — the most neutral geometric pattern (used
+  /// by the forest archetype), so an unknown string no longer
+  /// defaults every family worldwide to a religious visual.
+  ///
+  /// The `lotus` case is preserved so existing DB rows with the
+  /// string `'lotus'` (written before the global-launch rename)
+  /// still parse without crashing — they render via `_drawLotus`
+  /// until the next recompute writes `radiant`.
   static KinrelInnerPattern fromString(String? value) {
     switch (value) {
       case 'lotus':
@@ -40,8 +61,10 @@ enum KinrelInnerPattern {
         return KinrelInnerPattern.web;
       case 'spiral':
         return KinrelInnerPattern.spiral;
+      case 'radiant':
+        return KinrelInnerPattern.radiant;
       default:
-        return KinrelInnerPattern.lotus;
+        return KinrelInnerPattern.diamond;
     }
   }
 
@@ -50,6 +73,15 @@ enum KinrelInnerPattern {
 
 /// One of the 6 family archetypes. Mirrors `ArchetypeKey` from
 /// archetype-classifier.service.ts.
+///
+/// Global-launch fix: the display names for `banyan` and `lotus` were
+/// changed (to "The Deep Root" and "The Radiant" respectively) to
+/// remove religious/cultural coding for the global launch. The
+/// internal enum values + wire keys are UNCHANGED so existing DB rows
+/// (FamilyKinrel.archetypeKey, FamilyKinrelHistory.archetypeKey) and
+/// cached client JSON still parse without crashing — only the
+/// user-facing display name (looked up via archetype_strings.dart or
+/// the backend's localized `definition` bundle) changed.
 enum ArchetypeType {
   banyan,
   riverDelta,
@@ -58,6 +90,16 @@ enum ArchetypeType {
   lotus,
   forest;
 
+  /// Parse from the backend wire string.
+  ///
+  /// Global-launch fix: the default fallback was previously [lotus]
+  /// (the most culturally-loaded archetype — Dharmic religious
+  /// symbol). Changed to [forest] — the most generic, nature-based
+  /// archetype with no cultural coding, so an unknown string no
+  /// longer defaults every family worldwide to a religious archetype.
+  /// This mirrors the server-side fix in
+  /// archetype-classifier.service.ts `getDefinition` and
+  /// kinrel-query.service.ts `_safeGetDefinition`.
   static ArchetypeType fromString(String? value) {
     switch (value) {
       case 'banyan':
@@ -73,7 +115,7 @@ enum ArchetypeType {
       case 'forest':
         return ArchetypeType.forest;
       default:
-        return ArchetypeType.lotus;
+        return ArchetypeType.forest;
     }
   }
 
@@ -257,7 +299,7 @@ class KinrelArchetype {
 
   /// Bug 8 fix: optional locale-string bundle sent by the backend.
   /// When present, contains `names` and `descriptions` maps keyed by
-  /// locale code (e.g. {'en': 'The Banyan', 'hi': 'बरगद', ...}).
+  /// locale code (e.g. {'en': 'The Deep Root', 'hi': 'गहरी जड़', ...}).
   /// The Flutter client uses this to render the user's locale instead
   /// of the hardcoded English strings in archetype_strings.dart.
   final KinrelArchetypeDefinition? definition;
@@ -287,7 +329,7 @@ class KinrelArchetypeDefinition {
     required this.descriptions,
   });
 
-  /// Locale code → display name (e.g. {'en': 'The Banyan', 'hi': 'बरगद'}).
+  /// Locale code → display name (e.g. {'en': 'The Deep Root', 'hi': 'गहरी जड़'}).
   final Map<String, String> names;
 
   /// Locale code → 2-line poetic description.

@@ -271,6 +271,41 @@ class MandalaPainter extends CustomPainter {
         }
         canvas.drawPath(path, paint);
         break;
+
+      case KinrelInnerPattern.radiant:
+        // Global-launch fix: abstract radiating segments — the
+        // religion-neutral replacement for the lotus flower petals.
+        // Mirrors the structure of the lotus case (segment count driven
+        // by complexity, slow rotation driven by progress) but renders
+        // symmetric radial lines + perpendicular caps instead of curved
+        // petal shapes. No botanical / religious imagery.
+        final segments = 6 + (complexity ~/ 2).clamp(0, 4);
+        final capLen = radius * 0.18;
+        for (var i = 0; i < segments; i++) {
+          final angle = (2 * math.pi * i) / segments + progress * 0.15;
+          final cosA = math.cos(angle);
+          final sinA = math.sin(angle);
+          // Radial line: centre → outer point.
+          final outer = Offset(
+            center.dx + radius * cosA,
+            center.dy + radius * sinA,
+          );
+          canvas.drawLine(center, outer, paint);
+          // Perpendicular cap at the outer end (T-shaped tick).
+          final perp = angle + math.pi / 2;
+          final cap1 = Offset(
+            outer.dx + capLen * math.cos(perp),
+            outer.dy + capLen * math.sin(perp),
+          );
+          final cap2 = Offset(
+            outer.dx - capLen * math.cos(perp),
+            outer.dy - capLen * math.sin(perp),
+          );
+          canvas.drawLine(cap1, cap2, paint);
+        }
+        // Faint inner ring tying the segments together.
+        canvas.drawCircle(center, radius * 0.45, paint);
+        break;
     }
   }
 

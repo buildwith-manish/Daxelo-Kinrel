@@ -9,7 +9,7 @@
 // Parameters generated:
 //   - ringCount           (1–8,    driven by generationDepth)
 //   - spokeCount          (3–12,   driven by distinctLineages + memberCount)
-//   - innerPatternType    (lotus|grid|diamond|star|web|spiral, driven by archetype)
+//   - innerPatternType    (lotus|grid|diamond|star|web|spiral|radiant, driven by archetype)
 //   - outerRingRadiusPct  (0.50–0.95, driven by graphDiameter)
 //   - patternComplexity   (1–10,   driven by clusteringCoefficient × memberCount)
 //   - primaryColorHex     (derived from dominant language hue)
@@ -33,7 +33,8 @@ export type InnerPattern =
   | 'diamond'
   | 'star'
   | 'web'
-  | 'spiral';
+  | 'spiral'
+  | 'radiant';
 
 export interface KinrelSymbolParameters {
   // Geometry
@@ -76,13 +77,23 @@ const LANGUAGE_HUES: Record<string, number> = {
   en: 210,  // English     — Steel Blue (fallback)
 };
 
-// Archetype → inner pattern mapping
+// Archetype → inner pattern mapping.
+//
+// Global-launch fix: the `lotus` archetype previously mapped to the
+// `lotus` InnerPattern (literal flower-petal rendering). For the
+// global launch the lotus archetype's display name was renamed to
+// "The Radiant" and its visual pattern was switched from literal
+// petals to abstract radiating segments (`radiant`). The `lotus`
+// InnerPattern enum value is KEPT for backward compatibility (old
+// DB rows with `innerPatternType = 'lotus'` still parse, and the
+// Flutter `_drawLotus` method still renders petals for those rows
+// until the next recompute writes `radiant`).
 const ARCHETYPE_PATTERNS: Record<ArchetypeKey, InnerPattern> = {
   banyan:      'web',      // Dense interconnected web
   river_delta: 'spiral',   // Outward spiral
   confluence:  'star',     // Multiple points meeting
   spine:       'grid',     // Linear grid
-  lotus:       'lotus',    // Unfolding petals
+  lotus:       'radiant',  // Abstract radiating segments (was 'lotus' — literal petals)
   forest:      'diamond',  // Distributed diamonds
 };
 

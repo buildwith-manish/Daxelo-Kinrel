@@ -393,12 +393,19 @@ export class FamilyChronicleService {
 
     // Chapter 5: The Family Today (Kinrel archetype)
     if (data.kinrel) {
+      // Global-launch fix: archetype descriptions updated to match the
+      // renamed display names. The `banyan` archetype is now displayed
+      // as "The Deep Root" (no longer references the sacred banyan
+      // tree species) and the `lotus` archetype is now "The Radiant"
+      // (no longer references the lotus flower). Internal keys are
+      // unchanged for DB backward compatibility — only the prose
+      // descriptions of what each archetype "is like" changed.
       const archetypeDescriptions: Record<string, string> = {
-        banyan: 'a Banyan tree — deeply rooted, with branches that reach wide and shelter many generations',
+        banyan: 'a deep root — deeply grounded, with branches that reach wide and shelter many generations',
         river_delta: 'a river delta — multiple streams converging, bringing together different lineages and traditions',
         confluence: 'a confluence — where different families and cultures meet and merge into something new',
         spine: 'a spine — a strong central lineage with branches extending outward',
-        lotus: 'a lotus — centered and balanced, with each member playing a distinct role',
+        lotus: 'a radiant center — centered and balanced, with each member playing a distinct role',
         forest: 'a forest — a diverse collection of individuals, each growing in their own direction yet connected underground',
       };
       const archetypeDesc = archetypeDescriptions[data.kinrel.archetypeKey] || 'a unique family structure';

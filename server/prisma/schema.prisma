@@ -2236,7 +2236,15 @@ model FamilyKinrel {
   // ── Kinrel Symbol Parameters ──
   ringCount          Int     @default(2) // 1–8
   spokeCount         Int     @default(4) // 3–12
-  innerPatternType   String  @default("lotus") // lotus|grid|diamond|star|web|spiral
+  // Global-launch fix: default changed from "lotus" (literal flower
+  // petals — Dharmic religious symbol) to "diamond" (the most neutral
+  // geometric pattern, used by the forest archetype). The "lotus"
+  // value is still a valid pattern string for backward compatibility
+  // (old rows parse without crashing) but is no longer the default for
+  // new INSERTs. Added "radiant" to the enum — the new abstract
+  // radiating-segments pattern used by the lotus archetype (renamed
+  // "The Radiant").
+  innerPatternType   String  @default("diamond") // lotus|grid|diamond|star|web|spiral|radiant
   outerRingRadiusPct Decimal @default(0.85) @db.Decimal(4, 2) // 0.50–0.95
   patternComplexity  Int     @default(3) // 1–10
   primaryColorHex    String  @default("#C8853A") @db.Char(7)
@@ -2245,7 +2253,14 @@ model FamilyKinrel {
   pulseSpeedMs       Int     @default(3000) // animation cycle duration
 
   // ── Archetype classification ──
-  archetypeKey        String  @default("lotus") // banyan|river_delta|confluence|spine|lotus|forest
+  // Global-launch fix: default changed from "lotus" (the most
+  // culturally-loaded archetype — Dharmic religious symbol) to "forest"
+  // (the most generic, nature-based archetype with no cultural coding).
+  // The "lotus" key is still a valid archetype string for backward
+  // compatibility (old rows parse without crashing) but is no longer
+  // the default for new INSERTs. Display names for banyan/lotus changed
+  // ("The Deep Root" / "The Radiant") but the internal keys are stable.
+  archetypeKey        String  @default("forest") // banyan|river_delta|confluence|spine|lotus|forest
   archetypeConfidence Decimal @default(0.500) @db.Decimal(4, 3) // 0.000–1.000
 
   // ── Metadata ──
