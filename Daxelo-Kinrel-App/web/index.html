@@ -24,12 +24,15 @@
   <title>Daxelo Kinrel</title>
   <link rel="manifest" href="manifest.json">
 
-  <!-- MapLibre GL JS — required by maplibre_gl web plugin for the Family Map.
-       The plugin's JS interop (@JS('maplibregl')) expects this global object
-       to be available before the map widget initializes. Without this script
-       tag, the map renders as a blank container on web. -->
-  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <!-- MapLibre GL JS — required by the maplibre (0.3.5) web plugin.
+       The package's web implementation (maplibre_web) uses @JS('maplibregl')
+       which expects this global object to be available before the map widget
+       initializes. Without this script tag, the map renders as a blank
+       container on web.
+       Version: ^5.0 (required by maplibre 0.3.5 per the package docs at
+       https://flutter-maplibre.pages.dev/docs/getting-started/setup/) -->
+  <script src="https://unpkg.com/maplibre-gl@^5.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@^5.0/dist/maplibre-gl.css" rel="stylesheet" />
 
   <style>
     #loading {

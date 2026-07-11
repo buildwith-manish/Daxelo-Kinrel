@@ -1,22 +1,32 @@
 // lib/features/family_map/presentation/family_map_screen.dart
 //
-// DAXELO KINREL — Family Map Screen (MapLibre Native — 3D Buildings)
+// DAXELO KINREL — Family Map Screen (MapLibre 0.3.5 — 3D Buildings)
 //
-// Full-screen interactive map using MapLibre Native with OpenFreeMap
-// dark vector tiles. Features:
+// Full-screen interactive map using the modern maplibre package (0.3.5)
+// with OpenFreeMap dark vector tiles. Features:
 //   - Native 3D building extrusion at street-level zoom (15+)
 //   - Tilted camera support (45° pitch for 3D perspective)
 //   - Dark premium style matching Kinrel's art direction
 //   - Family member pins as GeoJSON source + circle layers
 //   - Map is ALWAYS rendered — empty data = empty pins, NOT no map
 //
-// Package: maplibre_gl ^0.26.0 (verified on pub.dev)
+// Package: maplibre ^0.3.5 (modern rewrite, FFI/JNI native)
+//   API verified from installed package source:
+//     - MapLibreMap(options: MapOptions(...), onMapCreated, onStyleLoaded)
+//     - MapOptions(initStyle, initCenter: Geographic(lon, lat), initZoom, initPitch)
+//     - MapController.animateCamera(center, zoom, pitch)
+//     - StyleController.addSource(GeoJsonSource(id, data))
+//     - StyleController.addLayer(FillExtrusionStyleLayer(id, sourceId, paint, sourceLayerId))
+//     - StyleController.addLayer(CircleStyleLayer(id, sourceId, paint))
+//     - MapController.featuresAtPoint(Offset, layerIds: [...])
+//   Web: requires MapLibre GL JS ^5.0 in index.html (per package docs)
 // Style: https://tiles.openfreemap.org/styles/dark (free, no API key)
 
+import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:maplibre_gl/maplibre_gl.dart' as maplibre;
+import 'package:maplibre/maplibre.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/brand_colors.dart';
@@ -54,7 +64,7 @@ class FamilyMapScreen extends ConsumerStatefulWidget {
 }
 
 class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
-  maplibre.MapLibreMapController? _mapController;
+  MapController? _mapController;
   bool _styleLoaded = false;
   bool _buildingsAdded = false;
   FamilyMapResult? _lastResult;
@@ -153,6 +163,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   // ── Map View ───────────────────────────────────────────────────────
   // ── Map View (MapLibre Native — 3D buildings + tilted camera) ──────
 
+  // ── Map View (MapLibre 0.3.5 — 3D buildings + tilted camera) ──────
+
   Widget _buildMap(FamilyMapResult result) {
     _lastResult = result;
 
@@ -162,17 +174,17 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
         // Uses OpenFreeMap dark vector style with building height data.
         // Initial camera is flat (India overview). 3D buildings appear
         // when the user zooms in to street level (zoom 15+).
-        maplibre.MapLibreMap(
-          styleString: _kStyleUrl,
-          initialCameraPosition: const maplibre.CameraPosition(
-            target: maplibre.LatLng(20.5937, 78.9629),
-            zoom: 4.5,
-            tilt: 0, // flat at India level — 3D kicks in on zoom
+        MapLibreMap(
+          options: MapOptions(
+            initStyle: _kStyleUrl,
+            initCenter: Geographic(lon: 78.9629, lat: 20.5937),
+            initZoom: 4.5,
+            initPitch: 0, // flat at India level — 3D kicks in on zoom
+            minZoom: 2,
+            maxZoom: 18,
           ),
-          minMaxZoomPreference: const maplibre.MinMaxZoomPreference(2.0, 18.0),
           onMapCreated: _onMapCreated,
-          onStyleLoadedCallback: _onStyleLoaded,
-          trackCameraPosition: false,
+          onStyleLoaded: _onStyleLoaded,
         ),
 
         // ── Non-blocking empty-locations overlay ───────────────────
@@ -241,13 +253,13 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
 
   // ── MapLibre lifecycle ─────────────────────────────────────────────
 
-  void _onMapCreated(maplibre.MapLibreMapController controller) {
+  void _onMapCreated(MapController controller) {
     _mapController = controller;
   }
 
   /// Called when the OpenFreeMap dark style finishes loading.
-  /// This is where we add the 3D building extrusion layer.
-  void _onStyleLoaded() async {
+  /// This is where we add the 3D building extrusion layer + family pins.
+  void _onStyleLoaded(StyleController style) async {
     _styleLoaded = true;
     final controller = _mapController;
     if (controller == null) return;
@@ -260,31 +272,24 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     //     uses render_height for the extruded height value)
     //   base property: "render_min_height" (NOT "min_height")
     try {
-      await controller.addFillExtrusionLayer(
-        'openmaptiles',
-        'kinrel-3d-buildings',
-        maplibre.FillExtrusionLayerProperties(
-          fillExtrusionColor: '#1a1a2e', // dark blue-grey for buildings
-          fillExtrusionHeight: [
-            'get',
-            'render_height'
-          ], // extrude to the building's render_height property
-          fillExtrusionBase: [
-            'get',
-            'render_min_height'
-          ], // base elevation from render_min_height
-          fillExtrusionOpacity: 0.8,
-          fillExtrusionVerticalGradient: true,
-        ),
-        sourceLayer: 'building',
-        minzoom: 15, // only show 3D buildings at street level
-        maxzoom: 18,
-      );
+      await style.addLayer(FillExtrusionStyleLayer(
+        id: 'kinrel-3d-buildings',
+        sourceId: 'openmaptiles',
+        sourceLayerId: 'building',
+        minZoom: 15, // only show 3D buildings at street level
+        maxZoom: 18,
+        paint: {
+          'fill-extrusion-color': '#1a1a2e',
+          'fill-extrusion-height': ['get', 'render_height'],
+          'fill-extrusion-base': ['get', 'render_min_height'],
+          'fill-extrusion-opacity': 0.8,
+          'fill-extrusion-vertical-gradient': true,
+        },
+      ));
       _buildingsAdded = true;
       debugPrint('✅ 3D building extrusion layer added successfully');
       debugPrint('   Using render_height / render_min_height (OpenMapTiles schema)');
     } catch (e) {
-      // Log the exact error so we can diagnose missing source/layer/property.
       debugPrint('❌ Failed to add 3D building extrusion: $e');
       debugPrint('   Expected source: "openmaptiles", source-layer: "building"');
       debugPrint('   Expected properties: "render_height", "render_min_height"');
@@ -292,15 +297,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
 
     // Add family member pins as a GeoJSON source + circle layers.
     if (_lastResult != null) {
-      _addFamilyPins(controller, _lastResult!);
+      _addFamilyPins(style, _lastResult!);
     }
   }
 
   /// Add family member pins using GeoJSON source + circle layers.
-  void _addFamilyPins(
-    maplibre.MapLibreMapController controller,
-    FamilyMapResult result,
-  ) async {
+  void _addFamilyPins(StyleController style, FamilyMapResult result) async {
     if (result.pins.isEmpty) return;
 
     // Build GeoJSON FeatureCollection of Points.
@@ -319,41 +321,36 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
       };
     }).toList();
 
-    final geojson = {
+    final geojson = jsonEncode({
       'type': 'FeatureCollection',
       'features': features,
-    };
+    });
 
     try {
-      await controller.addSource(
-        'family-members',
-        maplibre.GeojsonSourceProperties(data: geojson),
-      );
+      await style.addSource(GeoJsonSource(id: 'family-members', data: geojson));
 
-      // Glow circle behind each pin.
-      await controller.addCircleLayer(
-        'family-members',
-        'kinrel-pin-glow',
-        const maplibre.CircleLayerProperties(
-          circleColor: '#E8612A',
-          circleRadius: 22,
-          circleOpacity: 0.15,
-          circleBlur: 1.0,
-        ),
-      );
+      await style.addLayer(CircleStyleLayer(
+        id: 'kinrel-pin-glow',
+        sourceId: 'family-members',
+        paint: {
+          'circle-color': '#E8612A',
+          'circle-radius': 22,
+          'circle-opacity': 0.15,
+          'circle-blur': 1.0,
+        },
+      ));
 
-      // Ring circle (orange border).
-      await controller.addCircleLayer(
-        'family-members',
-        'kinrel-pin-ring',
-        const maplibre.CircleLayerProperties(
-          circleColor: '#191B2C',
-          circleRadius: 16,
-          circleStrokeColor: '#E8612A',
-          circleStrokeWidth: 2.5,
-          circleOpacity: 0.9,
-        ),
-      );
+      await style.addLayer(CircleStyleLayer(
+        id: 'kinrel-pin-ring',
+        sourceId: 'family-members',
+        paint: {
+          'circle-color': '#191B2C',
+          'circle-radius': 16,
+          'circle-stroke-color': '#E8612A',
+          'circle-stroke-width': 2.5,
+          'circle-opacity': 0.9,
+        },
+      ));
     } catch (e) {
       debugPrint('⚠️ Failed to add family pins: $e');
     }
@@ -368,21 +365,15 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
       return;
     }
 
-    debugPrint('🚀 Flying to Bengaluru: zoom=16.5, tilt=45° for 3D building test');
+    debugPrint('🚀 Flying to Bengaluru: zoom=16.5, pitch=45° for 3D building test');
     debugPrint('   3D buildings layer added: $_buildingsAdded');
     controller.animateCamera(
-      maplibre.CameraUpdate.newCameraPosition(
-        const maplibre.CameraPosition(
-          target: maplibre.LatLng(12.9716, 77.5946), // Bengaluru
-          zoom: 16.5,
-          tilt: 45, // 45° pitch — shows 3D building extrusion
-          bearing: 0,
-        ),
-      ),
-      duration: const Duration(seconds: 3),
+      center: Geographic(lon: 77.5946, lat: 12.9716), // Bengaluru
+      zoom: 16.5,
+      pitch: 45, // 45° pitch — shows 3D building extrusion
+      bearing: 0,
     );
 
-    // Show a snackbar so the tester knows what to look for.
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Flying to Bengaluru — 3D buildings should appear at this zoom level'),
@@ -391,21 +382,16 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     );
 
     // ── Runtime feature query ───────────────────────────────────────
-    // After the camera animation completes (3s + buffer), query the
-    // rendered building features at the screen center to verify that
-    // the "render_height" property is actually present and non-zero.
-    // This catches the class of bug where the layer is "added" but
-    // visually flat because the property name is wrong — the layer
-    // doesn't throw, it just silently extrudes to height 0.
+    // After the camera animation completes, query the rendered building
+    // features at the screen center to verify that the "render_height"
+    // property is actually present and non-zero.
     Future.delayed(const Duration(seconds: 5), () {
       _queryBengaluruBuildingProperties();
     });
   }
 
   /// Query rendered building features at the map center and log their
-  /// available property keys + render_height value. This verifies that
-  /// the OpenMapTiles "building" source-layer actually exposes the
-  /// "render_height" property that our fill-extrusion layer references.
+  /// available property keys + render_height value.
   void _queryBengaluruBuildingProperties() async {
     final controller = _mapController;
     if (controller == null || !_buildingsAdded) {
@@ -414,14 +400,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     }
 
     try {
-      // Query at the center of the screen (Bengaluru after the fly-to).
       final size = MediaQuery.of(context).size;
-      final centerPoint = math.Point<double>(size.width / 2, size.height / 2);
+      final centerPoint = Offset(size.width / 2, size.height / 2);
 
-      final features = await controller.queryRenderedFeatures(
+      final features = controller.featuresAtPoint(
         centerPoint,
-        ['kinrel-3d-buildings'],
-        null,
+        layerIds: ['kinrel-3d-buildings'],
       );
 
       if (features.isEmpty) {
@@ -435,10 +419,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
 
       debugPrint('✅ Found ${features.length} building feature(s) at Bengaluru center');
 
-      // Log the properties of the first feature to verify render_height exists.
       final firstFeature = features.first;
-      final props = firstFeature['properties'] as Map<String, dynamic>?;
-      if (props == null) {
+      final props = firstFeature.properties;
+      if (props == null || props.isEmpty) {
         debugPrint('   ⚠️ Feature has no properties — cannot verify render_height');
         return;
       }
@@ -447,22 +430,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
       debugPrint('   render_height = ${props['render_height']}');
       debugPrint('   render_min_height = ${props['render_min_height']}');
 
-      // Also check the old property names to confirm they're NOT present.
-      if (props.containsKey('height')) {
-        debugPrint('   ℹ️ "height" (old name) = ${props['height']}');
-      }
-      if (props.containsKey('min_height')) {
-        debugPrint('   ℹ️ "min_height" (old name) = ${props['min_height']}');
-      }
-
-      // Final verdict
       final rh = props['render_height'];
       if (rh != null && rh is num && rh > 0) {
         debugPrint('✅ render_height is present and non-zero ($rh) — 3D extrusion should be visible');
       } else {
         debugPrint('❌ render_height is null or zero — buildings will appear flat!');
-        debugPrint('   The fill-extrusion layer is referencing a property that');
-        debugPrint('   does not exist on the building features.');
       }
     } catch (e) {
       debugPrint('❌ queryRenderedFeatures failed: $e');
