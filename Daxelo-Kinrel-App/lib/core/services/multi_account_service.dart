@@ -182,9 +182,10 @@ class MultiAccountService {
         await saveCurrentSession();
       }
 
-      // Restore the target session using the refresh token
+      // Restore the target session using the refresh token.
+      // Supabase auth.setSession() takes a single positional argument:
+      // the refresh token. It returns a new access + refresh token pair.
       final response = await client.auth.setSession(
-        target.accessToken,
         target.refreshToken,
       );
 
