@@ -26,6 +26,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre/maplibre.dart';
 import 'package:go_router/go_router.dart';
@@ -76,17 +77,22 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   Timer? _dbUpsertTimer;
   DateTime? _lastDbUpsert;
 
-  /// Bundled Kinrel dark style — based on OpenFreeMap liberty style
-  /// (actively maintained, tuned label density) recolored dark with
-  /// Kinrel brand colors. Includes 3D building extrusion layer.
+  /// Bundled Kinrel dark style — loaded at runtime from the app bundle
+  /// and passed as a raw JSON string to MapLibre. This bypasses the
+  /// web plugin's AssetManager URL resolution (which doesn't handle
+  /// the asset:// protocol correctly).
   ///
-  /// The remote 'dark' style is abandoned per OpenFreeMap docs (no
-  /// label-density tuning → cluttered with foreign subdivisions at
-  /// low zoom). This bundled style fixes that by:
-  ///   - Raising minzoom for subdivisions/towns/villages
-  ///   - Keeping country labels (orange) + state labels (silver) only
-  ///   - Recoloring everything dark to match Kinrel's theme
-  static const _kStyleAsset = 'asset://assets/map_styles/kinrel_dark_style.json';
+  /// Based on OpenFreeMap liberty style (actively maintained, tuned
+  /// label density) recolored dark with Kinrel brand colors. Includes
+  /// 3D building extrusion layer.
+  static const _kStyleAssetPath = 'assets/map_styles/kinrel_dark_style.json';
+  String? _loadedStyleJson;
+
+  Future<String> _loadStyleJson() async {
+    if (_loadedStyleJson != null) return _loadedStyleJson!;
+    _loadedStyleJson = await rootBundle.loadString(_kStyleAssetPath);
+    return _loadedStyleJson!;
+  }
 
   @override
   void initState() {
@@ -211,15 +217,30 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   Widget _buildMap(FamilyMapResult result) {
     _lastResult = result;
 
-    return Stack(
-      children: [
-        // ── MapLibre map — permanent background ─────────────────────
-        // Uses OpenFreeMap dark vector style with building height data.
-        // Initial camera is flat (India overview). 3D buildings appear
-        // when the user zooms in to street level (zoom 15+).
-        MapLibreMap(
-          options: MapOptions(
-            initStyle: _kStyleAsset,
+    return FutureBuilder<String>(
+      future: _loadStyleJson(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Stack(
+            children: [
+              // Show dark background while style loads
+              Container(color: KinrelColors.darkBackground),
+              const Center(child: CircularProgressIndicator(color: KinrelColors.orange)),
+            ],
+          );
+        }
+
+        // Pass the raw JSON string directly — the maplibre web plugin
+        // detects strings starting with '{' as inline JSON, bypassing
+        // the broken AssetManager URL resolution for asset:// paths.
+        final styleJson = snapshot.data!;
+
+        return Stack(
+          children: [
+            // ── MapLibre map — permanent background ─────────────────────
+            MapLibreMap(
+              options: MapOptions(
+                initStyle: styleJson,
             initCenter: Geographic(lon: 78.9629, lat: 20.5937),
             initZoom: 5.5, // slightly tighter than 4.5 — less clutter
             initPitch: 0, // flat at India level — 3D kicks in on zoom
@@ -239,7 +260,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
           bottom: KinrelSpacing.base,
           child: _MapLegend(result: result),
         ),
-      ],
+        ],
+        );
+      },
     );
   }
 

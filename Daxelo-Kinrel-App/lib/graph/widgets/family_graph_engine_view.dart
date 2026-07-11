@@ -721,7 +721,16 @@ class _FamilyGraphEngineViewState
         height: _kNodeSize.height,
         child: Opacity(
           opacity: opacity,
-          child: RepaintBoundary(child: node),
+          // 2.5D: Add padding around the node so the elevation shadows
+          // (blurRadius up to 20px) have room to render inside the
+          // RepaintBoundary layer. Without this padding, the RepaintBoundary
+          // clips the shadow to the node's bounds, making it invisible.
+          child: RepaintBoundary(
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: node,
+            ),
+          ),
         ),
       ));
     }
@@ -1918,8 +1927,19 @@ class _EngineEdgePainter extends CustomPainter {
     // v2.2 Fix 6: Null/empty guards — skip painting entirely if there
     // are no edges or no positions. This prevents crashes and wasted
     // CPU when the graph is empty or still loading.
-    if (edges.isEmpty) return;
-    if (positions.isEmpty) return;
+    if (edges.isEmpty) {
+      debugPrint('[EdgePainter] No edges to paint — edges list is empty');
+      return;
+    }
+    if (positions.isEmpty) {
+      debugPrint('[EdgePainter] No positions to paint — positions map is empty');
+      return;
+    }
+
+    debugPrint('[EdgePainter] Painting ${edges.length} edges with ${positions.length} positions');
+    debugPrint('[EdgePainter] Position keys: ${positions.keys.toList()}');
+
+    int skippedCount = 0;
 
     final selectedPaint = Paint()
       ..style = PaintingStyle.stroke
@@ -1931,7 +1951,11 @@ class _EngineEdgePainter extends CustomPainter {
       final GraphEdgeData e = deduped.edge;
       final Offset? s = positions[e.sourceId];
       final Offset? t = positions[e.targetId];
-      if (s == null || t == null) continue;
+      if (s == null || t == null) {
+        skippedCount++;
+        debugPrint('[EdgePainter] SKIP edge ${e.id}: source=${e.sourceId}(${s != null ? "found" : "MISSING"}) target=${e.targetId}(${t != null ? "found" : "MISSING"})');
+        continue;
+      }
       // v64 (BUG-2 FIX): Pass the lateral offset so parallel edges
       // (e.g. parent + spouse between the same pair) are visually
       // separated instead of stacked on top of each other.
@@ -2062,6 +2086,10 @@ class _EngineEdgePainter extends CustomPainter {
           );
         }
       }
+    }
+
+    if (skippedCount > 0) {
+      debugPrint('[EdgePainter] Summary: ${edges.length} edges, $skippedCount skipped (missing positions), ${edges.length - skippedCount} drawn');
     }
   }
 

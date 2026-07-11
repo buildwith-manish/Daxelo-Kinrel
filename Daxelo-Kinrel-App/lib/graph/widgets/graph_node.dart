@@ -747,6 +747,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
           child: Container(
             width: diameter,
             height: diameter,
+            clipBehavior: Clip.none,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: KinrelColors.darkCard,
@@ -774,9 +775,12 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     // Standard node with relationship-colored ring
     // 2.5D depth: elevation shadow is computed once from generationIndex
     // + state via _elevationShadows getter — no per-frame recomputation.
+    // clipBehavior: Clip.none allows the BoxShadow to render OUTSIDE the
+    // Container bounds — without this, the shadow is clipped and invisible.
     return Container(
       width: diameter,
       height: diameter,
+      clipBehavior: Clip.none,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: KinrelColors.darkCard,
