@@ -830,12 +830,16 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                     style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: KinrelColors.darkCard)),
               ),
             ),
-          // Role glyph
+          // Role glyph — uses _NodeRoleGlyphBadge which handles the
+          // provider lookup internally (familyId → role → badge)
           if (widget.familyId != null && kEnableKinrel)
             Positioned(
               right: extraPad / 2 - 4, bottom: extraPad / 2 - 4,
-              child: RoleGlyphBadge(
-                size: diameter * 0.3),
+              child: _NodeRoleGlyphBadge(
+                familyId: widget.familyId!,
+                personId: widget.personId,
+                size: diameter * 0.3,
+              ),
             ),
           // Expand indicator
           if (widget.relationshipKey != null &&

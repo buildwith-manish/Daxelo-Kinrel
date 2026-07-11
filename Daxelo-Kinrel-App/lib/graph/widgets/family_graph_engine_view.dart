@@ -1,3 +1,4 @@
+import 'dart:math';
 // lib/graph/widgets/family_graph_engine_view.dart
 //
 // DAXELO KINREL — Family Graph (V2.1 Engine view)
@@ -2116,7 +2117,7 @@ class _EngineEdgePainter extends CustomPainter {
         // Dark rim (bottom)
         canvas.drawArc(
           Rect.fromCircle(center: midPoint + const Offset(0, 1.5), radius: beadR),
-          0, pi, false,
+          0.0, pi, false,
           Paint()..color = Color.lerp(style.midpointColor, Colors.black, 0.5)!,
         );
 
