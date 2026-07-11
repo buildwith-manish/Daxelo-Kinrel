@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
     <!-- P3-F3: Required for push notifications on Android 13+ (API 33) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Family Map: Required for live location sharing (geolocator) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="KINREL"
         android:name="${applicationName}"

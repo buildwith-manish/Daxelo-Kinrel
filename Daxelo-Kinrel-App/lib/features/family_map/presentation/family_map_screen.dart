@@ -67,7 +67,7 @@ class FamilyMapScreen extends ConsumerStatefulWidget {
 }
 
 class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
-  maplibre.MaplibreMapController? _mapController;
+  maplibre.MapLibreMapController? _mapController;
   bool _mapReady = false;
   bool _usingOfflineStyle = false;
   FamilyMapResult? _lastResult;
@@ -250,7 +250,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
 
   // ── MapLibre lifecycle callbacks ───────────────────────────────────
 
-  void _onMapCreated(maplibre.MaplibreMapController controller) {
+  void _onMapCreated(maplibre.MapLibreMapController controller) {
     _mapController = controller;
   }
 
@@ -280,7 +280,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
 
     try {
       final styleJson = await rootBundle.loadString(_kOfflineStyleAsset);
-      await controller.setStyleString(styleJson);
+      await controller.setStyle(styleJson);
       _usingOfflineStyle = true;
       // Re-add layers on the new style
       if (_lastResult != null) {
@@ -295,7 +295,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   /// Set up GeoJSON sources + layers for family member pins and
   /// relationship lines. Called after the style loads.
   Future<void> _setupLayers(
-    maplibre.MaplibreMapController controller,
+    maplibre.MapLibreMapController controller,
     FamilyMapResult result,
   ) async {
     // ── Family member pins (GeoJSON source + circle + symbol layers) ──
@@ -518,7 +518,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
 
   /// Handle a tap on the map. Query the feature at the tap point to
   /// determine if a pin or relationship dot was tapped.
-  void _onMapClick(point, latlng) async {
+  void _onMapClick(math.Point<double> point, maplibre.LatLng latlng) async {
     final controller = _mapController;
     if (controller == null || _lastResult == null) return;
 
@@ -1646,216 +1646,4 @@ class _EdgeDotHitTarget {
 
   final Offset dotPos;
   final MapRelationshipEdge edge;
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// GRAPH EDGE PAINTER
-// ═══════════════════════════════════════════════════════════════════════
-
-/// CustomPainter that draws curved bezier connection lines between
-/// related pinned members on the map, with a glow and amber midpoint
-/// dot per line that is tappable to show kinship info.
-class _MapGraphEdgePainter extends CustomPainter {
-  _MapGraphEdgePainter({
-    required this.edges,
-    required this.camera,
-    this.hoveredEdgeKey,
-  });
-
-  final List<MapRelationshipEdge> edges;
-  final MapCamera camera;
-  final String? hoveredEdgeKey;
-
-  /// Populated during paint() for tap detection in the GestureDetector.
-  final List<_EdgeDotHitTarget> dotHitTargets = [];
-
-  /// Direct relationship keys for large-family edge filtering.
-  static const _directRelationshipKeys = {
-    'father', 'mother', 'parent',
-    'child', 'son', 'daughter',
-    'spouse', 'husband', 'wife',
-    'brother', 'sister', 'sibling',
-  };
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    dotHitTargets.clear();
-
-    // For families with more than 30 pinned members, limit to direct
-    // relationships only to prevent O(n²) line explosion.
-    final filteredEdges = edges.length > 30
-        ? edges.where((e) => _directRelationshipKeys.contains(e.relationshipKey)).toList()
-        : edges;
-
-    for (int i = 0; i < filteredEdges.length; i++) {
-      final edge = filteredEdges[i];
-
-      // 1. Convert coordinates to screen pixels
-      final Offset posA = camera.latLngToScreenPoint(
-        LatLng(edge.pinA.lat, edge.pinA.lng),
-      ).toOffset();
-      final Offset posB = camera.latLngToScreenPoint(
-        LatLng(edge.pinB.lat, edge.pinB.lng),
-      ).toOffset();
-
-      // 2. Viewport culling — skip if both points are off-screen by >200px
-      if (_isBothOffscreen(posA, posB, size)) continue;
-
-      // 3. Compute bezier control point
-      final mid = (posA + posB) / 2;
-      final dx = posB.dx - posA.dx;
-      final dy = posB.dy - posA.dy;
-      final lineLength = math.sqrt(dx * dx + dy * dy);
-      final Offset controlPoint;
-      if (lineLength < 1.0) {
-        controlPoint = mid;
-      } else {
-        // Perpendicular direction normalized
-        final perpX = -dy / lineLength;
-        final perpY = dx / lineLength;
-        // Alternate offset direction based on edge index
-        final sign = (i % 2 == 0) ? -1.0 : 1.0;
-        controlPoint = Offset(
-          mid.dx + perpX * 40 * sign,
-          mid.dy + perpY * 40 * sign,
-        );
-      }
-
-      // 4. Draw the curved line
-      final path = ui.Path()
-        ..moveTo(posA.dx, posA.dy)
-        ..quadraticBezierTo(
-          controlPoint.dx, controlPoint.dy,
-          posB.dx, posB.dy,
-        );
-      final linePaint = Paint()
-        ..color = KinrelColors.orange.withValues(alpha: 0.35)
-        ..strokeWidth = 1.5
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round;
-      canvas.drawPath(path, linePaint);
-
-      // 5. Compute midpoint dot position at t=0.5 on quadratic bezier
-      final dotPos = Offset(
-        0.25 * posA.dx + 0.5 * controlPoint.dx + 0.25 * posB.dx,
-        0.25 * posA.dy + 0.5 * controlPoint.dy + 0.25 * posB.dy,
-      );
-
-      // 6. Draw the glow behind the dot
-      final glowPaint = Paint()
-        ..color = KinrelColors.orangeGlow.withValues(alpha: 0.4)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-      canvas.drawCircle(dotPos, 7, glowPaint);
-
-      // 7. Draw the filled dot
-      final dotPaint = Paint()
-        ..color = KinrelColors.amber
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(dotPos, 4, dotPaint);
-
-      // Draw border ring
-      final dotBorderPaint = Paint()
-        ..color = KinrelColors.darkBackground.withValues(alpha: 0.6)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0;
-      canvas.drawCircle(dotPos, 4, dotBorderPaint);
-
-      // Store for tap detection
-      dotHitTargets.add(_EdgeDotHitTarget(dotPos: dotPos, edge: edge));
-    }
-  }
-
-  /// Returns true if both points are off-screen on the same side by
-  /// more than 200 pixels.
-  bool _isBothOffscreen(Offset a, Offset b, Size size) {
-    // v45 FIX: Use relative margin (30% of longest dimension) instead of
-    // hardcoded 200dp. On small phones (360dp width), 200dp is 55% of the
-    // screen — culling edges that are partially visible.
-    final margin = size.width > size.height ? size.width * 0.3 : size.height * 0.3;
-    // Both left of screen
-    if (a.dx < -margin && b.dx < -margin) return true;
-    // Both right of screen
-    if (a.dx > size.width + margin && b.dx > size.width + margin) return true;
-    // Both above screen
-    if (a.dy < -margin && b.dy < -margin) return true;
-    // Both below screen
-    if (a.dy > size.height + margin && b.dy > size.height + margin) return true;
-    return false;
-  }
-
-  @override
-  bool shouldRepaint(_MapGraphEdgePainter oldDelegate) {
-    return oldDelegate.edges != edges ||
-        oldDelegate.camera != camera ||
-        oldDelegate.hoveredEdgeKey != hoveredEdgeKey;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// GRAPH OVERLAY LAYER
-// ═══════════════════════════════════════════════════════════════════════
-
-/// StatefulWidget that hosts the graph edge painter and handles tap
-/// detection on midpoint dots. Used as a FlutterMap child widget
-/// positioned between TileLayer and MarkerLayer.
-class _MapGraphOverlayLayer extends StatefulWidget {
-  const _MapGraphOverlayLayer({
-    required this.edges,
-    required this.familyId,
-    required this.onDotTapped,
-  });
-
-  final List<MapRelationshipEdge> edges;
-  final String familyId;
-  final void Function(MapRelationshipEdge edge) onDotTapped;
-
-  @override
-  State<_MapGraphOverlayLayer> createState() => _MapGraphOverlayLayerState();
-}
-
-class _MapGraphOverlayLayerState extends State<_MapGraphOverlayLayer> {
-  _MapGraphEdgePainter? _lastPainter;
-  int _activePointers = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    final camera = MapCamera.of(context);
-
-    final painter = _MapGraphEdgePainter(
-      edges: widget.edges,
-      camera: camera,
-    );
-    _lastPainter = painter;
-
-    // v45 FIX: Replace GestureDetector with Listener to avoid gesture arena
-    // conflicts with the parent InteractiveViewer/GraphPanZoom on Android.
-    // Listener fires unconditionally without participating in the arena.
-    return RepaintBoundary(
-      child: Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: (_) => _activePointers++,
-        onPointerUp: (event) {
-          _activePointers = (_activePointers - 1).clamp(0, 99);
-          // Only handle single-finger tap-ups (not pinch end)
-          if (_activePointers > 0) return;
-          if (_lastPainter == null) return;
-          final tapPos = event.localPosition;
-          for (final target in _lastPainter!.dotHitTargets) {
-            if ((tapPos - target.dotPos).distance < 18) {
-              widget.onDotTapped(target.edge);
-              return;
-            }
-          }
-        },
-        onPointerCancel: (_) {
-          _activePointers = (_activePointers - 1).clamp(0, 99);
-        },
-        child: SizedBox.expand(
-          child: CustomPaint(painter: painter),
-        ),
-      ),
-    )
-        .animate()
-        .fadeIn(duration: 600.ms);
-  }
 }

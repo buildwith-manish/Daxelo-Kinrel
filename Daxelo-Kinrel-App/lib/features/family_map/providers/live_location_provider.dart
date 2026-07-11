@@ -31,6 +31,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
+// StateNotifier is re-exported by flutter_riverpod in 2.x
 
 // ═══════════════════════════════════════════════════════════════════════
 // STALENESS TIER
@@ -171,17 +172,17 @@ class LiveLocationState {
 /// When sharing is on, the caller (map screen) is responsible for
 /// capturing GPS and calling [broadcastMyLocation] every few seconds,
 /// and [upsertMyLocation] on the 30-60s throttle.
-class LiveLocationNotifier extends FamilyAutoDisposeNotifier<LiveLocationState> {
+class LiveLocationNotifier extends StateNotifier<LiveLocationState> {
+  LiveLocationNotifier(this._ref) : super(const LiveLocationState(isLoading: false));
+
+  final Ref _ref;
   RealtimeChannel? _channel;
   Timer? _staleRefreshTimer;
 
   @override
-  LiveLocationState build() {
-    // Auto-cleanup when the provider is no longer watched.
-    ref.onDispose(() {
-      stop();
-    });
-    return const LiveLocationState(isLoading: false);
+  void dispose() {
+    stop();
+    super.dispose();
   }
 
   /// Start loading last-known locations + subscribing to live broadcasts.
@@ -190,7 +191,7 @@ class LiveLocationNotifier extends FamilyAutoDisposeNotifier<LiveLocationState> 
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      final client = ref.read(supabaseProvider);
+      final client = _ref.read(supabaseProvider);
       if (client == null) {
         state = state.copyWith(isLoading: false, error: 'Not authenticated');
         return;
@@ -264,7 +265,7 @@ class LiveLocationNotifier extends FamilyAutoDisposeNotifier<LiveLocationState> 
 
   /// Subscribe to the family-map:{familyId} Broadcast channel.
   void _subscribeToChannel(String familyId) {
-    final client = ref.read(supabaseProvider);
+    final client = _ref.read(supabaseProvider);
     if (client == null) return;
 
     _channel?.unsubscribe();
@@ -325,7 +326,7 @@ class LiveLocationNotifier extends FamilyAutoDisposeNotifier<LiveLocationState> 
     required double lat,
     required double lng,
   }) async {
-    final client = ref.read(supabaseProvider);
+    final client = _ref.read(supabaseProvider);
     if (client == null) return;
 
     try {
@@ -354,7 +355,7 @@ class LiveLocationNotifier extends FamilyAutoDisposeNotifier<LiveLocationState> 
     required double lat,
     required double lng,
   }) {
-    final client = ref.read(supabaseProvider);
+    final client = _ref.read(supabaseProvider);
     if (client == null || _channel == null) return;
 
     _channel!.sendBroadcastMessage(
@@ -376,7 +377,7 @@ class LiveLocationNotifier extends FamilyAutoDisposeNotifier<LiveLocationState> 
     required double lat,
     required double lng,
   }) async {
-    final client = ref.read(supabaseProvider);
+    final client = _ref.read(supabaseProvider);
     if (client == null) return;
 
     try {
@@ -398,6 +399,6 @@ class LiveLocationNotifier extends FamilyAutoDisposeNotifier<LiveLocationState> 
 /// Family-scoped live location provider. Call `start(familyId)` when the
 /// map screen mounts, `stop()` when it unmounts.
 final liveLocationProvider =
-    NotifierProvider.autoDispose<LiveLocationNotifier, LiveLocationState>(
-  LiveLocationNotifier.new,
+    StateNotifierProvider.autoDispose<LiveLocationNotifier, LiveLocationState>(
+  (ref) => LiveLocationNotifier(ref),
 );
