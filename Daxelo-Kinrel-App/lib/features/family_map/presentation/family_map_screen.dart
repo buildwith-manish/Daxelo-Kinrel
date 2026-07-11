@@ -26,7 +26,6 @@ import '../../../core/graph/graph_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/widgets/cached_avatar.dart';
 import '../providers/family_map_provider.dart';
-import '../providers/graphics_tier_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // HELPER: Generate initials from name
@@ -54,22 +53,6 @@ class FamilyMapScreen extends ConsumerStatefulWidget {
 
 class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   final MapController _mapController = MapController();
-
-  @override
-  void initState() {
-    super.initState();
-    // Start adaptive graphics monitoring — the FPS monitor will
-    // auto-downgrade the tier if sustained frame performance is poor.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(graphicsTierProvider.notifier).startMonitoring();
-    });
-  }
-
-  @override
-  void dispose() {
-    ref.read(graphicsTierProvider.notifier).stopMonitoring();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -131,14 +114,6 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
             ),
           ],
         ),
-        actions: [
-          // Graphics settings — opens the Auto/High/Balanced/Low picker.
-          IconButton(
-            icon: const Icon(Icons.tune_rounded, size: 20),
-            tooltip: 'Map graphics settings',
-            onPressed: () => _showGraphicsSettingsSheet(),
-          ),
-        ],
       ),
       body: mapAsync.when(
         loading: () => Center(
@@ -158,178 +133,27 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     );
   }
 
-  // ── Graphics Settings Sheet ────────────────────────────────────────
-
-  void _showGraphicsSettingsSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: KinrelColors.darkCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        final tierState = ref.watch(graphicsTierProvider);
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Text(
-                'Map Graphics',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Auto adjusts quality based on performance. Lower tiers improve fps on older devices.',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 12,
-                  color: KinrelColors.textSilver,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Current tier + FPS indicator
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: KinrelColors.darkElevated,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.speed_rounded,
-                      size: 16,
-                      color: KinrelColors.orange,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Active: ${_tierLabel(tierState.activeTier)}',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: KinrelColors.textWhite,
-                      ),
-                    ),
-                    const Spacer(),
-                    if (tierState.preference == GraphicsTierPreference.auto)
-                      Text(
-                        '${tierState.currentFps.toStringAsFixed(0)} fps',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 12,
-                          color: KinrelColors.textSilver,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Preference options
-              _GraphicsOption(
-                label: 'Auto',
-                subtitle: 'Adapts quality to maintain smooth fps',
-                icon: Icons.auto_awesome_rounded,
-                isSelected: tierState.preference == GraphicsTierPreference.auto,
-                onTap: () {
-                  ref.read(graphicsTierProvider.notifier).setPreference(GraphicsTierPreference.auto);
-                  ref.read(graphicsTierProvider.notifier).startMonitoring();
-                  Navigator.pop(ctx);
-                },
-              ),
-              _GraphicsOption(
-                label: 'High',
-                subtitle: 'Full glow, premium shadows, animated effects',
-                icon: Icons.bolt_rounded,
-                isSelected: tierState.preference == GraphicsTierPreference.high,
-                onTap: () {
-                  ref.read(graphicsTierProvider.notifier).setPreference(GraphicsTierPreference.high);
-                  Navigator.pop(ctx);
-                },
-              ),
-              _GraphicsOption(
-                label: 'Balanced',
-                subtitle: 'Reduced glow, simpler shadows, static lines',
-                icon: Icons.balance_rounded,
-                isSelected: tierState.preference == GraphicsTierPreference.balanced,
-                onTap: () {
-                  ref.read(graphicsTierProvider.notifier).setPreference(GraphicsTierPreference.balanced);
-                  Navigator.pop(ctx);
-                },
-              ),
-              _GraphicsOption(
-                label: 'Low',
-                subtitle: 'No effects, flat pins, best for older devices',
-                icon: Icons.speed_rounded,
-                isSelected: tierState.preference == GraphicsTierPreference.low,
-                onTap: () {
-                  ref.read(graphicsTierProvider.notifier).setPreference(GraphicsTierPreference.low);
-                  Navigator.pop(ctx);
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  String _tierLabel(GraphicsTier tier) {
-    switch (tier) {
-      case GraphicsTier.high:
-        return 'High';
-      case GraphicsTier.balanced:
-        return 'Balanced';
-      case GraphicsTier.low:
-        return 'Low';
-    }
-  }
-
   // ── Map View ───────────────────────────────────────────────────────
 
   Widget _buildMap(FamilyMapResult result) {
-    // Watch the graphics tier — drives tile URL, glow, shadows, animations.
-    final tierState = ref.watch(graphicsTierProvider);
-    final tierConfig = tierState.config;
-
     return Stack(
       children: [
         // ── Permanent map background ───────────────────────────────
         // The map is ALWAYS rendered — even with 0 members, 0 cities,
         // or 0 located pins. Empty data = empty MarkerLayer, NOT no map.
-        //
-        // Tile URL is tier-aware:
-        //   HIGH/BALANCED: CartoDB Dark Matter (already dark, premium look)
-        //   LOW: CartoDB Dark Matter no-labels (lighter, faster to load)
-        // No darkening filter needed — CartoDB Dark is already dark-themed.
         FlutterMap(
           mapController: _mapController,
-          options: MapOptions(
-            initialCenter: const LatLng(20.5937, 78.9629),
+          options: const MapOptions(
+            initialCenter: LatLng(20.5937, 78.9629),
             initialZoom: 4.5,
             minZoom: 2.0,
-            maxZoom: tierConfig.maxTileZoom.toDouble(),
+            maxZoom: 16.0,
           ),
           children: [
             TileLayer(
-              urlTemplate: tierConfig.tileUrl,
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.daxelo.kinrel',
-              // CartoDB Dark Matter is already dark — no darkening filter needed.
-              // This gives a cleaner, more premium look than OSM+darken.
-              maxZoom: tierConfig.maxTileZoom.toDouble(),
-              maxNativeZoom: tierConfig.maxTileZoom.toDouble(),
+              tileBuilder: _darkenTile,
             ),
             _MapGraphOverlayLayer(
               edges: result.edges,
@@ -1630,84 +1454,5 @@ class _MapGraphOverlayLayerState extends State<_MapGraphOverlayLayer> {
     )
         .animate()
         .fadeIn(duration: 600.ms);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// GRAPHICS OPTION WIDGET
-// ═══════════════════════════════════════════════════════════════════════
-
-class _GraphicsOption extends StatelessWidget {
-  const _GraphicsOption({
-    required this.label,
-    required this.subtitle,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String label;
-  final String subtitle;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? KinrelColors.orange.withValues(alpha: 0.12)
-              : KinrelColors.darkElevated,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? KinrelColors.orange.withValues(alpha: 0.4)
-                : Colors.transparent,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 20,
-              color: isSelected ? KinrelColors.orange : KinrelColors.textSilver,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: isSelected ? KinrelColors.textWhite : KinrelColors.textSilver,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 11,
-                      color: KinrelColors.textDim,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (isSelected)
-              Icon(Icons.check_circle_rounded, size: 20, color: KinrelColors.orange),
-          ],
-        ),
-      ),
-    );
   }
 }
