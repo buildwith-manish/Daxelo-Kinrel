@@ -441,7 +441,7 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
         AuthChangeEvent? _lastAuthEvent;
         String? _lastAuthUserId;
 
-        client.auth.onAuthStateChange.listen((data) {
+        client.auth.onAuthStateChange.listen((data) async {
           final event = data.event;
           final session = data.session;
 

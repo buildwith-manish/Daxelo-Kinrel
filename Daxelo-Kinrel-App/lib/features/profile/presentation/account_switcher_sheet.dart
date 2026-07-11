@@ -59,12 +59,13 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
 
     final success = await MultiAccountService.instance.switchToAccount(
       account.userId,
-      ref,
     );
 
     if (mounted) {
       setState(() => _isSwitching = false);
       if (success) {
+        // Invalidate key providers so the UI refreshes with the new account's data
+        ref.invalidate(currentUserProvider);
         Navigator.pop(context);
         // Force a full app refresh by going to home
         context.go('/home');

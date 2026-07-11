@@ -28,7 +28,6 @@
 
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -165,7 +164,9 @@ class MultiAccountService {
   /// Switch to a different stored account.
   /// Restores the target account's session in Supabase.
   /// Returns true on success, false on failure (e.g., expired refresh token).
-  Future<bool> switchToAccount(String userId, WidgetRef ref) async {
+  /// The caller is responsible for invalidating Riverpod providers after
+  /// a successful switch (to avoid circular imports).
+  Future<bool> switchToAccount(String userId) async {
     try {
       final accounts = await getAccounts();
       final target = accounts.where((a) => a.userId == userId).firstOrNull;
@@ -209,8 +210,8 @@ class MultiAccountService {
       await _storage.write(key: _kAccountsKey, value: json.encode(accounts));
       await _storage.write(key: _kActiveAccountKey, value: userId);
 
-      // Invalidate all providers so the UI refreshes with the new account's data
-      ref.invalidate(currentUserProvider);
+      // Provider invalidation is handled by the caller (AccountSwitcherSheet)
+      // to avoid circular import with supabase_service.dart.
 
       debugPrint('✅ MultiAccount: switched to ${target.email}');
       return true;
@@ -253,8 +254,3 @@ class MultiAccountService {
     await _storage.delete(key: _kActiveAccountKey);
   }
 }
-
-// ── Import for currentUserProvider ──────────────────────────────────
-// We need this to invalidate it on account switch. The import is here
-// to avoid circular dependency issues.
-import '../services/supabase_service.dart' show currentUserProvider;

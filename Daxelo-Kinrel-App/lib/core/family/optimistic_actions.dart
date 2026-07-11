@@ -689,7 +689,7 @@ Future<void> updatePersonOptimistic({
   // and go directly to the API call. The error "IsarDatabase not initialized"
   // was thrown because isarProvider throws StateError on web.
   // On native platforms, Drift is available and the optimistic update works.
-  final bool dbAvailable = IsarDatabase.isInitialized;
+  bool dbAvailable = IsarDatabase.isInitialized;
   dynamic db;
   if (dbAvailable) {
     try {
