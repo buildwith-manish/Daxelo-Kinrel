@@ -52,8 +52,7 @@ class FamilyMapScreen extends ConsumerStatefulWidget {
   ConsumerState<FamilyMapScreen> createState() => _FamilyMapScreenState();
 }
 
-class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
-    with SingleTickerProviderStateMixin {
+class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   final MapController _mapController = MapController();
 
   @override
@@ -62,7 +61,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // Start adaptive graphics monitoring — the FPS monitor will
     // auto-downgrade the tier if sustained frame performance is poor.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(graphicsTierProvider.notifier).startMonitoring(this);
+      ref.read(graphicsTierProvider.notifier).startMonitoring();
     });
   }
 
@@ -245,7 +244,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 isSelected: tierState.preference == GraphicsTierPreference.auto,
                 onTap: () {
                   ref.read(graphicsTierProvider.notifier).setPreference(GraphicsTierPreference.auto);
-                  ref.read(graphicsTierProvider.notifier).startMonitoring(this);
+                  ref.read(graphicsTierProvider.notifier).startMonitoring();
                   Navigator.pop(ctx);
                 },
               ),

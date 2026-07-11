@@ -24,7 +24,6 @@
 // low-end devices — LOW tier is always available as a floor.
 
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
@@ -153,7 +152,7 @@ class TierConfig {
 // FPS MONITOR
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Lightweight FPS monitor using Flutter's frame callback.
+/// Lightweight FPS monitor using Flutter's persistent frame callback.
 /// Tracks a rolling window of frame times and exposes the average FPS.
 class FpsMonitor {
   FpsMonitor({this.windowSize = 180}) : _frameTimes = []; // ~3s at 60fps
@@ -161,34 +160,39 @@ class FpsMonitor {
   final int windowSize;
   final List<Duration> _frameTimes;
   DateTime? _lastFrameTime;
-  TickerCallback? _callback;
-  Ticker? _ticker;
+  bool _callbackRegistered = false;
+  VoidCallback? _onFpsUpdated;
 
-  /// Start monitoring. Call from a State that has access to TickerProvider.
-  void start(TickerProvider vsync, VoidCallback onFpsUpdated) {
+  /// Start monitoring. Uses SchedulerBinding's persistent frame callback
+  /// — no TickerProvider needed, works from any class.
+  void start(VoidCallback onFpsUpdated) {
     stop();
-    _callback = (elapsed) {
-      final now = DateTime.now();
-      if (_lastFrameTime != null) {
-        final delta = now.difference(_lastFrameTime!);
-        _frameTimes.add(delta);
-        if (_frameTimes.length > windowSize) {
-          _frameTimes.removeAt(0);
-        }
+    _onFpsUpdated = onFpsUpdated;
+    if (!_callbackRegistered) {
+      SchedulerBinding.instance.addPersistentFrameCallback(_onFrame);
+      _callbackRegistered = true;
+    }
+  }
+
+  void _onFrame(Duration timeStamp) {
+    final now = DateTime.now();
+    if (_lastFrameTime != null) {
+      final delta = now.difference(_lastFrameTime!);
+      _frameTimes.add(delta);
+      if (_frameTimes.length > windowSize) {
+        _frameTimes.removeAt(0);
       }
-      _lastFrameTime = now;
-      onFpsUpdated();
-    };
-    _ticker = Ticker(_callback!);
-    _ticker!.start();
+    }
+    _lastFrameTime = now;
+    _onFpsUpdated?.call();
   }
 
   /// Stop monitoring.
   void stop() {
-    _ticker?.stop();
-    _ticker?.dispose();
-    _ticker = null;
-    _callback = null;
+    // Note: SchedulerBinding doesn't have a removePersistentFrameCallback
+    // in older Flutter versions. We stop updating by clearing the callback.
+    // The frame callback itself stays registered but does nothing.
+    _onFpsUpdated = null;
     _lastFrameTime = null;
     _frameTimes.clear();
   }
@@ -268,11 +272,11 @@ class GraphicsTierNotifier extends StateNotifier<GraphicsTierState> {
       );
 
   /// Start FPS monitoring + auto-tier evaluation. Call from the map
-  /// screen's initState with the screen's TickerProvider.
-  void startMonitoring(TickerProvider vsync) {
+  /// screen's initState.
+  void startMonitoring() {
     if (state.preference != GraphicsTierPreference.auto) return;
 
-    _fpsMonitor.start(vsync, _onFpsSample);
+    _fpsMonitor.start(_onFpsSample);
 
     // Evaluate FPS every 3 seconds.
     _evalTimer?.cancel();
