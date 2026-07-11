@@ -351,12 +351,21 @@ class GraphicsTierNotifier extends StateNotifier<GraphicsTierState> {
   /// Set the user's graphics preference. If set to a fixed tier, the
   /// FPS monitor is stopped and that tier is used immediately.
   void setPreference(GraphicsTierPreference pref) {
-    final tier = switch (pref) {
-      GraphicsTierPreference.auto => GraphicsTier.high, // auto starts high and adapts down
-      GraphicsTierPreference.high => GraphicsTier.high,
-      GraphicsTierPreference.balanced => GraphicsTier.balanced,
-      GraphicsTierPreference.low => GraphicsTier.low,
-    };
+    GraphicsTier tier;
+    switch (pref) {
+      case GraphicsTierPreference.auto:
+        tier = GraphicsTier.high; // auto starts high and adapts down
+        break;
+      case GraphicsTierPreference.high:
+        tier = GraphicsTier.high;
+        break;
+      case GraphicsTierPreference.balanced:
+        tier = GraphicsTier.balanced;
+        break;
+      case GraphicsTierPreference.low:
+        tier = GraphicsTier.low;
+        break;
+    }
 
     state = GraphicsTierState(
       preference: pref,
