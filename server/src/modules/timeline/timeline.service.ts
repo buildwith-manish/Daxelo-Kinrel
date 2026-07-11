@@ -184,7 +184,7 @@ export class TimelineService {
     const post = await this.prisma.familyPost.create({
       data: {
         familyId,
-        userId,
+        authorId,
         postType,
         content: JSON.stringify(content),
         reactions: JSON.stringify({ emojis: {}, userReactions: {}, commentCount: 0, comments: [] }),
@@ -328,7 +328,7 @@ export class TimelineService {
 
     const newComment: CommentData = {
       id: this.generateId(),
-      userId,
+      authorId,
       authorName,
       body: dto.body,
       parentId: dto.parentId ?? null,

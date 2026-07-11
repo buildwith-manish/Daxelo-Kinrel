@@ -15,11 +15,15 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { SearchService } from './search.service';
+import { FamilyMembershipService } from '../common/family-membership.service';
 
 @Controller('v1/families/:familyId/search')
 @UseGuards(JwtAuthGuard)
 export class SearchController {
-  constructor(private readonly service: SearchService) {}
+  constructor(
+    private readonly service: SearchService,
+    private readonly membership: FamilyMembershipService,
+  ) {}
 
   @Get()
   search(
@@ -55,6 +59,5 @@ export class SearchController {
   ) {
     await this.membership.requireAdmin(userId, familyId);
     return this.service.reindexFamily(familyId);
-  }
   }
 }
