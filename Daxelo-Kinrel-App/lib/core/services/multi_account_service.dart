@@ -184,8 +184,8 @@ class MultiAccountService {
 
       // Restore the target session using the refresh token
       final response = await client.auth.setSession(
-        accessToken: target.accessToken,
-        refreshToken: target.refreshToken,
+        target.accessToken,
+        target.refreshToken,
       );
 
       if (response.session == null) {
