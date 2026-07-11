@@ -27,7 +27,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // GRAPHICS TIER ENUM
@@ -351,7 +350,7 @@ class GraphicsTierNotifier extends StateNotifier<GraphicsTierState> {
 
   /// Set the user's graphics preference. If set to a fixed tier, the
   /// FPS monitor is stopped and that tier is used immediately.
-  Future<void> setPreference(GraphicsTierPreference pref) async {
+  void setPreference(GraphicsTierPreference pref) {
     final tier = switch (pref) {
       GraphicsTierPreference.auto => GraphicsTier.high, // auto starts high and adapts down
       GraphicsTierPreference.high => GraphicsTier.high,
@@ -366,13 +365,9 @@ class GraphicsTierNotifier extends StateNotifier<GraphicsTierState> {
       config: TierConfig.forTier(tier),
     );
 
-    // Persist preference
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('map_graphics_preference', pref.name);
-    } catch (e) {
-      debugPrint('⚠️ Failed to persist graphics preference: $e');
-    }
+    // Note: preference is kept in memory only for this session.
+    // SharedPreferences persistence can be added in a follow-up once
+    // the web build is stable — it was causing dart2js issues.
 
     if (pref != GraphicsTierPreference.auto) {
       stopMonitoring();
@@ -380,21 +375,8 @@ class GraphicsTierNotifier extends StateNotifier<GraphicsTierState> {
   }
 
   /// Load persisted preference on app start.
-  Future<void> loadPreference() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final name = prefs.getString('map_graphics_preference');
-      if (name != null) {
-        final pref = GraphicsTierPreference.values.firstWhere(
-          (p) => p.name == name,
-          orElse: () => GraphicsTierPreference.auto,
-        );
-        await setPreference(pref);
-      }
-    } catch (e) {
-      debugPrint('⚠️ Failed to load graphics preference: $e');
-    }
-  }
+  /// Currently a no-op — persistence will be re-enabled in a follow-up.
+  Future<void> loadPreference() async {}
 
   @override
   void dispose() {
