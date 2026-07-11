@@ -19,7 +19,6 @@ class SharedListScreen extends ConsumerStatefulWidget {
 class _SharedListScreenState extends ConsumerState<SharedListScreen> {
   final _newListController = TextEditingController();
   final _newItemControllers = <String, TextEditingController>{};
-  final _notifier = SharedListNotifier;
 
   @override
   void dispose() {
