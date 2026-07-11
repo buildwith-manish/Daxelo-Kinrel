@@ -91,9 +91,9 @@ class MultiAccountService {
   static MultiAccountService get instance => _instance;
   MultiAccountService._();
 
-  final _storage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-  );
+  // Use conditional import for secure storage — flutter_secure_storage
+  // with AndroidOptions doesn't compile on web.
+  final _storage = const FlutterSecureStorage();
 
   /// Get all stored accounts.
   Future<List<StoredAccount>> getAccounts() async {
