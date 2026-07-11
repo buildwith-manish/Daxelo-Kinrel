@@ -98,6 +98,9 @@ dependencies:
   webview_flutter: ^4.7.0
   
   # Maps
+  # maplibre_gl: Native MapLibre renderer for 3D buildings + tilted camera.
+  # Verified on pub.dev: v0.26.2, supports Android/iOS/Web.
+  maplibre_gl: ^0.26.0
   flutter_map: ^6.1.0
   latlong2: ^0.9.1
 

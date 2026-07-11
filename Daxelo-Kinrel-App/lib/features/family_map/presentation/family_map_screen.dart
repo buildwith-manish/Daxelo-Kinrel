@@ -1,20 +1,21 @@
 // lib/features/family_map/presentation/family_map_screen.dart
 //
-// DAXELO KINREL — Family Map Screen
+// DAXELO KINREL — Family Map Screen (MapLibre Native — 3D Buildings)
 //
-// Full-screen interactive map showing family members pinned by city.
-// Uses flutter_map with OpenStreetMap tiles (no API key needed).
-// Each pin is a 44×44 circular avatar with orange border.
-// Tapping a pin opens a bottom sheet with member details.
-// Curved connecting lines between related members with tappable
-// midpoint dots that show the kinship term between two people.
+// Full-screen interactive map using MapLibre Native with OpenFreeMap
+// dark vector tiles. Features:
+//   - Native 3D building extrusion at street-level zoom (15+)
+//   - Tilted camera support (45° pitch for 3D perspective)
+//   - Dark premium style matching Kinrel's art direction
+//   - Family member pins as GeoJSON source + circle layers
+//   - Map is ALWAYS rendered — empty data = empty pins, NOT no map
+//
+// Package: maplibre_gl ^0.26.0 (verified on pub.dev)
+// Style: https://tiles.openfreemap.org/styles/dark (free, no API key)
 
-import 'dart:math' as math;
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:maplibre_gl/maplibre_gl.dart' as maplibre;
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/brand_colors.dart';
@@ -52,7 +53,14 @@ class FamilyMapScreen extends ConsumerStatefulWidget {
 }
 
 class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
-  final MapController _mapController = MapController();
+  maplibre.MapLibreMapController? _mapController;
+  bool _styleLoaded = false;
+  bool _buildingsAdded = false;
+  FamilyMapResult? _lastResult;
+
+  /// OpenFreeMap dark vector style — free, unlimited, no API key.
+  /// Already dark-themed with building height data for 3D extrusion.
+  static const _kStyleUrl = 'https://tiles.openfreemap.org/styles/dark';
 
   @override
   Widget build(BuildContext context) {
@@ -114,6 +122,14 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
             ),
           ],
         ),
+        actions: [
+          // Dev test: fly to Bengaluru at zoom 16, tilt 45° to verify 3D buildings.
+          IconButton(
+            icon: const Icon(Icons.location_city, size: 20),
+            tooltip: 'Test 3D: Bengaluru',
+            onPressed: _flyToBengaluru3D,
+          ),
+        ],
       ),
       body: mapAsync.when(
         loading: () => Center(
@@ -134,53 +150,31 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   }
 
   // ── Map View ───────────────────────────────────────────────────────
+  // ── Map View (MapLibre Native — 3D buildings + tilted camera) ──────
 
   Widget _buildMap(FamilyMapResult result) {
+    _lastResult = result;
+
     return Stack(
       children: [
-        // ── Permanent map background ───────────────────────────────
-        // The map is ALWAYS rendered — even with 0 members, 0 cities,
-        // or 0 located pins. Empty data = empty MarkerLayer, NOT no map.
-        FlutterMap(
-          mapController: _mapController,
-          options: const MapOptions(
-            initialCenter: LatLng(20.5937, 78.9629),
-            initialZoom: 4.5,
-            minZoom: 2.0,
-            maxZoom: 16.0,
+        // ── MapLibre map — permanent background ─────────────────────
+        // Uses OpenFreeMap dark vector style with building height data.
+        // Initial camera is flat (India overview). 3D buildings appear
+        // when the user zooms in to street level (zoom 15+).
+        maplibre.MapLibreMap(
+          styleString: _kStyleUrl,
+          initialCameraPosition: const maplibre.CameraPosition(
+            target: maplibre.LatLng(20.5937, 78.9629),
+            zoom: 4.5,
+            tilt: 0, // flat at India level — 3D kicks in on zoom
           ),
-          children: [
-            TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.daxelo.kinrel',
-              tileBuilder: _darkenTile,
-            ),
-            _MapGraphOverlayLayer(
-              edges: result.edges,
-              familyId: result.familyId,
-              onDotTapped: _showRelationshipBottomSheet,
-            ),
-            MarkerLayer(
-              markers: result.pins.map((pin) {
-                return Marker(
-                  point: LatLng(pin.lat, pin.lng),
-                  width: 44,
-                  height: 44,
-                  child: GestureDetector(
-                    onTap: () => _showPinBottomSheet(pin),
-                    child: _MapPinAvatar(pin: pin),
-                  ),
-                );
-              }).toList(),
-            ),
-          ],
+          minMaxZoomPreference: const maplibre.MinMaxZoomPreference(2.0, 18.0),
+          onMapCreated: _onMapCreated,
+          onStyleLoadedCallback: _onStyleLoaded,
+          trackCameraPosition: false,
         ),
 
         // ── Non-blocking empty-locations overlay ───────────────────
-        // Shown when no members have coordinates. Does NOT replace the
-        // map — the map is still fully interactive behind this card.
-        // The card is centered but small, so the user can still pan/
-        // zoom/rotate the map around it.
         if (result.pins.isEmpty)
           Positioned(
             top: MediaQuery.of(context).padding.top + 60,
@@ -244,15 +238,152 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     );
   }
 
-  // ── Darken Map Tiles ───────────────────────────────────────────────
+  // ── MapLibre lifecycle ─────────────────────────────────────────────
 
-  Widget _darkenTile(BuildContext context, Widget tileWidget, TileImage tile) {
-    return ColorFiltered(
-      colorFilter: ColorFilter.mode(
-        Colors.black.withValues(alpha: 0.55),
-        BlendMode.darken,
+  void _onMapCreated(maplibre.MapLibreMapController controller) {
+    _mapController = controller;
+  }
+
+  /// Called when the OpenFreeMap dark style finishes loading.
+  /// This is where we add the 3D building extrusion layer.
+  void _onStyleLoaded() async {
+    _styleLoaded = true;
+    final controller = _mapController;
+    if (controller == null) return;
+
+    // Add 3D building extrusion layer.
+    // OpenFreeMap uses the OpenMapTiles vector schema:
+    //   source: "openmaptiles" (the vector tile source in the style)
+    //   source-layer: "building"
+    //   height property: "height"
+    //   min_height property: "min_height"
+    try {
+      await controller.addFillExtrusionLayer(
+        'openmaptiles',
+        'kinrel-3d-buildings',
+        maplibre.FillExtrusionLayerProperties(
+          fillExtrusionColor: '#1a1a2e', // dark blue-grey for buildings
+          fillExtrusionHeight: [
+            'get',
+            'height'
+          ], // extrude to the building's height property
+          fillExtrusionBase: [
+            'get',
+            'min_height'
+          ], // base elevation from min_height
+          fillExtrusionOpacity: 0.8,
+          fillExtrusionVerticalGradient: true,
+        ),
+        sourceLayer: 'building',
+        minzoom: 15, // only show 3D buildings at street level
+        maxzoom: 18,
+      );
+      _buildingsAdded = true;
+      debugPrint('✅ 3D building extrusion layer added successfully');
+    } catch (e) {
+      // Log the exact error so we can diagnose missing source/layer/property.
+      debugPrint('❌ Failed to add 3D building extrusion: $e');
+      debugPrint('   Expected source: "openmaptiles", source-layer: "building"');
+      debugPrint('   Expected properties: "height", "min_height"');
+    }
+
+    // Add family member pins as a GeoJSON source + circle layers.
+    if (_lastResult != null) {
+      _addFamilyPins(controller, _lastResult!);
+    }
+  }
+
+  /// Add family member pins using GeoJSON source + circle layers.
+  void _addFamilyPins(
+    maplibre.MapLibreMapController controller,
+    FamilyMapResult result,
+  ) async {
+    if (result.pins.isEmpty) return;
+
+    // Build GeoJSON FeatureCollection of Points.
+    final features = result.pins.map((pin) {
+      return {
+        'type': 'Feature',
+        'id': pin.personId,
+        'geometry': {
+          'type': 'Point',
+          'coordinates': [pin.lng, pin.lat],
+        },
+        'properties': {
+          'personId': pin.personId,
+          'name': pin.name,
+        },
+      };
+    }).toList();
+
+    final geojson = {
+      'type': 'FeatureCollection',
+      'features': features,
+    };
+
+    try {
+      await controller.addSource(
+        'family-members',
+        maplibre.GeojsonSourceProperties(data: geojson),
+      );
+
+      // Glow circle behind each pin.
+      await controller.addCircleLayer(
+        'family-members',
+        'kinrel-pin-glow',
+        const maplibre.CircleLayerProperties(
+          circleColor: '#E8612A',
+          circleRadius: 22,
+          circleOpacity: 0.15,
+          circleBlur: 1.0,
+        ),
+      );
+
+      // Ring circle (orange border).
+      await controller.addCircleLayer(
+        'family-members',
+        'kinrel-pin-ring',
+        const maplibre.CircleLayerProperties(
+          circleColor: '#191B2C',
+          circleRadius: 16,
+          circleStrokeColor: '#E8612A',
+          circleStrokeWidth: 2.5,
+          circleOpacity: 0.9,
+        ),
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to add family pins: $e');
+    }
+  }
+
+  /// Dev test: animate the camera to Bengaluru at zoom 16, tilt 45°
+  /// to visually verify 3D building extrusion.
+  void _flyToBengaluru3D() {
+    final controller = _mapController;
+    if (controller == null) {
+      debugPrint('❌ Map controller not ready');
+      return;
+    }
+
+    debugPrint('🚀 Flying to Bengaluru: zoom=16, tilt=45° for 3D building test');
+    controller.animateCamera(
+      maplibre.CameraUpdate.newCameraPosition(
+        const maplibre.CameraPosition(
+          target: maplibre.LatLng(12.9716, 77.5946), // Bengaluru
+          zoom: 16.5,
+          tilt: 45, // 45° pitch — shows 3D building extrusion
+          bearing: 0,
+        ),
       ),
-      child: tileWidget,
+      duration: const Duration(seconds: 3),
+    );
+
+    // Show a snackbar so the tester knows what to look for.
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Flying to Bengaluru — 3D buildings should appear at this zoom level'),
+        duration: Duration(seconds: 4),
+      ),
     );
   }
 
@@ -1232,227 +1363,3 @@ class _MapLegend extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// GRAPH EDGE DOT HIT TARGET
-// ═══════════════════════════════════════════════════════════════════════
-
-/// Stores the screen position of a midpoint dot and its associated edge
-/// for tap detection in the GestureDetector wrapper.
-class _EdgeDotHitTarget {
-  const _EdgeDotHitTarget({required this.dotPos, required this.edge});
-
-  final Offset dotPos;
-  final MapRelationshipEdge edge;
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// GRAPH EDGE PAINTER
-// ═══════════════════════════════════════════════════════════════════════
-
-/// CustomPainter that draws curved bezier connection lines between
-/// related pinned members on the map, with a glow and amber midpoint
-/// dot per line that is tappable to show kinship info.
-class _MapGraphEdgePainter extends CustomPainter {
-  _MapGraphEdgePainter({
-    required this.edges,
-    required this.camera,
-    this.hoveredEdgeKey,
-  });
-
-  final List<MapRelationshipEdge> edges;
-  final MapCamera camera;
-  final String? hoveredEdgeKey;
-
-  /// Populated during paint() for tap detection in the GestureDetector.
-  final List<_EdgeDotHitTarget> dotHitTargets = [];
-
-  /// Direct relationship keys for large-family edge filtering.
-  static const _directRelationshipKeys = {
-    'father', 'mother', 'parent',
-    'child', 'son', 'daughter',
-    'spouse', 'husband', 'wife',
-    'brother', 'sister', 'sibling',
-  };
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    dotHitTargets.clear();
-
-    // For families with more than 30 pinned members, limit to direct
-    // relationships only to prevent O(n²) line explosion.
-    final filteredEdges = edges.length > 30
-        ? edges.where((e) => _directRelationshipKeys.contains(e.relationshipKey)).toList()
-        : edges;
-
-    for (int i = 0; i < filteredEdges.length; i++) {
-      final edge = filteredEdges[i];
-
-      // 1. Convert coordinates to screen pixels
-      final Offset posA = camera.latLngToScreenPoint(
-        LatLng(edge.pinA.lat, edge.pinA.lng),
-      ).toOffset();
-      final Offset posB = camera.latLngToScreenPoint(
-        LatLng(edge.pinB.lat, edge.pinB.lng),
-      ).toOffset();
-
-      // 2. Viewport culling — skip if both points are off-screen by >200px
-      if (_isBothOffscreen(posA, posB, size)) continue;
-
-      // 3. Compute bezier control point
-      final mid = (posA + posB) / 2;
-      final dx = posB.dx - posA.dx;
-      final dy = posB.dy - posA.dy;
-      final lineLength = math.sqrt(dx * dx + dy * dy);
-      final Offset controlPoint;
-      if (lineLength < 1.0) {
-        controlPoint = mid;
-      } else {
-        // Perpendicular direction normalized
-        final perpX = -dy / lineLength;
-        final perpY = dx / lineLength;
-        // Alternate offset direction based on edge index
-        final sign = (i % 2 == 0) ? -1.0 : 1.0;
-        controlPoint = Offset(
-          mid.dx + perpX * 40 * sign,
-          mid.dy + perpY * 40 * sign,
-        );
-      }
-
-      // 4. Draw the curved line
-      final path = ui.Path()
-        ..moveTo(posA.dx, posA.dy)
-        ..quadraticBezierTo(
-          controlPoint.dx, controlPoint.dy,
-          posB.dx, posB.dy,
-        );
-      final linePaint = Paint()
-        ..color = KinrelColors.orange.withValues(alpha: 0.35)
-        ..strokeWidth = 1.5
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round;
-      canvas.drawPath(path, linePaint);
-
-      // 5. Compute midpoint dot position at t=0.5 on quadratic bezier
-      final dotPos = Offset(
-        0.25 * posA.dx + 0.5 * controlPoint.dx + 0.25 * posB.dx,
-        0.25 * posA.dy + 0.5 * controlPoint.dy + 0.25 * posB.dy,
-      );
-
-      // 6. Draw the glow behind the dot
-      final glowPaint = Paint()
-        ..color = KinrelColors.orangeGlow.withValues(alpha: 0.4)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-      canvas.drawCircle(dotPos, 7, glowPaint);
-
-      // 7. Draw the filled dot
-      final dotPaint = Paint()
-        ..color = KinrelColors.amber
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(dotPos, 4, dotPaint);
-
-      // Draw border ring
-      final dotBorderPaint = Paint()
-        ..color = KinrelColors.darkBackground.withValues(alpha: 0.6)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0;
-      canvas.drawCircle(dotPos, 4, dotBorderPaint);
-
-      // Store for tap detection
-      dotHitTargets.add(_EdgeDotHitTarget(dotPos: dotPos, edge: edge));
-    }
-  }
-
-  /// Returns true if both points are off-screen on the same side by
-  /// more than 200 pixels.
-  bool _isBothOffscreen(Offset a, Offset b, Size size) {
-    // v45 FIX: Use relative margin (30% of longest dimension) instead of
-    // hardcoded 200dp. On small phones (360dp width), 200dp is 55% of the
-    // screen — culling edges that are partially visible.
-    final margin = size.width > size.height ? size.width * 0.3 : size.height * 0.3;
-    // Both left of screen
-    if (a.dx < -margin && b.dx < -margin) return true;
-    // Both right of screen
-    if (a.dx > size.width + margin && b.dx > size.width + margin) return true;
-    // Both above screen
-    if (a.dy < -margin && b.dy < -margin) return true;
-    // Both below screen
-    if (a.dy > size.height + margin && b.dy > size.height + margin) return true;
-    return false;
-  }
-
-  @override
-  bool shouldRepaint(_MapGraphEdgePainter oldDelegate) {
-    return oldDelegate.edges != edges ||
-        oldDelegate.camera != camera ||
-        oldDelegate.hoveredEdgeKey != hoveredEdgeKey;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// GRAPH OVERLAY LAYER
-// ═══════════════════════════════════════════════════════════════════════
-
-/// StatefulWidget that hosts the graph edge painter and handles tap
-/// detection on midpoint dots. Used as a FlutterMap child widget
-/// positioned between TileLayer and MarkerLayer.
-class _MapGraphOverlayLayer extends StatefulWidget {
-  const _MapGraphOverlayLayer({
-    required this.edges,
-    required this.familyId,
-    required this.onDotTapped,
-  });
-
-  final List<MapRelationshipEdge> edges;
-  final String familyId;
-  final void Function(MapRelationshipEdge edge) onDotTapped;
-
-  @override
-  State<_MapGraphOverlayLayer> createState() => _MapGraphOverlayLayerState();
-}
-
-class _MapGraphOverlayLayerState extends State<_MapGraphOverlayLayer> {
-  _MapGraphEdgePainter? _lastPainter;
-  int _activePointers = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    final camera = MapCamera.of(context);
-
-    final painter = _MapGraphEdgePainter(
-      edges: widget.edges,
-      camera: camera,
-    );
-    _lastPainter = painter;
-
-    // v45 FIX: Replace GestureDetector with Listener to avoid gesture arena
-    // conflicts with the parent InteractiveViewer/GraphPanZoom on Android.
-    // Listener fires unconditionally without participating in the arena.
-    return RepaintBoundary(
-      child: Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: (_) => _activePointers++,
-        onPointerUp: (event) {
-          _activePointers = (_activePointers - 1).clamp(0, 99);
-          // Only handle single-finger tap-ups (not pinch end)
-          if (_activePointers > 0) return;
-          if (_lastPainter == null) return;
-          final tapPos = event.localPosition;
-          for (final target in _lastPainter!.dotHitTargets) {
-            if ((tapPos - target.dotPos).distance < 18) {
-              widget.onDotTapped(target.edge);
-              return;
-            }
-          }
-        },
-        onPointerCancel: (_) {
-          _activePointers = (_activePointers - 1).clamp(0, 99);
-        },
-        child: SizedBox.expand(
-          child: CustomPaint(painter: painter),
-        ),
-      ),
-    )
-        .animate()
-        .fadeIn(duration: 600.ms);
-  }
-}
