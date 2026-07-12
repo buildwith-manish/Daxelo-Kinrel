@@ -334,7 +334,8 @@ void main() {
     test('1000-member family degrades normally (very large graph)', () {
       // The bypass must NOT accidentally pin large graphs to NEAR.
       expect(computeSemanticTier(0.3, memberCount: 1000), SemanticTier.far);
-      expect(computeSemanticTier(0.7, memberCount: 1000), SemanticTier.medium);
+      // zoom 0.75 is above mediumEnter (0.72) → medium
+      expect(computeSemanticTier(0.75, memberCount: 1000), SemanticTier.medium);
       expect(computeSemanticTier(2.0, memberCount: 1000), SemanticTier.near);
     });
 
