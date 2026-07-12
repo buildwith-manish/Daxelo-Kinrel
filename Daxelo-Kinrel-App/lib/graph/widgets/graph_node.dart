@@ -274,6 +274,7 @@ class GraphNode extends ConsumerStatefulWidget {
     this.isPrivate = false,
     this.isUnclaimed = false,
     this.familyId,
+    this.showRelationLabel = true,
     required this.onTap,
     required this.onLongPress,
     this.onDoubleTap,
@@ -336,6 +337,12 @@ class GraphNode extends ConsumerStatefulWidget {
   /// twin_node) on the bottom-right of the avatar. Pass null to skip
   /// the badge (e.g. on preview nodes outside a family context).
   final String? familyId;
+
+  /// v93 (ZOOM FIX): When false, the secondary relationship label
+  /// (e.g. "Husband", "You") is hidden to reduce clutter at lower
+  /// zoom. The primary member name is ALWAYS visible regardless of
+  /// this flag.
+  final bool showRelationLabel;
 
   /// Callback when the node is tapped.
   final VoidCallback onTap;
@@ -691,7 +698,13 @@ class _GraphNodeState extends ConsumerState<GraphNode>
         // the teal self color, even when the viewer is not the anchor.
         // Previously the label used _borderColor which could be a
         // non-teal relationship color when isAnchor==false.
-        if (!widget.isAnonymous && widget.relationLabel.isNotEmpty)
+        //
+        // v93 (ZOOM FIX): Hide the relation label when
+        // showRelationLabel is false (low-zoom clutter reduction).
+        // The primary member name above is ALWAYS visible.
+        if (!widget.isAnonymous &&
+            widget.relationLabel.isNotEmpty &&
+            widget.showRelationLabel)
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(

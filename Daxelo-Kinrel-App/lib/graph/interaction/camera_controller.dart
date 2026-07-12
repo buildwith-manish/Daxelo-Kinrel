@@ -55,13 +55,22 @@ class CameraController extends ChangeNotifier {
   /// Creates a camera controller with optional [positionMemory] for
   /// persistence.
   ///
-  /// [minZoom] and [maxZoom] define the zoom range (default: 0.2x–5.0x).
+  /// [minZoom] and [maxZoom] define the zoom range.
+  ///
+  /// v93 (ZOOM FIX): Defaults changed from 0.2–5.0 to 0.8–2.5 so node
+  /// circles never shrink below a readable screen size. At zoom 0.8 a
+  /// 72dp node circle is 57.6px on screen — readable, not a dot. The
+  /// previous 0.2 minimum caused 72dp nodes to render at 14.4px and
+  /// 24px chip dots at 4.8px, making the graph unreadable when zoomed
+  /// out. The user can still pan to see different parts of large
+  /// families; they just can't zoom out to a bird's-eye view that
+  /// turns everything into dots.
   /// [momentumDecayDuration] controls how long momentum lasts after a
   /// pan gesture ends (default: 300 ms).
   CameraController({
     PositionMemory? positionMemory,
-    double minZoom = 0.2,
-    double maxZoom = 5.0,
+    double minZoom = 0.8,
+    double maxZoom = 2.5,
     Duration momentumDecayDuration = const Duration(milliseconds: 300),
   })  : _positionMemory = positionMemory,
         _minZoom = minZoom,
@@ -330,7 +339,10 @@ class CameraController extends ChangeNotifier {
     if (rawWidth < 50 && rawHeight < 50) {
       fitZoom = 1.0;
     } else {
-      fitZoom = fitZoom.clamp(0.3, 2.0);
+      // v93 (ZOOM FIX): Clamp fit-to-screen zoom to the new readable
+      // range [0.8, 2.0]. The previous 0.3 minimum allowed the initial
+      // framing to zoom out so far that nodes became tiny dots.
+      fitZoom = fitZoom.clamp(_minZoom, 2.0);
     }
 
     // Compute pan to center.

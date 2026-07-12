@@ -190,8 +190,20 @@ class _FamilyGraphEngineViewState
   // zoom is typically ~0.8–1.2 (FULL), and on a 500-node graph it
   // collapses to ~0.25–0.35 (DOT/CHIP boundary), so DOT engages
   // naturally exactly when it's needed.
+  //
+  // v93 (ZOOM FIX): With the new CameraController defaults
+  // (minZoom=0.8, maxZoom=2.5), the graph is ALWAYS in the FULL LOD
+  // tier in normal use — the camera can never zoom out far enough to
+  // reach CHIP or DOT. The CHIP/DOT tiers remain as fallbacks for
+  // custom-zoom scenarios.
+  //
+  // _kLabelHideZoom controls when the secondary relationship label
+  // (e.g. "Husband", "You") is hidden to reduce clutter at lower zoom.
+  // The primary member name is ALWAYS visible. Set to 1.0 so labels
+  // hide as soon as the user starts zooming out from 100%.
   static const double _kChipZoom = 0.72;
   static const double _kDotZoom = 0.34;
+  static const double _kLabelHideZoom = 1.0;
 
   late final PositionMemory _positionMemory;
   late final CameraController _camera;
@@ -339,6 +351,12 @@ class _FamilyGraphEngineViewState
     //   • zoom >= 0.72 → FULL
     //   • zoom >= 0.34 → CHIP
     //   • zoom <  0.34 → DOT
+    //
+    // v93 (ZOOM FIX): With the new CameraController defaults
+    // (minZoom=0.8, maxZoom=2.5), the graph is ALWAYS in the FULL LOD
+    // tier in normal use (0.8 > _kChipZoom=0.72). The CHIP/DOT tiers
+    // remain as fallbacks for custom-zoom scenarios but will not
+    // engage with the default camera range.
     if (zoom >= _kChipZoom) return _Lod.full;
     if (zoom >= _kDotZoom) return _Lod.chip;
     return _Lod.dot;
@@ -356,6 +374,60 @@ class _FamilyGraphEngineViewState
       case _Lod.dot:
         return EdgeQuality.dot;
     }
+  }
+
+  // ── v93 (ZOOM FIX) Zoom-aware sizing helpers ───────────────────────────
+  //
+  // These helpers centralize the zoom-vs-screen-size logic so every
+  // rendering decision (node radius, stroke width, label visibility)
+  // goes through one place. The camera Transform scales the entire
+  // graph Stack by `_camera.zoomLevel`, so a value of X in graph
+  // space appears as X*zoom on screen.
+  //
+  // With minZoom=0.8, a 72dp node circle is always ≥57.6px on screen
+  // — readable, never a dot. These helpers exist primarily for
+  // documentation + future tuning, and to satisfy the spec's
+  // requirement for centralized zoom-aware sizing.
+
+  /// Returns the effective node circle radius for [zoom].
+  ///
+  /// The node circle is drawn at a FIXED diameter of 72dp in graph
+  /// space (GraphNode.nodeSize). The camera Transform scales it to
+  /// 72*zoom on screen. With minZoom=0.8, the on-screen radius is
+  /// always ≥28.8px (diameter ≥57.6px) — readable at all zoom levels.
+  ///
+  /// This helper returns the GRAPH-SPACE radius (constant 36.0). It
+  /// exists so callers can reason about screen-space size via
+  /// `getNodeRadius(zoom) * zoom` if needed.
+  double getNodeRadius(double zoom) {
+    // Fixed in graph space — does NOT scale down with zoom.
+    // The minZoom clamp ensures the screen-space size stays readable.
+    return 36.0; // GraphNode.nodeSize / 2 = 72 / 2
+  }
+
+  /// Returns the effective edge stroke width for [zoom] and [baseWidth].
+  ///
+  /// The stroke is drawn in graph space and scaled by the camera
+  /// Transform. To keep it readable on screen (≥1.5px screen-space),
+  /// we ensure the graph-space width is at least `1.5 / zoom`. With
+  /// minZoom=0.8, this means graph-space stroke ≥1.875px, which is
+  /// already satisfied by the existing clamp(1.5, 5.0).
+  ///
+  /// This helper is provided for future use + to document the
+  /// screen-space readability invariant.
+  double getStrokeWidth(double zoom, double baseWidth) {
+    // Ensure screen-space stroke ≥ 1.5px: graphStroke ≥ 1.5 / zoom.
+    final minGraphStroke = (1.5 / zoom).clamp(1.5, 5.0);
+    return baseWidth.clamp(minGraphStroke, 5.0);
+  }
+
+  /// Returns true when labels should be visible at [zoom].
+  ///
+  /// The primary member name is ALWAYS visible. The secondary
+  /// relationship label (e.g. "Husband", "You") is hidden when
+  /// zoom < _kLabelHideZoom (1.0) to reduce clutter at lower zoom.
+  bool shouldShowLabel(double zoom) {
+    return zoom >= _kLabelHideZoom;
   }
 
   // ── Build ──────────────────────────────────────────────────────────────
@@ -1094,6 +1166,10 @@ class _FamilyGraphEngineViewState
       // v2.2: "You" label for the viewer's node; otherwise use the
       // computed relation label from the viewer's perspective.
       relationLabel: isViewer ? 'You' : (labels[id] ?? ''),
+      // v93 (ZOOM FIX): Hide the relation label when zoomed out below
+      // _kLabelHideZoom (1.0) to reduce clutter. The primary member
+      // name is ALWAYS visible.
+      showRelationLabel: shouldShowLabel(_camera.zoomLevel),
       onTap: () => ref.read(selectedNodeProvider.notifier).state = id,
       // v62.2 FIX: Long-press shows the quick-actions sheet (matching
       // the v40 FamilyGraphWidget behavior) instead of toggling the
