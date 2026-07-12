@@ -1227,21 +1227,35 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             debugPrint('[ADD-MEMBER] v94: Stack: $stackTrace');
             relationshipFailed = true;
             if (mounted) {
-              // v94: Relationship creation failed AFTER the Person was
-              // created. This leaves an orphan node. We show a clear
-              // error and DO NOT close the sheet / fire confetti so the
-              // user knows the relationship didn't save. The Person row
-              // remains in Supabase — the user can retry the
-              // relationship from the person detail sheet.
-              //
-              // TODO(compensating-rollback): For a true atomic mutation,
-              // implement an `add_person_with_relationship` Supabase RPC
-              // that creates Person + Relationship in one transaction.
-              // For now, the Person is left as an orphan that the user
-              // can connect later via "Add Relationship" in person detail.
+              // v98 (Phase 0): Compensating rollback — soft-delete the
+              // orphan Person so no permanent orphan survives a
+              // relationship-creation failure. Uses soft-delete
+              // (deletedAt timestamp) matching the existing
+              // `.isFilter('deletedAt', null)` pattern, NOT hard delete
+              // (Person has onDelete: Cascade from Relationship).
+              try {
+                final rollbackClient = ref.read(supabaseProvider);
+                if (rollbackClient != null && resultId.isNotEmpty) {
+                  await rollbackClient
+                      .from('Person')
+                      .update({
+                        'deletedAt': DateTime.now().toUtc().toIso8601String(),
+                      })
+                      .eq('id', resultId)
+                      .timeout(const Duration(seconds: 5));
+                  debugPrint('[ADD-MEMBER] v98: Rolled back orphan Person $resultId (soft-deleted)');
+                }
+              } catch (rollbackError) {
+                debugPrint('[ADD-MEMBER] v98: Rollback FAILED — orphan Person $resultId may persist: $rollbackError');
+              }
+              // Clear graph cache + invalidate so the orphan doesn't render.
+              FamilyGraphNotifier.clearCache(widget.familyId);
+              ref.invalidate(familyGraphProvider(widget.familyId));
+              ref.invalidate(familyMembersProvider(widget.familyId));
+
               context.showSnackBar(
-                '⚠️ Member added but relationship NOT saved: $e\n'
-                'Tap the member to add a relationship manually.',
+                'Could not save the relationship. The member was not added — '
+                'please try again.',
                 isError: true,
               );
             }

@@ -1312,6 +1312,8 @@ class _FamilyGraphEngineViewState
           isOwner: true, // TODO: check actual family role from provider
           isSelf: isAnchor, // anchor = family creator = can't remove self
           ref: ref, // v95: enables "Focus on person" action
+          onFocusPerson: _onFocusPerson, // v98: real edges + viewport
+          onViewRelationship: _onViewRelationship, // v98: "How are we related?"
         );
       },
     );
@@ -1953,7 +1955,9 @@ class _FamilyGraphEngineViewState
       familyId: widget.familyId,
       isOwner: true,
       isSelf: isAnchor,
-      ref: ref, // v95: enables "Focus on person" action
+      ref: ref,
+      onFocusPerson: _onFocusPerson,
+      onViewRelationship: _onViewRelationship,
     );
   }
 
@@ -1991,7 +1995,94 @@ class _FamilyGraphEngineViewState
       familyId: widget.familyId,
       isOwner: true,
       isSelf: isAnchor,
-      ref: ref, // v95: enables "Focus on person" action
+      ref: ref,
+      onFocusPerson: _onFocusPerson,
+      onViewRelationship: _onViewRelationship,
+    );
+  }
+
+  // ── v98 (Phase 1): Engine-owned focus callback ────────────────────────
+  //
+  // Passed to GraphQuickActions.show() so the Focus action has access
+  // to real deduped edges + camera viewport — NOT the empty edges +
+  // null viewport that the previous direct-provider-call passed.
+  void _onFocusPerson(String personId, String personName) {
+    // Build real edge tuples from the current deduped edges.
+    final edgeTuples = [
+      for (final d in _currentEdges)
+        (fromId: d.edge.sourceId, toId: d.edge.targetId),
+    ];
+    // Capture the current camera viewport for history restore.
+    final viewport = FocusViewportSnapshot(
+      panX: _camera.panX,
+      panY: _camera.panY,
+      zoom: _camera.zoomLevel,
+    );
+    ref.read(graphFocusProvider.notifier).focus(
+          personId: personId,
+          personName: personName,
+          edges: edgeTuples,
+          currentViewport: viewport,
+        );
+  }
+
+  /// v98 (Phase 2): Engine-owned "View relationship" callback.
+  ///
+  /// Resolves the kinship path from the viewer to [targetPersonId]
+  /// using the existing RelationshipEngine + graphPathFocusProvider,
+  /// then opens RelationshipInfoSheet with the resolved path.
+  ///
+  /// This is the "How are we related?" hero flow — reachable from
+  /// any person's quick-actions menu, not just from edge taps.
+  void _onViewRelationship(String targetPersonId) {
+    final flat = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
+    if (flat == null) return;
+
+    // Resolve viewerPersonId from the provider.
+    final viewerPersonId =
+        ref.read(viewerPersonIdProvider(widget.familyId)).valueOrNull;
+    if (viewerPersonId == null) {
+      if (mounted) {
+        context.showSnackBar(
+          'Could not resolve your family identity. Please try again.',
+          isError: true,
+        );
+      }
+      return;
+    }
+    if (viewerPersonId == targetPersonId) {
+      if (mounted) {
+        context.showSnackBar('This is you!');
+      }
+      return;
+    }
+
+    // The path focus is resolved in the build method via
+    // _resolvePathFocus, which watches selectedNodeProvider as the
+    // target. Set the target as selected so the next build resolves
+    // the path.
+    ref.read(selectedNodeProvider.notifier).state = targetPersonId;
+
+    // Open the RelationshipInfoSheet. The path may not be resolved
+    // yet on this frame — the sheet will show "resolving..." and the
+    // path will populate when graphPathFocusProvider updates.
+    final targetPerson = flat.persons
+        .where((p) => p['id'] == targetPersonId)
+        .firstOrNull;
+    final viewerPerson = flat.persons
+        .where((p) => p['id'] == viewerPersonId)
+        .firstOrNull;
+    if (targetPerson == null || viewerPerson == null) return;
+
+    RelationshipInfoSheet.show(
+      context,
+      sourceId: viewerPersonId,
+      sourceName: (viewerPerson['name'] as String?) ?? 'You',
+      sourceGender: viewerPerson['gender'] as String?,
+      targetId: targetPersonId,
+      targetName: (targetPerson['name'] as String?) ?? '',
+      targetGender: targetPerson['gender'] as String?,
+      relationshipKey: 'related', // will be replaced when path resolves
     );
   }
 

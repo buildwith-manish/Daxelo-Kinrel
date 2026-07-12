@@ -277,15 +277,34 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
   /// Recompute neighbour sets for the current focused person. Called
   /// when the graph data changes (e.g. a relationship was added) but
   /// the focus person stays the same.
+  ///
+  /// v98 (Phase 1): IDEMPOTENT — if the computed neighbour sets are
+  /// identical to the current state, returns without mutating state
+  /// or bumping revision. This prevents the rebuild-mutate-rebuild
+  /// cycle that occurred when the engine view called this every
+  /// rebuild while watching the same provider.
   void recomputeNeighbours(List<({String fromId, String toId})> edges) {
     final focused = state.focusedPersonId;
     if (focused == null) return;
     final neighbours = _computeNeighbours(focused, edges);
+
+    // v98: Idempotency check — only mutate if the sets actually changed.
+    if (_setEquals(neighbours.first, state.firstDegreeIds) &&
+        _setEquals(neighbours.second, state.secondDegreeIds)) {
+      return; // No change → no revision bump → no rebuild cycle.
+    }
+
     state = state.copyWith(
       firstDegreeIds: neighbours.first,
       secondDegreeIds: neighbours.second,
       revision: state.revision + 1,
     );
+  }
+
+  /// Lightweight set equality (avoids allocating iterators).
+  bool _setEquals(Set<String> a, Set<String> b) {
+    if (a.length != b.length) return false;
+    return a.containsAll(b);
   }
 
   /// Compute first-degree and second-degree neighbour sets via a

@@ -50,6 +50,8 @@ class GraphQuickActions {
     bool isOwner = false,
     bool isSelf = false,
     WidgetRef? ref,
+    void Function(String personId, String personName)? onFocusPerson,
+    void Function(String personId)? onViewRelationship,
   }) {
     showModalBottomSheet(
       context: context,
@@ -108,11 +110,28 @@ class GraphQuickActions {
                 }
               },
             ),
-            // v95 (Phase 1): Focus on person — sets graphFocusProvider.
-            // Centers camera, dims unrelated branches, pushes viewport
-            // onto focus history. Only shown when ref is available
-            // (caller is a ConsumerStatefulWidget/ConsumerWidget).
-            if (ref != null)
+            // v98 (Phase 2): "How are we related?" — resolves the
+            // relationship path from the viewer to this person.
+            if (onViewRelationship != null)
+              ListTile(
+                leading: const Icon(Icons.account_tree_rounded,
+                    color: KinrelColors.tealAccent),
+                title: const Text(
+                  'View relationship',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  onViewRelationship(person.id);
+                },
+              ),
+            // v98 (Phase 1): Focus on person — uses engine-owned callback
+            // that has access to real edges + camera viewport.
+            // Falls back to direct provider call if no callback (legacy).
+            if (onFocusPerson != null || ref != null)
               ListTile(
                 leading: const Icon(Icons.center_focus_strong_rounded,
                     color: KinrelColors.orange),
@@ -125,20 +144,16 @@ class GraphQuickActions {
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  // The actual focus + camera animation is driven by
-                  // the engine view watching graphFocusProvider. Here
-                  // we just set the focus state + save the current
-                  // viewport for history.
-                  // The viewport snapshot is read by the engine view
-                  // when it reacts to the focus change — we pass a
-                  // placeholder here and the engine view will capture
-                  // the real viewport before animating.
-                  ref.read(graphFocusProvider.notifier).focus(
-                        personId: person.id,
-                        personName: person.name,
-                        edges: const [],
-                        currentViewport: null,
-                      );
+                  if (onFocusPerson != null) {
+                    onFocusPerson(person.id, person.name);
+                  } else if (ref != null) {
+                    ref.read(graphFocusProvider.notifier).focus(
+                          personId: person.id,
+                          personName: person.name,
+                          edges: const [],
+                          currentViewport: null,
+                        );
+                  }
                 },
               ),
             // Edit
