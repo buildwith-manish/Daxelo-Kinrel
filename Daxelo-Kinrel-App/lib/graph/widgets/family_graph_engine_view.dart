@@ -61,6 +61,12 @@ import '../interaction/graph_focus_state.dart'
         FocusViewportSnapshot,
         FocusHistoryEntry,
         graphFocusProvider;
+import '../interaction/branch_collapse_state.dart'
+    show
+        BranchCollapseNotifier,
+        BranchCollapseState,
+        CollapsedBranch,
+        branchCollapseProvider;
 import '../interaction/graph_kinship_path_focus.dart'
     show
         GraphKinshipPathFocus,
@@ -86,6 +92,17 @@ import '../../features/family/presentation/services/graph_export_service.dart'
 import '../rendering/edge_path_cache.dart' show EdgePathCache;
 import '../rendering/edge_quality.dart' show EdgeQuality, EdgeQualityX;
 import '../rendering/graph_lighting.dart' show GraphLighting;
+import '../rendering/semantic_zoom.dart'
+    show
+        SemanticTier,
+        SemanticZoomThresholds,
+        defaultThresholds,
+        computeSemanticTier,
+        semanticTierToLodName,
+        shouldOverrideFarTier,
+        farTierDotRadius,
+        farTierExcludesPremiumEffects,
+        shouldRenderText;
 import '../rendering/viewport_culler.dart' show ViewportCuller;
 import 'graph_node.dart' show GraphNode, RelationshipColors, NodeState;
 import 'graph_legend.dart' show GraphLegend;
@@ -258,6 +275,12 @@ class _FamilyGraphEngineViewState
   Rect _lastCullViewport = Rect.zero;
   _Lod _lastLod = _Lod.full;
 
+  // v96 (Phase 3): Semantic zoom tier with hysteresis memory.
+  // The current tier is remembered so computeSemanticTier can apply
+  // hysteresis margins (enter/leave thresholds differ). This prevents
+  // visual flicker when zoom oscillates near a tier boundary.
+  SemanticTier? _currentSemanticTier;
+
   // Gesture bookkeeping for pan + pinch-zoom.
   Offset _lastFocal = Offset.zero;
   double _baseZoom = 1.0;
@@ -316,6 +339,9 @@ class _FamilyGraphEngineViewState
       // Focus is local graph interaction state — it should not persist
       // across family boundaries.
       ref.read(graphFocusProvider.notifier).clearAll();
+      // v96 (Phase 4): Clear branch collapse state when switching
+      // families. Collapse state is per-family presentation state.
+      ref.read(branchCollapseProvider.notifier).clearAll();
     }
     // v62: Re-center when recenterKey changes (Center on Root button).
     if (oldWidget.recenterKey != widget.recenterKey) {
@@ -349,29 +375,38 @@ class _FamilyGraphEngineViewState
   }
 
   _Lod _lodFor(double zoom) {
-    // v91 (PART 9): DOT LOD is now reachable.
+    // v96 (Phase 3): Semantic zoom with hysteresis.
     //
-    // The previous implementation hard-coded `return _Lod.chip;` which
-    // made the dot tier unreachable and broke the large-graph
-    // architecture. The dot painter (`_NodeDotPainter`) exists
-    // precisely to keep 500–5,000+ node graphs smooth — without it,
-    // the engine builds one Positioned widget per visible node, which
-    // collapses frame rate on big families.
+    // The semantic tier (NEAR/MEDIUM/FAR) is computed with hysteresis
+    // memory — enter/leave thresholds differ by a margin to prevent
+    // visual flicker when zoom oscillates near a boundary.
     //
-    // Thresholds (see `_kChipZoom` / `_kDotZoom`):
-    //   • zoom >= 0.72 → FULL
-    //   • zoom >= 0.34 → CHIP
-    //   • zoom <  0.34 → DOT
+    // The semantic tier maps 1:1 to the existing _Lod enum:
+    //   NEAR   → full
+    //   MEDIUM → chip
+    //   FAR    → dot
     //
-    // v93 (ZOOM FIX): With the new CameraController defaults
-    // (minZoom=0.8, maxZoom=2.5), the graph is ALWAYS in the FULL LOD
-    // tier in normal use (0.8 > _kChipZoom=0.72). The CHIP/DOT tiers
-    // remain as fallbacks for custom-zoom scenarios but will not
-    // engage with the default camera range.
-    if (zoom >= _kChipZoom) return _Lod.full;
-    if (zoom >= _kDotZoom) return _Lod.chip;
-    return _Lod.dot;
+    // With the v93 camera defaults (minZoom=0.8, maxZoom=2.5), the
+    // graph is normally at NEAR (full) tier. MEDIUM/FAR are reachable
+    // if minZoom is lowered for large-graph scenarios.
+    _currentSemanticTier = computeSemanticTier(
+      zoom,
+      currentTier: _currentSemanticTier,
+      thresholds: defaultThresholds,
+    );
+    switch (_currentSemanticTier!) {
+      case SemanticTier.near:
+        return _Lod.full;
+      case SemanticTier.medium:
+        return _Lod.chip;
+      case SemanticTier.far:
+        return _Lod.dot;
+    }
   }
+
+  /// v96 (Phase 3): Returns the current semantic tier (with hysteresis).
+  /// Computed as a side effect of [_lodFor] — call _lodFor first.
+  SemanticTier get _currentTier => _currentSemanticTier ?? SemanticTier.near;
 
   /// Maps the current LOD to the edge-layer visual quality tier (PART 10).
   /// Computed ONCE per build and passed to `_EngineEdgePainter` — the
@@ -740,6 +775,39 @@ class _FamilyGraphEngineViewState
           _maybeFocusCameraOnNode(focusState.focusedPersonId!, layout);
         }
 
+        // v96 (Phase 4): Compute branch collapse state. This is
+        // PRESENTATION state — it does NOT modify canonical topology.
+        // Distant large branches are collapsed into compact
+        // affordances. Focus neighbourhood + path + search results
+        // stay visible. Small families (< 30 members) are never
+        // collapsed.
+        final pathFocus = ref.read(graphPathFocusProvider).focus;
+        final selectedPerson = ref.read(selectedNodeProvider);
+        ref.read(branchCollapseProvider.notifier).computeCollapse(
+              allPersons: {
+                for (final p in flat.persons) (p['id'] ?? '').toString(),
+              },
+              allEdges: [
+                for (final d in edges)
+                  (
+                    fromId: d.edge.sourceId,
+                    toId: d.edge.targetId,
+                    edgeId: d.edge.id,
+                    relationshipKey: d.edge.relationshipKey,
+                  ),
+              ],
+              focusPersonId: focusState.focusedPersonId,
+              firstDegreeIds: focusState.firstDegreeIds,
+              secondDegreeIds: focusState.secondDegreeIds,
+              pathNodeIds: pathFocus?.orderedPersonIds.toSet(),
+              searchMatchIds: null, // search integration is local
+              selectedPersonId: selectedPerson,
+              familyMemberCount: flat.persons.length,
+            );
+        // Watch the branch collapse provider so the engine rebuilds
+        // when collapse state changes.
+        ref.watch(branchCollapseProvider);
+
         // v92 (PART 17): Cache the current edges + positions + categories
         // so the canvas tap handler can do midpoint hit-testing without
         // recomputing them. The positions map includes the visual-circle
@@ -931,6 +999,21 @@ class _FamilyGraphEngineViewState
         final pos = layout.positions[id];
         final p = personById[id];
         if (pos == null || p == null) continue;
+
+        // v96 (Phase 3): At FAR (dot) zoom, focused/selected/path
+        // nodes get an emphasised dot (larger + accent ring) so they
+        // remain discoverable.
+        final focusedId = ref.read(graphFocusProvider).focusedPersonId;
+        final selectedId = ref.read(selectedNodeProvider);
+        final pathFocus = ref.read(graphPathFocusProvider).focus;
+        final pathNodeIds = pathFocus?.orderedPersonIds.toSet();
+        final isEmphasised = shouldOverrideFarTier(
+          nodeId: id,
+          focusedPersonId: focusedId,
+          selectedPersonId: selectedId,
+          pathNodeIds: pathNodeIds,
+        );
+
         dots.add(_Dot(
           pos,
           _dotColor(
@@ -941,6 +1024,7 @@ class _FamilyGraphEngineViewState
             // v83: Use custom colors if available
             customColors: customColorsByPersonId[id],
           ),
+          isEmphasised: isEmphasised,
         ));
       }
       return <Widget>[
@@ -3871,9 +3955,13 @@ class _BranchAffordanceChip extends StatelessWidget {
 
 /// A single node rendered as a coloured dot at the lowest LOD tier.
 class _Dot {
-  const _Dot(this.pos, this.color);
+  const _Dot(this.pos, this.color, {this.isEmphasised = false});
   final Offset pos;
   final Color color;
+  /// v96 (Phase 3): When true, this dot is drawn larger (9px) with an
+  /// accent ring — used for focused/selected/path nodes at FAR zoom
+  /// so they remain discoverable.
+  final bool isEmphasised;
 }
 
 /// Paints a very faint dot-grid on the graph background for spatial texture.
@@ -3899,6 +3987,11 @@ class _DotGridPainter extends CustomPainter {
 
 /// Draws every visible node as a dot in ONE painter — avoids thousands of
 /// widgets when fully zoomed out (the 2000-node case).
+///
+/// v96 (Phase 3): Emphasised dots (focused/selected/path nodes) are
+/// drawn 50% larger (9px) with an accent ring so they remain
+/// discoverable at FAR zoom. Normal dots stay at 6px. No expensive
+/// shadows or specular effects at this tier.
 class _NodeDotPainter extends CustomPainter {
   _NodeDotPainter(this.dots);
 
@@ -3907,9 +4000,22 @@ class _NodeDotPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..isAntiAlias = true;
+    final ringPaint = Paint()
+      ..isAntiAlias = true
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
     for (final _Dot d in dots) {
+      final radius = d.isEmphasised ? 9.0 : 6.0;
       paint.color = d.color;
-      canvas.drawCircle(d.pos, 6, paint);
+
+      if (d.isEmphasised) {
+        // Draw an accent ring around the emphasised dot.
+        ringPaint.color = d.color.withValues(alpha: 0.5);
+        canvas.drawCircle(d.pos, radius + 3.0, ringPaint);
+      }
+
+      canvas.drawCircle(d.pos, radius, paint);
     }
   }
 
