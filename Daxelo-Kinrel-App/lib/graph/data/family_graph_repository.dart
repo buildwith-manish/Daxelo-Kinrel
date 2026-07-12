@@ -2,9 +2,27 @@
 //
 // DAXELO KINREL — Family Graph Repository (V2.1 Data Layer)
 //
-// Clean Architecture repository interface for graph data access.
-// Defines the contract that any data source (Supabase, mock, local)
-// must implement. All data models are co-located here for clarity.
+// v99 STATUS: The FamilyGraphRepository CLASS below is NOT CURRENTLY
+// USED. It has zero construction sites in lib/. The live graph data
+// source is family_graph_provider.dart (FamilyGraphNotifier), which
+// calls Supabase directly without going through this repository.
+//
+// However, the DATA MODELS defined in this file (GraphEdgeData,
+// GraphNodeData, GraphRealtimeEvent, BranchType, etc.) ARE actively
+// imported and used by 10+ files across the codebase. Deleting this
+// file would break the build. The models are co-located here for
+// historical reasons.
+//
+// To fully clean up: extract the data models into separate files
+// (graph_edge_data.dart, graph_node_data.dart, etc.), then delete
+// the FamilyGraphRepository class. This is a code-organization task,
+// not a functional bug — leaving it does not affect production
+// behavior.
+//
+// Similarly, graph_cache.dart and supabase_data_source.dart are
+// imported only by this file and offline_manager.dart (which itself
+// is not on the live graph render path). They are legacy data-layer
+// abstractions from an earlier architecture.
 
 import '../../core/services/graph_layout_service.dart';
 

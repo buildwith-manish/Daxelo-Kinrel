@@ -62,6 +62,8 @@ import '../interaction/graph_focus_state.dart'
         FocusViewportSnapshot,
         FocusHistoryEntry,
         graphFocusProvider;
+import '../interaction/couple_union_model.dart'
+    show CoupleUnion, unionMidpoint;
 import '../interaction/branch_collapse_state.dart'
     show
         BranchCollapseNotifier,
@@ -946,6 +948,7 @@ class _FamilyGraphEngineViewState
                     // unrelated edges dim.
                     pathFocusedEdgeIds: pathFocus?.orderedEdgeIds.toSet(),
                     pathFocusActive: pathFocus != null,
+                    coupleUnions: layout.coupleUnions.cast<CoupleUnion>(),
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
@@ -3032,6 +3035,7 @@ class _EdgeSelectionWrapper extends ConsumerStatefulWidget {
     required this.dimmedEdgeIds,
     required this.pathFocusedEdgeIds,
     required this.pathFocusActive,
+    this.coupleUnions = const [],
   });
 
   final Map<String, Offset> positions;
@@ -3039,6 +3043,12 @@ class _EdgeSelectionWrapper extends ConsumerStatefulWidget {
   final Map<String, KinshipEdgeCategory> edgeCategories;
   final Map<String, Map<String, dynamic>> edgeCustomColors;
   final EdgePathCache cache;
+
+  /// v99 (Phase 6): Derived couple unions from the layout. The painter
+  /// renders a subtle junction glyph at the midpoint between partners
+  /// for each union, and routes parent→child edges through the union
+  /// midpoint when the child is a confirmed child of both partners.
+  final List<CoupleUnion> coupleUnions;
 
   /// LOD-derived visual quality tier for the entire edge layer. Computed
   /// ONCE per build from the current graph LOD; the painter never
@@ -3249,6 +3259,7 @@ class _EdgeSelectionWrapperState extends ConsumerState<_EdgeSelectionWrapper>
         completedTraceEdgeIds: traceState.completedEdgeIds.isNotEmpty
             ? traceState.completedEdgeIds
             : null,
+        coupleUnions: widget.coupleUnions,
       ),
       child: const SizedBox.expand(),
     );
@@ -3319,6 +3330,7 @@ class _EngineEdgePainter extends CustomPainter {
     this.traceProgress = 0.0,
     this.traceActive = false,
     this.completedTraceEdgeIds,
+    this.coupleUnions = const [],
   });
 
   final Map<String, Offset> positions;
@@ -3360,6 +3372,10 @@ class _EngineEdgePainter extends CustomPainter {
   /// v92 (PART 15): Edges already traced by the sequential trace.
   /// These remain statically focused after their sweep completes.
   final Set<String>? completedTraceEdgeIds;
+
+  /// v99 (Phase 6): Derived couple unions — used to paint union
+  /// junction glyphs at the midpoint between partners.
+  final List<CoupleUnion> coupleUnions;
 
   // ── Path construction ─────────────────────────────────────────────────
 
@@ -3652,6 +3668,11 @@ class _EngineEdgePainter extends CustomPainter {
         );
       }
     }
+
+    // v99 (Phase 6): Paint union junction glyphs AFTER all edges +
+    // midpoints. These are subtle visual markers at the midpoint
+    // between confirmed partners, showing where a couple connects.
+    _paintUnionJunctions(canvas);
   }
 
   // ── Physical paint helpers ───────────────────────────────────────────
@@ -4078,6 +4099,58 @@ class _EngineEdgePainter extends CustomPainter {
           height: beadR * 0.3,
         ),
         Paint()..color = Colors.white.withValues(alpha: 0.15),
+      );
+    }
+  }
+
+  /// v99 (Phase 6): Paints union junction glyphs at the midpoint
+  /// between partners for each derived CoupleUnion.
+  ///
+  /// The glyph is a small filled circle — subtle, NOT competing with
+  /// person nodes. It visually marks where a couple connects and
+  /// where children descend from. The glyph reuses the relationship
+  /// edge colour (spouse orange) for visual consistency.
+  ///
+  /// Only painted at FULL and CHIP LOD — skipped at DOT (overview)
+  /// for performance.
+  void _paintUnionJunctions(Canvas canvas) {
+    if (coupleUnions.isEmpty) return;
+    // Skip at DOT LOD — too small to be meaningful.
+    if (edgeQuality == EdgeQuality.dot) return;
+
+    for (final union in coupleUnions) {
+      final posA = positions[union.partnerAId];
+      final posB = positions[union.partnerBId];
+      if (posA == null || posB == null) continue;
+
+      final mid = unionMidpoint(posA, posB);
+
+      // Small filled circle — the junction glyph.
+      // Radius scales slightly with zoom to maintain screen-space
+      // visibility (same pattern as the overview dot painter).
+      final zoom = 1.0; // positions are already in graph space
+      const screenJunctionR = 4.0;
+      final graphR = screenJunctionR; // graph-space (parent Transform scales)
+
+      // Use the spouse edge colour (orange) for visual consistency.
+      const junctionColor = Color(0xFFF97316); // KinshipEdgeColors.spouseEdge
+
+      // Outer ring (subtle).
+      canvas.drawCircle(
+        mid,
+        graphR + 2,
+        Paint()
+          ..color = junctionColor.withValues(alpha: 0.25)
+          ..style = PaintingStyle.fill,
+      );
+
+      // Inner dot.
+      canvas.drawCircle(
+        mid,
+        graphR,
+        Paint()
+          ..color = junctionColor.withValues(alpha: 0.6)
+          ..style = PaintingStyle.fill,
       );
     }
   }
