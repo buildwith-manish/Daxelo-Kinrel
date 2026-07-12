@@ -2,10 +2,24 @@
 //
 // DAXELO KINREL — Supabase Data Source (V2.1 Data Layer)
 //
-// Concrete Supabase implementation of [FamilyGraphRepository].
-// Uses Supabase RPCs for data fetching and Supabase Realtime
-// for live updates. All methods have proper error handling and
-// timeout.
+// v99 STATUS: NOT CURRENTLY USED. The `SupabaseDataSource` class has
+// zero instantiation sites in lib/ — `grep -rn "SupabaseDataSource"`
+// lib/` returns only the constructor definition at line 41, no actual
+// `new SupabaseDataSource` or `SupabaseDataSource` construction calls
+// anywhere in the app.
+//
+// The live graph data source is `family_graph_provider.dart`
+// (`FamilyGraphNotifier`), which calls Supabase directly via
+// `client.rpc('get_viewer_family_graph', ...)` and
+// `client.from('Person')...` / `client.from('Relationship')...`. The
+// live app also has its own optimistic Drift-based caching in
+// `lib/core/family/optimistic_actions.dart` and its own realtime
+// subscription in `lib/core/network/supabase_realtime_service.dart`.
+//
+// Nothing else in this file is load-bearing — the class is used only
+// within this same closed chain (imported by `offline_manager.dart`
+// which itself has zero production consumers). Safe to delete
+// alongside `family_graph_repository.dart`'s eventual cleanup.
 
 import 'dart:async';
 

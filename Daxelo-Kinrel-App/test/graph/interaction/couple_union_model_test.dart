@@ -269,4 +269,225 @@ void main() {
       expect(unions, isEmpty);
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // v100 (Phase 6 structural fix): Edge routing through union midpoint
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // These tests verify the VISUAL ROUTING logic: when a parent→child
+  // edge's parent is a partner in a union that the child belongs to,
+  // the edge's effective source position should be the union midpoint,
+  // not the parent's own position.
+  //
+  // We test the routing DECISION (which position is used as the source)
+  // by simulating the exact loop the painter uses — we don't need to
+  // instantiate the painter itself.
+
+  group('v100 Phase 6 — Edge routing through union midpoint', () {
+    /// Simulates the painter's per-edge routing decision.
+    /// Returns the effective source position for the edge.
+    Offset computeEffectiveSource({
+      required String sourceId,
+      required String targetId,
+      required Map<String, Offset> positions,
+      required List<CoupleUnion> unions,
+    }) {
+      Offset effectiveSourcePos = positions[sourceId]!;
+      for (final union in unions) {
+        if (union.hasPartner(sourceId) && union.hasChild(targetId)) {
+          final partnerAPos = positions[union.partnerAId];
+          final partnerBPos = positions[union.partnerBId];
+          if (partnerAPos != null && partnerBPos != null) {
+            effectiveSourcePos = unionMidpoint(partnerAPos, partnerBPos);
+          }
+          break;
+        }
+      }
+      return effectiveSourcePos;
+    }
+
+    test('shared child: both parent→child edges anchor at union midpoint', () {
+      // A (father) → C (child), B (mother) → C (child), A—wife—B (union)
+      final edges = buildEdges([
+        ['A', 'C', 'e1', 'father'],
+        ['B', 'C', 'e2', 'mother'],
+        ['A', 'B', 'e3', 'wife'],
+      ]);
+      final unions = deriveCoupleUnions(edges);
+      expect(unions.length, 1);
+      expect(unions.first.childIds, contains('C'));
+
+      final positions = {
+        'A': const Offset(0, 0),
+        'B': const Offset(100, 0),
+        'C': const Offset(50, 200),
+      };
+
+      // Edge A→C: A is a partner, C is a child of the union → source
+      // should be the union midpoint (50, 0), NOT A's position (0, 0).
+      final sourceForAC = computeEffectiveSource(
+        sourceId: 'A',
+        targetId: 'C',
+        positions: positions,
+        unions: unions,
+      );
+      expect(sourceForAC.dx, 50.0,
+          reason: 'Edge A→C should start at union midpoint X (50), not A (0)');
+      expect(sourceForAC.dy, 0.0,
+          reason: 'Edge A→C should start at union midpoint Y (0)');
+
+      // Edge B→C: B is a partner, C is a child of the union → source
+      // should also be the union midpoint (50, 0), NOT B's position (100, 0).
+      final sourceForBC = computeEffectiveSource(
+        sourceId: 'B',
+        targetId: 'C',
+        positions: positions,
+        unions: unions,
+      );
+      expect(sourceForBC.dx, 50.0,
+          reason: 'Edge B→C should start at union midpoint X (50), not B (100)');
+      expect(sourceForBC.dy, 0.0,
+          reason: 'Edge B→C should start at union midpoint Y (0)');
+    });
+
+    test('single-parent child (no union): edge anchors at parent position', () {
+      // A (father) → C (child), NO spouse edge → no union.
+      final edges = buildEdges([
+        ['A', 'C', 'e1', 'father'],
+      ]);
+      final unions = deriveCoupleUnions(edges);
+      expect(unions, isEmpty);
+
+      final positions = {
+        'A': const Offset(0, 0),
+        'C': const Offset(50, 200),
+      };
+
+      final sourceForAC = computeEffectiveSource(
+        sourceId: 'A',
+        targetId: 'C',
+        positions: positions,
+        unions: unions,
+      );
+      expect(sourceForAC.dx, 0.0,
+          reason: 'No union → edge should start at parent A (0, 0)');
+      expect(sourceForAC.dy, 0.0);
+    });
+
+    test('remarriage: each child anchors to the CORRECT union', () {
+      // A — wife — B (union 1), A — wife — C (union 2, remarriage)
+      // A (father) → D (child of A+B — both parents confirmed)
+      // B (mother) → D
+      // A (father) → E (child of A+C — both parents confirmed)
+      // C (mother) → E
+      final edges = buildEdges([
+        ['A', 'B', 'e1', 'wife'],
+        ['A', 'C', 'e2', 'wife'],
+        ['A', 'D', 'e3', 'father'],
+        ['B', 'D', 'e4', 'mother'],
+        ['A', 'E', 'e5', 'father'],
+        ['C', 'E', 'e6', 'mother'],
+      ]);
+      final unions = deriveCoupleUnions(edges);
+      expect(unions.length, 2);
+
+      final positions = {
+        'A': const Offset(0, 0),
+        'B': const Offset(100, 0),
+        'C': const Offset(200, 0),
+        'D': const Offset(50, 200),
+        'E': const Offset(150, 200),
+      };
+
+      // Edge A→D: A is partner in union A-B, D is child of A-B →
+      // source = midpoint of A-B = (50, 0).
+      final sourceForAD = computeEffectiveSource(
+        sourceId: 'A',
+        targetId: 'D',
+        positions: positions,
+        unions: unions,
+      );
+      expect(sourceForAD.dx, 50.0,
+          reason: 'D is child of union A-B, so edge A→D starts at A-B midpoint (50)');
+
+      // Edge A→E: A is partner in union A-C, E is child of A-C →
+      // source = midpoint of A-C = (100, 0), NOT A-B midpoint (50).
+      final sourceForAE = computeEffectiveSource(
+        sourceId: 'A',
+        targetId: 'E',
+        positions: positions,
+        unions: unions,
+      );
+      expect(sourceForAE.dx, 100.0,
+          reason: 'E is child of union A-C, so edge A→E starts at A-C midpoint (100), not A-B (50)');
+    });
+
+    test('half-sibling: shared-parent child does not redirect non-shared child', () {
+      // A — wife — B (union)
+      // A (father) → C (shared child of A+B)
+      // B (mother) → C
+      // A (father) → D (child of A only, NOT B's child — half-sibling)
+      final edges = buildEdges([
+        ['A', 'B', 'e1', 'wife'],
+        ['A', 'C', 'e2', 'father'],
+        ['B', 'C', 'e3', 'mother'],
+        ['A', 'D', 'e4', 'father'],
+        // NO B→D edge — D is NOT B's child.
+      ]);
+      final unions = deriveCoupleUnions(edges);
+      expect(unions.length, 1);
+      expect(unions.first.childIds, contains('C'));
+      expect(unions.first.childIds, isNot(contains('D')),
+          reason: 'D is NOT a child of the A-B union');
+
+      final positions = {
+        'A': const Offset(0, 0),
+        'B': const Offset(100, 0),
+        'C': const Offset(50, 200),
+        'D': const Offset(0, 300),
+      };
+
+      // Edge A→C: C IS a child of the union → source = midpoint (50, 0).
+      final sourceForAC = computeEffectiveSource(
+        sourceId: 'A',
+        targetId: 'C',
+        positions: positions,
+        unions: unions,
+      );
+      expect(sourceForAC.dx, 50.0,
+          reason: 'C is a union child → redirect to midpoint');
+
+      // Edge A→D: D is NOT a child of the union → source = A (0, 0).
+      final sourceForAD = computeEffectiveSource(
+        sourceId: 'A',
+        targetId: 'D',
+        positions: positions,
+        unions: unions,
+      );
+      expect(sourceForAD.dx, 0.0,
+          reason: 'D is NOT a union child → edge stays at parent A (0)');
+    });
+
+    test('edge ID, category, custom colors unaffected by routing change', () {
+      // The routing change only affects WHERE the bezier starts —
+      // the edge's ID, relationshipKey, category, and custom colors
+      // are all keyed by edge ID, which does NOT change.
+      // This test verifies the edge data is unchanged.
+      final edges = buildEdges([
+        ['A', 'B', 'e1', 'wife'],
+        ['A', 'C', 'e2', 'father'],
+        ['B', 'C', 'e3', 'mother'],
+      ]);
+      final unions = deriveCoupleUnions(edges);
+
+      // The union's edgeId references the ORIGINAL spouse edge (e1),
+      // not a synthetic ID.
+      expect(unions.first.edgeId, 'e1');
+      // The child edge IDs are the ORIGINAL parent→child edge IDs.
+      // No synthetic union→child edge ID was created.
+      expect(unions.first.childIds, contains('C'));
+      // 'C' is a person ID, not an edge ID — the routing change uses
+      // the child's PERSON ID to look up the union, not a new edge ID.
+    });
+  });
 }

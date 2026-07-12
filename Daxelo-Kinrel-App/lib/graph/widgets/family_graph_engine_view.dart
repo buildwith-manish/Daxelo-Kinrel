@@ -3460,6 +3460,41 @@ class _EngineEdgePainter extends CustomPainter {
       if (s == null || t == null) {
         continue;
       }
+      // v100 (Phase 6 structural fix): If this edge is a parent→child
+      // edge where the source person is a partner in a union that this
+      // child belongs to (per CoupleUnion.childIds), anchor the edge's
+      // visual start point at the union midpoint instead of the parent's
+      // own node position. This makes children visually branch from the
+      // couple's connection point rather than from each parent
+      // independently, while leaving the edge's ID, category, custom
+      // colors, and selection behavior completely untouched — only the
+      // bezier's start coordinate changes.
+      //
+      // Also handle the REVERSE direction: if the edge goes child→parent
+      // (source is the child, target is the parent who is a union partner),
+      // redirect the TARGET position to the union midpoint instead.
+      Offset effectiveSourcePos = s;
+      Offset effectiveTargetPos = t;
+      for (final union in coupleUnions) {
+        // Direction 1: source is parent (union partner), target is child.
+        if (union.hasPartner(e.sourceId) && union.hasChild(e.targetId)) {
+          final partnerAPos = positions[union.partnerAId];
+          final partnerBPos = positions[union.partnerBId];
+          if (partnerAPos != null && partnerBPos != null) {
+            effectiveSourcePos = unionMidpoint(partnerAPos, partnerBPos);
+          }
+          break;
+        }
+        // Direction 2: source is child, target is parent (union partner).
+        if (union.hasChild(e.sourceId) && union.hasPartner(e.targetId)) {
+          final partnerAPos = positions[union.partnerAId];
+          final partnerBPos = positions[union.partnerBId];
+          if (partnerAPos != null && partnerBPos != null) {
+            effectiveTargetPos = unionMidpoint(partnerAPos, partnerBPos);
+          }
+          break;
+        }
+      }
       // v64 (BUG-2 FIX): Pass the lateral offset so parallel edges
       // (e.g. parent + spouse between the same pair) are visually
       // separated instead of stacked on top of each other.
@@ -3476,8 +3511,8 @@ class _EngineEdgePainter extends CustomPainter {
         edgeId: cacheEdgeId,
         sourceId: e.sourceId,
         targetId: e.targetId,
-        sourcePos: s,
-        targetPos: t,
+        sourcePos: effectiveSourcePos,
+        targetPos: effectiveTargetPos,
         pathFactory: (Offset ss, Offset tt) =>
             _bezier(ss, tt, lateralOffset: deduped.lateralOffset),
       );

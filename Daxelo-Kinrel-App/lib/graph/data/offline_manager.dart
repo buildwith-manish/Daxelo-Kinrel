@@ -2,6 +2,23 @@
 //
 // DAXELO KINREL — Offline Manager (V2.1 Blueprint §§12, 28)
 //
+// v99 STATUS: NOT CURRENTLY USED in production. The
+// `offlineManagerProvider` is only ever referenced within this same
+// file — `grep -rln "offlineManagerProvider" lib/` returns only
+// `offline_manager.dart` itself. No screen, widget, or provider
+// outside this file watches or reads it.
+//
+// The live app handles offline state via:
+//   - `connectivity_service.dart` (`isOnlineProvider`) for connectivity
+//   - Drift-based optimistic mutations in `optimistic_actions.dart`
+//   - `supabase_realtime_service.dart` for live invalidation when
+//     connectivity is restored
+//
+// Nothing else in this file is load-bearing — it imports
+// `family_graph_repository.dart`, `graph_cache.dart`, and
+// `supabase_data_source.dart`, all of which are themselves unused.
+// Safe to delete alongside those three files' eventual cleanup.
+//
 // Manages offline state tracking, mutation queuing, and 3-phase sync
 // protocol for the family graph. Extracted from family_graph_repository
 // into a dedicated class per the blueprint specification.

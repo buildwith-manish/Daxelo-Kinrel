@@ -2,6 +2,23 @@
 //
 // DAXELO KINREL — Graph Cache (V2.1 Data Layer)
 //
+// v99 STATUS: NOT CURRENTLY USED in production. The `GraphCache` class
+// IS instantiated — but only inside `graphCacheProvider` (defined in
+// this same file). `graphCacheProvider` is only ever referenced by
+// `offline_manager.dart` (which itself has zero production consumers
+// outside its own file). No screen, widget, or provider outside this
+// closed chain reads it.
+//
+// The live graph caching is handled by `FamilyGraphNotifier`'s
+// in-memory `_cache` map in `family_graph_provider.dart`, plus the
+// Drift-based optimistic cache in `lib/core/family/optimistic_actions.dart`
+// and `lib/core/database/app_database.dart`. This file's
+// SharedPreferences-based caching is a parallel, unused system.
+//
+// Nothing else in this file is load-bearing. Safe to delete alongside
+// `family_graph_repository.dart` and `supabase_data_source.dart`'s
+// eventual cleanup.
+//
 // Offline cache with SharedPreferences. Serializes graph state to local
 // storage with size limits, TTL-based invalidation, and a 3-phase
 // sync protocol for offline-first operation.
