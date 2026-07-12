@@ -556,6 +556,18 @@ Future<Person> createPersonOptimistic({
   /// When set, the Person is "claimed" by this user — shows in Members,
   /// no "Pending" badge, enables viewer-perspective kinship.
   String? linkedUserId,
+  /// v94 (EDGE BUG FIX): When false, skips clearing the graph cache +
+  /// invalidating familyGraphProvider during Person creation. This is
+  /// critical for the compound add-member mutation (Person + Relationship)
+  /// — if the graph refreshes between the Person INSERT and the
+  /// Relationship INSERT, the UI may render a Person-only intermediate
+  /// state and the edge may be missed by a stale async response.
+  ///
+  /// Set this to false when the caller will create a relationship
+  /// immediately after and will perform ONE authoritative graph refresh
+  /// after the relationship succeeds. Default true preserves the
+  /// standalone-Person-creation behavior.
+  bool refreshGraph = true,
 }) async {
   // 1. Generate temp ID
   final tempId = 'pending_person_${DateTime.now().millisecondsSinceEpoch}';
@@ -603,14 +615,21 @@ Future<Person> createPersonOptimistic({
   ref.invalidate(familyMembersProvider(familyId));
   ref.invalidate(familyDetailProvider(familyId));
 
-  // ✅ RELEASE-READY FIX: invalidate graph provider + clear cache so
-  // the optimistic new member shows up in the family graph immediately.
-  // (See addRelationshipOptimistic for the full rationale.)
-  try {
-    FamilyGraphNotifier.clearCache(familyId);
-    ref.invalidate(familyGraphProvider(familyId));
-  } catch (e) {
-    debugPrint('[OPT-PERSON] Could not invalidate familyGraphProvider: $e');
+  // v94 (EDGE BUG FIX): Only clear the graph cache + invalidate the
+  // graph provider when this is a standalone Person creation (no
+  // relationship will follow). When `refreshGraph` is false, the
+  // caller is performing a compound Person+Relationship mutation and
+  // will perform ONE authoritative graph refresh after the
+  // Relationship INSERT succeeds. Refreshing here would cause the
+  // graph to render a Person-only intermediate state, and a stale
+  // async response could overwrite the later edge-containing state.
+  if (refreshGraph) {
+    try {
+      FamilyGraphNotifier.clearCache(familyId);
+      ref.invalidate(familyGraphProvider(familyId));
+    } catch (e) {
+      debugPrint('[OPT-PERSON] Could not invalidate familyGraphProvider: $e');
+    }
   }
 
   // 4. Fire real API call in background
@@ -628,6 +647,9 @@ Future<Person> createPersonOptimistic({
       birthYear: birthYear,
       isAnchor: isAnchor,
       linkedUserId: linkedUserId,
+      // v94: Propagate the refreshGraph flag so createPerson also skips
+      // the graph clear when this is part of a compound mutation.
+      refreshGraph: refreshGraph,
     );
 
     // 5. On success: remove pending entry and temp Drift row

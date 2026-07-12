@@ -293,6 +293,31 @@ class GraphLayoutService {
       personMap[p.id] = p;
     }
 
+    // v94 (EDGE BUG FIX): Debug-mode assertions to catch missing-endpoint
+    // edges before they reach the painter. If a relationship references a
+    // personId that's not in `persons`, the edge will be silently skipped
+    // by the layout (and the painter), resulting in an "orphan edge" that
+    // exists in the data but never renders. These assertions make the
+    // mismatch visible during development so it can be diagnosed.
+    assert(() {
+      final personIds = personMap.keys.toSet();
+      for (final rel in relationships) {
+        assert(
+          personIds.contains(rel.fromPersonId),
+          'GraphLayoutService: relationship ${rel.id} references '
+          'fromPersonId "${rel.fromPersonId}" which is not in the '
+          'persons list. The edge will be silently dropped.',
+        );
+        assert(
+          personIds.contains(rel.toPersonId),
+          'GraphLayoutService: relationship ${rel.id} references '
+          'toPersonId "${rel.toPersonId}" which is not in the '
+          'persons list. The edge will be silently dropped.',
+        );
+      }
+      return true;
+    }(), 'GraphLayoutService: edge endpoint mismatch detected');
+
     // Resolve the anchor person ID
     String anchor = anchorPersonId ?? '';
     if (!personMap.containsKey(anchor)) {

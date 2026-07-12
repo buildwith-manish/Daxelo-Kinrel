@@ -347,6 +347,14 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
   static final Map<String, FlatGraphResult> _cache = {};
   static const int _maxCacheSize = 5;
 
+  /// v94 (EDGE BUG FIX): Stale-request protection. Each `build()` call
+  /// increments this counter; when an async `_fetchGraph` completes, it
+  /// checks whether its revision is still the latest. If a newer fetch
+  /// has started, the older result is discarded — preventing a stale
+  /// Person-only response from overwriting a newer graph that already
+  /// contains the newly-created edge.
+  static final Map<String, int> _fetchRevision = {};
+
   /// v60: Add to cache with LRU eviction — removes oldest entry if
   /// the cache exceeds _maxCacheSize.
   static void _addToCache(String familyId, FlatGraphResult result) {
@@ -362,8 +370,12 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
   static void clearCache([String? familyId]) {
     if (familyId == null) {
       _cache.clear();
+      _fetchRevision.clear();
     } else {
       _cache.remove(familyId);
+      // NOTE: We do NOT reset _fetchRevision here — clearing the cache
+      // should NOT invalidate in-flight fetches. The revision counter
+      // is only bumped by build() so the latest fetch always wins.
     }
   }
 
@@ -390,14 +402,18 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
   ///   - The next server refetch will replace this optimistic entry
   ///     with the real server data (same content, just authoritative).
   ///
-  /// SAFETY:
-  ///   - No-op if no cache entry exists (the graph will just wait for
-  ///     the server refetch).
-  ///   - Idempotent: if the person is already in the cache (e.g. the
-  ///     user tapped "Add" twice quickly), the second call is a no-op.
-  ///   - The injected person entry uses the same field names as the
-  ///     Supabase RPC so FlatGraphResult.toPersonDataList() parses it
-  ///     correctly.
+  /// v94 (EDGE BUG FIX): This method previously had `if (cached == null)
+  /// return;` which made it a silent no-op whenever the cache had been
+  /// cleared — exactly the state left by `createRelationship`'s
+  /// `clearCache` call. The optimistic edge was NEVER injected in the
+  /// manual-add flow, so the UI depended entirely on the async refetch
+  /// winning a race against the Relationship INSERT commit. This is the
+  /// root cause of the "edge doesn't render" bug.
+  ///
+  /// The method now delegates to [upsertPersonAndEdge] which mutates the
+  /// CURRENT provider state (not just the cache) and is robust to a null
+  /// cache. Callers that have a notifier instance should call
+  /// [upsertPersonAndEdge] directly instead of this static method.
   static void injectOptimisticEdge({
     required String familyId,
     required String personId,
@@ -410,7 +426,16 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
   }) {
     final cached = _cache[familyId];
     if (cached == null) {
-      // No cache to update — the graph will refetch from server.
+      // v94: No longer a silent no-op. We can't mutate provider state
+      // from a static method (we don't have the notifier instance), so
+      // we log a warning. Callers that need guaranteed optimistic
+      // insertion should use the instance method [upsertPersonAndEdge]
+      // via `ref.read(familyGraphProvider(familyId).notifier)`.
+      debugPrint(
+        '[FamilyGraphNotifier] injectOptimisticEdge: cache is null for '
+        'family $familyId — optimistic edge NOT injected. Use '
+        'upsertPersonAndEdge() for guaranteed state mutation.',
+      );
       return;
     }
 
@@ -454,12 +479,128 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       'labelBtoA': null,
     });
 
-    _cache[familyId] = FlatGraphResult(
+    final updated = FlatGraphResult(
       persons: newPersons,
       relationships: newRelationships,
       isTruncated: cached.isTruncated,
       totalCount: cached.totalCount,
     );
+    _addToCache(familyId, updated);
+  }
+
+  /// v94 (EDGE BUG FIX): Upsert a person + relationship edge into the
+  /// CURRENT provider state (not just the cache). This is the
+  /// guaranteed-to-work version of [injectOptimisticEdge] — it does NOT
+  /// silently no-op when the cache is null.
+  ///
+  /// This is the method callers should use after a successful
+  /// Person + Relationship compound mutation. It:
+  ///   1. Reads the current async state (which may be null during an
+  ///      in-flight refetch).
+  ///   2. If state exists, upserts the person + edge into a COPY and
+  ///      calls `state = AsyncData(updated)`. This triggers Riverpod
+  ///      to rebuild dependents immediately — the edge appears in the
+  ///      graph BEFORE the authoritative refetch lands.
+  ///   3. If state is null/loading/error, falls back to mutating the
+  ///      cache (if it exists) and invalidating the layout provider so
+  ///      the next build picks up the optimistic data.
+  ///   4. Always invalidates `graphLayoutProvider(familyId)` so the
+  ///      layout recomputes with the new edge.
+  ///
+  /// This method is safe to call from any context that has the notifier
+  /// instance via `ref.read(familyGraphProvider(familyId).notifier)`.
+  void upsertPersonAndEdge({
+    required String personId,
+    required String personName,
+    String? gender,
+    required String relationshipKey,
+    required String targetPersonId,
+    String? photoUrl,
+    bool isDeceased = false,
+    String? customColorsJson,
+  }) {
+    final familyId = arg;
+    final current = state.valueOrNull;
+
+    if (current != null) {
+      // Upsert person (add if missing, else update).
+      final newPersons = List<Map<String, dynamic>>.from(current.persons);
+      final personIdx = newPersons.indexWhere((p) => p['id'] == personId);
+      final inferredGen = _inferGenerationIndex(relationshipKey);
+      final personEntry = <String, dynamic>{
+        'id': personId,
+        'name': personName,
+        'gender': gender,
+        'generationIndex': inferredGen,
+        'isAnchor': false,
+        'photoUrl': photoUrl,
+        'isDeceased': isDeceased,
+        'visibility': 'public',
+        'username': null,
+        'isViewer': false,
+      };
+      if (personIdx >= 0) {
+        newPersons[personIdx] = personEntry;
+      } else {
+        newPersons.add(personEntry);
+      }
+
+      // Upsert relationship by canonical pair (sorted from|to).
+      final newRelationships =
+          List<Map<String, dynamic>>.from(current.relationships);
+      final pair = [personId, targetPersonId]..sort();
+      final canonical = '${pair[0]}|${pair[1]}';
+      final relIdx = newRelationships.indexWhere((r) {
+        final from = r['fromPersonId']?.toString() ?? '';
+        final to = r['toPersonId']?.toString() ?? '';
+        final p = [from, to]..sort();
+        return '${p[0]}|${p[1]}' == canonical;
+      });
+      final relEntry = <String, dynamic>{
+        'id': 'optimistic_${personId}_$relationshipKey',
+        'fromPersonId': personId,
+        'toPersonId': targetPersonId,
+        'relationshipKey': relationshipKey,
+        'isPrivate': false,
+        'labelAtoB': null,
+        'labelBtoA': null,
+      };
+      if (relIdx >= 0) {
+        newRelationships[relIdx] = relEntry;
+      } else {
+        newRelationships.add(relEntry);
+      }
+
+      final updated = FlatGraphResult(
+        persons: newPersons,
+        relationships: newRelationships,
+        isTruncated: current.isTruncated,
+        totalCount: current.totalCount,
+      );
+      _addToCache(familyId, updated);
+      state = AsyncData(updated);
+    } else {
+      // State is null/loading/error — mutate cache if it exists.
+      final cached = _cache[familyId];
+      if (cached != null) {
+        injectOptimisticEdge(
+          familyId: familyId,
+          personId: personId,
+          personName: personName,
+          gender: gender,
+          relationshipKey: relationshipKey,
+          anchorPersonId: targetPersonId,
+          photoUrl: photoUrl,
+          isDeceased: isDeceased,
+        );
+      }
+      // If cache is also null, the next build() will fetch from
+      // Supabase and pick up the edge (which has already been INSERTed
+      // by the caller). We deliberately do NOT fabricate state here.
+    }
+
+    // Always invalidate the layout provider so positions recompute.
+    ref.invalidate(graphLayoutProvider(familyId));
   }
 
   /// v67 (BUG-12): Infers the generation index for a newly-added member
@@ -616,6 +757,16 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       return const FlatGraphResult(persons: [], relationships: []);
     }
 
+    // v94 (EDGE BUG FIX): Stale-request protection. Bump the revision
+    // counter at the START of this fetch. When the fetch completes, we
+    // check whether this revision is still the latest — if a newer
+    // fetch has started (e.g. from a realtime invalidation or a second
+    // add-member mutation), we discard this result so a stale
+    // Person-only response cannot overwrite a newer graph that already
+    // contains the edge.
+    final myRevision = (_fetchRevision[familyId] ?? 0) + 1;
+    _fetchRevision[familyId] = myRevision;
+
     try {
       // ── Step 1: Always fetch direct query first ──
       // Direct query is the source of truth — it always returns ALL
@@ -626,6 +777,12 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       if (directResult.persons.isEmpty) {
         debugPrint('[FamilyGraphNotifier] No members found in family $familyId');
         return const FlatGraphResult(persons: [], relationships: []);
+      }
+
+      // v94: Stale-check after the first async gap.
+      if (_fetchRevision[familyId] != myRevision) {
+        debugPrint('[FamilyGraphNotifier] Stale fetch (after direct) — discarding');
+        return state.valueOrNull ?? directResult;
       }
 
       // ── Step 2: Try viewer-aware RPC for perspective-resolved labels ──
@@ -645,38 +802,34 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
             },
           ).timeout(const Duration(seconds: 15));
 
+          // v94: Stale-check after the RPC async gap.
+          if (_fetchRevision[familyId] != myRevision) {
+            debugPrint('[FamilyGraphNotifier] Stale fetch (after RPC) — discarding');
+            return state.valueOrNull ?? directResult;
+          }
+
           final data = response as Map<String, dynamic>?;
           if (data != null && !data.containsKey('error')) {
             final rpcResult = FlatGraphResult.fromRpc(data);
 
-            // Verify the RPC returned at least as many persons as direct query.
-            final rpcBetterOrEqual =
-                rpcResult.persons.length >= directResult.persons.length;
-            if (rpcBetterOrEqual) {
-              // v73 FIX: The RPC filters by r."isActive" = true, which
-              // excludes freshly-created relationships that have
-              // isActive = null. This caused "LINKS 0" even when
-              // relationships existed in the DB. Fix: if the direct
-              // query found MORE relationships than the RPC, merge the
-              // direct query's relationships into the RPC result so no
-              // edges are silently dropped.
-              final mergedResult = rpcResult.relationships.length >=
-                      directResult.relationships.length
-                  ? rpcResult
-                  : FlatGraphResult(
-                      persons: rpcResult.persons,
-                      relationships: directResult.relationships,
-                      isTruncated: rpcResult.isTruncated,
-                      totalCount: rpcResult.totalCount,
-                    );
+            // v94 (EDGE BUG FIX): Replace count-based merge with
+            // ID/canonical-pair UNION merge. The previous count-based
+            // logic could silently drop the new edge if RPC and direct
+            // had equal relationship counts but different edge sets.
+            // The new merge takes the UNION of all edges by canonical
+            // pair key, preferring direct-query data when the RPC's
+            // edge has a null/unknown relationshipKey.
+            final mergedResult = _mergeGraphResults(
+              rpcResult: rpcResult,
+              directResult: directResult,
+            );
 
-              _addToCache(familyId, mergedResult);
-              debugPrint(
-                '[FamilyGraphNotifier] Viewer RPC: Loaded ${mergedResult.persons.length} persons, '
-                '${mergedResult.relationships.length} relationships for $familyId',
-              );
-              return mergedResult;
-            }
+            _addToCache(familyId, mergedResult);
+            debugPrint(
+              '[FamilyGraphNotifier] Viewer RPC: Loaded ${mergedResult.persons.length} persons, '
+              '${mergedResult.relationships.length} relationships for $familyId',
+            );
+            return mergedResult;
           }
         }
       } catch (rpcError) {
@@ -696,6 +849,75 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       debugPrint('[FamilyGraphNotifier] Unexpected error: $e');
       return _fallbackOrThrow(familyId, e);
     }
+  }
+
+  /// v94 (EDGE BUG FIX): Union-merge RPC and direct-query graph results
+  /// by ID / canonical edge pair — NOT by relationship count.
+  ///
+  /// The previous count-based merge could silently drop the new edge if
+  /// RPC and direct had equal relationship counts but different edge
+  /// sets (e.g. RPC missing the new edge but having a phantom/duplicate
+  /// elsewhere). This method takes the UNION of:
+  ///   • persons — by Person ID (RPC wins ties for label richness)
+  ///   • relationships — by canonical pair key (direct wins when RPC's
+  ///     relationshipKey is null/unknown)
+  /// so no edge is ever silently dropped.
+  FlatGraphResult _mergeGraphResults({
+    required FlatGraphResult rpcResult,
+    required FlatGraphResult directResult,
+  }) {
+    // ── Merge persons by ID (union) ──
+    final personsById = <String, Map<String, dynamic>>{};
+    // Direct first (source of truth for existence), then RPC overrides
+    // for label richness (RPC carries viewer-perspective labels).
+    for (final p in directResult.persons) {
+      final id = p['id']?.toString();
+      if (id != null && id.isNotEmpty) personsById[id] = p;
+    }
+    for (final p in rpcResult.persons) {
+      final id = p['id']?.toString();
+      if (id != null && id.isNotEmpty) {
+        // RPC may carry richer viewer-perspective fields — prefer it
+        // for label fields, but keep direct's existence authority.
+        personsById[id] = {...personsById[id] ?? {}, ...p};
+      }
+    }
+
+    // ── Merge relationships by canonical pair (union) ──
+    final relsByPair = <String, Map<String, dynamic>>{};
+    for (final edge in rpcResult.relationships) {
+      final key = _canonicalEdgeKey(edge);
+      if (key.isNotEmpty) relsByPair[key] = edge;
+    }
+    for (final edge in directResult.relationships) {
+      final key = _canonicalEdgeKey(edge);
+      if (key.isEmpty) continue;
+      final existing = relsByPair[key];
+      if (existing == null ||
+          existing['relationshipKey'] == null ||
+          existing['relationshipKey'] == 'unknown') {
+        // Direct wins when RPC's edge is missing/stale/unknown.
+        relsByPair[key] = edge;
+      }
+    }
+
+    return FlatGraphResult(
+      persons: personsById.values.toList(),
+      relationships: relsByPair.values.toList(),
+      isTruncated: rpcResult.isTruncated || directResult.isTruncated,
+      totalCount: personsById.length,
+    );
+  }
+
+  /// v94: Canonical edge pair key — sorted (from, to) joined by '|'.
+  /// Used for union-merging RPC + direct relationship sets so no edge
+  /// is silently dropped due to count-based selection.
+  static String _canonicalEdgeKey(Map<String, dynamic> edge) {
+    final from = edge['fromPersonId']?.toString() ?? '';
+    final to = edge['toPersonId']?.toString() ?? '';
+    if (from.isEmpty || to.isEmpty) return '';
+    final ids = [from, to]..sort();
+    return '${ids[0]}|${ids[1]}';
   }
 
   /// Fetches graph data by directly querying Person and Relationship tables.

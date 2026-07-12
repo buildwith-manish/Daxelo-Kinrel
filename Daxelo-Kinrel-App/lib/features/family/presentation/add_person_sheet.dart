@@ -955,6 +955,18 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           }
         }
 
+        // v94 (EDGE BUG FIX): Compute the relationship key BEFORE creating
+        // the Person so we can decide whether to refresh the graph during
+        // Person creation. When a relationship WILL be created (non-first
+        // member + relKey != null), we pass `refreshGraph: false` to
+        // createPersonOptimistic so the graph does NOT refresh into a
+        // Person-only intermediate state. The graph refresh happens ONCE
+        // after the Relationship INSERT succeeds, via an awaited
+        // authoritative refresh + optimistic upsert.
+        final preComputedRelKey = _effectiveRelationshipKey;
+        final willCreateRelationship =
+            !isFirstMember && preComputedRelKey != null;
+
         result = await createPersonOptimistic(
           ref: ref,
           familyId: widget.familyId,
@@ -974,6 +986,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               : _gotraController.text.trim(),
           isDeceased: _isDeceased,
           isAnchor: isFirstMember, // ← v20/v38: First member is always the anchor
+          // v94: Don't refresh the graph between Person and Relationship
+          // writes — the compound mutation will refresh once after the
+          // edge is created.
+          refreshGraph: !willCreateRelationship,
         );
 
         // ═══════════════════════════════════════════════════════════════
@@ -1024,13 +1040,20 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           await _uploadPickedPhoto(result.id);
         }
 
-        final relKey = _effectiveRelationshipKey;
+        final relKey = preComputedRelKey;
+
+        // v94 (EDGE BUG FIX): Track whether the relationship creation
+        // failed so we can suppress the success flow (confetti,
+        // "Welcome to the family") when the compound mutation is
+        // incomplete. The Person was created but the edge wasn't —
+        // showing success would mislead the user.
+        var relationshipFailed = false;
 
         if (relKey != null && !_isEditMode && result != null) {
           try {
             final client = ref.read(supabaseProvider);
             if (client != null && client.auth.currentSession != null) {
-              debugPrint('[ADD-MEMBER] v50: Creating relationship with key=$relKey');
+              debugPrint('[ADD-MEMBER] v94: Creating relationship with key=$relKey');
 
               // v50 FIX: Use widget.anchorPerson if provided (user selected
               // a specific person to link to). Otherwise, resolve from DB.
@@ -1039,7 +1062,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               if (widget.anchorPerson != null) {
                 // User explicitly selected a target person
                 linkToPersonId = widget.anchorPerson!.id;
-                debugPrint('[ADD-MEMBER] v50: Using provided anchorPerson: ${widget.anchorPerson!.name} ($linkToPersonId)');
+                debugPrint('[ADD-MEMBER] v94: Using provided anchorPerson: ${widget.anchorPerson!.name} ($linkToPersonId)');
               } else {
                 // Query the Family to get anchorPersonId
                 final familyData = await client
@@ -1054,7 +1077,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 // If no anchorPersonId, query ALL existing persons (not just first)
                 // and pick the anchor (isAnchor=true) or the oldest by createdAt
                 if (linkToPersonId == null || linkToPersonId.isEmpty || linkToPersonId == result.id) {
-                  debugPrint('[ADD-MEMBER] v50: No valid anchorPersonId, querying existing members...');
+                  debugPrint('[ADD-MEMBER] v94: No valid anchorPersonId, querying existing members...');
                   final existingPersons = await client
                       .from('Person')
                       .select('id, name, gender, "isAnchor"')
@@ -1072,10 +1095,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                       orElse: () => existingPersons.first,
                     );
                     linkToPersonId = anchor['id'] as String?;
-                    debugPrint('[ADD-MEMBER] v50: Found link target: ${anchor['name']} ($linkToPersonId)');
+                    debugPrint('[ADD-MEMBER] v94: Found link target: ${anchor['name']} ($linkToPersonId)');
                   }
                 } else {
-                  debugPrint('[ADD-MEMBER] v50: Using family anchorPersonId: $linkToPersonId');
+                  debugPrint('[ADD-MEMBER] v94: Using family anchorPersonId: $linkToPersonId');
                 }
               }
 
@@ -1086,13 +1109,15 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 // The relationship must be stored as:
                 //   from: newPerson (result.id), to: anchor (linkToPersonId)
                 //   key: relKey (e.g. 'brother' = newPerson is brother of anchor)
-                //
-                // Previously this was reversed (from: anchor, to: newPerson),
-                // which stored "anchor IS the brother of newPerson" — the
-                // opposite of what the user selected. This caused the
-                // RelationshipEngine BFS to resolve the wrong direction,
-                // resulting in missing labels and incorrect colors.
-                debugPrint('[ADD-MEMBER] v50: Creating relationship: from=${result.id} (new) to=$linkToPersonId (anchor) key=$relKey');
+                debugPrint('[ADD-MEMBER] v94: Creating relationship: from=${result.id} (new) to=$linkToPersonId (anchor) key=$relKey');
+
+                // v94 (EDGE BUG FIX): Create the relationship with
+                // `refreshGraph: false` — we do NOT want createRelationship
+                // to clear the graph cache + invalidate the provider here.
+                // The compound mutation will do ONE authoritative refresh
+                // after this returns, and the optimistic upsert below
+                // ensures the edge appears immediately in the provider
+                // state (not just the cache).
                 await createRelationship(
                   ref: ref,
                   familyId: widget.familyId,
@@ -1109,51 +1134,98 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                         }
                       : null,
                   customDisplayName: _customKinshipName,
+                  // v94: Do NOT refresh the graph inside createRelationship
+                  // — the compound mutation handles it below.
+                  refreshGraph: false,
                 );
-                debugPrint('[ADD-MEMBER] v50: ✅ Relationship created successfully');
+                debugPrint('[ADD-MEMBER] v94: ✅ Relationship created successfully');
 
-                // v64 (BUG-1 FIX): Optimistically inject the new person +
-                // relationship into the local FlatGraphResult cache BEFORE
-                // invalidating the provider. This ensures the very next
-                // paint assigns the correct KinshipEdgeCategory color
-                // (parent=blue, child=pink, etc.) instead of falling
-                // through to the 'extended' slate-gray fallback during
-                // the ~200–800ms server refetch window.
-                //
-                // The injected entry is replaced by the authoritative
-                // server data when familyGraphProvider's refetch lands.
-                FamilyGraphNotifier.injectOptimisticEdge(
-                  familyId: widget.familyId,
-                  personId: result.id,
-                  personName: result.name,
-                  gender: result.gender,
-                  relationshipKey: relKey,
-                  anchorPersonId: linkToPersonId,
-                  photoUrl: result.photoUrl,
-                  isDeceased: result.isDeceased,
-                );
+                // v94 (EDGE BUG FIX): Optimistically upsert the person +
+                // edge into the CURRENT provider state via the notifier
+                // instance method. Unlike the old injectOptimisticEdge
+                // (which silently no-op'd when cache was null), this
+                // mutates `state = AsyncData(updated)` directly so
+                // Riverpod rebuilds dependents IMMEDIATELY. The edge
+                // appears in the graph BEFORE the authoritative refetch
+                // lands, and is robust to a null cache.
+                try {
+                  ref
+                      .read(familyGraphProvider(widget.familyId).notifier)
+                      .upsertPersonAndEdge(
+                        personId: result.id,
+                        personName: result.name,
+                        gender: result.gender,
+                        relationshipKey: relKey,
+                        targetPersonId: linkToPersonId,
+                        photoUrl: result.photoUrl,
+                        isDeceased: result.isDeceased,
+                      );
+                } catch (e) {
+                  debugPrint('[ADD-MEMBER] v94: Optimistic upsert failed (non-fatal — refetch will recover): $e');
+                }
 
-                // Invalidate graph so the new edge appears immediately.
-                // The invalidate triggers a refetch, but Riverpod serves
-                // the optimistic cache entry above while the refetch is
-                // in-flight, so the user sees the correct color instantly.
-                FamilyGraphNotifier.clearCache(widget.familyId);
-                ref.invalidate(familyGraphProvider(widget.familyId));
+                // v94 (EDGE BUG FIX): Perform ONE awaited authoritative
+                // graph refresh. We await `ref.refresh(...).future` so we
+                // can verify the new edge is present in the refreshed
+                // FlatGraphResult. If it's missing (e.g. eventual-
+                // consistency delay), we clear the cache + invalidate
+                // again so the next read hits Supabase fresh.
+                try {
+                  FamilyGraphNotifier.clearCache(widget.familyId);
+                  final refreshedGraph = await ref.refresh(
+                    familyGraphProvider(widget.familyId).future,
+                  );
+                  // Verify the edge exists in the refreshed graph.
+                  final edgeExists = refreshedGraph.relationships.any((r) {
+                    final from = r['fromPersonId']?.toString();
+                    final to = r['toPersonId']?.toString();
+                    return (from == result.id && to == linkToPersonId) ||
+                        (from == linkToPersonId && to == result.id);
+                  });
+                  if (edgeExists) {
+                    debugPrint('[ADD-MEMBER] v94: ✅ Edge verified in refreshed graph');
+                  } else {
+                    // The edge wasn't in the refreshed graph. The INSERT
+                    // succeeded (createRelationship would have thrown
+                    // otherwise), so this is likely an eventual-
+                    // consistency delay. Invalidate once more so the
+                    // next read picks it up. The optimistic upsert above
+                    // keeps the edge visible in the interim.
+                    debugPrint('[ADD-MEMBER] v94: ⚠️ Edge not yet in refreshed graph — invalidating for retry');
+                    FamilyGraphNotifier.clearCache(widget.familyId);
+                    ref.invalidate(familyGraphProvider(widget.familyId));
+                  }
+                } catch (e) {
+                  debugPrint('[ADD-MEMBER] v94: Authoritative refresh failed (non-fatal — optimistic state holds): $e');
+                  // The optimistic upsert above keeps the edge visible.
+                  // Invalidate so the next read retries.
+                  FamilyGraphNotifier.clearCache(widget.familyId);
+                  ref.invalidate(familyGraphProvider(widget.familyId));
+                }
               } else {
-                debugPrint('[ADD-MEMBER] v50: ⚠️ No existing member found to link to. '
+                debugPrint('[ADD-MEMBER] v94: ⚠️ No existing member found to link to. '
                     'This is the first member — no relationship needed.');
               }
             } else {
-              debugPrint('[ADD-MEMBER] v50: ⚠️ Supabase client or session not available');
+              debugPrint('[ADD-MEMBER] v94: ⚠️ Supabase client or session not available');
             }
           } catch (e, stackTrace) {
-            debugPrint('[ADD-MEMBER] v50: ❌ Relationship creation failed: $e');
-            debugPrint('[ADD-MEMBER] v50: Stack: $stackTrace');
+            debugPrint('[ADD-MEMBER] v94: ❌ Relationship creation failed: $e');
+            debugPrint('[ADD-MEMBER] v94: Stack: $stackTrace');
+            relationshipFailed = true;
             if (mounted) {
-              // v75 FIX: Show a MORE prominent error and DON'T close the sheet.
-              // The user needs to know the relationship wasn't saved so they
-              // can retry. Previously, the confetti + success message fired
-              // at the same time, hiding the error.
+              // v94: Relationship creation failed AFTER the Person was
+              // created. This leaves an orphan node. We show a clear
+              // error and DO NOT close the sheet / fire confetti so the
+              // user knows the relationship didn't save. The Person row
+              // remains in Supabase — the user can retry the
+              // relationship from the person detail sheet.
+              //
+              // TODO(compensating-rollback): For a true atomic mutation,
+              // implement an `add_person_with_relationship` Supabase RPC
+              // that creates Person + Relationship in one transaction.
+              // For now, the Person is left as an orphan that the user
+              // can connect later via "Add Relationship" in person detail.
               context.showSnackBar(
                 '⚠️ Member added but relationship NOT saved: $e\n'
                 'Tap the member to add a relationship manually.',
@@ -1163,10 +1235,31 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           }
         } else if (relKey == null) {
           debugPrint('[ADD-MEMBER] v7: No relationship selected — skipping relationship creation');
+          // v94: If we skipped the graph refresh during Person creation
+          // (because we expected a relationship), but no relationship
+          // was selected, refresh the graph now so the new node appears.
+          if (willCreateRelationship) {
+            // willCreateRelationship was true but relKey is now null —
+            // shouldn't happen, but guard against it.
+            FamilyGraphNotifier.clearCache(widget.familyId);
+            ref.invalidate(familyGraphProvider(widget.familyId));
+          }
         }
       }
 
       if (!mounted) return;
+
+      // v94 (EDGE BUG FIX): If the relationship creation failed, do NOT
+      // fire confetti or show "Welcome to the family" — the compound
+      // mutation is incomplete. The error snackbar was already shown in
+      // the catch block above. Keep the sheet open so the user can
+      // retry or dismiss manually.
+      if (relationshipFailed) {
+        if (mounted) {
+          setState(() => _isSubmitting = false);
+        }
+        return;
+      }
 
       // CRITICAL ANR FIX: Consolidated success state updates into single setState
       // Multiple setState calls in sequence caused cascading rebuilds

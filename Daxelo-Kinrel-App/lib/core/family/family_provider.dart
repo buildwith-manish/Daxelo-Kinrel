@@ -1410,6 +1410,11 @@ Future<Person> createPerson({
   /// and can be used for viewer-perspective kinship calculations.
   /// The create family flow passes this for the creator's own Person.
   String? linkedUserId,
+  /// v94 (EDGE BUG FIX): When false, skips clearing the graph cache +
+  /// invalidating familyGraphProvider. Used by createPersonOptimistic
+  /// when a relationship will follow immediately — prevents a
+  /// Person-only intermediate graph state. Default true.
+  bool refreshGraph = true,
 }) async {
   final client = ref.read(supabaseProvider);
   if (client == null) {
@@ -1630,12 +1635,17 @@ Future<Person> createPerson({
   ref.invalidate(familyMembersProvider(familyId));
   ref.invalidate(familyDetailProvider(familyId));
 
-  // Clear the graph cache + invalidate so the new node appears instantly.
-  try {
-    FamilyGraphNotifier.clearCache(familyId);
-    ref.invalidate(familyGraphProvider(familyId));
-  } catch (e) {
-    debugPrint('[createPerson] graph provider invalidate failed: $e');
+  // v94 (EDGE BUG FIX): Only clear the graph cache when this is a
+  // standalone Person creation. When `refreshGraph` is false, the
+  // caller is performing a compound Person+Relationship mutation and
+  // will refresh the graph once after the relationship succeeds.
+  if (refreshGraph) {
+    try {
+      FamilyGraphNotifier.clearCache(familyId);
+      ref.invalidate(familyGraphProvider(familyId));
+    } catch (e) {
+      debugPrint('[createPerson] graph provider invalidate failed: $e');
+    }
   }
 
   // Invalidate the Isar cache for this family.
@@ -2053,6 +2063,11 @@ Future<FamilyRelationship> createRelationship({
   required String relationshipKey,
   Map<String, dynamic>? customColors,
   String? customDisplayName,
+  /// v94 (EDGE BUG FIX): When false, skips clearing the graph cache +
+  /// invalidating familyGraphProvider. The caller (compound mutation)
+  /// will perform ONE authoritative graph refresh after this returns.
+  /// Default true preserves standalone-relationship-creation behavior.
+  bool refreshGraph = true,
 }) async {
   final client = ref.read(supabaseProvider);
   if (client == null) {
@@ -2183,18 +2198,51 @@ Future<FamilyRelationship> createRelationship({
     rethrow;
   }
 
-  // Don't throw if response is null — the INSERT likely succeeded
-  // but Supabase didn't return the row (timeout on SELECT).
+  // v94 (EDGE BUG FIX): Do NOT fabricate a success response when the
+  // INSERT returns null. The previous "assuming success" pattern masked
+  // real failures (RLS denials that returned empty, network hiccups,
+  // Supabase eventual-consistency delays) — the user saw "Welcome to
+  // the family!" but no edge row existed in the DB, so the edge never
+  // rendered. Now we verify the row is readable via a targeted SELECT;
+  // if it's not, we throw so the caller's error handling fires.
   if (response == null) {
-    debugPrint('[CREATE-REL] ⚠️ Forward INSERT returned null — assuming success');
-    response = {
-      'id': forwardRelId,
-      'familyId': familyId,
-      'fromPersonId': fromPersonId,
-      'toPersonId': toPersonId,
-      'relationshipKey': relationshipKey,
-      'isActive': true,
-    };
+    debugPrint(
+        '[CREATE-REL] ⚠️ Forward INSERT returned null — verifying via SELECT');
+    try {
+      final verified = await client
+          .from(_kRelationshipTable)
+          .select(
+            'id, "familyId", "fromPersonId", "toPersonId", '
+            '"relationshipKey", "relationshipType", "isActive"',
+          )
+          .eq('id', forwardRelId)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 10));
+      if (verified != null) {
+        debugPrint('[CREATE-REL] ✅ Verified relationship row exists via SELECT');
+        response = verified;
+      } else {
+        // The INSERT did not persist a readable row. This is a real
+        // failure — throw so the caller shows an error instead of
+        // silently leaving an orphan node.
+        throw Exception(
+          'Relationship creation failed: the INSERT did not persist a '
+          'readable row (id=$forwardRelId). This may be an RLS denial '
+          'or a database constraint violation. The Person was created '
+          'but no edge exists.',
+        );
+      }
+    } on PostgrestException catch (e) {
+      debugPrint('[CREATE-REL] ❌ Verification SELECT failed: ${e.message}');
+      throw Exception(
+        'Relationship creation could not be verified: ${e.message}',
+      );
+    } on TimeoutException {
+      throw Exception(
+        'Relationship creation timed out during verification. '
+        'The edge may or may not exist — please refresh the graph.',
+      );
+    }
   }
   debugPrint('[CREATE-REL] ✅ Forward relationship created with id: ${response['id']}');
 
@@ -2257,20 +2305,18 @@ Future<FamilyRelationship> createRelationship({
   ref.invalidate(familyRelationshipsProvider(familyId));
   // familyDetailProvider auto-rebuilds via ref.watch on familyRelationshipsProvider
 
-  // ✅ RELEASE-READY FIX: invalidate the graph provider so the family
-  // graph re-fetches immediately and the new edge becomes visible.
-  // Previously, only familyRelationshipsProvider was invalidated — the
-  // familyGraphProvider kept serving the stale cached FlatGraphResult
-  // (cached at family_graph_provider.dart line 244 in `_cache[familyId]`),
-  // so the new edge never appeared until something else (a manual
-  // pull-to-refresh, app restart, or another provider invalidation)
-  // caused a re-fetch.
-  //
-  // We clear the in-memory cache first (so the next read is forced to
-  // hit Supabase), then invalidate the provider (so any active widget
-  // watchers rebuild).
-  FamilyGraphNotifier.clearCache(familyId);
-  ref.invalidate(familyGraphProvider(familyId));
+  // v94 (EDGE BUG FIX): Only clear the graph cache + invalidate the
+  // graph provider when this is a standalone relationship creation.
+  // When `refreshGraph` is false, the caller is performing a compound
+  // Person+Relationship mutation and will perform ONE authoritative
+  // graph refresh + optimistic upsert after this returns. Clearing
+  // here would destroy the cache that the caller needs for the
+  // optimistic upsert, and would trigger a Person-only intermediate
+  // refetch that could race with the edge-containing state.
+  if (refreshGraph) {
+    FamilyGraphNotifier.clearCache(familyId);
+    ref.invalidate(familyGraphProvider(familyId));
+  }
 
   // Invalidate the Isar cache for this family
   if (IsarDatabase.isInitialized) {
