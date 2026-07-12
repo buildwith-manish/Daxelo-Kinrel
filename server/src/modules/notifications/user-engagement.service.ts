@@ -51,12 +51,27 @@ export class UserEngagementService {
    * the user's local timezone (we record the hour-of-day as the user
    * experienced it, not UTC).
    *
+   * P1.3: This is a NO-OP for users who have NOT opted in to smart
+   * notification timing (notificationTimingOptIn = false, the default).
+   * No behavioral data is collected without explicit consent.
+   *
    * Idempotent in the sense that calling it twice with the same timestamp
    * increments the histogram twice — but the scheduler only calls this when
    * a real engagement event happens, so duplicates are not a concern.
    */
   async recordEngagement(userId: string, when: Date = new Date()): Promise<void> {
     try {
+      // P1.3: Opt-in guard — do NOT collect engagement samples for
+      // non-opted-in users. This is the privacy gate required by
+      // Vision §2.9 MEDIUM and Guardrail 2.
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { notificationTimingOptIn: true },
+      });
+      if (!user?.notificationTimingOptIn) {
+        // User has not opted in — return immediately without recording.
+        return;
+      }
       // We use the LOCAL hour-of-day and day-of-week. The `when` date should
       // already be in the user's TZ (callers should pass `new Date()` which
       // is server-local — if the server runs in UTC, the histogram is in UTC
@@ -133,9 +148,20 @@ export class UserEngagementService {
   async getBestSendHour(userId: string, fallbackHour: number = 8): Promise<{
     hour: number;
     confidence: number; // 0..1 — how much we trust this hour
-    source: 'profile' | 'fallback_insufficient_samples' | 'fallback_stale' | 'fallback_no_profile';
+    source: 'profile' | 'fallback_insufficient_samples' | 'fallback_stale' | 'fallback_no_profile' | 'fallback_opted_out';
     samples: number;
   }> {
+    // P1.3: Opt-in guard — if the user has not opted in to smart
+    // notification timing, return the fallback hour immediately.
+    // No ML lookup, no histogram read. This is the privacy gate.
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { notificationTimingOptIn: true },
+    });
+    if (!user?.notificationTimingOptIn) {
+      return { hour: fallbackHour, confidence: 0, source: 'fallback_opted_out', samples: 0 };
+    }
+
     const existing = await this.prisma.userEngagementProfile.findUnique({
       where: { userId },
     });
@@ -215,5 +241,55 @@ export class UserEngagementService {
       source: 'profile',
       samples: existing.totalSamples,
     };
+  }
+
+  /**
+   * P1.3: Get the user's engagement profile for the transparency screen.
+   * Returns the raw histogram data so the user can see exactly what the ML
+   * has learned. Returns null if no profile exists.
+   */
+  async getEngagementProfile(userId: string): Promise<{
+    hourHistogram: number[];
+    weekdayHistogram: number[];
+    totalSamples: number;
+    lastEngagedAt: Date | null;
+    updatedAt: Date;
+  } | null> {
+    const existing = await this.prisma.userEngagementProfile.findUnique({
+      where: { userId },
+    });
+    if (!existing) return null;
+
+    let hours: number[];
+    let weekdays: number[];
+    try {
+      hours = JSON.parse(existing.hourHistogram);
+      weekdays = JSON.parse(existing.weekdayHistogram);
+      if (!Array.isArray(hours) || hours.length !== 24) hours = new Array(24).fill(0);
+      if (!Array.isArray(weekdays) || weekdays.length !== 7) weekdays = new Array(7).fill(0);
+    } catch {
+      hours = new Array(24).fill(0);
+      weekdays = new Array(7).fill(0);
+    }
+
+    return {
+      hourHistogram: hours,
+      weekdayHistogram: weekdays,
+      totalSamples: existing.totalSamples,
+      lastEngagedAt: existing.lastEngagedAt,
+      updatedAt: existing.updatedAt,
+    };
+  }
+
+  /**
+   * P1.3: Delete the user's engagement histogram.
+   * Called when the user opts OUT of smart notification timing.
+   * This is the "right to delete" per GDPR-aligned behavioral data processing.
+   */
+  async deleteEngagementProfile(userId: string): Promise<void> {
+    await this.prisma.userEngagementProfile.deleteMany({
+      where: { userId },
+    });
+    this.logger.log(`Deleted engagement profile for user ${userId} (opt-out)`);
   }
 }

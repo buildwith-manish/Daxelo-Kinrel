@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/extensions/context_extensions.dart';
+import '../../../core/networking/dio_client.dart' show dioProvider;
 import '../data/profile_provider.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
@@ -39,6 +40,10 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
   TimeOfDay _endTime = const TimeOfDay(hour: 8, minute: 0);
   bool _isSaving = false;
 
+  // P1.3: Smart notification timing opt-in (default OFF)
+  bool _smartTimingOptIn = false;
+  bool _smartTimingLoading = true;
+
   static const String _keyEnabled = 'enabled';
   static const String _keyStartHour = 'startHour';
   static const String _keyStartMinute = 'startMinute';
@@ -49,6 +54,65 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
   void initState() {
     super.initState();
     _loadFromPrefs();
+    _loadSmartTimingOptIn();
+  }
+
+  // P1.3: Fetch the user's smart notification timing opt-in status.
+  Future<void> _loadSmartTimingOptIn() async {
+    try {
+      final dio = ref.read(dioProvider);
+      final r = await dio.get('/api/notifications/timing-opt-in');
+      if (mounted) {
+        setState(() {
+          _smartTimingOptIn = (r.data['optIn'] as bool?) ?? false;
+          _smartTimingLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _smartTimingLoading = false);
+    }
+  }
+
+  // P1.3: Toggle smart notification timing with a confirmation dialog.
+  Future<void> _toggleSmartTiming(bool value) async {
+    if (value) {
+      // Show confirmation dialog before opting in.
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: _cardBg,
+          title: const Text('Smart notification timing',
+              style: TextStyle(color: _textPrimary)),
+          content: const Text(
+            'Kinrel will learn when you are most likely to engage with '
+            'notifications and schedule non-urgent ones accordingly. '
+            'Your engagement data is stored securely. You can turn this '
+            'off at any time, and your learned data will be deleted.',
+            style: TextStyle(color: _textSecondary, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel', style: TextStyle(color: _textDim)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Enable', style: TextStyle(color: _orange)),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
+    setState(() => _smartTimingOptIn = value);
+    try {
+      final dio = ref.read(dioProvider);
+      await dio.patch('/api/notifications/timing-opt-in', data: {'optIn': value});
+    } catch (_) {
+      // Revert on failure
+      if (mounted) setState(() => _smartTimingOptIn = !value);
+    }
   }
 
   Future<void> _loadFromPrefs() async {
@@ -417,6 +481,92 @@ class _QuietHoursScreenState extends ConsumerState<QuietHoursScreen> {
                           letterSpacing: 0.3,
                         ),
                       ),
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // ── P1.3: Smart Notification Timing ──────────────────────────
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _cardBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _borderSubtle),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: _orange.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.insights_outlined,
+                          color: _orange,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Smart notification timing',
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: _textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'When on, Kinrel learns when you are most likely '
+                              'to engage and schedules non-urgent notifications '
+                              'accordingly. When off, notifications use the time '
+                              'you set above.',
+                              style: const TextStyle(
+                                color: _textDim,
+                                fontSize: 12,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Semantics(
+                        label:
+                            'Smart notification timing. When on, Kinrel schedules '
+                            'non-urgent notifications at your most active hours. '
+                            'Currently ${_smartTimingOptIn ? 'on' : 'off'}.',
+                        child: Switch(
+                          value: _smartTimingOptIn,
+                          onChanged: _smartTimingLoading ? null : _toggleSmartTiming,
+                          activeColor: _orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_smartTimingOptIn) ...[
+                    const SizedBox(height: 12),
+                    TextButton.icon(
+                      onPressed: () => context.push('/profile/notifications/learning-profile'),
+                      icon: const Icon(Icons.visibility_outlined,
+                          color: _orange, size: 16),
+                      label: const Text('What has Kinrel learned?',
+                          style: TextStyle(color: _orange, fontSize: 13)),
+                    ),
+                  ],
+                ],
               ),
             ),
 

@@ -122,6 +122,10 @@ model User {
   preferredLanguage String    @default("en")
   role              String    @default("user") // user, admin, agent
   phone             String?
+  // P1.3: ML-driven notification timing opt-in. Default OFF — no behavioral
+  // data collection without explicit consent. When OFF, getBestSendHour
+  // returns the fallback hour immediately and recordEngagement is a no-op.
+  notificationTimingOptIn Boolean @default(false)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
