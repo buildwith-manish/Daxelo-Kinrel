@@ -114,21 +114,23 @@ export class AddictivenessCronService {
   }
 
   // ────────────────────────────────────────────────────────────────────────
-  // A-3 Family Quests — Monday 7am IST weekly
+  // A-3 Family Suggestions — Monday 7am IST weekly rotation
+  // P1.2: Renamed from "quest generation" to "suggestion rotation".
+  // Suggestions do not expire — old ones are marked 'rotated'.
   // IST = UTC + 5:30, so 7am IST Monday = 1:30am UTC Monday → '30 1 * * 1'
   // ────────────────────────────────────────────────────────────────────────
   @Cron('30 1 * * 1')
   async weeklyQuestGeneration(): Promise<void> {
     const start = Date.now();
     try {
-      this.logger.log('🎯 Monday 7am IST cron: generating weekly quests for all families');
+      this.logger.log('🎯 Monday 7am IST cron: generating weekly suggestions for all families');
       const result = await this.familyQuestService.generateQuestsForAllFamilies();
       this.logger.log(
-        `✅ Quest generation done in ${Date.now() - start}ms — families=${result.familiesProcessed}, quests=${result.totalQuestsGenerated}, errors=${result.errors.length}`,
+        `✅ Suggestion rotation done in ${Date.now() - start}ms — families=${result.familiesProcessed}, suggestions=${result.totalQuestsGenerated}, errors=${result.errors.length}`,
       );
     } catch (err) {
       this.logger.error(
-        `💥 Quest generation cron failed: ${err instanceof Error ? err.message : err}`,
+        `💥 Suggestion rotation cron failed: ${err instanceof Error ? err.message : err}`,
         err instanceof Error ? err.stack : undefined,
       );
     }

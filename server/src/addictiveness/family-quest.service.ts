@@ -1,24 +1,36 @@
 // server/src/addictiveness/family-quest.service.ts
 //
-// A-3 Family Quests — weekly AI-generated quests targeting weak relationships.
+// A-3 Family Suggestions — weekly rotating suggestions targeting weak relationships.
+//
+// P1.2: Renamed from "Quests" to "Suggestions" in copy and comments.
+// Removed variable karma (Skinner box), guilt language, and hard weekly
+// deadline. Suggestions rotate weekly but do not expire — old ones are
+// marked 'rotated' (not 'expired') and remain in history.
+//
+// Design rationale (Guardrail 2 — Warmth, not addiction):
+//   Suggestions are optional care prompts. There is no guilt language
+//   (no forgetting reminders, no day-count guilt), no variable reward,
+//   no hard deadline, no FOMO. Karma is fixed at 10 per completed
+//   suggestion. The user can skip any suggestion without penalty.
 //
 // Strategy:
 //   1. Every Monday 7am IST, generateQuestsForFamily() runs for each family
 //   2. For each family member, analyze their relationship graph:
 //      - Find the 3 weakest relationships (highest daysSinceLastContact,
-//        lowest closeness score, stormy weather)
-//      - Generate a quest for each weak relationship
-//   3. Quest types:
-//      - call: "Call {name} this week — you haven't spoken in {N} days"
-//      - message: "Send a message to {name} — your relationship is feeling {weather}"
-//      - share_photo: "Share a photo with {name} — reconnect through a moment"
-//      - wish_birthday: "Wish {name} a happy birthday (in {N} days)"
-//      - visit: "Plan a visit to {name} — it's been a while"
+//        lowest closeness score)
+//      - Generate a suggestion for each weak relationship
+//   3. Suggestion types:
+//      - call: "Call {name} this week"
+//      - message: "Send a message to {name}"
+//      - share_photo: "Share a photo with {name}"
+//      - wish_birthday: "Wish {name} a happy birthday"
+//      - visit: "Plan a visit to {name}"
 //      - ritual: "Do a {festival} ritual with {name} this week"
-//   4. Each quest has a karmaReward (10-30 based on quest type + difficulty)
-//   5. Quests expire at end of week (Sunday 11:59pm IST)
-//   6. When user completes a quest action (call/message/etc.), the BriefInteraction
-//      handler checks for matching active quests and marks them complete + awards karma
+//   4. Each suggestion has a fixed karmaReward of 10 (FIXED_QUEST_KARMA)
+//   5. Suggestions rotate weekly — old ones are marked 'rotated' (not 'expired')
+//   6. When user completes a suggestion action (call/message/etc.), the
+//      BriefInteraction handler checks for matching active suggestions and
+//      marks them complete + awards fixed karma
 
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -31,14 +43,12 @@ export interface QuestGenerationResult {
 }
 
 const MAX_QUESTS_PER_USER = 3;
-const QUEST_KARMA_BY_TYPE: Record<string, number> = {
-  call: 15,
-  message: 10,
-  share_photo: 20,
-  wish_birthday: 25,
-  visit: 30,
-  ritual: 25,
-};
+
+// P1.2: Fixed karma replaces the former variable-reward table (Do Not Do #3 —
+// no variable/random rewards). Every completed suggestion awards the same
+// value regardless of type. This removes the Skinner-box incentive structure
+// where visits were worth 30 and messages only 10.
+const FIXED_QUEST_KARMA = 10;
 
 @Injectable()
 export class FamilyQuestService {
@@ -97,11 +107,13 @@ export class FamilyQuestService {
     let questsGenerated = 0;
     const errors: string[] = [];
 
-    // Delete old quests from previous weeks for this family (keep history for analytics,
-    // but mark them expired if they're still active)
+    // Delete old suggestions from previous weeks for this family (keep history
+    // for analytics, but mark them 'rotated' if they're still active).
+    // P1.2: Renamed from 'expired' to 'rotated' — suggestions don't expire,
+    // they rotate. No FOMO, no deadline pressure.
     await this.prisma.familyQuest.updateMany({
-      where: { familyId, status: 'active', deadline: { lt: new Date() } },
-      data: { status: 'expired', expiredAt: new Date() },
+      where: { familyId, status: 'active', weekOf: { lt: weekOf } },
+      data: { status: 'rotated', expiredAt: new Date() },
     });
 
     for (const member of members) {
@@ -252,10 +264,11 @@ export class FamilyQuestService {
       if (candidate.birthdayThisWeek) {
         questType = 'wish_birthday';
         title = `Wish ${candidate.person.name} a happy birthday`;
+        // P1.2: Neutral copy — no guilt or FOMO phrasing.
         description =
           candidate.daysUntilBirthday === 0
-            ? `${candidate.person.name}'s birthday is TODAY. Don't forget to wish them!`
-            : `${candidate.person.name}'s birthday is in ${candidate.daysUntilBirthday} day${candidate.daysUntilBirthday === 1 ? '' : 's'}. Be the first to wish them.`;
+            ? `${candidate.person.name}'s birthday is today.`
+            : `${candidate.person.name}'s birthday is in ${candidate.daysUntilBirthday} day${candidate.daysUntilBirthday === 1 ? '' : 's'}.`;
         actionType = 'message';
         actionData.birthday = true;
         actionData.daysUntilBirthday = candidate.daysUntilBirthday;
@@ -263,7 +276,8 @@ export class FamilyQuestService {
       } else if (candidate.weather === 'stormy' || candidate.weather === 'rainy') {
         questType = 'call';
         title = `Call ${candidate.person.name} this week`;
-        description = `Your relationship is feeling ${candidate.weather}. You haven't spoken in ${candidate.daysSince} days. A call could turn things around.`;
+        // P1.2: Neutral copy — no guilt language or day-count reminders.
+        description = `You haven't connected with ${candidate.person.name} recently. Would you like to reach out?`;
         actionType = 'call';
         actionData.weather = candidate.weather;
         actionData.daysSince = candidate.daysSince;
@@ -271,7 +285,8 @@ export class FamilyQuestService {
       } else if (candidate.daysSince >= 14) {
         questType = 'message';
         title = `Send a message to ${candidate.person.name}`;
-        description = `It's been ${candidate.daysSince} days since you last connected. A simple "thinking of you" goes a long way.`;
+        // P1.2: Neutral copy — no manipulative framing.
+        description = `A message to ${candidate.person.name} might be welcome.`;
         actionType = 'message';
         actionData.daysSince = candidate.daysSince;
         generatedBy = 'graph_weak_point';
@@ -312,7 +327,7 @@ export class FamilyQuestService {
         actionData: actionData as any,
         weekOf,
         deadline,
-        karmaReward: QUEST_KARMA_BY_TYPE[questType] ?? 10,
+        karmaReward: FIXED_QUEST_KARMA,
         status: 'active',
         generatedBy,
         questScore: candidate.questNeed,
@@ -325,16 +340,16 @@ export class FamilyQuestService {
     return questsToCreate.length;
   }
 
-  /** Get active quests for a user (for the Flutter "This Week's Quests" widget). */
+  /** Get active suggestions for a user (for the Flutter "This Week's Suggestions" widget). */
   async getActiveQuests(userId: string) {
-    const now = new Date();
+    // P1.2: No deadline filter — suggestions don't expire. They remain active
+    // until completed, skipped, or rotated by the next week's generation.
     const quests = await this.prisma.familyQuest.findMany({
       where: {
         userId,
         status: 'active',
-        deadline: { gte: now },
       },
-      orderBy: { deadline: 'asc' },
+      orderBy: { createdAt: 'asc' },
       include: {
         targetPerson: { select: { id: true, name: true, photoThumb: true } },
       },
@@ -342,12 +357,12 @@ export class FamilyQuestService {
     return quests.map((q) => this.serializeQuest(q));
   }
 
-  /** Get quest history for a user (completed + expired). */
+  /** Get suggestion history for a user (completed + rotated + skipped). */
   async getQuestHistory(userId: string, limit: number = 20) {
     const quests = await this.prisma.familyQuest.findMany({
       where: {
         userId,
-        status: { in: ['completed', 'expired', 'skipped'] },
+        status: { in: ['completed', 'rotated', 'skipped'] },
       },
       orderBy: { updatedAt: 'desc' },
       take: Math.min(limit, 50),

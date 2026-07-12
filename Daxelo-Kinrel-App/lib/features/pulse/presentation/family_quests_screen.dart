@@ -1,6 +1,8 @@
 // lib/features/pulse/presentation/family_quests_screen.dart
 //
-// A-3 Family Quests screen — shows active weekly quests + history.
+// A-3 Family Suggestions screen — shows active weekly suggestions + history.
+// P1.2: Renamed from "Quests" to "Suggestions". Removed countdown timer,
+// "expired" badge, and guilt language. Karma is fixed at 10 per suggestion.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,7 +42,7 @@ class _FamilyQuestsScreenState extends ConsumerState<FamilyQuestsScreen>
       appBar: AppBar(
         backgroundColor: KinrelColors.darkBackground,
         elevation: 0,
-        title: const Text('Family Quests', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        title: const Text('Family Suggestions', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => context.pop(),
@@ -86,10 +88,10 @@ class _ActiveQuestsTab extends ConsumerWidget {
                 children: [
                   const Text('✨', style: TextStyle(fontSize: 48)),
                   const SizedBox(height: 16),
-                  const Text('No active quests', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                  const Text('No active suggestions', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   Text(
-                    'New quests generate every Monday at 7am IST.\nStrengthen your weak relationships to earn karma!',
+                    'New suggestions appear every Monday.\nReach out to family when you are ready.',
                     style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
                     textAlign: TextAlign.center,
                   ),
@@ -198,21 +200,16 @@ class _QuestCard extends ConsumerWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                // Deadline countdown
-                Text(
-                  _deadlineLabel(),
-                  style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11),
-                ),
-                const Spacer(),
+                // P1.2: No countdown timer — suggestions don't expire.
                 // Skip button
                 TextButton(
                   onPressed: () async {
                     await ref.read(pulseApiClientProvider).skipQuest(quest.id);
                     ref.invalidate(activeQuestsProvider);
                   },
-                  child: Text('Skip', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13)),
+                  child: Text('Not now', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13)),
                 ),
-                const SizedBox(width: 8),
+                const Spacer(),
                 // Complete button
                 ElevatedButton(
                   onPressed: () async {
@@ -221,7 +218,7 @@ class _QuestCard extends ConsumerWidget {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Quest complete! +${result.karmaAwarded} karma ✨'),
+                          content: Text('Suggestion complete! +${result.karmaAwarded} karma'),
                           backgroundColor: KinrelColors.success,
                         ),
                       );
@@ -233,7 +230,7 @@ class _QuestCard extends ConsumerWidget {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   ),
-                  child: const Text('Done', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  child: const Text('Reach out', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 ),
               ],
             ),
@@ -257,15 +254,5 @@ class _QuestCard extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  String _deadlineLabel() {
-    final now = DateTime.now();
-    final diff = quest.deadline.difference(now);
-    if (diff.isNegative) return 'Expired';
-    final days = diff.inDays;
-    final hours = diff.inHours % 24;
-    if (days > 0) return '⏱ $days day${days == 1 ? '' : 's'} $hours h left';
-    return '⏱ $hours h left';
   }
 }
