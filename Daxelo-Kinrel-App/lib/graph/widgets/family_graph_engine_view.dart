@@ -72,6 +72,8 @@ import '../interaction/graph_search_state.dart'
         GraphSearchNotifier,
         GraphSearchState,
         graphSearchProvider;
+import '../interaction/relationship_validation.dart'
+    show GraphUndoNotifier, graphUndoProvider;
 import '../interaction/graph_kinship_path_focus.dart'
     show
         GraphKinshipPathFocus,
@@ -271,6 +273,13 @@ class _FamilyGraphEngineViewState
   // visual flicker when zoom oscillates near a tier boundary.
   SemanticTier? _currentSemanticTier;
 
+  // v99: Track edge fingerprint + focused person ID to gate
+  // build-path side effects (recomputeNeighbours, camera animation).
+  // These prevent redundant BFS walks and camera animations every
+  // frame during pan/zoom.
+  int _lastEdgeFingerprint = 0;
+  String? _lastFocusedPersonId;
+
   // Gesture bookkeeping for pan + pinch-zoom.
   Offset _lastFocal = Offset.zero;
   double _baseZoom = 1.0;
@@ -335,6 +344,15 @@ class _FamilyGraphEngineViewState
       // v96 (Phase 4): Clear branch collapse state when switching
       // families. Collapse state is per-family presentation state.
       ref.read(branchCollapseProvider.notifier).clearAll();
+      // v99 (Phase 11): Clear ALL interaction state on family switch.
+      // No IDs from family A must survive into family B.
+      ref.read(graphSearchProvider.notifier).clear();
+      ref.read(graphPathFocusProvider.notifier).clear();
+      ref.read(selectedNodeProvider.notifier).state = null;
+      ref.read(selectedEdgeProvider.notifier).state = null;
+      ref.read(graphUndoProvider.notifier).clearAll();
+      _lastEdgeFingerprint = 0;
+      _lastFocusedPersonId = null;
     }
     // v62: Re-center when recenterKey changes (Center on Root button).
     if (oldWidget.recenterKey != widget.recenterKey) {
@@ -516,6 +534,20 @@ class _FamilyGraphEngineViewState
                   if (!isOnline)
                     const Positioned(
                         left: 0, right: 0, top: 0, child: _OfflineBanner()),
+                  // v99 (Phase 1): Focus Back control — visible when
+                  // focus history is non-empty. Tapping it restores
+                  // the previous focused person + viewport.
+                  if (ref.watch(graphFocusProvider.select((s) => s.history)).isNotEmpty)
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + 8,
+                      left: 8,
+                      child: FloatingActionButton.small(
+                        heroTag: 'graph_focus_back',
+                        onPressed: _onFocusBack,
+                        tooltip: 'Back to previous person',
+                        child: const Icon(Icons.arrow_back),
+                      ),
+                    ),
                   // v2.2: Graph legend — shows section colors + edge styles for
                   // the kinship categories present in the current graph.
                   GraphLegend(
@@ -623,6 +655,71 @@ class _FamilyGraphEngineViewState
                 ? layout.positions.keys.toSet()
                 : _expandCollapse.state.visibleNodeIds;
 
+        // v99: Build RAW edge tuples from flat.relationships BEFORE
+        // visibility filtering. These are needed for computeCollapse
+        // which must run BEFORE the visible-set derivation so the
+        // hidden IDs are current (not one-frame stale).
+        final rawEdgeTuples = <({String fromId, String toId, String edgeId, String relationshipKey})>[
+          for (final r in flat.relationships)
+            (
+              fromId: (r['fromPersonId'] ?? '').toString(),
+              toId: (r['toPersonId'] ?? '').toString(),
+              edgeId: (r['id'] ?? '').toString(),
+              relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
+            ),
+        ];
+
+        // v99: Watch focus + search + path state BEFORE computing
+        // collapse, so collapse has the current protected sets.
+        final focusState = ref.watch(graphFocusProvider);
+        final searchState = ref.watch(graphSearchProvider);
+        final pathFocus = ref.watch(graphPathFocusProvider).focus;
+        final selectedPerson = ref.read(selectedNodeProvider);
+
+        // v99: Compute collapse BEFORE visible-set derivation.
+        // This eliminates the one-frame lag where the visible set
+        // used stale hidden IDs from the previous build.
+        ref.read(branchCollapseProvider.notifier).computeCollapse(
+              allPersons: {
+                for (final p in flat.persons) (p['id'] ?? '').toString(),
+              },
+              allEdges: rawEdgeTuples,
+              focusPersonId: focusState.focusedPersonId,
+              firstDegreeIds: focusState.firstDegreeIds,
+              secondDegreeIds: focusState.secondDegreeIds,
+              pathNodeIds: pathFocus?.orderedPersonIds.toSet(),
+              searchMatchIds: searchState.isActive
+                  ? searchState.matchIdSet
+                  : null,
+              selectedPersonId: selectedPerson,
+              familyMemberCount: flat.persons.length,
+            );
+        // Read the UPDATED collapse state (computeCollapse just ran).
+        final collapseState = ref.watch(branchCollapseProvider);
+        final hiddenIds = collapseState.allHiddenMemberIds;
+
+        // v99: Recompute focus neighbours ONLY when the edge fingerprint
+        // changes (not every build). This prevents a BFS walk over all
+        // edges every frame during pan/zoom.
+        final edgeFingerprint = rawEdgeTuples.length * 100003 + flat.persons.length;
+        if (focusState.focusedPersonId != null &&
+            edgeFingerprint != _lastEdgeFingerprint) {
+          _lastEdgeFingerprint = edgeFingerprint;
+          ref.read(graphFocusProvider.notifier).recomputeNeighbours(
+                [for (final e in rawEdgeTuples) (fromId: e.fromId, toId: e.toId)],
+              );
+        }
+
+        // v99: Animate camera to focused node ONLY when the focused
+        // person ID changes (not every build).
+        if (focusState.focusedPersonId != null &&
+            focusState.focusedPersonId != _lastFocusedPersonId) {
+          _lastFocusedPersonId = focusState.focusedPersonId;
+          _maybeFocusCameraOnNode(focusState.focusedPersonId!, layout);
+        } else if (focusState.focusedPersonId == null) {
+          _lastFocusedPersonId = null;
+        }
+
         // v97: Cull using LOD-aware node footprints, not always 140×176.
         final lod = _lodFor(_camera.zoomLevel);
         final metrics = computeLodMetrics(
@@ -636,12 +733,8 @@ class _FamilyGraphEngineViewState
         final Rect vp = _graphSpaceViewport();
         final Set<String> culled =
             _culler.cull(layout.positions, nodeSizes, vp);
-        // v98 (Phase 4): Subtract branch-collapse hidden member IDs
-        // from the visible set. allHiddenMemberIds is the set of
-        // persons collapsed into branch affordances — they must NOT
-        // render as individual nodes.
-        final collapseState = ref.read(branchCollapseProvider);
-        final hiddenIds = collapseState.allHiddenMemberIds;
+        // v99: Subtract branch-collapse hidden member IDs — now uses
+        // the CURRENT collapse state (computed above, not stale).
         final Set<String> visible = hiddenIds.isEmpty
             ? culled.where(allowed.contains).toSet()
             : culled.where((id) => allowed.contains(id) && !hiddenIds.contains(id)).toSet();
@@ -742,70 +835,9 @@ class _FamilyGraphEngineViewState
           edges: edges,
           anchorId: anchorId,
         );
-        // Watch the provider so the wrapper rebuilds when the path
-        // focus notifier updates (e.g. when trace state changes drive
-        // a re-resolve, or when the path is cleared).
-        ref.watch(graphPathFocusProvider);
-
-        // v95 (Phase 1): Watch the person-centric focus provider. When
-        // focusedPersonId changes, animate the camera to that node +
-        // recompute neighbour sets for dim/emphasis. The focus state
-        // is SEPARATE from selectedNodeProvider — focusing a person
-        // does not select it, and selecting a person does not focus it.
-        final focusState = ref.watch(graphFocusProvider);
-        // Recompute neighbour sets when edges change but focus stays.
-        if (focusState.focusedPersonId != null) {
-          ref.read(graphFocusProvider.notifier).recomputeNeighbours(
-                [for (final d in edges) (fromId: d.edge.sourceId, toId: d.edge.targetId)],
-              );
-        }
-        // Animate camera to the focused node if it changed.
-        if (focusState.focusedPersonId != null) {
-          _maybeFocusCameraOnNode(focusState.focusedPersonId!, layout);
-        }
-
-        // v96 (Phase 5): Watch the graph search provider. When search
-        // is active, matching nodes are highlighted, non-matching nodes
-        // are dimmed, and collapsed branches containing matches are
-        // auto-expanded. The search state is SEPARATE from focus —
-        // search highlights are additive to focus emphasis.
-        final searchState = ref.watch(graphSearchProvider);
-
-        // v96 (Phase 4): Compute branch collapse state. This is
-        // PRESENTATION state — it does NOT modify canonical topology.
-        // Distant large branches are collapsed into compact
-        // affordances. Focus neighbourhood + path + search results
-        // stay visible. Small families (< 30 members) are never
-        // collapsed.
-        // NOTE: pathFocus was already declared above at line ~749 —
-        // reuse it instead of re-declaring.
-        final selectedPerson = ref.read(selectedNodeProvider);
-        ref.read(branchCollapseProvider.notifier).computeCollapse(
-              allPersons: {
-                for (final p in flat.persons) (p['id'] ?? '').toString(),
-              },
-              allEdges: [
-                for (final d in edges)
-                  (
-                    fromId: d.edge.sourceId,
-                    toId: d.edge.targetId,
-                    edgeId: d.edge.id,
-                    relationshipKey: d.edge.relationshipKey,
-                  ),
-              ],
-              focusPersonId: focusState.focusedPersonId,
-              firstDegreeIds: focusState.firstDegreeIds,
-              secondDegreeIds: focusState.secondDegreeIds,
-              pathNodeIds: pathFocus?.orderedPersonIds.toSet(),
-              searchMatchIds: searchState.isActive
-                  ? searchState.matchIdSet
-                  : null,
-              selectedPersonId: selectedPerson,
-              familyMemberCount: flat.persons.length,
-            );
-        // Watch the branch collapse provider so the engine rebuilds
-        // when collapse state changes.
-        ref.watch(branchCollapseProvider);
+        // v99: Path focus, focus, search, and collapse are all watched
+        // + computed ABOVE (before visible-set derivation). No duplicate
+        // watches or mutations here.
 
         // v92 (PART 17): Cache the current edges + positions + categories
         // so the canvas tap handler can do midpoint hit-testing without
@@ -2009,7 +2041,7 @@ class _FamilyGraphEngineViewState
     );
   }
 
-  // ── v98 (Phase 1): Engine-owned focus callback ────────────────────────
+  // ── v99 (Phase 1): Engine-owned focus callback ────────────────────────
   //
   // Passed to GraphQuickActions.show() so the Focus action has access
   // to real deduped edges + camera viewport — NOT the empty edges +
@@ -2032,6 +2064,35 @@ class _FamilyGraphEngineViewState
           edges: edgeTuples,
           currentViewport: viewport,
         );
+  }
+
+  /// v99 (Phase 1): Focus Back — restores the previous focused person
+  /// + viewport from focus history.
+  void _onFocusBack() {
+    final popped = ref.read(graphFocusProvider.notifier).back();
+    if (popped == null) return;
+
+    // Restore the camera viewport from the popped history entry.
+    final viewport = popped.viewport;
+    final bool reduced = MediaQuery.disableAnimationsOf(context);
+    _camera.animateTo(
+      viewport.panX,
+      viewport.panY,
+      viewport.zoom,
+      duration: reduced ? Duration.zero : const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+    );
+
+    // Force re-animation + neighbour recompute for restored focus.
+    _lastFocusedPersonId = null;
+    final currentFocus = ref.read(graphFocusProvider).focusedPersonId;
+    if (currentFocus != null) {
+      final edgeTuples = [
+        for (final d in _currentEdges)
+          (fromId: d.edge.sourceId, toId: d.edge.targetId),
+      ];
+      ref.read(graphFocusProvider.notifier).recomputeNeighbours(edgeTuples);
+    }
   }
 
   /// v98 (Phase 2): Engine-owned "View relationship" callback.
