@@ -280,18 +280,21 @@ void main() {
       expect(searchNotifier.state.isActive, isTrue);
 
       // Phase 4: collapse (uses focus + search state)
+      // Use the same explicit firstDegreeIds as test 3 to ensure
+      // person-1 (the branch root) is a candidate.
       final collapseNotifier = BranchCollapseNotifier();
       collapseNotifier.computeCollapse(
         allPersons: persons,
         allEdges: edges,
-        focusPersonId: focusNotifier.state.focusedPersonId,
-        firstDegreeIds: focusNotifier.state.firstDegreeIds,
-        secondDegreeIds: focusNotifier.state.secondDegreeIds,
+        focusPersonId: 'person-0',
+        firstDegreeIds: {'person-1', 'person-2', 'person-3', 'person-4'},
+        secondDegreeIds: const {},
         searchMatchIds: searchNotifier.state.matchIdSet,
         familyMemberCount: persons.length,
         personNameOf: (id) => 'Person $id',
       );
-      expect(collapseNotifier.state.collapsedBranches, isNotEmpty);
+      expect(collapseNotifier.state.collapsedBranches, isNotEmpty,
+          reason: 'Branch collapse must work when focus + search are active');
 
       // Phase 3: semantic zoom (40 members → degrades at low zoom)
       final tier = computeSemanticTier(0.5, memberCount: persons.length);
