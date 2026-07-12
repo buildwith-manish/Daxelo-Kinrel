@@ -79,6 +79,16 @@ jobs:
         run: flutter test test/graph/interaction/relationship_validation_test.dart --reporter expanded
         continue-on-error: true
 
+      - name: Run semantic zoom tests (semantic-zoom fix)
+        id: semantic_zoom
+        run: flutter test test/graph/rendering/semantic_zoom_test.dart --reporter expanded
+        continue-on-error: true
+
+      - name: Run LOD threshold tests
+        id: lod_threshold
+        run: flutter test test/graph/rendering/lod_threshold_test.dart --reporter expanded
+        continue-on-error: true
+
       - name: Test summary
         if: always()
         run: |
@@ -89,6 +99,8 @@ jobs:
           echo "couple_union:              ${{ steps.couple_union.outcome }}"
           echo "union_routing:             ${{ steps.union_routing.outcome }}"
           echo "rel_validation (Bug 3):    ${{ steps.rel_validation.outcome }}"
+          echo "semantic_zoom:             ${{ steps.semantic_zoom.outcome }}"
+          echo "lod_threshold:             ${{ steps.lod_threshold.outcome }}"
           echo "=========================="
           # Fail the job if any suite failed
           if [ "${{ steps.edge_dedup.outcome }}" = "failure" ] || \
@@ -96,7 +108,9 @@ jobs:
              [ "${{ steps.branch_collapse.outcome }}" = "failure" ] || \
              [ "${{ steps.couple_union.outcome }}" = "failure" ] || \
              [ "${{ steps.union_routing.outcome }}" = "failure" ] || \
-             [ "${{ steps.rel_validation.outcome }}" = "failure" ]; then
+             [ "${{ steps.rel_validation.outcome }}" = "failure" ] || \
+             [ "${{ steps.semantic_zoom.outcome }}" = "failure" ] || \
+             [ "${{ steps.lod_threshold.outcome }}" = "failure" ]; then
             echo "At least one test suite failed."
             exit 1
           fi

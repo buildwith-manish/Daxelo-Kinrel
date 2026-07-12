@@ -265,4 +265,93 @@ void main() {
       expect(t.mediumHysteresis, greaterThan(0));
     });
   });
+
+  // ────────────────────────────────────────────────────────────────────
+  // v102 (semantic-zoom fix): Small-family bypass.
+  //
+  // Graphs under 30 members must NEVER degrade below NEAR, regardless
+  // of zoom level. The MEDIUM and FAR tiers exist to keep LARGE trees
+  // legible at low zoom — they should never apply to a 4-person family.
+  // The 30 threshold matches branch_collapse_state.dart's convention.
+  // ────────────────────────────────────────────────────────────────────
+  group('v102 — Small-family bypass (memberCount < 30)', () {
+    test('4-member family stays NEAR at zoom 1.0 (default)', () {
+      expect(computeSemanticTier(1.0, memberCount: 4), SemanticTier.near);
+    });
+
+    test('4-member family stays NEAR at zoom 0.5 (would be FAR without bypass)', () {
+      expect(computeSemanticTier(0.5, memberCount: 4), SemanticTier.near,
+          reason: 'A 4-person family must never degrade to FAR — '
+              'there is no legibility benefit to collapsing a tiny graph');
+    });
+
+    test('4-member family stays NEAR at zoom 0.2 (camera minimum)', () {
+      expect(computeSemanticTier(0.2, memberCount: 4), SemanticTier.near,
+          reason: 'Even at the lowest possible zoom, a 4-person family '
+              'stays in full-detail NEAR tier');
+    });
+
+    test('4-member family stays NEAR at zoom 5.0 (camera maximum)', () {
+      expect(computeSemanticTier(5.0, memberCount: 4), SemanticTier.near);
+    });
+
+    test('4-member family stays NEAR across the FULL zoom range', () {
+      // Test every zoom level from 0.2 to 5.0 in 0.1 steps.
+      for (double z = 0.2; z <= 5.0; z += 0.1) {
+        expect(computeSemanticTier(z, memberCount: 4), SemanticTier.near,
+            reason: '4-member family must be NEAR at zoom $z');
+      }
+    });
+
+    test('4-member family stays NEAR with hysteresis memory', () {
+      // Even with a currentTier of FAR, a small family overrides to NEAR.
+      var tier = computeSemanticTier(0.5, memberCount: 4, currentTier: SemanticTier.far);
+      expect(tier, SemanticTier.near,
+          reason: 'Small family overrides hysteresis — always NEAR');
+    });
+
+    test('15-member family stays NEAR (under 30 threshold)', () {
+      expect(computeSemanticTier(0.3, memberCount: 15), SemanticTier.near);
+    });
+
+    test('29-member family stays NEAR (just under threshold)', () {
+      expect(computeSemanticTier(0.2, memberCount: 29), SemanticTier.near);
+    });
+
+    test('30-member family degrades normally (at threshold)', () {
+      // 30 is NOT small (the check is < 30, not <= 30).
+      // A 30-member family at zoom 0.5 → FAR (normal behavior).
+      expect(computeSemanticTier(0.5, memberCount: 30), SemanticTier.far,
+          reason: '30 members is at the threshold — normal tier degradation applies');
+    });
+
+    test('100-member family degrades normally (large graph)', () {
+      expect(computeSemanticTier(0.5, memberCount: 100), SemanticTier.far);
+      expect(computeSemanticTier(0.8, memberCount: 100), SemanticTier.medium);
+      expect(computeSemanticTier(1.5, memberCount: 100), SemanticTier.near);
+    });
+
+    test('1000-member family degrades normally (very large graph)', () {
+      // The bypass must NOT accidentally pin large graphs to NEAR.
+      expect(computeSemanticTier(0.3, memberCount: 1000), SemanticTier.far);
+      expect(computeSemanticTier(0.7, memberCount: 1000), SemanticTier.medium);
+      expect(computeSemanticTier(2.0, memberCount: 1000), SemanticTier.near);
+    });
+
+    test('null memberCount preserves old behavior (backward compat)', () {
+      // When memberCount is not provided, the function behaves exactly
+      // as before — no bypass. This ensures existing callers that don't
+      // pass memberCount are unaffected.
+      expect(computeSemanticTier(0.5), SemanticTier.far);
+      expect(computeSemanticTier(0.8), SemanticTier.medium);
+      expect(computeSemanticTier(1.5), SemanticTier.near);
+    });
+
+    test('0 memberCount is treated as unknown (no bypass)', () {
+      // memberCount=0 (empty graph) should not trigger the bypass —
+      // it's a degenerate case. Treat it as "unknown" so we don't pin
+      // an empty graph to NEAR (which would be harmless but wasteful).
+      expect(computeSemanticTier(0.5, memberCount: 0), SemanticTier.far);
+    });
+  });
 }

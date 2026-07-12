@@ -296,6 +296,12 @@ class _FamilyGraphEngineViewState
   // visual flicker when zoom oscillates near a tier boundary.
   SemanticTier? _currentSemanticTier;
 
+  // v102 (semantic-zoom fix): Cache the current family's member count
+  // so _lodFor can pass it to computeSemanticTier. Small families
+  // (< 30 members) are pinned to the NEAR tier regardless of zoom —
+  // they never degrade to unlabeled dots. Updated once per build.
+  int _currentMemberCount = 0;
+
   // v99: Track edge fingerprint + focused person ID to gate
   // build-path side effects (recomputeNeighbours, camera animation).
   // These prevent redundant BFS walks and camera animations every
@@ -411,10 +417,16 @@ class _FamilyGraphEngineViewState
   _Lod _lodFor(double zoom) {
     // v97: Semantic zoom with hysteresis.
     // Camera range restored to 0.2–5.0 — CHIP and DOT are reachable.
+    //
+    // v102 (semantic-zoom fix): Pass _currentMemberCount so small
+    // families (< 30 members) are pinned to NEAR (full detail)
+    // regardless of zoom. This prevents a 4-person family from
+    // degrading to unlabeled dots when the user pinch-zooms out.
     _currentSemanticTier = computeSemanticTier(
       zoom,
       currentTier: _currentSemanticTier,
       thresholds: defaultThresholds,
+      memberCount: _currentMemberCount,
     );
     switch (_currentSemanticTier!) {
       case SemanticTier.near:
@@ -640,6 +652,11 @@ class _FamilyGraphEngineViewState
           for (final Map<String, dynamic> p in flat.persons)
             if (p['id'] != null) p['id'] as String: p,
         };
+
+        // v102 (semantic-zoom fix): Cache the member count so _lodFor
+        // can pass it to computeSemanticTier. Small families (< 30)
+        // are pinned to NEAR (full detail) regardless of zoom.
+        _currentMemberCount = flat.persons.length;
         // PERF: Only recompute relation labels/keys when the underlying
         // flat data or viewer changes — NOT on every pan/zoom frame.
         if (!identical(_lastFlat, flat) || _lastViewerId != viewerPersonId) {

@@ -107,6 +107,17 @@ const defaultThresholds = SemanticZoomThresholds();
 /// hysteresis memory). The [zoom] is the current camera zoom level.
 /// The [thresholds] define the enter/leave boundaries.
 ///
+/// [memberCount] (optional) is the total number of family members in
+/// the current graph. When provided and below the small-family
+/// threshold (30 — matching `branch_collapse_state.dart`'s convention),
+/// the tier is PINNED to [SemanticTier.near] regardless of zoom. This
+/// prevents small families (4 people, 2 links) from degrading to
+/// unlabeled dots when the user pinch-zooms out — there is no
+/// legibility or performance benefit to collapsing a 4-node graph,
+/// and the dot tier strips away the colored ring, initials circle,
+/// relationship label, and spouse heart marker that make the graph
+/// readable.
+///
 /// Returns the tier the graph SHOULD be in, accounting for hysteresis:
 ///   • If currently NEAR and zoom ≥ nearLeave → stay NEAR
 ///   • If currently NEAR and zoom < nearLeave → switch to MEDIUM
@@ -122,7 +133,17 @@ SemanticTier computeSemanticTier(
   double zoom, {
   SemanticTier? currentTier,
   SemanticZoomThresholds thresholds = defaultThresholds,
+  int? memberCount,
 }) {
+  // Small-family bypass: graphs under 30 members never degrade below
+  // NEAR. The semantic zoom tiers (MEDIUM/FAR) exist to keep LARGE
+  // trees legible at low zoom — they should never apply to a 4-person
+  // family. The 30 threshold matches `branch_collapse_state.dart`'s
+  // `familyMemberCount < 30` small-family bypass convention.
+  if (memberCount != null && memberCount > 0 && memberCount < 30) {
+    return SemanticTier.near;
+  }
+
   if (currentTier == null) {
     // Initial computation — no hysteresis memory.
     if (zoom >= thresholds.nearEnter) return SemanticTier.near;
