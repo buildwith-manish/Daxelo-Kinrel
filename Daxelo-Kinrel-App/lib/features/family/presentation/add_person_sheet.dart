@@ -19,6 +19,7 @@ import 'package:image_picker/image_picker.dart' show XFile;
 import '../../../core/services/supabase_service.dart';
 import 'services/photo_picker_service.dart';
 import 'providers/family_graph_provider.dart' show FamilyGraphNotifier, familyGraphProvider;
+import '../../../graph/interaction/relationship_validation.dart' show graphUndoProvider;
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
 import 'add_member_source.dart';
@@ -1305,11 +1306,54 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       await Future.delayed(const Duration(milliseconds: 500));
 
       if (!mounted) return;
-      context.showSnackBar(
-        _isEditMode
-            ? 'Person updated successfully'
-            : 'Welcome to the family, ${result?.name ?? 'New member'}!',
-      );
+      // v99 (Phase 7): Show success snackbar with UNDO action if an
+      // undo command was pushed during relationship creation.
+      final undoState = ref.read(graphUndoProvider);
+      if (undoState.canUndo && !_isEditMode && result != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Welcome to the family, ${result!.name}!'),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'UNDO',
+              onPressed: () async {
+                final cmd = ref.read(graphUndoProvider.notifier).pop();
+                if (cmd == null) return;
+                // Perform the inverse: delete the relationship.
+                try {
+                  final client = ref.read(supabaseProvider);
+                  if (client != null && cmd.edgeId != null) {
+                    await client
+                        .from('Relationship')
+                        .delete()
+                        .eq('id', cmd.edgeId!)
+                        .timeout(const Duration(seconds: 10));
+                  }
+                  FamilyGraphNotifier.clearCache(widget.familyId);
+                  ref.invalidate(familyGraphProvider(widget.familyId));
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Relationship removed.')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Undo failed: $e')),
+                    );
+                  }
+                }
+              },
+            ),
+          ),
+        );
+      } else {
+        context.showSnackBar(
+          _isEditMode
+              ? 'Person updated successfully'
+              : 'Welcome to the family, ${result?.name ?? 'New member'}!',
+        );
+      }
 
       // ═══════════════════════════════════════════════════════════════
       // PERSON-SPECIFIC INVITE PROMPT

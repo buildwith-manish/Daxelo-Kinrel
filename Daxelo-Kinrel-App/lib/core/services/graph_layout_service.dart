@@ -19,6 +19,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 
+import '../../graph/interaction/couple_union_model.dart' show CoupleUnion, deriveCoupleUnions;
+
 // ═══════════════════════════════════════════════════════════════════════
 // DATA MODELS
 // ═══════════════════════════════════════════════════════════════════════
@@ -86,12 +88,21 @@ class GraphLayoutResult {
   /// Maps generationIndex → base angle offset (radians) for that ring.
   final Map<int, double> ringAngleOffsets;
 
+  /// v99 (Phase 6): Derived couple unions for the layout. Each union
+  /// represents a confirmed partner pairing with shared children.
+  /// The engine view uses these to render union junctions at the
+  /// midpoint between partners and to route child edges through the
+  /// union. Unions are presentation-only — never persisted, never
+  /// in search, never in kinship BFS.
+  final List<dynamic> coupleUnions;
+
   const GraphLayoutResult({
     required this.positions,
     required this.canvasWidth,
     required this.canvasHeight,
     this.ringRadii = const {},
     this.ringAngleOffsets = const {},
+    this.coupleUnions = const [],
   });
 }
 
@@ -477,12 +488,27 @@ class GraphLayoutService {
     // ── Step 8: Compute canvas dimensions ─────────────────────────────
     final (cw, ch) = _computeCanvasSize(positions, ringRadii);
 
+    // v99 (Phase 6): Derive couple unions from the canonical
+    // relationship edges. Unions are presentation-only — they are
+    // NOT persisted, NOT in search, NOT in kinship BFS. The engine
+    // view reads layout.coupleUnions to render union junctions.
+    final coupleUnions = deriveCoupleUnions([
+      for (final rel in relationships)
+        (
+          fromId: rel.fromPersonId,
+          toId: rel.toPersonId,
+          edgeId: rel.id,
+          relationshipKey: rel.relationshipKey,
+        ),
+    ]);
+
     return GraphLayoutResult(
       positions: positions,
       canvasWidth: cw,
       canvasHeight: ch,
       ringRadii: ringRadii,
       ringAngleOffsets: ringAngleOffsets,
+      coupleUnions: coupleUnions,
     );
   }
 

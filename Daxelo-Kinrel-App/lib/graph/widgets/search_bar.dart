@@ -34,6 +34,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../analytics/analytics_tracker.dart';
+import '../interaction/graph_search_state.dart' show graphSearchProvider;
 import 'graph_node.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -244,6 +245,8 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
         _results = [];
         _isSearching = false;
       });
+      // v99 (Phase 5): Clear graph search state.
+      ref.read(graphSearchProvider.notifier).clear();
       return;
     }
 
@@ -255,8 +258,6 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
     _searchStopwatch.start();
 
     try {
-      // Simulate search results (in production, this would call
-      // Supabase FTS, username lookup, relationship filter, etc.)
       final results = await _searchGraph(query);
 
       _searchStopwatch.stop();
@@ -266,6 +267,13 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
           _results = results;
           _isSearching = false;
         });
+
+        // v99 (Phase 5): Push match IDs to graphSearchProvider so the
+        // engine view can dim non-matches + highlight matches.
+        ref.read(graphSearchProvider.notifier).setResults(
+              query,
+              results.map((r) => r.memberId).toList(),
+            );
 
         // Track search event
         ref.read(analyticsTrackerProvider).trackSearchQuery(

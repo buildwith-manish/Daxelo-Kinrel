@@ -38,6 +38,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/database/sync/connectivity_service.dart' show isOnlineProvider;
+import '../../core/family/family_provider.dart' show currentUserFamilyRoleProvider;
 import '../../core/services/analytics_service.dart';
 import '../../core/services/graph_layout_service.dart' show GraphLayoutResult;
 import '../../features/family/presentation/providers/family_graph_provider.dart'
@@ -101,6 +102,8 @@ import '../rendering/edge_quality.dart' show EdgeQuality, EdgeQualityX;
 import '../rendering/graph_lighting.dart' show GraphLighting;
 import '../rendering/lod_render_metrics.dart'
     show LodRenderMetrics, computeLodMetrics, overviewGraphRadius, overviewGraphRingStroke;
+import '../rendering/emphasis_priority.dart'
+    show EmphasisLevel, computeEmphasisLevel;
 import '../rendering/semantic_zoom.dart'
     show
         SemanticTier,
@@ -1278,15 +1281,34 @@ class _FamilyGraphEngineViewState
     // selection visually highlights the node.
     final selectedId = ref.watch(selectedNodeProvider);
     // v95 (Phase 1): Wire graphFocusProvider to NodeState.focused.
-    // Focus takes visual precedence over selection — a focused node
-    // gets the pulsing glow + camera centering. Selection (tap)
-    // still shows the accent border via NodeState.selected, but only
-    // when the node is NOT focused.
-    final focusedId = ref.watch(graphFocusProvider).focusedPersonId;
+    final focusState = ref.watch(graphFocusProvider);
+    final focusedId = focusState.focusedPersonId;
+
+    // v99 (Phase 10): Use the centralized computeEmphasisLevel to
+    // determine this node's emphasis. This replaces the old ad-hoc
+    // if/else priority logic with ONE source of truth.
+    final pathFocusState = ref.watch(graphPathFocusProvider).focus;
+    final searchState = ref.watch(graphSearchProvider);
+    final emphasis = computeEmphasisLevel(
+      nodeId: id,
+      focusedPersonId: focusedId,
+      selectedPersonId: selectedId,
+      pathNodeIds: pathFocusState?.orderedPersonIds.toSet(),
+      pathEndpointIds: pathFocusState != null
+          ? {pathFocusState.viewerPersonId, pathFocusState.targetPersonId}
+          : null,
+      searchMatchIds: searchState.isActive ? searchState.matchIdSet : null,
+      firstDegreeIds: focusState.firstDegreeIds,
+      searchActive: searchState.isActive,
+      focusActive: focusedId != null,
+    );
+
+    // Map emphasis level to NodeState (visual treatment).
     final NodeState nodeState;
-    if (id == focusedId) {
+    if (emphasis == EmphasisLevel.focused || emphasis == EmphasisLevel.pathEndpoint) {
       nodeState = NodeState.focused;
-    } else if (id == selectedId) {
+    } else if (emphasis == EmphasisLevel.selected ||
+               emphasis == EmphasisLevel.pathNode) {
       nodeState = NodeState.selected;
     } else {
       nodeState = NodeState.normal;
@@ -1345,12 +1367,17 @@ class _FamilyGraphEngineViewState
         );
         // v87: Pass familyId + isOwner + isSelf for Remove Member
         final isAnchor = (p['isAnchor'] as bool?) ?? false;
+        // v99 (Phase 8): Resolve actual family role from provider.
+        // Previously hardcoded isOwner: true — anyone could remove
+        // any member from the UI. Now only admins/owners see Remove.
+        final role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
+        final canRemove = role == 'admin' || role == 'owner';
         GraphQuickActions.show(
           context,
           personData,
           familyId: widget.familyId,
-          isOwner: true, // v99 TODO: resolve actual family role from provider
-          isSelf: isAnchor, // anchor = family creator = can't remove self
+          isOwner: canRemove,
+          isSelf: isAnchor,
           ref: ref, // v95: enables "Focus on person" action
           onFocusPerson: _onFocusPerson, // v98: real edges + viewport
           onViewRelationship: _onViewRelationship, // v98: "How are we related?"
@@ -1989,11 +2016,14 @@ class _FamilyGraphEngineViewState
       isDeceased: (personData['isDeceased'] as bool?) ?? false,
     );
     final isAnchor = (personData['isAnchor'] as bool?) ?? false;
+    // v99 (Phase 8): Resolve role from provider — not hardcoded.
+    final _role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
+    final _canRemove = _role == 'admin' || _role == 'owner';
     GraphQuickActions.show(
       context,
       graphPersonData,
       familyId: widget.familyId,
-      isOwner: true,
+      isOwner: _canRemove,
       isSelf: isAnchor,
       ref: ref,
       onFocusPerson: _onFocusPerson,
@@ -2029,11 +2059,14 @@ class _FamilyGraphEngineViewState
       isDeceased: (personData['isDeceased'] as bool?) ?? false,
     );
     final isAnchor = (personData['isAnchor'] as bool?) ?? false;
+    // v99 (Phase 8): Resolve role from provider — not hardcoded.
+    final _role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
+    final _canRemove = _role == 'admin' || _role == 'owner';
     GraphQuickActions.show(
       context,
       graphPersonData,
       familyId: widget.familyId,
-      isOwner: true,
+      isOwner: _canRemove,
       isSelf: isAnchor,
       ref: ref,
       onFocusPerson: _onFocusPerson,

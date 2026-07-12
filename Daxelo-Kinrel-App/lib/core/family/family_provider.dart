@@ -12,7 +12,7 @@ import '../networking/dio_client.dart';
 import '../services/supabase_service.dart';
 import '../services/analytics_service.dart';
 import '../services/graph_layout_service.dart';
-import '../../graph/interaction/relationship_validation.dart' show validateRelationship;
+import '../../graph/interaction/relationship_validation.dart' show validateRelationship, GraphEditCommand, GraphEditType, graphUndoProvider;
 import '../database/isar_database.dart';
 import '../database/app_database.dart';
 import '../database/repositories/offline_family_repository.dart';
@@ -2373,6 +2373,24 @@ Future<FamilyRelationship> createRelationship({
   try {
     await ref.read(profileProvider.notifier).loadStats();
   } catch (_) {}
+
+  // v99 (Phase 7): Push an undo command onto the undo stack so the
+  // user can reverse this relationship creation. The undo command
+  // contains enough canonical info to perform the inverse (delete
+  // the relationship) without re-deriving anything.
+  try {
+    ref.read(graphUndoProvider.notifier).push(GraphEditCommand(
+      type: GraphEditType.addRelationship,
+      familyId: familyId,
+      fromPersonId: fromPersonId,
+      toPersonId: toPersonId,
+      relationshipKey: relationshipKey,
+      edgeId: response['id'] as String? ?? forwardRelId,
+      description: 'Added $relationshipKey relationship',
+    ));
+  } catch (e) {
+    debugPrint('[CREATE-REL] v99: Failed to push undo command: $e');
+  }
 
   return FamilyRelationship.fromJson(response);
 }
