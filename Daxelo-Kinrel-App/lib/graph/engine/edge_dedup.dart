@@ -361,11 +361,19 @@ class EdgeDeduplicator {
   ///   7. self                  (ego — rarely appears on edges)
   ///   8. extended              (step / god / guru — weakest)
   ///   9. indirect              (blocked-member path — weakest)
+  ///
+  /// v102 (BUG-1 FIX): The comparator previously returned
+  /// `_categoryStrength(a).compareTo(_categoryStrength(b))` which sorts
+  /// in ASCENDING order — putting the WEAKEST category first (e.g.
+  /// 'related' before 'father'). Dart's `List.sort()` is ascending by
+  /// default. To sort strongest FIRST (descending), we reverse the
+  /// comparison: `_categoryStrength(b).compareTo(_categoryStrength(a))`.
   static int _compareCategoryStrength(
     KinshipEdgeCategory a,
     KinshipEdgeCategory b,
   ) {
-    return _categoryStrength(a).compareTo(_categoryStrength(b));
+    // Reversed: strongest first (descending order).
+    return _categoryStrength(b).compareTo(_categoryStrength(a));
   }
 
   static int _categoryStrength(KinshipEdgeCategory cat) {

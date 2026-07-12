@@ -45,23 +45,59 @@ jobs:
       # validation, Phase 10 integration) so CI can validate each fix
       # without being blocked by the pre-existing noise.
       #
-      # Each suite is a separate step so a failure in one doesn't skip
-      # the others — we see ALL results in one run.
+      # Each suite has `continue-on-error: true` so a failure in one
+      # does NOT skip the others — we see ALL results in one run. The
+      # final "Test summary" step fails the job if any suite failed.
 
       - name: Run edge dedup tests (Bug 1)
+        id: edge_dedup
         run: flutter test test/graph/engine/edge_dedup_test.dart --reporter expanded
+        continue-on-error: true
 
       - name: Run canonical edge pipeline tests (Bug 1)
+        id: canonical
         run: flutter test test/features/family/canonical_edge_pipeline_test.dart --reporter expanded
+        continue-on-error: true
 
       - name: Run branch collapse state tests (Bug 2)
+        id: branch_collapse
         run: flutter test test/graph/interaction/branch_collapse_state_test.dart --reporter expanded
+        continue-on-error: true
 
       - name: Run couple union model tests
+        id: couple_union
         run: flutter test test/graph/interaction/couple_union_model_test.dart --reporter expanded
+        continue-on-error: true
 
       - name: Run union edge routing tests
+        id: union_routing
         run: flutter test test/graph/interaction/union_edge_routing_test.dart --reporter expanded
+        continue-on-error: true
 
       - name: Run relationship validation tests (Bug 3)
+        id: rel_validation
         run: flutter test test/graph/interaction/relationship_validation_test.dart --reporter expanded
+        continue-on-error: true
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "=== Test Suite Results ==="
+          echo "edge_dedup (Bug 1):        ${{ steps.edge_dedup.outcome }}"
+          echo "canonical (Bug 1):         ${{ steps.canonical.outcome }}"
+          echo "branch_collapse (Bug 2):   ${{ steps.branch_collapse.outcome }}"
+          echo "couple_union:              ${{ steps.couple_union.outcome }}"
+          echo "union_routing:             ${{ steps.union_routing.outcome }}"
+          echo "rel_validation (Bug 3):    ${{ steps.rel_validation.outcome }}"
+          echo "=========================="
+          # Fail the job if any suite failed
+          if [ "${{ steps.edge_dedup.outcome }}" = "failure" ] || \
+             [ "${{ steps.canonical.outcome }}" = "failure" ] || \
+             [ "${{ steps.branch_collapse.outcome }}" = "failure" ] || \
+             [ "${{ steps.couple_union.outcome }}" = "failure" ] || \
+             [ "${{ steps.union_routing.outcome }}" = "failure" ] || \
+             [ "${{ steps.rel_validation.outcome }}" = "failure" ]; then
+            echo "At least one test suite failed."
+            exit 1
+          fi
+          echo "All test suites passed!"
