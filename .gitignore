@@ -80,3 +80,6 @@ download/
 # Supabase CLI local state (contains link state, not for version control)
 supabase/.temp/
 scripts_node_modules/
+repo/
+scripts/monitor_builds.sh
+scripts/monitor2.sh

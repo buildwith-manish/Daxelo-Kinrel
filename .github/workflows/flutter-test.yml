@@ -1,0 +1,41 @@
+name: Flutter Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          # Match the version pinned in flutter-web-lighthouse.yml
+          # (.replit pins stable-25_05; SDK constraint in pubspec is ^3.12.0).
+          flutter-version: '3.44.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run analyzer
+        run: flutter analyze --no-fatal-infos
+        continue-on-error: true
+
+      - name: Run tests
+        run: flutter test --reporter expanded
+
+      - name: Run Phase 0 canonical edge pipeline tests
+        run: flutter test test/features/family/canonical_edge_pipeline_test.dart --reporter expanded
+
+      - name: Run Phase 4 branch collapse tests
+        run: flutter test test/graph/interaction/branch_collapse_state_test.dart --reporter expanded

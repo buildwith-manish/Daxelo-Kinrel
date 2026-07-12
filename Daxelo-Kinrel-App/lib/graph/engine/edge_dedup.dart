@@ -31,9 +31,33 @@
 //      Duplicate categories (e.g. two "father" rows from A→B and B→A
 //      inverse) are collapsed into ONE edge — no offset needed.
 //
+// v101 (BUG-1 FIX): Parent/child inverse pairs now collapse to ONE edge.
+//   Previously, `classify('father')` → `KinshipEdgeCategory.parent` and
+//   `classify('child')` → `KinshipEdgeCategory.child` were treated as
+//   two DISTINCT categories (because they're different enum values),
+//   so A→B "father" + B→A "child" rendered as TWO laterally-offset
+//   curves instead of one straight line. Every parent/child pair in
+//   the app was double-drawn.
+//
+//   The fix recognizes that `parent` and `child` are inverse wordings
+//   of the SAME underlying relationship (the only asymmetric pair in
+//   the category enum — sibling/spouse/grandparent inverses all
+//   converge to the same category, but parent/child don't). When a
+//   group has both `parent` and `child` categories AND the underlying
+//   relationship keys are inverses of each other (e.g. 'father' ↔
+//   'child', 'mother' ↔ 'child', 'son' ↔ 'parent'), they collapse
+//   into ONE edge — keeping the parent-direction edge as primary
+//   (matching the existing "first-seen wins" behavior, since the DB
+//   typically stores the forward direction first).
+//
+//   A genuine second distinct relationship between the same pair
+//   (e.g. parent AND spouse — a real blended-family case) still gets
+//   a lateral offset and renders as two edges. The collapse only
+//   applies when the two edges are inverses of the same relationship.
+//
 // USAGE:
 //   final deduped = EdgeDeduplicator.deduplicate(edges);
-//   for (final entry in deduped) {
+//   for (final entry of deduped) {
 //     final path = _bezier(s, t, lateralOffset: entry.lateralOffset);
 //     canvas.drawPath(path, paint);
 //   }
@@ -126,6 +150,30 @@ class EdgeDeduplicator {
       // Group edges by category. We use the first edge per category
       // (in case the same category appears twice via A→B and B→A
       // inverse rows — those collapse into one).
+      //
+      // v101 (BUG-1 FIX): parent and child are inverse wordings of the
+      // SAME underlying relationship, but classify() returns DIFFERENT
+      // enum values for them (KinshipEdgeCategory.parent vs .child).
+      // Without special handling, A→B "father" + B→A "child" would be
+      // treated as two distinct categories and render as two parallel
+      // edges — which is wrong; they are ONE relationship seen from
+      // two sides. The same applies to 'mother'↔'child', 'son'↔'parent',
+      // 'daughter'↔'parent', etc.
+      //
+      // We detect this case by checking, for each new edge, whether its
+      // category is the inverse-pair counterpart of an already-present
+      // category AND its relationship key is the inverse of the
+      // already-present edge's key. If so, we collapse: keep the
+      // parent-direction edge as primary (matching the "first-seen wins"
+      // behavior the DB typically gives us — the forward direction is
+      // usually inserted first by createRelationshipBetween).
+      //
+      // If the keys are NOT inverses (e.g. someone manually added both
+      // 'father' AND 'mother' between the same pair, which is unusual
+      // but not impossible), we do NOT collapse — both stay as distinct
+      // edges. This is the conservative path: only collapse when we're
+      // confident the two edges are the same relationship from two
+      // perspectives.
       final categoryToEdge = <KinshipEdgeCategory, GraphEdgeData>{};
       for (final edge in groupEdges) {
         final cat = KinshipEdgeClassifier.classify(edge.relationshipKey);
@@ -134,6 +182,34 @@ class EdgeDeduplicator {
         // rows are usually the auto-created inverse and would render
         // the same curve in the opposite direction.
         if (!categoryToEdge.containsKey(cat)) {
+          // v101 (BUG-1 FIX): Check if this edge is the inverse-pair
+          // counterpart of an edge we already kept. If so, this is a
+          // parent/child inverse pair (the only asymmetric category
+          // pair). We collapse them into ONE entry — keeping the
+          // parent-direction edge as primary (per the spec: "prefer the
+          // parent direction edge as primary").
+          final inverseCat = _inverseCategory(cat);
+          if (inverseCat != null && categoryToEdge.containsKey(inverseCat)) {
+            final existingEdge = categoryToEdge[inverseCat]!;
+            if (_areInverseKeys(
+              existingEdge.relationshipKey,
+              edge.relationshipKey,
+            )) {
+              // Inverse pair detected. Prefer the parent-direction edge
+              // as primary: if the new edge is parent-direction and
+              // the existing one is child-direction, REPLACE it.
+              // Otherwise keep the existing (already-parent) edge.
+              if (cat == KinshipEdgeCategory.parent &&
+                  inverseCat == KinshipEdgeCategory.child) {
+                categoryToEdge.remove(inverseCat);
+                categoryToEdge[cat] = edge;
+              }
+              // If the existing edge is already parent-direction, do
+              // nothing — keep it as primary, skip this child-direction
+              // edge.
+              continue;
+            }
+          }
           categoryToEdge[cat] = edge;
         }
       }
@@ -170,6 +246,86 @@ class EdgeDeduplicator {
   static String _pairKey(String a, String b) {
     final ids = [a, b]..sort();
     return '${ids[0]}_${ids[1]}';
+  }
+
+  /// v101 (BUG-1 FIX): Returns the inverse-pair counterpart of a
+  /// [KinshipEdgeCategory], or null if the category is its own inverse.
+  ///
+  /// The only asymmetric pair in the enum is `parent` ↔ `child`.
+  /// All other inverse relationship wordings converge to the SAME
+  /// category (e.g. 'brother'/'sister'/'sibling' all → sibling;
+  /// 'husband'/'wife' → spouse; 'grandfather'/'grandchild' → grandparent),
+  /// so they collapse via the existing same-category dedup path and
+  /// don't need this special handling.
+  ///
+  /// Returns:
+  ///   - `KinshipEdgeCategory.child` for `KinshipEdgeCategory.parent`
+  ///   - `KinshipEdgeCategory.parent` for `KinshipEdgeCategory.child`
+  ///   - `null` for every other category (they're self-inverse)
+  static KinshipEdgeCategory? _inverseCategory(KinshipEdgeCategory cat) {
+    switch (cat) {
+      case KinshipEdgeCategory.parent:
+        return KinshipEdgeCategory.child;
+      case KinshipEdgeCategory.child:
+        return KinshipEdgeCategory.parent;
+      case KinshipEdgeCategory.self:
+      case KinshipEdgeCategory.sibling:
+      case KinshipEdgeCategory.spouse:
+      case KinshipEdgeCategory.grandparent:
+      case KinshipEdgeCategory.auntUncle:
+      case KinshipEdgeCategory.cousin:
+      case KinshipEdgeCategory.inLaw:
+      case KinshipEdgeCategory.extended:
+      case KinshipEdgeCategory.indirect:
+        return null;
+    }
+  }
+
+  /// v101 (BUG-1 FIX): Returns true if [keyA] and [keyB] are inverse
+  /// wordings of the same underlying relationship.
+  ///
+  /// This is a LOCAL inverse map covering the parent/child axis (the
+  /// only asymmetric category pair). We do NOT import the full
+  /// `_relationshipInverseMap` from `family_provider.dart` because:
+  ///   1. `edge_dedup.dart` is a pure graph-layer module — it should
+  ///      not depend on the family feature layer.
+  ///   2. We only need to detect the parent↔child inverse direction
+  ///      here; the other categories collapse via the existing
+  ///      same-category path.
+  ///
+  /// The map covers all keys that classify() routes to `parent` or
+  /// `child` (see `kinship_edge_style.dart`):
+  ///   parent: 'father', 'mother', 'parent'
+  ///   child:  'son', 'daughter', 'child',
+  ///           'sons_wife', 'sons_husband', 'daughters_husband',
+  ///           'daughters_wife', 'sons_partner', 'daughters_partner'
+  ///
+  /// Note: the children's-spouses keys ('sons_wife' etc.) classify as
+  /// `child` but their semantic inverse is 'parent_in_law' (an in-law),
+  /// NOT 'father'/'mother'. We deliberately do NOT list those here —
+  /// they will NOT collapse with a 'father' edge even though both
+  /// classify as parent/child, because their keys are not inverses.
+  /// This is correct: a 'sons_wife' edge and a 'father' edge between
+  /// the same pair are genuinely different relationships
+  /// (daughter-in-law vs father), not the same relationship from two
+  /// sides.
+  static const Map<String, String> _parentChildInverseKeys = {
+    'father': 'child',
+    'mother': 'child',
+    'parent': 'child',
+    'child': 'parent',
+    'son': 'parent',
+    'daughter': 'parent',
+  };
+
+  /// Returns true if [keyA] and [keyB] are inverse wordings of the
+  /// same parent/child relationship. Both keys must normalize via
+  /// [_parentChildInverseKeys] and each must be the other's inverse.
+  static bool _areInverseKeys(String keyA, String keyB) {
+    final a = keyA.toLowerCase().trim();
+    final b = keyB.toLowerCase().trim();
+    final inverseOfA = _parentChildInverseKeys[a];
+    return inverseOfA != null && inverseOfA == b;
   }
 
   /// Computes the lateral offset for the [i]-th edge in a group of
