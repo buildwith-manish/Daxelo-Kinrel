@@ -886,6 +886,14 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     try {
       Person? result;
 
+      // v94 (EDGE BUG FIX): Track whether the relationship creation
+      // failed so we can suppress the success flow (confetti,
+      // "Welcome to the family") when the compound mutation is
+      // incomplete. The Person was created but the edge wasn't —
+      // showing success would mislead the user. Declared in the outer
+      // try scope so it's visible to the success-gate below.
+      var relationshipFailed = false;
+
       if (_isEditMode) {
         await updatePersonOptimistic(
           ref: ref,
@@ -1042,14 +1050,19 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
         final relKey = preComputedRelKey;
 
-        // v94 (EDGE BUG FIX): Track whether the relationship creation
-        // failed so we can suppress the success flow (confetti,
-        // "Welcome to the family") when the compound mutation is
-        // incomplete. The Person was created but the edge wasn't —
-        // showing success would mislead the user.
-        var relationshipFailed = false;
-
         if (relKey != null && !_isEditMode && result != null) {
+          // v94: Capture the non-null result in a local variable so
+          // dart2js doesn't lose null-promotion across the await
+          // boundaries below. Without this, `result.id` triggers
+          // "Property 'id' cannot be accessed on 'Person?'" because
+          // dart2js can't prove `result` is still non-null after an
+          // await inside a nested try block.
+          final newPerson = result;
+          final resultId = newPerson.id;
+          final resultName = newPerson.name;
+          final resultGender = newPerson.gender;
+          final resultPhotoUrl = newPerson.photoUrl;
+          final resultIsDeceased = newPerson.isDeceased;
           try {
             final client = ref.read(supabaseProvider);
             if (client != null && client.auth.currentSession != null) {
@@ -1076,13 +1089,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
                 // If no anchorPersonId, query ALL existing persons (not just first)
                 // and pick the anchor (isAnchor=true) or the oldest by createdAt
-                if (linkToPersonId == null || linkToPersonId.isEmpty || linkToPersonId == result.id) {
+                if (linkToPersonId == null || linkToPersonId.isEmpty || linkToPersonId == resultId) {
                   debugPrint('[ADD-MEMBER] v94: No valid anchorPersonId, querying existing members...');
                   final existingPersons = await client
                       .from('Person')
                       .select('id, name, gender, "isAnchor"')
                       .eq('familyId', widget.familyId)
-                      .neq('id', result.id)
+                      .neq('id', resultId)
                       .isFilter('deletedAt', null)
                       .order('createdAt', ascending: true)
                       .limit(10)
@@ -1102,14 +1115,14 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 }
               }
 
-              if (linkToPersonId != null && linkToPersonId.isNotEmpty && linkToPersonId != result.id) {
+              if (linkToPersonId != null && linkToPersonId.isNotEmpty && linkToPersonId != resultId) {
                 // CRITICAL FIX: The relationship question asks "How is
                 // newName related to anchor?" — so the user is saying
                 // "newPerson IS the [brother/father/etc] OF anchor".
                 // The relationship must be stored as:
-                //   from: newPerson (result.id), to: anchor (linkToPersonId)
+                //   from: newPerson (resultId), to: anchor (linkToPersonId)
                 //   key: relKey (e.g. 'brother' = newPerson is brother of anchor)
-                debugPrint('[ADD-MEMBER] v94: Creating relationship: from=${result.id} (new) to=$linkToPersonId (anchor) key=$relKey');
+                debugPrint('[ADD-MEMBER] v94: Creating relationship: from=$resultId (new) to=$linkToPersonId (anchor) key=$relKey');
 
                 // v94 (EDGE BUG FIX): Create the relationship with
                 // `refreshGraph: false` — we do NOT want createRelationship
@@ -1121,7 +1134,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 await createRelationship(
                   ref: ref,
                   familyId: widget.familyId,
-                  fromPersonId: result.id,
+                  fromPersonId: resultId,
                   toPersonId: linkToPersonId,
                   relationshipKey: relKey,
                   // v83: Pass custom kinship colors + display name
@@ -1152,13 +1165,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   ref
                       .read(familyGraphProvider(widget.familyId).notifier)
                       .upsertPersonAndEdge(
-                        personId: result.id,
-                        personName: result.name,
-                        gender: result.gender,
+                        personId: resultId,
+                        personName: resultName,
+                        gender: resultGender,
                         relationshipKey: relKey,
                         targetPersonId: linkToPersonId,
-                        photoUrl: result.photoUrl,
-                        isDeceased: result.isDeceased,
+                        photoUrl: resultPhotoUrl,
+                        isDeceased: resultIsDeceased,
                       );
                 } catch (e) {
                   debugPrint('[ADD-MEMBER] v94: Optimistic upsert failed (non-fatal — refetch will recover): $e');
@@ -1179,8 +1192,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   final edgeExists = refreshedGraph.relationships.any((r) {
                     final from = r['fromPersonId']?.toString();
                     final to = r['toPersonId']?.toString();
-                    return (from == result.id && to == linkToPersonId) ||
-                        (from == linkToPersonId && to == result.id);
+                    return (from == resultId && to == linkToPersonId) ||
+                        (from == linkToPersonId && to == resultId);
                   });
                   if (edgeExists) {
                     debugPrint('[ADD-MEMBER] v94: ✅ Edge verified in refreshed graph');
