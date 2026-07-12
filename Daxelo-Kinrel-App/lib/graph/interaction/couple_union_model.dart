@@ -230,3 +230,73 @@ bool isUnionEntity(String personId) {
   // a union ID as a person ID, it will be rejected.
   return personId.startsWith('union_');
 }
+
+/// Resolves the effective source/target points for an edge, applying
+/// the couple-union redirect (Phase 6) if applicable.
+///
+/// This is the SINGLE source of truth for edge endpoint geometry. It is
+/// called by BOTH:
+///   • the edge painter (for the actual rendered bezier curve), and
+///   • the tap hit-tester (for tap-target midpoint computation).
+///
+/// These two call sites MUST NEVER diverge — that was the original
+/// Phase 6 hit-test-parity bug (the painter redirected the parent→child
+/// edge to start at the union midpoint, but the hit-tester still used
+/// the parent's raw node position, so tapping the rendered line near
+/// the union glyph silently missed). If you need this logic anywhere
+/// else, call this function; do not reimplement it.
+///
+/// Redirect rules:
+///   • If [sourceId] is a partner in a union and [targetId] is a child
+///     attached to that union → the effective SOURCE becomes
+///     `unionMidpoint(partnerA, partnerB)`. The target is unchanged.
+///   • Symmetrically, if [sourceId] is a union child and [targetId] is
+///     a partner in that union → the effective TARGET becomes the
+///     union midpoint. The source is unchanged.
+///   • Otherwise → both endpoints are returned unchanged.
+///
+/// [positionOf] is a lookup callback that returns the raw layout
+/// position of a person ID (or null if unknown). Both call sites use
+/// the SAME coordinate space (the painter's `positions` map and the
+/// hit-tester's `_currentPositionsWithOffset` map are both populated
+/// with the visual-circle Y offset applied — see
+/// `_kCircleCenterYOffset` in `family_graph_engine_view.dart`). This
+/// is critical: if the two maps ever drift into different coordinate
+/// spaces, the union midpoints computed from each will silently
+/// differ and the parity bug returns.
+///
+/// Returns a record `({Offset source, Offset target})` of the
+/// effective endpoints to use for curve construction / hit-testing.
+({Offset source, Offset target}) resolveEffectiveEdgeEndpoints({
+  required String sourceId,
+  required String targetId,
+  required Offset rawSource,
+  required Offset rawTarget,
+  required List<CoupleUnion> coupleUnions,
+  required Offset? Function(String personId) positionOf,
+}) {
+  for (final union in coupleUnions) {
+    if (union.hasPartner(sourceId) && union.hasChild(targetId)) {
+      final a = positionOf(union.partnerAId);
+      final b = positionOf(union.partnerBId);
+      if (a != null && b != null) {
+        return (source: unionMidpoint(a, b), target: rawTarget);
+      }
+      // Union matches but partner positions unavailable — fall through
+      // to the default return. (We `break` rather than `continue`
+      // because at most one union can match a given (parent, child)
+      // pair: a child is attached to a union only when BOTH partners
+      // are confirmed parents, so the union is unique.)
+      break;
+    }
+    if (union.hasChild(sourceId) && union.hasPartner(targetId)) {
+      final a = positionOf(union.partnerAId);
+      final b = positionOf(union.partnerBId);
+      if (a != null && b != null) {
+        return (source: rawSource, target: unionMidpoint(a, b));
+      }
+      break;
+    }
+  }
+  return (source: rawSource, target: rawTarget);
+}

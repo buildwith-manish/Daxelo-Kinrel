@@ -85,6 +85,12 @@ import '../interaction/graph_kinship_path_focus.dart'
         graphPathFocusProvider;
 import '../interaction/graph_path_trace_controller.dart'
     show GraphPathTraceController, GraphPathTraceState, GraphPathTracePhase;
+import '../interaction/couple_union_model.dart'
+    show
+        CoupleUnion,
+        deriveCoupleUnions,
+        resolveEffectiveEdgeEndpoints,
+        unionMidpoint;
 import '../../core/constants/feature_flags.dart' show kEnableGraphShareExport;
 import '../../core/constants/brand_colors.dart' show KinrelColors;
 import '../../core/kinship/kinship_edge_style.dart';
@@ -267,6 +273,18 @@ class _FamilyGraphEngineViewState
   Map<String, Offset> _currentPositionsWithOffset = const {};
   Map<String, KinshipEdgeCategory> _currentEdgeCategories = const {};
   Map<String, Map<String, dynamic>> _currentEdgeCustomColors = const {};
+
+  // Phase 6 (hit-test parity): Cache the current couple unions so the
+  // tap hit-tester can apply the SAME union-redirect the painter applies
+  // to the rendered bezier curve. Without this, tapping a parent→child
+  // edge near the union glyph would silently miss because the rendered
+  // curve starts at the union midpoint while the hit-test midpoint was
+  // computed from the parent's raw node position.
+  //
+  // See `resolveEffectiveEdgeEndpoints` in couple_union_model.dart —
+  // it is the SINGLE source of truth used by BOTH the painter and this
+  // hit-tester. These two call sites must never diverge.
+  List<CoupleUnion> _currentCoupleUnions = const [];
 
   // Repaint/recull throttling.
   Rect _lastCullViewport = Rect.zero;
@@ -794,6 +812,23 @@ class _FamilyGraphEngineViewState
         // selection + lateral offsets for parallel edges.
         final edges = EdgeDeduplicator.deduplicate(rawEdges);
 
+        // Phase 6: Derive couple unions from the SAME deduped edge list
+        // the painter will iterate. This is the SINGLE place unions are
+        // derived for this build — both the painter (via the wrapper)
+        // and the hit-tester (via `_currentCoupleUnions`) read from
+        // this exact list. Deriving twice would risk divergence.
+        final coupleUnions = deriveCoupleUnions(
+          [
+            for (final d in edges)
+              (
+                fromId: d.edge.sourceId,
+                toId: d.edge.targetId,
+                edgeId: d.edge.id,
+                relationshipKey: d.edge.relationshipKey,
+              ),
+          ],
+        );
+
         // v69: Resolve each edge's color from the authoritative category
         // map (relationCategoryById) — no lossy string round-trip.
         //
@@ -852,6 +887,7 @@ class _FamilyGraphEngineViewState
         _currentEdges = edges;
         _currentEdgeCategories = edgeCategories;
         _currentEdgeCustomColors = edgeCustomColors;
+        _currentCoupleUnions = coupleUnions;
         _currentPositionsWithOffset = {
           for (final entry in layout.positions.entries)
             entry.key: Offset(
@@ -908,6 +944,11 @@ class _FamilyGraphEngineViewState
                     edges: edges,
                     edgeCategories: edgeCategories,
                     edgeCustomColors: edgeCustomColors,
+                    // Phase 6: Pass the couple unions derived above so the
+                    // painter can apply the SAME union-redirect the
+                    // hit-tester applies. This is the painter's ONLY
+                    // source of union truth — it never recomputes.
+                    coupleUnions: coupleUnions,
                     cache: _edgePathCache,
                     // v91 (PART 10): LOD-aware edge quality.
                     edgeQuality:
@@ -924,13 +965,34 @@ class _FamilyGraphEngineViewState
                     //   edgeVisualRevision — bumped when categories or
                     //                      custom colours change.
                     //
+                    // v91 (PART 11): Revision-based repaint correctness.
+                    // The painter compares these in `shouldRepaint`
+                    // instead of deep-comparing maps every frame.
+                    //
+                    //   graphRevision    — bumped when edges/positions
+                    //                      counts change (add/remove
+                    //                      member, edge add/delete).
+                    //                      Phase 6: also includes
+                    //                      `coupleUnions.length` so a
+                    //                      spouse-edge add/remove/change
+                    //                      (which changes the union list
+                    //                      without necessarily changing
+                    //                      edge count if it's a key change)
+                    //                      still triggers a repaint.
+                    //   layoutRevision   — bumped when layout positions
+                    //                      change (re-layout, drag).
+                    //   edgeVisualRevision — bumped when categories or
+                    //                      custom colours change.
+                    //
                     // We use a combined length-based fingerprint for
                     // graphRevision and edgeVisualRevision, and the
                     // layout's canvasWidth/Height + positions length
                     // for layoutRevision. This is O(1) and catches
                     // every real mutation that affects rendering.
                     graphRevision:
-                        edges.length * 100003 + layout.positions.length,
+                        edges.length * 100003 +
+                            layout.positions.length +
+                            coupleUnions.length * 17,
                     layoutRevision:
                         (layout.canvasWidth * 1000).round() +
                             (layout.canvasHeight).round() +
@@ -948,7 +1010,6 @@ class _FamilyGraphEngineViewState
                     // unrelated edges dim.
                     pathFocusedEdgeIds: pathFocus?.orderedEdgeIds.toSet(),
                     pathFocusActive: pathFocus != null,
-                    coupleUnions: layout.coupleUnions.cast<CoupleUnion>(),
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
@@ -1856,6 +1917,16 @@ class _FamilyGraphEngineViewState
   /// The VISUAL bead remains 4–6px — only the invisible hit region is
   /// enlarged. If multiple edges overlap near the tap point, the
   /// closest midpoint wins.
+  ///
+  /// Phase 6 (hit-test parity): The midpoint is computed from the
+  /// EFFECTIVE endpoints returned by `resolveEffectiveEdgeEndpoints` —
+  /// the SAME function the painter uses to construct the rendered
+  /// bezier curve. This is the entire point of the parity fix: before,
+  /// the painter redirected parent→child edges to start at the union
+  /// midpoint, but this hit-tester still used the parent's raw node
+  /// position, so the rendered curve and the tap target were two
+  /// different points. Tapping the actual rendered line near the union
+  /// glyph silently missed, or registered a hit on a neighbouring edge.
   String? _hitTestEdge(Offset screenPos) {
     if (_currentEdges.isEmpty || _currentPositionsWithOffset.isEmpty) {
       return null;
@@ -1872,11 +1943,27 @@ class _FamilyGraphEngineViewState
       final s = _currentPositionsWithOffset[e.sourceId];
       final t = _currentPositionsWithOffset[e.targetId];
       if (s == null || t == null) continue;
+      // Phase 6: resolve the effective endpoints through the SAME
+      // helper the painter uses. For a union-redirected parent→child
+      // edge, `resolved.source` is the union midpoint (not the parent's
+      // raw node position), so the midpoint computed below matches the
+      // midpoint of the actually-rendered curve.
+      final resolved = resolveEffectiveEdgeEndpoints(
+        sourceId: e.sourceId,
+        targetId: e.targetId,
+        rawSource: s,
+        rawTarget: t,
+        coupleUnions: _currentCoupleUnions,
+        positionOf: (id) => _currentPositionsWithOffset[id],
+      );
       // The midpoint is the visual center of the edge. For Bézier
       // curves the actual PathMetric 50% tangent position may differ
       // slightly, but for hit-testing the geometric midpoint is a
       // close-enough approximation and is O(1) per edge.
-      final mid = Offset((s.dx + t.dx) / 2, (s.dy + t.dy) / 2);
+      final mid = Offset(
+        (resolved.source.dx + resolved.target.dx) / 2,
+        (resolved.source.dy + resolved.target.dy) / 2,
+      );
       final dist = (mid - graphPos).distance;
       if (dist < hitRadius && dist < bestDist) {
         bestDist = dist;
@@ -3042,13 +3129,14 @@ class _EdgeSelectionWrapper extends ConsumerStatefulWidget {
   final List<DedupedEdge> edges;
   final Map<String, KinshipEdgeCategory> edgeCategories;
   final Map<String, Map<String, dynamic>> edgeCustomColors;
-  final EdgePathCache cache;
 
   /// v99 (Phase 6): Derived couple unions from the layout. The painter
   /// renders a subtle junction glyph at the midpoint between partners
   /// for each union, and routes parent→child edges through the union
   /// midpoint when the child is a confirmed child of both partners.
   final List<CoupleUnion> coupleUnions;
+
+  final EdgePathCache cache;
 
   /// LOD-derived visual quality tier for the entire edge layer. Computed
   /// ONCE per build from the current graph LOD; the painter never
@@ -3238,6 +3326,7 @@ class _EdgeSelectionWrapperState extends ConsumerState<_EdgeSelectionWrapper>
         edges: widget.edges,
         edgeCategories: widget.edgeCategories,
         edgeCustomColors: widget.edgeCustomColors,
+        coupleUnions: widget.coupleUnions,
         cache: widget.cache,
         selectedEdgeId: selectedEdgeId,
         edgeQuality: widget.edgeQuality,
@@ -3259,7 +3348,6 @@ class _EdgeSelectionWrapperState extends ConsumerState<_EdgeSelectionWrapper>
         completedTraceEdgeIds: traceState.completedEdgeIds.isNotEmpty
             ? traceState.completedEdgeIds
             : null,
-        coupleUnions: widget.coupleUnions,
       ),
       child: const SizedBox.expand(),
     );
@@ -3314,6 +3402,7 @@ class _EngineEdgePainter extends CustomPainter {
     required this.edges,
     required this.edgeCategories,
     required this.edgeCustomColors,
+    required this.coupleUnions,
     required this.cache,
     required this.edgeQuality,
     required this.graphRevision,
@@ -3337,6 +3426,14 @@ class _EngineEdgePainter extends CustomPainter {
   final List<DedupedEdge> edges;
   final Map<String, KinshipEdgeCategory> edgeCategories;
   final Map<String, Map<String, dynamic>> edgeCustomColors;
+
+  /// Phase 6: Couple unions used to redirect parent→child edges to the
+  /// union midpoint. Passed through unchanged from the build method via
+  /// `_EdgeSelectionWrapper`. The painter NEVER recomputes unions — it
+  /// reads from this list, which is the SAME list the hit-tester reads
+  /// via `_currentCoupleUnions`. See `resolveEffectiveEdgeEndpoints`.
+  final List<CoupleUnion> coupleUnions;
+
   final EdgePathCache cache;
   final EdgeQuality edgeQuality;
 
@@ -3372,10 +3469,6 @@ class _EngineEdgePainter extends CustomPainter {
   /// v92 (PART 15): Edges already traced by the sequential trace.
   /// These remain statically focused after their sweep completes.
   final Set<String>? completedTraceEdgeIds;
-
-  /// v99 (Phase 6): Derived couple unions — used to paint union
-  /// junction glyphs at the midpoint between partners.
-  final List<CoupleUnion> coupleUnions;
 
   // ── Path construction ─────────────────────────────────────────────────
 
@@ -3460,41 +3553,35 @@ class _EngineEdgePainter extends CustomPainter {
       if (s == null || t == null) {
         continue;
       }
-      // v100 (Phase 6 structural fix): If this edge is a parent→child
-      // edge where the source person is a partner in a union that this
-      // child belongs to (per CoupleUnion.childIds), anchor the edge's
-      // visual start point at the union midpoint instead of the parent's
-      // own node position. This makes children visually branch from the
-      // couple's connection point rather than from each parent
-      // independently, while leaving the edge's ID, category, custom
-      // colors, and selection behavior completely untouched — only the
-      // bezier's start coordinate changes.
+      // Phase 6 (hit-test parity): Apply the couple-union redirect to
+      // get the EFFECTIVE endpoints for the rendered curve. For a
+      // parent→child edge that belongs to a confirmed couple pairing,
+      // the source becomes the union midpoint (and symmetrically for
+      // child→parent edges). This is the SAME call the hit-tester
+      // makes — see `resolveEffectiveEdgeEndpoints`.
       //
-      // Also handle the REVERSE direction: if the edge goes child→parent
-      // (source is the child, target is the parent who is a union partner),
-      // redirect the TARGET position to the union midpoint instead.
-      Offset effectiveSourcePos = s;
-      Offset effectiveTargetPos = t;
-      for (final union in coupleUnions) {
-        // Direction 1: source is parent (union partner), target is child.
-        if (union.hasPartner(e.sourceId) && union.hasChild(e.targetId)) {
-          final partnerAPos = positions[union.partnerAId];
-          final partnerBPos = positions[union.partnerBId];
-          if (partnerAPos != null && partnerBPos != null) {
-            effectiveSourcePos = unionMidpoint(partnerAPos, partnerBPos);
-          }
-          break;
-        }
-        // Direction 2: source is child, target is parent (union partner).
-        if (union.hasChild(e.sourceId) && union.hasPartner(e.targetId)) {
-          final partnerAPos = positions[union.partnerAId];
-          final partnerBPos = positions[union.partnerBId];
-          if (partnerAPos != null && partnerBPos != null) {
-            effectiveTargetPos = unionMidpoint(partnerAPos, partnerBPos);
-          }
-          break;
-        }
-      }
+      // v100 had this redirect inlined here; the hit-tester did NOT
+      // have a matching redirect, so the rendered curve and the tap
+      // target drifted apart. The fix extracts the logic into a
+      // shared helper (in couple_union_model.dart) called from BOTH
+      // sites — they can never diverge again.
+      //
+      // The cache key (cacheEdgeId below) is unchanged, but the cached
+      // Path is keyed by quantized source/target positions, so a
+      // redirect that moves the source from the parent's raw position
+      // to the union midpoint produces a DIFFERENT cache entry than
+      // the pre-redirect curve. This is correct: the rendered curve
+      // really did change shape.
+      final resolved = resolveEffectiveEdgeEndpoints(
+        sourceId: e.sourceId,
+        targetId: e.targetId,
+        rawSource: s,
+        rawTarget: t,
+        coupleUnions: coupleUnions,
+        positionOf: (id) => positions[id],
+      );
+      final Offset effectiveSource = resolved.source;
+      final Offset effectiveTarget = resolved.target;
       // v64 (BUG-2 FIX): Pass the lateral offset so parallel edges
       // (e.g. parent + spouse between the same pair) are visually
       // separated instead of stacked on top of each other.
@@ -3511,8 +3598,8 @@ class _EngineEdgePainter extends CustomPainter {
         edgeId: cacheEdgeId,
         sourceId: e.sourceId,
         targetId: e.targetId,
-        sourcePos: effectiveSourcePos,
-        targetPos: effectiveTargetPos,
+        sourcePos: effectiveSource,
+        targetPos: effectiveTarget,
         pathFactory: (Offset ss, Offset tt) =>
             _bezier(ss, tt, lateralOffset: deduped.lateralOffset),
       );
@@ -3692,8 +3779,13 @@ class _EngineEdgePainter extends CustomPainter {
         _paintMidpoint(
           canvas: canvas,
           path: path,
-          s: s,
-          t: t,
+          // Phase 6: pass the EFFECTIVE (post-redirect) endpoints so the
+          // midpoint fallback (used only if PathMetrics fails) matches
+          // the rendered curve. The primary computation uses path
+          // metrics along the cached Path, which was itself built from
+          // these effective endpoints — so they agree by construction.
+          s: effectiveSource,
+          t: effectiveTarget,
           midpointSymbol: midpointSymbol,
           customColors: customColors,
           style: style,
