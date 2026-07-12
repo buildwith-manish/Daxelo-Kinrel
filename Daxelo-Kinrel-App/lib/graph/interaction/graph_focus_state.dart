@@ -22,7 +22,9 @@
 // modify relationship data, node positions, canonical topology, or
 // family membership.
 
-import 'package:flutter/material.dart' show Offset;
+import 'dart:ui' show Offset;
+
+import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// A snapshot of the camera viewport, saved when focus changes so the
