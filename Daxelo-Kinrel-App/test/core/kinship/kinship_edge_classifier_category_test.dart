@@ -5,7 +5,7 @@
 // BUG:
 //   family_graph.dart stores `PersonData.kinshipCategory` (a server-computed
 //   *category* string like "aunt_uncle") as `GraphPersonData.relationshipKey`,
-//   which GraphNode then passes to RelationshipColors.borderColorFor() →
+//   which GraphNode then passes to KinshipEdgeStyleResolver.styleFor() →
 //   KinshipEdgeStyleResolver.styleFor() → KinshipEdgeClassifier.classify().
 //
 //   The classifier was originally designed for RAW kinship keys
@@ -203,14 +203,14 @@ void main() {
 
     test('9. Node ring color matches the spec for every category', () {
       // End-to-end: simulate what GraphNode._borderColor does.
-      // GraphNode calls RelationshipColors.borderColorFor(key), which
+      // GraphNode calls KinshipEdgeStyleResolver.styleFor(key), which
       // delegates to KinshipEdgeStyleResolver.styleFor(key).color.
       // This test verifies the full chain produces the spec color.
       for (final entry in categoryToExpectedColor.entries) {
         final categoryString = entry.key;
         final expectedColor = entry.value;
 
-        // Mirror RelationshipColors.borderColorFor() exactly.
+        // Mirror KinshipEdgeStyleResolver.styleFor() exactly.
         final style = KinshipEdgeStyleResolver.styleFor(categoryString);
         final resolvedColor = style.color;
 

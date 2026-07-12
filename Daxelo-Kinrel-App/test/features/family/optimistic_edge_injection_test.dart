@@ -91,7 +91,7 @@ void main() {
         final (expectedCategory, expectedColor) = entry.value;
 
         // The relationshipKey flows through this exact chain at render
-        // time: GraphNode._borderColor → RelationshipColors.borderColorFor
+        // time: GraphNode._borderColor → KinshipEdgeStyleResolver.styleFor
         // → KinshipEdgeStyleResolver.styleFor → classify.
         final style = KinshipEdgeStyleResolver.styleFor(key);
         final category = KinshipEdgeClassifier.classify(key);

@@ -72,116 +72,17 @@ enum NodeState {
 // RELATIONSHIP COLOR SYSTEM
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Defines the color system for each relationship type in the graph.
-class RelationshipColors {
-  RelationshipColors._();
-
-  // ── Border Colors ───────────────────────────────────────────────────
-
-  /// Self — Teal #0D9488
-  static const Color self = Color(0xFF0D9488);
-
-  /// Parent — Blue #3B82F6
-  static const Color parent = Color(0xFF3B82F6);
-
-  /// Sibling — Purple #8B5CF6
-  static const Color sibling = Color(0xFF8B5CF6);
-
-  /// Child — Pink #EC4899
-  static const Color child = Color(0xFFEC4899);
-
-  /// Spouse — Orange #F97316
-  static const Color spouse = Color(0xFFF97316);
-
-  /// Grandparent — Indigo #6366F1
-  static const Color grandparent = Color(0xFF6366F1);
-
-  /// Aunt/Uncle — Cyan #06B6D4
-  static const Color auntUncle = Color(0xFF06B6D4);
-
-  /// Cousin — Emerald #10B981
-  static const Color cousin = Color(0xFF10B981);
-
-  /// In-Law — Amber #F59E0B
-  static const Color inLaw = Color(0xFFF59E0B);
-
-  /// Extended — Slate #64748B
-  static const Color extended = Color(0xFF64748B);
-
-  // ── Background Tint (4% alpha) ──────────────────────────────────────
-
-  /// Self background tint — teal 4%
-  static const Color selfTint = Color(0x0A0D9488);
-
-  /// Parent background tint — blue 4%
-  static const Color parentTint = Color(0x0A3B82F6);
-
-  /// Sibling background tint — purple 4%
-  static const Color siblingTint = Color(0x0A8B5CF6);
-
-  /// Child background tint — pink 4%
-  static const Color childTint = Color(0x0AEC4899);
-
-  /// Spouse background tint — orange 4%
-  static const Color spouseTint = Color(0x0AF97316);
-
-  /// Grandparent background tint — indigo 4%
-  static const Color grandparentTint = Color(0x0A6366F1);
-
-  /// Aunt/Uncle background tint — cyan 4%
-  static const Color auntUncleTint = Color(0x0A06B6D4);
-
-  /// Cousin background tint — emerald 4%
-  static const Color cousinTint = Color(0x0A10B981);
-
-  /// In-Law background tint — amber 4%
-  static const Color inLawTint = Color(0x0AF59E0B);
-
-  /// Extended background tint — slate 4%
-  static const Color extendedTint = Color(0x0A64748B);
-
-  // ── Resolution — SINGLE SOURCE OF TRUTH ─────────────────────────────
-  //
-  // Node border colors and tints are resolved via KinshipEdgeStyleResolver
-  // — the SAME resolver used by the edge painter. This ensures node ring
-  // colors ALWAYS match edge line colors, because both use the same
-  // KinshipEdgeClassifier.classify() → KinshipEdgeStyle pipeline.
-  //
-  // Previous architecture had a DUPLICATE color system with its own
-  // _borderColorMap (35 entries), _tintColorMap (35 entries),
-  // _categoryColorFromEdgeCategory, _kinshipCategoryFor, and
-  // _categoryBorderColor. These could fall out of sync with the edge
-  // painter's KinshipEdgeStyleResolver, causing mismatched colors.
-  //
-  // All duplicate maps and methods have been REMOVED. The only color
-  // resolution path is now:
-  //   relationshipKey → KinshipEdgeClassifier.classify()
-  //                   → KinshipEdgeStyleResolver.styleForCategory()
-  //                   → KinshipEdgeStyle.color
-  //
-  // This handles ALL 5,350+ kinship terms via comprehensive regex
-  // patterns — no hardcoded maps, no kinship dataset dependency.
-
-  /// Resolves the border color for a relationship key.
-  /// Delegates to KinshipEdgeStyleResolver (same as edge painter).
-  static Color borderColorFor(String? relationshipKey) {
-    if (relationshipKey == null || relationshipKey.isEmpty) {
-      return extended;
-    }
-    final style = KinshipEdgeStyleResolver.styleFor(relationshipKey);
-    return style.color ?? extended;
-  }
-
-  /// Resolves the background tint for a relationship key.
-  /// Derives tint from the same color as borderColorFor.
-  static Color tintFor(String? relationshipKey) {
-    if (relationshipKey == null || relationshipKey.isEmpty) {
-      return extendedTint;
-    }
-    final color = borderColorFor(relationshipKey);
-    return color.withValues(alpha: 0.04);
-  }
-}
+// ── Relationship Color System ──────────────────────────────────────
+//
+// P0.2: The duplicate node color system was REMOVED. Node ring
+// colors now resolve through the SAME canonical system as edge colors:
+//
+//   Static category color → KinshipEdgeColors.<category>
+//   Key-based resolution  → KinshipEdgeStyleResolver.styleFor(key).color
+//   Tint (4% alpha)       → <color>.withValues(alpha: 0.04)
+//
+// This ensures node rings and edge lines ALWAYS use the same palette.
+// See: lib/core/kinship/kinship_edge_style.dart (Feature P0.2).
 
 // ═══════════════════════════════════════════════════════════════════════
 // EXPAND INDICATOR CATEGORIES
@@ -479,7 +380,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
   Color get _borderColor {
     if (widget.isAnonymous) return _highContrast ? Colors.grey : KinrelColors.textDim;
-    if (widget.isAnchor) return RelationshipColors.self;
+    if (widget.isAnchor) return KinshipEdgeColors.self;
     // v69: Prefer the AUTHORITATIVE category — no lossy string round-trip.
     // styleForCategory() is always correct and never falls through to
     // grey for a known relationship.
@@ -487,7 +388,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     if (widget.category != null) {
       color = KinshipEdgeStyleResolver.styleForCategory(widget.category!).color;
     } else {
-      color = RelationshipColors.borderColorFor(widget.relationshipKey);
+      color = KinshipEdgeStyleResolver.styleFor(widget.relationshipKey ?? '').color;
     }
     // High contrast: full opacity colors for WCAG AA 4.5:1 contrast
     return _highContrast ? Color.fromRGBO(color.red, color.green, color.blue, 1.0) : color;
@@ -495,13 +396,13 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
   Color get _tintColor {
     if (widget.isAnonymous) return Colors.transparent;
-    if (widget.isAnchor) return RelationshipColors.selfTint;
+    if (widget.isAnchor) return KinshipEdgeColors.self.withValues(alpha: 0.04);
     // v69: Derive tint from the authoritative category when available.
     if (widget.category != null) {
       final color = KinshipEdgeStyleResolver.styleForCategory(widget.category!).color;
       return color.withValues(alpha: 0.04);
     }
-    return RelationshipColors.tintFor(widget.relationshipKey);
+    return KinshipEdgeStyleResolver.styleFor(widget.relationshipKey ?? '').color.withValues(alpha: 0.04);
   }
 
   // ── Build ──────────────────────────────────────────────────────────
@@ -714,7 +615,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                 fontSize: 11.0,
                 fontWeight: FontWeight.w500,
                 color: widget.relationLabel == 'You'
-                    ? RelationshipColors.self
+                    ? KinshipEdgeColors.self
                     : _borderColor,
               ),
               textAlign: TextAlign.center,
@@ -758,7 +659,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     // Pseudo-3D node: all 6 layers painted by a single CustomPainter.
     final nodeParams = _Pseudo3DParams(
       diameter: diameter,
-      borderColor: widget.isAnchor ? RelationshipColors.self : _borderColor,
+      borderColor: widget.isAnchor ? KinshipEdgeColors.self : _borderColor,
       borderWidth: widget.isAnchor ? 3.0 : _borderWidth,
       generationIndex: widget.generationIndex,
       isAnchor: widget.isAnchor,

@@ -27,6 +27,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
+import '../../core/kinship/kinship_edge_style.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import 'graph_node.dart';
 
@@ -296,17 +297,17 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
                 shape: BoxShape.circle,
                 color: KinrelColors.darkCard,
                 border: Border.all(
-                  color: RelationshipColors.self,
+                  color: KinshipEdgeColors.self,
                   width: 3.0,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: RelationshipColors.self.withValues(alpha: 0.25),
+                    color: KinshipEdgeColors.self.withValues(alpha: 0.25),
                     blurRadius: 0.0,
                     spreadRadius: 8.0,
                   ),
                   BoxShadow(
-                    color: RelationshipColors.self.withValues(alpha: 0.15),
+                    color: KinshipEdgeColors.self.withValues(alpha: 0.15),
                     blurRadius: 20.0,
                     spreadRadius: 12.0,
                   ),
@@ -316,7 +317,7 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
                 child: Icon(
                   Icons.person,
                   size: 36.0,
-                  color: RelationshipColors.self,
+                  color: KinshipEdgeColors.self,
                 ),
               ),
             ),
@@ -359,13 +360,13 @@ class _EmptyStateWidgetState extends ConsumerState<EmptyState>
               _buildActionChip(
                 label: 'Add Spouse',
                 icon: Icons.favorite_outline,
-                color: RelationshipColors.spouse,
+                color: KinshipEdgeColors.spouseEdge,
                 onTap: widget.onAddMember,
               ),
               _buildActionChip(
                 label: 'Add Sibling',
                 icon: Icons.people_outline,
-                color: RelationshipColors.sibling,
+                color: KinshipEdgeColors.sibling,
                 onTap: widget.onAddMember,
               ),
             ],
@@ -587,7 +588,7 @@ class _SmallGraphIllustrationPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     final borderPaint = Paint()
-      ..color = RelationshipColors.self
+      ..color = KinshipEdgeColors.self
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
@@ -611,7 +612,7 @@ class _SmallGraphIllustrationPainter extends CustomPainter {
         node2,
         nodeRadius,
         Paint()
-          ..color = RelationshipColors.parent
+          ..color = KinshipEdgeColors.parent
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.0,
       );
@@ -638,7 +639,7 @@ class _SmallGraphIllustrationPainter extends CustomPainter {
         node3,
         nodeRadius,
         Paint()
-          ..color = RelationshipColors.sibling
+          ..color = KinshipEdgeColors.sibling
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.0,
       );

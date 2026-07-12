@@ -21,6 +21,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
+import '../../core/kinship/kinship_edge_style.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../analytics/analytics_tracker.dart';
 import 'graph_node.dart';
@@ -497,12 +498,12 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
                     shape: BoxShape.circle,
                     color: KinrelColors.darkCard,
                     border: Border.all(
-                      color: RelationshipColors.self,
+                      color: KinshipEdgeColors.self,
                       width: 3.0,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: RelationshipColors.self.withValues(
+                        color: KinshipEdgeColors.self.withValues(
                           alpha: _glowAnimation.value * 0.4,
                         ),
                         blurRadius: 16.0,
@@ -514,7 +515,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
                     child: Icon(
                       Icons.person,
                       size: 28.0,
-                      color: RelationshipColors.self,
+                      color: KinshipEdgeColors.self,
                     ),
                   ),
                 );
@@ -549,11 +550,11 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildMiniNode(RelationshipColors.parent, Icons.arrow_upward),
+                _buildMiniNode(KinshipEdgeColors.parent, Icons.arrow_upward),
                 const SizedBox(width: 8.0),
-                _buildMiniNode(RelationshipColors.self, Icons.person),
+                _buildMiniNode(KinshipEdgeColors.self, Icons.person),
                 const SizedBox(width: 8.0),
-                _buildMiniNode(RelationshipColors.spouse, Icons.favorite_outline),
+                _buildMiniNode(KinshipEdgeColors.spouseEdge, Icons.favorite_outline),
               ],
             ),
             const SizedBox(height: 12.0),

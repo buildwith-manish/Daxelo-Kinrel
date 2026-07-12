@@ -124,7 +124,7 @@ import '../rendering/semantic_zoom.dart'
         farTierExcludesPremiumEffects,
         shouldRenderText;
 import '../rendering/viewport_culler.dart' show ViewportCuller;
-import 'graph_node.dart' show GraphNode, RelationshipColors, NodeState;
+import 'graph_node.dart' show GraphNode, NodeState;
 import 'graph_legend.dart' show GraphLegend;
 import 'graph_quick_actions.dart' show GraphQuickActions;
 import 'graph_relationship_labels.dart' show GraphPersonData;
@@ -1073,7 +1073,7 @@ class _FamilyGraphEngineViewState
               center: const Alignment(0, -0.1),
               radius: 1.3,
               colors: [
-                Color.lerp(KinrelColors.darkBackground, RelationshipColors.self, 0.06)!,
+                Color.lerp(KinrelColors.darkBackground, KinshipEdgeColors.self, 0.06)!,
                 KinrelColors.darkBackground,
               ],
               stops: const [0.0, 0.75],
@@ -2597,8 +2597,7 @@ class _FamilyGraphEngineViewState
   ///
   /// Unlike [_relationLabels] which returns LOCALIZED display names
   /// (e.g., "Father"), this returns the raw key needed for color
-  /// resolution via [RelationshipColors.borderColorFor] and
-  /// [KinshipEdgeStyleResolver.styleFor].
+  /// resolution via [KinshipEdgeStyleResolver.styleFor].
   ///
   /// Used to pass `relationshipKey` to [GraphNode] so node borders,
   /// tints, and dots use the correct 8-color scheme.

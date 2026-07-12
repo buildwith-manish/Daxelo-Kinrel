@@ -33,6 +33,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
+import '../../core/kinship/kinship_edge_style.dart';
 import '../analytics/analytics_tracker.dart';
 import '../interaction/graph_search_state.dart' show graphSearchProvider;
 import 'graph_node.dart';
@@ -822,15 +823,15 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
   /// Returns the color for a relationship filter chip.
   Color _filterChipColor(RelationshipFilter filter) {
     return switch (filter) {
-      RelationshipFilter.parent => RelationshipColors.parent,
-      RelationshipFilter.child => RelationshipColors.child,
-      RelationshipFilter.sibling => RelationshipColors.sibling,
-      RelationshipFilter.spouse => RelationshipColors.spouse,
-      RelationshipFilter.grandparent => RelationshipColors.grandparent,
-      RelationshipFilter.auntUncle => RelationshipColors.auntUncle,
-      RelationshipFilter.cousin => RelationshipColors.cousin,
-      RelationshipFilter.inLaw => RelationshipColors.inLaw,
-      RelationshipFilter.extended => RelationshipColors.extended,
+      RelationshipFilter.parent => KinshipEdgeColors.parent,
+      RelationshipFilter.child => KinshipEdgeColors.child,
+      RelationshipFilter.sibling => KinshipEdgeColors.sibling,
+      RelationshipFilter.spouse => KinshipEdgeColors.spouseEdge,
+      RelationshipFilter.grandparent => KinshipEdgeColors.grandparent,
+      RelationshipFilter.auntUncle => KinshipEdgeColors.auntUncle,
+      RelationshipFilter.cousin => KinshipEdgeColors.cousin,
+      RelationshipFilter.inLaw => KinshipEdgeColors.inLaw,
+      RelationshipFilter.extended => KinshipEdgeColors.extended,
     };
   }
 
@@ -940,7 +941,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
 
   Widget _buildResultItem(GraphSearchResult result) {
     final borderColor =
-        RelationshipColors.borderColorFor(result.relationshipKey);
+        KinshipEdgeStyleResolver.styleFor(result.relationshipKey ?? '').color;
 
     return InkWell(
       onTap: () => widget.onResultTap(result.memberId),

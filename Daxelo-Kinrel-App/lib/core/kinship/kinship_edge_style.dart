@@ -267,7 +267,7 @@ class KinshipEdgeClassifier {
     // the person (PersonData.kinshipCategory), that string flows through
     // to the classifier instead of a raw kinship key. family_graph.dart
     // stores it as GraphPersonData.relationshipKey, which GraphNode
-    // passes to RelationshipColors.borderColorFor() → styleFor() →
+    // passes to KinshipEdgeStyleResolver.styleFor() →
     // classify().
     //
     // Recognize these category strings explicitly so node ring colors
