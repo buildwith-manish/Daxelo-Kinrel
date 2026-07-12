@@ -153,10 +153,10 @@ class _TimeCapsuleCreateSheetState extends State<_TimeCapsuleCreateSheet> {
       final userId = client.auth.currentUser?.id;
       if (userId == null) throw Exception('Not signed in');
 
-      // POST to the addictiveness backend
+      // POST to the emotional attachment backend
       final dio = widget.ref.read(dioProvider);
       await dio.post(
-        '/api/addictiveness/time-capsules',
+        '/api/pulse/time-capsules',
         data: {
           'familyId': widget.ref.read(selectedFamilyIdProvider),
           'senderId': userId,

@@ -1,4 +1,4 @@
-// server/src/addictiveness/family-chronicle.service.ts
+// server/src/emotional_attachment/family-chronicle.service.ts
 //
 // A-7 Family Chronicle — AI-written family history book, monthly auto-update.
 //

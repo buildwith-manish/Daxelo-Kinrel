@@ -1,4 +1,4 @@
-// server/src/addictiveness/festival-data.ts
+// server/src/emotional_attachment/festival-data.ts
 //
 // A-6 Festival Intelligence — Indian festival dataset (8 languages).
 //

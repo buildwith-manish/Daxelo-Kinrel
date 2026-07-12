@@ -1,6 +1,6 @@
 // lib/features/pulse/data/pulse_models.dart
 //
-// DAXELO KINREL — Pulse + Pitru + Addictiveness data models
+// DAXELO KINREL — Pulse + Pitru + emotional attachment data models
 //
 // Pure Dart models for all the new backend features. JSON-serializable,
 // no Flutter dependencies (so they can be unit-tested standalone).

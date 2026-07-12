@@ -1,9 +1,9 @@
-// server/src/addictiveness/time-capsule.service.ts
+// server/src/emotional_attachment/time-capsule.service.ts
 //
 // A-2 Time Capsule — messages locked until a future reveal date.
 //
 // Lifecycle:
-//   1. Family member creates a capsule via POST /addictiveness/time-capsules
+//   1. Family member creates a capsule via POST /emotional_attachment/time-capsules
 //      - Sets revealAt (the future unlock date)
 //      - Sets title + content (text/photo/video)
 //      - Optionally sets recipientPersonId or recipientUserId

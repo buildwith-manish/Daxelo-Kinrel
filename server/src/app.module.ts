@@ -47,7 +47,7 @@ import { KinrelModule } from './kinrel-intelligence/kinrel.module';
 import { ThinkingModule } from './modules/thinking/thinking.module';
 import { PulseModule } from './pulse/pulse.module';
 import { PitruModule } from './pitru/pitru.module';
-import { AddictivenessModule } from './addictiveness/addictiveness.module';
+import { EmotionalAttachmentModule } from './emotional_attachment/emotional_attachment.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -170,8 +170,8 @@ import { TrackcModule } from './trackc/trackc.module';
     // ── PITRU: Ancestral Voice Memory ─────────────────────────
     PitruModule,
 
-    // ── ADDICTIVENESS: Festival + Blessing Chain + Time Capsule + Quests + Alarms + Chronicle ─
-    AddictivenessModule,
+    // ── EMOTIONAL ATTACHMENT: Festival + Blessing Chain + Time Capsule + Quests + Alarms + Chronicle ─
+    EmotionalAttachmentModule,
 
     // ── TRACK C v2.0: Kinrel Governance Engine ─────────────────────
     // Constitution + Decisions + Timeline + Kinrel Intelligence + Learning +

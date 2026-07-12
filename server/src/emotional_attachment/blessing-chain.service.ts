@@ -1,9 +1,9 @@
-// server/src/addictiveness/blessing-chain.service.ts
+// server/src/emotional_attachment/blessing-chain.service.ts
 //
 // A-1 Blessing Chain — elder blessings scheduled for delivery on birthdays/festivals.
 //
 // Lifecycle:
-//   1. Elder (or family member on their behalf) records a blessing via POST /addictiveness/blessings
+//   1. Elder (or family member on their behalf) records a blessing via POST /emotional_attachment/blessings
 //      - Sets triggerType (birthday | festival | anniversary | custom)
 //      - Sets triggerDate (the delivery date)
 //      - Sets recipientPersonId or recipientUserId

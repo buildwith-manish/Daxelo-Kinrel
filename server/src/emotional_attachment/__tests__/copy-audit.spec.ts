@@ -1,4 +1,4 @@
-// server/src/addictiveness/__tests__/copy-audit.spec.ts
+// server/src/emotional_attachment/__tests__/copy-audit.spec.ts
 //
 // P1.2: Copy-audit test for Family Suggestions (formerly Family Quests).
 //

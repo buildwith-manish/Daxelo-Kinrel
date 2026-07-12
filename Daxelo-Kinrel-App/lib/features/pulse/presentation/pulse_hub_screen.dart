@@ -1,4 +1,4 @@
-// lib/features/pulse/presentation/addictiveness_hub_screen.dart
+// lib/features/pulse/presentation/pulse_hub_screen.dart
 //
 // DAXELO KINREL — Family Intelligence Hub
 //
@@ -26,8 +26,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../providers/pulse_providers.dart';
 
-class AddictivenessHubScreen extends ConsumerWidget {
-  const AddictivenessHubScreen({super.key});
+class PulseHubScreen extends ConsumerWidget {
+  const PulseHubScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

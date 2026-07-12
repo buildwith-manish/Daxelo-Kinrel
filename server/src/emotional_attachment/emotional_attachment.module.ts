@@ -1,27 +1,27 @@
-// server/src/addictiveness/addictiveness.module.ts
+// server/src/emotional_attachment/emotional attachment.module.ts
 //
-// Addictiveness features — NestJS Module.
+// emotional attachment features — NestJS Module.
 //
 // Wires together:
 //   A-6 Festival Intelligence (FestivalService)
 //   A-1 Blessing Chain (BlessingChainService)
 //   A-2 Time Capsule (TimeCapsuleService)
-//   Daily cron (AddictivenessCronService — refreshes festivals + delivers blessings/capsules)
+//   Daily cron (EmotionalAttachmentCronService — refreshes festivals + delivers blessings/capsules)
 //
 // PrismaModule is @Global(). ScheduleModule is global. EventEmitterModule is global.
 
 import { Module } from '@nestjs/common';
-import { AddictivenessController } from './addictiveness.controller';
+import { EmotionalAttachmentController } from './emotional_attachment.controller';
 import { FestivalService } from './festival.service';
 import { BlessingChainService } from './blessing-chain.service';
 import { TimeCapsuleService } from './time-capsule.service';
 import { FamilyQuestService } from './family-quest.service';
 import { SilentAlarmService } from './silent-alarm.service';
 import { FamilyChronicleService } from './family-chronicle.service';
-import { AddictivenessCronService } from './addictiveness-cron.service';
+import { EmotionalAttachmentCronService } from './emotional-attachment-cron.service';
 
 @Module({
-  controllers: [AddictivenessController],
+  controllers: [EmotionalAttachmentController],
   providers: [
     FestivalService,
     BlessingChainService,
@@ -29,7 +29,7 @@ import { AddictivenessCronService } from './addictiveness-cron.service';
     FamilyQuestService,
     SilentAlarmService,
     FamilyChronicleService,
-    AddictivenessCronService,
+    EmotionalAttachmentCronService,
   ],
   exports: [
     FestivalService,
@@ -40,4 +40,4 @@ import { AddictivenessCronService } from './addictiveness-cron.service';
     FamilyChronicleService,
   ],
 })
-export class AddictivenessModule {}
+export class EmotionalAttachmentModule {}

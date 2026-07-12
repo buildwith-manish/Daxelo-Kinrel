@@ -1,6 +1,6 @@
 // lib/features/pulse/data/pulse_api_client.dart
 //
-// DAXELO KINREL — Pulse + Pitru + Addictiveness API client
+// DAXELO KINREL — Pulse + Pitru + emotional attachment API client
 //
 // Wraps the Dio HTTP client (dioProvider) with typed methods for all the new
 // backend endpoints. All methods return parsed models from pulse_models.dart.
@@ -10,12 +10,12 @@
 //             /pulse/items/:id/interact, /pulse/weather, /pulse/streaks, /pulse/karma
 //   Pitru:    /pitru/memories, /pitru/memories/:id, /pitru/memories/:id/listen,
 //             /pitru/memorial/:personId, /pitru/memorial/:personId/feed, /pitru/memorials
-//   A-6:      /addictiveness/festivals/upcoming, /addictiveness/festivals/today
-//   A-1:      /addictiveness/blessings, /addictiveness/blessings/for-me
-//   A-2:      /addictiveness/time-capsules, /addictiveness/time-capsules/for-me
-//   A-3:      /addictiveness/quests/active, /addictiveness/quests/history
-//   A-4:      /addictiveness/alarms
-//   A-7:      /addictiveness/chronicle
+//   A-6:      /pulse/festivals/upcoming, /pulse/festivals/today
+//   A-1:      /pulse/blessings, /pulse/blessings/for-me
+//   A-2:      /pulse/time-capsules, /pulse/time-capsules/for-me
+//   A-3:      /pulse/quests/active, /pulse/quests/history
+//   A-4:      /pulse/alarms
+//   A-7:      /pulse/chronicle
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -163,7 +163,7 @@ class PulseApiClient {
   // ────────────────────────────────────────────────────────────────────────
 
   Future<List<Festival>> getUpcomingFestivals({int days = 90, String? region}) async {
-    final r = await _dio.get('/api/addictiveness/festivals/upcoming', queryParameters: {
+    final r = await _dio.get('/api/pulse/festivals/upcoming', queryParameters: {
       'days': days,
       if (region != null) 'region': region,
     });
@@ -172,7 +172,7 @@ class PulseApiClient {
   }
 
   Future<List<Festival>> getFestivalsToday() async {
-    final r = await _dio.get('/api/addictiveness/festivals/today');
+    final r = await _dio.get('/api/pulse/festivals/today');
     final list = (r.data as List?) ?? [];
     return list.map((e) => Festival.fromJson(e as Map<String, dynamic>)).toList();
   }
@@ -182,7 +182,7 @@ class PulseApiClient {
   // ────────────────────────────────────────────────────────────────────────
 
   Future<List<BlessingChain>> listBlessings(String familyId, {String? status}) async {
-    final r = await _dio.get('/api/addictiveness/blessings', queryParameters: {
+    final r = await _dio.get('/api/pulse/blessings', queryParameters: {
       'familyId': familyId,
       if (status != null) 'status': status,
     });
@@ -191,22 +191,22 @@ class PulseApiClient {
   }
 
   Future<List<BlessingChain>> getBlessingsForMe() async {
-    final r = await _dio.get('/api/addictiveness/blessings/for-me');
+    final r = await _dio.get('/api/pulse/blessings/for-me');
     final list = (r.data as List?) ?? [];
     return list.map((e) => BlessingChain.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<BlessingChain> createBlessing(Map<String, dynamic> body) async {
-    final r = await _dio.post('/api/addictiveness/blessings', data: body);
+    final r = await _dio.post('/api/pulse/blessings', data: body);
     return BlessingChain.fromJson(r.data as Map<String, dynamic>);
   }
 
   Future<void> markBlessingViewed(String blessingId) async {
-    await _dio.post('/api/addictiveness/blessings/$blessingId/view');
+    await _dio.post('/api/pulse/blessings/$blessingId/view');
   }
 
   Future<void> cancelBlessing(String blessingId, {String? reason}) async {
-    await _dio.post('/api/addictiveness/blessings/$blessingId/cancel', data: {'reason': reason});
+    await _dio.post('/api/pulse/blessings/$blessingId/cancel', data: {'reason': reason});
   }
 
   // ────────────────────────────────────────────────────────────────────────
@@ -214,7 +214,7 @@ class PulseApiClient {
   // ────────────────────────────────────────────────────────────────────────
 
   Future<List<TimeCapsule>> listTimeCapsules(String familyId, {String? status}) async {
-    final r = await _dio.get('/api/addictiveness/time-capsules', queryParameters: {
+    final r = await _dio.get('/api/pulse/time-capsules', queryParameters: {
       'familyId': familyId,
       if (status != null) 'status': status,
     });
@@ -223,22 +223,22 @@ class PulseApiClient {
   }
 
   Future<List<TimeCapsule>> getTimeCapsulesForMe() async {
-    final r = await _dio.get('/api/addictiveness/time-capsules/for-me');
+    final r = await _dio.get('/api/pulse/time-capsules/for-me');
     final list = (r.data as List?) ?? [];
     return list.map((e) => TimeCapsule.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<TimeCapsule> createTimeCapsule(Map<String, dynamic> body) async {
-    final r = await _dio.post('/api/addictiveness/time-capsules', data: body);
+    final r = await _dio.post('/api/pulse/time-capsules', data: body);
     return TimeCapsule.fromJson(r.data as Map<String, dynamic>);
   }
 
   Future<void> markCapsuleViewed(String capsuleId) async {
-    await _dio.post('/api/addictiveness/time-capsules/$capsuleId/view');
+    await _dio.post('/api/pulse/time-capsules/$capsuleId/view');
   }
 
   Future<void> cancelCapsule(String capsuleId) async {
-    await _dio.post('/api/addictiveness/time-capsules/$capsuleId/cancel');
+    await _dio.post('/api/pulse/time-capsules/$capsuleId/cancel');
   }
 
   // ────────────────────────────────────────────────────────────────────────
@@ -246,24 +246,24 @@ class PulseApiClient {
   // ────────────────────────────────────────────────────────────────────────
 
   Future<List<FamilyQuest>> getActiveQuests() async {
-    final r = await _dio.get('/api/addictiveness/quests/active');
+    final r = await _dio.get('/api/pulse/quests/active');
     final list = (r.data as List?) ?? [];
     return list.map((e) => FamilyQuest.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<List<FamilyQuest>> getQuestHistory({int limit = 20}) async {
-    final r = await _dio.get('/api/addictiveness/quests/history', queryParameters: {'limit': limit});
+    final r = await _dio.get('/api/pulse/quests/history', queryParameters: {'limit': limit});
     final list = (r.data as List?) ?? [];
     return list.map((e) => FamilyQuest.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<InteractionResult> completeQuest(String questId) async {
-    final r = await _dio.post('/api/addictiveness/quests/$questId/complete');
+    final r = await _dio.post('/api/pulse/quests/$questId/complete');
     return InteractionResult.fromJson(r.data as Map<String, dynamic>);
   }
 
   Future<void> skipQuest(String questId) async {
-    await _dio.post('/api/addictiveness/quests/$questId/skip');
+    await _dio.post('/api/pulse/quests/$questId/skip');
   }
 
   // ────────────────────────────────────────────────────────────────────────
@@ -271,13 +271,13 @@ class PulseApiClient {
   // ────────────────────────────────────────────────────────────────────────
 
   Future<List<SilentAlarm>> getAlarms() async {
-    final r = await _dio.get('/api/addictiveness/alarms');
+    final r = await _dio.get('/api/pulse/alarms');
     final list = (r.data as List?) ?? [];
     return list.map((e) => SilentAlarm.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<void> acknowledgeAlarm(String alarmId) async {
-    await _dio.post('/api/addictiveness/alarms/$alarmId/acknowledge');
+    await _dio.post('/api/pulse/alarms/$alarmId/acknowledge');
   }
 
   // ────────────────────────────────────────────────────────────────────────
@@ -286,7 +286,7 @@ class PulseApiClient {
 
   Future<FamilyChronicle?> getChronicle(String familyId) async {
     try {
-      final r = await _dio.get('/api/addictiveness/chronicle', queryParameters: {'familyId': familyId});
+      final r = await _dio.get('/api/pulse/chronicle', queryParameters: {'familyId': familyId});
       if (r.statusCode == 200 && r.data != null) {
         return FamilyChronicle.fromJson(r.data as Map<String, dynamic>);
       }
@@ -298,7 +298,7 @@ class PulseApiClient {
   }
 
   Future<Map<String, dynamic>> generateChronicle(String familyId) async {
-    final r = await _dio.post('/api/addictiveness/chronicle/generate', queryParameters: {'familyId': familyId});
+    final r = await _dio.post('/api/pulse/chronicle/generate', queryParameters: {'familyId': familyId});
     return r.data as Map<String, dynamic>;
   }
 }

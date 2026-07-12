@@ -1,6 +1,6 @@
-// server/src/addictiveness/addictiveness-cron.service.ts
+// server/src/emotional_attachment/emotional attachment-cron.service.ts
 //
-// Daily cron jobs for the addictiveness features.
+// Daily cron jobs for the emotional attachment features.
 //
 // Three crons:
 //   1. 6am IST daily — refresh festival dates (advance past lunar festivals, recompute daysUntil)
@@ -22,8 +22,8 @@ import { SilentAlarmService } from './silent-alarm.service';
 import { FamilyChronicleService } from './family-chronicle.service';
 
 @Injectable()
-export class AddictivenessCronService {
-  private readonly logger = new Logger(AddictivenessCronService.name);
+export class EmotionalAttachmentCronService {
+  private readonly logger = new Logger(EmotionalAttachmentCronService.name);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -92,7 +92,7 @@ export class AddictivenessCronService {
   /**
    * On module init, seed the festival table if it's empty.
    * This ensures festivals are available immediately after deployment
-   * without requiring a manual POST /addictiveness/festivals/seed call.
+   * without requiring a manual POST /emotional_attachment/festivals/seed call.
    */
   async onModuleInit() {
     try {

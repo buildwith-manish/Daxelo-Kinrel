@@ -1,4 +1,4 @@
-// server/src/addictiveness/silent-alarm.service.ts
+// server/src/emotional_attachment/silent-alarm.service.ts
 //
 // A-4 Silent Alarms - inactivity detection + private nudges to the bridge role.
 //
@@ -66,7 +66,7 @@ export class SilentAlarmService {
 
   /**
    * Daily cron: scan all families for inactive Persons and trigger/escalate alarms.
-   * Called at 6am IST by AddictivenessCronService.
+   * Called at 6am IST by EmotionalAttachmentCronService.
    */
   async scanForSilentAlarms(): Promise<{
     familiesScanned: number;

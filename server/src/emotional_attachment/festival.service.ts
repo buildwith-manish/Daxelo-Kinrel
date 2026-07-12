@@ -1,4 +1,4 @@
-// server/src/addictiveness/festival.service.ts
+// server/src/emotional_attachment/festival.service.ts
 //
 // A-6 Festival Intelligence — service for the Indian festival calendar.
 //

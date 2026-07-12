@@ -1,6 +1,6 @@
-// server/src/addictiveness/addictiveness.controller.ts
+// server/src/emotional_attachment/emotional attachment.controller.ts
 //
-// Addictiveness features — REST API Controller
+// emotional attachment features — REST API Controller
 //
 // Combines endpoints for:
 //   A-6 Festival Intelligence
@@ -32,9 +32,9 @@ import { FamilyQuestService } from './family-quest.service';
 import { SilentAlarmService } from './silent-alarm.service';
 import { FamilyChronicleService } from './family-chronicle.service';
 
-@Controller('addictiveness')
-export class AddictivenessController {
-  private readonly logger = new Logger(AddictivenessController.name);
+@Controller('pulse')
+export class EmotionalAttachmentController {
+  private readonly logger = new Logger(EmotionalAttachmentController.name);
 
   constructor(
     private readonly prisma: PrismaService,

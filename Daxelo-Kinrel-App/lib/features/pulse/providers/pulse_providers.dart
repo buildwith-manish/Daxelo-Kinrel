@@ -1,6 +1,6 @@
 // lib/features/pulse/providers/pulse_providers.dart
 //
-// DAXELO KINREL — Riverpod providers for Pulse + Pitru + Addictiveness
+// DAXELO KINREL — Riverpod providers for Pulse + Pitru + emotional attachment
 //
 // All providers use AsyncNotifier (Riverpod 2.x pattern) for caching + invalidation.
 // The familyId comes from the existing familyProvider (the user's current family).

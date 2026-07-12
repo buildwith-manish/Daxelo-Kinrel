@@ -1,4 +1,4 @@
-// server/src/addictiveness/family-quest.service.ts
+// server/src/emotional_attachment/family-quest.service.ts
 //
 // A-3 Family Suggestions — weekly rotating suggestions targeting weak relationships.
 //

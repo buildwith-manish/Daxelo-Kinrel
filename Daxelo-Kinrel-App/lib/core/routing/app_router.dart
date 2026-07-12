@@ -162,7 +162,7 @@ import '../../features/oral_history/presentation/oral_history_screen.dart';
 import '../../features/gamification/presentation/achievements_screen.dart';
 import '../../features/documents/presentation/documents_screen.dart';
 import '../../features/pulse/presentation/daily_brief_screen.dart';
-import '../../features/pulse/presentation/addictiveness_hub_screen.dart';
+import '../../features/pulse/presentation/pulse_hub_screen.dart';
 import '../../features/pulse/presentation/family_quests_screen.dart';
 import '../../features/pulse/presentation/blessing_chain_screen.dart';
 import '../../features/pulse/presentation/time_capsule_screen.dart';
@@ -1789,11 +1789,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             _fastFadePage(key: state.pageKey, child: const PrivacySettingsScreen()),
       ),
 
-      // ── Pulse + Pitru + Addictiveness routes ─────────────────────────
+      // ── Pulse + Pitru + emotional attachment routes ─────────────────────────
       GoRoute(
         path: '/pulse',
         pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const AddictivenessHubScreen()),
+            _fastFadePage(key: state.pageKey, child: const PulseHubScreen()),
       ),
       GoRoute(
         path: '/pulse/today',
