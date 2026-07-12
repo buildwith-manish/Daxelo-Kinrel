@@ -967,32 +967,28 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
 
       List<Map<String, dynamic>> rawRelationships;
       try {
-        // v36 FIX: Removed .eq('isActive', true) from the primary query.
-        // The isActive filter was causing issues because:
-        // 1. If the column name doesn't match (camelCase vs snake_case),
-        //    the query throws and falls through to fallbacks
-        // 2. Even when the column exists, freshly-created relationships
-        //    may have isActive=null (not false), and .eq('isActive', true)
-        //    excludes null rows — silently dropping valid relationships
-        // 3. The filter is redundant: we already filter by familyId, and
-        //    inactive relationships are rare (only set during archive)
-        //
-        // Now we fetch ALL relationships for the family and filter isActive
-        // in the mapping step below (where we coerce null → true).
+        // P0.3: Re-added .eq('isActive', true) — the DB now guarantees
+        // non-null via NOT NULL constraint + DEFAULT true + BEFORE INSERT
+        // trigger (trg_ensure_relationship_isactive_default). The v36
+        // workaround (fetching all + coercing null → true client-side) is
+        // no longer needed. The v9 retry-without-filter safety net is also
+        // removed — the DB trigger eliminates the race condition.
         // v83: Also fetch customColors column for custom kinship rendering.
         rawRelationships = await client
             .from('Relationship')
             .select('id, "fromPersonId", "toPersonId", "relationshipKey", "familyId", "customColors"')
             .eq('familyId', familyId)
+            .eq('isActive', true)
             .timeout(const Duration(seconds: 15));
       } catch (colError) {
         debugPrint('[EDGE-DEBUG] Primary relationship query failed: $colError. Trying select(*)');
         try {
-          // Fallback A: select all columns without isActive filter
+          // Fallback A: select all columns with isActive filter
           rawRelationships = await client
               .from('Relationship')
               .select('*')
               .eq('familyId', familyId)
+              .eq('isActive', true)
               .timeout(const Duration(seconds: 15));
         } catch (activeError) {
           debugPrint('[EDGE-DEBUG] Fallback A failed: $activeError. Last resort: unfiltered select(*)');
@@ -1068,20 +1064,16 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
                   'edge keys=${edge.keys.toList()}, '
                   'fromPersonId=$fromId, toPersonId=$toId, relationshipKey=$rKey');
             }
-            // isActive may be returned as bool or as a String; coerce defensively
-            final activeRaw = edge['isActive'] ?? edge['is_active'];
-            final isActive = activeRaw is bool
-                ? activeRaw
-                : (activeRaw is String
-                    ? activeRaw.toLowerCase() == 'true'
-                    : true);
+            // P0.3: isActive is guaranteed true by the .eq('isActive', true)
+            // filter. The DB NOT NULL constraint + trigger ensure no NULL
+            // values can exist. No client-side coercion needed.
             return <String, dynamic>{
               'id': edge['id'],
               'fromPersonId': fromId,
               'toPersonId': toId,
               'relationshipKey': rKey,
               'isPrivate': edge['is_private'] ?? edge['isPrivate'] ?? false,
-              'isActive': isActive,
+              'isActive': true,
               'customColors': edge['customColors'], // v83: pass through for custom kinship
             };
           })
@@ -1136,64 +1128,13 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       }
       var finalRelationships = dedupedRelationships;
 
-      // v9: Safety net — if we got persons but zero relationships, retry
-      // without the isActive filter. This handles race conditions where
-      // isActive hasn't been set yet by DB triggers on freshly-created
-      // relationship rows.
-      if (finalRelationships.isEmpty && rawPersons.length > 1) {
-        debugPrint('[EDGE-DEBUG] v9: Got ${rawPersons.length} persons but 0 relationships. '
-            'Retrying without isActive filter...');
-        try {
-          final retryRaw = await client
-              .from('Relationship')
-              .select('id, "fromPersonId", "toPersonId", "relationshipKey", "familyId"')
-              .eq('familyId', familyId)
-              .timeout(const Duration(seconds: 10));
-
-          final retryMapped = retryRaw
-              .map((dynamic e) {
-                final edge = e as Map<String, dynamic>;
-                final fromId = edge['fromPersonId'] ?? edge['from_person_id'] ?? edge['sourceId'];
-                final toId   = edge['toPersonId']   ?? edge['to_person_id']   ?? edge['targetId'];
-                final rKey   = edge['relationshipKey'] ?? edge['relationship_key'] ?? 'unknown';
-                return <String, dynamic>{
-                  'id': edge['id'],
-                  'fromPersonId': fromId,
-                  'toPersonId': toId,
-                  'relationshipKey': rKey,
-                  'isPrivate': false,
-                  'isActive': true,
-                };
-              })
-              .where((r) {
-                final f = r['fromPersonId'];
-                final t = r['toPersonId'];
-                return f != null && t != null &&
-                    f.toString().isNotEmpty && t.toString().isNotEmpty;
-              })
-              .toList();
-
-          if (retryMapped.isNotEmpty) {
-            debugPrint('[EDGE-DEBUG] v9: Retry without isActive got ${retryMapped.length} relationships');
-            // Also dedupe the retry results
-            final retrySeen = <String>{};
-            final retryDeduped = <Map<String, dynamic>>[];
-            for (final r in retryMapped) {
-              final from = r['fromPersonId']?.toString() ?? '';
-              final to = r['toPersonId']?.toString() ?? '';
-              if (from.isEmpty || to.isEmpty) continue;
-              final pairKey = [from, to]..sort();
-              final canonical = '${pairKey[0]}|${pairKey[1]}';
-              if (retrySeen.contains(canonical)) continue;
-              retrySeen.add(canonical);
-              retryDeduped.add(r);
-            }
-            finalRelationships = retryDeduped;
-          }
-        } catch (retryError) {
-          debugPrint('[EDGE-DEBUG] v9: Retry query failed: $retryError');
-        }
-      }
+      // P0.3: The v9 retry-without-filter safety net was removed. The DB
+      // now guarantees isActive is non-null (NOT NULL constraint + DEFAULT
+      // true + BEFORE INSERT trigger trg_ensure_relationship_isactive_default).
+      // The race condition that v9 worked around — freshly-created rows
+      // with isActive = NULL being excluded by the filter — can no longer
+      // occur. If finalRelationships is empty here, it genuinely means
+      // no active relationships exist for this family.
 
       final result = FlatGraphResult(
         persons: persons,
