@@ -97,6 +97,8 @@ import '../../features/family/presentation/services/graph_export_service.dart'
 import '../rendering/edge_path_cache.dart' show EdgePathCache;
 import '../rendering/edge_quality.dart' show EdgeQuality, EdgeQualityX;
 import '../rendering/graph_lighting.dart' show GraphLighting;
+import '../rendering/lod_render_metrics.dart'
+    show LodRenderMetrics, computeLodMetrics, overviewGraphRadius, overviewGraphRingStroke;
 import '../rendering/semantic_zoom.dart'
     show
         SemanticTier,
@@ -202,34 +204,17 @@ class _FamilyGraphEngineViewState
 
   /// Zoom thresholds for LOD tiers.
   //
-  // v91 (PART 9): The previous implementation hard-coded
-  // `return _Lod.chip; // always chip, never dot`, which made the DOT
-  // tier unreachable and broke the large-graph architecture (the dot
-  // painter exists precisely to keep 500–5,000+ node graphs smooth).
-  //
-  // The new thresholds are derived from the actual GraphCameraController
-  // zoom range (0.2–5.0) and the fit-to-screen clamp (0.3–2.0):
+  // v97: Camera zoom range restored to 0.2–5.0. Semantic LOD handles
+  // node readability at low zoom — the camera does NOT clamp to
+  // prevent zooming out.
   //
   //   • zoom >= 0.72 → FULL  (close-up, full Obsidian Glass medallions)
-  //   • zoom >= 0.34 → CHIP  (mid-range, name + coloured dot)
-  //   • zoom <  0.34 → DOT   (far-out, single painter, no widgets)
+  //   • zoom >= 0.34 → CHIP  (mid-range, name + coloured marker)
+  //   • zoom <  0.34 → OVERVIEW/DOT (far-out, single painter, no widgets)
   //
-  // DOT is now reachable by pinching below 0.34× — which is comfortably
-  // above the camera's 0.2 floor. On a 50-node family the fit-to-screen
-  // zoom is typically ~0.8–1.2 (FULL), and on a 500-node graph it
-  // collapses to ~0.25–0.35 (DOT/CHIP boundary), so DOT engages
-  // naturally exactly when it's needed.
-  //
-  // v93 (ZOOM FIX): With the new CameraController defaults
-  // (minZoom=0.8, maxZoom=2.5), the graph is ALWAYS in the FULL LOD
-  // tier in normal use — the camera can never zoom out far enough to
-  // reach CHIP or DOT. The CHIP/DOT tiers remain as fallbacks for
-  // custom-zoom scenarios.
-  //
+  // CHIP and DOT are reachable via normal pinch-zoom.
   // _kLabelHideZoom controls when the secondary relationship label
   // (e.g. "Husband", "You") is hidden to reduce clutter at lower zoom.
-  // The primary member name is ALWAYS visible. Set to 1.0 so labels
-  // hide as soon as the user starts zooming out from 100%.
   static const double _kChipZoom = 0.72;
   static const double _kDotZoom = 0.34;
   static const double _kLabelHideZoom = 1.0;
@@ -289,6 +274,9 @@ class _FamilyGraphEngineViewState
   // Gesture bookkeeping for pan + pinch-zoom.
   Offset _lastFocal = Offset.zero;
   double _baseZoom = 1.0;
+  /// v97: Track whether the current gesture is a multi-pointer pinch.
+  /// Prevents fling momentum from being applied after a pinch release.
+  bool _isPinching = false;
 
   /// v2.2: Whether the graph legend panel is visible.
   /// Toggled by the "?" button in the bottom-left corner.
@@ -380,20 +368,8 @@ class _FamilyGraphEngineViewState
   }
 
   _Lod _lodFor(double zoom) {
-    // v96 (Phase 3): Semantic zoom with hysteresis.
-    //
-    // The semantic tier (NEAR/MEDIUM/FAR) is computed with hysteresis
-    // memory — enter/leave thresholds differ by a margin to prevent
-    // visual flicker when zoom oscillates near a boundary.
-    //
-    // The semantic tier maps 1:1 to the existing _Lod enum:
-    //   NEAR   → full
-    //   MEDIUM → chip
-    //   FAR    → dot
-    //
-    // With the v93 camera defaults (minZoom=0.8, maxZoom=2.5), the
-    // graph is normally at NEAR (full) tier. MEDIUM/FAR are reachable
-    // if minZoom is lowered for large-graph scenarios.
+    // v97: Semantic zoom with hysteresis.
+    // Camera range restored to 0.2–5.0 — CHIP and DOT are reachable.
     _currentSemanticTier = computeSemanticTier(
       zoom,
       currentTier: _currentSemanticTier,
@@ -427,58 +403,52 @@ class _FamilyGraphEngineViewState
     }
   }
 
-  // ── v93 (ZOOM FIX) Zoom-aware sizing helpers ───────────────────────────
+  // ── v97 Zoom-aware sizing helpers ────────────────────────────────────
   //
-  // These helpers centralize the zoom-vs-screen-size logic so every
-  // rendering decision (node radius, stroke width, label visibility)
-  // goes through one place. The camera Transform scales the entire
-  // graph Stack by `_camera.zoomLevel`, so a value of X in graph
-  // space appears as X*zoom on screen.
+  // These helpers convert desired SCREEN-SPACE sizes to GRAPH-SPACE
+  // sizes. The camera Transform scales graph-space by `zoom`, so
+  // graphSpaceValue * zoom = screenSpaceValue.
   //
-  // With minZoom=0.8, a 72dp node circle is always ≥57.6px on screen
-  // — readable, never a dot. These helpers exist primarily for
-  // documentation + future tuning, and to satisfy the spec's
-  // requirement for centralized zoom-aware sizing.
+  // For LOD-aware rendering, use [computeLodMetrics] from
+  // lod_render_metrics.dart — it centralizes all zoom math.
 
-  /// Returns the effective node circle radius for [zoom].
-  ///
-  /// The node circle is drawn at a FIXED diameter of 72dp in graph
-  /// space (GraphNode.nodeSize). The camera Transform scales it to
-  /// 72*zoom on screen. With minZoom=0.8, the on-screen radius is
-  /// always ≥28.8px (diameter ≥57.6px) — readable at all zoom levels.
-  ///
-  /// This helper returns the GRAPH-SPACE radius (constant 36.0). It
-  /// exists so callers can reason about screen-space size via
-  /// `getNodeRadius(zoom) * zoom` if needed.
-  double getNodeRadius(double zoom) {
-    // Fixed in graph space — does NOT scale down with zoom.
-    // The minZoom clamp ensures the screen-space size stays readable.
-    return 36.0; // GraphNode.nodeSize / 2 = 72 / 2
+  /// Converts a desired screen-space radius to graph-space.
+  double graphRadiusForScreenRadius(double screenRadius, double zoom) {
+    final safeZoom = (zoom > 0.001 && zoom.isFinite) ? zoom : 1.0;
+    return screenRadius / safeZoom;
   }
 
-  /// Returns the effective edge stroke width for [zoom] and [baseWidth].
-  ///
-  /// The stroke is drawn in graph space and scaled by the camera
-  /// Transform. To keep it readable on screen (≥1.5px screen-space),
-  /// we ensure the graph-space width is at least `1.5 / zoom`. With
-  /// minZoom=0.8, this means graph-space stroke ≥1.875px, which is
-  /// already satisfied by the existing clamp(1.5, 5.0).
-  ///
-  /// This helper is provided for future use + to document the
-  /// screen-space readability invariant.
-  double getStrokeWidth(double zoom, double baseWidth) {
-    // Ensure screen-space stroke ≥ 1.5px: graphStroke ≥ 1.5 / zoom.
-    final minGraphStroke = (1.5 / zoom).clamp(1.5, 5.0);
-    return baseWidth.clamp(minGraphStroke, 5.0);
+  /// Converts a desired screen-space stroke width to graph-space.
+  double graphStrokeForScreenStroke(double screenStroke, double zoom) {
+    final safeZoom = (zoom > 0.001 && zoom.isFinite) ? zoom : 1.0;
+    return screenStroke / safeZoom;
   }
 
   /// Returns true when labels should be visible at [zoom].
-  ///
-  /// The primary member name is ALWAYS visible. The secondary
-  /// relationship label (e.g. "Husband", "You") is hidden when
-  /// zoom < _kLabelHideZoom (1.0) to reduce clutter at lower zoom.
   bool shouldShowLabel(double zoom) {
     return zoom >= _kLabelHideZoom;
+  }
+
+  /// v97: Returns the LOD tier name for the current zoom.
+  String _lodTierName(_Lod lod) {
+    switch (lod) {
+      case _Lod.full:
+        return 'full';
+      case _Lod.chip:
+        return 'chip';
+      case _Lod.dot:
+        return 'overview';
+    }
+  }
+
+  /// v97: Computes render metrics for the current LOD + zoom.
+  /// Used by culling, hit testing, and overview painting.
+  LodRenderMetrics _currentMetrics() {
+    final lod = _lodFor(_camera.zoomLevel);
+    return computeLodMetrics(
+      tier: _lodTierName(lod),
+      zoom: _camera.zoomLevel,
+    );
   }
 
   // ── Build ──────────────────────────────────────────────────────────────
@@ -653,9 +623,15 @@ class _FamilyGraphEngineViewState
                 ? layout.positions.keys.toSet()
                 : _expandCollapse.state.visibleNodeIds;
 
-        // Cull to the on-screen set, then intersect with the allowed set.
+        // v97: Cull using LOD-aware node footprints, not always 140×176.
+        final lod = _lodFor(_camera.zoomLevel);
+        final metrics = computeLodMetrics(
+          tier: _lodTierName(lod),
+          zoom: _camera.zoomLevel,
+        );
         final nodeSizes = <String, Size>{
-          for (final String id in layout.positions.keys) id: _kNodeSize,
+          for (final String id in layout.positions.keys)
+            id: metrics.cullSize,
         };
         final Rect vp = _graphSpaceViewport();
         final Set<String> culled =
@@ -1047,7 +1023,7 @@ class _FamilyGraphEngineViewState
       return <Widget>[
         Positioned.fill(
           child: CustomPaint(
-            painter: _NodeDotPainter(dots),
+            painter: _NodeDotPainter(dots, zoom: _camera.zoomLevel),
             // v2.2 Fix 1: SizedBox.expand() ensures the dot painter
             // canvas covers the full Stack area.
             child: const SizedBox.expand(),
@@ -1342,7 +1318,9 @@ class _FamilyGraphEngineViewState
   }
 
   /// Lightweight mid-zoom node: a coloured dot + the name, no avatar/animations.
-  /// v88: Enlarged dot from 18→24px and font from 11→12 for readability.
+  /// v97: Zoom-aware geometry — chip dimensions are computed from desired
+  /// screen-space sizes and converted to graph space so the parent camera
+  /// Transform restores them to stable screen-space sizes.
   Widget _buildChipNode(Map<String, dynamic> p, {KinshipEdgeCategory? category, Map<String, dynamic>? customColors}) {
     final color = _dotColor(
       p['gender'] as String?,
@@ -1350,29 +1328,42 @@ class _FamilyGraphEngineViewState
       category: category,
       customColors: customColors,
     );
+    // v97: Compute graph-space dimensions from desired screen-space targets.
+    final zoom = _camera.zoomLevel;
+    final safeZoom = (zoom > 0.001 && zoom.isFinite) ? zoom : 1.0;
+    // Screen-space targets (constants):
+    const screenMarkerDiameter = 8.0;  // 8px screen marker
+    const screenMarkerBorder = 1.5;    // 1.5px screen border
+    const screenFontSize = 11.0;       // 11px screen font
+    const screenSpacing = 4.0;         // 4px screen gap
+    // Graph-space values (divided by zoom so Transform restores them):
+    final graphMarkerDiameter = screenMarkerDiameter / safeZoom;
+    final graphMarkerBorder = screenMarkerBorder / safeZoom;
+    final graphFontSize = screenFontSize / safeZoom;
+    final graphSpacing = screenSpacing / safeZoom;
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          width: 24,
-          height: 24,
+          width: graphMarkerDiameter,
+          height: graphMarkerDiameter,
           decoration: BoxDecoration(
             color: color,
             shape: BoxShape.circle,
             border: Border.all(
               color: color.withValues(alpha: 0.3),
-              width: 2,
+              width: graphMarkerBorder,
             ),
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: graphSpacing),
         Flexible(
           child: Text(
             (p['name'] as String?) ?? '',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 11),
+            style: TextStyle(fontSize: graphFontSize),
           ),
         ),
       ],
@@ -1429,19 +1420,35 @@ class _FamilyGraphEngineViewState
     _camera.stopAnimation(); // cancel any in-flight fling/animateTo
     _lastFocal = d.focalPoint;
     _baseZoom = _camera.zoomLevel;
+    _isPinching = false; // reset; will be set true on first multi-touch update
   }
 
   void _onScaleEnd(ScaleEndDetails d) {
-    // Only fling on a single-finger release with real velocity; ignore
-    // pinch-release jitter.
-    final v = d.velocity.pixelsPerSecond;
-    if (v.distance > 50) {
-      _camera.applyMomentum(v.dx, v.dy);
+    // v97: Only fling on a single-finger pan release.
+    // Never fling after a pinch — the velocity is unreliable
+    // (pinch-release jitter produces large fake velocities).
+    if (!_isPinching) {
+      final v = d.velocity.pixelsPerSecond;
+      if (v.distance > 50) {
+        _camera.applyMomentum(v.dx, v.dy);
+      }
     }
+    _isPinching = false;
   }
 
   void _onScaleUpdate(ScaleUpdateDetails d) {
+    // v97: Determine if this is a pinch (multi-pointer) or a pan.
+    // pointerCount > 1 OR a meaningful scale delta indicates pinch.
+    final isPinch = d.pointerCount > 1 || (d.scale - 1.0).abs() > 0.01;
+    if (isPinch) {
+      _isPinching = true;
+    }
+
     // Pan (works for one- and two-finger drags).
+    // During a pinch, the focal point moves as the pinch center
+    // shifts. This is natural two-finger panning — apply it once
+    // here. The zoomTo focal-point compensation below handles
+    // keeping the pinch center stable; we do NOT double-apply.
     final Offset delta = d.focalPoint - _lastFocal;
     if (delta != Offset.zero) {
       _camera.panBy(delta.dx, delta.dy);
@@ -1494,16 +1501,18 @@ class _FamilyGraphEngineViewState
   }
 
   /// Finds the node ID at [screenPos], or null if no node is hit.
-  /// Uses a generous hit radius (half the node size + 8px) so taps
-  /// near the edge of a node still register.
+  /// v97: LOD-aware hit testing — the hit radius is converted from
+  /// a minimum screen-space target to graph space via the current zoom.
   String? _hitTestNode(Offset screenPos, GraphLayoutResult layout) {
     final graphPos = _screenToGraphSpace(screenPos);
-    const nodeRadius = 44.0; // generous tap target
+    // Compute the graph-space hit radius from a screen-space minimum.
+    final metrics = _currentMetrics();
+    final graphHitRadius = metrics.graphHitRadius;
     String? bestId;
     double bestDist = double.infinity;
     for (final entry in layout.positions.entries) {
       final dist = (entry.value - graphPos).distance;
-      if (dist < nodeRadius && dist < bestDist) {
+      if (dist < graphHitRadius && dist < bestDist) {
         bestDist = dist;
         bestId = entry.key;
       }
@@ -1780,7 +1789,10 @@ class _FamilyGraphEngineViewState
       return null;
     }
     final graphPos = _screenToGraphSpace(screenPos);
-    const hitRadius = 48.0; // PART 21: 44–48px touch target
+    // v97: Convert screen-space hit radius (48px) to graph space.
+    final zoom = _camera.zoomLevel;
+    final safeZoom = (zoom > 0.001 && zoom.isFinite) ? zoom : 1.0;
+    final hitRadius = 48.0 / safeZoom; // 48px screen-space touch target
     String? bestId;
     double bestDist = double.infinity;
     for (final deduped in _currentEdges) {
@@ -4028,31 +4040,45 @@ class _DotGridPainter extends CustomPainter {
 /// Draws every visible node as a dot in ONE painter — avoids thousands of
 /// widgets when fully zoomed out (the 2000-node case).
 ///
-/// v96 (Phase 3): Emphasised dots (focused/selected/path nodes) are
-/// drawn 50% larger (9px) with an accent ring so they remain
-/// discoverable at FAR zoom. Normal dots stay at 6px. No expensive
-/// shadows or specular effects at this tier.
+/// v97: Node radius is now ZOOM-AWARE. The painter receives the current
+/// camera zoom and computes graph-space radii from desired screen-space
+/// radii: graphRadius = screenRadius / zoom. This ensures overview
+/// markers maintain a minimum visible screen-space diameter (10–16px)
+/// across the entire zoom range — they never become 1–5px specks.
 class _NodeDotPainter extends CustomPainter {
-  _NodeDotPainter(this.dots);
+  _NodeDotPainter(this.dots, {this.zoom = 1.0});
 
   final List<_Dot> dots;
+  final double zoom;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..isAntiAlias = true;
     final ringPaint = Paint()
       ..isAntiAlias = true
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
+      ..style = PaintingStyle.stroke;
+
+    // v97: Compute graph-space radii from desired screen-space radii.
+    // safeZoom guards against NaN, zero, and negative zoom.
+    final safeZoom = (zoom > 0.001 && zoom.isFinite) ? zoom : 1.0;
+    const screenNormalR = 6.0;
+    const screenEmphasisR = 9.0;
+    const screenRingStroke = 2.0;
+    final graphNormalR = screenNormalR / safeZoom;
+    final graphEmphasisR = screenEmphasisR / safeZoom;
+    final graphRingStroke = screenRingStroke / safeZoom;
+    final graphRingOffset = 3.0 / safeZoom; // ring is 3px outside the dot
+
+    ringPaint.strokeWidth = graphRingStroke;
 
     for (final _Dot d in dots) {
-      final radius = d.isEmphasised ? 9.0 : 6.0;
+      final radius = d.isEmphasised ? graphEmphasisR : graphNormalR;
       paint.color = d.color;
 
       if (d.isEmphasised) {
         // Draw an accent ring around the emphasised dot.
         ringPaint.color = d.color.withValues(alpha: 0.5);
-        canvas.drawCircle(d.pos, radius + 3.0, ringPaint);
+        canvas.drawCircle(d.pos, radius + graphRingOffset, ringPaint);
       }
 
       canvas.drawCircle(d.pos, radius, paint);
@@ -4061,7 +4087,9 @@ class _NodeDotPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _NodeDotPainter old) =>
-      old.dots.length != dots.length || !identical(old.dots, dots);
+      old.dots.length != dots.length ||
+      !identical(old.dots, dots) ||
+      (old.zoom - zoom).abs() > 0.001;
 }
 
 // ── Small presentational helpers ───────────────────────────────────────────

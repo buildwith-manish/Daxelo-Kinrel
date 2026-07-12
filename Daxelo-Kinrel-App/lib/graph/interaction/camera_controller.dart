@@ -56,21 +56,16 @@ class CameraController extends ChangeNotifier {
   /// persistence.
   ///
   /// [minZoom] and [maxZoom] define the zoom range.
-  ///
-  /// v93 (ZOOM FIX): Defaults changed from 0.2–5.0 to 0.8–2.5 so node
-  /// circles never shrink below a readable screen size. At zoom 0.8 a
-  /// 72dp node circle is 57.6px on screen — readable, not a dot. The
-  /// previous 0.2 minimum caused 72dp nodes to render at 14.4px and
-  /// 24px chip dots at 4.8px, making the graph unreadable when zoomed
-  /// out. The user can still pan to see different parts of large
-  /// families; they just can't zoom out to a bird's-eye view that
-  /// turns everything into dots.
+  /// Defaults: 0.2–5.0 — the user can zoom out to see large family
+  /// graphs and zoom in for detail. Node readability at low zoom is
+  /// handled by the semantic LOD system (FULL/CHIP/OVERVIEW tiers),
+  /// NOT by clamping the camera.
   /// [momentumDecayDuration] controls how long momentum lasts after a
   /// pan gesture ends (default: 300 ms).
   CameraController({
     PositionMemory? positionMemory,
-    double minZoom = 0.8,
-    double maxZoom = 2.5,
+    double minZoom = 0.2,
+    double maxZoom = 5.0,
     Duration momentumDecayDuration = const Duration(milliseconds: 300),
   })  : _positionMemory = positionMemory,
         _minZoom = minZoom,
@@ -186,7 +181,12 @@ class CameraController extends ChangeNotifier {
   /// - Keyboard +/- (20% step centered on viewport)
   void zoomTo(double level, {Offset? focalPoint}) {
     final newZoom = level.clamp(_minZoom, _maxZoom);
-    if (newZoom == _zoomLevel) return;
+    // Epsilon handling: floating-point pinch noise can produce
+    // infinitesimal zoom deltas. Without this guard, the equality
+    // short-circuit may fail to fire, causing unnecessary
+    // notifyListeners() calls and visual jitter.
+    const zoomEpsilon = 0.0001;
+    if ((newZoom - _zoomLevel).abs() < zoomEpsilon) return;
 
     // Adjust pan so the focal point stays fixed.
     if (focalPoint != null) {
@@ -339,9 +339,9 @@ class CameraController extends ChangeNotifier {
     if (rawWidth < 50 && rawHeight < 50) {
       fitZoom = 1.0;
     } else {
-      // v93 (ZOOM FIX): Clamp fit-to-screen zoom to the new readable
-      // range [0.8, 2.0]. The previous 0.3 minimum allowed the initial
-      // framing to zoom out so far that nodes became tiny dots.
+      // Clamp fit-to-screen zoom to the valid camera range.
+      // With minZoom=0.2, large graphs can fit at low zoom
+      // (entering CHIP or OVERVIEW LOD tiers).
       fitZoom = fitZoom.clamp(_minZoom, 2.0);
     }
 
