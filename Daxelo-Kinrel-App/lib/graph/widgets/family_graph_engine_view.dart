@@ -952,8 +952,22 @@ class _FamilyGraphEngineViewState
                   // v85 FIX: Add ValueKey with edges length + positions
                   // length so the wrapper rebuilds when data changes on
                   // Flutter Web (where identical() can be unreliable).
-                  child: _EdgeSelectionWrapper(
-                    key: ValueKey('edge_layer_${edges.length}_${layout.positions.length}_${_lodFor(_camera.zoomLevel).name}'),
+                  //
+                  // v103 (FLICKER FIX): DO NOT include the LOD tier name
+                  // in the ValueKey. The old key included
+                  // `_lodFor(_camera.zoomLevel).name`, which meant every
+                  // time the zoom crossed a tier boundary (0.72, 0.34),
+                  // the ENTIRE _EdgeSelectionWrapper was destroyed and
+                  // recreated from scratch — causing all edges to
+                  // momentarily disappear and reappear (the "connection
+                  // line disappearing and coming back" bug).
+                  //
+                  // The painter's shouldRepaint already handles LOD
+                  // changes via the edgeQuality parameter + revision
+                  // counters. The ValueKey should only change when the
+                  // actual edge/position DATA changes, not when the
+                  // zoom-driven presentation tier changes.
+                    key: ValueKey('edge_layer_${edges.length}_${layout.positions.length}'),
                     // BUG 1 FIX: Apply Y offset so edge endpoints connect
                     // to the visual circle center, not the Positioned box
                     // center. The circle is at the TOP of the Column
