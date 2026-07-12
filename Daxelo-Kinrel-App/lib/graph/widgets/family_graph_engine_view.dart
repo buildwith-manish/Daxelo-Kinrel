@@ -54,6 +54,13 @@ import '../engine/edge_dedup.dart' show DedupedEdge, EdgeDeduplicator;
 import '../interaction/camera_controller.dart' show CameraController;
 import '../interaction/expand_collapse.dart'
     show ExpandCollapseController, ExpandCollapseState;
+import '../interaction/graph_focus_state.dart'
+    show
+        GraphFocusNotifier,
+        GraphFocusState,
+        FocusViewportSnapshot,
+        FocusHistoryEntry,
+        graphFocusProvider;
 import '../interaction/graph_kinship_path_focus.dart'
     show
         GraphKinshipPathFocus,
@@ -305,6 +312,10 @@ class _FamilyGraphEngineViewState
       _culler.invalidate();
       _edgePathCache.clear();
       _expandCollapse.updateVisibleNodes(<String>{});
+      // v95 (Phase 1): Clear focus + history when switching families.
+      // Focus is local graph interaction state — it should not persist
+      // across family boundaries.
+      ref.read(graphFocusProvider.notifier).clearAll();
     }
     // v62: Re-center when recenterKey changes (Center on Root button).
     if (oldWidget.recenterKey != widget.recenterKey) {
@@ -711,6 +722,23 @@ class _FamilyGraphEngineViewState
         // focus notifier updates (e.g. when trace state changes drive
         // a re-resolve, or when the path is cleared).
         ref.watch(graphPathFocusProvider);
+
+        // v95 (Phase 1): Watch the person-centric focus provider. When
+        // focusedPersonId changes, animate the camera to that node +
+        // recompute neighbour sets for dim/emphasis. The focus state
+        // is SEPARATE from selectedNodeProvider — focusing a person
+        // does not select it, and selecting a person does not focus it.
+        final focusState = ref.watch(graphFocusProvider);
+        // Recompute neighbour sets when edges change but focus stays.
+        if (focusState.focusedPersonId != null) {
+          ref.read(graphFocusProvider.notifier).recomputeNeighbours(
+                [for (final d in edges) (fromId: d.edge.sourceId, toId: d.edge.targetId)],
+              );
+        }
+        // Animate camera to the focused node if it changed.
+        if (focusState.focusedPersonId != null) {
+          _maybeFocusCameraOnNode(focusState.focusedPersonId!, layout);
+        }
 
         // v92 (PART 17): Cache the current edges + positions + categories
         // so the canvas tap handler can do midpoint hit-testing without
@@ -1132,7 +1160,20 @@ class _FamilyGraphEngineViewState
     // §4: Wire selectedNodeProvider to the node's NodeState so
     // selection visually highlights the node.
     final selectedId = ref.watch(selectedNodeProvider);
-    final nodeState = id == selectedId ? NodeState.selected : NodeState.normal;
+    // v95 (Phase 1): Wire graphFocusProvider to NodeState.focused.
+    // Focus takes visual precedence over selection — a focused node
+    // gets the pulsing glow + camera centering. Selection (tap)
+    // still shows the accent border via NodeState.selected, but only
+    // when the node is NOT focused.
+    final focusedId = ref.watch(graphFocusProvider).focusedPersonId;
+    final NodeState nodeState;
+    if (id == focusedId) {
+      nodeState = NodeState.focused;
+    } else if (id == selectedId) {
+      nodeState = NodeState.selected;
+    } else {
+      nodeState = NodeState.normal;
+    }
 
     return GraphNode(
       personId: id,
@@ -1193,6 +1234,7 @@ class _FamilyGraphEngineViewState
           familyId: widget.familyId,
           isOwner: true, // TODO: check actual family role from provider
           isSelf: isAnchor, // anchor = family creator = can't remove self
+          ref: ref, // v95: enables "Focus on person" action
         );
       },
     );
@@ -1376,9 +1418,50 @@ class _FamilyGraphEngineViewState
   /// opacity by ~30%. The selected edge (if any) and any sweep edge
   /// are never dimmed.
   ///
-  /// Returns `null` when no node is selected (no focus mode), so the
-  /// painter can short-circuit the dim check entirely.
+  /// v95 (Phase 1): When a person is FOCUSED (via graphFocusProvider),
+  /// uses the focus state's first-degree + second-degree neighbour
+  /// sets to keep more edges visible. Only truly unrelated edges
+  /// (neither first nor second degree) are dimmed. This creates a
+  /// richer focus experience: immediate family stays bright, near
+  /// relatives stay visible, distant branches dim softly.
+  ///
+  /// When no person is focused, falls back to the selection-based
+  /// first-degree dim (the v91 behavior).
+  ///
+  /// Returns `null` when no node is selected AND no person is focused,
+  /// so the painter can short-circuit the dim check entirely.
   Set<String>? _computeDimmedEdgeIds(List<DedupedEdge> edges) {
+    final focusState = ref.read(graphFocusProvider);
+    final String? focusedPerson = focusState.focusedPersonId;
+
+    if (focusedPerson != null) {
+      // Focus mode: use first + second degree neighbour sets.
+      // An edge is "connected" if EITHER endpoint is the focus person,
+      // a first-degree neighbour, or a second-degree neighbour.
+      final connected = <String>{};
+      final emphasisedIds = <String>{
+        focusedPerson,
+        ...focusState.firstDegreeIds,
+        ...focusState.secondDegreeIds,
+      };
+      for (final deduped in edges) {
+        final e = deduped.edge;
+        if (emphasisedIds.contains(e.sourceId) ||
+            emphasisedIds.contains(e.targetId)) {
+          connected.add(e.id);
+        }
+      }
+      if (connected.length == edges.length) return null;
+      final dimmed = <String>{};
+      for (final deduped in edges) {
+        if (!connected.contains(deduped.edge.id)) {
+          dimmed.add(deduped.edge.id);
+        }
+      }
+      return dimmed;
+    }
+
+    // Fallback: selection-based first-degree dim (v91 behavior).
     final String? selectedNode = ref.read(selectedNodeProvider);
     if (selectedNode == null) return null;
 
@@ -1734,6 +1817,7 @@ class _FamilyGraphEngineViewState
       familyId: widget.familyId,
       isOwner: true,
       isSelf: isAnchor,
+      ref: ref, // v95: enables "Focus on person" action
     );
   }
 
@@ -1771,6 +1855,7 @@ class _FamilyGraphEngineViewState
       familyId: widget.familyId,
       isOwner: true,
       isSelf: isAnchor,
+      ref: ref, // v95: enables "Focus on person" action
     );
   }
 

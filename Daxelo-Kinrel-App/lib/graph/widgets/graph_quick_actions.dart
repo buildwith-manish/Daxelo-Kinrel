@@ -7,6 +7,12 @@
 //
 // Web + mobile compatible: uses standard Material showModalBottomSheet,
 // which renders as a modal dialog on web (no platform-specific code).
+//
+// v95 (Phase 1): Added "Focus on person" action that sets
+// [graphFocusProvider] — the person-centric focus mode. This is
+// SEPARATE from transient selection: focusing a person centers the
+// camera, dims unrelated branches, and pushes the current viewport
+// onto the focus history stack so the user can go back.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +22,7 @@ import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/family/family_provider.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
+import '../interaction/graph_focus_state.dart';
 import 'graph_relationship_labels.dart';
 
 /// Shows a modal bottom sheet with quick actions for a graph node.
@@ -29,18 +36,20 @@ class GraphQuickActions {
   /// Shows the quick-actions sheet for [person].
   ///
   /// Callers should pass the person's [GraphPersonData] — the sheet
-  /// displays the name and provides 'View Profile', 'Edit', and
-  /// 'Remove Member' actions.
+  /// displays the name and provides 'View Profile', 'Edit',
+  /// 'Focus on person', and 'Remove Member' actions.
   ///
   /// [familyId] is required for the Remove Member action.
   /// [isOwner] controls whether the Remove Member option is shown.
   /// [isSelf] prevents the owner from removing themselves.
+  /// [ref] is required for the Focus action (sets graphFocusProvider).
   static void show(
     BuildContext context,
     GraphPersonData person, {
     String? familyId,
     bool isOwner = false,
     bool isSelf = false,
+    WidgetRef? ref,
   }) {
     showModalBottomSheet(
       context: context,
@@ -99,6 +108,39 @@ class GraphQuickActions {
                 }
               },
             ),
+            // v95 (Phase 1): Focus on person — sets graphFocusProvider.
+            // Centers camera, dims unrelated branches, pushes viewport
+            // onto focus history. Only shown when ref is available
+            // (caller is a ConsumerStatefulWidget/ConsumerWidget).
+            if (ref != null)
+              ListTile(
+                leading: const Icon(Icons.center_focus_strong_rounded,
+                    color: KinrelColors.orange),
+                title: const Text(
+                  'Focus on person',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  // The actual focus + camera animation is driven by
+                  // the engine view watching graphFocusProvider. Here
+                  // we just set the focus state + save the current
+                  // viewport for history.
+                  // The viewport snapshot is read by the engine view
+                  // when it reacts to the focus change — we pass a
+                  // placeholder here and the engine view will capture
+                  // the real viewport before animating.
+                  ref.read(graphFocusProvider.notifier).focus(
+                        personId: person.id,
+                        personName: person.name,
+                        edges: const [],
+                        currentViewport: null,
+                      );
+                },
+              ),
             // Edit
             ListTile(
               leading: const Icon(Icons.edit, color: KinrelColors.amber),
