@@ -67,6 +67,11 @@ import '../interaction/branch_collapse_state.dart'
         BranchCollapseState,
         CollapsedBranch,
         branchCollapseProvider;
+import '../interaction/graph_search_state.dart'
+    show
+        GraphSearchNotifier,
+        GraphSearchState,
+        graphSearchProvider;
 import '../interaction/graph_kinship_path_focus.dart'
     show
         GraphKinshipPathFocus,
@@ -775,6 +780,13 @@ class _FamilyGraphEngineViewState
           _maybeFocusCameraOnNode(focusState.focusedPersonId!, layout);
         }
 
+        // v96 (Phase 5): Watch the graph search provider. When search
+        // is active, matching nodes are highlighted, non-matching nodes
+        // are dimmed, and collapsed branches containing matches are
+        // auto-expanded. The search state is SEPARATE from focus —
+        // search highlights are additive to focus emphasis.
+        final searchState = ref.watch(graphSearchProvider);
+
         // v96 (Phase 4): Compute branch collapse state. This is
         // PRESENTATION state — it does NOT modify canonical topology.
         // Distant large branches are collapsed into compact
@@ -801,7 +813,9 @@ class _FamilyGraphEngineViewState
               firstDegreeIds: focusState.firstDegreeIds,
               secondDegreeIds: focusState.secondDegreeIds,
               pathNodeIds: pathFocus?.orderedPersonIds.toSet(),
-              searchMatchIds: null, // search integration is local
+              searchMatchIds: searchState.isActive
+                  ? searchState.matchIdSet
+                  : null,
               selectedPersonId: selectedPerson,
               familyMemberCount: flat.persons.length,
             );
@@ -1004,16 +1018,18 @@ class _FamilyGraphEngineViewState
         // v96 (Phase 3): At FAR (dot) zoom, focused/selected/path
         // nodes get an emphasised dot (larger + accent ring) so they
         // remain discoverable.
+        // v96 (Phase 5): Search matches also get emphasised dots.
         final focusedId = ref.read(graphFocusProvider).focusedPersonId;
         final selectedId = ref.read(selectedNodeProvider);
         final pathFocus = ref.read(graphPathFocusProvider).focus;
         final pathNodeIds = pathFocus?.orderedPersonIds.toSet();
+        final searchState = ref.read(graphSearchProvider);
         final isEmphasised = shouldOverrideFarTier(
           nodeId: id,
           focusedPersonId: focusedId,
           selectedPersonId: selectedId,
           pathNodeIds: pathNodeIds,
-        );
+        ) || (searchState.isActive && searchState.isMatch(id));
 
         dots.add(_Dot(
           pos,
@@ -1518,6 +1534,29 @@ class _FamilyGraphEngineViewState
   Set<String>? _computeDimmedEdgeIds(List<DedupedEdge> edges) {
     final focusState = ref.read(graphFocusProvider);
     final String? focusedPerson = focusState.focusedPersonId;
+    final searchState = ref.read(graphSearchProvider);
+
+    // v96 (Phase 5): When search is active, dim edges that are NOT
+    // connected to any matching node. Matching nodes stay bright
+    // regardless of focus state.
+    if (searchState.isActive && searchState.matchIds.isNotEmpty) {
+      final connected = <String>{};
+      final matchSet = searchState.matchIdSet;
+      for (final deduped in edges) {
+        final e = deduped.edge;
+        if (matchSet.contains(e.sourceId) || matchSet.contains(e.targetId)) {
+          connected.add(e.id);
+        }
+      }
+      if (connected.length == edges.length) return null;
+      final dimmed = <String>{};
+      for (final deduped in edges) {
+        if (!connected.contains(deduped.edge.id)) {
+          dimmed.add(deduped.edge.id);
+        }
+      }
+      return dimmed;
+    }
 
     if (focusedPerson != null) {
       // Focus mode: use first + second degree neighbour sets.
