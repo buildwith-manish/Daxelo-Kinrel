@@ -673,7 +673,7 @@ class _FamilyGraphEngineViewState
         // collapse, so collapse has the current protected sets.
         final focusState = ref.watch(graphFocusProvider);
         final searchState = ref.watch(graphSearchProvider);
-        final pathFocus = ref.watch(graphPathFocusProvider).focus;
+        final pathFocusState = ref.watch(graphPathFocusProvider).focus;
         final selectedPerson = ref.read(selectedNodeProvider);
 
         // v99: Compute collapse BEFORE visible-set derivation.
@@ -687,7 +687,7 @@ class _FamilyGraphEngineViewState
               focusPersonId: focusState.focusedPersonId,
               firstDegreeIds: focusState.firstDegreeIds,
               secondDegreeIds: focusState.secondDegreeIds,
-              pathNodeIds: pathFocus?.orderedPersonIds.toSet(),
+              pathNodeIds: pathFocusState?.orderedPersonIds.toSet(),
               searchMatchIds: searchState.isActive
                   ? searchState.matchIdSet
                   : null,
