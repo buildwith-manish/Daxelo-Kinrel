@@ -967,6 +967,7 @@ class _FamilyGraphEngineViewState
                   // counters. The ValueKey should only change when the
                   // actual edge/position DATA changes, not when the
                   // zoom-driven presentation tier changes.
+                  child: _EdgeSelectionWrapper(
                     key: ValueKey('edge_layer_${edges.length}_${layout.positions.length}'),
                     // BUG 1 FIX: Apply Y offset so edge endpoints connect
                     // to the visual circle center, not the Positioned box
