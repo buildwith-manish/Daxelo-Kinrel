@@ -717,7 +717,7 @@ class KinshipEdgeStyleResolver {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// SPOUSE KEY SET (legacy compat for graph_canvas_widget.dart)
+// SPOUSE KEY SET (shared edge-key compatibility set)
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Relationship keys that represent spouse/partner connections.

@@ -45,7 +45,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/relationship/relationship_engine.dart' show RelationshipEngine;
 import '../../core/kinship/structural_kinship_classifier.dart'
     show StructuralClassification;
-import '../data/family_graph_repository.dart' show GraphEdgeData;
+import '../data/graph_data_models.dart' show GraphEdgeData;
 import '../engine/edge_dedup.dart' show DedupedEdge, EdgeDeduplicator;
 import '../../features/family/presentation/providers/family_graph_provider.dart'
     show familyGraphProvider;

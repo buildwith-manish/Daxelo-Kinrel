@@ -26,12 +26,12 @@ export 'rendering/edge_path_cache.dart';
 export 'rendering/viewport_culler.dart';
 
 // ── Data Layer ────────────────────────────────────────────────────────────────
-export 'data/family_graph_repository.dart';
-export 'data/supabase_data_source.dart';
-export 'data/graph_cache.dart';
+// P0.1: five legacy data-layer files (repository, supabase source,
+// cache, offline manager, realtime sync) were deleted as dead code.
+// Their live model classes were relocated to graph_data_models.dart
+// (pure relocation, unchanged APIs).
+export 'data/graph_data_models.dart';
 export 'data/position_memory.dart';
-export 'data/offline_manager.dart';
-export 'data/realtime_sync.dart';
 export 'data/data_validator.dart';
 
 // ── Interaction Layer ─────────────────────────────────────────────────────────

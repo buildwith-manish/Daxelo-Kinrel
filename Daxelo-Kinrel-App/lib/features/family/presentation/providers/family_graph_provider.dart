@@ -36,7 +36,6 @@ import '../../../../core/services/analytics_service.dart';
 import '../../../../core/services/graph_layout_service.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../../core/viewer/viewer_provider.dart';
-import '../widgets/graph_canvas_widget.dart';
 
 /// Provider for the Drift database instance.
 /// Used by [FamilyGraphNotifier] to persist graph data locally.
@@ -59,7 +58,7 @@ final driftDatabaseProvider = Provider<AppDatabase?>((ref) {
 ///
 /// The RPC `get_family_graph` returns { nodes, edges, isTruncated, totalCount }.
 /// We map nodes → persons and edges → relationships to keep the rest of the
-/// app (GraphCanvasWidget, graphLayoutProvider) unchanged.
+/// app (FamilyGraphEngineView, graphLayoutProvider) unchanged.
 class FlatGraphResult {
   /// Raw person data mapped from RPC nodes.
   final List<Map<String, dynamic>> persons;

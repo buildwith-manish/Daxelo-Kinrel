@@ -35,7 +35,7 @@ void main() {
     // The exact map used by getNodeColorsFromCategory() in
     // lib/shared/utils/node_colors.dart. The classifier MUST produce
     // the same color for each category string so that GraphNode's ring
-    // color matches the legacy PersonNodeWidget's ring color.
+    // color matches GraphNode's ring color category.
     // ─────────────────────────────────────────────────────────────────
     final categoryToExpectedColor = <String, Color>{
       'self': KinrelColors.nodeSelf, // Teal #0D9488

@@ -21,7 +21,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/kinship/kinship_edge_style.dart';
 import 'package:kinrel/core/kinship/structural_kinship_classifier.dart';
 import 'package:kinrel/core/services/graph_layout_service.dart';
-import 'package:kinrel/graph/data/family_graph_repository.dart';
+import 'package:kinrel/graph/data/graph_data_models.dart';
 import 'package:kinrel/graph/engine/edge_dedup.dart';
 import 'package:kinrel/graph/interaction/graph_kinship_path_focus.dart';
 

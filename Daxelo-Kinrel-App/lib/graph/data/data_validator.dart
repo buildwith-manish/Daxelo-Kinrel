@@ -17,7 +17,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../analytics/analytics_tracker.dart';
-import 'family_graph_repository.dart';
+import 'graph_data_models.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // DATA VALIDATION RESULT

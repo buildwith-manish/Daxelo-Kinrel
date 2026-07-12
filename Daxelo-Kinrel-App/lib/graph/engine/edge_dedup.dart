@@ -62,7 +62,7 @@
 //     canvas.drawPath(path, paint);
 //   }
 
-import '../data/family_graph_repository.dart' show GraphEdgeData;
+import '../data/graph_data_models.dart' show GraphEdgeData;
 import '../../core/kinship/kinship_edge_style.dart';
 
 /// A deduplicated edge entry. Carries the original [GraphEdgeData] plus

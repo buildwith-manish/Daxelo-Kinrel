@@ -28,7 +28,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/analytics_service.dart';
-import '../data/family_graph_repository.dart';
+import '../data/graph_data_models.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // EXPANSION BITMASK

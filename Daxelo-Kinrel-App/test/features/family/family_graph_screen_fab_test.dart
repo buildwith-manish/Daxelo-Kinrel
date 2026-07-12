@@ -21,7 +21,6 @@ import 'package:go_router/go_router.dart';
 
 import 'package:kinrel/features/family/presentation/family_graph_screen.dart';
 import 'package:kinrel/features/family/presentation/providers/family_graph_provider.dart';
-import 'package:kinrel/features/family/presentation/widgets/graph_canvas_widget.dart';
 
 void main() {
   group('FamilyGraphScreen FAB presence', () {

@@ -1,28 +1,17 @@
-// lib/graph/data/family_graph_repository.dart
+// lib/graph/data/graph_data_models.dart
 //
-// DAXELO KINREL — Family Graph Repository (V2.1 Data Layer)
+// DAXELO KINREL — Graph Data Models (V2.1 Data Layer)
 //
-// v99 STATUS: The FamilyGraphRepository CLASS below is NOT CURRENTLY
-// USED. It has zero construction sites in lib/. The live graph data
-// source is family_graph_provider.dart (FamilyGraphNotifier), which
-// calls Supabase directly without going through this repository.
+// Single home for the graph data-layer model classes that were
+// previously co-located in a now-deleted legacy repository file.
 //
-// However, the DATA MODELS defined in this file (GraphEdgeData,
-// GraphNodeData, GraphRealtimeEvent, BranchType, etc.) ARE actively
-// imported and used by 10+ files across the codebase. Deleting this
-// file would break the build. The models are co-located here for
-// historical reasons.
+// This file is a pure RELOCATION of the model definitions — the class
+// APIs are unchanged. It exists so that live code can continue to
+// import GraphNodeData, GraphEdgeData, GraphData, BranchData,
+// SearchResult, KinshipResult, GraphRealtimeEvent and the BranchType
+// enum without depending on the dead repository class.
 //
-// To fully clean up: extract the data models into separate files
-// (graph_edge_data.dart, graph_node_data.dart, etc.), then delete
-// the FamilyGraphRepository class. This is a code-organization task,
-// not a functional bug — leaving it does not affect production
-// behavior.
-//
-// Similarly, graph_cache.dart and supabase_data_source.dart are
-// imported only by this file and offline_manager.dart (which itself
-// is not on the live graph render path). They are legacy data-layer
-// abstractions from an earlier architecture.
+// See: Feature P0.1 (Delete ~8,500 lines of dead code).
 
 import '../../core/services/graph_layout_service.dart';
 
@@ -378,46 +367,6 @@ class KinshipResult {
       };
 }
 
-/// Permission check result mapping target IDs to granted permission
-/// types.
-class PermissionMap {
-  /// Creates a permission map.
-  const PermissionMap({required this.permissions});
-
-  /// Maps target member ID to a list of granted permission types.
-  ///
-  /// Example: `{"member_123": ["view_profile", "view_relationships"]}`
-  final Map<String, List<String>> permissions;
-
-  /// Whether the viewer has a specific [permission] on [targetId].
-  bool hasPermission(String targetId, String permission) {
-    final perms = permissions[targetId];
-    if (perms == null) return false;
-    return perms.contains(permission);
-  }
-
-  /// Deserializes from a JSON map.
-  factory PermissionMap.fromJson(Map<String, dynamic> json) {
-    final raw = json['permissions'] as Map<String, dynamic>? ??
-        <String, dynamic>{};
-    final parsed = <String, List<String>>{};
-    for (final entry in raw.entries) {
-      parsed[entry.key] = (entry.value as List<dynamic>)
-          .cast<String>()
-          .toList();
-    }
-    return PermissionMap(permissions: parsed);
-  }
-
-  /// Serializes to a JSON map.
-  Map<String, dynamic> toJson() => <String, dynamic>{
-        'permissions': permissions.map(
-          (String key, List<String> value) =>
-              MapEntry<String, dynamic>(key, value),
-        ),
-      };
-}
-
 /// Realtime event from graph subscription.
 class GraphRealtimeEvent {
   /// Creates a realtime event.
@@ -455,94 +404,4 @@ class GraphRealtimeEvent {
         'payload': payload,
         'timestamp': timestamp.toIso8601String(),
       };
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// REPOSITORY INTERFACE
-// ═══════════════════════════════════════════════════════════════════════
-
-/// Clean Architecture repository interface for family graph data.
-///
-/// Defines the contract that any data source must implement. The
-/// primary implementation is [SupabaseDataSource]; a mock
-/// implementation can be used for testing.
-///
-/// All methods are async and return strongly-typed models.
-abstract class FamilyGraphRepository {
-  /// Fetches the family graph centered on [memberId].
-  ///
-  /// [maxDegree] limits how many relationship hops from the anchor
-  /// are included (default: 3). [includeHidden] controls whether
-  /// members marked as hidden/removed are included.
-  Future<GraphData> getFamilyGraph({
-    required String memberId,
-    int maxDegree = 3,
-    bool includeHidden = false,
-  });
-
-  /// Fetches a specific branch of the family tree.
-  ///
-  /// [memberId] is the person whose branch is being expanded.
-  /// [branchType] specifies which branch to load.
-  /// [depth] controls how deep the branch extends (default: 2).
-  Future<BranchData> getMemberBranch({
-    required String memberId,
-    required BranchType branchType,
-    int depth = 2,
-  });
-
-  /// Searches family members by [query].
-  ///
-  /// [filters] optional filters (e.g. gender, generation).
-  /// [limit] maximum results per page (default: 20).
-  /// [offset] pagination offset.
-  Future<SearchResult> searchMembers({
-    required String query,
-    Map<String, dynamic>? filters,
-    int limit = 20,
-    int offset = 0,
-  });
-
-  /// Resolves the kinship relationship between two members.
-  ///
-  /// Returns a [KinshipResult] describing the relationship from
-  /// [memberAId]'s perspective to [memberBId].
-  Future<KinshipResult> resolveKinship({
-    required String memberAId,
-    required String memberBId,
-  });
-
-  /// Checks permissions for a viewer on multiple target members.
-  ///
-  /// [viewerId] is the person requesting access.
-  /// [targetIds] are the members being accessed.
-  /// [permissionTypes] are the permission types being checked.
-  Future<PermissionMap> checkPermissions({
-    required String viewerId,
-    required List<String> targetIds,
-    required List<String> permissionTypes,
-  });
-
-  /// Subscribes to realtime graph updates for [memberId].
-  ///
-  /// Emits [GraphRealtimeEvent]s for relationship changes, member
-  /// updates, and permission changes.
-  Stream<GraphRealtimeEvent> subscribeToGraphUpdates({
-    required String memberId,
-  });
-
-  /// Caches the current graph state for offline access.
-  ///
-  /// [familyId] identifies the family. [data] is the graph data to
-  /// cache.
-  Future<void> cacheGraphState({
-    required String familyId,
-    required GraphData data,
-  });
-
-  /// Retrieves a cached graph state if available.
-  ///
-  /// Returns null if no cached state exists or if the cache has
-  /// expired.
-  Future<GraphData?> getCachedGraphState({required String familyId});
 }

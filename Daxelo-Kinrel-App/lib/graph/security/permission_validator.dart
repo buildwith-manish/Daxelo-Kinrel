@@ -30,7 +30,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../data/family_graph_repository.dart' show GraphNodeData, GraphEdgeData, GraphRealtimeEvent;
+import '../data/graph_data_models.dart' show GraphNodeData, GraphEdgeData, GraphRealtimeEvent;
 
 // ═══════════════════════════════════════════════════════════════════════
 // DATA MODELS
@@ -61,7 +61,7 @@ class VisibilityResult {
   });
 }
 
-// GraphRealtimeEvent imported from family_graph_repository.dart
+// GraphRealtimeEvent imported from graph_data_models.dart
 
 // ═══════════════════════════════════════════════════════════════════════
 // CACHE ENTRY

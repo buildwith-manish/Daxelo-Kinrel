@@ -49,7 +49,7 @@ import '../../features/family/presentation/providers/family_graph_provider.dart'
         graphRealtimeProvider,
         selectedEdgeProvider,
         selectedNodeProvider;
-import '../data/family_graph_repository.dart' show GraphEdgeData;
+import '../data/graph_data_models.dart' show GraphEdgeData;
 import '../data/position_memory.dart' show PositionMemory;
 import '../engine/edge_dedup.dart' show DedupedEdge, EdgeDeduplicator;
 import '../interaction/camera_controller.dart' show CameraController;

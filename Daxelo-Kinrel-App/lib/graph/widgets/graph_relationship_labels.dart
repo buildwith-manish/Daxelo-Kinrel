@@ -9,7 +9,7 @@
 //
 // Web + mobile compatible: no dart:io, no Platform checks, no isolates.
 
-import '../data/family_graph_repository.dart' show GraphEdgeData;
+import '../data/graph_data_models.dart' show GraphEdgeData;
 
 /// Immutable data holder for a person's graph-rendering metadata.
 ///

@@ -23,7 +23,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/family/family_provider.dart' show getInverseRelationshipType;
 import 'package:kinrel/core/kinship/kinship_edge_style.dart';
 import 'package:kinrel/core/kinship/legacy_key_map.dart' show normalizeRelationshipKey;
-import 'package:kinrel/graph/data/family_graph_repository.dart';
+import 'package:kinrel/graph/data/graph_data_models.dart';
 import 'package:kinrel/graph/engine/edge_dedup.dart';
 
 void main() {

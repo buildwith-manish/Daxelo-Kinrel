@@ -3,7 +3,7 @@
 // Tests for PermissionValidator security model per V2.1 Blueprint §29.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kinrel/graph/data/family_graph_repository.dart';
+import 'package:kinrel/graph/data/graph_data_models.dart';
 import 'package:kinrel/graph/security/permission_validator.dart';
 
 void main() {
