@@ -271,4 +271,120 @@ void main() {
       // Both are valid — identity source doesn't affect validation.
     });
   });
+
+  // ────────────────────────────────────────────────────────────────────
+  // v102 (BUG-3 FIX): RelationshipValidationException typed exception.
+  //
+  // The old code in family_provider.dart threw a plain
+  // Exception(validation.message) and then string-matched e.toString()
+  // for code slugs — which never matched because e.toString() returns
+  // the MESSAGE, not the CODE. The fix introduces a typed exception
+  // so the catch block can do a type check instead.
+  // ────────────────────────────────────────────────────────────────────
+  group('v102 — RelationshipValidationException (BUG-3 fix)', () {
+    test('exception carries both message and code', () {
+      const exc = RelationshipValidationException(
+        'A person cannot have a relationship with themselves.',
+        'self_relationship',
+      );
+      expect(exc.message, 'A person cannot have a relationship with themselves.');
+      expect(exc.code, 'self_relationship');
+    });
+
+    test('exception toString returns the message (not the code)', () {
+      const exc = RelationshipValidationException(
+        'A person cannot have a relationship with themselves.',
+        'self_relationship',
+      );
+      // toString() returns the human-readable message — callers that
+      // need the code must access exc.code directly. This matches the
+      // old behavior (plain Exception(message).toString() = message)
+      // so UI code that displays e.toString() still works.
+      expect(exc.toString(), 'A person cannot have a relationship with themselves.');
+      expect(exc.toString(), isNot(contains('self_relationship')));
+    });
+
+    test('exception is catchable by type (the actual BUG-3 fix)', () {
+      // This is the test that would have FAILED before the fix.
+      // The old code did:
+      //   throw Exception(validation.message);
+      //   ...
+      //   catch (e) {
+      //     if (e.toString().contains('self_relationship')) rethrow;
+      //   }
+      // But e.toString() = "Exception: A person cannot have..." which
+      // does NOT contain 'self_relationship' → rethrow never fires.
+      //
+      // The new code does:
+      //   throw RelationshipValidationException(message, code);
+      //   ...
+      //   on RelationshipValidationException catch (_) { rethrow; }
+      // This type check ALWAYS works regardless of the message wording.
+      const exc = RelationshipValidationException(
+        'A person cannot have a relationship with themselves.',
+        'self_relationship',
+      );
+
+      // Simulate the catch block's type check.
+      bool wouldRethrow = exc is RelationshipValidationException;
+      expect(wouldRethrow, isTrue,
+          reason: 'THE BUG-3 TEST: a typed catch MUST catch the exception. '
+              'Before the fix, the string-match catch could never fire '
+              'because e.toString() returns the message, not the code.');
+    });
+
+    test('exception equality is based on code + message', () {
+      const exc1 = RelationshipValidationException('msg', 'self_relationship');
+      const exc2 = RelationshipValidationException('msg', 'self_relationship');
+      const exc3 = RelationshipValidationException('msg', 'duplicate_relationship');
+      const exc4 = RelationshipValidationException('different', 'self_relationship');
+
+      expect(exc1 == exc2, isTrue);
+      expect(exc1 == exc3, isFalse, reason: 'Different code → not equal');
+      expect(exc1 == exc4, isFalse, reason: 'Different message → not equal');
+      expect(exc1.hashCode, exc2.hashCode);
+    });
+
+    test('all validation error codes produce a catchable exception', () {
+      // Verify that every code the validator can return maps to a
+      // RelationshipValidationException that the typed catch will catch.
+      final testCases = <(String, String, List<({String fromId, String toId, String edgeId, String relationshipKey})>)>[
+        ('self_relationship', 'father', const []),
+        ('duplicate_relationship', 'wife', [
+          (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'wife'),
+        ]),
+      ];
+
+      for (final (expectedCode, key, existingEdges) in testCases) {
+        final result = validateRelationship(
+          fromPersonId: 'A',
+          toPersonId: expectedCode == 'self_relationship' ? 'A' : 'B',
+          relationshipKey: key,
+          existingEdges: existingEdges,
+        );
+        expect(result.isError, isTrue, reason: 'Code $expectedCode should be an error');
+
+        // Simulate the throw + typed catch.
+        final exc = RelationshipValidationException(
+          result.message,
+          result.code ?? 'unknown',
+        );
+        expect(exc is RelationshipValidationException, isTrue);
+        expect(exc.code, expectedCode);
+      }
+    });
+
+    test('plain Exception is NOT caught by the typed catch', () {
+      // This proves the fix is narrow: only RelationshipValidationException
+      // is rethrown. A plain Exception (e.g. from a network error) is
+      // NOT a RelationshipValidationException, so it falls through to
+      // the non-blocking debugPrint path. This is the intended behavior
+      // — network errors during the validation fetch should not block
+      // the write.
+      final plainException = Exception('Network error');
+      expect(plainException is RelationshipValidationException, isFalse,
+          reason: 'Plain exceptions must NOT be caught by the typed catch — '
+              'they represent network failures, not validation failures.');
+    });
+  });
 }

@@ -12,7 +12,7 @@ import '../networking/dio_client.dart';
 import '../services/supabase_service.dart';
 import '../services/analytics_service.dart';
 import '../services/graph_layout_service.dart';
-import '../../graph/interaction/relationship_validation.dart' show validateRelationship, GraphEditCommand, GraphEditType, graphUndoProvider;
+import '../../graph/interaction/relationship_validation.dart' show validateRelationship, RelationshipValidationException, GraphEditCommand, GraphEditType, graphUndoProvider;
 import '../database/isar_database.dart';
 import '../database/app_database.dart';
 import '../database/repositories/offline_family_repository.dart';
@@ -2101,21 +2101,31 @@ Future<FamilyRelationship> createRelationship({
       existingEdges: existingEdges,
     );
     if (validation.isError) {
-      throw Exception(validation.message);
+      // v102 (BUG-3 FIX): Throw a typed RelationshipValidationException
+      // carrying BOTH the message and the code. The catch block below
+      // does a TYPE CHECK (e is RelationshipValidationException) instead
+      // of the old fragile string-match on e.toString() — which never
+      // matched because e.toString() returned the message, not the code.
+      throw RelationshipValidationException(
+        validation.message,
+        validation.code ?? 'unknown',
+      );
     }
     // Warnings are logged but do not block — the user may confirm.
     if (validation.isWarning) {
       debugPrint('[CREATE-REL] ⚠️ Validation warning: ${validation.message}');
     }
+  } on RelationshipValidationException catch (_) {
+    // v102 (BUG-3 FIX): Typed rethrow — validation determined this
+    // relationship is invalid (self-relationship, duplicate, circular
+    // ancestry, duplicate parent). Block the write by rethrowing.
+    rethrow;
   } catch (e) {
-    if (e is Exception && e.toString().contains('self_relationship') ||
-        e.toString().contains('duplicate_relationship') ||
-        e.toString().contains('circular_parentage') ||
-        e.toString().contains('duplicate_parent')) {
-      rethrow; // Validation error — block the write.
-    }
     // Network error fetching existing edges — log and continue
-    // (validation is best-effort, not a hard gate).
+    // (validation is best-effort when the network fails to fetch
+    // existing edges; only re-throw when validation ITSELF determined
+    // the relationship is invalid, which is handled by the typed
+    // catch above).
     debugPrint('[CREATE-REL] Validation fetch failed (non-blocking): $e');
   }
 

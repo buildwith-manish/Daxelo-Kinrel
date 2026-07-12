@@ -26,6 +26,50 @@ enum ValidationSeverity {
   warning,
 }
 
+/// v102 (BUG-3 FIX): A typed exception carrying both the human-readable
+/// [message] AND the machine-readable [code] from a
+/// [RelationshipValidationResult].
+///
+/// Previously, `createRelationship` in `family_provider.dart` threw a
+/// plain `Exception(validation.message)` and then tried to detect
+/// validation errors in the catch block by string-matching
+/// `e.toString().contains('self_relationship')` etc. But
+/// `e.toString()` returns the MESSAGE (e.g. "A person cannot have a
+/// relationship with themselves."), not the CODE — so the code-slug
+/// check could NEVER match, and every validation error silently fell
+/// through to the non-blocking debugPrint path. The relationship write
+/// proceeded even when validation correctly flagged it as invalid.
+///
+/// This typed exception fixes the bug structurally: the catch block
+/// now does a TYPE CHECK (`e is RelationshipValidationException`)
+/// instead of a fragile string match. The [code] is preserved for
+/// callers that want to handle specific error types differently
+/// (e.g. show a different UI for self-relationship vs duplicate).
+class RelationshipValidationException implements Exception {
+  const RelationshipValidationException(this.message, this.code);
+
+  /// Human-readable error message (e.g. "A person cannot have a
+  /// relationship with themselves.").
+  final String message;
+
+  /// Machine-readable error code (e.g. 'self_relationship',
+  /// 'duplicate_relationship', 'circular_parentage', 'duplicate_parent').
+  final String code;
+
+  @override
+  String toString() => message;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RelationshipValidationException &&
+          other.code == code &&
+          other.message == message;
+
+  @override
+  int get hashCode => Object.hash(code, message);
+}
+
 /// The result of validating a relationship mutation.
 @immutable
 class RelationshipValidationResult {
