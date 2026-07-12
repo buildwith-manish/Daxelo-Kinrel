@@ -272,24 +272,35 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     final newBranches = <CollapsedBranch>[];
     final alreadyHidden = <String>{};
 
-    // Candidate roots: first-degree relatives of the focus person
-    // (their "other" family — e.g. mother's extended family).
-    // If no focus, use persons at generation distance ≥ 2 from anchor.
+    // v98 (Phase 4): Fix candidate-root self-contradiction.
+    // The previous code added firstDegreeIds to BOTH alwaysVisible
+    // AND candidateRoots, then skipped any root already in
+    // alwaysVisible — so a focused person's immediate neighbours
+    // could NEVER become collapse candidates.
+    //
+    // Fix: alwaysVisible protects the NODE ITSELF from being hidden
+    // as a descendant. But a first-degree neighbour CAN be a branch
+    // ROOT — it stays visible, but its OWN descendants can be
+    // collapsed. The skip at line ~292 should only skip roots that
+    // are the FOCUS person itself (not all alwaysVisible members).
     final candidateRoots = <String>{};
     if (focusPersonId != null) {
       // First-degree relatives are candidate roots for their own
-      // extended families.
+      // extended families. They stay visible (as alwaysVisible),
+      // but their descendants can be collapsed.
       candidateRoots.addAll(firstDegreeIds);
     } else {
-      // No focus — use all persons as candidates (the small-family
-      // bypass above means this only runs for families ≥ 30 members).
       candidateRoots.addAll(allPersons);
     }
 
+    final newBranches = <CollapsedBranch>[];
+    final alreadyHidden = <String>{};
+
     for (final rootId in candidateRoots) {
-      // Skip if this person is in the always-visible set (they're
-      // already shown — don't collapse their branch).
-      if (alwaysVisible.contains(rootId)) continue;
+      // v98: Only skip if this is the FOCUS person itself — not
+      // if it's merely in alwaysVisible. A first-degree neighbour
+      // can be a branch root while still being always-visible.
+      if (rootId == focusPersonId) continue;
       // Skip if the user has explicitly expanded this branch.
       if (state.expandedBranchRoots.contains(rootId)) continue;
       // Skip if already part of another collapsed branch.

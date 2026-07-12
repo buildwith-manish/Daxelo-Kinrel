@@ -636,7 +636,15 @@ class _FamilyGraphEngineViewState
         final Rect vp = _graphSpaceViewport();
         final Set<String> culled =
             _culler.cull(layout.positions, nodeSizes, vp);
-        final Set<String> visible = culled.where(allowed.contains).toSet();
+        // v98 (Phase 4): Subtract branch-collapse hidden member IDs
+        // from the visible set. allHiddenMemberIds is the set of
+        // persons collapsed into branch affordances — they must NOT
+        // render as individual nodes.
+        final collapseState = ref.read(branchCollapseProvider);
+        final hiddenIds = collapseState.allHiddenMemberIds;
+        final Set<String> visible = hiddenIds.isEmpty
+            ? culled.where(allowed.contains).toSet()
+            : culled.where((id) => allowed.contains(id) && !hiddenIds.contains(id)).toSet();
 
         // Record throttling baselines for _onCameraChanged.
         _lastCullViewport = vp;

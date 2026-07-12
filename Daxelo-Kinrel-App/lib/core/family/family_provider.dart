@@ -12,6 +12,7 @@ import '../networking/dio_client.dart';
 import '../services/supabase_service.dart';
 import '../services/analytics_service.dart';
 import '../services/graph_layout_service.dart';
+import '../../graph/interaction/relationship_validation.dart' show validateRelationship;
 import '../database/isar_database.dart';
 import '../database/app_database.dart';
 import '../database/repositories/offline_family_repository.dart';
@@ -2074,6 +2075,48 @@ Future<FamilyRelationship> createRelationship({
     throw Exception(
       'Database is not connected. Please restart the app and try again.',
     );
+  }
+
+  // v98 (Phase 7): Validate the relationship BEFORE writing to Supabase.
+  // Fetch existing edges for validation (self-link, duplicate, cycle).
+  try {
+    final existingRels = await client
+        .from('Relationship')
+        .select('id, "fromPersonId", "toPersonId", "relationshipKey"')
+        .eq('familyId', familyId)
+        .timeout(const Duration(seconds: 10));
+    final existingEdges = <({String fromId, String toId, String edgeId, String relationshipKey})>[
+      for (final r in existingRels)
+        (
+          fromId: (r['fromPersonId'] ?? '').toString(),
+          toId: (r['toPersonId'] ?? '').toString(),
+          edgeId: (r['id'] ?? '').toString(),
+          relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
+        ),
+    ];
+    final validation = validateRelationship(
+      fromPersonId: fromPersonId,
+      toPersonId: toPersonId,
+      relationshipKey: relationshipKey,
+      existingEdges: existingEdges,
+    );
+    if (validation.isError) {
+      throw Exception(validation.message);
+    }
+    // Warnings are logged but do not block — the user may confirm.
+    if (validation.isWarning) {
+      debugPrint('[CREATE-REL] ⚠️ Validation warning: ${validation.message}');
+    }
+  } catch (e) {
+    if (e is Exception && e.toString().contains('self_relationship') ||
+        e.toString().contains('duplicate_relationship') ||
+        e.toString().contains('circular_parentage') ||
+        e.toString().contains('duplicate_parent')) {
+      rethrow; // Validation error — block the write.
+    }
+    // Network error fetching existing edges — log and continue
+    // (validation is best-effort, not a hard gate).
+    debugPrint('[CREATE-REL] Validation fetch failed (non-blocking): $e');
   }
 
   // v83: If custom colors are provided, save them to CustomKinshipConfig
