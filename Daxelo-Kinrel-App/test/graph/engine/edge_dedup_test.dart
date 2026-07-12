@@ -139,9 +139,10 @@ void main() {
       }
 
       // Verify the pairs are correct.
-      final pairKeys = result
-          .map((r) => [r.edge.sourceId, r.edge.targetId]..sort().join('_'))
-          .toSet();
+      final pairKeys = result.map((r) {
+        final ids = [r.edge.sourceId, r.edge.targetId]..sort();
+        return '${ids[0]}_${ids[1]}';
+      }).toSet();
       expect(pairKeys, containsAll(['A_B', 'C_D']));
     });
 

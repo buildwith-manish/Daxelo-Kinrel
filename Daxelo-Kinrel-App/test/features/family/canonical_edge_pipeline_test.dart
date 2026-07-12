@@ -540,9 +540,17 @@ void main() {
       expect(deduped.length, 2,
           reason: 'Parent + spouse between the same pair must both render');
 
-      // The second edge gets a lateral offset so they don't stack.
-      expect(deduped[0].lateralOffset, 0.0);
-      expect(deduped[1].lateralOffset, isNot(0.0));
+      // When two edges share a pair, BOTH get non-zero lateral offsets
+      // (symmetric around 0: one negative, one positive) so they don't
+      // stack. The first edge does NOT get offset 0.0 — that only
+      // happens for solo edges.
+      final offsets = deduped.map((e) => e.lateralOffset).toList()..sort();
+      expect(offsets.first, lessThan(0.0),
+          reason: 'First parallel edge must have a negative offset');
+      expect(offsets.last, greaterThan(0.0),
+          reason: 'Second parallel edge must have a positive offset');
+      expect((offsets.first + offsets.last).abs(), lessThan(0.01),
+          reason: 'Parallel offsets must be symmetric around 0');
     });
 
     test('duplicate edges in opposite directions collapse to one', () {
