@@ -63,6 +63,9 @@ dependencies:
   # Audio recording (v91: Oral history transcription feature)
   record: ^7.1.1
 
+  # Audio playback (P1.1: Blessing Chain — elder voice blessings)
+  just_audio: ^0.9.43
+
   # Flame engine (Ghost Painter canvas rendering)
   flame: ^1.18.0
 

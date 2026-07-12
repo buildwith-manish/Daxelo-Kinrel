@@ -1,14 +1,17 @@
 // lib/features/pulse/presentation/blessing_chain_screen.dart
 //
 // A-1 Blessing Chain screen — shows blessings delivered to the user + family blessings.
+// P1.1: Real audio playback via just_audio; elder-side recording via blessing_record_sheet.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:just_audio/just_audio.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../data/pulse_models.dart';
 import '../providers/pulse_providers.dart';
+import 'blessing_record_sheet.dart';
 
 class BlessingChainScreen extends ConsumerStatefulWidget {
   final bool embedded;
@@ -63,6 +66,14 @@ class _BlessingChainScreenState extends ConsumerState<BlessingChainScreen>
           _BlessingsForMeTab(),
           _FamilyBlessingsTab(),
         ],
+      ),
+      // P1.1: Elder-side recording entry point. Opens the blessing record
+      // sheet where an elder (or family member on their behalf) can record
+      // a voice blessing, pick a recipient, and schedule delivery.
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => BlessingRecordSheet.show(context),
+        backgroundColor: KinrelColors.gold,
+        child: const Icon(Icons.mic, color: Colors.white),
       ),
     );
   }
@@ -267,7 +278,79 @@ class _AudioBlessingPlayer extends StatefulWidget {
 }
 
 class _AudioBlessingPlayerState extends State<_AudioBlessingPlayer> {
+  // P1.1: Real audio playback via just_audio (replaces fake _isPlaying toggle).
+  final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isPlaying = false;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    _initAudio();
+  }
+
+  Future<void> _initAudio() async {
+    final url = widget.blessing.mediaUrl;
+    if (url == null || url.isEmpty) {
+      setState(() => _loadError = 'No audio available for this blessing.');
+      return;
+    }
+    try {
+      await _audioPlayer.setUrl(url);
+      // Listen to playback state changes.
+      _audioPlayer.playerStateStream.listen((state) {
+        if (mounted) {
+          setState(() {
+            _isPlaying = state.playing;
+            if (state.processingState == ProcessingState.completed) {
+              _isPlaying = false;
+              _audioPlayer.seek(Duration.zero);
+            }
+          });
+        }
+      });
+      // Listen to position updates for the progress bar.
+      _audioPlayer.positionStream.listen((pos) {
+        if (mounted) setState(() => _position = pos);
+      });
+      _audioPlayer.durationStream.listen((dur) {
+        if (mounted && dur != null) setState(() => _duration = dur);
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loadError =
+            'This blessing could not be played. Tap to retry.');
+      }
+    }
+  }
+
+  Future<void> _togglePlayPause() async {
+    if (_loadError != null) {
+      // Retry loading on tap after an error.
+      setState(() => _loadError = null);
+      await _initAudio();
+      return;
+    }
+    if (_isPlaying) {
+      await _audioPlayer.pause();
+    } else {
+      await _audioPlayer.play();
+    }
+  }
+
+  String _formatDuration(Duration d) {
+    final m = d.inMinutes;
+    final s = d.inSeconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -277,58 +360,84 @@ class _AudioBlessingPlayerState extends State<_AudioBlessingPlayer> {
         color: KinrelColors.gold.withOpacity(0.08),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () {
-              setState(() => _isPlaying = !_isPlaying);
-              // In production: use just_audio or audioplayers to play widget.blessing.mediaUrl
-            },
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: KinrelColors.gold,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                _isPlaying ? Icons.pause : Icons.play_arrow,
-                color: Colors.white,
-                size: 20,
+      child: Semantics(
+        label:
+            'Blessing from ${widget.blessing.elderPerson?.name ?? 'a family elder'}, '
+            '${_duration.inSeconds} seconds long. '
+            '${_isPlaying ? 'Playing' : 'Paused'}. Double-tap to play or pause.',
+        liveRegion: true,
+        child: Row(
+          children: [
+            // Play/pause button — 44x44 min hit target for accessibility.
+            GestureDetector(
+              onTap: _togglePlayPause,
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: KinrelColors.gold,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _loadError != null
+                      ? Icons.refresh
+                      : (_isPlaying ? Icons.pause : Icons.play_arrow),
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Voice blessing',
-                  style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
-                ),
-                const SizedBox(height: 4),
-                // Pseudo waveform
-                Row(
-                  children: List.generate(
-                    30,
-                    (i) => Container(
-                      margin: const EdgeInsets.only(right: 2),
-                      width: 2,
-                      height: 8 + (i % 4) * 6.0,
-                      color: KinrelColors.gold.withOpacity(_isPlaying ? 0.8 : 0.3),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _loadError ?? 'Voice blessing',
+                    style: TextStyle(
+                      color: _loadError != null
+                          ? Colors.red.shade300
+                          : Colors.white.withOpacity(0.7),
+                      fontSize: 12,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  if (_loadError == null) ...[
+                    // Real progress bar reflecting playback position.
+                    LinearProgressIndicator(
+                      value: _duration.inSeconds > 0
+                          ? _position.inSeconds / _duration.inSeconds
+                          : 0.0,
+                      backgroundColor:
+                          KinrelColors.gold.withOpacity(0.2),
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(KinrelColors.gold),
+                      minHeight: 3,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _formatDuration(_position),
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.5),
+                              fontSize: 10),
+                        ),
+                        Text(
+                          _formatDuration(_duration),
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.5),
+                              fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
-          if (widget.blessing.durationSec > 0)
-            Text(
-              '${widget.blessing.durationSec ~/ 60}:${(widget.blessing.durationSec % 60).toString().padLeft(2, '0')}',
-              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

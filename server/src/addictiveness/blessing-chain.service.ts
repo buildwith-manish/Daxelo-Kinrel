@@ -15,13 +15,14 @@
 //   3. When the recipient opens the blessing, status='viewed', viewedAt=now
 //   4. Cancel: elder or family can cancel before delivery (status='cancelled')
 //
-// Why this is addictively powerful:
-//   - Receiving a blessing from Dadi on your birthday, in HER VOICE, is emotionally
-//     devastating in the best way. You will open the app every birthday for the rest
-//     of your life.
-//   - Recurring blessings mean the elder "lives on" through the blessing chain even
-//     after they pass — their great-grandchildren receive blessings from someone they
-//     never met but who loved them.
+// Design rationale (Guardrail 2 — Warmth, not addiction):
+//   Blessing Chain is an elder-initiated feature. The elder records a blessing
+//   (text or voice); the family receives it on the scheduled occasion. The
+//   emotional weight comes from the elder's voice and intent, not from
+//   system-pushed timing or manufactured urgency. Blessings are opt-out per
+//   recipient. There is no streak, no karma, no leaderboard, no notification
+//   urgency. The feature is valuable because the elder's voice is valuable —
+//   nothing more.
 
 import {
   Injectable,
