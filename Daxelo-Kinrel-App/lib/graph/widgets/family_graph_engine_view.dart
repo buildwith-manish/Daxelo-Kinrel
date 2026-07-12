@@ -3419,7 +3419,6 @@ class _EngineEdgePainter extends CustomPainter {
     this.traceProgress = 0.0,
     this.traceActive = false,
     this.completedTraceEdgeIds,
-    this.coupleUnions = const [],
   });
 
   final Map<String, Offset> positions;
