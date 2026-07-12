@@ -1349,7 +1349,7 @@ class _FamilyGraphEngineViewState
           context,
           personData,
           familyId: widget.familyId,
-          isOwner: true, // TODO: check actual family role from provider
+          isOwner: true, // v99 TODO: resolve actual family role from provider
           isSelf: isAnchor, // anchor = family creator = can't remove self
           ref: ref, // v95: enables "Focus on person" action
           onFocusPerson: _onFocusPerson, // v98: real edges + viewport
@@ -2130,15 +2130,21 @@ class _FamilyGraphEngineViewState
       return;
     }
 
-    // The path focus is resolved in the build method via
-    // _resolvePathFocus, which watches selectedNodeProvider as the
-    // target. Set the target as selected so the next build resolves
-    // the path.
+    // v99 (Phase 2): Resolve the path SYNCHRONOUSLY before opening
+    // the sheet. The existing _resolvePathFocus method does this via
+    // RelationshipEngine.resolvePath — we call it directly here so
+    // the sheet opens with the RESOLVED path, not a placeholder.
+    final pathFocus = _resolvePathFocus(
+      viewerPersonId: viewerPersonId,
+      flat: flat,
+      edges: _currentEdges,
+      anchorId: _findAnchorId(flat, viewerPersonId),
+    );
+
+    // Select the target so the edge painter highlights the path edges
+    // and dims non-path context.
     ref.read(selectedNodeProvider.notifier).state = targetPersonId;
 
-    // Open the RelationshipInfoSheet. The path may not be resolved
-    // yet on this frame — the sheet will show "resolving..." and the
-    // path will populate when graphPathFocusProvider updates.
     final targetPerson = flat.persons
         .where((p) => p['id'] == targetPersonId)
         .firstOrNull;
@@ -2147,15 +2153,43 @@ class _FamilyGraphEngineViewState
         .firstOrNull;
     if (targetPerson == null || viewerPerson == null) return;
 
+    final targetName = (targetPerson['name'] as String?) ?? '';
+    final viewerName = (viewerPerson['name'] as String?) ?? 'You';
+
+    if (pathFocus == null) {
+      // No path found — show a clear "no relationship" state.
+      RelationshipInfoSheet.show(
+        context,
+        sourceId: viewerPersonId,
+        sourceName: viewerName,
+        sourceGender: viewerPerson['gender'] as String?,
+        targetId: targetPersonId,
+        targetName: targetName,
+        targetGender: targetPerson['gender'] as String?,
+        relationshipKey: 'unknown',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No confirmed family relationship path found.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Path resolved — open sheet with the ACTUAL resolved kinship term.
     RelationshipInfoSheet.show(
       context,
       sourceId: viewerPersonId,
-      sourceName: (viewerPerson['name'] as String?) ?? 'You',
+      sourceName: viewerName,
       sourceGender: viewerPerson['gender'] as String?,
       targetId: targetPersonId,
-      targetName: (targetPerson['name'] as String?) ?? '',
+      targetName: targetName,
       targetGender: targetPerson['gender'] as String?,
-      relationshipKey: 'related', // will be replaced when path resolves
+      relationshipKey: pathFocus.resolvedRelationshipKey ?? 'related',
+      pathFocus: pathFocus,
     );
   }
 
