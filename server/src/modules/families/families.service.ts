@@ -237,6 +237,8 @@ export class FamiliesService {
     if (dto.username !== undefined) updateData.username = dto.username?.trim() || null;
     if (dto.avatarUrl !== undefined) updateData.avatarUrl = dto.avatarUrl;
     if (dto.region !== undefined) updateData.region = dto.region?.trim() || null;
+    // P1.4: Bridge role opt-in toggle.
+    if (dto.bridgeRoleOptIn !== undefined) updateData.bridgeRoleOptIn = dto.bridgeRoleOptIn;
     updateData.lastActivityAt = new Date();
 
     const updated = await this.prisma.family.update({

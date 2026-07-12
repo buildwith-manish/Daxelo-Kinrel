@@ -1,6 +1,6 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateFamilyDto } from './create-family.dto';
-import { IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class UpdateFamilyDto extends PartialType(CreateFamilyDto) {
   @IsOptional()
@@ -14,4 +14,9 @@ export class UpdateFamilyDto extends PartialType(CreateFamilyDto) {
   @IsOptional()
   @IsString()
   region?: string;
+
+  // P1.4: Bridge role opt-in for silent check-in alerts.
+  @IsOptional()
+  @IsBoolean()
+  bridgeRoleOptIn?: boolean;
 }

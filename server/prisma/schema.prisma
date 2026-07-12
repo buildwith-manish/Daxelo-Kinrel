@@ -637,6 +637,10 @@ model Family {
   memberCount     Int       @default(0)
   generationCount Int       @default(1)
   lastActivityAt  DateTime  @default(now())
+  // P1.4: Bridge role opt-in. Default OFF — the bridge role (silent alarm
+  // notifications) is not active until the family explicitly opts in.
+  // When OFF, silent alarms are generated for admin visibility only.
+  bridgeRoleOptIn Boolean   @default(false)
   createdBy       String? // User ID who created this family
   deletedAt       DateTime? // Soft-delete: archived for 30 days before permanent deletion
 
