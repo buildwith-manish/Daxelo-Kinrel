@@ -269,9 +269,6 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     // Find candidate branch roots: persons who have descendants that
     // are NOT in the always-visible set and form a subtree of ≥ 5
     // members.
-    final newBranches = <CollapsedBranch>[];
-    final alreadyHidden = <String>{};
-
     // v98 (Phase 4): Fix candidate-root self-contradiction.
     // The previous code added firstDegreeIds to BOTH alwaysVisible
     // AND candidateRoots, then skipped any root already in

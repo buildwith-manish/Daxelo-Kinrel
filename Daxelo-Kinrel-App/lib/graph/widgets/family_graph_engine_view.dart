@@ -2051,16 +2051,20 @@ class _FamilyGraphEngineViewState
         ref.read(viewerPersonIdProvider(widget.familyId)).valueOrNull;
     if (viewerPersonId == null) {
       if (mounted) {
-        context.showSnackBar(
-          'Could not resolve your family identity. Please try again.',
-          isError: true,
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not resolve your family identity. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
       return;
     }
     if (viewerPersonId == targetPersonId) {
       if (mounted) {
-        context.showSnackBar('This is you!');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This is you!')),
+        );
       }
       return;
     }
