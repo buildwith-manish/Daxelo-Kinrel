@@ -483,13 +483,16 @@ void main() {
       final categoryToKey = <KinshipEdgeCategory, List<String>>{
         KinshipEdgeCategory.parent: ['father', 'mother', 'parent'],
         KinshipEdgeCategory.child: ['son', 'daughter', 'child'],
-        KinshipEdgeCategory.sibling: ['brother', 'sister', 'sibling'],
+        KinshipEdgeCategory.sibling: ['brother', 'sister', 'sibling', 'half_brother', 'half_sister'],
         KinshipEdgeCategory.spouse: ['husband', 'wife', 'spouse'],
         KinshipEdgeCategory.grandparent: ['grandfather', 'grandmother', 'grandparent'],
         KinshipEdgeCategory.auntUncle: ['uncle', 'aunt'],
         KinshipEdgeCategory.cousin: ['cousin'],
         KinshipEdgeCategory.inLaw: ['father_in_law', 'mother_in_law', 'son_in_law', 'daughter_in_law'],
-        KinshipEdgeCategory.extended: ['stepfather', 'stepmother', 'half_brother'],
+        // half_brother/half_sister are SIBLINGS per spec §3 (see
+        // kinship_edge_style.dart line ~398), NOT extended. Only
+        // step-family (stepfather, stepmother, step_brother) is extended.
+        KinshipEdgeCategory.extended: ['stepfather', 'stepmother', 'step_father', 'step_mother'],
         KinshipEdgeCategory.indirect: ['indirect_connection'],
       };
 

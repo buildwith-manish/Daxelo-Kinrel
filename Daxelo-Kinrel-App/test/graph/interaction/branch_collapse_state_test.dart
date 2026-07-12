@@ -26,6 +26,17 @@ void main() {
 
   // Helper: build a large family graph for collapse testing.
   // Returns persons + edges as the tuples the notifier expects.
+  //
+  // v102 FIX: The original test data had edge directions that made
+  // person-1 (father) an ANCESTOR target, not a branch root — edges
+  // went FROM grandfather TO father, so `childrenOf[father]` was
+  // empty and `_descendantsExcluding('person-1', ...)` returned
+  // nothing. computeCollapse only collapses DESCENDANT subtrees, so
+  // the test never found a branch to collapse.
+  //
+  // Fixed: person-1 (father) now has a large DESCENDANT subtree —
+  // his children (10-19), their children (20-29), and grandchildren
+  // (30-39). Edge direction is parent → child (fromId = parent).
   ({Set<String> persons, List<({String fromId, String toId, String edgeId, String relationshipKey})> edges}) buildLargeFamily() {
     final persons = <String>{};
     final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[];
@@ -34,26 +45,28 @@ void main() {
     for (var i = 0; i < 10; i++) {
       persons.add('person-$i');
     }
-    // Anchor (0) → father (1), mother (2), spouse (3), child (4-9)
+    // Anchor (0) ← father (1), mother (2), spouse (3)
     edges.add((fromId: 'person-1', toId: 'person-0', edgeId: 'e1', relationshipKey: 'father'));
     edges.add((fromId: 'person-2', toId: 'person-0', edgeId: 'e2', relationshipKey: 'mother'));
     edges.add((fromId: 'person-3', toId: 'person-0', edgeId: 'e3', relationshipKey: 'wife'));
 
-    // Father's extended family (30 persons) — a large distant branch
+    // Father's (1) DESCENDANT subtree (30 persons) — a large distant branch.
+    // person-1 → children (10-19)
     for (var i = 10; i < 40; i++) {
       persons.add('person-$i');
     }
-    // Father (1) → grandfather (10), grandmother (11)
-    edges.add((fromId: 'person-10', toId: 'person-1', edgeId: 'e4', relationshipKey: 'father'));
-    edges.add((fromId: 'person-11', toId: 'person-1', edgeId: 'e5', relationshipKey: 'mother'));
-    // Grandfather → uncles/aunts (12-19)
-    for (var i = 12; i < 20; i++) {
-      edges.add((fromId: 'person-10', toId: 'person-$i', edgeId: 'e${i + 2}', relationshipKey: 'father'));
+    for (var i = 10; i < 20; i++) {
+      edges.add((fromId: 'person-1', toId: 'person-$i', edgeId: 'e${i + 2}', relationshipKey: 'son'));
     }
-    // Uncles → cousins (20-39)
-    for (var i = 20; i < 40; i++) {
-      final parent = 12 + (i - 20) ~/ 3;
-      edges.add((fromId: 'person-$parent', toId: 'person-$i', edgeId: 'e${i + 10}', relationshipKey: 'son'));
+    // children (10-19) → grandchildren (20-29)
+    for (var i = 20; i < 30; i++) {
+      final parent = 10 + (i - 20) ~/ 1;
+      edges.add((fromId: 'person-$parent', toId: 'person-$i', edgeId: 'e${i + 12}', relationshipKey: 'son'));
+    }
+    // grandchildren (20-29) → great-grandchildren (30-39)
+    for (var i = 30; i < 40; i++) {
+      final parent = 20 + (i - 30) ~/ 1;
+      edges.add((fromId: 'person-$parent', toId: 'person-$i', edgeId: 'e${i + 22}', relationshipKey: 'son'));
     }
 
     return (persons: persons, edges: edges);

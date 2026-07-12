@@ -1,5 +1,12 @@
 /// Maps legacy short keys (bua, chacha, mama...) to canonical relationshipKey
 const Map<String, String> legacyKeyMap = {
+  // Core parent/child (Hindi transliterations)
+  'pita': 'father',
+  'pita_ji': 'father',
+  'baap': 'father',
+  'maa': 'mother',
+  'mata': 'mother',
+
   // Paternal side
   'bua': 'fathers_sister',
   'chacha': 'fathers_younger_brother',
@@ -38,6 +45,7 @@ const Map<String, String> legacyKeyMap = {
   // Siblings
   'bhai': 'brother',
   'bahan': 'sister',
+  'behen': 'sister',
   'bhaiya': 'elder_brother',
   'didi': 'elder_sister',
 
