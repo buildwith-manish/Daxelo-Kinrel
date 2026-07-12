@@ -781,7 +781,8 @@ class _FamilyGraphEngineViewState
         // affordances. Focus neighbourhood + path + search results
         // stay visible. Small families (< 30 members) are never
         // collapsed.
-        final pathFocus = ref.read(graphPathFocusProvider).focus;
+        // NOTE: pathFocus was already declared above at line ~749 —
+        // reuse it instead of re-declaring.
         final selectedPerson = ref.read(selectedNodeProvider);
         ref.read(branchCollapseProvider.notifier).computeCollapse(
               allPersons: {
