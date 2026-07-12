@@ -183,7 +183,7 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
     FocusViewportSnapshot? currentViewport,
   }) {
     // Compute neighbour sets.
-    final (first, second) = _computeNeighbours(personId, edges);
+    final neighbours = _computeNeighbours(personId, edges);
 
     // Push the current viewport onto history (if provided).
     var newHistory = state.history;
@@ -211,8 +211,8 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
     state = GraphFocusState(
       focusedPersonId: personId,
       history: newHistory,
-      firstDegreeIds: first,
-      secondDegreeIds: second,
+      firstDegreeIds: neighbours.first,
+      secondDegreeIds: neighbours.second,
       revision: state.revision + 1,
     );
   }
@@ -280,10 +280,10 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
   void recomputeNeighbours(List<({String fromId, String toId})> edges) {
     final focused = state.focusedPersonId;
     if (focused == null) return;
-    final (first, second) = _computeNeighbours(focused, edges);
+    final neighbours = _computeNeighbours(focused, edges);
     state = state.copyWith(
-      firstDegreeIds: first,
-      secondDegreeIds: second,
+      firstDegreeIds: neighbours.first,
+      secondDegreeIds: neighbours.second,
       revision: state.revision + 1,
     );
   }
@@ -291,7 +291,10 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
   /// Compute first-degree and second-degree neighbour sets via a
   /// depth-2 BFS walk. O(E) per degree — cheap, and only runs when
   /// focus changes or graph data changes.
-  ({Set<String> first, Set<String> second}) _computeNeighbours(
+  ///
+  /// Returns a [NeighbourSets] (a simple class — NOT a record type,
+  /// because dart2js has trouble destructuring named records).
+  NeighbourSets _computeNeighbours(
     String personId,
     List<({String fromId, String toId})> edges,
   ) {
@@ -322,8 +325,19 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
       }
     }
 
-    return (first: first, second: second);
+    return NeighbourSets(first: first, second: second);
   }
+}
+
+/// Simple container for first-degree + second-degree neighbour sets.
+///
+/// We use a class instead of a record type `({Set<String> first, Set<String> second})`
+/// because dart2js has trouble destructuring named records in some
+/// contexts. A plain class with field access is 100% dart2js-safe.
+class NeighbourSets {
+  const NeighbourSets({required this.first, required this.second});
+  final Set<String> first;
+  final Set<String> second;
 }
 
 /// Riverpod provider for the person-centric focus subsystem.
