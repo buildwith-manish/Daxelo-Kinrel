@@ -345,11 +345,30 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       alreadyHidden.addAll(hiddenMemberIds);
     }
 
+    // v99: IDEMPOTENT state update — only bump revision if the
+    // collapsed branches actually changed. Prevents a rebuild loop
+    // when computeCollapse is called from the build path (same
+    // inputs → same output → no revision bump → no rebuild).
+    if (_branchesEqual(newBranches, state.collapsedBranches)) {
+      return; // No change → no mutation → no rebuild cycle.
+    }
+
     state = BranchCollapseState(
       collapsedBranches: newBranches,
       expandedBranchRoots: state.expandedBranchRoots,
       revision: state.revision + 1,
     );
+  }
+
+  /// Lightweight branch-list equality check.
+  bool _branchesEqual(List<CollapsedBranch> a, List<CollapsedBranch> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].id != b[i].id || a[i].hiddenCount != b[i].hiddenCount) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /// Expand a branch — removes it from the collapsed set + adds the
