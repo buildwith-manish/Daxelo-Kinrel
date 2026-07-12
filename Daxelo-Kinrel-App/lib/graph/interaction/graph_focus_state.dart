@@ -83,6 +83,28 @@ class FocusHistoryEntry {
       'FocusHistoryEntry($personId, $personName, $viewport)';
 }
 
+/// P2.1: Path-select mode phases for the "How We're Connected" flow.
+///
+/// The user taps the FAB → [awaitingFrom] → taps node A → [awaitingTo] →
+/// taps node B → [tracing] → path resolves + animates → [complete] →
+/// user taps Done → [idle].
+enum PathSelectPhase {
+  /// Path-select mode is not active. Normal tap behavior.
+  idle,
+
+  /// Mode entered; waiting for the user to tap the first node.
+  awaitingFrom,
+
+  /// First node selected; waiting for the second node.
+  awaitingTo,
+
+  /// Both nodes selected; path is being resolved + animated.
+  tracing,
+
+  /// Path trace complete; result bottom sheet is showing.
+  complete,
+}
+
 /// The state of the focus subsystem.
 @immutable
 class GraphFocusState {
@@ -92,6 +114,10 @@ class GraphFocusState {
     this.firstDegreeIds = const <String>{},
     this.secondDegreeIds = const <String>{},
     this.revision = 0,
+    // P2.1: path-select mode state
+    this.pathSelectPhase = PathSelectPhase.idle,
+    this.pathSelectFromId,
+    this.pathSelectToId,
   });
 
   /// The person currently defining graph context, or null when no
@@ -118,6 +144,18 @@ class GraphFocusState {
   /// comparison.
   final int revision;
 
+  // ── P2.1: Path-select mode ("How We're Connected") ───────────────────
+
+  /// Current phase of the path-select flow. [PathSelectPhase.idle] when
+  /// the mode is not active.
+  final PathSelectPhase pathSelectPhase;
+
+  /// The first node selected in path-select mode ("from").
+  final String? pathSelectFromId;
+
+  /// The second node selected in path-select mode ("to").
+  final String? pathSelectToId;
+
   static const GraphFocusState empty = GraphFocusState();
 
   GraphFocusState copyWith({
@@ -126,6 +164,9 @@ class GraphFocusState {
     Set<String>? firstDegreeIds,
     Set<String>? secondDegreeIds,
     int? revision,
+    PathSelectPhase? pathSelectPhase,
+    String? pathSelectFromId,
+    String? pathSelectToId,
   }) {
     return GraphFocusState(
       focusedPersonId: focusedPersonId ?? this.focusedPersonId,
@@ -133,6 +174,9 @@ class GraphFocusState {
       firstDegreeIds: firstDegreeIds ?? this.firstDegreeIds,
       secondDegreeIds: secondDegreeIds ?? this.secondDegreeIds,
       revision: revision ?? this.revision,
+      pathSelectPhase: pathSelectPhase ?? this.pathSelectPhase,
+      pathSelectFromId: pathSelectFromId ?? this.pathSelectFromId,
+      pathSelectToId: pathSelectToId ?? this.pathSelectToId,
     );
   }
 
@@ -272,6 +316,55 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
   void clearAll() {
     if (state == GraphFocusState.empty) return;
     state = GraphFocusState.empty;
+  }
+
+  // ── P2.1: Path-select mode ("How We're Connected") ───────────────────
+
+  /// Enter path-select mode. The next node tap selects the "from" node.
+  void enterPathSelectMode() {
+    state = state.copyWith(
+      pathSelectPhase: PathSelectPhase.awaitingFrom,
+      pathSelectFromId: null,
+      pathSelectToId: null,
+    );
+  }
+
+  /// Set the "from" node. Transitions to [PathSelectPhase.awaitingTo].
+  void setPathSelectFrom(String personId) {
+    if (state.pathSelectPhase != PathSelectPhase.awaitingFrom) return;
+    state = state.copyWith(
+      pathSelectPhase: PathSelectPhase.awaitingTo,
+      pathSelectFromId: personId,
+    );
+  }
+
+  /// Set the "to" node. Transitions to [PathSelectPhase.tracing].
+  /// Returns true if the transition was valid (different from "from").
+  bool setPathSelectTo(String personId) {
+    if (state.pathSelectPhase != PathSelectPhase.awaitingTo) return false;
+    // Same node tapped twice — reject.
+    if (personId == state.pathSelectFromId) return false;
+    state = state.copyWith(
+      pathSelectPhase: PathSelectPhase.tracing,
+      pathSelectToId: personId,
+    );
+    return true;
+  }
+
+  /// Mark the path trace as complete. The result bottom sheet shows.
+  void markPathSelectComplete() {
+    if (state.pathSelectPhase != PathSelectPhase.tracing) return;
+    state = state.copyWith(pathSelectPhase: PathSelectPhase.complete);
+  }
+
+  /// Exit path-select mode entirely. Clears all path-select state.
+  void exitPathSelectMode() {
+    if (state.pathSelectPhase == PathSelectPhase.idle) return;
+    state = state.copyWith(
+      pathSelectPhase: PathSelectPhase.idle,
+      pathSelectFromId: null,
+      pathSelectToId: null,
+    );
   }
 
   /// Recompute neighbour sets for the current focused person. Called

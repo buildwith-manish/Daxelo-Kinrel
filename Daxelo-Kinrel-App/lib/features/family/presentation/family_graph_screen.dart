@@ -34,6 +34,8 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../graph/graph.dart';
+import '../../../graph/interaction/graph_focus_state.dart'
+    show graphFocusProvider, PathSelectPhase;
 import '../../../graph/widgets/family_graph_engine_view.dart';
 import '../../../graph/widgets/graph_tutorial_overlay.dart';
 import '../../../graph/widgets/search_bar.dart';
@@ -553,6 +555,17 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ],
         ),
 
+        // P2.1: "How We're Connected" FAB — visible when family has ≥2 members.
+        // Positioned at bottom-start (left in LTR, right in RTL) to balance
+        // the bottom toolbar at bottom-center. Tapping enters path-select mode.
+        if (graph.persons.length >= 2)
+          Positioned(
+            right: Directionality.of(context) == TextDirection.rtl ? null : 20,
+            left: Directionality.of(context) == TextDirection.rtl ? 20 : null,
+            bottom: MediaQuery.of(context).padding.bottom + 80,
+            child: _buildHowConnectedFab(),
+          ),
+
         // Legend (?) button (top-end, below filter bar)
         // Only the help/legend button — no Add Member pill here
         // (Add Member is in the AppBar and bottom toolbar).
@@ -722,6 +735,42 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   }
 
   // ── Empty State ───────────────────────────────────────────────────
+
+  // ── P2.1: "How We're Connected" FAB + path-select flow ───────────────
+
+  Widget _buildHowConnectedFab() {
+    final focusState = ref.watch(graphFocusProvider);
+    final inPathSelectMode = focusState.pathSelectPhase != PathSelectPhase.idle;
+
+    return Semantics(
+      label: inPathSelectMode
+          ? 'Cancel path selection'
+          : 'How are we connected? Tap to start, then tap any two people.',
+      button: true,
+      child: FloatingActionButton(
+        heroTag: 'how_connected_fab',
+        backgroundColor:
+            inPathSelectMode ? KinrelColors.darkCard : KinrelColors.orange,
+        foregroundColor: Colors.white,
+        elevation: 6,
+        onPressed: () {
+          if (inPathSelectMode) {
+            ref.read(graphFocusProvider.notifier).exitPathSelectMode();
+          } else {
+            ref.read(graphFocusProvider.notifier).enterPathSelectMode();
+            SemanticsService.announce(
+                'Path select mode. Tap the first person.', TextDirection.ltr);
+          }
+        },
+        child: Icon(
+          inPathSelectMode ? Icons.close : Icons.timeline,
+          size: 24,
+        ),
+      ),
+    );
+  }
+
+  // ── Empty state ──────────────────────────────────────────────────────
 
   Widget _buildEmptyState() {
     final bottomPadding = MediaQuery.of(context).padding.bottom;

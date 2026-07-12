@@ -540,6 +540,34 @@ mixin _InteractionMixin on ConsumerState<FamilyGraphEngineView> {
     final nodeId = _hitTestNode(details.localPosition, layout);
     if (nodeId == null) return;
 
+    // P2.1: If path-select mode is active, intercept the tap to select
+    // the from/to nodes instead of showing quick actions.
+    final focusState = ref.read(graphFocusProvider);
+    if (focusState.pathSelectPhase == PathSelectPhase.awaitingFrom) {
+      ref.read(graphFocusProvider.notifier).setPathSelectFrom(nodeId);
+      SemanticsService.announce(
+          'Selected. Tap the second person.', TextDirection.ltr);
+      return;
+    }
+    if (focusState.pathSelectPhase == PathSelectPhase.awaitingTo) {
+      final accepted =
+          ref.read(graphFocusProvider.notifier).setPathSelectTo(nodeId);
+      if (!accepted) {
+        SemanticsService.announce(
+            'Pick a different person.', TextDirection.ltr);
+        return;
+      }
+      // Both nodes selected — trigger the path trace.
+      _triggerPathTrace(
+        focusState.pathSelectFromId!,
+        nodeId,
+        layout,
+        flat,
+        viewerPersonId,
+      );
+      return;
+    }
+
     // Select the node.
     ref.read(selectedNodeProvider.notifier).state = nodeId;
 
@@ -626,4 +654,236 @@ mixin _InteractionMixin on ConsumerState<FamilyGraphEngineView> {
   // Passed to GraphQuickActions.show() so the Focus action has access
   // to real deduped edges + camera viewport — NOT the empty edges +
   // null viewport that the previous direct-provider-call passed.
+
+  // ── P2.1: Path trace + result bottom sheet ────────────────────────────
+
+  /// Resolves the kinship path between [fromId] and [toId] and shows
+  /// the result bottom sheet with the kinship term, path steps, and
+  /// audio button.
+  void _triggerPathTrace(
+    String fromId,
+    String toId,
+    GraphLayoutResult layout,
+    FlatGraphResult flat,
+    String? viewerPersonId,
+  ) {
+    // Build the relationships list for RelationshipEngine.resolvePath.
+    final relationships = flat.relationships.map((r) {
+      final fromId = r['fromPersonId']?.toString() ?? '';
+      final toId = r['toPersonId']?.toString() ?? '';
+      final type = r['relationshipKey']?.toString() ?? 'unknown';
+      return (fromId: fromId, toId: toId, type: type);
+    }).toList();
+
+    // Build GraphPerson list for the path resolver.
+    final persons = flat.persons.map((p) {
+      return GraphPerson(
+        id: p['id'] as String,
+        name: (p['name'] as String?) ?? '',
+        gender: p['gender'] as String?,
+        generationIndex: (p['generationIndex'] as num?)?.toInt() ?? 0,
+        isAnchor: (p['isAnchor'] as bool?) ?? false,
+        photoUrl: p['photoUrl'] as String?,
+        isDeceased: (p['isDeceased'] as bool?) ?? false,
+      );
+    }).toList();
+
+    // Build deduped edges for the path focus resolver.
+    final dedupedEdges = EdgeDeduplicator.deduplicate(
+      flat.relationships.map((r) => GraphEdgeData(
+            id: r['id'] as String,
+            sourceId: r['fromPersonId']?.toString() ?? '',
+            targetId: r['toPersonId']?.toString() ?? '',
+            relationshipKey: r['relationshipKey']?.toString() ?? 'unknown',
+          )).toList(),
+    );
+
+    // Resolve the path.
+    final pathFocus = ref.read(graphPathFocusProvider.notifier).resolve(
+          viewerPersonId: fromId,
+          targetPersonId: toId,
+          edges: dedupedEdges,
+          persons: persons,
+          relationships: relationships,
+          graphRevision: 0,
+        );
+
+    // Mark trace as complete.
+    ref.read(graphFocusProvider.notifier).markPathSelectComplete();
+
+    // Show the result bottom sheet.
+    if (pathFocus == null) {
+      _showNoPathSheet(fromId, toId, flat);
+      return;
+    }
+
+    // P2.1: The trace animation is driven automatically by EdgeSelectionWrapper
+    // when it detects the resolved path focus. No need to call startTrace directly.
+
+    _showPathResultSheet(pathFocus, flat);
+  }
+
+  void _showNoPathSheet(String fromId, String toId, FlatGraphResult flat) {
+    final fromName = flat.persons
+        .where((p) => p['id'] == fromId)
+        .firstOrNull?['name'];
+    final toName = flat.persons
+        .where((p) => p['id'] == toId)
+        .firstOrNull?['name'];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.sentiment_neutral,
+                color: KinrelColors.textDim, size: 40),
+            const SizedBox(height: 16),
+            Text(
+              'No connection found between $fromName and $toName.',
+              style: const TextStyle(color: Colors.white, fontSize: 15),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'They may be in different branches of the family.',
+              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                ref.read(graphFocusProvider.notifier).exitPathSelectMode();
+              },
+              child: const Text('Done',
+                  style: TextStyle(color: KinrelColors.orange, fontSize: 15)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPathResultSheet(GraphKinshipPathFocus pathFocus, FlatGraphResult flat) {
+    final fromName = flat.persons
+        .where((p) => p['id'] == pathFocus.viewerPersonId)
+        .firstOrNull?['name'] ?? 'Person';
+    final toName = flat.persons
+        .where((p) => p['id'] == pathFocus.targetPersonId)
+        .firstOrNull?['name'] ?? 'Person';
+    final kinshipLabel = pathFocus.resolvedRelationshipLabel ?? 'connected';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 24, right: 24, top: 24,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Kinship term heading
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              '$fromName is $kinshipLabel to $toName',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            // Path steps
+            ...pathFocus.steps.map((step) {
+              final stepName = flat.persons
+                  .where((p) => p['id'] == step.personId)
+                  .firstOrNull?['name'] ?? 'Unknown';
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.circle,
+                        size: 8, color: KinrelColors.orange.withOpacity(0.6)),
+                    const SizedBox(width: 12),
+                    Text(stepName,
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: 14)),
+                    if (step.edgeLabel != null) ...[
+                      const Spacer(),
+                      Text(step.edgeLabel!,
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.4),
+                              fontSize: 12)),
+                    ],
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 20),
+            // Action buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      // Reuse flutter_tts from path_finder_screen pattern.
+                      try {
+                        final tts = FlutterTts();
+                        await tts.setLanguage('hi-IN');
+                        await tts.speak('$fromName is $kinshipLabel to $toName');
+                      } catch (_) {}
+                    },
+                    icon: const Icon(Icons.volume_up, size: 18),
+                    label: const Text('Hear it spoken'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: KinrelColors.orange,
+                      side: BorderSide(
+                          color: KinrelColors.orange.withOpacity(0.4)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      ref.read(graphFocusProvider.notifier).exitPathSelectMode();
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: KinrelColors.orange,
+                    ),
+                    child: const Text('Done'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

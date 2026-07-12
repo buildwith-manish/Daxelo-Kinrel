@@ -35,12 +35,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/database/sync/connectivity_service.dart' show isOnlineProvider;
 import '../../core/family/family_provider.dart' show currentUserFamilyRoleProvider;
 import '../../core/services/analytics_service.dart';
-import '../../core/services/graph_layout_service.dart' show GraphLayoutResult;
+import '../../core/services/graph_layout_service.dart' show GraphLayoutResult, GraphPerson;
 import '../../features/family/presentation/providers/family_graph_provider.dart'
     show
         FlatGraphResult,
@@ -61,6 +62,7 @@ import '../interaction/graph_focus_state.dart'
         GraphFocusState,
         FocusViewportSnapshot,
         FocusHistoryEntry,
+        PathSelectPhase,
         graphFocusProvider;
 import '../interaction/couple_union_model.dart'
     show CoupleUnion, unionMidpoint;
