@@ -324,17 +324,16 @@ mixin _InteractionMixin on ConsumerState<FamilyGraphEngineView> {
     if (focusRegion.contains(visualPos)) return;
 
     // Reduced motion → immediate pan, no animation.
+    // P2.2: Uses spring physics (animateToWithSpring) instead of
+    // the previous linear tween for a cinematic focus pull per Vision §5 Layer 1.
     final bool reduced = MediaQuery.disableAnimationsOf(context);
-    final Duration duration =
-        reduced ? Duration.zero : const Duration(milliseconds: 420);
 
     // Target: bring the node to viewport center, preserving current zoom.
-    _camera.animateTo(
+    _camera.animateToWithSpring(
       -pos.dx * _camera.zoomLevel + _viewportSize.width / 2,
       -pos.dy * _camera.zoomLevel + _viewportSize.height / 2,
       _camera.zoomLevel,
-      duration: duration,
-      curve: Curves.easeOutCubic,
+      reducedMotion: reduced,
     );
   }
 

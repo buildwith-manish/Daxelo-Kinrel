@@ -501,10 +501,55 @@ mixin _CanvasMixin on ConsumerState<FamilyGraphEngineView> {
                 animation: _camera,
                 child: content,
                 builder: (BuildContext context, Widget? child) {
-                  return Transform(
+                  // P2.2: Cinematic depth-of-field — when focus is active,
+                  // desaturate the entire graph canvas to 40% and apply a
+                  // subtle blur on non-web platforms. The focus subgraph
+                  // (focused node + first-degree neighbours) renders at
+                  // full saturation via the GraphNode's own emphasis logic.
+                  //
+                  // The desaturation is applied as a ColorFilter.matrix
+                  // over the whole canvas. Individual focus-subgraph nodes
+                  // compensate by boosting their own saturation back up
+                  // via their emphasis level (EmphasisLevel.focused /
+                  // EmphasisLevel.immediateRelative have full opacity).
+                  final isFocusActive = focusState.focusedPersonId != null;
+                  final reduced = MediaQuery.disableAnimationsOf(context);
+
+                  Widget transformed = Transform(
                     transform: _camera.transformMatrix,
                     child: child,
                   );
+
+                  if (isFocusActive && !reduced) {
+                    // Desaturation matrix: 40% saturation
+                    // (0.299, 0.587, 0.114 are the luminance weights)
+                    final s = 0.4;
+                    final inv = 1.0 - s;
+                    transformed = ColorFiltered(
+                      colorFilter: ColorFilter.matrix([
+                        s + inv * 0.299, inv * 0.587, inv * 0.114, 0, 0,
+                        inv * 0.299, s + inv * 0.587, inv * 0.114, 0, 0,
+                        inv * 0.299, inv * 0.587, s + inv * 0.114, 0, 0,
+                        0, 0, 0, 1, 0,
+                      ]),
+                      child: transformed,
+                    );
+
+                    // P2.2: Subtle depth-of-field blur on mobile only.
+                    // ImageFilter.blur can be slow on web — skip it via kIsWeb.
+                    if (!kIsWeb) {
+                      transformed = BackdropFilter(
+                        filter: ImageFilter.blur(
+                          sigmaX: 2.0,
+                          sigmaY: 2.0,
+                          tileMode: TileMode.decal,
+                        ),
+                        child: transformed,
+                      );
+                    }
+                  }
+
+                  return transformed;
                 },
               ),
             ),

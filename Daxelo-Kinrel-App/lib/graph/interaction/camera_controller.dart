@@ -414,6 +414,106 @@ class CameraController extends ChangeNotifier {
     tick();
   }
 
+  // ── P2.2: Spring Physics Focus Transition ──────────────────────────
+
+  /// Animates the camera to the given targets using spring physics
+  /// (critical damping) instead of a linear curve tween.
+  ///
+  /// Per Vision §5 Layer 1 — the spring gives the focus pull a cinematic
+  /// feel with a slight settle. The spring description (mass 1.0,
+  /// stiffness 200, damping 25) produces a critically-damped motion
+  /// that settles in ~400ms without overshoot at typical velocities.
+  ///
+  /// [reducedMotion] — when true, snaps instantly (Duration.zero).
+  void animateToWithSpring(
+    double targetPanX,
+    double targetPanY,
+    double targetZoom, {
+    bool reducedMotion = false,
+  }) {
+    if (reducedMotion) {
+      _panX = targetPanX;
+      _panY = targetPanY;
+      _zoomLevel = targetZoom.clamp(_minZoom, _maxZoom);
+      _scheduleSave();
+      notifyListeners();
+      return;
+    }
+
+    _cancelAnimation();
+    final myGeneration = ++_animationGeneration;
+
+    final startPanX = _panX;
+    final startPanY = _panY;
+    final startZoom = _zoomLevel;
+    final targetZoomClamped = targetZoom.clamp(_minZoom, _maxZoom);
+
+    _isAnimating = true;
+    notifyListeners();
+
+    // P2.2: Spring description — critically damped for a smooth settle
+    // without overshoot. mass 1.0, stiffness 200, damping 25.
+    final spring = SpringDescription(
+      mass: 1.0,
+      stiffness: 200.0,
+      damping: 25.0,
+    );
+
+    // Create three independent spring simulations (panX, panY, zoom).
+    // Start velocity is 0 (the camera was at rest before focus).
+    final simX = SpringSimulation(spring, startPanX, targetPanX, 0);
+    final simY = SpringSimulation(spring, startPanY, targetPanY, 0);
+    final simZoom =
+        SpringSimulation(spring, startZoom, targetZoomClamped, 0);
+
+    // Set tolerance so the simulation ends when the values are close enough.
+    simX.tolerance = const ToleranceProperties(
+      distance: 0.5,
+      time: double.infinity,
+      velocity: double.infinity,
+    );
+    simY.tolerance = const ToleranceProperties(
+      distance: 0.5,
+      time: double.infinity,
+      velocity: double.infinity,
+    );
+    simZoom.tolerance = const ToleranceProperties(
+      distance: 0.001,
+      time: double.infinity,
+      velocity: double.infinity,
+    );
+
+    final startTime = DateTime.now();
+
+    void tick() {
+      if (myGeneration != _animationGeneration) return; // superseded
+      final elapsedSeconds =
+          DateTime.now().difference(startTime).inMilliseconds / 1000.0;
+
+      _panX = simX.x(elapsedSeconds);
+      _panY = simY.x(elapsedSeconds);
+      _zoomLevel = simZoom.x(elapsedSeconds);
+
+      notifyListeners();
+
+      // Continue until all three simulations have settled.
+      if (!simX.isDone(elapsedSeconds) ||
+          !simY.isDone(elapsedSeconds) ||
+          !simZoom.isDone(elapsedSeconds)) {
+        Future<void>.delayed(const Duration(milliseconds: 16), tick);
+      } else {
+        _panX = targetPanX;
+        _panY = targetPanY;
+        _zoomLevel = targetZoomClamped;
+        _isAnimating = false;
+        _scheduleSave();
+        notifyListeners();
+      }
+    }
+
+    tick();
+  }
+
   // ── Reset ────────────────────────────────────────────────────────
 
   // ── Initial Fit (blank-screen fix) ──────────────────────────────────────
