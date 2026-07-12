@@ -3,13 +3,15 @@
 // DAXELO KINREL — Graph Data Models (V2.1 Data Layer)
 //
 // Single home for the graph data-layer model classes that were
-// previously co-located in a now-deleted legacy repository file.
+// previously co-located in now-deleted legacy files (the repository
+// file and the v49 graph canvas widget).
 //
 // This file is a pure RELOCATION of the model definitions — the class
 // APIs are unchanged. It exists so that live code can continue to
 // import GraphNodeData, GraphEdgeData, GraphData, BranchData,
-// SearchResult, KinshipResult, GraphRealtimeEvent and the BranchType
-// enum without depending on the dead repository class.
+// SearchResult, KinshipResult, GraphRealtimeEvent, PersonData,
+// RelationshipData and the BranchType enum without depending on the
+// dead classes.
 //
 // See: Feature P0.1 (Delete ~8,500 lines of dead code).
 
@@ -404,4 +406,104 @@ class GraphRealtimeEvent {
         'payload': payload,
         'timestamp': timestamp.toIso8601String(),
       };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// API FLAT GRAPH RESPONSE MODELS
+// ═══════════════════════════════════════════════════════════════════════
+// P0.1/P0.3 fix: These two classes were originally defined in the
+// deleted graph_canvas_widget.dart (lines 47-127). Relocated here so
+// that family_graph_provider.dart can import them without depending
+// on the dead widget file.
+
+/// Person data as received from the API flat graph response.
+class PersonData {
+  /// Creates a person data instance.
+  const PersonData({
+    required this.id,
+    required this.name,
+    this.gender,
+    this.generationIndex = 0,
+    this.isAnchor = false,
+    this.photoUrl,
+    this.isDeceased = false,
+    this.kinshipCategory,
+    this.computedKinship,
+  });
+
+  /// Unique identifier for this person.
+  final String id;
+
+  /// Display name.
+  final String name;
+
+  /// Gender string (e.g. "male", "female", "non-binary").
+  final String? gender;
+
+  /// Generation index relative to the anchor person.
+  final int generationIndex;
+
+  /// Whether this person is the anchor (ego) of the current view.
+  final bool isAnchor;
+
+  /// URL for the person's photo/avatar.
+  final String? photoUrl;
+
+  /// Whether this person is deceased.
+  final bool isDeceased;
+
+  /// Server-computed kinship category (e.g., "parent", "aunt_uncle")
+  /// for node coloring.
+  final String? kinshipCategory;
+
+  /// Server-computed kinship term (e.g., "Uncle", "Cousin") for node
+  /// label.
+  final String? computedKinship;
+
+  /// Converts to [GraphPerson] for layout computation.
+  GraphPerson toGraphPerson() => GraphPerson(
+        id: id,
+        name: name,
+        gender: gender,
+        generationIndex: generationIndex,
+        isAnchor: isAnchor,
+        photoUrl: photoUrl,
+        isDeceased: isDeceased,
+      );
+}
+
+/// Relationship data as received from the API flat graph response.
+class RelationshipData {
+  /// Creates a relationship data instance.
+  const RelationshipData({
+    required this.id,
+    required this.fromPersonId,
+    required this.toPersonId,
+    required this.relationshipKey,
+    this.displayLabel,
+  });
+
+  /// Unique identifier for this relationship.
+  final String id;
+
+  /// Source person ID (the "from" person).
+  final String fromPersonId;
+
+  /// Target person ID (the "to" person).
+  final String toPersonId;
+
+  /// Relationship type key (e.g. "father", "spouse", "child").
+  final String relationshipKey;
+
+  /// Optional display label from enriched graph API (e.g., "Father",
+  /// "Mother's Brother").
+  final String? displayLabel;
+
+  /// Converts to [GraphRelationship] for layout computation.
+  GraphRelationship toGraphRelationship() => GraphRelationship(
+        id: id,
+        fromPersonId: fromPersonId,
+        toPersonId: toPersonId,
+        relationshipKey: relationshipKey,
+      );
 }

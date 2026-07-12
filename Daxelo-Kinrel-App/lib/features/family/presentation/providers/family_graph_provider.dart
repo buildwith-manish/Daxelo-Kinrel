@@ -36,6 +36,8 @@ import '../../../../core/services/analytics_service.dart';
 import '../../../../core/services/graph_layout_service.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../../core/viewer/viewer_provider.dart';
+import '../../../../graph/data/graph_data_models.dart'
+    show PersonData, RelationshipData;
 
 /// Provider for the Drift database instance.
 /// Used by [FamilyGraphNotifier] to persist graph data locally.
