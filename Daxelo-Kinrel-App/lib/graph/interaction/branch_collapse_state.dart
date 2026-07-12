@@ -234,6 +234,12 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     Set<String>? searchMatchIds,
     String? selectedPersonId,
     required int familyMemberCount,
+    /// v102 (BUG-2 FIX): Optional callback to resolve a person ID to
+    /// their display name. When provided, the CollapsedBranch's
+    /// rootPersonName and branchLabel are populated with the real name
+    /// (e.g. "Mother's branch · 38"). When null, they fall back to a
+    /// generic label ("Branch · 38") — the old behavior.
+    String Function(String personId)? personNameOf,
   }) {
     // Small family bypass — don't collapse small graphs.
     if (familyMemberCount < 30) {
@@ -327,7 +333,12 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       final depth = _maxDepth(rootId, childrenOf, hiddenMemberIds);
 
       // Generate a branch label.
-      final rootName = _personName(rootId, allPersons);
+      // v102 (BUG-2 FIX): Use the personNameOf callback to resolve the
+      // real display name. The old code unconditionally returned ''
+      // with a comment saying "the engine view will override" — but
+      // nothing ever did, so rootPersonName was always empty and the
+      // label was always "Branch · N" instead of "Mother's branch · N".
+      final rootName = personNameOf?.call(rootId) ?? _personName(rootId, allPersons);
       final label = _generateBranchLabel(rootName, descendants.length);
 
       newBranches.add(CollapsedBranch(

@@ -733,6 +733,14 @@ class _FamilyGraphEngineViewState
                   : null,
               selectedPersonId: selectedPerson,
               familyMemberCount: flat.persons.length,
+              // v102 (BUG-2 FIX): Pass the person-name lookup so
+              // CollapsedBranch.rootPersonName and branchLabel are
+              // populated with real names (e.g. "Mother's branch · 38").
+              personNameOf: (id) {
+                final p = personById[id];
+                if (p == null) return '';
+                return (p['name'] as String?) ?? '';
+              },
             );
         // Read the UPDATED collapse state (computeCollapse just ran).
         final collapseState = ref.watch(branchCollapseProvider);
@@ -1032,6 +1040,13 @@ class _FamilyGraphEngineViewState
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
                 ..._buildNodeLayer(
                     layout, visible, personById, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId, flat),
+                // v102 (BUG-2 FIX): Collapsed-branch affordances.
+                // Render a chip near each collapsed branch root showing
+                // the branch label (e.g. "Mother's branch · 38").
+                // Tapping the chip expands the branch (reveals hidden
+                // members); long-pressing a node re-collapses via the
+                // existing _handleNodeLongPress path.
+                ..._buildCollapsedBranchChips(layout, collapseState),
               ],
             ),
           ),
@@ -1092,6 +1107,84 @@ class _FamilyGraphEngineViewState
         );
       },
     );
+  }
+
+  /// v102 (BUG-2 FIX): Builds positioned chips for each collapsed branch.
+  ///
+  /// Each chip is positioned near the branch root node's coordinates
+  /// and displays the branch label (e.g. "Mother's branch · 38").
+  /// Tapping the chip calls `expandBranch(rootPersonId)` to reveal
+  /// the hidden members.
+  ///
+  /// This is the UI affordance that was missing — the collapse state
+  /// was computed but never surfaced to the user, so they had no way
+  /// to know a branch was collapsed or to expand it.
+  List<Widget> _buildCollapsedBranchChips(
+    GraphLayoutResult layout,
+    BranchCollapseState collapseState,
+  ) {
+    if (collapseState.collapsedBranches.isEmpty) return const [];
+
+    final chips = <Widget>[];
+    for (final branch in collapseState.collapsedBranches) {
+      final pos = layout.positions[branch.rootPersonId];
+      if (pos == null) continue;
+
+      // Position the chip slightly below and to the right of the root
+      // node so it doesn't overlap the node circle.
+      final chipLeft = pos.dx + 40;
+      final chipTop = pos.dy + _kCircleCenterYOffset + 40;
+
+      chips.add(Positioned(
+        left: chipLeft,
+        top: chipTop,
+        child: GestureDetector(
+          onTap: () {
+            ref.read(branchCollapseProvider.notifier).expandBranch(branch.rootPersonId);
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: KinrelColors.darkBackground.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: KinrelColors.orange.withValues(alpha: 0.6),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  blurRadius: 6,
+                  offset: const Offset(1, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.unfold_more,
+                  size: 14,
+                  color: KinrelColors.orange,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  branch.branchLabel.isNotEmpty
+                      ? branch.branchLabel
+                      : 'Branch · ${branch.hiddenCount}',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ));
+    }
+    return chips;
   }
 
   /// Builds the node layer for the current LOD tier.
