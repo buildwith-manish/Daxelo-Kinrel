@@ -163,6 +163,11 @@ jobs:
         id: graph_outline_view
         run: flutter test test/graph/widgets/graph_outline_view_test.dart --reporter expanded
 
+      # ── P4.6: High-contrast theme + contrast tests ────────────
+      - name: Run WCAG contrast tests (P4.6)
+        id: wcag_contrast
+        run: flutter test test/core/constants/wcag_contrast_test.dart --reporter expanded
+
       - name: Test summary
         if: always()
         run: |
@@ -188,6 +193,7 @@ jobs:
           echo "legend_toggle (P4.3):     ${{ steps.legend_toggle_44px.outcome }}"
           echo "keyboard_nav (P4.4):      ${{ steps.keyboard_navigation.outcome }}"
           echo "outline_view (P4.5):      ${{ steps.graph_outline_view.outcome }}"
+          echo "wcag_contrast (P4.6):     ${{ steps.wcag_contrast.outcome }}"
           echo "=========================="
           # Fail the job if any suite failed
           if [ "${{ steps.edge_dedup.outcome }}" = "failure" ] || \
@@ -210,7 +216,8 @@ jobs:
              [ "${{ steps.find_myself_button.outcome }}" = "failure" ] || \
              [ "${{ steps.legend_toggle_44px.outcome }}" = "failure" ] || \
              [ "${{ steps.keyboard_navigation.outcome }}" = "failure" ] || \
-             [ "${{ steps.graph_outline_view.outcome }}" = "failure" ]; then
+             [ "${{ steps.graph_outline_view.outcome }}" = "failure" ] || \
+             [ "${{ steps.wcag_contrast.outcome }}" = "failure" ]; then
             echo "At least one test suite failed."
             exit 1
           fi
