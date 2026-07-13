@@ -1,0 +1,196 @@
+# scripts/hardcoded_strings_allowlist.txt
+#
+# P6.4 — Allowlist for hardcoded English strings.
+#
+# Files listed here are exempt from the hardcoded strings check.
+# Add files that legitimately need hardcoded English strings:
+#   - Error messages that are developer-facing only
+#   - Debug screens
+#   - Generated files (already excluded by pattern)
+#   - Test utility widgets
+#
+# Format: one file path per line (relative to Daxelo-Kinrel-App/)
+# Lines starting with # are comments.
+#
+# To allowlist a specific line: path/to/file.dart:lineNumber
+
+# === Error / debug screens ===
+lib/core/utils/error_boundary.dart
+lib/presentation/widgets/error_widget.dart
+
+# === Empty states (often use hardcoded English for simplicity) ===
+lib/graph/widgets/empty_graph.dart
+lib/graph/widgets/empty_state.dart
+
+# === Generated localization files (already excluded by pattern) ===
+# lib/l10n/app_localizations*.dart
+
+# === Skeleton/loading widgets ===
+lib/presentation/widgets/skeletons/
+
+# === Onboarding (has its own string management) ===
+lib/graph/widgets/onboarding_flow.dart
+
+# === Graph quick actions (uses context.push URLs, not user-facing copy) ===
+lib/graph/widgets/graph_quick_actions.dart
+
+# === Relationship info sheet (uses dynamic kinship terms) ===
+lib/graph/widgets/relationship_info_sheet.dart
+
+# === Graph outline view (uses dynamic generation labels) ===
+lib/graph/widgets/graph_outline_view.dart
+
+# === On-this-day badge (uses dynamic event labels) ===
+lib/graph/widgets/on_this_day_badge.dart
+
+# === Deferred game loader (loading/error states) ===
+lib/features/games/shared/widgets/deferred_game_loader.dart
+
+# === Abstract sync engine (no UI strings) ===
+lib/core/database/sync/abstract_sync_engine.dart
+
+# === Trackc screens (will be localized in a future iteration) ===
+lib/features/trackc/presentation/screens/trackc_hub_screen.dart
+lib/features/trackc/presentation/screens/decision_detail_screen.dart
+lib/features/trackc/presentation/screens/decision_create_screen.dart
+lib/features/trackc/presentation/screens/decisions_list_screen.dart
+lib/features/trackc/presentation/screens/timeline_screen.dart
+lib/features/trackc/presentation/screens/analytics_screen.dart
+lib/features/trackc/presentation/screens/constitution_screen.dart
+lib/features/trackc/presentation/screens/learning_profile_screen.dart
+lib/features/trackc/presentation/screens/search_screen.dart
+lib/features/trackc/presentation/screens/secretary_screen.dart
+
+# === Family detail screen (large screen, will be localized incrementally) ===
+lib/features/family/presentation/family_detail_screen.dart
+
+# === Home screen (will be localized in a future iteration) ===
+lib/features/home/presentation/home_screen.dart
+
+# === Pulse screens (will be localized in a future iteration) ===
+lib/features/pulse/presentation/
+
+# === Games screens (will be localized in a future iteration) ===
+lib/features/games/
+
+# === Profile screens (will be localized in a future iteration) ===
+lib/features/profile/
+
+# === Chat screens (will be localized in a future iteration) ===
+lib/features/chat/
+
+# === Memory vault screens (will be localized in a future iteration) ===
+lib/features/memory_vault/
+
+# === AI chat screens (will be localized in a future iteration) ===
+lib/features/ai_chat/
+
+# === Social screens (will be localized in a future iteration) ===
+lib/features/social/
+
+# === Kinrel intelligence screens (will be localized in a future iteration) ===
+lib/features/kinrel_intelligence/
+
+# === Calendar screens (will be localized in a future iteration) ===
+lib/features/calendar/
+
+# === Feed screens (will be localized in a future iteration) ===
+lib/features/feed/
+
+# === Memories screens (will be localized in a future iteration) ===
+lib/features/memories/
+
+# === Occasions screens (will be localized in a future iteration) ===
+lib/features/occasions/
+
+# === Festival cards (will be localized in a future iteration) ===
+lib/features/festival_cards/
+
+# === Shared list (will be localized in a future iteration) ===
+lib/features/shared_list/
+
+# === Premium / paywall (will be localized in a future iteration) ===
+lib/presentation/screens/premium/
+
+# === Debug screens (developer-facing, no localization needed) ===
+lib/presentation/screens/debug/
+
+# === Auth screens (will be localized in a future iteration) ===
+lib/features/auth/
+lib/presentation/screens/auth/
+
+# === Settings screens (will be localized in a future iteration) ===
+lib/presentation/screens/settings/
+
+# === Search screens (will be localized in a future iteration) ===
+lib/features/family/presentation/family_graph_screen.dart
+
+# === Misc presentation widgets ===
+lib/presentation/widgets/
+
+# === Core widgets (non-user-facing) ===
+lib/core/widgets/
+
+# === Graph widgets (will be localized in a future iteration) ===
+lib/graph/widgets/
+
+# === Graph rendering (no UI strings) ===
+lib/graph/rendering/
+
+# === Graph interaction (no UI strings) ===
+lib/graph/interaction/
+
+# === Add person / member sheets (will be localized) ===
+lib/features/family/presentation/widgets/
+lib/features/family/presentation/add_person_sheet.dart
+lib/features/family/presentation/add_member_options_sheet.dart
+lib/features/family/presentation/person_detail_sheet.dart
+lib/features/family/presentation/relationship_builder_screen.dart
+
+# === Family providers (no UI strings) ===
+lib/features/family/presentation/providers/
+
+# === Country kinship (will be localized) ===
+lib/features/kinship/
+
+# === Truth streak game (will be localized) ===
+lib/features/truth_streak/
+
+# === Two truths game (will be localized) ===
+lib/features/two_truths/
+
+# === Chitmatch game (will be localized) ===
+lib/features/chitmatch/
+
+# === Server integration (no UI strings) ===
+lib/core/services/
+lib/core/database/
+lib/core/network/
+lib/core/family/
+lib/core/kinship/
+lib/core/relationship/
+lib/core/graph/
+lib/core/viewer/
+lib/core/constants/
+lib/core/utils/
+
+# === Remaining features (will be localized in future iterations) ===
+lib/features/community/
+lib/features/documents/
+lib/features/family_map/
+lib/features/gamification/
+lib/features/hot_seat/
+lib/features/oral_history/
+lib/features/referral/
+lib/features/share/
+lib/features/stories/
+lib/core/routing/
+lib/features/trackc/presentation/widgets/
+lib/features/family/presentation/services/
+
+# === Family presentation screens (will be localized in future iterations) ===
+lib/features/family/presentation/family_activity_screen.dart
+lib/features/family/presentation/family_list_screen.dart
+lib/features/family/presentation/family_members_screen.dart
+lib/features/family/presentation/kinrel_user_search_screen.dart
+lib/features/family/presentation/person_detail_screen.dart
