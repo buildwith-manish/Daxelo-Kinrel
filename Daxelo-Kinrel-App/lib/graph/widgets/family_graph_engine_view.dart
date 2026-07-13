@@ -727,6 +727,36 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                         },
                       ),
                     ),
+                  // P4.2: "Find Myself" button — persistent FAB that
+                  // centers the camera on the viewer's node. Always
+                  // visible when the viewer has a linked Person node.
+                  if (viewerPersonId != null &&
+                      layout.positions.containsKey(viewerPersonId))
+                    Positioned(
+                      right: 8,
+                      top: MediaQuery.of(context).padding.top + 8,
+                      child: FloatingActionButton.small(
+                        heroTag: 'graph_find_myself',
+                        onPressed: () {
+                          final pos = layout.positions[viewerPersonId];
+                          if (pos == null) return;
+                          final bool reduced =
+                              MediaQuery.disableAnimationsOf(context);
+                          // P3.2: haptic on focus enter.
+                          GraphHaptics.focusEnter(context);
+                          _camera.animateToWithSpring(
+                            -pos.dx * _camera.zoomLevel +
+                                _viewportSize.width / 2,
+                            -pos.dy * _camera.zoomLevel +
+                                _viewportSize.height / 2,
+                            _camera.zoomLevel,
+                            reducedMotion: reduced,
+                          );
+                        },
+                        tooltip: 'Find myself',
+                        child: const Icon(Icons.my_location),
+                      ),
+                    ),
                 ],
               ),
             ),
