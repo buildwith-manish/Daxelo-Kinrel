@@ -2,9 +2,15 @@
 //
 // P7.3 — Family Journey Replay provider.
 // Filters the graph by year — who was alive, who had valid relationships.
+//
+// P10.7 — Extended for the Map Timeline. Adds filterMapPins + filterMapPlaces
+// (Rule 3 — extend the existing JourneyProvider, do NOT create
+// MapJourneyProvider).
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../family_map/data/place_models.dart';
+import '../../family_map/providers/family_map_provider.dart';
 
 /// State of the journey replay.
 @immutable
@@ -77,6 +83,44 @@ class JourneyController extends StateNotifier<JourneyState> {
   /// Sets memory markers (year → memory description).
   void setMemoryMarkers(Map<int, String> markers) {
     state = state.copyWith(memoryMarkers: markers);
+  }
+
+  // ── P10.7 — Map Timeline filters ──────────────────────────────────────
+  //
+  // Rule 3: extend JourneyProvider, do NOT create MapJourneyProvider.
+  // The same provider drives both the graph timeline (P7.3) and the map
+  // timeline (P10.7) so the two screens stay in sync.
+
+  /// Filters map pins to those who were alive at the currently selected year.
+  ///
+  /// Pins whose linked person has no dateOfBirth are always returned
+  /// (we can't filter them — see wasAliveAt). Pins whose linked person
+  /// was deceased before the selected year are excluded.
+  ///
+  /// Note: this method takes the pins list as input (rather than reading
+  /// a provider) so it's pure and testable. The screen calls it on
+  /// every state change with the latest pins from familyMapProvider.
+  List<MapPin> filterMapPins(
+    List<MapPin> allPins, {
+    Map<String, DateTime>? dateOfBirthByPersonId,
+    Map<String, DateTime>? dateOfDeathByPersonId,
+  }) {
+    final year = state.selectedYear;
+    return allPins.where((pin) {
+      final dob = dateOfBirthByPersonId?[pin.personId];
+      final dod = dateOfDeathByPersonId?[pin.personId];
+      return wasAliveAt(year: year, dateOfBirth: dob, dateOfDeath: dod);
+    }).toList(growable: false);
+  }
+
+  /// Filters family places to those valid at the currently selected year.
+  /// Uses Place.validFrom / validTo (P10.1) — null bounds mean
+  /// "unbounded" on that side.
+  List<FamilyPlace> filterMapPlaces(List<FamilyPlace> allPlaces) {
+    final viewingDate = DateTime(state.selectedYear, 12, 31, 23, 59, 59);
+    return allPlaces
+        .where((place) => place.isValidAt(viewingDate))
+        .toList(growable: false);
   }
 }
 
