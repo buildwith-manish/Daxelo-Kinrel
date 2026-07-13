@@ -25,6 +25,8 @@ import '../../rendering/graph_lighting.dart' show GraphLighting;
 import '../../rendering/lod_render_metrics.dart'
     show LodRenderMetrics;
 import '../../rendering/emphasis_priority.dart'
+import "../../../core/constants/brand_colors.dart" show KinrelColors;
+import "../../data/graph_data_models.dart" show GraphEdgeData;
     show EmphasisLevel, computeEmphasisLevel;
 import '../../rendering/semantic_zoom.dart'
     show

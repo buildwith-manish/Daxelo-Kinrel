@@ -250,7 +250,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         //
         // v83: Also check customColors — if an edge has customColors in
         // the relationship data, use the custom line color instead.
-        final String? anchorId = _findAnchorId(flat, viewerPersonId);
+        final String? anchorId = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
         final edgeCategories = <String, KinshipEdgeCategory>{};
         final edgeCustomColors = <String, Map<String, dynamic>>{};
         if (anchorId != null) {
@@ -576,6 +576,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
               ],
             ),
           ),
+        ),
         ),
       },
     );
