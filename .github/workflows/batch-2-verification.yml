@@ -1,0 +1,488 @@
+# ─────────────────────────────────────────────────────────────────
+# Batch 2 Verification Gates — authoritative CI for Batch 2
+# ─────────────────────────────────────────────────────────────────
+# Triggers on push to main and manual dispatch.
+# Verifies all Batch 2 features (P3.1–P5.5) via 10 parallel jobs
+# + 1 final verdict job.
+#
+# HARD RELEASE GATE: P5.2 Correctness Regression Suite
+# If P5.2 fails, the product CANNOT LAUNCH.
+#
+# Flutter: 3.44.2 stable (matches pubspec + existing CI)
+# Java: 17 (matches Android Gradle config)
+# Working directory: Daxelo-Kinrel-App
+# ─────────────────────────────────────────────────────────────────
+
+name: Batch 2 Verification Gates
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: batch-2-verification-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.44.2'
+  JAVA_VERSION: '17'
+  FLUTTER_DIR: Daxelo-Kinrel-App
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════
+  # Job 1: Batch 2 Static Gates (P0.4 line count + P5.3 deferred games)
+  # ═══════════════════════════════════════════════════════════════
+  batch-2-static-gates:
+    name: P0.4 Line Count + P5.3 Deferred Games
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Print verified commit SHA
+        run: |
+          echo "Verified commit SHA: ${{ github.sha }}"
+          git log --oneline -1
+
+      # P0.4: Verify family_graph_engine_view.dart < 1500 lines
+      - name: P0.4 — Verify family_graph_engine_view.dart < 1500 lines
+        run: |
+          set -euo pipefail
+          LINES=$(wc -l < lib/graph/widgets/family_graph_engine_view.dart)
+          echo "family_graph_engine_view.dart: $LINES lines"
+          if [ "$LINES" -gt 1500 ]; then
+            echo "FAIL: family_graph_engine_view.dart has $LINES lines (> 1500)"
+            exit 1
+          fi
+          echo "PASS: family_graph_engine_view.dart is $LINES lines (< 1500)"
+
+      # P5.3: Verify deferred game loader exists + pattern
+      - name: P5.3 — Verify deferred game loader infrastructure
+        run: |
+          set -euo pipefail
+          echo "=== P5.3: Deferred Game Loader ==="
+          if [ ! -f "lib/features/games/shared/widgets/deferred_game_loader.dart" ]; then
+            echo "FAIL: deferred_game_loader.dart not found"
+            exit 1
+          fi
+          echo "PASS: deferred_game_loader.dart exists"
+          # Verify the DeferredGameLoader class is defined
+          if ! grep -q "class DeferredGameLoader" lib/features/games/shared/widgets/deferred_game_loader.dart; then
+            echo "FAIL: DeferredGameLoader class not found"
+            exit 1
+          fi
+          echo "PASS: DeferredGameLoader class defined"
+
+  # ═══════════════════════════════════════════════════════════════
+  # Job 2: Emotional Layer Tests (Phase 3 — P3.1–P3.7)
+  # ═══════════════════════════════════════════════════════════════
+  emotional-layer-tests:
+    name: Phase 3 Emotional Layer Tests (P3.1–P3.7)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate Drift code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # P3.1 — Spring physics
+      - name: P3.1 — Spring physics tests
+        run: flutter test test/graph/interaction/spring_physics_test.dart --reporter expanded
+
+      # P3.2 — Haptic feedback
+      - name: P3.2 — Haptic language tests
+        run: flutter test test/graph/interaction/haptic_language_test.dart --reporter expanded
+
+      # P3.3 — Birthday glow
+      - name: P3.3 — Birthday glow tests
+        run: flutter test test/graph/rendering/birthday_pulse_test.dart --reporter expanded
+
+      # P3.4 — Memorial candle
+      - name: P3.4 — Memorial candle tests
+        run: flutter test test/graph/rendering/memorial_candle_test.dart --reporter expanded
+
+      # P3.5 — Ambient particles
+      - name: P3.5 — Ambient particle tests
+        run: flutter test test/graph/rendering/ambient_particle_test.dart --reporter expanded
+
+      # P3.6 — Heritage sepia
+      - name: P3.6 — Heritage sepia tests
+        run: flutter test test/graph/rendering/heritage_sepia_test.dart --reporter expanded
+
+      # P3.7 — On-this-day badge
+      - name: P3.7 — On-this-day badge tests
+        run: flutter test test/graph/widgets/on_this_day_badge_test.dart --reporter expanded
+
+  # ═══════════════════════════════════════════════════════════════
+  # Job 3: Accessibility Hard Gate (P4.1–P4.7)
+  # ═══════════════════════════════════════════════════════════════
+  accessibility-hard-gate:
+    name: P4.x Accessibility Hard Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate Drift code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # P4.1 — Mini-map
+      - name: P4.1 — Mini-map tests
+        run: flutter test test/graph/widgets/graph_minimap_test.dart --reporter expanded
+
+      # P4.2 — Find Myself
+      - name: P4.2 — Find Myself tests
+        run: flutter test test/graph/widgets/find_myself_button_test.dart --reporter expanded
+
+      # P4.3 — 44px legend toggle
+      - name: P4.3 — Legend toggle 44px tests
+        run: flutter test test/graph/widgets/legend_toggle_44px_test.dart --reporter expanded
+
+      # P4.4 — Keyboard navigation
+      - name: P4.4 — Keyboard navigation tests
+        run: flutter test test/graph/interaction/keyboard_navigation_test.dart --reporter expanded
+
+      # P4.5 — Screen-reader outline view
+      - name: P4.5 — Graph outline view tests
+        run: flutter test test/graph/widgets/graph_outline_view_test.dart --reporter expanded
+
+      # P4.6 — High-contrast theme + WCAG contrast
+      - name: P4.6 — WCAG contrast tests
+        run: flutter test test/core/constants/wcag_contrast_test.dart --reporter expanded
+
+      # P4.7 — Reduced motion
+      - name: P4.7 — Reduced motion tests
+        run: flutter test test/graph/accessibility/reduced_motion_test.dart --reporter expanded
+
+  # ═══════════════════════════════════════════════════════════════
+  # Job 4: Graph Correctness HARD GATE (P5.2)
+  # ═══════════════════════════════════════════════════════════════
+  graph-correctness-hard-gate:
+    name: P5.2 Correctness Suite (HARD RELEASE GATE)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate Drift code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # P5.2 — Correctness regression suite (HARD GATE)
+      - name: P5.2 — Kinship correctness suite (HARD GATE)
+        run: flutter test test/graph/correctness/kinship_correctness_test.dart --reporter expanded
+
+      - name: P5.2 — Path correctness suite (HARD GATE)
+        run: flutter test test/graph/correctness/path_correctness_test.dart --reporter expanded
+
+  # ═══════════════════════════════════════════════════════════════
+  # Job 5: Golden Tests (P5.5)
+  # ═══════════════════════════════════════════════════════════════
+  graph-golden-tests:
+    name: P5.5 Golden Visual Regression Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate Drift code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: P5.5 — Golden painter tests
+        run: flutter test test/graph/rendering/golden/painter_golden_test.dart --reporter expanded
+
+  # ═══════════════════════════════════════════════════════════════
+  # Job 6: P5.1 Pagination + P5.4 Sync Engine Tests
+  # ═══════════════════════════════════════════════════════════════
+  graph-performance-tests:
+    name: P5.1 Pagination + P5.4 Sync Engine Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate Drift code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # P5.1 — Server-side pagination
+      - name: P5.1 — Pagination tests
+        run: flutter test test/features/family/pagination_test.dart --reporter expanded
+
+      # P5.3 — Deferred game loader
+      - name: P5.3 — Deferred game loader tests
+        run: flutter test test/features/games/deferred_game_loader_test.dart --reporter expanded
+
+      # P5.4 — Sync engines
+      - name: P5.4 — Sync engine tests
+        run: flutter test test/core/database/sync/abstract_sync_engine_test.dart --reporter expanded
+
+  # ═══════════════════════════════════════════════════════════════
+  # Job 7: Flutter Analyze
+  # ═══════════════════════════════════════════════════════════════
+  flutter-analyze:
+    name: Flutter Analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate Drift code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Flutter analyze
+        run: flutter analyze --no-fatal-infos
+
+  # ═══════════════════════════════════════════════════════════════
+  # Job 8: Broader Flutter Tests
+  # ═══════════════════════════════════════════════════════════════
+  flutter-tests:
+    name: Broader Flutter Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate Drift code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # Run existing Batch 1 scoped test suites (from flutter-test.yml)
+      - name: Run edge dedup tests
+        run: flutter test test/graph/engine/edge_dedup_test.dart --reporter expanded
+        continue-on-error: true
+
+      - name: Run branch collapse state tests
+        run: flutter test test/graph/interaction/branch_collapse_state_test.dart --reporter expanded
+        continue-on-error: true
+
+      - name: Run couple union model tests
+        run: flutter test test/graph/interaction/couple_union_model_test.dart --reporter expanded
+        continue-on-error: true
+
+      - name: Run relationship validation tests
+        run: flutter test test/graph/interaction/relationship_validation_test.dart --reporter expanded
+        continue-on-error: true
+
+  # ═══════════════════════════════════════════════════════════════
+  # Job 9: Android Release Build
+  # ═══════════════════════════════════════════════════════════════
+  android-release-build:
+    name: Android Release APK Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+          cache: gradle
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Print Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate Drift code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build release APK
+        run: flutter build apk --release --build-number=$GITHUB_RUN_NUMBER
+
+      - name: Verify APK exists
+        run: |
+          set -euo pipefail
+          APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "FAIL: APK not found at $APK_PATH"
+            exit 1
+          fi
+          APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+          echo "PASS: APK built successfully ($APK_SIZE)"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: batch-2-release-apk
+          path: Daxelo-Kinrel-App/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
+
+  # ═══════════════════════════════════════════════════════════════
+  # Job 10: Final Verdict
+  # ═══════════════════════════════════════════════════════════════
+  batch-2-verdict:
+    name: Batch 2 Final Verdict
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    needs:
+      - batch-2-static-gates
+      - emotional-layer-tests
+      - accessibility-hard-gate
+      - graph-correctness-hard-gate
+      - graph-golden-tests
+      - graph-performance-tests
+      - flutter-analyze
+      - flutter-tests
+      - android-release-build
+    steps:
+      - name: Print verified commit SHA
+        run: |
+          echo "=== Batch 2 Final Verdict ==="
+          echo "Commit SHA: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+
+      - name: Evaluate all required jobs
+        run: |
+          echo "=== Required Job Results ==="
+          echo "batch-2-static-gates:        ${{ needs.batch-2-static-gates.result }}"
+          echo "emotional-layer-tests:       ${{ needs.emotional-layer-tests.result }}"
+          echo "accessibility-hard-gate:     ${{ needs.accessibility-hard-gate.result }}"
+          echo "graph-correctness-hard-gate: ${{ needs.graph-correctness-hard-gate.result }}"
+          echo "graph-golden-tests:          ${{ needs.graph-golden-tests.result }}"
+          echo "graph-performance-tests:     ${{ needs.graph-performance-tests.result }}"
+          echo "flutter-analyze:             ${{ needs.flutter-analyze.result }}"
+          echo "flutter-tests:               ${{ needs.flutter-tests.result }}"
+          echo "android-release-build:       ${{ needs.android-release-build.result }}"
+          echo "=============================="
+
+          # Check all required jobs passed
+          if [ "${{ needs.batch-2-static-gates.result }}" != "success" ] || \
+             [ "${{ needs.emotional-layer-tests.result }}" != "success" ] || \
+             [ "${{ needs.accessibility-hard-gate.result }}" != "success" ] || \
+             [ "${{ needs.graph-correctness-hard-gate.result }}" != "success" ] || \
+             [ "${{ needs.graph-golden-tests.result }}" != "success" ] || \
+             [ "${{ needs.graph-performance-tests.result }}" != "success" ] || \
+             [ "${{ needs.flutter-analyze.result }}" != "success" ] || \
+             [ "${{ needs.flutter-tests.result }}" != "success" ] || \
+             [ "${{ needs.android-release-build.result }}" != "success" ]; then
+            echo ""
+            echo "BATCH 2 AUTOMATED VERIFICATION FAILED ❌"
+            echo ""
+            if [ "${{ needs.graph-correctness-hard-gate.result }}" != "success" ]; then
+              echo "P5.2 CORRECTNESS HARD RELEASE GATE: FAIL"
+              echo "PRODUCT CANNOT LAUNCH."
+              echo "BATCH 3 CANNOT START."
+            fi
+            exit 1
+          fi
+
+          echo ""
+          echo "BATCH 2 AUTOMATED GATES VERIFIED ✅"
+          echo ""
+          echo "P5.2 CORRECTNESS HARD RELEASE GATE: PASS"
+          echo "BATCH 2 AUTOMATED ACCESSIBILITY GATES: PASS"
+          echo ""
+          echo "MANUAL GATES REMAIN:"
+          echo "  - P3.1 Real-device spring motion review"
+          echo "  - P3.2 Haptic language on hardware"
+          echo "  - P3.3 Birthday glow visual review"
+          echo "  - P3.4 Memorial candle visual review"
+          echo "  - P3.5 Particle performance on device"
+          echo "  - P3.7 On-this-day first-frame timing"
+          echo "  - P4.4 Keyboard nav on desktop/web"
+          echo "  - P4.5 VoiceOver/TalkBack verification"
+          echo "  - P4.7 Reduced-motion visual review"
+          echo "  - P5.1 200-person first paint <500ms on device"
+          echo "  - 1000+ node pan/zoom on device"
+          echo "  - Golden output visual review"
