@@ -178,6 +178,17 @@ jobs:
         id: pagination
         run: flutter test test/features/family/pagination_test.dart --reporter expanded
 
+      # ── P5.2: Correctness regression suite (HARD RELEASE GATE) ──
+      # ZERO failures allowed. If this fails, the product CANNOT LAUNCH.
+      # No continue-on-error — this is a hard gate.
+      - name: Run kinship correctness suite (P5.2 — HARD GATE)
+        id: kinship_correctness
+        run: flutter test test/graph/correctness/kinship_correctness_test.dart --reporter expanded
+
+      - name: Run path correctness suite (P5.2 — HARD GATE)
+        id: path_correctness
+        run: flutter test test/graph/correctness/path_correctness_test.dart --reporter expanded
+
       - name: Test summary
         if: always()
         run: |
@@ -206,6 +217,8 @@ jobs:
           echo "wcag_contrast (P4.6):     ${{ steps.wcag_contrast.outcome }}"
           echo "reduced_motion (P4.7):    ${{ steps.reduced_motion.outcome }}"
           echo "pagination (P5.1):        ${{ steps.pagination.outcome }}"
+          echo "kinship_correct (P5.2):   ${{ steps.kinship_correctness.outcome }}"
+          echo "path_correct (P5.2):      ${{ steps.path_correctness.outcome }}"
           echo "=========================="
           # Fail the job if any suite failed
           if [ "${{ steps.edge_dedup.outcome }}" = "failure" ] || \
@@ -231,7 +244,9 @@ jobs:
              [ "${{ steps.graph_outline_view.outcome }}" = "failure" ] || \
              [ "${{ steps.wcag_contrast.outcome }}" = "failure" ] || \
              [ "${{ steps.reduced_motion.outcome }}" = "failure" ] || \
-             [ "${{ steps.pagination.outcome }}" = "failure" ]; then
+             [ "${{ steps.pagination.outcome }}" = "failure" ] || \
+             [ "${{ steps.kinship_correctness.outcome }}" = "failure" ] || \
+             [ "${{ steps.path_correctness.outcome }}" = "failure" ]; then
             echo "At least one test suite failed."
             exit 1
           fi
