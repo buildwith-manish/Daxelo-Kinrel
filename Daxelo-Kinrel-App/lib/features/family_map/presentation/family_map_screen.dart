@@ -77,6 +77,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   Timer? _dbUpsertTimer;
   DateTime? _lastDbUpsert;
 
+  /// Premium: selected pin state for relationship focus dimming.
+  String? _selectedPinId;
+
+  /// Premium: one-time cinematic entrance animation flag.
+  bool _entranceAnimationDone = false;
+
   /// Bundled Kinrel dark style — loaded at runtime from the app bundle
   /// and passed as a raw JSON string to MapLibre. This bypasses the
   /// web plugin's AssetManager URL resolution (which doesn't handle
@@ -242,8 +248,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
               options: MapOptions(
                 initStyle: styleJson,
             initCenter: Geographic(lon: 78.9629, lat: 20.5937),
-            initZoom: 5.5, // slightly tighter than 4.5 — less clutter
-            initPitch: 0, // flat at India level — 3D kicks in on zoom
+            // Premium: start from higher altitude for cinematic descent
+            initZoom: 4.0,
+            initPitch: 0,
             minZoom: 2,
             maxZoom: 18,
           ),
@@ -270,6 +277,22 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
 
   void _onMapCreated(MapController controller) {
     _mapController = controller;
+
+    // Premium: one-time cinematic entrance animation.
+    // Starts from high altitude and gently descends to India view.
+    // User interaction immediately cancels — no continuous movement.
+    if (!_entranceAnimationDone) {
+      _entranceAnimationDone = true;
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (_mapController == null) return;
+        _mapController!.animateCamera(
+          center: Geographic(lon: 78.9629, lat: 20.5937),
+          zoom: 5.5,
+          pitch: 0,
+          bearing: 0,
+        );
+      });
+    }
   }
 
   /// Called when the OpenFreeMap dark style finishes loading.
@@ -320,25 +343,38 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     try {
       await style.addSource(GeoJsonSource(id: 'family-members', data: geojson));
 
+      // Premium: outer warm glow — larger, brighter for visibility
       await style.addLayer(CircleStyleLayer(
         id: 'kinrel-pin-glow',
         sourceId: 'family-members',
         paint: {
           'circle-color': '#E8612A',
-          'circle-radius': 22,
-          'circle-opacity': 0.15,
-          'circle-blur': 1.0,
+          'circle-radius': 28,
+          'circle-opacity': 0.20,
+          'circle-blur': 1.2,
         },
       ));
 
+      // Premium: solid ring base with stronger border
       await style.addLayer(CircleStyleLayer(
         id: 'kinrel-pin-ring',
         sourceId: 'family-members',
         paint: {
           'circle-color': '#191B2C',
-          'circle-radius': 16,
+          'circle-radius': 18,
           'circle-stroke-color': '#E8612A',
-          'circle-stroke-width': 2.5,
+          'circle-stroke-width': 3.0,
+          'circle-opacity': 0.95,
+        },
+      ));
+
+      // Premium: inner dot for avatar placeholder
+      await style.addLayer(CircleStyleLayer(
+        id: 'kinrel-pin-dot',
+        sourceId: 'family-members',
+        paint: {
+          'circle-color': '#E8612A',
+          'circle-radius': 6,
           'circle-opacity': 0.9,
         },
       ));
