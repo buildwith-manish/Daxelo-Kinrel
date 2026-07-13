@@ -41,6 +41,7 @@ import '../../../core/graph/graph_service.dart';
 import '../widgets/family_building_layer.dart';
 import '../widgets/avatar_marker_generator.dart';
 import '../widgets/avatar_marker_overlay.dart';
+import '../data/map_state_persistence.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/widgets/cached_avatar.dart';
@@ -89,6 +90,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   /// overlay decision (Rule 12 fallback) and the marker image cache.
   final AvatarMarkerLayer _avatarLayer = AvatarMarkerLayer();
 
+  /// P10.9 — Debounced session-state saver. familyId is set in initState
+  /// once the family list resolves. flushNow() is called on dispose.
+  DebouncedMapStateSaver? _stateSaver;
+
   /// Premium: selected pin state for relationship focus dimming.
   String? _selectedPinId;
 
@@ -120,6 +125,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
       final familyId = ref.read(familyListProvider).valueOrNull?.first.id;
       if (familyId != null) {
         ref.read(liveLocationProvider.notifier).start(familyId);
+        // P10.9 — initialize the debounced state saver for this family.
+        _stateSaver = DebouncedMapStateSaver(familyId);
       }
     });
   }
@@ -129,6 +136,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     _stopBroadcastLoop();
     _familyBuildings.dispose();
     _avatarLayer.cache.clear();
+    // P10.9 — flush any pending state save before tearing down.
+    _stateSaver?.flushNow();
+    _stateSaver?.dispose();
     ref.read(liveLocationProvider.notifier).stop();
     super.dispose();
   }
