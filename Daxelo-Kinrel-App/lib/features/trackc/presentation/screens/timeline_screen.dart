@@ -13,6 +13,7 @@
 // =============================================================================
 
 import 'package:flutter/material.dart';
+import '../../../../core/constants/brand_colors.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -71,6 +72,7 @@ class _TrackcTimelineScreenState extends ConsumerState<TrackcTimelineScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
         title: const Text('Kinrel Timeline'),
         actions: [

@@ -14,6 +14,7 @@
 // =============================================================================
 
 import 'package:flutter/material.dart';
+import '../../../../core/constants/brand_colors.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/trackc_providers.dart';
@@ -51,6 +52,7 @@ class _AdminLearningProfileScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
         title: const Text('Kinrel Learning'),
         actions: [

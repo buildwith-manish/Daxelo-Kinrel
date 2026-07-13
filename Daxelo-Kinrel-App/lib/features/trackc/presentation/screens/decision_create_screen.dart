@@ -26,6 +26,7 @@
 // =============================================================================
 
 import 'package:flutter/material.dart';
+import '../../../../core/constants/brand_colors.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/trackc_providers.dart';
@@ -242,6 +243,7 @@ class _TrackcDecisionCreateScreenState
     final validationError = _stepValidationError();
 
     return Scaffold(
+      backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
         title: const Text('New Decision'),
         leading: IconButton(
