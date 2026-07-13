@@ -203,7 +203,11 @@ class CameraController extends ChangeNotifier {
   /// pixels per second, clamped to ±4000 px/sec to prevent extreme
   /// flicks from overshooting the viewport.
   void applyMomentum(double velocityX, double velocityY) {
-    const maxVelocity = 4000.0; // px/sec — clamp hard flicks
+    // Premium control: reduce max velocity from 4000 to 2200 px/sec.
+    // This prevents fast flicks from sending the graph flying across
+    // the screen. 2200 px/s is still fast enough for natural fling
+    // but doesn't overshoot.
+    const maxVelocity = 2200.0; // px/sec — clamp hard flicks
     // Save the clamped velocities BEFORE _startMomentumDecay, which
     // calls _cancelAnimation() (which resets _velocityX/_velocityY to
     // zero as part of invalidating in-flight animations).
@@ -791,8 +795,12 @@ class CameraController extends ChangeNotifier {
     // terminates within ~300ms for typical flick velocities.
     final spring = SpringPalette.pan;
 
-    final targetPanX = startPanX + startVelocityX * 1.0;
-    final targetPanY = startPanY + startVelocityY * 1.0;
+    // Premium control: reduce momentum projection from 1.0s to 0.4s.
+    // This means a 2200px/s flick targets 880px away instead of 2200px.
+    // The graph still moves naturally on a deliberate swipe but doesn't
+    // fly across the screen on an accidental flick.
+    final targetPanX = startPanX + startVelocityX * 0.4;
+    final targetPanY = startPanY + startVelocityY * 0.4;
 
     final simX = SpringSimulation(
       spring,

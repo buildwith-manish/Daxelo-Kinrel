@@ -181,7 +181,11 @@ class EngineEdgePainter extends CustomPainter {
     // `dimmedEdgeIds` get this alpha multiplier so unrelated threads
     // recede gently when a node is selected. The selected edge and
     // any sweep edge are never dimmed.
-    const double dimAlpha = 0.70; // ~30% reduction per PART 13
+    // Premium visual: reduced dimming from 0.70 to 0.85.
+    // Non-focused edges now retain 85% clarity instead of 70%, making
+    // the graph feel brighter and more connected. Focused edges still
+    // stand out via the boost below.
+    const double dimAlpha = 0.85; // ~15% reduction (was 30%)
 
     for (final DedupedEdge deduped in edges) {
       final GraphEdgeData e = deduped.edge;

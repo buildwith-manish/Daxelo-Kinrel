@@ -19,7 +19,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // (pinch-release jitter produces large fake velocities).
     if (!_isPinching) {
       final v = d.velocity.pixelsPerSecond;
-      if (v.distance > 50) {
+      // Premium control: raise threshold from 50 to 200 px/s so
+      // tiny accidental flicks don't trigger momentum.
+      if (v.distance > 200) {
         _camera.applyMomentum(v.dx, v.dy);
       }
     }
@@ -35,13 +37,23 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     }
 
     // Pan (works for one- and two-finger drags).
-    // During a pinch, the focal point moves as the pinch center
-    // shifts. This is natural two-finger panning — apply it once
-    // here. The zoomTo focal-point compensation below handles
-    // keeping the pinch center stable; we do NOT double-apply.
-    final Offset delta = d.focalPoint - _lastFocal;
-    if (delta != Offset.zero) {
-      _camera.panBy(delta.dx, delta.dy);
+    // Premium control: dead zone + sensitivity multiplier + max delta cap.
+    // - Dead zone (3px): ignore micro-movements from finger jitter
+    // - Sensitivity (0.85x): slightly reduce raw delta for controlled feel
+    // - Max delta (80px/frame): prevent sudden large jumps
+    final Offset rawDelta = d.focalPoint - _lastFocal;
+    if (rawDelta != Offset.zero) {
+      // Dead zone: ignore tiny movements that are likely finger jitter
+      const deadZone = 3.0;
+      if (rawDelta.distance.abs() > deadZone) {
+        // Sensitivity multiplier: 0.85x for controlled, premium feel
+        const sensitivity = 0.85;
+        // Max delta per frame cap: prevents sudden large jumps
+        const maxDelta = 80.0;
+        double dx = (rawDelta.dx * sensitivity).clamp(-maxDelta, maxDelta);
+        double dy = (rawDelta.dy * sensitivity).clamp(-maxDelta, maxDelta);
+        _camera.panBy(dx, dy);
+      }
     }
     _lastFocal = d.focalPoint;
 

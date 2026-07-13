@@ -446,13 +446,15 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
   Color get _tintColor {
     if (widget.isAnonymous) return Colors.transparent;
-    if (widget.isAnchor) return KinshipEdgeColors.self.withValues(alpha: 0.04);
+    // Premium visual: increased tint from 0.04 to 0.12 for clearer
+    // color identity on the dark background.
+    if (widget.isAnchor) return KinshipEdgeColors.self.withValues(alpha: 0.12);
     // v69: Derive tint from the authoritative category when available.
     if (widget.category != null) {
       final color = KinshipEdgeStyleResolver.styleForCategory(widget.category!).color;
-      return color.withValues(alpha: 0.04);
+      return color.withValues(alpha: 0.12);
     }
-    return KinshipEdgeStyleResolver.styleFor(widget.relationshipKey ?? '').color.withValues(alpha: 0.04);
+    return KinshipEdgeStyleResolver.styleFor(widget.relationshipKey ?? '').color.withValues(alpha: 0.12);
   }
 
   // ── Build ──────────────────────────────────────────────────────────
@@ -885,12 +887,14 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   /// Border width varies by state. Doubled in high contrast mode
   /// per V2.1 Blueprint §19 (WCAG AA minimum contrast 4.5:1).
   double get _borderWidth {
+    // Premium visual: increased border widths for stronger, more
+    // visible relationship-color rings on the dark background.
     final base = switch (widget.nodeState) {
-      NodeState.selected => 3.5,
-      NodeState.focused => 3.0,
-      NodeState.hover => 2.5,
-      NodeState.error => 3.0,
-      _ => 2.5,
+      NodeState.selected => 4.0,
+      NodeState.focused => 3.5,
+      NodeState.hover => 3.0,
+      NodeState.error => 3.5,
+      _ => 3.0,
     };
     return _highContrast ? base * 2.0 : base;
   }
@@ -920,7 +924,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     if (isAnchor) {
       // Anchor: most pronounced — closest to viewer
       base = BoxShadow(
-        color: Colors.black.withValues(alpha: 0.40),
+        color: Colors.black.withValues(alpha: 0.50),
         blurRadius: 16,
         offset: const Offset(0, 6),
         spreadRadius: 0,
@@ -928,7 +932,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     } else if (gen < 0) {
       // Ancestors: float higher — larger blur, slight upward offset
       base = BoxShadow(
-        color: Colors.black.withValues(alpha: 0.30),
+        color: Colors.black.withValues(alpha: 0.38),
         blurRadius: 12,
         offset: const Offset(0, -2), // upward offset
         spreadRadius: 0,
@@ -936,7 +940,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     } else {
       // Descendants: flush/lower — tighter shadow
       base = BoxShadow(
-        color: Colors.black.withValues(alpha: 0.20),
+        color: Colors.black.withValues(alpha: 0.28),
         blurRadius: 6,
         offset: const Offset(0, 2),
         spreadRadius: 0,
@@ -1306,31 +1310,35 @@ class _Pseudo3DNodePainter extends CustomPainter {
     final wallRect = Rect.fromCircle(center: wallCenter, radius: wallR);
 
     // Wall gradient: TL side lighter (catches reflected light from face),
-    // BR side darkest (in shadow). Use darkElevated as base so it's
-    // visibly lighter than the background.
+    // BR side darkest (in shadow). Premium visual: brightened wall base
+    // from darkElevated to a lerp toward white for better visibility
+    // against the dark background. This gives nodes more "body" and
+    // makes them feel more solid and premium.
     canvas.drawCircle(wallCenter, wallR,
       Paint()
         ..shader = RadialGradient(
           center: const Alignment(-0.3, -0.4),
           radius: 0.9,
           colors: [
-            KinrelColors.darkElevated,                              // TL: catches light
-            KinrelColors.darkCard,                                   // mid
-            Color.lerp(KinrelColors.darkCard, Colors.black, 0.4)!,   // BR: shadowed
+            Color.lerp(KinrelColors.darkElevated, Colors.white, 0.08)!,  // TL: brighter catch light
+            KinrelColors.darkElevated,                                     // mid
+            Color.lerp(KinrelColors.darkCard, Colors.black, 0.3)!,        // BR: shadowed (less dark)
           ],
           stops: const [0.0, 0.5, 1.0],
         ).createShader(wallRect),
     );
 
     // Subtle relationship colour bounce on the wall's BR (visible crescent).
-    // Very weak — just a hint of colour on the physical edge.
+    // Premium visual: increased from 0.06 to 0.15 for a more visible
+    // color tint on the node's physical edge, making relationship
+    // categories more distinguishable at a glance.
     canvas.drawCircle(wallCenter, wallR,
       Paint()
         ..shader = RadialGradient(
           center: const Alignment(0.4, 0.5), // BR of wall
           radius: 0.35,
           colors: [
-            params.borderColor.withValues(alpha: 0.06),
+            params.borderColor.withValues(alpha: 0.15),
             Colors.transparent,
           ],
           stops: const [0.0, 1.0],
