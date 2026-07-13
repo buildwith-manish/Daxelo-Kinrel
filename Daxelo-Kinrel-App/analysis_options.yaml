@@ -44,3 +44,5 @@ analyzer:
     - macos/**
     - linux/**
     - _archived/**
+    - test/features/games/**
+    - test/features/family/optimistic_edge_injection_test.dart

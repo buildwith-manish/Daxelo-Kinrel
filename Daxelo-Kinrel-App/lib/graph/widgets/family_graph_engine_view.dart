@@ -135,12 +135,7 @@ import 'graph_quick_actions.dart' show GraphQuickActions;
 import 'graph_relationship_labels.dart' show GraphPersonData;
 import 'relationship_info_sheet.dart' show RelationshipInfoSheet;
 
-// ── P0.4: Extracted parts ──────────────────────────────────────────────
-part 'engine/canvas_mixin.dart';
-part 'engine/interaction_mixin.dart';
-part 'engine/subtree_mixin.dart';
-
-// ── P0.4: Extracted helpers ─────────────────────────────────────────────
+// ── P0.4: Extracted helpers (imports MUST come before part directives) ──
 import 'engine/lod.dart' show Lod;
 import 'engine/dot.dart' show Dot;
 import 'engine/dot_grid_painter.dart' show DotGridPainter;
@@ -152,6 +147,11 @@ import 'engine/offline_banner.dart' show OfflineBanner;
 import 'engine/empty_graph.dart' show EmptyGraph, ErrorRetry;
 import 'engine/claim_profile_banner.dart' show ClaimProfileBanner;
 import 'engine/viewer_linked_provider.dart' show isViewerLinkedProvider;
+
+// ── P0.4: Extracted parts (MUST come after all imports) ────────────────
+part 'engine/canvas_mixin.dart';
+part 'engine/interaction_mixin.dart';
+part 'engine/subtree_mixin.dart';
 
 class FamilyGraphEngineView extends ConsumerStatefulWidget {
   const FamilyGraphEngineView({
@@ -1259,7 +1259,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       viewerPersonId: viewerPersonId,
       flat: flat,
       edges: _currentEdges,
-      anchorId: _findAnchorId(flat, viewerPersonId),
+      anchorId: _SubtreeMethods._findAnchorId(flat, viewerPersonId),
     );
 
     // Select the target so the edge painter highlights the path edges

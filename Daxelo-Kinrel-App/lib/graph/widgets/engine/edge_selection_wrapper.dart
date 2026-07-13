@@ -14,7 +14,7 @@ import '../../../features/family/presentation/providers/family_graph_provider.da
 import '../../engine/edge_dedup.dart' show DedupedEdge;
 import '../../interaction/couple_union_model.dart' show CoupleUnion;
 import '../../rendering/edge_path_cache.dart' show EdgePathCache;
-import '../../rendering/edge_quality.dart' show EdgeQuality;
+import '../../rendering/edge_quality.dart' show EdgeQuality, EdgeQualityX;
 import 'engine_edge_painter.dart' show EngineEdgePainter;
 import '../../interaction/graph_path_trace_controller.dart' show GraphPathTraceController;
 import '../../rendering/graph_lighting.dart' show GraphLighting;
