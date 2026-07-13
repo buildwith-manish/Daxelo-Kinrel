@@ -9,7 +9,7 @@
 // help a younger member address an elder correctly, nothing more.
 //
 // Constitution / Copy-Audit: honest copy. We never claim the output is
-// "perfect" or "AI-written"; it is a phrasebook lookup. No streaks,
+// "perfect" or machine-generated; it is a phrasebook lookup. No streaks,
 // no "translated N phrases today" counters.
 
 import 'package:flutter/foundation.dart';
