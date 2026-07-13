@@ -593,43 +593,22 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                   // v99 (Phase 1): Focus Back control — visible when
                   // focus history is non-empty. Tapping it restores
                   // the previous focused person + viewport.
+                  // Zone: top-left (navigation, transient — only when history exists)
                   if (ref.watch(graphFocusProvider.select((s) => s.history)).isNotEmpty)
                     Positioned(
                       top: MediaQuery.of(context).padding.top + 8,
                       left: 8,
                       child: FloatingActionButton.small(
                         heroTag: 'graph_focus_back',
+                        backgroundColor: KinrelColors.darkCard,
+                        foregroundColor: KinrelColors.textWhite,
                         onPressed: _onFocusBack,
                         tooltip: 'Back to previous person',
                         child: const Icon(Icons.arrow_back),
                       ),
                     ),
-                  // v2.2: Graph legend — shows section colors + edge styles for
-                  // the kinship categories present in the current graph.
-                  GraphLegend(
-                    isVisible: _showLegend,
-                    onToggle: () =>
-                        setState(() => _showLegend = !_showLegend),
-                    presentCategories: _presentCategories(flat),
-                  ),
-                  if (kEnableGraphShareExport)
-                    // Directional alignment so the FAB sits at the bottom-end
-                    // edge (bottom-right in LTR, bottom-left in RTL) instead of
-                    // always at the physical right.
-                    Align(
-                      alignment: AlignmentDirectional.bottomEnd,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: FloatingActionButton.small(
-                          heroTag: 'graph_share_export',
-                          onPressed: _shareGraph,
-                          tooltip: 'Share graph',
-                          child: const Icon(Icons.ios_share),
-                        ),
-                      ),
-                    ),
                   // P4.1: Mini-map — shown when graph has > 30 nodes.
-                  // Tap to center camera on the tapped graph-space location.
+                  // Zone: bottom-right (utility, neutral dark — not orange)
                   if (flat.persons.length > 30)
                     Positioned(
                       right: 8,
@@ -642,7 +621,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                         onTap: (graphSpaceTarget) {
                           final bool reduced =
                               MediaQuery.disableAnimationsOf(context);
-                          // Center the camera on the tapped location.
                           _camera.animateToWithSpring(
                             -graphSpaceTarget.dx * _camera.zoomLevel +
                                 _viewportSize.width / 2,
@@ -654,55 +632,31 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                         },
                       ),
                     ),
-                  // P4.2: "Find Myself" button — persistent FAB that
-                  // centers the camera on the viewer's node. Always
-                  // visible when the viewer has a linked Person node.
-                  if (viewerPersonId != null &&
-                      layout.positions.containsKey(viewerPersonId))
+                  // Premium 3-zone layout: ONE orange FAB bottom-right
+                  // (Share). All other utilities moved to the bottom
+                  // dock in family_graph_screen.dart or the top bar.
+                  //
+                  // REMOVED from canvas (per premium layout spec):
+                  // - Find Myself FAB (moved to bottom dock in parent screen)
+                  // - Outline View FAB (moved to Settings/top bar)
+                  // - GraphLegend floating toggle (triggered from bottom dock)
+                  // - Share FAB as small blue → now the single orange FAB
+                  //
+                  // Zone: bottom-right — single orange FAB (Share)
+                  if (kEnableGraphShareExport)
                     Positioned(
-                      right: 8,
-                      top: MediaQuery.of(context).padding.top + 8,
-                      child: FloatingActionButton.small(
-                        heroTag: 'graph_find_myself',
-                        onPressed: () {
-                          final pos = layout.positions[viewerPersonId];
-                          if (pos == null) return;
-                          final bool reduced =
-                              MediaQuery.disableAnimationsOf(context);
-                          // P3.2: haptic on focus enter.
-                          GraphHaptics.focusEnter(context);
-                          _camera.animateToWithSpring(
-                            -pos.dx * _camera.zoomLevel +
-                                _viewportSize.width / 2,
-                            -pos.dy * _camera.zoomLevel +
-                                _viewportSize.height / 2,
-                            _camera.zoomLevel,
-                            reducedMotion: reduced,
-                          );
-                        },
-                        tooltip: 'Find myself',
-                        child: const Icon(Icons.my_location),
+                      right: 16,
+                      bottom: flat.persons.length > 30 ? 80 : 16,
+                      child: FloatingActionButton(
+                        heroTag: 'graph_share_export',
+                        backgroundColor: KinrelColors.orange,
+                        foregroundColor: Colors.white,
+                        elevation: 4,
+                        onPressed: _shareGraph,
+                        tooltip: 'Share graph',
+                        child: const Icon(Icons.ios_share),
                       ),
                     ),
-                  // P4.5: Screen-reader outline view toggle — a button
-                  // that opens a list view of all persons for screen-reader
-                  // users. Per WCAG 2.4.1 (Bypass Blocks).
-                  Positioned(
-                    left: 8,
-                    top: MediaQuery.of(context).padding.top + 56,
-                    child: FloatingActionButton.small(
-                      heroTag: 'graph_outline_view',
-                      onPressed: () {
-                        SemanticsService.announce(
-                          'Outline view opened. ${flat.persons.length} family members.',
-                          TextDirection.ltr,
-                        );
-                        setState(() => _showOutlineView = true);
-                      },
-                      tooltip: 'Outline view for screen readers',
-                      child: const Icon(Icons.accessibility_new),
-                    ),
-                  ),
                   // P4.5: Outline view overlay — covers the canvas when
                   // active, providing a screen-reader-navigable list.
                   if (_showOutlineView)

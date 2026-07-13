@@ -560,8 +560,9 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         ),
 
         // P2.1: "How We're Connected" FAB — visible when family has ≥2 members.
-        // Positioned at bottom-start (left in LTR, right in RTL) to balance
-        // the bottom toolbar at bottom-center. Tapping enters path-select mode.
+        // Premium: neutral dark (NOT orange — orange is reserved for the
+        // single primary action). Positioned bottom-left to balance the
+        // orange Share FAB on bottom-right.
         if (graph.persons.length >= 2)
           Positioned(
             right: Directionality.of(context) == TextDirection.rtl ? null : 20,
@@ -570,62 +571,10 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             child: _buildHowConnectedFab(),
           ),
 
-        // Legend (?) button (top-end, below filter bar)
-        // Only the help/legend button — no Add Member pill here
-        // (Add Member is in the AppBar and bottom toolbar).
-        // Directional positioning: hugs the trailing edge in both LTR (right)
-        // and RTL (left) so the legend doesn't overlap the back button.
-        if (presentRelationshipKeys.isNotEmpty)
-          Positioned(
-            right: Directionality.of(context) == TextDirection.rtl ? null : 16,
-            left: Directionality.of(context) == TextDirection.rtl ? 16 : null,
-            top: filterBarTopOffset,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                GestureDetector(
-                  onTap: () => setState(() => _showLegend = !_showLegend),
-                  child: Semantics(
-                    label: 'Toggle legend',
-                    button: true,
-                    child: Container(
-                      // P4.3: 44x44 minimum hit target per WCAG 2.5.5.
-                      // Was 36x36 (below the 44px minimum).
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: KinrelColors.darkCard,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: _showLegend
-                              ? KinrelColors.orange.withValues(alpha: 0.5)
-                              : Colors.white.withValues(alpha: 0.08),
-                        ),
-                      ),
-                      child: Icon(
-                        Icons.help_outline_rounded,
-                        size: 22,
-                        color: _showLegend
-                            ? KinrelColors.orange
-                            : KinrelColors.textDim,
-                      ),
-                    ),
-                  ),
-                ),
-                if (_showLegend) ...[
-                  const SizedBox(height: 8),
-                  RelationshipLegend(
-                    presentRelationshipKeys: presentRelationshipKeys,
-                    hoveredRelationshipKey: _hoveredRelationshipKey,
-                    onRelationshipTap: (key) {
-                      setState(() => _hoveredRelationshipKey = key);
-                    },
-                    onClose: () => setState(() => _showLegend = false),
-                  ),
-                ],
-              ],
-            ),
-          ),
+        // REMOVED: Floating legend button (top-right).
+        // The legend is now triggered from the bottom dock's Help/Legend
+        // button — one entry point, not two. The legend card still appears
+        // below the bottom dock when toggled.
 
         // V2.1 Stats panel (bottom-start, above bottom toolbar)
         // Directional positioning: bottom-left in LTR, bottom-right in RTL
@@ -759,10 +708,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       button: true,
       child: FloatingActionButton(
         heroTag: 'how_connected_fab',
-        backgroundColor:
-            inPathSelectMode ? KinrelColors.darkCard : KinrelColors.orange,
-        foregroundColor: Colors.white,
-        elevation: 6,
+        // Premium: neutral dark card color — NOT orange.
+        // Orange is reserved for the single primary action (Share FAB).
+        backgroundColor: KinrelColors.darkCard,
+        foregroundColor: KinrelColors.textWhite,
+        elevation: 4,
         onPressed: () {
           if (inPathSelectMode) {
             ref.read(graphFocusProvider.notifier).exitPathSelectMode();
@@ -836,19 +786,14 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Center on Root User
+          // Recenter/fit-to-screen
           _toolbarButton(
             icon: Icons.center_focus_strong_outlined,
             tooltip: 'Center on Root',
             onPressed: _centerOnRootUser,
           ),
           // Divider
-          Container(
-            width: 1,
-            height: 24,
-            color: Colors.white.withValues(alpha: 0.1),
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-          ),
+          _divider(),
           // Filter
           _toolbarButton(
             icon: Icons.filter_list_rounded,
@@ -859,12 +804,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             highlighted: _filterVisible,
           ),
           // Divider
-          Container(
-            width: 1,
-            height: 24,
-            color: Colors.white.withValues(alpha: 0.1),
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-          ),
+          _divider(),
           // Help / Legend
           _toolbarButton(
             icon: Icons.help_outline_rounded,
@@ -874,6 +814,15 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _divider() {
+    return Container(
+      width: 1,
+      height: 24,
+      color: Colors.white.withValues(alpha: 0.1),
+      margin: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
 
