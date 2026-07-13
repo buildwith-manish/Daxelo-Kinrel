@@ -327,6 +327,12 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
+                // P3.5: Ambient particle layer — drawn FIRST (below
+                // edges and nodes) so the gold motes sit behind the
+                // graph content. 25 deterministic motes drift around
+                // the anchor node in a 6-second cycle. Reduced motion
+                // → static motes (no drift).
+                ..._buildAmbientParticleLayer(layout, flat),
                 // v2.2 Fix 2: Edge layer is FIRST in the Stack (drawn
                 // beneath nodes). This ensures edges never cover nodes
                 // and are never clipped by node RepaintBoundaries.
@@ -592,6 +598,67 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
       graphPos.dx * zoom + panX,
       graphPos.dy * zoom + panY,
     );
+  }
+
+  // ── P3.5: Ambient particle layer ────────────────────────────────────
+
+  /// Builds the ambient particle layer that drifts around the anchor
+  /// node. Returns an empty list when there's no anchor (rare) so the
+  /// Stack just skips this layer.
+  ///
+  /// The motes are drawn in GRAPH-SPACE coordinates inside the camera
+  /// Transform, so they pan/zoom with the graph automatically. The
+  /// painter is wrapped in a RepaintBoundary so only the particle
+  /// layer repaints on each animation tick (not the entire canvas).
+  List<Widget> _buildAmbientParticleLayer(
+      GraphLayoutResult layout, FlatGraphResult flat) {
+    // Find the anchor person's ID.
+    final anchorId = flat.persons
+        .firstWhere(
+          (p) => (p['isAnchor'] as bool?) ?? false,
+          orElse: () => const <String, dynamic>{},
+        )['id']
+        ?.toString();
+    if (anchorId == null) return const [];
+    final anchorPosition = layout.positions[anchorId];
+    if (anchorPosition == null) return const [];
+
+    final bool reduced = MediaQuery.disableAnimationsOf(context);
+    // Reduced motion → don't watch the animation (no ticks). The
+    // painter receives reducedMotion: true and draws static motes.
+    if (reduced) {
+      return [
+        Positioned.fill(
+          child: RepaintBoundary(
+            child: CustomPaint(
+              painter: AmbientParticlePainter(
+                t: 0.0,
+                anchorPosition: anchorPosition,
+                reducedMotion: true,
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+
+    // Normal motion → watch the animation provider and repaint on tick.
+    final animation = ref.watch(ambientParticleProvider);
+    return [
+      AnimatedBuilder(
+        animation: animation,
+        builder: (context, _) {
+          return RepaintBoundary(
+            child: CustomPaint(
+              painter: AmbientParticlePainter(
+                t: animation.value,
+                anchorPosition: anchorPosition,
+              ),
+            ),
+          );
+        },
+      ),
+    ];
   }
 
 }

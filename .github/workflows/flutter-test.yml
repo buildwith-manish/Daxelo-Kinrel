@@ -121,6 +121,12 @@ jobs:
         id: memorial_candle
         run: flutter test test/graph/rendering/memorial_candle_test.dart --reporter expanded
 
+      # ── P3.5: Ambient particle layer around anchor node ───────
+      # Hard gate — mote count, drift bounds, reduced-motion fallback.
+      - name: Run ambient particle tests (P3.5)
+        id: ambient_particle
+        run: flutter test test/graph/rendering/ambient_particle_test.dart --reporter expanded
+
       - name: Test summary
         if: always()
         run: |
@@ -138,6 +144,7 @@ jobs:
           echo "haptic_language (P3.2):   ${{ steps.haptic_language.outcome }}"
           echo "birthday_pulse (P3.3):    ${{ steps.birthday_pulse.outcome }}"
           echo "memorial_candle (P3.4):   ${{ steps.memorial_candle.outcome }}"
+          echo "ambient_particle (P3.5):  ${{ steps.ambient_particle.outcome }}"
           echo "=========================="
           # Fail the job if any suite failed
           if [ "${{ steps.edge_dedup.outcome }}" = "failure" ] || \
@@ -152,7 +159,8 @@ jobs:
              [ "${{ steps.spring_physics.outcome }}" = "failure" ] || \
              [ "${{ steps.haptic_language.outcome }}" = "failure" ] || \
              [ "${{ steps.birthday_pulse.outcome }}" = "failure" ] || \
-             [ "${{ steps.memorial_candle.outcome }}" = "failure" ]; then
+             [ "${{ steps.memorial_candle.outcome }}" = "failure" ] || \
+             [ "${{ steps.ambient_particle.outcome }}" = "failure" ]; then
             echo "At least one test suite failed."
             exit 1
           fi

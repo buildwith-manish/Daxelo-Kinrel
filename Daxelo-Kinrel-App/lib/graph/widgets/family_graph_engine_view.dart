@@ -64,6 +64,9 @@ import '../rendering/birthday_pulse_controller.dart' show birthdayPulseProvider;
 import '../rendering/birthday_util.dart' show isNearBirthday, daysUntilBirthday;
 import '../rendering/memorial_candle_flicker_controller.dart'
     show memorialCandleFlickerProvider;
+import '../rendering/ambient_particle_painter.dart' show AmbientParticlePainter;
+import '../rendering/ambient_particle_controller.dart'
+    show ambientParticleProvider;
 import '../interaction/graph_focus_state.dart'
     show
         GraphFocusNotifier,
