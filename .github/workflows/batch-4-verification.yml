@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────
-# Batch 4 Final Verification Gates — authoritative CI for Batch 4
+# Batch 4 Final Verification Gates - authoritative CI for Batch 4
 # and FINAL cross-batch release gate audit.
 # ─────────────────────────────────────────────────────────────────
 # Triggers on push to main and manual dispatch.
@@ -40,21 +40,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Print verified commit SHA
-        run: echo "Verified commit SHA: ${{ github.sha }}"
+        run: 'echo "Verified commit SHA: ${{ github.sha }}"'
 
       # P8.1 HARD GATE: kinship languages >= 9
-      - name: P8.1 — Kinship language count >= 9
+      - name: P8.1 - Kinship language count >= 9
         run: |
           set -euo pipefail
           cd Daxelo-Kinrel-App
           python3 scripts/count_kinship_languages.py
 
       # P6.4 HARD GATE: hardcoded strings
-      - name: P6.4 — Hardcoded strings check
+      - name: P6.4 - Hardcoded strings check
         run: bash scripts/check_hardcoded_strings.sh
 
       # P7.1 HARD GATE: no AI-written
-      - name: P7.1 — No AI-written claim
+      - name: P7.1 - No AI-written claim
         run: |
           set -euo pipefail
           COUNT=$(grep -r "AI-written" Daxelo-Kinrel-App/lib/ server/src/ --include="*.dart" --include="*.ts" 2>/dev/null | wc -l || echo "0")
@@ -65,7 +65,7 @@ jobs:
         run: bash scripts/check_copy_audit.sh
 
       # P6.1 HARD GATE: family_tree_canvas deleted
-      - name: P6.1 — family_tree_canvas.dart deleted
+      - name: P6.1 - family_tree_canvas.dart deleted
         run: |
           set -euo pipefail
           if [ -f "Daxelo-Kinrel-App/lib/features/family/presentation/family_tree_canvas.dart" ]; then exit 1; fi
@@ -80,7 +80,7 @@ jobs:
           if [ "$COUNT" -gt 0 ]; then exit 1; fi
 
       # Ethical reset (Batch 1)
-      - name: Ethical reset — no addictively
+      - name: Ethical reset - no addictively
         run: |
           set -euo pipefail
           COUNT=$(grep -r "addictively\|emotionally devastating" server/src/ --include="*.ts" --exclude-dir=__tests__ 2>/dev/null | wc -l || echo "0")
@@ -105,13 +105,13 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
-      - name: P8.1 — Kinship expansion tests
+      - name: P8.1 - Kinship expansion tests
         run: flutter test test/core/kinship/p8_1_kinship_expansion_test.dart --reporter expanded
-      - name: P8.2a — RTL check tests
+      - name: P8.2a - RTL check tests
         run: flutter test test/features/rtl/ --reporter expanded
-      - name: P6.4 — Localization generation
+      - name: P6.4 - Localization generation
         run: flutter gen-l10n
-      - name: P6.4 — Hardcoded strings test
+      - name: P6.4 - Hardcoded strings test
         run: flutter test test/p6_4_hardcoded_strings_test.dart --reporter expanded
 
   # ═══════════════════════════════════════════════════════════════
@@ -133,11 +133,11 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
-      - name: P8.2b — Festival theme tests
+      - name: P8.2b - Festival theme tests
         run: flutter test test/features/festival_theme/ --reporter expanded
-      - name: P8.2c — Translation tests
+      - name: P8.2c - Translation tests
         run: flutter test test/features/translation/ --reporter expanded
-      - name: P9.1 — Trivia tests
+      - name: P9.1 - Trivia tests
         run: flutter test test/features/trivia/ --reporter expanded
 
   # ═══════════════════════════════════════════════════════════════
@@ -159,23 +159,23 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
-      - name: P9.2a — Gratitude jar tests
+      - name: P9.2a - Gratitude jar tests
         run: flutter test test/features/gratitude_jar/ --reporter expanded
-      - name: P9.2b — Family values tests
+      - name: P9.2b - Family values tests
         run: flutter test test/features/family_values/ --reporter expanded
-      - name: P9.2c — Kinship pronunciation tests
+      - name: P9.2c - Kinship pronunciation tests
         run: flutter test test/features/kinship_pronunciation/ --reporter expanded
-      - name: P9.2d — Guest access tests
+      - name: P9.2d - Guest access tests
         run: flutter test test/features/guest_access/ --reporter expanded
-      - name: P9.2e — Home widget tests
+      - name: P9.2e - Home widget tests
         run: flutter test test/features/home_widgets/ --reporter expanded
-      - name: P9.2f — Shared albums tests
+      - name: P9.2f - Shared albums tests
         run: flutter test test/features/shared_albums/ --reporter expanded
-      - name: P9.2g — Relationship flags tests
+      - name: P9.2g - Relationship flags tests
         run: flutter test test/features/relationship_flags/ --reporter expanded
-      - name: P9.2h — Ambient orbit tests
+      - name: P9.2h - Ambient orbit tests
         run: flutter test test/features/ambient_orbit/ --reporter expanded
-      - name: P9.2k — Ancestor tribute tests
+      - name: P9.2k - Ancestor tribute tests
         run: flutter test test/features/ancestor_tribute/ --reporter expanded
 
   # ═══════════════════════════════════════════════════════════════
@@ -197,17 +197,17 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: dart run build_runner build --delete-conflicting-outputs
-      - name: HARD GATE 2 — P5.2 Kinship correctness suite
+      - name: HARD GATE 2 - P5.2 Kinship correctness suite
         run: flutter test test/graph/correctness/kinship_correctness_test.dart --reporter expanded
-      - name: HARD GATE 2 — P5.2 Path correctness suite
+      - name: HARD GATE 2 - P5.2 Path correctness suite
         run: flutter test test/graph/correctness/path_correctness_test.dart --reporter expanded
-      - name: P4.x — Accessibility tests
+      - name: P4.x - Accessibility tests
         run: flutter test test/graph/accessibility/reduced_motion_test.dart --reporter expanded
-      - name: P3.x — Emotional layer tests
+      - name: P3.x - Emotional layer tests
         run: flutter test test/graph/interaction/spring_physics_test.dart test/graph/interaction/haptic_language_test.dart --reporter expanded
-      - name: P6.x — Family space tests
+      - name: P6.x - Family space tests
         run: flutter test test/features/family/p6_1_family_tree_canvas_deletion_test.dart test/features/trackc/p6_2_trackc_theme_test.dart --reporter expanded
-      - name: P7.x — Story mode + journey tests
+      - name: P7.x - Story mode + journey tests
         run: flutter test test/features/story_mode/story_mode_test.dart test/features/family_journey/journey_provider_test.dart --reporter expanded
 
   # ═══════════════════════════════════════════════════════════════
@@ -322,12 +322,12 @@ jobs:
           echo "ALL FOUR BATCH AUTOMATED RELEASE GATES VERIFIED ✅"
           echo ""
           echo "Cross-batch hard gates:"
-          echo "  HARD GATE 1 — Ethical Reset: PASS"
-          echo "  HARD GATE 2 — P5.2 Kinship Correctness: PASS"
-          echo "  P6.1 — family_tree_canvas.dart deleted: PASS"
-          echo "  P6.4 — Localization hard gate: PASS"
-          echo "  P7.1 — Honest copy (no AI-written): PASS"
-          echo "  P8.1 — Kinship languages >= 9: PASS (22 languages)"
-          echo "  HARD GATE 5 — No engagement metrics: PASS"
+          echo "  HARD GATE 1 - Ethical Reset: PASS"
+          echo "  HARD GATE 2 - P5.2 Kinship Correctness: PASS"
+          echo "  P6.1 - family_tree_canvas.dart deleted: PASS"
+          echo "  P6.4 - Localization hard gate: PASS"
+          echo "  P7.1 - Honest copy (no AI-written): PASS"
+          echo "  P8.1 - Kinship languages >= 9: PASS (22 languages)"
+          echo "  HARD GATE 5 - No engagement metrics: PASS"
           echo ""
           echo "MANUAL RELEASE SIGN-OFF REMAINS REQUIRED"
