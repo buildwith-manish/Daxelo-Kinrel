@@ -15,6 +15,14 @@ const Map<String, String> languageCodeToName = {
   'sa': 'sanskrit',
   'sd': 'sindhi',
   'en': 'english',
+  // P8.1: Global kinship languages
+  'zh': 'chinese',
+  'ja': 'japanese',
+  'ko': 'korean',
+  'ar': 'arabic',
+  'es': 'spanish',
+  'fr': 'french',
+  'de': 'german',
 };
 
 final Map<String, String> languageNameToCode = {
