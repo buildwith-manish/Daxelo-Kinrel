@@ -189,6 +189,11 @@ jobs:
         id: path_correctness
         run: flutter test test/graph/correctness/path_correctness_test.dart --reporter expanded
 
+      # ── P5.3: Deferred imports for the 15 games ───────────────
+      - name: Run deferred game loader tests (P5.3)
+        id: deferred_game_loader
+        run: flutter test test/features/games/deferred_game_loader_test.dart --reporter expanded
+
       - name: Test summary
         if: always()
         run: |
@@ -219,6 +224,7 @@ jobs:
           echo "pagination (P5.1):        ${{ steps.pagination.outcome }}"
           echo "kinship_correct (P5.2):   ${{ steps.kinship_correctness.outcome }}"
           echo "path_correct (P5.2):      ${{ steps.path_correctness.outcome }}"
+          echo "deferred_games (P5.3):    ${{ steps.deferred_game_loader.outcome }}"
           echo "=========================="
           # Fail the job if any suite failed
           if [ "${{ steps.edge_dedup.outcome }}" = "failure" ] || \
@@ -246,7 +252,8 @@ jobs:
              [ "${{ steps.reduced_motion.outcome }}" = "failure" ] || \
              [ "${{ steps.pagination.outcome }}" = "failure" ] || \
              [ "${{ steps.kinship_correctness.outcome }}" = "failure" ] || \
-             [ "${{ steps.path_correctness.outcome }}" = "failure" ]; then
+             [ "${{ steps.path_correctness.outcome }}" = "failure" ] || \
+             [ "${{ steps.deferred_game_loader.outcome }}" = "failure" ]; then
             echo "At least one test suite failed."
             exit 1
           fi
