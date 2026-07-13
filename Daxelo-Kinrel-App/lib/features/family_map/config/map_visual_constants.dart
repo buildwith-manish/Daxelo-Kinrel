@@ -47,7 +47,8 @@ class MapVisualConstants {
   static const Color roadMotorway = Color(0xFF4A3F63);
 
   /// Generic non-family buildings.
-  static const Color buildingNormal = Color(0xFF1F1B2E);
+  /// Matches the value in kinrel_dark_style.json (lines 3926, 3955, 6055).
+  static const Color buildingNormal = Color(0xFF1A1B2E);
 
   // ═════════════════════════════════════════════════════════════════════
   // FAMILY BUILDING COLORS (by PlaceType — P10.2)
@@ -254,7 +255,7 @@ class MapVisualConstants {
   static const String hexRoadMinor = '#2A2440';
   static const String hexRoadPrimary = '#3A3252';
   static const String hexRoadMotorway = '#4A3F63';
-  static const String hexBuildingNormal = '#1F1B2E';
+  static const String hexBuildingNormal = '#1A1B2E';
   static const String hexBuildingCurrentHome = '#E8612A';
   static const String hexBuildingChildhoodHome = '#F59240';
   static const String hexBuildingAncestralHome = '#917520';

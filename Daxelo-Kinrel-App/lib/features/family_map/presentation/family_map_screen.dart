@@ -25,7 +25,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre/maplibre.dart';
@@ -38,10 +40,24 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/graph/graph_provider.dart';
 import '../../../core/graph/graph_service.dart';
+import '../../../core/kinship/heart_shape.dart';
+import '../../../core/utils/device_tier.dart';
+import '../../../graph/interaction/graph_focus_state.dart';
+import '../../family_journey/providers/journey_provider.dart';
+import '../config/map_visual_constants.dart';
+import '../data/place_models.dart';
 import '../widgets/family_building_layer.dart';
 import '../widgets/avatar_marker_generator.dart';
 import '../widgets/avatar_marker_overlay.dart';
+import '../widgets/household_cluster_marker.dart';
+import '../widgets/animated_relationship_path.dart';
+import '../widgets/map_focus_controller.dart';
+import '../widgets/map_timeline_scrubber.dart';
+import '../widgets/family_journey_animation.dart';
+import '../widgets/map_polish_overlay.dart';
 import '../data/map_state_persistence.dart';
+import '../data/poi_filter.dart';
+import '../data/progressive_loading.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/widgets/cached_avatar.dart';
@@ -72,7 +88,8 @@ class FamilyMapScreen extends ConsumerStatefulWidget {
   ConsumerState<FamilyMapScreen> createState() => _FamilyMapScreenState();
 }
 
-class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
+class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
+    with TickerProviderStateMixin {
   MapController? _mapController;
   bool _styleLoaded = false;
   bool _buildingsAdded = false;
@@ -90,15 +107,42 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   /// overlay decision (Rule 12 fallback) and the marker image cache.
   final AvatarMarkerLayer _avatarLayer = AvatarMarkerLayer();
 
+  /// P10.5 — Animated relationship paths. Owns the line-gradient vs
+  /// Flutter overlay decision (Rule 12 fallback) and the flow animation.
+  AnimatedRelationshipPath? _relationshipPaths;
+
+  /// P10.6 — Map Focus Mode controller. Drives camera + opacity changes
+  /// when the user taps a family member marker.
+  final MapFocusController _focusController = MapFocusController();
+
+  /// P10.8 — Progressive loading state machine. Drives the loading
+  /// indicator text + advance through 8 phases.
+  MapLoadState _loadState = const MapLoadState();
+
   /// P10.9 — Debounced session-state saver. familyId is set in initState
   /// once the family list resolves. flushNow() is called on dispose.
   DebouncedMapStateSaver? _stateSaver;
+
+  /// P10.9 — Restored session state (camera + selection + timeline year).
+  /// Null until the async load completes; the map reads it on init.
+  MapSessionState? _restoredState;
+
+  /// P10.4 — Currently-expanded household. Null when no cluster expanded.
+  String? _expandedHouseholdId;
+
+  /// P10.7 — Family Journey animation. Null when no person selected for
+  /// journey replay. Set via long-press on an avatar.
+  List<JourneyStop>? _journeyStops;
 
   /// Premium: selected pin state for relationship focus dimming.
   String? _selectedPinId;
 
   /// Premium: one-time cinematic entrance animation flag.
   bool _entranceAnimationDone = false;
+
+  /// P10.5 — Trigger for relationship path overlay repaint. Bumped by
+  /// the AnimatedRelationshipPath on each animation tick.
+  final ValueNotifier<int> _pathRepaintNotifier = ValueNotifier<int>(0);
 
   /// Bundled Kinrel dark style — loaded at runtime from the app bundle
   /// and passed as a raw JSON string to MapLibre. This bypasses the
@@ -108,12 +152,21 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   /// Based on OpenFreeMap liberty style (actively maintained, tuned
   /// label density) recolored dark with Kinrel brand colors. Includes
   /// 3D building extrusion layer.
+  ///
+  /// P10.8: POI filter is applied at load time — restaurants, cafés,
+  /// hotels, shopping, nightlife, fuel are hidden; schools, hospitals,
+  /// religious, parks, cemeteries are kept. Secondary POIs only appear
+  /// past zoom 14.
   static const _kStyleAssetPath = 'assets/map_styles/kinrel_dark_style.json';
   String? _loadedStyleJson;
 
   Future<String> _loadStyleJson() async {
     if (_loadedStyleJson != null) return _loadedStyleJson!;
-    _loadedStyleJson = await rootBundle.loadString(_kStyleAssetPath);
+    final raw = await rootBundle.loadString(_kStyleAssetPath);
+    // P10.8 — Apply POI filter at load time (Rule 15: works offline
+    // because the style is bundled). Returns input unchanged on parse
+    // error (Rule 12 graceful degradation).
+    _loadedStyleJson = applyPoiFilters(raw);
     return _loadedStyleJson!;
   }
 
@@ -127,6 +180,26 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
         ref.read(liveLocationProvider.notifier).start(familyId);
         // P10.9 — initialize the debounced state saver for this family.
         _stateSaver = DebouncedMapStateSaver(familyId);
+        // P10.9 — Load saved session state (camera, selection, timeline
+        // year, focus mode, expanded household). On load, the screen
+        // restores the camera + selection + timeline year. Gracefully
+        // returns null on first launch / corrupted JSON.
+        MapStatePersistence.load(familyId).then((state) {
+          if (state != null && mounted) {
+            setState(() => _restoredState = state);
+            // Restore selection.
+            _selectedPinId = state.selectedPersonId;
+            // Restore expanded household.
+            _expandedHouseholdId = state.expandedHouseholdId;
+            // Restore timeline year via the journey provider.
+            if (state.timelineYear != null) {
+              ref
+                  .read(journeyProvider.notifier)
+                  .setYear(state.timelineYear!);
+            }
+            debugPrint('📦 P10.9: restored map session state $state');
+          }
+        });
       }
     });
   }
@@ -136,6 +209,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     _stopBroadcastLoop();
     _familyBuildings.dispose();
     _avatarLayer.cache.clear();
+    _relationshipPaths?.dispose();
+    _pathRepaintNotifier.dispose();
     // P10.9 — flush any pending state save before tearing down.
     _stateSaver?.flushNow();
     _stateSaver?.dispose();
@@ -247,6 +322,34 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   Widget _buildMap(FamilyMapResult result) {
     _lastResult = result;
 
+    // P10.7 — Filter pins + places by the journey provider's selected year.
+    // On first build the journey state defaults to the current year, so all
+    // alive members are shown.
+    final journeyState = ref.watch(journeyProvider);
+    final filteredPins = ref
+            .read(journeyProvider.notifier)
+            .filterMapPins(result.pins);
+    final filteredPlaces = ref
+        .read(journeyProvider.notifier)
+        .filterMapPlaces(result.places);
+
+    // P10.4 — Compute households from the filtered pins.
+    final households = computeHouseholds(filteredPins);
+
+    // P10.6 — Watch the focus state (drives per-marker opacity in the overlay).
+    final focusState = ref.watch(graphFocusProvider);
+
+    // P10.6 — Reduced-motion flag from MediaQuery (matches the graph pattern).
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
+
+    // P10.9 — Initial camera from restored state (if any).
+    final restored = _restoredState;
+    final initCenter = restored != null
+        ? Geographic(lon: restored.lng, lat: restored.lat)
+        : Geographic(lon: 78.9629, lat: 20.5937);
+    final initZoom = restored?.zoom ?? 4.0;
+    final initPitch = restored?.pitch ?? 0.0;
+
     return FutureBuilder<String>(
       future: _loadStyleJson(),
       builder: (context, snapshot) {
@@ -263,6 +366,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
         // Pass the raw JSON string directly — the maplibre web plugin
         // detects strings starting with '{' as inline JSON, bypassing
         // the broken AssetManager URL resolution for asset:// paths.
+        // P10.8 — POI filter is already applied in _loadStyleJson().
         final styleJson = snapshot.data!;
 
         return Stack(
@@ -271,27 +375,138 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
             MapLibreMap(
               options: MapOptions(
                 initStyle: styleJson,
-            initCenter: Geographic(lon: 78.9629, lat: 20.5937),
-            // Premium: start from higher altitude for cinematic descent
-            initZoom: 4.0,
-            initPitch: 0,
-            minZoom: 2,
-            maxZoom: 18,
-          ),
-          onMapCreated: _onMapCreated,
-          onStyleLoaded: _onStyleLoaded,
-        ),
+                initCenter: initCenter,
+                // Premium: start from higher altitude for cinematic descent
+                initZoom: initZoom,
+                initPitch: initPitch,
+                minZoom: 2,
+                maxZoom: 18,
+              ),
+              onMapCreated: _onMapCreated,
+              onStyleLoaded: _onStyleLoaded,
+              // P10.2 / P10.6 — Handle map taps: if a family building is
+              // hit, open its bottom sheet; otherwise exit Focus Mode.
+              onEvent: (event) {
+                if (event is MapEventClick) {
+                  _handleMapTap(event.screenPoint);
+                }
+              },
+            ),
 
-        // ── Legend overlay — bottom-left ───────────────────────────
-        // The map is ALWAYS fully visible and interactive — no empty-state
-        // card replaces it. The header subtitle "0 members located" is the
-        // only indicator of empty data.
-        Positioned(
-          left: KinrelSpacing.base,
-          bottom: KinrelSpacing.base,
-          child: _MapLegend(result: result),
-        ),
-        ],
+            // ── P10.5 — Animated relationship paths overlay ─────────────
+            // Rendered as a Flutter CustomPainter overlay because maplibre
+            // 0.3.5 does not expose setPaintProperty (Rule 12 fallback).
+            // The overlay reads pin screen positions from the controller.
+            if (_styleLoaded && filteredPins.length >= 2)
+              _RelationshipPathOverlay(
+                mapController: _mapController,
+                edges: result.edges,
+                pins: filteredPins,
+                progressNotifier: _pathRepaintNotifier,
+                reducedMotion: reducedMotion,
+              ),
+
+            // ── P10.3 — Premium avatar markers (Flutter overlay path) ───
+            // Replaces the old CircleStyleLayer pins. maplibre 0.3.5's
+            // addImage API is probed at style-load time; if it throws,
+            // the overlay path is used (Rule 12). The overlay renders
+            // AvatarMarkerWidget for each pin with per-tier opacity
+            // driven by the focus state (P10.6).
+            if (_styleLoaded && filteredPins.isNotEmpty)
+              AvatarMarkerOverlay(
+                mapController: _mapController,
+                pins: filteredPins,
+                selectedPinId: _selectedPinId,
+                liveTiers: const {},
+                reducedMotion: reducedMotion,
+                onPinTap: _handlePinTap,
+                onPinLongPress: _handlePinLongPress,
+              ),
+
+            // ── P10.4 — Household cluster markers ───────────────────────
+            // Rendered as Positioned widgets for clusters with >1 member.
+            // Single-member households are rendered by the avatar overlay.
+            if (_styleLoaded && households.any((h) => h.isMulti))
+              _HouseholdClusterOverlay(
+                mapController: _mapController,
+                households: households.where((h) => h.isMulti).toList(),
+                expandedHouseholdId: _expandedHouseholdId,
+                reducedMotion: reducedMotion,
+                onClusterTap: _handleClusterTap,
+                onClusterLongPress: _handleClusterLongPress,
+              ),
+
+            // ── P10.8 — Polish overlay (vignette + fog + ambient) ───────
+            // Rendered on top of the map but below the bottom sheets.
+            // IgnorePointer so map gestures pass through.
+            const MapPolishOverlay(),
+
+            // ── Legend overlay — bottom-left ───────────────────────────
+            // The map is ALWAYS fully visible and interactive — no empty-state
+            // card replaces it. The header subtitle "0 members located" is the
+            // only indicator of empty data.
+            Positioned(
+              left: KinrelSpacing.base,
+              bottom: KinrelSpacing.base,
+              child: _MapLegend(result: result),
+            ),
+
+            // ── P10.7 — Timeline scrubber at the bottom ─────────────────
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: MapTimelineScrubber(
+                onYearChanged: (year) {
+                  // P10.9 — Save the new year (debounced).
+                  _scheduleStateSave();
+                },
+                reducedMotion: reducedMotion,
+              ),
+            ),
+
+            // ── P10.7 — Family Journey animation (when a person is selected) ──
+            if (_journeyStops != null && _journeyStops!.isNotEmpty)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 80,
+                child: FamilyJourneyAnimation(
+                  stops: _journeyStops!,
+                  reducedMotion: reducedMotion,
+                  onClose: () {
+                    setState(() => _journeyStops = null);
+                  },
+                ),
+              ),
+
+            // ── P10.8 — Progressive loading indicator ───────────────────
+            if (_loadState.phase != MapLoadPhase.complete &&
+                _loadState.message.isNotEmpty)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 8,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: KinrelColors.darkCard.withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _loadState.message,
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontFamily: KinrelTypography.bodyFont,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );
@@ -333,82 +548,288 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     _buildingsAdded = true;
     debugPrint('✅ Style loaded — 3D buildings layer is in the bundled style');
 
-    // Add family member pins as a GeoJSON source + circle layers.
+    // P10.8 — Advance progressive loading: tiles + roads/buildings are in.
+    setState(() => _loadState = _loadState.copyWith(
+      phase: MapLoadPhase.roadsAndBuildings,
+    ));
+
+    // P10.3 — Probe SymbolLayer support. If addImage throws, the
+    // AvatarMarkerOverlay (Flutter overlay path) is used. Either way,
+    // the old CircleStyleLayer pins are no longer added — the overlay
+    // renders the premium avatar markers.
+    await _avatarLayer.verifySymbolLayerSupport(style);
+    debugPrint('🎨 P10.3: avatar overlay path = ${_avatarLayer.useOverlay}');
+
     if (_lastResult != null) {
-      _addFamilyPins(style, _lastResult!);
-      // P10.2 — family buildings with per-type emotional lighting.
+      // P10.2 — Family buildings with per-type emotional lighting.
+      // Rendered as a GeoJSON source + FillExtrusionStyleLayer with a
+      // match expression on the placeType property. Tap handled in
+      // _handleMapTap via featuresAtPoint.
       if (_lastResult!.places.isNotEmpty) {
         await _familyBuildings.add(style, _lastResult!.places);
+        setState(() => _loadState = _loadState.copyWith(
+          phase: MapLoadPhase.familyPlaces,
+        ));
       }
+
+      // P10.5 — Animated relationship paths. The LineLayer is added to
+      // the style with a static color; the flow animation is rendered
+      // by the Flutter overlay (RelationshipPathOverlayPainter) driven
+      // by the AnimatedRelationshipPath controller.
+      if (_lastResult!.edges.isNotEmpty) {
+        _relationshipPaths = AnimatedRelationshipPath(
+          tickerProvider: this,
+          mapController: controller,
+          style: style,
+          reducedMotion: MediaQuery.disableAnimationsOf(context),
+          onRepaint: () => _pathRepaintNotifier.value++,
+        );
+        await _relationshipPaths!.verifyLineGradientSupport();
+        _relationshipPaths!.start();
+        setState(() => _loadState = _loadState.copyWith(
+          phase: MapLoadPhase.relationshipPaths,
+        ));
+      }
+
+      // P10.8 — Advance to markers + animations phase.
+      setState(() => _loadState = _loadState.copyWith(
+        phase: MapLoadPhase.markers,
+      ));
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          setState(() => _loadState = _loadState.copyWith(
+            phase: MapLoadPhase.complete,
+          ));
+        }
+      });
     }
   }
 
-  /// Add family member pins using GeoJSON source + circle layers.
-  void _addFamilyPins(StyleController style, FamilyMapResult result) async {
-    if (result.pins.isEmpty) return;
+  /// P10.3 / P10.6 — Handle a tap on a family member avatar marker.
+  /// Activates Focus Mode (P10.6): camera springs to center on them,
+  /// non-focus markers dim, related relationship paths brighten.
+  void _handlePinTap(MapPin pin) async {
+    setState(() => _selectedPinId = pin.personId);
 
-    // Build GeoJSON FeatureCollection of Points.
-    final features = result.pins.map((pin) {
-      return {
-        'type': 'Feature',
-        'id': pin.personId,
-        'geometry': {
-          'type': 'Point',
-          'coordinates': [pin.lng, pin.lat],
-        },
-        'properties': {
-          'personId': pin.personId,
-          'name': pin.name,
-        },
-      };
-    }).toList();
+    // P10.6 — Enter Focus Mode via the MapFocusController.
+    final focusState = ref.read(graphFocusProvider);
+    await _focusController.enterFocus(
+      mapController: _mapController,
+      style: _mapController?.style,
+      familyBuildings: _familyBuildings,
+      pin: pin,
+      focusState: focusState,
+    );
 
-    final geojson = jsonEncode({
-      'type': 'FeatureCollection',
-      'features': features,
-    });
+    // P10.9 — Save the new selection immediately.
+    _scheduleStateSave();
 
-    try {
-      await style.addSource(GeoJsonSource(id: 'family-members', data: geojson));
+    // Show the existing pin bottom sheet.
+    if (mounted) _showPinBottomSheet(pin);
+  }
 
-      // Premium: outer warm glow — larger, brighter for visibility
-      await style.addLayer(CircleStyleLayer(
-        id: 'kinrel-pin-glow',
-        sourceId: 'family-members',
-        paint: {
-          'circle-color': '#E8612A',
-          'circle-radius': 28,
-          'circle-opacity': 0.20,
-          'circle-blur': 1.2,
-        },
-      ));
-
-      // Premium: solid ring base with stronger border
-      await style.addLayer(CircleStyleLayer(
-        id: 'kinrel-pin-ring',
-        sourceId: 'family-members',
-        paint: {
-          'circle-color': '#191B2C',
-          'circle-radius': 18,
-          'circle-stroke-color': '#E8612A',
-          'circle-stroke-width': 3.0,
-          'circle-opacity': 0.95,
-        },
-      ));
-
-      // Premium: inner dot for avatar placeholder
-      await style.addLayer(CircleStyleLayer(
-        id: 'kinrel-pin-dot',
-        sourceId: 'family-members',
-        paint: {
-          'circle-color': '#E8612A',
-          'circle-radius': 6,
-          'circle-opacity': 0.9,
-        },
-      ));
-    } catch (e) {
-      debugPrint('⚠️ Failed to add family pins: $e');
+  /// P10.7 — Handle a long-press on a family member avatar marker.
+  /// Builds the journey stops from the person's linked places and
+  /// shows the FamilyJourneyAnimation widget.
+  void _handlePinLongPress(MapPin pin) {
+    final result = _lastResult;
+    if (result == null) return;
+    final linkedPlaces =
+        result.places.where((p) => p.personId == pin.personId).toList();
+    final stops = buildJourneyStops(
+      pin: pin,
+      linkedPlaces: linkedPlaces,
+    );
+    if (stops.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No journey data for this family member yet.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
     }
+    setState(() => _journeyStops = stops);
+  }
+
+  /// P10.4 — Handle a tap on a household cluster marker.
+  /// If zoom < clusterMaxZoom, zoom in (spring physics via P3.1).
+  /// Otherwise, expand the cluster to show individual members in a
+  /// bottom sheet.
+  void _handleClusterTap(Household household) {
+    final controller = _mapController;
+    if (controller == null) return;
+    final currentZoom = controller.camera?.zoom ?? 14.0;
+    if (currentZoom < MapVisualConstants.clusterMaxZoom) {
+      controller.animateCamera(
+        center: Geographic(lon: household.lng, lat: household.lat),
+        zoom: MapVisualConstants.clusterMaxZoom + 1,
+      );
+    } else {
+      setState(() => _expandedHouseholdId = household.id);
+      _showHouseholdBottomSheet(household);
+    }
+    _scheduleStateSave();
+  }
+
+  /// P10.4 — Handle a long-press on a household cluster marker.
+  /// Temporarily expands the cluster to show individual members.
+  void _handleClusterLongPress(Household household) {
+    setState(() => _expandedHouseholdId = household.id);
+    _showHouseholdBottomSheet(household);
+    _scheduleStateSave();
+  }
+
+  /// P10.2 — Handle a tap on the map background. If the tap hits a
+  /// family building (queried via featuresAtPoint on the
+  /// kinrel-family-buildings-fallback layer), open the
+  /// FamilyBuildingBottomSheet. Otherwise, exit Focus Mode.
+  void _handleMapTap(Offset screenPoint) async {
+    final controller = _mapController;
+    if (controller == null) return;
+
+    // Query family buildings at the tap point.
+    try {
+      final features = controller.featuresAtPoint(
+        screenPoint,
+        layerIds: const [
+          FamilyBuildingLayer.circleFallbackLayerId,
+          FamilyBuildingLayer.extrusionLayerId,
+        ],
+      );
+      if (features.isNotEmpty) {
+        final feature = features.first;
+        final props = feature.properties ?? const <String, dynamic>{};
+        final placeId = props['placeId'] as String?;
+        if (placeId != null) {
+          final place = _lastResult?.places.firstWhere(
+            (p) => p.id == placeId,
+            orElse: () => _lastResult!.places.first,
+          );
+          if (place != null && mounted) {
+            _showFamilyBuildingBottomSheet(place);
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ featuresAtPoint failed: $e');
+    }
+
+    // P10.6 — Tap empty map → exit Focus Mode.
+    if (_selectedPinId != null) {
+      setState(() => _selectedPinId = null);
+      await _focusController.exitFocus(
+        mapController: _mapController,
+        style: _mapController?.style,
+        familyBuildings: _familyBuildings,
+      );
+      _scheduleStateSave();
+    }
+  }
+
+  /// P10.2 — Show the family building bottom sheet (reuses the
+  /// FamilyBuildingBottomSheet widget from family_building_layer.dart).
+  void _showFamilyBuildingBottomSheet(FamilyPlace place) {
+    final linkedPersonName = _lastResult?.pins
+        .firstWhere(
+          (p) => p.personId == place.personId,
+          orElse: () => _lastResult!.pins.first,
+        )
+        .name;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (context) => FamilyBuildingBottomSheet(
+        place: place,
+        linkedPersonName: linkedPersonName,
+      ),
+    );
+  }
+
+  /// P10.4 — Show the household members bottom sheet.
+  void _showHouseholdBottomSheet(Household household) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Household — ${household.size} members',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...household.members.map((pin) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      backgroundColor: KinrelColors.darkElevated,
+                      child: Text(
+                        _initials(pin.name),
+                        style: TextStyle(color: KinrelColors.orange),
+                      ),
+                    ),
+                    title: Text(
+                      pin.name,
+                      style: TextStyle(color: KinrelColors.textWhite),
+                    ),
+                    subtitle: Text(
+                      pin.city,
+                      style: TextStyle(color: KinrelColors.textSilver),
+                    ),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _handlePinTap(pin);
+                    },
+                  )),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// P10.9 — Schedule a debounced save of the current session state.
+  /// Reads the camera position from the MapController + the current
+  /// selection / timeline year / focus mode / expanded household.
+  void _scheduleStateSave() {
+    final saver = _stateSaver;
+    final controller = _mapController;
+    if (saver == null || controller == null) return;
+    final cam = controller.camera;
+    final journeyState = ref.read(journeyProvider);
+    final state = MapSessionState(
+      lat: cam?.center.lat ?? 20.5937,
+      lng: cam?.center.lon ?? 78.9629,
+      zoom: cam?.zoom ?? 4.0,
+      pitch: cam?.pitch ?? 0.0,
+      bearing: cam?.bearing ?? 0.0,
+      selectedPersonId: _selectedPinId,
+      timelineYear: journeyState.selectedYear,
+      isFocusMode: _selectedPinId != null,
+      expandedHouseholdId: _expandedHouseholdId,
+    );
+    saver.schedule(state);
   }
 
   /// Dev test: animate the camera to Bengaluru at zoom 16, tilt 45°
@@ -1530,6 +1951,257 @@ class _MapLegend extends StatelessWidget {
             SizedBox(height: KinrelSpacing.xl),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// P10.5 — RELATIONSHIP PATH OVERLAY (Flutter overlay fallback)
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Renders relationship edges as a Flutter CustomPainter overlay because
+// maplibre 0.3.5 does not expose setPaintProperty (Rule 12 fallback).
+// Reads pin screen positions from the MapController on every repaint
+// triggered by the [progressNotifier].
+
+class _RelationshipPathOverlay extends StatefulWidget {
+  const _RelationshipPathOverlay({
+    required this.mapController,
+    required this.edges,
+    required this.pins,
+    required this.progressNotifier,
+    required this.reducedMotion,
+  });
+
+  final MapController? mapController;
+  final List<MapRelationshipEdge> edges;
+  final List<MapPin> pins;
+  final ValueNotifier<int> progressNotifier;
+  final bool reducedMotion;
+
+  @override
+  State<_RelationshipPathOverlay> createState() =>
+      _RelationshipPathOverlayState();
+}
+
+class _RelationshipPathOverlayState extends State<_RelationshipPathOverlay>
+    with SingleTickerProviderStateMixin {
+  late final Ticker _ticker;
+  final Map<String, Offset> _screenPositions = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Ticker(_onTick);
+    _ticker.start();
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  void _onTick(Duration elapsed) {
+    final controller = widget.mapController;
+    if (controller == null) return;
+    bool changed = false;
+    for (final pin in widget.pins) {
+      try {
+        final screen =
+            controller.toScreenLocation(Geographic(lon: pin.lng, lat: pin.lat));
+        if (_screenPositions[pin.personId] != screen) {
+          _screenPositions[pin.personId] = screen;
+          changed = true;
+        }
+      } catch (_) {
+        // ignore
+      }
+    }
+    if (changed && mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: CustomPaint(
+        size: Size.infinite,
+        painter: _RelationshipPathPainter(
+          edges: widget.edges,
+          screenPositions: _screenPositions,
+          progress: widget.reducedMotion
+              ? 0.0
+              : (DateTime.now().millisecondsSinceEpoch %
+                      MapVisualConstants.relationshipFlowCycle.inMilliseconds)
+                  .toDouble() /
+                  MapVisualConstants.relationshipFlowCycle.inMilliseconds,
+          repaintNotifier: widget.progressNotifier,
+        ),
+      ),
+    );
+  }
+}
+
+class _RelationshipPathPainter extends CustomPainter {
+  _RelationshipPathPainter({
+    required this.edges,
+    required this.screenPositions,
+    required this.progress,
+    required this.repaintNotifier,
+  }) : super(repaint: repaintNotifier);
+
+  final List<MapRelationshipEdge> edges;
+  final Map<String, Offset> screenPositions;
+  final double progress;
+  final ValueNotifier<int> repaintNotifier;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (edges.isEmpty || screenPositions.length < 2) return;
+    for (final edge in edges) {
+      final a = screenPositions[edge.pinA.personId];
+      final b = screenPositions[edge.pinB.personId];
+      if (a == null || b == null) continue;
+      _drawEdge(canvas, edge, a, b);
+    }
+  }
+
+  void _drawEdge(Canvas canvas, MapRelationshipEdge edge, Offset a, Offset b) {
+    final category = categorizeRelationship(edge.relationshipKey);
+    final style = PathStyle.forCategory(category);
+    final paint = Paint()
+      ..color = style.color
+      ..strokeWidth = style.width
+      ..style = ui.PaintingStyle.stroke
+      ..strokeCap = ui.StrokeCap.round;
+
+    if (style.dashed) {
+      _drawDashedLine(canvas, a, b, paint);
+    } else {
+      canvas.drawLine(a, b, paint);
+    }
+
+    if (style.showHeartMidpoint) {
+      final mid = (a + b) / 2;
+      final path = HeartShape.buildPath(center: mid, width: 14, height: 14);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = KinrelColors.orange
+          ..style = ui.PaintingStyle.fill,
+      );
+    }
+  }
+
+  void _drawDashedLine(Canvas canvas, Offset a, Offset b, Paint paint) {
+    const dashWidth = 6.0;
+    const dashGap = 4.0;
+    final total = dashWidth + dashGap;
+    final distance = (b - a).distance;
+    if (distance == 0) return;
+    final count = (distance / total).floor();
+    final dir = (b - a) / distance;
+    for (var i = 0; i < count; i++) {
+      final start = a + dir * (i * total);
+      final end = start + dir * dashWidth;
+      canvas.drawLine(start, end, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RelationshipPathPainter old) =>
+      old.progress != progress || old.edges != edges;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// P10.4 — HOUSEHOLD CLUSTER OVERLAY
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Renders HouseholdClusterMarkerWidget for each multi-member household,
+// positioned via MapController.toScreenLocation on every frame.
+
+class _HouseholdClusterOverlay extends StatefulWidget {
+  const _HouseholdClusterOverlay({
+    required this.mapController,
+    required this.households,
+    required this.expandedHouseholdId,
+    required this.reducedMotion,
+    required this.onClusterTap,
+    required this.onClusterLongPress,
+  });
+
+  final MapController? mapController;
+  final List<Household> households;
+  final String? expandedHouseholdId;
+  final bool reducedMotion;
+  final void Function(Household) onClusterTap;
+  final void Function(Household) onClusterLongPress;
+
+  @override
+  State<_HouseholdClusterOverlay> createState() =>
+      _HouseholdClusterOverlayState();
+}
+
+class _HouseholdClusterOverlayState extends State<_HouseholdClusterOverlay>
+    with SingleTickerProviderStateMixin {
+  late final Ticker _ticker;
+  final Map<String, Offset> _positions = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Ticker(_onTick);
+    _ticker.start();
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  void _onTick(Duration elapsed) {
+    final controller = widget.mapController;
+    if (controller == null) return;
+    bool changed = false;
+    for (final h in widget.households) {
+      try {
+        final screen =
+            controller.toScreenLocation(Geographic(lon: h.lng, lat: h.lat));
+        if (_positions[h.id] != screen) {
+          _positions[h.id] = screen;
+          changed = true;
+        }
+      } catch (_) {
+        // ignore
+      }
+    }
+    if (changed && mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        for (final h in widget.households)
+          _buildPositioned(h),
+      ],
+    );
+  }
+
+  Widget _buildPositioned(Household h) {
+    final pos = _positions[h.id];
+    if (pos == null) return const SizedBox.shrink();
+    final size = MapVisualConstants.clusterMarkerSize;
+    return Positioned(
+      left: pos.dx - size / 2,
+      top: pos.dy - size / 2,
+      child: HouseholdClusterMarkerWidget(
+        household: h,
+        reducedMotion: widget.reducedMotion,
+        onTap: () => widget.onClusterTap(h),
+        onLongPress: () => widget.onClusterLongPress(h),
       ),
     );
   }
