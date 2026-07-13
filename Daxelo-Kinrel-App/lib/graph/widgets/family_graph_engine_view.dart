@@ -139,6 +139,7 @@ import '../rendering/semantic_zoom.dart'
 import '../rendering/viewport_culler.dart' show ViewportCuller;
 import 'graph_node.dart' show GraphNode, NodeState;
 import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, OnThisDayEventType, showOnThisDayEventSheet;
+import 'graph_minimap.dart' show GraphMiniMap;
 import 'graph_legend.dart' show GraphLegend;
 import 'graph_quick_actions.dart' show GraphQuickActions;
 import 'graph_relationship_labels.dart' show GraphPersonData;
@@ -698,6 +699,32 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                           tooltip: 'Share graph',
                           child: const Icon(Icons.ios_share),
                         ),
+                      ),
+                    ),
+                  // P4.1: Mini-map — shown when graph has > 30 nodes.
+                  // Tap to center camera on the tapped graph-space location.
+                  if (flat.persons.length > 30)
+                    Positioned(
+                      right: 8,
+                      bottom: 8,
+                      child: GraphMiniMap(
+                        camera: _camera,
+                        positions: layout.positions,
+                        viewportSize: _viewportSize,
+                        anchorId: _SubtreeMethods._findAnchorId(flat, viewerPersonId),
+                        onTap: (graphSpaceTarget) {
+                          final bool reduced =
+                              MediaQuery.disableAnimationsOf(context);
+                          // Center the camera on the tapped location.
+                          _camera.animateToWithSpring(
+                            -graphSpaceTarget.dx * _camera.zoomLevel +
+                                _viewportSize.width / 2,
+                            -graphSpaceTarget.dy * _camera.zoomLevel +
+                                _viewportSize.height / 2,
+                            _camera.zoomLevel,
+                            reducedMotion: reduced,
+                          );
+                        },
                       ),
                     ),
                 ],
