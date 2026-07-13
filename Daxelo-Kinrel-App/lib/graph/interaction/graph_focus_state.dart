@@ -118,6 +118,11 @@ class GraphFocusState {
     this.pathSelectPhase = PathSelectPhase.idle,
     this.pathSelectFromId,
     this.pathSelectToId,
+    // P10.6: map focus flag — true when the focus is driven by the map,
+    // false (default) when driven by the graph. Same focus state drives
+    // both screens without duplicating state (Rule 3 — reuse existing
+    // architecture, do NOT create MapFocusState).
+    this.isMapFocus = false,
   });
 
   /// The person currently defining graph context, or null when no
@@ -156,7 +161,27 @@ class GraphFocusState {
   /// The second node selected in path-select mode ("to").
   final String? pathSelectToId;
 
+  // ── P10.6: Map Focus Mode ─────────────────────────────────────────────
+
+  /// True when the current focus was triggered from the family map
+  /// (rather than the graph). The map's [MapFocusController] reads
+  /// this to decide whether to drive the camera and layer opacity.
+  final bool isMapFocus;
+
   static const GraphFocusState empty = GraphFocusState();
+
+  /// Convenience: is any person focused right now?
+  bool get hasFocus => focusedPersonId != null;
+
+  /// Convenience: is [personId] the focused person, a first-degree
+  /// neighbour, or a second-degree neighbour? Used by the map screen
+  /// to decide per-marker opacity in Focus Mode.
+  FocusTier tierOf(String personId) {
+    if (personId == focusedPersonId) return FocusTier.focused;
+    if (firstDegreeIds.contains(personId)) return FocusTier.firstDegree;
+    if (secondDegreeIds.contains(personId)) return FocusTier.secondDegree;
+    return FocusTier.unrelated;
+  }
 
   GraphFocusState copyWith({
     String? focusedPersonId,
@@ -167,6 +192,7 @@ class GraphFocusState {
     PathSelectPhase? pathSelectPhase,
     String? pathSelectFromId,
     String? pathSelectToId,
+    bool? isMapFocus,
   }) {
     return GraphFocusState(
       focusedPersonId: focusedPersonId ?? this.focusedPersonId,
@@ -177,6 +203,7 @@ class GraphFocusState {
       pathSelectPhase: pathSelectPhase ?? this.pathSelectPhase,
       pathSelectFromId: pathSelectFromId ?? this.pathSelectFromId,
       pathSelectToId: pathSelectToId ?? this.pathSelectToId,
+      isMapFocus: isMapFocus ?? this.isMapFocus,
     );
   }
 
@@ -185,16 +212,33 @@ class GraphFocusState {
       identical(this, other) ||
       other is GraphFocusState &&
           other.focusedPersonId == focusedPersonId &&
-          other.revision == revision;
+          other.revision == revision &&
+          other.isMapFocus == isMapFocus;
 
   @override
-  int get hashCode => Object.hash(focusedPersonId, revision);
+  int get hashCode => Object.hash(focusedPersonId, revision, isMapFocus);
 
   @override
   String toString() =>
       'GraphFocusState(focused=$focusedPersonId, '
       'first=${firstDegreeIds.length}, second=${secondDegreeIds.length}, '
-      'history=${history.length}, rev=$revision)';
+      'history=${history.length}, rev=$revision, isMapFocus=$isMapFocus)';
+}
+
+/// Per-person focus tier, used by the map screen to drive per-marker
+/// opacity in Focus Mode (P10.6).
+enum FocusTier {
+  /// The focused person themselves.
+  focused,
+
+  /// Directly related to the focused person.
+  firstDegree,
+
+  /// Two hops away.
+  secondDegree,
+
+  /// No relationship to the focused person.
+  unrelated,
 }
 
 /// StateNotifier that owns the focus state + history + neighbour sets.
