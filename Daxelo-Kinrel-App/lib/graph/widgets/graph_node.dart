@@ -981,7 +981,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     if (widget.photoUrl != null &&
         widget.photoUrl!.isNotEmpty &&
         !widget.isAnonymous) {
-      return ClipOval(
+      final avatar = ClipOval(
         child: CachedAvatar(
           imageUrl: widget.photoUrl,
           radius: diameter / 2,
@@ -991,6 +991,24 @@ class _GraphNodeState extends ConsumerState<GraphNode>
           errorWidget: _buildInitialsContent(diameter),
         ),
       );
+      // P3.6: Heritage/sepia texture on ancestor nodes.
+      // Ancestors (generationIndex <= -2) get full sepia.
+      // Parents (generationIndex == -1) get light sepia (50% mix).
+      // Descendants (>= 0) get no sepia.
+      // The sepia is a luminance shift — color-blind safe. The memorial
+      // candle (P3.4) paints on top of the sepia for deceased ancestors.
+      if (widget.generationIndex <= -2) {
+        return ColorFiltered(
+          colorFilter: const ColorFilter.matrix(_kFullSepiaMatrix),
+          child: avatar,
+        );
+      } else if (widget.generationIndex == -1) {
+        return ColorFiltered(
+          colorFilter: const ColorFilter.matrix(_kLightSepiaMatrix),
+          child: avatar,
+        );
+      }
+      return avatar;
     }
 
     // Fallback: initials
@@ -1013,6 +1031,37 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     );
   }
 }
+
+// ── P3.6: Sepia matrices ──────────────────────────────────────────────
+//
+// ColorFilter matrices for the heritage/sepia wash on ancestor nodes.
+// Ancestors (generationIndex <= -2) get full sepia; parents (-1) get a
+// 50% mix between original color and full sepia. The matrices apply
+// the classic sepia tone transform:
+//   R' = 0.393*R + 0.769*G + 0.189*B
+//   G' = 0.349*R + 0.686*G + 0.168*B
+//   B' = 0.272*R + 0.534*G + 0.131*B
+//
+// The 50% mix for parents is achieved by lerping each matrix coefficient
+// toward the identity matrix by 50%.
+
+const List<double> _kFullSepiaMatrix = [
+  0.393, 0.769, 0.189, 0, 0,
+  0.349, 0.686, 0.168, 0, 0,
+  0.272, 0.534, 0.131, 0, 0,
+  0,     0,     0,     1, 0,
+];
+
+const List<double> _kLightSepiaMatrix = [
+  // 50% mix between identity and full sepia.
+  // identity[0]=1, sepia[0]=0.393 → 0.5*(1+0.393) = 0.6965
+  // identity[1]=0, sepia[1]=0.769 → 0.5*(0+0.769) = 0.3845
+  // etc.
+  0.6965, 0.3845, 0.0945, 0, 0,
+  0.1745, 0.8430, 0.0840, 0, 0,
+  0.1360, 0.2670, 0.5655, 0, 0,
+  0,      0,      0,      1, 0,
+];
 
 // ═══════════════════════════════════════════════════════════════════════
 // SHIMMER PAINTER

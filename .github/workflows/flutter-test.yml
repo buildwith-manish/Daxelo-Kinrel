@@ -127,6 +127,12 @@ jobs:
         id: ambient_particle
         run: flutter test test/graph/rendering/ambient_particle_test.dart --reporter expanded
 
+      # ── P3.6: Heritage/sepia texture on ancestor nodes ────────
+      # Hard gate — sepia matrix coefficients + application by generation.
+      - name: Run heritage sepia tests (P3.6)
+        id: heritage_sepia
+        run: flutter test test/graph/rendering/heritage_sepia_test.dart --reporter expanded
+
       - name: Test summary
         if: always()
         run: |
@@ -145,6 +151,7 @@ jobs:
           echo "birthday_pulse (P3.3):    ${{ steps.birthday_pulse.outcome }}"
           echo "memorial_candle (P3.4):   ${{ steps.memorial_candle.outcome }}"
           echo "ambient_particle (P3.5):  ${{ steps.ambient_particle.outcome }}"
+          echo "heritage_sepia (P3.6):    ${{ steps.heritage_sepia.outcome }}"
           echo "=========================="
           # Fail the job if any suite failed
           if [ "${{ steps.edge_dedup.outcome }}" = "failure" ] || \
@@ -160,7 +167,8 @@ jobs:
              [ "${{ steps.haptic_language.outcome }}" = "failure" ] || \
              [ "${{ steps.birthday_pulse.outcome }}" = "failure" ] || \
              [ "${{ steps.memorial_candle.outcome }}" = "failure" ] || \
-             [ "${{ steps.ambient_particle.outcome }}" = "failure" ]; then
+             [ "${{ steps.ambient_particle.outcome }}" = "failure" ] || \
+             [ "${{ steps.heritage_sepia.outcome }}" = "failure" ]; then
             echo "At least one test suite failed."
             exit 1
           fi
