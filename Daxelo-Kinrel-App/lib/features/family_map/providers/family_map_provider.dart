@@ -11,8 +11,11 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/services/supabase_service.dart' show supabaseProvider;
 import '../data/city_coordinates.dart';
+import '../data/place_models.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // MAP PIN MODEL
@@ -27,6 +30,8 @@ class MapPin {
     required this.photoUrl,
     required this.lat,
     required this.lng,
+    this.placeType,
+    this.placeId,
   });
 
   /// Unique ID of the person.
@@ -46,6 +51,14 @@ class MapPin {
 
   /// Resolved longitude.
   final double lng;
+
+  /// P10.1 — Optional semantic place type. Null when the pin is a
+  /// city-only pin (no linked Place row). When present, drives the
+  /// building lighting in P10.2.
+  final PlaceType? placeType;
+
+  /// P10.1 — Optional Place row ID this pin is linked to.
+  final String? placeId;
 
   @override
   bool operator ==(Object other) =>
@@ -93,6 +106,7 @@ class FamilyMapResult {
     required this.unpinnedCount,
     this.edges = const [],
     this.familyId = '',
+    this.places = const [],
   });
 
   /// Members that were resolved to coordinates.
@@ -109,6 +123,12 @@ class FamilyMapResult {
 
   /// Family ID needed by GraphService at tap time for path resolution.
   final String familyId;
+
+  /// P10.1 — Family places (homes, birthplaces, memorials, etc.).
+  /// Used by P10.2 (family buildings) and P10.7 (timeline filtering).
+  /// Empty list when the family has no places or when offline cache
+  /// is empty (degrades gracefully — Rule 15).
+  final List<FamilyPlace> places;
 
   /// Number of distinct cities among pinned members.
   int get distinctCityCount =>
@@ -128,6 +148,37 @@ class UnpinnedMember {
   final String name;
   final String city;
   final String? photoUrl;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// P10.1 — Family Place fetcher
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Fetches family places from Supabase (Place table — P10.1 migration).
+///
+/// Returns an empty list on any failure so the map continues to render
+/// without places (Rule 15 — graceful offline / network-failure handling).
+/// Mirrors the existing RLS-scoped family data pattern.
+Future<List<FamilyPlace>> _fetchFamilyPlaces(
+  SupabaseClient? client,
+  String familyId,
+) async {
+  if (client == null) return const [];
+  try {
+    final rows = await client
+        .from('Place')
+        .select()
+        .eq('familyId', familyId)
+        .order('createdAt', ascending: false);
+    if (rows.isEmpty) return const [];
+    return rows
+        .map<FamilyPlace>(
+            (row) => FamilyPlace.fromJson(row as Map<String, dynamic>))
+        .toList(growable: false);
+  } catch (e) {
+    debugPrint('⚠️ familyMapProvider: place fetch failed: $e');
+    return const [];
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -175,6 +226,12 @@ final familyMapProvider =
       familyId: '',
     );
   }
+
+  // P10.1 — Fetch family places in parallel with the existing pin / edge
+  // resolution below. RLS ensures only this family's places come back.
+  // Rule 15: gracefully degrades to an empty list on network failure.
+  final supabaseClient = ref.read(supabaseProvider);
+  final placesFuture = _fetchFamilyPlaces(supabaseClient, familyId);
 
   final pins = <MapPin>[];
   final unpinned = <UnpinnedMember>[];
@@ -249,11 +306,35 @@ final familyMapProvider =
     edges = [];
   }
 
+  // P10.1 — Await the parallel place fetch and merge linked PlaceType into
+  // the corresponding MapPin so P10.2 can render per-type building lighting
+  // without re-reading the Place list.
+  final places = await placesFuture;
+  final placeByPersonId = <String, FamilyPlace>{
+    for (final p in places)
+      if (p.personId != null) p.personId!: p,
+  };
+  final enrichedPins = pins.map((pin) {
+    final linked = placeByPersonId[pin.personId];
+    if (linked == null) return pin;
+    return MapPin(
+      personId: pin.personId,
+      name: pin.name,
+      city: pin.city,
+      photoUrl: pin.photoUrl,
+      lat: pin.lat,
+      lng: pin.lng,
+      placeType: linked.placeType,
+      placeId: linked.id,
+    );
+  }).toList(growable: false);
+
   return FamilyMapResult(
-    pins: pins,
+    pins: enrichedPins,
     unpinnedMembers: unpinned,
     unpinnedCount: unpinned.length,
     edges: edges,
     familyId: familyId,
+    places: places,
   );
 });

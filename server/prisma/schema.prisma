@@ -692,6 +692,9 @@ model Family {
   // ── Social System Fields ──
   isPublic Boolean @default(false) // Family visibility: true = non-members can see tree (read-only)
 
+  // ── P10.1 — Family Atlas: family places ──
+  places                        Place[]                       @relation("FamilyPlaces")
+
   // ── Track C v2.0 — Kinrel Governance Engine back-relations ──
   constitution                 FamilyConstitution?           @relation("FamilyConstitution")
   constitutionVersions         ConstitutionVersion[]         @relation("ConstitutionVersionFamily")
@@ -789,6 +792,9 @@ model Person {
 
   relationshipsFrom Relationship[] @relation("RelationshipFrom")
   relationshipsTo   Relationship[] @relation("RelationshipTo")
+
+  // ── P10.1 — Family Atlas: places linked to this person (optional) ──
+  places Place[] @relation("PersonPlaces")
 
   feedPosts       FamilyPost[]
   privacySettings PersonPrivacySetting?
@@ -3605,4 +3611,43 @@ model LearnedClosenessWeights {
   updatedAt             DateTime @default(now()) @updatedAt @db.Timestamptz
 
   @@map("LearnedClosenessWeights")
+}
+
+// ── P10.1 — Family Place (Phase 10 Family Atlas) ─────────────────────────────
+// A meaningful location tied to a family's story: homes, birthplaces,
+// wedding venues, memorials, family businesses, schools, and other
+// important places. Drives the family-building emotional lighting in
+// P10.2 and the timeline filtering in P10.7.
+//
+// RLS: family-scoped — only family members can read/write their places.
+// Place addresses are family-private (not exposed via the public map).
+//
+// `validFrom` / `validTo` are time-window bounds used by the timeline
+// scrubber (P10.7). Null on either side means "unbounded" on that side.
+
+model Place {
+  id          String   @id @default(cuid())
+  familyId    String
+  name        String
+  placeType   String   // current_home, childhood_home, ancestral_home,
+                       // birthplace, wedding, memorial, family_business,
+                       // school, important_place
+  lat         Float
+  lng         Float
+  address     String?
+  personId    String?  // optional link to a Person
+  description String?
+  validFrom   DateTime? // for timeline filtering (P10.7)
+  validTo     DateTime? // for timeline filtering (P10.7)
+  memoryCount Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  family Family  @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  person Person? @relation("PersonPlaces", fields: [personId], references: [id])
+
+  @@index([familyId])
+  @@index([personId])
+  @@index([placeType])
+  @@map("Place")
 }
