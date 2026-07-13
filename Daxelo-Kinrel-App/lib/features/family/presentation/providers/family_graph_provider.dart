@@ -75,11 +75,19 @@ class FlatGraphResult {
   /// when [isTruncated] is true).
   final int? totalCount;
 
+  /// P5.1: Pagination offset of the current page (0 for first page).
+  final int paginationOffset;
+
+  /// P5.1: Pagination limit of the current page.
+  final int paginationLimit;
+
   const FlatGraphResult({
     required this.persons,
     required this.relationships,
     this.isTruncated = false,
     this.totalCount,
+    this.paginationOffset = 0,
+    this.paginationLimit = 0,
   });
 
   /// Parses the Supabase RPC JSONB response into a [FlatGraphResult].
@@ -179,6 +187,49 @@ class FlatGraphResult {
       relationships: dedupedRelationships,
       isTruncated: json['isTruncated'] as bool? ?? false,
       totalCount: json['totalCount'] as int?,
+      // P5.1: parse pagination metadata from the paginated RPC.
+      paginationOffset: (json['offset'] as num?)?.toInt() ?? 0,
+      paginationLimit: (json['limit'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// P5.1: Returns true if there are more pages to fetch.
+  bool get hasMorePages {
+    if (totalCount == null) return false;
+    return paginationOffset + persons.length < totalCount!;
+  }
+
+  /// P5.1: Merges this result with the [next] page, deduplicating
+  /// persons and relationships. Returns a new FlatGraphResult with
+  /// the combined data.
+  FlatGraphResult mergeWithPage(FlatGraphResult next) {
+    final seenPersonIds = persons.map((p) => p['id']?.toString()).toSet();
+    final mergedPersons = List<Map<String, dynamic>>.from(persons);
+    for (final p in next.persons) {
+      final id = p['id']?.toString();
+      if (id != null && !seenPersonIds.contains(id)) {
+        mergedPersons.add(p);
+        seenPersonIds.add(id);
+      }
+    }
+
+    final seenEdgeIds = relationships.map((r) => r['id']?.toString()).toSet();
+    final mergedRelationships = List<Map<String, dynamic>>.from(relationships);
+    for (final r in next.relationships) {
+      final id = r['id']?.toString();
+      if (id != null && !seenEdgeIds.contains(id)) {
+        mergedRelationships.add(r);
+        seenEdgeIds.add(id);
+      }
+    }
+
+    return FlatGraphResult(
+      persons: mergedPersons,
+      relationships: mergedRelationships,
+      isTruncated: next.isTruncated,
+      totalCount: next.totalCount,
+      paginationOffset: paginationOffset,
+      paginationLimit: paginationLimit,
     );
   }
 

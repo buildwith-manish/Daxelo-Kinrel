@@ -173,6 +173,11 @@ jobs:
         id: reduced_motion
         run: flutter test test/graph/accessibility/reduced_motion_test.dart --reporter expanded
 
+      # ── P5.1: Server-side pagination on graph fetch ───────────
+      - name: Run pagination tests (P5.1)
+        id: pagination
+        run: flutter test test/features/family/pagination_test.dart --reporter expanded
+
       - name: Test summary
         if: always()
         run: |
@@ -200,6 +205,7 @@ jobs:
           echo "outline_view (P4.5):      ${{ steps.graph_outline_view.outcome }}"
           echo "wcag_contrast (P4.6):     ${{ steps.wcag_contrast.outcome }}"
           echo "reduced_motion (P4.7):    ${{ steps.reduced_motion.outcome }}"
+          echo "pagination (P5.1):        ${{ steps.pagination.outcome }}"
           echo "=========================="
           # Fail the job if any suite failed
           if [ "${{ steps.edge_dedup.outcome }}" = "failure" ] || \
@@ -224,7 +230,8 @@ jobs:
              [ "${{ steps.keyboard_navigation.outcome }}" = "failure" ] || \
              [ "${{ steps.graph_outline_view.outcome }}" = "failure" ] || \
              [ "${{ steps.wcag_contrast.outcome }}" = "failure" ] || \
-             [ "${{ steps.reduced_motion.outcome }}" = "failure" ]; then
+             [ "${{ steps.reduced_motion.outcome }}" = "failure" ] || \
+             [ "${{ steps.pagination.outcome }}" = "failure" ]; then
             echo "At least one test suite failed."
             exit 1
           fi
