@@ -118,6 +118,15 @@ const defaultThresholds = SemanticZoomThresholds();
 /// relationship label, and spouse heart marker that make the graph
 /// readable.
 ///
+/// [focusActive] (optional, P2.3) — when true, the tier is pinned to
+/// at least [SemanticTier.medium] so the focus subgraph (focused node +
+/// first-degree neighbours) remains visible with names even if the user
+/// zooms out to FAR. This implements Vision §5 Layer 1: "pair existing
+/// semantic zoom tiers with focus mode." The focused node itself is
+/// always discoverable at FAR via [shouldOverrideFarTier] (larger dot +
+/// accent ring), but the MEDIUM floor ensures the surrounding context
+/// (names, simplified edges) remains legible during focus.
+///
 /// Returns the tier the graph SHOULD be in, accounting for hysteresis:
 ///   • If currently NEAR and zoom ≥ nearLeave → stay NEAR
 ///   • If currently NEAR and zoom < nearLeave → switch to MEDIUM
@@ -134,6 +143,7 @@ SemanticTier computeSemanticTier(
   SemanticTier? currentTier,
   SemanticZoomThresholds thresholds = defaultThresholds,
   int? memberCount,
+  bool focusActive = false,
 }) {
   // Small-family bypass: graphs under 30 members never degrade below
   // NEAR. The semantic zoom tiers (MEDIUM/FAR) exist to keep LARGE
@@ -144,6 +154,29 @@ SemanticTier computeSemanticTier(
     return SemanticTier.near;
   }
 
+  // P2.3: Focus-mode override — when focus is active, the tier is pinned
+  // to at least MEDIUM so the focus subgraph remains legible. The user
+  // can still zoom out, but the graph won't degrade to FAR (unlabeled
+  // dots) while a person is focused. This pairs semantic zoom with
+  // focus mode per Vision §5 Layer 1.
+  if (focusActive) {
+    final tier = _computeTierRaw(zoom, currentTier, thresholds);
+    // Floor at MEDIUM — never FAR during focus.
+    if (tier == SemanticTier.far) {
+      return SemanticTier.medium;
+    }
+    return tier;
+  }
+
+  return _computeTierRaw(zoom, currentTier, thresholds);
+}
+
+/// Internal: raw tier computation without focus override.
+SemanticTier _computeTierRaw(
+  double zoom,
+  SemanticTier? currentTier,
+  SemanticZoomThresholds thresholds,
+) {
   if (currentTier == null) {
     // Initial computation — no hysteresis memory.
     if (zoom >= thresholds.nearEnter) return SemanticTier.near;

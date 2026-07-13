@@ -355,4 +355,70 @@ void main() {
       expect(computeSemanticTier(0.5, memberCount: 0), SemanticTier.far);
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // P2.3: Semantic zoom + focus mode pairing
+  // ═══════════════════════════════════════════════════════════════════════
+
+  group('P2.3: Focus mode pairing', () {
+    test('zoom 0.4 with focus → MEDIUM (floored from FAR)', () {
+      // Without focus, zoom 0.4 → FAR. With focus, floored at MEDIUM
+      // so the focus subgraph remains legible with names.
+      final tierWithoutFocus = computeSemanticTier(0.4, memberCount: 100);
+      expect(tierWithoutFocus, SemanticTier.far);
+
+      final tierWithFocus =
+          computeSemanticTier(0.4, memberCount: 100, focusActive: true);
+      expect(tierWithFocus, SemanticTier.medium,
+          reason: 'Focus mode should floor the tier at MEDIUM, never FAR');
+    });
+
+    test('zoom 0.2 with focus → MEDIUM (floored from FAR)', () {
+      final tier =
+          computeSemanticTier(0.2, memberCount: 100, focusActive: true);
+      expect(tier, SemanticTier.medium,
+          reason: 'Even at minimum zoom, focus keeps the graph at MEDIUM');
+    });
+
+    test('zoom 1.5 with focus → NEAR (unchanged)', () {
+      final tier =
+          computeSemanticTier(1.5, memberCount: 100, focusActive: true);
+      expect(tier, SemanticTier.near);
+    });
+
+    test('focus does not upgrade MEDIUM to NEAR', () {
+      // Focus only floors at MEDIUM — it does NOT force NEAR.
+      final tier =
+          computeSemanticTier(0.7, memberCount: 100, focusActive: true);
+      expect(tier, SemanticTier.medium);
+    });
+
+    test('focus + small family → NEAR (small-family bypass wins)', () {
+      expect(computeSemanticTier(0.3, memberCount: 4, focusActive: true),
+          SemanticTier.near);
+    });
+
+    test('tier transitions are stable during focus', () {
+      // Start at NEAR, zoom out to MEDIUM range with focus
+      var tier =
+          computeSemanticTier(1.5, memberCount: 100, focusActive: true);
+      expect(tier, SemanticTier.near);
+
+      // Zoom out to 0.7 — should be MEDIUM (not FAR, because focus)
+      tier = computeSemanticTier(0.7,
+          currentTier: tier, memberCount: 100, focusActive: true);
+      expect(tier, SemanticTier.medium);
+
+      // Zoom further out to 0.4 — should stay MEDIUM (focus floor)
+      tier = computeSemanticTier(0.4,
+          currentTier: tier, memberCount: 100, focusActive: true);
+      expect(tier, SemanticTier.medium,
+          reason: 'Focus floor prevents degradation to FAR');
+
+      // Zoom back in to 1.5 — should return to NEAR
+      tier = computeSemanticTier(1.5,
+          currentTier: tier, memberCount: 100, focusActive: true);
+      expect(tier, SemanticTier.near);
+    });
+  });
 }

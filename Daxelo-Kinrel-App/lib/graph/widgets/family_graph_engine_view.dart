@@ -406,11 +406,18 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // families (< 30 members) are pinned to NEAR (full detail)
     // regardless of zoom. This prevents a 4-person family from
     // degrading to unlabeled dots when the user pinch-zooms out.
+    //
+    // P2.3: Pass focusActive so the tier is floored at MEDIUM when
+    // focus mode is active — the focus subgraph stays legible even
+    // if the user zooms out to FAR. Pairs semantic zoom with focus
+    // mode per Vision §5 Layer 1.
+    final focusActive = ref.read(graphFocusProvider).focusedPersonId != null;
     _currentSemanticTier = computeSemanticTier(
       zoom,
       currentTier: _currentSemanticTier,
       thresholds: defaultThresholds,
       memberCount: _currentMemberCount,
+      focusActive: focusActive,
     );
     switch (_currentSemanticTier!) {
       case SemanticTier.near:
