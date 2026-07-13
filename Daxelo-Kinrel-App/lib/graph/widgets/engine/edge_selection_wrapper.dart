@@ -8,13 +8,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/kinship/kinship_edge_style.dart' show KinshipEdgeCategory;
+import '../../../core/kinship/kinship_edge_style.dart' show KinshipEdgeCategory;
 import '../../features/family/presentation/providers/family_graph_provider.dart'
     show selectedEdgeProvider;
-import '../engine/edge_dedup.dart' show DedupedEdge;
-import '../interaction/couple_union_model.dart' show CoupleUnion;
-import '../rendering/edge_path_cache.dart' show EdgePathCache;
-import '../rendering/edge_quality.dart' show EdgeQuality;
+import '../../engine/edge_dedup.dart' show DedupedEdge;
+import '../../interaction/couple_union_model.dart' show CoupleUnion;
+import '../../rendering/edge_path_cache.dart' show EdgePathCache;
+import '../../rendering/edge_quality.dart' show EdgeQuality;
 import 'engine_edge_painter.dart' show EngineEdgePainter;
 
 class EdgeSelectionWrapper extends ConsumerStatefulWidget {

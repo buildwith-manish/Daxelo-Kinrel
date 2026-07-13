@@ -308,7 +308,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           for (final entry in layout.positions.entries)
             entry.key: Offset(
               entry.value.dx,
-              entry.value.dy + _kCircleCenterYOffset,
+              entry.value.dy + _FamilyGraphEngineViewState._kCircleCenterYOffset,
             ),
         };
 
@@ -348,7 +348,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                   // in the ValueKey. The old key included
                   // `_lodFor(_camera.zoomLevel).name`, which meant every
                   // time the zoom crossed a tier boundary (0.72, 0.34),
-                  // the ENTIRE _EdgeSelectionWrapper was destroyed and
+                  // the ENTIRE EdgeSelectionWrapper was destroyed and
                   // recreated from scratch — causing all edges to
                   // momentarily disappear and reappear (the "connection
                   // line disappearing and coming back" bug).
@@ -358,7 +358,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                   // counters. The ValueKey should only change when the
                   // actual edge/position DATA changes, not when the
                   // zoom-driven presentation tier changes.
-                  child: _EdgeSelectionWrapper(
+                  child: EdgeSelectionWrapper(
                     key: ValueKey('edge_layer_${edges.length}_${layout.positions.length}'),
                     // BUG 1 FIX: Apply Y offset so edge endpoints connect
                     // to the visual circle center, not the Positioned box
@@ -369,7 +369,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                       for (final entry in layout.positions.entries)
                         entry.key: Offset(
                           entry.value.dx,
-                          entry.value.dy + _kCircleCenterYOffset,
+                          entry.value.dy + _FamilyGraphEngineViewState._kCircleCenterYOffset,
                         ),
                     },
                     edges: edges,
@@ -471,7 +471,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             ),
           ),
           child: CustomPaint(
-            painter: _DotGridPainter(color: Colors.white.withValues(alpha: 0.025)),
+            painter: DotGridPainter(color: Colors.white.withValues(alpha: 0.025)),
             child: GestureDetector(
             // v72 FIX: Use translucent (NOT opaque) so child GraphNode
             // gesture detectors can receive tap/long-press events.
@@ -622,7 +622,7 @@ class _CompareDragLinePainter extends CustomPainter {
     final dy = toPosition.dy - fromPosition.dy;
     final distance = (dx * dx + dy * dy);
     if (distance < 1) return;
-    final dist = math.sqrt(distance);
+    final dist = sqrt(distance);
     final stepX = dx / dist;
     final stepY = dy / dist;
 

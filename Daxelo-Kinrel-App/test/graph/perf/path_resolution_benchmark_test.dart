@@ -40,7 +40,7 @@ void main() {
       );
       stopwatch.stop();
       expect(result, isNotNull);
-      expect(result.length, greaterThan(0));
+      expect(result!.length, greaterThan(0));
       expect(stopwatch.elapsedMilliseconds, lessThan(150));
     });
   });

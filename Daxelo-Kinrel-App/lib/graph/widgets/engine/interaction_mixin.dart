@@ -320,7 +320,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     );
     // Apply the same Y offset used for edges so the focus region aligns
     // with the visual circle center, not the Positioned box center.
-    final visualPos = Offset(pos.dx, pos.dy + _kCircleCenterYOffset);
+    final visualPos = Offset(pos.dx, pos.dy + _FamilyGraphEngineViewState._kCircleCenterYOffset);
     if (focusRegion.contains(visualPos)) return;
 
     // Reduced motion → immediate pan, no animation.

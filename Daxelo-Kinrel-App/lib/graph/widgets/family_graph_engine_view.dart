@@ -443,7 +443,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   SemanticTier get _currentTier => _currentSemanticTier ?? SemanticTier.near;
 
   /// Maps the current LOD to the edge-layer visual quality tier (PART 10).
-  /// Computed ONCE per build and passed to `_EngineEdgePainter` — the
+  /// Computed ONCE per build and passed to `EngineEdgePainter` — the
   /// painter never derives quality per edge.
   EdgeQuality _edgeQualityFor(Lod lod) {
     switch (lod) {
@@ -515,7 +515,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     final layoutAsync = ref.watch(graphLayoutProvider(widget.familyId));
     final flat = ref.watch(familyGraphProvider(widget.familyId)).valueOrNull;
     // PERF: selectedEdgeProvider is NOT watched here — it's watched inside
-    // _EdgeSelectionWrapper (a separate ConsumerWidget) so that tapping an
+    // EdgeSelectionWrapper (a separate ConsumerWidget) so that tapping an
     // edge only rebuilds the edge painter, not the entire canvas.
     // v2.2: Resolve the viewer's Person ID for perspective-based rendering.
     final viewerPersonId =
@@ -709,7 +709,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
 
     // Dot tier: one painter for ALL visible nodes — no per-node widgets.
     if (lod == Lod.dot) {
-      final dots = <_Dot>[];
+      final dots = <Dot>[];
       for (final String id in visible) {
         final pos = layout.positions[id];
         final p = personById[id];
