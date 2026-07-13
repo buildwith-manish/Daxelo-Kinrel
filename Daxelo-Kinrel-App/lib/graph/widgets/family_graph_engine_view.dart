@@ -62,6 +62,8 @@ import '../interaction/expand_collapse.dart'
 import '../interaction/haptic_language.dart' show GraphHaptics;
 import '../rendering/birthday_pulse_controller.dart' show birthdayPulseProvider;
 import '../rendering/birthday_util.dart' show isNearBirthday, daysUntilBirthday;
+import '../rendering/memorial_candle_flicker_controller.dart'
+    show memorialCandleFlickerProvider;
 import '../interaction/graph_focus_state.dart'
     show
         GraphFocusNotifier,
@@ -480,6 +482,26 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     final dob = DateTime.tryParse(dobStr);
     if (dob == null) return null;
     return daysUntilBirthday(dob);
+  }
+
+  /// P3.4: Returns true if the person is deceased AND the death was
+  /// within the last 30 days. The memorial candle is brighter (alpha
+  /// 0.8-1.0) for the first 30 days, then dims to 0.6-0.9.
+  ///
+  /// The graph RPC doesn't currently return dateOfDeath, so this
+  /// helper returns false (standard candle) until the RPC is extended.
+  /// The painter supports the brighter range via [isRecentlyDeceased]
+  /// — flipping this to true once dateOfDeath is in the RPC will
+  /// automatically brighten recently-deceased candles.
+  bool isRecentlyDeceasedForPerson(Map<String, dynamic> p) {
+    final isDeceased = (p['isDeceased'] as bool?) ?? false;
+    if (!isDeceased) return false;
+    final dodStr = p['dateOfDeath'] as String?;
+    if (dodStr == null || dodStr.isEmpty) return false;
+    final dod = DateTime.tryParse(dodStr);
+    if (dod == null) return false;
+    final daysSinceDeath = DateTime.now().difference(dod).inDays;
+    return daysSinceDeath >= 0 && daysSinceDeath <= 30;
   }
 
   // ── v97 Zoom-aware sizing helpers ────────────────────────────────────
@@ -1040,6 +1062,16 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
               : ref.watch(birthdayPulseProvider).value)
           : 0.0,
       daysUntilBirthday: daysUntilBirthdayForPerson(p),
+      // P3.4: memorial candle — deceased nodes get a flickering candle
+      // at their center. All deceased nodes share one AnimationController
+      // so they flicker in sync. Reduced motion → -1.0 sentinel = static
+      // 0.75 alpha.
+      memorialCandleFlickerValue: (p['isDeceased'] as bool?) ?? false
+          ? (MediaQuery.disableAnimationsOf(context)
+              ? -1.0 // sentinel: static candle
+              : ref.watch(memorialCandleFlickerProvider).value)
+          : 0.0,
+      isRecentlyDeceased: isRecentlyDeceasedForPerson(p),
       nodeState: nodeState,
       // The "Pending" badge was previously shown for ANY person without
       // a linkedUserId (i.e., not yet claimed by a Kinrel account). But

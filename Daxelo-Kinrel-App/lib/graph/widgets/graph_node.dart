@@ -180,6 +180,9 @@ class GraphNode extends ConsumerStatefulWidget {
     this.isNearBirthday = false,
     this.birthdayPulseValue = 0.0,
     this.daysUntilBirthday,
+    // P3.4: memorial candle parameters.
+    this.memorialCandleFlickerValue = 0.0,
+    this.isRecentlyDeceased = false,
     required this.onTap,
     required this.onLongPress,
     this.onDoubleTap,
@@ -221,6 +224,18 @@ class GraphNode extends ConsumerStatefulWidget {
   /// P3.3: Days until the next birthday (for the Semantics label).
   /// Null when [isNearBirthday] is false or dateOfBirth is unknown.
   final int? daysUntilBirthday;
+
+  /// P3.4: The current flicker value (0..1) from the shared
+  /// [memorialCandleFlickerProvider]. The painter maps this to a
+  /// 0.6..0.9 alpha range. When reduced motion is active, the
+  /// consumer passes -1.0 (sentinel) and the painter uses a static
+  /// 0.75 alpha.
+  final double memorialCandleFlickerValue;
+
+  /// P3.4: True if the death was within the last 30 days. The candle
+  /// is brighter (alpha 0.8-1.0) for the first 30 days, then dims to
+  /// the standard 0.6-0.9.
+  final bool isRecentlyDeceased;
 
   /// Whether this node should display as anonymous (hidden member).
   final bool isAnonymous;
@@ -452,7 +467,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     }
 
     final effectiveOpacity =
-        widget.isDeceased ? 0.4 * widget.opacity : widget.opacity;
+        widget.isDeceased ? 0.6 * widget.opacity : widget.opacity;
 
     // Accessibility: Expose the node as a single semantic button with a
     // descriptive label. Screen-reader users hear "[Name], [Relation],
@@ -528,6 +543,11 @@ class _GraphNodeState extends ConsumerState<GraphNode>
             ? 'Memorial birthday in $days days'
             : 'Birthday in $days days');
       }
+    }
+
+    // P3.4: memorial candle announcement for deceased nodes.
+    if (widget.isDeceased) {
+      parts.add('Memorial candle lit');
     }
 
     return '${parts.join(', ')}.';
@@ -698,8 +718,10 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       );
     }
 
-    // Pseudo-3D node: all 9 layers painted by a single CustomPainter.
+    // Pseudo-3D node: all 10 layers painted by a single CustomPainter.
     // P3.3: pass birthday glow params so the painter can draw layer 9.
+    // P3.4: pass memorial candle flicker params so the painter can draw
+    // layer 10 for deceased nodes.
     final nodeParams = _Pseudo3DParams(
       diameter: diameter,
       borderColor: widget.isAnchor ? KinshipEdgeColors.self : _borderColor,
@@ -713,6 +735,8 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       isNearBirthday: widget.isNearBirthday,
       birthdayPulseValue: widget.birthdayPulseValue,
       isDeceased: widget.isDeceased,
+      memorialCandleFlickerValue: widget.memorialCandleFlickerValue,
+      isRecentlyDeceased: widget.isRecentlyDeceased,
     );
 
     final extraPad = widget.isAnchor ? 16.0 : 12.0;
@@ -1093,6 +1117,8 @@ class _Pseudo3DParams {
     this.isNearBirthday = false,
     this.birthdayPulseValue = 0.0,
     this.isDeceased = false,
+    this.memorialCandleFlickerValue = 0.0,
+    this.isRecentlyDeceased = false,
   });
 
   final double diameter;
@@ -1108,6 +1134,13 @@ class _Pseudo3DParams {
   final bool isNearBirthday;
   final double birthdayPulseValue;
   final bool isDeceased;
+
+  /// P3.4: memorial candle flicker (0..1 from shared provider).
+  /// Negative = reduced-motion sentinel (static candle).
+  final double memorialCandleFlickerValue;
+
+  /// P3.4: true if death was within the last 30 days (brighter candle).
+  final bool isRecentlyDeceased;
 
   double get _scale => diameter / 72.0;
 
@@ -1415,6 +1448,43 @@ class _Pseudo3DNodePainter extends CustomPainter {
       canvas.drawCircle(center, glowRadius, glowPaint);
     }
 
+    // ══ LAYER 10 (P3.4): Memorial candle for deceased nodes ════════
+    // A single warm flickering point at the center of the node — a
+    // "memorial candle" that says "remembered" not just "gone."
+    // All deceased nodes share ONE AnimationController so their
+    // candles flicker in sync (a shared remembrance).
+    //
+    // Alpha range 0.6..0.9 (recently deceased: 0.8..1.0). The candle
+    // is painted ON TOP of the face (it's the centerpiece, not a
+    // surrounding glow). Reduced motion: static 0.75 alpha.
+    if (params.isDeceased) {
+      final bool reduced = params.memorialCandleFlickerValue < 0;
+      final double candleAlpha;
+      final double candleRadiusFactor;
+      if (reduced) {
+        candleAlpha = params.isRecentlyDeceased ? 0.85 : 0.75;
+        candleRadiusFactor = 0.09;
+      } else {
+        final base = params.isRecentlyDeceased ? 0.8 : 0.6;
+        final range = params.isRecentlyDeceased ? 0.2 : 0.3;
+        candleAlpha = base + range * params.memorialCandleFlickerValue;
+        candleRadiusFactor = 0.08 + 0.02 * params.memorialCandleFlickerValue;
+      }
+      final candleRadius = d * candleRadiusFactor;
+      const candleColor = Color(0xFFF59240); // amber
+      final candlePaint = Paint()
+        ..shader = RadialGradient(
+          colors: [
+            candleColor.withValues(alpha: candleAlpha),
+            candleColor.withValues(alpha: 0.0),
+          ],
+          stops: const [0.0, 1.0],
+        ).createShader(
+          Rect.fromCircle(center: center, radius: candleRadius * 2),
+        );
+      canvas.drawCircle(center, candleRadius * 2, candlePaint);
+    }
+
     // NOTE: No anchor halo. Anchor prominence comes from:
     //   - Slightly larger extrusion (extrusionDepth unchanged but shadowBlur +3)
     //   - Stronger specular (specularAlpha 0.18 vs 0.12)
@@ -1434,6 +1504,10 @@ class _Pseudo3DNodePainter extends CustomPainter {
         // P3.3: repaint when birthday state or pulse value changes.
         old.params.isNearBirthday != params.isNearBirthday ||
         old.params.birthdayPulseValue != params.birthdayPulseValue ||
-        old.params.isDeceased != params.isDeceased;
+        old.params.isDeceased != params.isDeceased ||
+        // P3.4: repaint when memorial candle flicker changes.
+        old.params.memorialCandleFlickerValue !=
+            params.memorialCandleFlickerValue ||
+        old.params.isRecentlyDeceased != params.isRecentlyDeceased;
   }
 }
