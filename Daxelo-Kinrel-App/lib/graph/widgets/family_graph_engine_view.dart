@@ -60,6 +60,8 @@ import '../interaction/camera_controller.dart' show CameraController;
 import '../interaction/expand_collapse.dart'
     show ExpandCollapseController, ExpandCollapseState;
 import '../interaction/haptic_language.dart' show GraphHaptics;
+import '../interaction/keyboard_navigation_controller.dart'
+    show handleGraphKeyEvent, keyboardFocusedNodeProvider;
 import '../rendering/birthday_pulse_controller.dart' show birthdayPulseProvider;
 import '../rendering/birthday_util.dart' show isNearBirthday, daysUntilBirthday;
 import '../rendering/memorial_candle_flicker_controller.dart'

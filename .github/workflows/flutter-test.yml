@@ -153,6 +153,11 @@ jobs:
         id: legend_toggle_44px
         run: flutter test test/graph/widgets/legend_toggle_44px_test.dart --reporter expanded
 
+      # ── P4.4: Real keyboard navigation wiring ─────────────────
+      - name: Run keyboard navigation tests (P4.4)
+        id: keyboard_navigation
+        run: flutter test test/graph/interaction/keyboard_navigation_test.dart --reporter expanded
+
       - name: Test summary
         if: always()
         run: |
@@ -176,6 +181,7 @@ jobs:
           echo "graph_minimap (P4.1):     ${{ steps.graph_minimap.outcome }}"
           echo "find_myself (P4.2):       ${{ steps.find_myself_button.outcome }}"
           echo "legend_toggle (P4.3):     ${{ steps.legend_toggle_44px.outcome }}"
+          echo "keyboard_nav (P4.4):      ${{ steps.keyboard_navigation.outcome }}"
           echo "=========================="
           # Fail the job if any suite failed
           if [ "${{ steps.edge_dedup.outcome }}" = "failure" ] || \
@@ -196,7 +202,8 @@ jobs:
              [ "${{ steps.on_this_day_badge.outcome }}" = "failure" ] || \
              [ "${{ steps.graph_minimap.outcome }}" = "failure" ] || \
              [ "${{ steps.find_myself_button.outcome }}" = "failure" ] || \
-             [ "${{ steps.legend_toggle_44px.outcome }}" = "failure" ]; then
+             [ "${{ steps.legend_toggle_44px.outcome }}" = "failure" ] || \
+             [ "${{ steps.keyboard_navigation.outcome }}" = "failure" ]; then
             echo "At least one test suite failed."
             exit 1
           fi

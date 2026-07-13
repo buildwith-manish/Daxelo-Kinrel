@@ -478,7 +478,46 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           ),
           child: CustomPaint(
             painter: DotGridPainter(color: Colors.white.withValues(alpha: 0.025)),
-            child: GestureDetector(
+            // P4.4: Wrap the canvas in a Focus widget so keyboard events
+            // (arrows, +/-, Tab, Enter, Escape) are handled by the graph.
+            // The Focus is autofocus=false so it doesn't steal focus on
+            // mount — the user must tap/click the graph first.
+            child: Focus(
+              autofocus: false,
+              onKeyEvent: (node, event) {
+                final handled = handleGraphKeyEvent(
+                  event: event,
+                  camera: _camera,
+                  ref: ref,
+                  viewportSize: _viewportSize,
+                  visibleNodeIds: flat.persons
+                      .map((p) => p['id']?.toString())
+                      .whereType<String>()
+                      .toList(),
+                  onFocusNode: (nodeId) {
+                    // Treat Enter as a tap on the keyboard-focused node.
+                    final graphPos = layout.positions[nodeId];
+                    if (graphPos == null) return;
+                    // Convert graph-space to screen-space via camera transform.
+                    final screenPos = Offset(
+                      graphPos.dx * _camera.zoomLevel + _camera.panX,
+                      graphPos.dy * _camera.zoomLevel + _camera.panY,
+                    );
+                    _handleCanvasTapDown(
+                      TapDownDetails(
+                        globalPosition: screenPos,
+                        localPosition: screenPos,
+                      ),
+                      layout,
+                      flat,
+                      viewerPersonId,
+                    );
+                  },
+                  context: context,
+                );
+                return handled ? KeyEventResult.handled : KeyEventResult.ignored;
+              },
+              child: GestureDetector(
             // v72 FIX: Use translucent (NOT opaque) so child GraphNode
             // gesture detectors can receive tap/long-press events.
             // The previous `opaque` setting swallowed all touch events
@@ -581,7 +620,8 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                   ),
               ],
             ),
-          ),
+          ), // GestureDetector close
+          ), // P4.4: Focus close
         ),
     );
   },
