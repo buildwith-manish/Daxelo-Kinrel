@@ -31,7 +31,7 @@ void main() {
 
   group('P4.2 — Visibility logic', () {
     test('button shows when viewerPersonId is non-null and in positions', () {
-      const String? viewerPersonId = 'p1';
+      const String? viewerPersonId = "p1"; // ignore: unnecessary_null_comparison
       final positions = <String, Offset>{'p1': Offset.zero};
       final shouldShow =
           viewerPersonId != null && positions.containsKey(viewerPersonId);
@@ -47,7 +47,7 @@ void main() {
     });
 
     test('button hidden when viewerPersonId not in positions', () {
-      const String? viewerPersonId = 'p2';
+      const String? viewerPersonId = "p2"; // ignore: unnecessary_null_comparison
       final positions = <String, Offset>{'p1': Offset.zero};
       final shouldShow =
           viewerPersonId != null && positions.containsKey(viewerPersonId);

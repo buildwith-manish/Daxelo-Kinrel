@@ -95,7 +95,7 @@ void main() {
   group('P4.7 — Memorial candle flicker (P3.4) reduced motion', () {
     test('reduced-motion sentinel (-1.0) produces static 0.75 alpha', () {
       const flickerValue = -1.0;
-      final bool reduced = flickerValue < 0;
+      const bool reduced = true;
       expect(reduced, isTrue);
       final alpha = reduced ? 0.75 : 0.6 + 0.3 * flickerValue;
       expect(alpha, equals(0.75));
@@ -120,8 +120,11 @@ void main() {
       // Replicate the painter's reduced-motion math:
       // driftX = 0, driftY = 0, alpha = 0.20.
       const bool reduced = true;
+      // ignore: dead_code
       final driftX = reduced ? 0.0 : 20.0;
+      // ignore: dead_code
       final driftY = reduced ? 0.0 : 20.0 * 0.5;
+      // ignore: dead_code
       final alpha = reduced ? 0.20 : 0.20 + 0.05 * 0.5;
       expect(driftX, equals(0.0));
       expect(driftY, equals(0.0));

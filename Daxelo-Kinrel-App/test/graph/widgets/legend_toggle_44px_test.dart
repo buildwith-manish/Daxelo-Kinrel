@@ -5,7 +5,6 @@
 // Verifies that all interactive hit targets in the graph are ≥ 44x44px
 // per WCAG 2.5.5 (Success Criterion 2.5.5 Target Size — Enhanced).
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

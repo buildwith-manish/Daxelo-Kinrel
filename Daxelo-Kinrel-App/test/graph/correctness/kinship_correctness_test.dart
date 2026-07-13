@@ -24,7 +24,7 @@ void main() {
       test('${fixture.name} — kinship terms verified', () {
         var testedPairs = 0;
         for (final entry in fixture.groundTruth.entries) {
-          final parts = entry.key.split('_');
+          // unused: final parts = entry.key.split('_');
           // The ground truth key format is "viewerId_targetId" but
           // some IDs contain underscores (e.g., 'gen4_m'). Parse from
           // the known person list instead.
@@ -57,11 +57,13 @@ void main() {
           }
 
           // Verify the key matches.
+          // ignore: unnecessary_non_null_assertion
+          final classKey = classification!.key;
           expect(
-            classification!.key,
+            classKey,
             equals(expectedKey),
             reason: '$viewerId → $targetId: expected "$expectedKey", '
-                'got "${classification.key}"',
+                'got "$classKey"',
           );
           testedPairs++;
         }
@@ -90,6 +92,7 @@ void main() {
           reason: 'son1 → father should resolve to a classification');
       // The key may be 'father' or a structural fallback — both are
       // correct as long as it's not null and not a wrong relationship.
+      // ignore: unnecessary_non_null_assertion
       expect(classification!.key, isNotNull);
     });
 

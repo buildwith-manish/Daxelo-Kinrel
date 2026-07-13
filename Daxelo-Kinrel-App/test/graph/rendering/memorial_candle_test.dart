@@ -18,7 +18,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/animation.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/rendering/memorial_candle_painter.dart';
 
