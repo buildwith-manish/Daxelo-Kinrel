@@ -168,6 +168,11 @@ jobs:
         id: wcag_contrast
         run: flutter test test/core/constants/wcag_contrast_test.dart --reporter expanded
 
+      # ── P4.7: Reduced motion properly disabling ───────────────
+      - name: Run reduced motion tests (P4.7)
+        id: reduced_motion
+        run: flutter test test/graph/accessibility/reduced_motion_test.dart --reporter expanded
+
       - name: Test summary
         if: always()
         run: |
@@ -194,6 +199,7 @@ jobs:
           echo "keyboard_nav (P4.4):      ${{ steps.keyboard_navigation.outcome }}"
           echo "outline_view (P4.5):      ${{ steps.graph_outline_view.outcome }}"
           echo "wcag_contrast (P4.6):     ${{ steps.wcag_contrast.outcome }}"
+          echo "reduced_motion (P4.7):    ${{ steps.reduced_motion.outcome }}"
           echo "=========================="
           # Fail the job if any suite failed
           if [ "${{ steps.edge_dedup.outcome }}" = "failure" ] || \
@@ -217,7 +223,8 @@ jobs:
              [ "${{ steps.legend_toggle_44px.outcome }}" = "failure" ] || \
              [ "${{ steps.keyboard_navigation.outcome }}" = "failure" ] || \
              [ "${{ steps.graph_outline_view.outcome }}" = "failure" ] || \
-             [ "${{ steps.wcag_contrast.outcome }}" = "failure" ]; then
+             [ "${{ steps.wcag_contrast.outcome }}" = "failure" ] || \
+             [ "${{ steps.reduced_motion.outcome }}" = "failure" ]; then
             echo "At least one test suite failed."
             exit 1
           fi
