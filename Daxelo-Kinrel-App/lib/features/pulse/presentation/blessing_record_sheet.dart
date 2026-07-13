@@ -91,17 +91,16 @@ class _BlessingRecordSheetState extends ConsumerState<BlessingRecordSheet> {
         _recordingDuration = Duration.zero;
       });
 
-      final path = await _recorder.start(
+      final recordPath = '${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _recorder.start(
         const RecordConfig(
           encoder: AudioEncoder.aacLc,
-          bitRate: 64000, // 64kbps — ~500KB per 60s blessing
+          bitRate: 64000,
           sampleRate: 44100,
         ),
+        path: recordPath,
       );
-
-      if (path != null) {
-        setState(() => _recordingPath = path);
-      }
+      setState(() => _recordingPath = recordPath);
     } catch (e) {
       setState(() {
         _state = _RecordState.error;
@@ -179,10 +178,6 @@ class _BlessingRecordSheetState extends ConsumerState<BlessingRecordSheet> {
       await supabase.storage.from('blessings').uploadBinary(
             fileName,
             fileBytes,
-            fileOptions: const FileOptions(
-              contentType: 'audio/mp4',
-              upsert: false,
-            ),
           );
       final mediaUrl = supabase.storage.from('blessings').getPublicUrl(fileName);
 

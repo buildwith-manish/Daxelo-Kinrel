@@ -5,7 +5,7 @@
 part of '../family_graph_engine_view.dart';
 
 /// Mixin containing interaction handlers for _FamilyGraphEngineViewState.
-mixin _InteractionMixin on ConsumerState<FamilyGraphEngineView> {
+extension _InteractionMethods on _FamilyGraphEngineViewState {
   void _onScaleStart(ScaleStartDetails d) {
     _camera.stopAnimation(); // cancel any in-flight fling/animateTo
     _lastFocal = d.focalPoint;

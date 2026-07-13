@@ -43,3 +43,4 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+    - _archived/**

@@ -6,7 +6,7 @@ part of '../family_graph_engine_view.dart';
 
 /// Mixin containing the canvas builder for _FamilyGraphEngineViewState.
 /// Extracted to keep the main file under 1,500 lines.
-mixin _CanvasMixin on ConsumerState<FamilyGraphEngineView> {
+extension _CanvasMethods on _FamilyGraphEngineViewState {
   Widget _buildCanvas(
       GraphLayoutResult layout, FlatGraphResult flat, String? viewerPersonId) {
     return LayoutBuilder(

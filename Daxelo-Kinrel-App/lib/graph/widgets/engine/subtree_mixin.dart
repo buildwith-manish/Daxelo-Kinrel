@@ -5,7 +5,7 @@
 part of '../family_graph_engine_view.dart';
 
 /// Mixin containing subtree toggle logic for _FamilyGraphEngineViewState.
-mixin _SubtreeMixin on ConsumerState<FamilyGraphEngineView> {
+extension _SubtreeMethods on _FamilyGraphEngineViewState {
   void _toggleSubtree(String id) {
     final flat = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
     if (flat == null) return;

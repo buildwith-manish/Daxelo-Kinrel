@@ -24,6 +24,7 @@ import 'dart:math' as math;
 import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter/physics.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/services/analytics_service.dart';
@@ -467,17 +468,17 @@ class CameraController extends ChangeNotifier {
         SpringSimulation(spring, startZoom, targetZoomClamped, 0);
 
     // Set tolerance so the simulation ends when the values are close enough.
-    simX.tolerance = const ToleranceProperties(
+    simX.tolerance = const Tolerance(
       distance: 0.5,
       time: double.infinity,
       velocity: double.infinity,
     );
-    simY.tolerance = const ToleranceProperties(
+    simY.tolerance = const Tolerance(
       distance: 0.5,
       time: double.infinity,
       velocity: double.infinity,
     );
-    simZoom.tolerance = const ToleranceProperties(
+    simZoom.tolerance = const Tolerance(
       distance: 0.001,
       time: double.infinity,
       velocity: double.infinity,

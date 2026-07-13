@@ -178,7 +178,7 @@ class FamilyGraphEngineView extends ConsumerStatefulWidget {
       _FamilyGraphEngineViewState();
 }
 class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
-    with _CanvasMixin, _InteractionMixin, _SubtreeMixin {
+ {
   /// Bounding box used for culling + node placement (circle + label).
   static const Size _kNodeSize = Size(140, 176);
 
