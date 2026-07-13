@@ -158,6 +158,11 @@ jobs:
         id: keyboard_navigation
         run: flutter test test/graph/interaction/keyboard_navigation_test.dart --reporter expanded
 
+      # ── P4.5: Screen-reader graph overview / outline-list view ─
+      - name: Run graph outline view tests (P4.5)
+        id: graph_outline_view
+        run: flutter test test/graph/widgets/graph_outline_view_test.dart --reporter expanded
+
       - name: Test summary
         if: always()
         run: |
@@ -182,6 +187,7 @@ jobs:
           echo "find_myself (P4.2):       ${{ steps.find_myself_button.outcome }}"
           echo "legend_toggle (P4.3):     ${{ steps.legend_toggle_44px.outcome }}"
           echo "keyboard_nav (P4.4):      ${{ steps.keyboard_navigation.outcome }}"
+          echo "outline_view (P4.5):      ${{ steps.graph_outline_view.outcome }}"
           echo "=========================="
           # Fail the job if any suite failed
           if [ "${{ steps.edge_dedup.outcome }}" = "failure" ] || \
@@ -203,7 +209,8 @@ jobs:
              [ "${{ steps.graph_minimap.outcome }}" = "failure" ] || \
              [ "${{ steps.find_myself_button.outcome }}" = "failure" ] || \
              [ "${{ steps.legend_toggle_44px.outcome }}" = "failure" ] || \
-             [ "${{ steps.keyboard_navigation.outcome }}" = "failure" ]; then
+             [ "${{ steps.keyboard_navigation.outcome }}" = "failure" ] || \
+             [ "${{ steps.graph_outline_view.outcome }}" = "failure" ]; then
             echo "At least one test suite failed."
             exit 1
           fi

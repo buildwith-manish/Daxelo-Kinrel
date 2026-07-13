@@ -142,6 +142,7 @@ import '../rendering/viewport_culler.dart' show ViewportCuller;
 import 'graph_node.dart' show GraphNode, NodeState;
 import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, OnThisDayEventType, showOnThisDayEventSheet;
 import 'graph_minimap.dart' show GraphMiniMap;
+import 'graph_outline_view.dart' show GraphOutlineView;
 import 'graph_legend.dart' show GraphLegend;
 import 'graph_quick_actions.dart' show GraphQuickActions;
 import 'graph_relationship_labels.dart' show GraphPersonData;
@@ -316,6 +317,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// v2.2: Whether the graph legend panel is visible.
   /// Toggled by the "?" button in the bottom-left corner.
   bool _showLegend = false;
+
+  /// P4.5: Whether the screen-reader outline view is showing.
+  bool _showOutlineView = false;
 
   // ── P2.4: Two-node select-and-compare drag gesture ───────────────────
   /// When non-null, the user is long-pressing + dragging from this node
@@ -757,6 +761,40 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                         },
                         tooltip: 'Find myself',
                         child: const Icon(Icons.my_location),
+                      ),
+                    ),
+                  // P4.5: Screen-reader outline view toggle — a button
+                  // that opens a list view of all persons for screen-reader
+                  // users. Per WCAG 2.4.1 (Bypass Blocks).
+                  Positioned(
+                    left: 8,
+                    top: MediaQuery.of(context).padding.top + 56,
+                    child: FloatingActionButton.small(
+                      heroTag: 'graph_outline_view',
+                      onPressed: () {
+                        SemanticsService.announce(
+                          'Outline view opened. ${flat.persons.length} family members.',
+                          TextDirection.ltr,
+                        );
+                        setState(() => _showOutlineView = true);
+                      },
+                      tooltip: 'Outline view for screen readers',
+                      child: const Icon(Icons.accessibility_new),
+                    ),
+                  ),
+                  // P4.5: Outline view overlay — covers the canvas when
+                  // active, providing a screen-reader-navigable list.
+                  if (_showOutlineView)
+                    Positioned.fill(
+                      child: GraphOutlineView(
+                        persons: flat.persons,
+                        relationshipLabels: const {},
+                        onNodeFocus: (personId, personName) {
+                          setState(() => _showOutlineView = false);
+                          _onFocusPerson(personId, personName);
+                        },
+                        onClose: () =>
+                            setState(() => _showOutlineView = false),
                       ),
                     ),
                 ],
