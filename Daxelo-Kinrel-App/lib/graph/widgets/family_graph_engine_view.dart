@@ -1425,4 +1425,3 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
 ///                        existing sweep paint pass from v91)
 ///   • future edges    — normal path-focus state
 /// Reduced motion → `revealAll()` instead of `startTrace()`.
-}
