@@ -304,6 +304,15 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// Toggled by the "?" button in the bottom-left corner.
   bool _showLegend = false;
 
+  // ── P2.4: Two-node select-and-compare drag gesture ───────────────────
+  /// When non-null, the user is long-pressing + dragging from this node
+  /// to another node to compare their relationship. The drag line follows
+  /// the finger; on release over a node, the path trace fires.
+  String? _compareDragFromId;
+  /// The current screen-space position of the drag finger, for drawing
+  /// the visual connection line.
+  Offset _compareDragPosition = Offset.zero;
+
   @override
   void initState() {
     super.initState();

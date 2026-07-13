@@ -491,12 +491,17 @@ mixin _CanvasMixin on ConsumerState<FamilyGraphEngineView> {
             // node circle) and handle the tap directly.
             onTapDown: (details) => _handleCanvasTapDown(details, layout, flat, viewerPersonId),
             onLongPressStart: (details) => _handleNodeLongPress(details, layout, flat, viewerPersonId),
+            // P2.4: Two-node select-and-compare drag gesture.
+            onLongPressMoveUpdate: (details) => _handleCompareDragUpdate(details, layout),
+            onLongPressEnd: (details) => _handleCompareDragEnd(details, layout, flat, viewerPersonId),
             // v62: Double-tap to zoom in 2× toward the focal point,
             // toggles back to 1× on second double-tap.
             onDoubleTapDown: (details) =>
                 _doubleTapPosition = details.localPosition,
             onDoubleTap: _handleDoubleTapZoom,
-            child: ClipRect(
+            child: Stack(
+              children: [
+                ClipRect(
               child: AnimatedBuilder(
                 animation: _camera,
                 child: content,
@@ -552,12 +557,113 @@ mixin _CanvasMixin on ConsumerState<FamilyGraphEngineView> {
                   return transformed;
                 },
               ),
+                ),
+                // P2.4: Visual drag line for the two-node select-and-compare gesture.
+                // Drawn as a screen-space overlay (NOT inside the camera transform)
+                // because the drag position is in screen coordinates.
+                if (_compareDragFromId != null)
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _CompareDragLinePainter(
+                        fromPosition: _cameraTransformToScreen(
+                          layout.positions[_compareDragFromId] ?? Offset.zero,
+                          layout,
+                        ),
+                        toPosition: _compareDragPosition,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-          ),
-        );
+        ),
       },
     );
   }
 
+  /// P2.4: Converts a graph-space position to screen-space for the
+  /// compare drag line overlay. Applies the camera transform manually.
+  Offset _cameraTransformToScreen(Offset graphPos, GraphLayoutResult layout) {
+    final zoom = _camera.zoomLevel;
+    final panX = _camera.panX;
+    final panY = _camera.panY;
+    return Offset(
+      graphPos.dx * zoom + panX,
+      graphPos.dy * zoom + panY,
+    );
+  }
+
+}
+
+/// P2.4: Painter for the visual connection line during the two-node
+/// select-and-compare drag gesture. Draws a dashed orange line from the
+/// source node's screen position to the user's finger position.
+class _CompareDragLinePainter extends CustomPainter {
+  const _CompareDragLinePainter({
+    required this.fromPosition,
+    required this.toPosition,
+  });
+
+  final Offset fromPosition;
+  final Offset toPosition;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFE8612A).withValues(alpha: 0.7)
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    // Draw a dashed line from source to finger.
+    const dashWidth = 6.0;
+    const dashGap = 4.0;
+    final dx = toPosition.dx - fromPosition.dx;
+    final dy = toPosition.dy - fromPosition.dy;
+    final distance = (dx * dx + dy * dy);
+    if (distance < 1) return;
+    final dist = math.sqrt(distance);
+    final stepX = dx / dist;
+    final stepY = dy / dist;
+
+    double drawn = 0;
+    bool draw = true;
+    while (drawn < dist) {
+      final len = draw ? dashWidth : dashGap;
+      final start = Offset(
+        fromPosition.dx + stepX * drawn,
+        fromPosition.dy + stepY * drawn,
+      );
+      final end = Offset(
+        fromPosition.dx + stepX * (drawn + len).clamp(0, dist),
+        fromPosition.dy + stepY * (drawn + len).clamp(0, dist),
+      );
+      if (draw) {
+        canvas.drawLine(start, end, paint);
+      }
+      drawn += len;
+      draw = !draw;
+    }
+
+    // Draw a small circle at the finger position.
+    canvas.drawCircle(
+      toPosition,
+      8.0,
+      Paint()
+        ..color = const Color(0xFFE8612A).withValues(alpha: 0.3)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawCircle(
+      toPosition,
+      8.0,
+      Paint()
+        ..color = const Color(0xFFE8612A)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CompareDragLinePainter old) =>
+      fromPosition != old.fromPosition || toPosition != old.toPosition;
 }

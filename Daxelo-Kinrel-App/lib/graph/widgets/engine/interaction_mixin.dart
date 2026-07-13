@@ -616,36 +616,94 @@ mixin _InteractionMixin on ConsumerState<FamilyGraphEngineView> {
     final nodeId = _hitTestNode(details.localPosition, layout);
     if (nodeId == null) return;
 
-    // Find the person data for this node.
-    final personData = flat.persons
-        .where((p) => p['id'] == nodeId)
-        .firstOrNull;
-    if (personData == null) return;
+    // P2.4: Start the two-node select-and-compare drag gesture.
+    // Instead of immediately showing the quick-actions sheet, the
+    // long-press starts a drag. If the user releases on another node,
+    // the path trace fires (compare gesture). If the user releases on
+    // the same node (no drag), the quick-actions sheet shows (legacy
+    // behavior). This makes long-press-drag a direct "connect two
+    // people" gesture — no FAB needed.
+    _compareDragFromId = nodeId;
+    _compareDragPosition = details.localPosition;
+    setState(() {});
 
-    final graphPersonData = GraphPersonData(
-      id: nodeId,
-      name: (personData['name'] as String?) ?? '',
-      gender: personData['gender'] as String?,
-      generationIndex:
-          (personData['generationIndex'] as num?)?.toInt() ?? 0,
-      isAnchor: (personData['isAnchor'] as bool?) ?? false,
-      photoUrl: personData['photoUrl'] as String?,
-      isDeceased: (personData['isDeceased'] as bool?) ?? false,
-    );
-    final isAnchor = (personData['isAnchor'] as bool?) ?? false;
-    // v99 (Phase 8): Resolve role from provider — not hardcoded.
-    final _role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
-    final _canRemove = _role == 'admin' || _role == 'owner';
-    GraphQuickActions.show(
-      context,
-      graphPersonData,
-      familyId: widget.familyId,
-      isOwner: _canRemove,
-      isSelf: isAnchor,
-      ref: ref,
-      onFocusPerson: _onFocusPerson,
-      onViewRelationship: _onViewRelationship,
-    );
+    // Also announce for screen readers.
+    SemanticsService.announce(
+        'Comparing. Drag to another person and release.', TextDirection.ltr);
+  }
+
+  /// P2.4: Handles drag movement during the compare gesture.
+  /// Updates the visual connection line position.
+  void _handleCompareDragUpdate(
+    LongPressMoveUpdateDetails details,
+    GraphLayoutResult layout,
+  ) {
+    if (_compareDragFromId == null) return;
+    _compareDragPosition = details.localPosition;
+    setState(() {});
+  }
+
+  /// P2.4: Handles release of the compare gesture.
+  /// If released over a different node, triggers the path trace.
+  /// If released over the same node (or empty canvas), shows quick actions.
+  void _handleCompareDragEnd(
+    LongPressEndDetails details,
+    GraphLayoutResult layout,
+    FlatGraphResult flat,
+    String? viewerPersonId,
+  ) {
+    final fromId = _compareDragFromId;
+    if (fromId == null) return;
+
+    // Clear the drag state first so the visual line disappears.
+    final dragFromId = fromId;
+    _compareDragFromId = null;
+    setState(() {});
+
+    // Hit-test the release position.
+    final toId = _hitTestNode(details.localPosition, layout);
+
+    if (toId != null && toId != dragFromId) {
+      // Released on a different node → trigger the compare path trace.
+      _triggerPathTrace(
+        dragFromId,
+        toId,
+        layout,
+        flat,
+        viewerPersonId,
+      );
+    } else {
+      // Released on the same node or empty canvas → show quick actions
+      // (legacy long-press behavior).
+      final personData = flat.persons
+          .where((p) => p['id'] == dragFromId)
+          .firstOrNull;
+      if (personData == null) return;
+
+      final graphPersonData = GraphPersonData(
+        id: dragFromId,
+        name: (personData['name'] as String?) ?? '',
+        gender: personData['gender'] as String?,
+        generationIndex:
+            (personData['generationIndex'] as num?)?.toInt() ?? 0,
+        isAnchor: (personData['isAnchor'] as bool?) ?? false,
+        photoUrl: personData['photoUrl'] as String?,
+        isDeceased: (personData['isDeceased'] as bool?) ?? false,
+      );
+      final isAnchor = (personData['isAnchor'] as bool?) ?? false;
+      final _role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
+      final _canRemove = _role == 'admin' || _role == 'owner';
+      GraphQuickActions.show(
+        context,
+        graphPersonData,
+        familyId: widget.familyId,
+        isOwner: _canRemove,
+        isSelf: isAnchor,
+        ref: ref,
+        onFocusPerson: _onFocusPerson,
+        onViewRelationship: _onViewRelationship,
+      );
+    }
   }
 
   // ── v99 (Phase 1): Engine-owned focus callback ────────────────────────
