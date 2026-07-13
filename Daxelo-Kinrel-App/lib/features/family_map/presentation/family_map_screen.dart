@@ -39,6 +39,8 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/graph/graph_provider.dart';
 import '../../../core/graph/graph_service.dart';
 import '../widgets/family_building_layer.dart';
+import '../widgets/avatar_marker_generator.dart';
+import '../widgets/avatar_marker_overlay.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/widgets/cached_avatar.dart';
@@ -83,6 +85,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   /// emits a new place list.
   final FamilyBuildingLayer _familyBuildings = FamilyBuildingLayer();
 
+  /// P10.3 — Premium avatar markers. Owns the SymbolLayer vs Flutter
+  /// overlay decision (Rule 12 fallback) and the marker image cache.
+  final AvatarMarkerLayer _avatarLayer = AvatarMarkerLayer();
+
   /// Premium: selected pin state for relationship focus dimming.
   String? _selectedPinId;
 
@@ -122,6 +128,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   void dispose() {
     _stopBroadcastLoop();
     _familyBuildings.dispose();
+    _avatarLayer.cache.clear();
     ref.read(liveLocationProvider.notifier).stop();
     super.dispose();
   }
