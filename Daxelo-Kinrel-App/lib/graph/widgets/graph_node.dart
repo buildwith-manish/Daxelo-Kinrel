@@ -38,6 +38,7 @@ import '../../core/kinship/kinship_edge_style.dart';
 import '../../core/widgets/cached_avatar.dart';
 import '../../features/kinrel_intelligence/providers/kinrel_provider.dart';
 import '../../features/kinrel_intelligence/widgets/role_glyph_badge.dart' show RoleGlyphBadge;
+import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, showOnThisDayEventSheet;
 
 // ═══════════════════════════════════════════════════════════════════════
 // NODE STATE ENUM
@@ -183,6 +184,8 @@ class GraphNode extends ConsumerStatefulWidget {
     // P3.4: memorial candle parameters.
     this.memorialCandleFlickerValue = 0.0,
     this.isRecentlyDeceased = false,
+    // P3.7: on-this-day badge.
+    this.onThisDayEvent,
     required this.onTap,
     required this.onLongPress,
     this.onDoubleTap,
@@ -236,6 +239,11 @@ class GraphNode extends ConsumerStatefulWidget {
   /// is brighter (alpha 0.8-1.0) for the first 30 days, then dims to
   /// the standard 0.6-0.9.
   final bool isRecentlyDeceased;
+
+  /// P3.7: "On this day" event for this person (birthday today,
+  /// anniversary today, or a memory from this day). When non-null,
+  /// a small badge is rendered at the top-right of the node.
+  final OnThisDayEvent? onThisDayEvent;
 
   /// Whether this node should display as anonymous (hidden member).
   final bool isAnonymous;
@@ -803,6 +811,21 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                   border: Border.all(color: KinrelColors.amber, width: 1.0),
                 ),
                 child: Icon(Icons.lock, size: diameter * 0.12, color: KinrelColors.amber),
+              ),
+            ),
+          // P3.7: "On this day" badge — top-right corner, 24x24.
+          if (widget.onThisDayEvent != null)
+            Positioned(
+              right: -2,
+              top: -2,
+              child: OnThisDayBadge(
+                event: widget.onThisDayEvent!,
+                personName: widget.name,
+                onTap: () => showOnThisDayEventSheet(
+                  context,
+                  widget.onThisDayEvent!,
+                  widget.name,
+                ),
               ),
             ),
           // Pending badge

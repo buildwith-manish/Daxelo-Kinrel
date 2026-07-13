@@ -133,6 +133,11 @@ jobs:
         id: heritage_sepia
         run: flutter test test/graph/rendering/heritage_sepia_test.dart --reporter expanded
 
+      # ── P3.7: "On this day" resurfacing in-graph ────────────
+      - name: Run on this day badge tests (P3.7)
+        id: on_this_day_badge
+        run: flutter test test/graph/widgets/on_this_day_badge_test.dart --reporter expanded
+
       - name: Test summary
         if: always()
         run: |
@@ -152,6 +157,7 @@ jobs:
           echo "memorial_candle (P3.4):   ${{ steps.memorial_candle.outcome }}"
           echo "ambient_particle (P3.5):  ${{ steps.ambient_particle.outcome }}"
           echo "heritage_sepia (P3.6):    ${{ steps.heritage_sepia.outcome }}"
+          echo "on_this_day_badge (P3.7): ${{ steps.on_this_day_badge.outcome }}"
           echo "=========================="
           # Fail the job if any suite failed
           if [ "${{ steps.edge_dedup.outcome }}" = "failure" ] || \
@@ -168,7 +174,8 @@ jobs:
              [ "${{ steps.birthday_pulse.outcome }}" = "failure" ] || \
              [ "${{ steps.memorial_candle.outcome }}" = "failure" ] || \
              [ "${{ steps.ambient_particle.outcome }}" = "failure" ] || \
-             [ "${{ steps.heritage_sepia.outcome }}" = "failure" ]; then
+             [ "${{ steps.heritage_sepia.outcome }}" = "failure" ] || \
+             [ "${{ steps.on_this_day_badge.outcome }}" = "failure" ]; then
             echo "At least one test suite failed."
             exit 1
           fi

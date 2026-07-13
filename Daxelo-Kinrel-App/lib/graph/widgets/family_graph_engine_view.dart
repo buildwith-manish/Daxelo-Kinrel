@@ -138,6 +138,7 @@ import '../rendering/semantic_zoom.dart'
         shouldRenderText;
 import '../rendering/viewport_culler.dart' show ViewportCuller;
 import 'graph_node.dart' show GraphNode, NodeState;
+import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, OnThisDayEventType, showOnThisDayEventSheet;
 import 'graph_legend.dart' show GraphLegend;
 import 'graph_quick_actions.dart' show GraphQuickActions;
 import 'graph_relationship_labels.dart' show GraphPersonData;
@@ -505,6 +506,47 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     if (dod == null) return false;
     final daysSinceDeath = DateTime.now().difference(dod).inDays;
     return daysSinceDeath >= 0 && daysSinceDeath <= 30;
+  }
+
+  // ── P3.7: "On this day" event helper ──────────────────────────────────
+
+  /// Returns an "on this day" event for [p] if today is the person's
+  /// birthday OR wedding anniversary. Returns null otherwise.
+  ///
+  /// Computed from existing person data (dateOfBirth / anniversaryDate)
+  /// so no extra API call is needed — the badge appears within 1 render
+  /// frame of graph load (per spec P3.7 1-frame requirement).
+  OnThisDayEvent? onThisDayEventForPerson(Map<String, dynamic> p) {
+    final personId = p['id']?.toString();
+    if (personId == null || personId.isEmpty) return null;
+    final now = DateTime.now();
+
+    final dobStr = p['dateOfBirth'] as String?;
+    if (dobStr != null && dobStr.isNotEmpty) {
+      final dob = DateTime.tryParse(dobStr);
+      if (dob != null && dob.month == now.month && dob.day == now.day) {
+        return OnThisDayEvent(
+          personId: personId,
+          type: OnThisDayEventType.birthday,
+          year: dob.year,
+          title: 'Birthday today',
+        );
+      }
+    }
+
+    final annivStr = p['anniversaryDate'] as String?;
+    if (annivStr != null && annivStr.isNotEmpty) {
+      final anniv = DateTime.tryParse(annivStr);
+      if (anniv != null && anniv.month == now.month && anniv.day == now.day) {
+        return OnThisDayEvent(
+          personId: personId,
+          type: OnThisDayEventType.anniversary,
+          year: anniv.year,
+          title: 'Wedding Anniversary',
+        );
+      }
+    }
+    return null;
   }
 
   // ── v97 Zoom-aware sizing helpers ────────────────────────────────────
@@ -1075,6 +1117,10 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
               : ref.watch(memorialCandleFlickerProvider).value)
           : 0.0,
       isRecentlyDeceased: isRecentlyDeceasedForPerson(p),
+      // P3.7: "On this day" badge — appears when today is the person's
+      // birthday or anniversary. Computed in-memory so it appears in the
+      // same render frame as the graph nodes (1-frame requirement).
+      onThisDayEvent: onThisDayEventForPerson(p),
       nodeState: nodeState,
       // The "Pending" badge was previously shown for ANY person without
       // a linkedUserId (i.e., not yet claimed by a Kinrel account). But
