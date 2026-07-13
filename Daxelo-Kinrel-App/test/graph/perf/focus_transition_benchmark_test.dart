@@ -1,5 +1,6 @@
 // test/graph/perf/focus_transition_benchmark_test.dart
 // P2.2: Performance benchmark for cinematic focus transition.
+import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -7,11 +8,11 @@ void main() {
     test('spring physics constants are correct', () {
       // SpringDescription(mass: 1.0, stiffness: 200.0, damping: 25.0)
       // Damping ratio = damping / (2 * sqrt(mass * stiffness))
-      // = 25 / (2 * sqrt(200)) = 25 / 28.284 ≈ 0.884
+      // = 25 / (2 * sqrt(200)) ≈ 0.884
       const mass = 1.0;
       const stiffness = 200.0;
       const damping = 25.0;
-      final ratio = damping / (2 * (mass * stiffness).abs());
+      final ratio = damping / (2 * math.sqrt(mass * stiffness));
       // ratio ≈ 0.884 — slightly underdamped (gentle settle)
       expect(ratio, greaterThan(0.8));
       expect(ratio, lessThan(1.0));
