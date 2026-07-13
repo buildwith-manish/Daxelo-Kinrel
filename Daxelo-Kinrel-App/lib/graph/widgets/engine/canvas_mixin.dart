@@ -577,9 +577,9 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             ),
           ),
         ),
-        ),
-      },
     );
+  },
+);
   }
 
   /// P2.4: Converts a graph-space position to screen-space for the

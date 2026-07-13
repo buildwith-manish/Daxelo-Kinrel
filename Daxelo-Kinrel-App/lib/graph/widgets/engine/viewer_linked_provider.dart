@@ -3,7 +3,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/viewer/viewer_api_client.dart'
+import '../../../core/viewer/viewer_api_client.dart'
     show viewerApiClientProvider;
 
 /// Returns true if the current user has an explicit `linkedUserId` link

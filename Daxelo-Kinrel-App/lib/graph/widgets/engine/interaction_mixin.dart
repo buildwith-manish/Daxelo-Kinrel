@@ -889,9 +889,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
                         style: TextStyle(
                             color: Colors.white.withOpacity(0.8),
                             fontSize: 14)),
-                    if (step.edgeLabel != null) ...[
+                    if (step.relationshipType != null) ...[
                       const Spacer(),
-                      Text(step.edgeLabel!,
+                      Text(step.relationshipType!,
                           style: TextStyle(
                               color: Colors.white.withOpacity(0.4),
                               fontSize: 12)),
