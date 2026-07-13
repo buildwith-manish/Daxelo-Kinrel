@@ -45,7 +45,7 @@ class HouseholdClusterMarkerGenerator {
   final DeviceTier? deviceTier;
 
   DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.current ?? DeviceTier.mid;
+      deviceTier ?? DeviceTierCache.instance.tier;
 
   Future<Uint8List> generate(Household household) async {
     final size = (MapVisualConstants.clusterMarkerSize *

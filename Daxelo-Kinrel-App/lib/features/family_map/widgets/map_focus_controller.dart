@@ -49,7 +49,7 @@ class MapFocusController {
   final bool reducedMotion;
 
   DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.current ?? DeviceTier.mid;
+      deviceTier ?? DeviceTierCache.instance.tier;
 
   bool _animating = false;
 
@@ -137,12 +137,9 @@ class MapFocusController {
 
   double _currentZoom(MapController controller) {
     try {
-      // ignore: avoid_dynamic_calls
-      final dynamic state = (controller as dynamic).cameraState;
-      if (state != null) {
-        // ignore: avoid_dynamic_calls
-        final zoom = state.zoom;
-        if (zoom is double) return zoom;
+      final cam = controller.camera;
+      if (cam != null) {
+        return cam.zoom;
       }
     } catch (_) {}
     return 14.0; // sensible default
@@ -156,8 +153,8 @@ class MapFocusController {
     required double pitch,
   }) {
     try {
-      controller.setCamera(
-        center: Geographic(lat: lat, lng: lng),
+      controller.moveCamera(
+        center: Geographic(lon: lng, lat: lat),
         zoom: zoom,
         pitch: pitch,
       );
@@ -178,10 +175,10 @@ class MapFocusController {
     _animating = true;
     try {
       await controller.animateCamera(
-        center: Geographic(lat: lat, lng: lng),
+        center: Geographic(lon: lng, lat: lat),
         zoom: zoom,
         pitch: pitch,
-        duration: duration,
+        nativeDuration: duration,
       );
     } catch (e) {
       // Fall back to instant if animateCamera fails.

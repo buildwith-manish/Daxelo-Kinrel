@@ -207,13 +207,14 @@ void main() {
                 pin: pin,
                 selected: false,
                 liveTier: LocationTier.live,
+                reducedMotion: true, // disable pulse to avoid pending timers
               ),
             ),
           ),
         ),
       );
       await tester.pump();
-      expect(find.bySemanticsLabel(contains('Ravi')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp(r'Ravi')), findsOneWidget);
     });
   });
 }

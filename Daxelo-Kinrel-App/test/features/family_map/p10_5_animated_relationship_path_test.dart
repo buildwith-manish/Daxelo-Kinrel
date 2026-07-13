@@ -11,6 +11,7 @@
 //   - AnimatedRelationshipPath can be constructed + disposed cleanly.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/features/family_map/widgets/animated_relationship_path.dart';
 import 'package:kinrel/features/family_map/providers/family_map_provider.dart';

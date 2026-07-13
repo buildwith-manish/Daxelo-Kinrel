@@ -132,7 +132,7 @@ class FamilyBuildingLayer {
       'kinrel-family-buildings-fallback';
 
   DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.current ?? DeviceTier.mid;
+      deviceTier ?? DeviceTierCache.instance.tier;
 
   /// True on mid/high-tier devices — wedding pulse and memorial candle
   /// are enabled. Low-tier devices disable animation per Rule 13.
@@ -224,7 +224,7 @@ class FamilyBuildingLayer {
     }
     try {
       final geojson = buildFamilyPlacesGeoJson(places);
-      await style.updateSource(id: sourceId, data: geojson);
+      await style.updateGeoJsonSource(id: sourceId, data: geojson);
     } catch (e) {
       debugPrint('⚠️ FamilyBuildingLayer.update failed: $e');
     }
@@ -233,30 +233,19 @@ class FamilyBuildingLayer {
   /// Sets the layer opacity — used by Focus Mode (P10.6) to dim
   /// non-related buildings. [opacity] is in [0, 1].
   ///
-  /// When MapLibre's setPaintProperty is unavailable, this is a no-op
-  /// (the layer keeps its current opacity). Focus mode then relies on
-  /// the Flutter overlay for dimming (Rule 12 fallback).
+  /// maplibre 0.3.5 does NOT expose setPaintProperty or setLayerProperties
+  /// (Rule 11 verified — the StyleController API surface is limited to
+  /// addSource/addLayer/updateGeoJsonSource/removeLayer/removeSource).
+  /// Per Rule 12 we fall back to the Flutter overlay for dimming —
+  /// this method is a graceful no-op when the API is unavailable.
+  /// The screen's polish overlay (P10.8) handles dimming in lieu of
+  /// native layer opacity.
   Future<void> setOpacity(StyleController? style, double opacity) async {
     if (style == null || !_added) return;
-    try {
-      // ignore: avoid_dynamic_calls
-      await style.setLayerProperties(
-        extrusionLayerId,
-        <String, dynamic>{'fill-extrusion-opacity': opacity},
-      );
-      await style.setLayerProperties(
-        glowLayerId,
-        <String, dynamic>{'circle-opacity': opacity * 0.85},
-      );
-      await style.setLayerProperties(
-        circleFallbackLayerId,
-        <String, dynamic>{'circle-opacity': opacity * 0.9},
-      );
-    } catch (e) {
-      // Some maplibre 0.3.5 builds don't expose setLayerProperties.
-      // The screen will fall back to a Flutter overlay for dimming.
-      debugPrint('FamilyBuildingLayer.setOpacity: $e');
-    }
+    // No setPaintProperty in maplibre 0.3.5 — opacity changes are handled
+    // by the screen's Flutter overlay. Document per Rule 12.
+    debugPrint('FamilyBuildingLayer.setOpacity($opacity): no-op (Rule 12 '
+        'fallback — dimming handled by Flutter overlay).');
   }
 
   /// Releases any resources. Currently a no-op — MapLibre owns the

@@ -200,36 +200,25 @@ class AnimatedRelationshipPath {
   static const String lineLayerId = 'kinrel-relationship-paths';
 
   DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.current ?? DeviceTier.mid;
+      deviceTier ?? DeviceTierCache.instance.tier;
 
   /// True when the maplibre 0.3.5 install supports line-gradient. Set
   /// by [verifyLineGradientSupport] — when false, the layer falls back
   /// to a solid color + the Flutter overlay for the flow animation.
   bool get lineGradientSupported => _lineGradientSupported;
 
-  /// Verifies line-gradient support by attempting to set a static
-  /// gradient expression on the layer. If setPaintProperty throws,
-  /// we fall back to the overlay path (Rule 12).
+  /// Verifies line-gradient support.
+  ///
+  /// maplibre 0.3.5 does NOT expose setPaintProperty or setLayerProperties
+  /// on StyleController (Rule 11 verified — API surface is limited to
+  /// addSource / addLayer / updateGeoJsonSource / removeLayer / removeSource).
+  /// We therefore always fall back to the Flutter overlay for the flow
+  /// animation (Rule 12 graceful degradation). The LineLayer itself is
+  /// still added to the map with a static color; the flow effect is
+  /// rendered by the overlay.
   Future<void> verifyLineGradientSupport() async {
-    if (style == null) {
-      _lineGradientSupported = false;
-      return;
-    }
-    try {
-      // Try setting a no-op paint property — if this succeeds, the
-      // setPaintProperty API is available and we use the line-gradient
-      // path. If not, we fall back to overlay.
-      // ignore: avoid_dynamic_calls
-      await (style as dynamic).setLayerProperties(
-        lineLayerId,
-        <String, dynamic>{
-          'line-opacity': 0.95,
-        },
-      );
-      _lineGradientSupported = true;
-    } catch (_) {
-      _lineGradientSupported = false;
-    }
+    // maplibre 0.3.5 has no setPaintProperty — always use overlay.
+    _lineGradientSupported = false;
   }
 
   /// Starts the flow animation. Idempotent — calling twice is a no-op.
@@ -266,34 +255,13 @@ class AnimatedRelationshipPath {
   }
 
   void _updateLineGradient(double t) {
-    // Shift the gradient stops by t to create the "flow" effect.
-    // The gradient expression interpolates along line-progress from
-    // amber (offset 0) → orange (offset 0.5) → amber (offset 1).
-    // To animate, we shift the interpolation by t.
-    final shifted = (t % 1.0);
-    try {
-      // ignore: avoid_dynamic_calls
-      (style as dynamic).setLayerProperties(
-        lineLayerId,
-        <String, dynamic>{
-          'line-gradient': <Object>[
-            'interpolate',
-            <String>['linear'],
-            <String>['line-progress'],
-            (shifted - 0.5).clamp(0.0, 1.0),
-            '#917520',
-            shifted,
-            '#E8612A',
-            (shifted + 0.5).clamp(0.0, 1.0),
-            '#917520',
-          ],
-        },
-      );
-    } catch (e) {
-      // If setPaintProperty throws at runtime, fall back to overlay.
-      _lineGradientSupported = false;
-      onRepaint?.call();
-    }
+    // maplibre 0.3.5 does not expose setPaintProperty — this method is
+    // a graceful no-op (Rule 12). The flow animation is rendered by
+    // the Flutter overlay (RelationshipPathOverlayPainter), which is
+    // driven by `currentProgress` + `onRepaint`.
+    // This method is retained for forward-compatibility with future
+    // maplibre versions that may add setPaintProperty support.
+    onRepaint?.call();
   }
 
   /// Returns the current animation value (0..1) for use by the overlay

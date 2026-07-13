@@ -10,6 +10,9 @@
 --
 -- `validFrom` / `validTo` are time-window bounds used by the timeline
 -- scrubber (P10.7). NULL on either side means "unbounded" on that side.
+--
+-- NOTE: FamilyMember.userId is TEXT in this project (not UUID). The RLS
+-- policies therefore cast auth.uid()::TEXT before comparing.
 -- ───────────────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS "Place" (
@@ -49,6 +52,7 @@ CREATE INDEX IF NOT EXISTS "Place_validTo_idx"   ON "Place"("validTo");
 -- ───────────────────────────────────────────────────────────────────────────
 -- A user can read/write Place rows for any family they are a member of.
 -- This mirrors the existing RLS pattern used by Person/FamilyPost etc.
+-- FamilyMember.userId is TEXT, so we cast auth.uid()::TEXT.
 -- ───────────────────────────────────────────────────────────────────────────
 
 ALTER TABLE "Place" ENABLE ROW LEVEL SECURITY;
@@ -61,7 +65,7 @@ CREATE POLICY "Place_select_family_members" ON "Place"
         "familyId" IN (
             SELECT "familyId"
             FROM "FamilyMember"
-            WHERE "userId" = auth.uid()
+            WHERE "userId" = auth.uid()::TEXT
         )
     );
 
@@ -73,7 +77,7 @@ CREATE POLICY "Place_insert_family_members" ON "Place"
         "familyId" IN (
             SELECT "familyId"
             FROM "FamilyMember"
-            WHERE "userId" = auth.uid()
+            WHERE "userId" = auth.uid()::TEXT
         )
     );
 
@@ -85,14 +89,14 @@ CREATE POLICY "Place_update_family_members" ON "Place"
         "familyId" IN (
             SELECT "familyId"
             FROM "FamilyMember"
-            WHERE "userId" = auth.uid()
+            WHERE "userId" = auth.uid()::TEXT
         )
     )
     WITH CHECK (
         "familyId" IN (
             SELECT "familyId"
             FROM "FamilyMember"
-            WHERE "userId" = auth.uid()
+            WHERE "userId" = auth.uid()::TEXT
         )
     );
 
@@ -104,7 +108,7 @@ CREATE POLICY "Place_delete_family_members" ON "Place"
         "familyId" IN (
             SELECT "familyId"
             FROM "FamilyMember"
-            WHERE "userId" = auth.uid()
+            WHERE "userId" = auth.uid()::TEXT
         )
     );
 

@@ -55,7 +55,7 @@ class AvatarMarkerGenerator {
   final DeviceTier? deviceTier;
 
   DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.current ?? DeviceTier.mid;
+      deviceTier ?? DeviceTierCache.instance.tier;
 
   /// Tunable scale factor applied to marker sizes on low-tier devices
   /// (Rule 13). 1.0 on mid/high, 0.8 on low.

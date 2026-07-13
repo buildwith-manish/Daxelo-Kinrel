@@ -42,7 +42,7 @@ class MapPolishOverlay extends StatelessWidget {
   final bool reducedMotion;
 
   DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.current ?? DeviceTier.mid;
+      deviceTier ?? DeviceTierCache.instance.tier;
 
   bool get _fogEnabled => _effectiveTier != DeviceTier.low;
   bool get _ambientEnabled => _effectiveTier != DeviceTier.low;
@@ -87,8 +87,6 @@ class _VignettePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    final center = rect.center;
-    final radius = (rect.longestSide) * 0.7;
     final gradient = RadialGradient(
       center: Alignment.center,
       radius: 1.0,

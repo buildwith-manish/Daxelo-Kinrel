@@ -18,6 +18,7 @@
 // glow blur radius is reduced.
 
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -185,7 +186,7 @@ class _AvatarMarkerOverlayState extends State<AvatarMarkerOverlay>
         // The maplibre API: pointToScreen returns Offset.
         // Some builds expose it as a method, some as a function; both are
         // wrapped in try/catch so we degrade to no-overlay (Rule 12).
-        final geographic = Geographic(lat: pin.lat, lng: pin.lng);
+        final geographic = Geographic(lon: pin.lng, lat: pin.lat);
         final screen = _pointToScreen(controller, geographic);
         if (screen != null && _positions[pin.personId] != screen) {
           _positions[pin.personId] = screen;
@@ -199,11 +200,12 @@ class _AvatarMarkerOverlayState extends State<AvatarMarkerOverlay>
   }
 
   Offset? _pointToScreen(MapController controller, Geographic g) {
-    // maplibre 0.3.5 exposes `screenLocation` on the controller.
-    // ignore: avoid_dynamic_calls
-    final dynamic result = (controller as dynamic).screenLocation(g);
-    if (result is Offset) return result;
-    return null;
+    // maplibre 0.3.5 exposes `toScreenLocation(Geographic)` on MapController.
+    try {
+      return controller.toScreenLocation(g);
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
@@ -254,7 +256,7 @@ class AvatarMarkerLayer {
   final DeviceTier? deviceTier;
 
   DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.current ?? DeviceTier.mid;
+      deviceTier ?? DeviceTierCache.instance.tier;
 
   /// True when the Flutter overlay path should be used (Rule 12 fallback).
   /// Determined at runtime by the screen via [verifySymbolLayerSupport].
@@ -277,11 +279,7 @@ class AvatarMarkerLayer {
     try {
       // Generate a 1x1 transparent PNG and try to add it. If the API
       // throws, we know SymbolLayer won't work either.
-      // ignore: avoid_dynamic_calls
-      await (style as dynamic).addImage(
-        'kinrel_marker_probe',
-        _transparentProbe,
-      );
+      await style.addImage('kinrel_marker_probe', _transparentProbe);
       useOverlay = false;
     } catch (_) {
       useOverlay = true;

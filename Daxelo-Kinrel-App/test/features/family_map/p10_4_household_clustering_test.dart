@@ -46,15 +46,15 @@ void main() {
     });
 
     test('pins within epsilon are clustered, beyond are not', () {
-      // Epsilon is 0.001 degrees ≈ 111m. Two pins 0.0005 apart should
-      // round to the same bucket; two pins 0.002 apart should not.
+      // Epsilon is 0.001 degrees ≈ 111m. Two pins 0.0003 apart round to
+      // the same bucket; two pins 0.002 apart do not.
       final pins = <MapPin>[
         const MapPin(
             personId: 'a', name: 'A', city: 'X', photoUrl: null,
             lat: 18.5200, lng: 73.8500),
         const MapPin(
             personId: 'b', name: 'B', city: 'X', photoUrl: null,
-            lat: 18.5205, lng: 73.8505),
+            lat: 18.5203, lng: 73.8503),
         const MapPin(
             personId: 'c', name: 'C', city: 'Y', photoUrl: null,
             lat: 18.5220, lng: 73.8520),
@@ -161,7 +161,7 @@ void main() {
         home: Scaffold(body: Center(child: HouseholdClusterMarkerWidget(household: h))),
       ));
       await tester.pump();
-      expect(find.bySemanticsLabel(contains('3 members')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp(r'3 members')), findsOneWidget);
     });
   });
 

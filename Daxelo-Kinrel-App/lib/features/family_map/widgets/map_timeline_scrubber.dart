@@ -327,7 +327,7 @@ class LengthInputFormatter extends TextInputFormatter {
   final int maxLength;
 
   @override
-  void formatEditUpdate(
+  TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
