@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/supabase_service.dart' show supabaseProvider;
+import '../config/map_visual_constants.dart';
 import '../data/city_coordinates.dart';
 import '../data/place_models.dart';
 
@@ -148,6 +149,68 @@ class UnpinnedMember {
   final String name;
   final String city;
   final String? photoUrl;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// P10.4 — Household clustering
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A household is a group of pins that share roughly the same coordinates
+/// (within `MapVisualConstants.householdEpsilon` degrees ≈ 111 meters).
+/// Single-member households are returned as well — the screen decides
+/// whether to render them as a cluster or a single marker.
+@immutable
+class Household {
+  const Household({
+    required this.id,
+    required this.members,
+    required this.lat,
+    required this.lng,
+  });
+
+  /// Stable ID — derived from the rounded coordinates.
+  final String id;
+
+  /// Pins in this household. Always non-empty.
+  final List<MapPin> members;
+
+  /// Representative latitude (first member's lat).
+  final double lat;
+
+  /// Representative longitude.
+  final double lng;
+
+  /// True when there is more than one member.
+  bool get isMulti => members.length > 1;
+
+  /// Number of members.
+  int get size => members.length;
+}
+
+/// Groups pins into households by shared coordinates.
+///
+/// Two pins belong to the same household when their lat/lng, divided by
+/// [MapVisualConstants.householdEpsilon] and rounded, produce the same
+/// integer bucket. This is a fast O(N) grid-based clustering that
+/// avoids Haversine distance calculations.
+///
+/// Tunable: change `householdEpsilon` in MapVisualConstants (Rule 14, 16).
+List<Household> computeHouseholds(List<MapPin> pins) {
+  final epsilon = MapVisualConstants.householdEpsilon;
+  final groups = <String, List<MapPin>>{};
+  for (final pin in pins) {
+    final key =
+        '${(pin.lat / epsilon).round()}_${(pin.lng / epsilon).round()}';
+    groups.putIfAbsent(key, () => <MapPin>[]).add(pin);
+  }
+  return groups.entries
+      .map((e) => Household(
+            id: e.key,
+            members: e.value,
+            lat: e.value.first.lat,
+            lng: e.value.first.lng,
+          ))
+      .toList(growable: false);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
