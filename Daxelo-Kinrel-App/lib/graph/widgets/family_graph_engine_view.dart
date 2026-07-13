@@ -936,16 +936,14 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     if (visibleFraction > 0.5) return;
 
     // Pan the camera to center on the revealed bounds' center.
+    // P3.1: route through the spring-based animator so the pan settles
+    // with a cinematic spring instead of a curve tween.
     final center = paddedBounds.center;
-    final Duration duration = reduced
-        ? Duration.zero
-        : const Duration(milliseconds: 420);
-    _camera.animateTo(
+    _camera.animateToWithSpring(
       -center.dx * _camera.zoomLevel + _viewportSize.width / 2,
       -center.dy * _camera.zoomLevel + _viewportSize.height / 2,
       _camera.zoomLevel,
-      duration: duration,
-      curve: Curves.easeOutCubic,
+      reducedMotion: reduced,
     );
   }
 
@@ -1194,14 +1192,15 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     if (popped == null) return;
 
     // Restore the camera viewport from the popped history entry.
+    // P3.1: route through the spring-based animator so the focus-back
+    // settles with a cinematic spring instead of a curve tween.
     final viewport = popped.viewport;
     final bool reduced = MediaQuery.disableAnimationsOf(context);
-    _camera.animateTo(
+    _camera.animateToWithSpring(
       viewport.panX,
       viewport.panY,
       viewport.zoom,
-      duration: reduced ? Duration.zero : const Duration(milliseconds: 420),
-      curve: Curves.easeOutCubic,
+      reducedMotion: reduced,
     );
 
     // Force re-animation + neighbour recompute for restored focus.

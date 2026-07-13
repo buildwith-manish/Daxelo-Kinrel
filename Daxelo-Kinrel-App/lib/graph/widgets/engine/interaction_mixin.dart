@@ -54,12 +54,22 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   }
 
   /// v62: Double-tap toggles between 1× and 2× zoom, centered on
-  /// the tap focal point. Uses the camera's zoomTo with focalPoint
-  /// so the zoom target stays under the user's finger.
+  /// the tap focal point. Uses the camera's zoomToSpring (P3.1) with
+  /// focalPoint so the zoom target stays under the user's finger and
+  /// the transition animates with a critically-damped spring.
+  ///
+  /// P3.1: switched from instant `zoomTo` to spring-based `zoomToSpring`
+  /// so the double-tap zoom feels weighted and alive. Reduced-motion
+  /// users snap instantly (no animation).
   void _handleDoubleTapZoom() {
     final currentZoom = _camera.zoomLevel;
     final targetZoom = currentZoom < 1.5 ? 2.0 : 1.0;
-    _camera.zoomTo(targetZoom, focalPoint: _doubleTapPosition);
+    final bool reduced = MediaQuery.disableAnimationsOf(context);
+    _camera.zoomToSpring(
+      targetZoom,
+      focalPoint: _doubleTapPosition,
+      reducedMotion: reduced,
+    );
   }
 
   // ── v72: Geometric Node Hit-Testing ────────────────────────────────────

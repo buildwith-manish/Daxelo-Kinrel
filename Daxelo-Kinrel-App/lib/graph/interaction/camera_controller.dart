@@ -6,17 +6,21 @@
 // Camera NEVER moves without explicit user action. No idle drift.
 // No auto-center. No auto-zoom without user action.
 //
-// Gesture Navigation:
-//   Pan (single-finger drag): Translate 1:1, instant with momentum
-//     decay (300 ms)
-//   Pinch Zoom: Scale centered on pinch point, range 0.2x–5.0x,
-//     smooth 150 ms
+// Gesture Navigation (P3.1 — spring physics on every gesture response):
+//   Pan (single-finger drag): Translate 1:1 with finger, then spring
+//     momentum decay (SpringPalette.pan, ~300 ms settle)
+//   Pinch Zoom: Scale centered on pinch point, range 0.2x–5.0x, instant
+//     1:1 with finger
 //   Scroll Zoom (mouse): Scale centered on cursor, range 0.2x–5.0x,
-//     smooth 100 ms
-//   Double-Tap Focus: Center on node, zoom to 1.5x, 400 ms curved
-//     ease-in-out
-//   Keyboard Arrows: Pan 50 px per keypress, linear 50 ms
-//   Keyboard +/-: Zoom 20% centered on viewport, smooth 100 ms
+//     instant 1:1 with wheel
+//   Double-Tap Focus: Center on node, zoom to 1.5x, spring
+//     (SpringPalette.focus)
+//   Double-Tap Zoom (empty canvas): Toggle 1× ↔ 2×, spring
+//     (SpringPalette.zoom)
+//   Keyboard Arrows: Pan 50 px per keypress, spring settle
+//     (SpringPalette.pan)
+//   Keyboard +/-: Zoom 20% centered on viewport, spring
+//     (SpringPalette.zoom)
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -29,6 +33,7 @@ import 'package:flutter/physics.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/services/analytics_service.dart';
 import '../data/position_memory.dart';
+import 'spring_palette.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // CAMERA CONTROLLER
@@ -143,9 +148,12 @@ class CameraController extends ChangeNotifier {
 
   /// Translates the camera by [dx] and [dy] pixels instantly.
   ///
-  /// Used for:
-  /// - Single-finger drag (pan gesture)
-  /// - Keyboard arrow keys (50 px per press)
+  /// Used for live single-finger drag — the camera tracks the finger
+  /// 1:1 with no smoothing so the gesture feels direct and responsive.
+  ///
+  /// For keyboard-driven pan (discrete arrow-key presses) prefer
+  /// [panBySpring], which animates the pan with a critically-damped
+  /// spring so each keypress has a subtle settle.
   ///
   /// For momentum after a pan gesture, call [applyMomentum] after
   /// the gesture ends.
@@ -157,29 +165,64 @@ class CameraController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Applies momentum decay after a pan gesture ends.
+  /// Pans the camera by [dx] and [dy] pixels using a critically-damped
+  /// spring (SpringPalette.pan). Used for discrete pan events where a
+  /// direct 1:1 jump would feel jarring — e.g. keyboard arrow keys.
+  ///
+  /// [reducedMotion] — when true, snaps instantly (Duration.zero) per
+  /// WCAG 2.3.3 / Guardrail 2 (opt-out respected).
+  ///
+  /// Live finger-drag pan should still call [panBy] for 1:1 tracking;
+  /// this method is for non-gesture pan triggers.
+  void panBySpring(double dx, double dy, {bool reducedMotion = false}) {
+    if (reducedMotion || dx == 0 && dy == 0) {
+      panBy(dx, dy);
+      return;
+    }
+    final targetPanX = _panX + dx;
+    final targetPanY = _panY + dy;
+    _animateWithSpring(
+      targetPanX: targetPanX,
+      targetPanY: targetPanY,
+      targetZoom: _zoomLevel,
+      spring: SpringPalette.pan,
+      clearFocusedNodeId: true,
+    );
+  }
+
+  /// Applies momentum decay after a pan gesture ends using a spring
+  /// (SpringPalette.pan) seeded with the gesture's release velocity.
+  ///
+  /// P3.1: replaces the previous linear `1 - t^2` deceleration with a
+  /// critically-damped spring so the camera settles naturally instead
+  /// of cutting to zero. The spring's start velocity is the clamped
+  /// gesture velocity, so a flick feels like the camera was thrown and
+  /// decelerates with the same feel as a thrown physical object.
   ///
   /// [velocityX] and [velocityY] are the gesture velocities in
-  /// pixels per second. The camera decelerates to zero over
-  /// [_momentumDecayDuration].
+  /// pixels per second, clamped to ±4000 px/sec to prevent extreme
+  /// flicks from overshooting the viewport.
   void applyMomentum(double velocityX, double velocityY) {
     const maxVelocity = 4000.0; // px/sec — clamp hard flicks
-    _velocityX = velocityX.clamp(-maxVelocity, maxVelocity);
-    _velocityY = velocityY.clamp(-maxVelocity, maxVelocity);
-    _startMomentumDecay();
+    // Save the clamped velocities BEFORE _startMomentumDecay, which
+    // calls _cancelAnimation() (which resets _velocityX/_velocityY to
+    // zero as part of invalidating in-flight animations).
+    final clampedX = velocityX.clamp(-maxVelocity, maxVelocity);
+    final clampedY = velocityY.clamp(-maxVelocity, maxVelocity);
+    _startMomentumDecay(clampedX, clampedY);
   }
 
   // ── Zoom ─────────────────────────────────────────────────────────
 
   /// Sets the zoom level instantly, clamped to [minZoom]–[maxZoom].
   ///
+  /// Used for live pinch/scroll zoom — the camera tracks the gesture
+  /// 1:1 with no smoothing so the zoom feels direct. For programmatic
+  /// zoom transitions (double-tap, keyboard +/-, buttons) prefer
+  /// [zoomToSpring], which animates with a critically-damped spring.
+  ///
   /// [focalPoint] is the screen-space point that should remain
   /// stationary during the zoom. If null, the viewport center is used.
-  ///
-  /// Used for:
-  /// - Pinch zoom (scaled around pinch center)
-  /// - Scroll zoom (scaled around cursor)
-  /// - Keyboard +/- (20% step centered on viewport)
   void zoomTo(double level, {Offset? focalPoint}) {
     final newZoom = level.clamp(_minZoom, _maxZoom);
     // Epsilon handling: floating-point pinch noise can produce
@@ -204,24 +247,70 @@ class CameraController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Zooms in by 20% centered on the viewport.
+  /// Zooms in by 20% centered on the viewport using a spring
+  /// (SpringPalette.zoom).
   ///
   /// Typically triggered by keyboard "+" key.
-  void zoomIn({Size? viewportSize}) {
+  void zoomIn({Size? viewportSize, bool reducedMotion = false}) {
     final center = viewportSize != null
         ? Offset(viewportSize.width / 2, viewportSize.height / 2)
         : null;
-    zoomTo(_zoomLevel * 1.2, focalPoint: center);
+    zoomToSpring(_zoomLevel * 1.2, focalPoint: center, reducedMotion: reducedMotion);
   }
 
-  /// Zooms out by 20% centered on the viewport.
+  /// Zooms out by 20% centered on the viewport using a spring
+  /// (SpringPalette.zoom).
   ///
   /// Typically triggered by keyboard "-" key.
-  void zoomOut({Size? viewportSize}) {
+  void zoomOut({Size? viewportSize, bool reducedMotion = false}) {
     final center = viewportSize != null
         ? Offset(viewportSize.width / 2, viewportSize.height / 2)
         : null;
-    zoomTo(_zoomLevel / 1.2, focalPoint: center);
+    zoomToSpring(_zoomLevel / 1.2, focalPoint: center, reducedMotion: reducedMotion);
+  }
+
+  /// Animates the zoom to [level] using a critically-damped spring
+  /// (SpringPalette.zoom). Used for programmatic zoom transitions:
+  /// double-tap toggle, keyboard +/-, zoom buttons.
+  ///
+  /// [focalPoint] is the screen-space point that should remain
+  /// stationary during the zoom (the point under the user's finger
+  /// for double-tap, viewport center for keyboard +/-).
+  ///
+  /// [reducedMotion] — when true, snaps instantly (Duration.zero) per
+  /// WCAG 2.3.3 / Guardrail 2 (opt-out respected).
+  ///
+  /// Live pinch/scroll zoom should still call [zoomTo] for 1:1
+  /// tracking; this method is for non-gesture zoom triggers.
+  void zoomToSpring(double level, {Offset? focalPoint, bool reducedMotion = false}) {
+    final newZoom = level.clamp(_minZoom, _maxZoom);
+    const zoomEpsilon = 0.0001;
+    if ((newZoom - _zoomLevel).abs() < zoomEpsilon) return;
+
+    if (reducedMotion) {
+      zoomTo(level, focalPoint: focalPoint);
+      return;
+    }
+
+    // Compute the target pan so the focal point stays fixed at the
+    // end of the spring (we animate pan + zoom together so the focal
+    // point stays stationary DURING the spring, not just at the end).
+    double targetPanX = _panX;
+    double targetPanY = _panY;
+    if (focalPoint != null) {
+      final scale = newZoom / _zoomLevel;
+      targetPanX = focalPoint.dx - scale * (focalPoint.dx - _panX);
+      targetPanY = focalPoint.dy - scale * (focalPoint.dy - _panY);
+    }
+
+    AnalyticsService.instance.logGraphZoomed(newZoom);
+    _animateWithSpring(
+      targetPanX: targetPanX,
+      targetPanY: targetPanY,
+      targetZoom: newZoom,
+      spring: SpringPalette.zoom,
+      clearFocusedNodeId: false,
+    );
   }
 
   // ── Smart Focus ──────────────────────────────────────────────────
@@ -236,12 +325,14 @@ class CameraController extends ChangeNotifier {
   ///   connections = wider view).
   /// [viewportSize] is the viewport dimensions for centering.
   ///
-  /// Animation: 400 ms bezier ease-in-out.
+  /// Animation: spring (SpringPalette.focus) — slight settle, cinematic.
+  /// [reducedMotion] — when true, snaps instantly (Duration.zero).
   void focusOnNode(
     String nodeId,
     Offset nodePosition, {
     int connectedNodeCount = 0,
     Size viewportSize = Size.zero,
+    bool reducedMotion = false,
   }) {
     _focusedNodeId = nodeId;
 
@@ -266,12 +357,14 @@ class CameraController extends ChangeNotifier {
         ? (viewportSize.height / 2) - (nodePosition.dy * optimalZoom)
         : -nodePosition.dy * optimalZoom;
 
-    animateTo(
+    // P3.1: route through the spring-based animator. P2.2 introduced
+    // animateToWithSpring for focus pulls; P3.1 makes it the canonical
+    // path for focusOnNode and respects reduced motion at the call site.
+    animateToWithSpring(
       targetPanX,
       targetPanY,
       optimalZoom,
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeInOut,
+      reducedMotion: reducedMotion,
     );
   }
 
@@ -415,27 +508,55 @@ class CameraController extends ChangeNotifier {
     tick();
   }
 
-  // ── P2.2: Spring Physics Focus Transition ──────────────────────────
+  // ── P2.2 / P3.1: Spring Physics Transitions ──────────────────────────
 
-  /// Animates the camera to the given targets using spring physics
-  /// (critical damping) instead of a linear curve tween.
+  /// Animates the camera to the given targets using the focus spring
+  /// (SpringPalette.focus) — slight settle, cinematic.
   ///
-  /// Per Vision §5 Layer 1 — the spring gives the focus pull a cinematic
-  /// feel with a slight settle. The spring description (mass 1.0,
-  /// stiffness 200, damping 25) produces a critically-damped motion
-  /// that settles in ~400ms without overshoot at typical velocities.
+  /// P2.2 introduced this method for focus pulls. P3.1 makes it the
+  /// canonical animation path for all programmatic camera transitions
+  /// (focusOnNode, fit-to-view via spring, history navigation) and
+  /// routes pan/zoom springs through the private [_animateWithSpring]
+  /// helper so every gesture response shares the same spring plumbing.
   ///
-  /// [reducedMotion] — when true, snaps instantly (Duration.zero).
+  /// [reducedMotion] — when true, snaps instantly (Duration.zero) per
+  /// WCAG 2.3.3 / Guardrail 2 (opt-out respected).
   void animateToWithSpring(
     double targetPanX,
     double targetPanY,
     double targetZoom, {
     bool reducedMotion = false,
   }) {
+    _animateWithSpring(
+      targetPanX: targetPanX,
+      targetPanY: targetPanY,
+      targetZoom: targetZoom,
+      spring: SpringPalette.focus,
+      clearFocusedNodeId: false,
+      reducedMotion: reducedMotion,
+    );
+  }
+
+  /// Internal spring animator shared by [panBySpring], [zoomToSpring],
+  /// and [animateToWithSpring]. Each caller picks the appropriate
+  /// [SpringDescription] from [SpringPalette].
+  ///
+  /// [clearFocusedNodeId] — when true, clears [_focusedNodeId] (used by
+  /// pan operations that break the focus lock).
+  /// [reducedMotion] — when true, snaps instantly (Duration.zero).
+  void _animateWithSpring({
+    required double targetPanX,
+    required double targetPanY,
+    required double targetZoom,
+    required SpringDescription spring,
+    bool clearFocusedNodeId = false,
+    bool reducedMotion = false,
+  }) {
     if (reducedMotion) {
       _panX = targetPanX;
       _panY = targetPanY;
       _zoomLevel = targetZoom.clamp(_minZoom, _maxZoom);
+      if (clearFocusedNodeId) _focusedNodeId = null;
       _scheduleSave();
       notifyListeners();
       return;
@@ -450,39 +571,22 @@ class CameraController extends ChangeNotifier {
     final targetZoomClamped = targetZoom.clamp(_minZoom, _maxZoom);
 
     _isAnimating = true;
+    if (clearFocusedNodeId) _focusedNodeId = null;
     notifyListeners();
 
-    // P2.2: Spring description — critically damped for a smooth settle
-    // without overshoot. mass 1.0, stiffness 200, damping 25.
-    final spring = SpringDescription(
-      mass: 1.0,
-      stiffness: 200.0,
-      damping: 25.0,
-    );
-
     // Create three independent spring simulations (panX, panY, zoom).
-    // Start velocity is 0 (the camera was at rest before focus).
+    // Start velocity is 0 — these are programmatic transitions, not
+    // gesture-velocity-seeded (momentum decay is handled separately
+    // in [_startMomentumDecay]).
     final simX = SpringSimulation(spring, startPanX, targetPanX, 0);
     final simY = SpringSimulation(spring, startPanY, targetPanY, 0);
     final simZoom =
         SpringSimulation(spring, startZoom, targetZoomClamped, 0);
 
     // Set tolerance so the simulation ends when the values are close enough.
-    simX.tolerance = const Tolerance(
-      distance: 0.5,
-      time: double.infinity,
-      velocity: double.infinity,
-    );
-    simY.tolerance = const Tolerance(
-      distance: 0.5,
-      time: double.infinity,
-      velocity: double.infinity,
-    );
-    simZoom.tolerance = const Tolerance(
-      distance: 0.001,
-      time: double.infinity,
-      velocity: double.infinity,
-    );
+    simX.tolerance = SpringPalette.defaultTolerance;
+    simY.tolerance = SpringPalette.defaultTolerance;
+    simZoom.tolerance = SpringPalette.normalizedTolerance;
 
     final startTime = DateTime.now();
 
@@ -652,38 +756,74 @@ class CameraController extends ChangeNotifier {
   // ── Private Methods ──────────────────────────────────────────────
 
   /// Starts momentum decay animation after a pan gesture ends.
-  void _startMomentumDecay() {
+  ///
+  /// P3.1: replaces the previous linear `1 - t^2` deceleration with a
+  /// critically-damped spring (SpringPalette.pan) seeded with the
+  /// gesture's release velocity. The camera's pan position asymptotically
+  /// approaches the position it would reach if the gesture velocity
+  /// continued indefinitely, decelerating naturally.
+  ///
+  /// [velocityX] / [velocityY] are the clamped gesture velocities
+  /// (already clamped by [applyMomentum]). Passed as parameters because
+  /// [_cancelAnimation] resets the field velocities to zero before the
+  /// spring can read them.
+  void _startMomentumDecay(double velocityX, double velocityY) {
     _cancelAnimation();
     final myGeneration = ++_animationGeneration;
 
     final startPanX = _panX;
     final startPanY = _panY;
-    final startVelocityX = _velocityX;
-    final startVelocityY = _velocityY;
-    final startTime = DateTime.now();
-    final durationMs = _momentumDecayDuration.inMilliseconds;
+    final startVelocityX = velocityX;
+    final startVelocityY = velocityY;
 
     _isAnimating = true;
+    notifyListeners();
+
+    // P3.1: Spring-seeded momentum. The target is the position the
+    // camera would reach at constant velocity for one "throw second",
+    // but the critically-damped spring decelerates it to zero there.
+    // Using a fixed projection (1 second of gesture velocity) gives a
+    // consistent feel regardless of flick strength — the spring does
+    // the work of decelerating from the start velocity to zero.
+    //
+    // SpringPalette.pan is critically damped so the camera does NOT
+    // overshoot (no oscillation). Tolerance ensures the simulation
+    // terminates within ~300ms for typical flick velocities.
+    final spring = SpringPalette.pan;
+
+    final targetPanX = startPanX + startVelocityX * 1.0;
+    final targetPanY = startPanY + startVelocityY * 1.0;
+
+    final simX = SpringSimulation(
+      spring,
+      startPanX,
+      targetPanX,
+      startVelocityX,
+    )..tolerance = SpringPalette.defaultTolerance;
+    final simY = SpringSimulation(
+      spring,
+      startPanY,
+      targetPanY,
+      startVelocityY,
+    )..tolerance = SpringPalette.defaultTolerance;
+
+    final startTime = DateTime.now();
 
     void tick() {
       if (myGeneration != _animationGeneration) return; // superseded
-      final elapsed =
-          DateTime.now().difference(startTime).inMilliseconds;
-      final t = (elapsed / durationMs).clamp(0.0, 1.0);
+      final elapsedSeconds =
+          DateTime.now().difference(startTime).inMilliseconds / 1000.0;
 
-      // Deceleration curve: starts fast, slows to zero.
-      final deceleration = 1.0 - (t * t); // Quadratic ease-out.
-
-      _panX = startPanX +
-          startVelocityX * (elapsed / 1000.0) * deceleration;
-      _panY = startPanY +
-          startVelocityY * (elapsed / 1000.0) * deceleration;
+      _panX = simX.x(elapsedSeconds);
+      _panY = simY.x(elapsedSeconds);
 
       notifyListeners();
 
-      if (t < 1.0) {
+      if (!simX.isDone(elapsedSeconds) || !simY.isDone(elapsedSeconds)) {
         Future<void>.delayed(const Duration(milliseconds: 16), tick);
       } else {
+        _panX = targetPanX;
+        _panY = targetPanY;
         _isAnimating = false;
         _velocityX = 0.0;
         _velocityY = 0.0;
