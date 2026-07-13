@@ -94,6 +94,116 @@ jobs:
         run: flutter test test/graph/widgets/family_graph_integration_test.dart --reporter expanded
         continue-on-error: true
 
+      # ── P3.1: Spring physics gesture response ──────────────────
+      # Hard gate (no continue-on-error) — the spring palette must
+      # converge within 500ms with <2% overshoot, and reduced-motion
+      # must snap instantly. Per P3.1 acceptance criteria.
+      - name: Run spring physics tests (P3.1)
+        id: spring_physics
+        run: flutter test test/graph/interaction/spring_physics_test.dart --reporter expanded
+
+      # ── P3.2: Haptic feedback language ─────────────────────────
+      # Hard gate — all haptics must go through GraphHaptics and
+      # respect reduced motion.
+      - name: Run haptic language tests (P3.2)
+        id: haptic_language
+        run: flutter test test/graph/interaction/haptic_language_test.dart --reporter expanded
+
+      # ── P3.3: Birthday glow on near-birthday nodes ────────────
+      # Hard gate — isNearBirthday date math + reduced-motion fallback.
+      - name: Run birthday pulse tests (P3.3)
+        id: birthday_pulse
+        run: flutter test test/graph/rendering/birthday_pulse_test.dart --reporter expanded
+
+      # ── P3.4: Memorial candle for deceased nodes ──────────────
+      # Hard gate — candle alpha range + reduced-motion fallback.
+      - name: Run memorial candle tests (P3.4)
+        id: memorial_candle
+        run: flutter test test/graph/rendering/memorial_candle_test.dart --reporter expanded
+
+      # ── P3.5: Ambient particle layer around anchor node ───────
+      # Hard gate — mote count, drift bounds, reduced-motion fallback.
+      - name: Run ambient particle tests (P3.5)
+        id: ambient_particle
+        run: flutter test test/graph/rendering/ambient_particle_test.dart --reporter expanded
+
+      # ── P3.6: Heritage/sepia texture on ancestor nodes ────────
+      # Hard gate — sepia matrix coefficients + application by generation.
+      - name: Run heritage sepia tests (P3.6)
+        id: heritage_sepia
+        run: flutter test test/graph/rendering/heritage_sepia_test.dart --reporter expanded
+
+      # ── P3.7: "On this day" resurfacing in-graph ────────────
+      - name: Run on this day badge tests (P3.7)
+        id: on_this_day_badge
+        run: flutter test test/graph/widgets/on_this_day_badge_test.dart --reporter expanded
+
+      # ── P4.1: Mini-map for large graphs ────────────────────────
+      - name: Run graph minimap tests (P4.1)
+        id: graph_minimap
+        run: flutter test test/graph/widgets/graph_minimap_test.dart --reporter expanded
+
+      # ── P4.2: Persistent "Find Myself" button ─────────────────
+      - name: Run find myself button tests (P4.2)
+        id: find_myself_button
+        run: flutter test test/graph/widgets/find_myself_button_test.dart --reporter expanded
+
+      # ── P4.3: Fix 44px legend toggle (WCAG 2.5.5) ────────────
+      - name: Run legend toggle 44px tests (P4.3)
+        id: legend_toggle_44px
+        run: flutter test test/graph/widgets/legend_toggle_44px_test.dart --reporter expanded
+
+      # ── P4.4: Real keyboard navigation wiring ─────────────────
+      - name: Run keyboard navigation tests (P4.4)
+        id: keyboard_navigation
+        run: flutter test test/graph/interaction/keyboard_navigation_test.dart --reporter expanded
+
+      # ── P4.5: Screen-reader graph overview / outline-list view ─
+      - name: Run graph outline view tests (P4.5)
+        id: graph_outline_view
+        run: flutter test test/graph/widgets/graph_outline_view_test.dart --reporter expanded
+
+      # ── P4.6: High-contrast theme + contrast tests ────────────
+      - name: Run WCAG contrast tests (P4.6)
+        id: wcag_contrast
+        run: flutter test test/core/constants/wcag_contrast_test.dart --reporter expanded
+
+      # ── P4.7: Reduced motion properly disabling ───────────────
+      - name: Run reduced motion tests (P4.7)
+        id: reduced_motion
+        run: flutter test test/graph/accessibility/reduced_motion_test.dart --reporter expanded
+
+      # ── P5.1: Server-side pagination on graph fetch ───────────
+      - name: Run pagination tests (P5.1)
+        id: pagination
+        run: flutter test test/features/family/pagination_test.dart --reporter expanded
+
+      # ── P5.2: Correctness regression suite (HARD RELEASE GATE) ──
+      # ZERO failures allowed. If this fails, the product CANNOT LAUNCH.
+      # No continue-on-error — this is a hard gate.
+      - name: Run kinship correctness suite (P5.2 — HARD GATE)
+        id: kinship_correctness
+        run: flutter test test/graph/correctness/kinship_correctness_test.dart --reporter expanded
+
+      - name: Run path correctness suite (P5.2 — HARD GATE)
+        id: path_correctness
+        run: flutter test test/graph/correctness/path_correctness_test.dart --reporter expanded
+
+      # ── P5.3: Deferred imports for the 15 games ───────────────
+      - name: Run deferred game loader tests (P5.3)
+        id: deferred_game_loader
+        run: flutter test test/features/games/deferred_game_loader_test.dart --reporter expanded
+
+      # ── P5.4: Extend Drift offline sync beyond Trackc ──────────
+      - name: Run sync engine tests (P5.4)
+        id: sync_engine
+        run: flutter test test/core/database/sync/abstract_sync_engine_test.dart --reporter expanded
+
+      # ── P5.5: Golden/visual-regression tests for painter output ─
+      - name: Run painter golden tests (P5.5)
+        id: painter_golden
+        run: flutter test test/graph/rendering/golden/painter_golden_test.dart --reporter expanded
+
       - name: Test summary
         if: always()
         run: |
@@ -107,6 +217,26 @@ jobs:
           echo "semantic_zoom:             ${{ steps.semantic_zoom.outcome }}"
           echo "lod_threshold:             ${{ steps.lod_threshold.outcome }}"
           echo "integration (Bug 4):       ${{ steps.integration.outcome }}"
+          echo "spring_physics (P3.1):    ${{ steps.spring_physics.outcome }}"
+          echo "haptic_language (P3.2):   ${{ steps.haptic_language.outcome }}"
+          echo "birthday_pulse (P3.3):    ${{ steps.birthday_pulse.outcome }}"
+          echo "memorial_candle (P3.4):   ${{ steps.memorial_candle.outcome }}"
+          echo "ambient_particle (P3.5):  ${{ steps.ambient_particle.outcome }}"
+          echo "heritage_sepia (P3.6):    ${{ steps.heritage_sepia.outcome }}"
+          echo "on_this_day_badge (P3.7): ${{ steps.on_this_day_badge.outcome }}"
+          echo "graph_minimap (P4.1):     ${{ steps.graph_minimap.outcome }}"
+          echo "find_myself (P4.2):       ${{ steps.find_myself_button.outcome }}"
+          echo "legend_toggle (P4.3):     ${{ steps.legend_toggle_44px.outcome }}"
+          echo "keyboard_nav (P4.4):      ${{ steps.keyboard_navigation.outcome }}"
+          echo "outline_view (P4.5):      ${{ steps.graph_outline_view.outcome }}"
+          echo "wcag_contrast (P4.6):     ${{ steps.wcag_contrast.outcome }}"
+          echo "reduced_motion (P4.7):    ${{ steps.reduced_motion.outcome }}"
+          echo "pagination (P5.1):        ${{ steps.pagination.outcome }}"
+          echo "kinship_correct (P5.2):   ${{ steps.kinship_correctness.outcome }}"
+          echo "path_correct (P5.2):      ${{ steps.path_correctness.outcome }}"
+          echo "deferred_games (P5.3):    ${{ steps.deferred_game_loader.outcome }}"
+          echo "sync_engine (P5.4):       ${{ steps.sync_engine.outcome }}"
+          echo "painter_golden (P5.5):    ${{ steps.painter_golden.outcome }}"
           echo "=========================="
           # Fail the job if any suite failed
           if [ "${{ steps.edge_dedup.outcome }}" = "failure" ] || \
@@ -117,7 +247,27 @@ jobs:
              [ "${{ steps.rel_validation.outcome }}" = "failure" ] || \
              [ "${{ steps.semantic_zoom.outcome }}" = "failure" ] || \
              [ "${{ steps.lod_threshold.outcome }}" = "failure" ] || \
-             [ "${{ steps.integration.outcome }}" = "failure" ]; then
+             [ "${{ steps.integration.outcome }}" = "failure" ] || \
+             [ "${{ steps.spring_physics.outcome }}" = "failure" ] || \
+             [ "${{ steps.haptic_language.outcome }}" = "failure" ] || \
+             [ "${{ steps.birthday_pulse.outcome }}" = "failure" ] || \
+             [ "${{ steps.memorial_candle.outcome }}" = "failure" ] || \
+             [ "${{ steps.ambient_particle.outcome }}" = "failure" ] || \
+             [ "${{ steps.heritage_sepia.outcome }}" = "failure" ] || \
+             [ "${{ steps.on_this_day_badge.outcome }}" = "failure" ] || \
+             [ "${{ steps.graph_minimap.outcome }}" = "failure" ] || \
+             [ "${{ steps.find_myself_button.outcome }}" = "failure" ] || \
+             [ "${{ steps.legend_toggle_44px.outcome }}" = "failure" ] || \
+             [ "${{ steps.keyboard_navigation.outcome }}" = "failure" ] || \
+             [ "${{ steps.graph_outline_view.outcome }}" = "failure" ] || \
+             [ "${{ steps.wcag_contrast.outcome }}" = "failure" ] || \
+             [ "${{ steps.reduced_motion.outcome }}" = "failure" ] || \
+             [ "${{ steps.pagination.outcome }}" = "failure" ] || \
+             [ "${{ steps.kinship_correctness.outcome }}" = "failure" ] || \
+             [ "${{ steps.path_correctness.outcome }}" = "failure" ] || \
+             [ "${{ steps.deferred_game_loader.outcome }}" = "failure" ] || \
+             [ "${{ steps.sync_engine.outcome }}" = "failure" ] || \
+             [ "${{ steps.painter_golden.outcome }}" = "failure" ]; then
             echo "At least one test suite failed."
             exit 1
           fi

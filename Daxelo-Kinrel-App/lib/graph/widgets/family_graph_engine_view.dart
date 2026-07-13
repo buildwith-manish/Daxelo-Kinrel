@@ -59,6 +59,16 @@ import '../engine/edge_dedup.dart' show DedupedEdge, EdgeDeduplicator;
 import '../interaction/camera_controller.dart' show CameraController;
 import '../interaction/expand_collapse.dart'
     show ExpandCollapseController, ExpandCollapseState;
+import '../interaction/haptic_language.dart' show GraphHaptics;
+import '../interaction/keyboard_navigation_controller.dart'
+    show handleGraphKeyEvent, keyboardFocusedNodeProvider;
+import '../rendering/birthday_pulse_controller.dart' show birthdayPulseProvider;
+import '../rendering/birthday_util.dart' show isNearBirthday, daysUntilBirthday;
+import '../rendering/memorial_candle_flicker_controller.dart'
+    show memorialCandleFlickerProvider;
+import '../rendering/ambient_particle_painter.dart' show AmbientParticlePainter;
+import '../rendering/ambient_particle_controller.dart'
+    show ambientParticleProvider;
 import '../interaction/graph_focus_state.dart'
     show
         GraphFocusNotifier,
@@ -130,6 +140,9 @@ import '../rendering/semantic_zoom.dart'
         shouldRenderText;
 import '../rendering/viewport_culler.dart' show ViewportCuller;
 import 'graph_node.dart' show GraphNode, NodeState;
+import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, OnThisDayEventType, showOnThisDayEventSheet;
+import 'graph_minimap.dart' show GraphMiniMap;
+import 'graph_outline_view.dart' show GraphOutlineView;
 import 'graph_legend.dart' show GraphLegend;
 import 'graph_quick_actions.dart' show GraphQuickActions;
 import 'graph_relationship_labels.dart' show GraphPersonData;
@@ -305,6 +318,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// Toggled by the "?" button in the bottom-left corner.
   bool _showLegend = false;
 
+  /// P4.5: Whether the screen-reader outline view is showing.
+  bool _showOutlineView = false;
+
   // ── P2.4: Two-node select-and-compare drag gesture ───────────────────
   /// When non-null, the user is long-pressing + dragging from this node
   /// to another node to compare their relationship. The drag line follows
@@ -455,6 +471,89 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       case Lod.dot:
         return EdgeQuality.dot;
     }
+  }
+
+  // ── P3.3: Birthday glow helpers ───────────────────────────────────────────
+
+  /// Returns true if [p] has a birthday within 7 days. Reads
+  /// `p['dateOfBirth']` (added to the graph RPC by the P3.3 migration).
+  bool isNearBirthdayForPerson(Map<String, dynamic> p) {
+    final dobStr = p['dateOfBirth'] as String?;
+    if (dobStr == null || dobStr.isEmpty) return false;
+    final dob = DateTime.tryParse(dobStr);
+    if (dob == null) return false;
+    return isNearBirthday(dob);
+  }
+
+  /// Returns days until the next birthday for [p], or null if
+  /// `dateOfBirth` is missing or invalid.
+  int? daysUntilBirthdayForPerson(Map<String, dynamic> p) {
+    final dobStr = p['dateOfBirth'] as String?;
+    if (dobStr == null || dobStr.isEmpty) return null;
+    final dob = DateTime.tryParse(dobStr);
+    if (dob == null) return null;
+    return daysUntilBirthday(dob);
+  }
+
+  /// P3.4: Returns true if the person is deceased AND the death was
+  /// within the last 30 days. The memorial candle is brighter (alpha
+  /// 0.8-1.0) for the first 30 days, then dims to 0.6-0.9.
+  ///
+  /// The graph RPC doesn't currently return dateOfDeath, so this
+  /// helper returns false (standard candle) until the RPC is extended.
+  /// The painter supports the brighter range via [isRecentlyDeceased]
+  /// — flipping this to true once dateOfDeath is in the RPC will
+  /// automatically brighten recently-deceased candles.
+  bool isRecentlyDeceasedForPerson(Map<String, dynamic> p) {
+    final isDeceased = (p['isDeceased'] as bool?) ?? false;
+    if (!isDeceased) return false;
+    final dodStr = p['dateOfDeath'] as String?;
+    if (dodStr == null || dodStr.isEmpty) return false;
+    final dod = DateTime.tryParse(dodStr);
+    if (dod == null) return false;
+    final daysSinceDeath = DateTime.now().difference(dod).inDays;
+    return daysSinceDeath >= 0 && daysSinceDeath <= 30;
+  }
+
+  // ── P3.7: "On this day" event helper ──────────────────────────────────
+
+  /// Returns an "on this day" event for [p] if today is the person's
+  /// birthday OR wedding anniversary. Returns null otherwise.
+  ///
+  /// Computed from existing person data (dateOfBirth / anniversaryDate)
+  /// so no extra API call is needed — the badge appears within 1 render
+  /// frame of graph load (per spec P3.7 1-frame requirement).
+  OnThisDayEvent? onThisDayEventForPerson(Map<String, dynamic> p) {
+    final personId = p['id']?.toString();
+    if (personId == null || personId.isEmpty) return null;
+    final now = DateTime.now();
+
+    final dobStr = p['dateOfBirth'] as String?;
+    if (dobStr != null && dobStr.isNotEmpty) {
+      final dob = DateTime.tryParse(dobStr);
+      if (dob != null && dob.month == now.month && dob.day == now.day) {
+        return OnThisDayEvent(
+          personId: personId,
+          type: OnThisDayEventType.birthday,
+          year: dob.year,
+          title: 'Birthday today',
+        );
+      }
+    }
+
+    final annivStr = p['anniversaryDate'] as String?;
+    if (annivStr != null && annivStr.isNotEmpty) {
+      final anniv = DateTime.tryParse(annivStr);
+      if (anniv != null && anniv.month == now.month && anniv.day == now.day) {
+        return OnThisDayEvent(
+          personId: personId,
+          type: OnThisDayEventType.anniversary,
+          year: anniv.year,
+          title: 'Wedding Anniversary',
+        );
+      }
+    }
+    return null;
   }
 
   // ── v97 Zoom-aware sizing helpers ────────────────────────────────────
@@ -608,6 +707,96 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                         ),
                       ),
                     ),
+                  // P4.1: Mini-map — shown when graph has > 30 nodes.
+                  // Tap to center camera on the tapped graph-space location.
+                  if (flat.persons.length > 30)
+                    Positioned(
+                      right: 8,
+                      bottom: 8,
+                      child: GraphMiniMap(
+                        camera: _camera,
+                        positions: layout.positions,
+                        viewportSize: _viewportSize,
+                        anchorId: _SubtreeMethods._findAnchorId(flat, viewerPersonId),
+                        onTap: (graphSpaceTarget) {
+                          final bool reduced =
+                              MediaQuery.disableAnimationsOf(context);
+                          // Center the camera on the tapped location.
+                          _camera.animateToWithSpring(
+                            -graphSpaceTarget.dx * _camera.zoomLevel +
+                                _viewportSize.width / 2,
+                            -graphSpaceTarget.dy * _camera.zoomLevel +
+                                _viewportSize.height / 2,
+                            _camera.zoomLevel,
+                            reducedMotion: reduced,
+                          );
+                        },
+                      ),
+                    ),
+                  // P4.2: "Find Myself" button — persistent FAB that
+                  // centers the camera on the viewer's node. Always
+                  // visible when the viewer has a linked Person node.
+                  if (viewerPersonId != null &&
+                      layout.positions.containsKey(viewerPersonId))
+                    Positioned(
+                      right: 8,
+                      top: MediaQuery.of(context).padding.top + 8,
+                      child: FloatingActionButton.small(
+                        heroTag: 'graph_find_myself',
+                        onPressed: () {
+                          final pos = layout.positions[viewerPersonId];
+                          if (pos == null) return;
+                          final bool reduced =
+                              MediaQuery.disableAnimationsOf(context);
+                          // P3.2: haptic on focus enter.
+                          GraphHaptics.focusEnter(context);
+                          _camera.animateToWithSpring(
+                            -pos.dx * _camera.zoomLevel +
+                                _viewportSize.width / 2,
+                            -pos.dy * _camera.zoomLevel +
+                                _viewportSize.height / 2,
+                            _camera.zoomLevel,
+                            reducedMotion: reduced,
+                          );
+                        },
+                        tooltip: 'Find myself',
+                        child: const Icon(Icons.my_location),
+                      ),
+                    ),
+                  // P4.5: Screen-reader outline view toggle — a button
+                  // that opens a list view of all persons for screen-reader
+                  // users. Per WCAG 2.4.1 (Bypass Blocks).
+                  Positioned(
+                    left: 8,
+                    top: MediaQuery.of(context).padding.top + 56,
+                    child: FloatingActionButton.small(
+                      heroTag: 'graph_outline_view',
+                      onPressed: () {
+                        SemanticsService.announce(
+                          'Outline view opened. ${flat.persons.length} family members.',
+                          TextDirection.ltr,
+                        );
+                        setState(() => _showOutlineView = true);
+                      },
+                      tooltip: 'Outline view for screen readers',
+                      child: const Icon(Icons.accessibility_new),
+                    ),
+                  ),
+                  // P4.5: Outline view overlay — covers the canvas when
+                  // active, providing a screen-reader-navigable list.
+                  if (_showOutlineView)
+                    Positioned.fill(
+                      child: GraphOutlineView(
+                        persons: flat.persons,
+                        relationshipLabels: const {},
+                        onNodeFocus: (personId, personName) {
+                          setState(() => _showOutlineView = false);
+                          _onFocusPerson(personId, personName);
+                        },
+                        onClose: () =>
+                            setState(() => _showOutlineView = false),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -648,6 +837,8 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         top: chipTop,
         child: GestureDetector(
           onTap: () {
+            // P3.2: "branch opening" haptic on branch expand.
+            GraphHaptics.branchExpand(context);
             ref.read(branchCollapseProvider.notifier).expandBranch(branch.rootPersonId);
           },
           child: Container(
@@ -936,16 +1127,14 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     if (visibleFraction > 0.5) return;
 
     // Pan the camera to center on the revealed bounds' center.
+    // P3.1: route through the spring-based animator so the pan settles
+    // with a cinematic spring instead of a curve tween.
     final center = paddedBounds.center;
-    final Duration duration = reduced
-        ? Duration.zero
-        : const Duration(milliseconds: 420);
-    _camera.animateTo(
+    _camera.animateToWithSpring(
       -center.dx * _camera.zoomLevel + _viewportSize.width / 2,
       -center.dy * _camera.zoomLevel + _viewportSize.height / 2,
       _camera.zoomLevel,
-      duration: duration,
-      curve: Curves.easeOutCubic,
+      reducedMotion: reduced,
     );
   }
 
@@ -1004,6 +1193,31 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       isAnchor: (p['isAnchor'] as bool?) ?? false,
       photoUrl: p['photoUrl'] as String?,
       isDeceased: (p['isDeceased'] as bool?) ?? false,
+      // P3.3: birthday glow — compute isNearBirthday from dateOfBirth
+      // (now included in the graph RPC) and pass the shared pulse value.
+      // Reduced motion → pass -1.0 as a sentinel so the painter uses a
+      // static 0.45 alpha instead of reading the pulse.
+      isNearBirthday: isNearBirthdayForPerson(p),
+      birthdayPulseValue: isNearBirthdayForPerson(p)
+          ? (MediaQuery.disableAnimationsOf(context)
+              ? -1.0 // sentinel: static glow
+              : ref.watch(birthdayPulseProvider).value)
+          : 0.0,
+      daysUntilBirthday: daysUntilBirthdayForPerson(p),
+      // P3.4: memorial candle — deceased nodes get a flickering candle
+      // at their center. All deceased nodes share one AnimationController
+      // so they flicker in sync. Reduced motion → -1.0 sentinel = static
+      // 0.75 alpha.
+      memorialCandleFlickerValue: (p['isDeceased'] as bool?) ?? false
+          ? (MediaQuery.disableAnimationsOf(context)
+              ? -1.0 // sentinel: static candle
+              : ref.watch(memorialCandleFlickerProvider).value)
+          : 0.0,
+      isRecentlyDeceased: isRecentlyDeceasedForPerson(p),
+      // P3.7: "On this day" badge — appears when today is the person's
+      // birthday or anniversary. Computed in-memory so it appears in the
+      // same render frame as the graph nodes (1-frame requirement).
+      onThisDayEvent: onThisDayEventForPerson(p),
       nodeState: nodeState,
       // The "Pending" badge was previously shown for ANY person without
       // a linkedUserId (i.e., not yet claimed by a Kinrel account). But
@@ -1168,6 +1382,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // ── Gestures ───────────────────────────────────────────────────────────
 
   void _onFocusPerson(String personId, String personName) {
+    // P3.2: clear "moment" haptic on focus enter.
+    GraphHaptics.focusEnter(context);
+
     // Build real edge tuples from the current deduped edges.
     final edgeTuples = [
       for (final d in _currentEdges)
@@ -1193,15 +1410,19 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     final popped = ref.read(graphFocusProvider.notifier).back();
     if (popped == null) return;
 
+    // P3.2: gentle release haptic on focus exit (back).
+    GraphHaptics.focusExit(context);
+
     // Restore the camera viewport from the popped history entry.
+    // P3.1: route through the spring-based animator so the focus-back
+    // settles with a cinematic spring instead of a curve tween.
     final viewport = popped.viewport;
     final bool reduced = MediaQuery.disableAnimationsOf(context);
-    _camera.animateTo(
+    _camera.animateToWithSpring(
       viewport.panX,
       viewport.panY,
       viewport.zoom,
-      duration: reduced ? Duration.zero : const Duration(milliseconds: 420),
-      curve: Curves.easeOutCubic,
+      reducedMotion: reduced,
     );
 
     // Force re-animation + neighbour recompute for restored focus.

@@ -13,6 +13,7 @@ import '../../../features/family/presentation/providers/family_graph_provider.da
     show selectedEdgeProvider;
 import '../../engine/edge_dedup.dart' show DedupedEdge;
 import '../../interaction/couple_union_model.dart' show CoupleUnion;
+import '../../interaction/spring_palette.dart' show SpringCurves;
 import '../../rendering/edge_path_cache.dart' show EdgePathCache;
 import '../../rendering/edge_quality.dart' show EdgeQuality, EdgeQualityX;
 import 'engine_edge_painter.dart' show EngineEdgePainter;
@@ -121,7 +122,10 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
     );
     _sweepAnimation = CurvedAnimation(
       parent: _sweepController,
-      curve: Curves.easeOutCubic,
+      // P3.1: spring-backed curve so the edge-selection sweep feels
+      // alive (critically damped, no overshoot). Replaces the previous
+      // cubic ease-out curve per the P3.1 verification check.
+      curve: SpringCurves.zoom,
     )..addListener(_onSweepTick);
     _traceController = GraphPathTraceController()..attach(this);
     _traceController.addListener(_onTraceTick);
@@ -152,6 +156,9 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
     final bool reduced = MediaQuery.disableAnimationsOf(context);
     if (reduced != _reducedMotion) {
       _reducedMotion = reduced;
+      // P3.2: propagate the reduced-motion flag to the path-trace
+      // controller so it can suppress per-step haptics.
+      _traceController.reducedMotion = reduced;
     }
 
     // No selection → cancel any in-flight sweep.

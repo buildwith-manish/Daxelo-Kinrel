@@ -156,6 +156,44 @@ class GraphQuickActions {
                   }
                 },
               ),
+            // P3.4: "Light a candle" action for deceased persons.
+            // Visual only — places a brief brighter candle that fades
+            // over 3 seconds. Local-only interaction (no backend record);
+            // it's a moment, not a metric.
+            if (person.isDeceased)
+              ListTile(
+                leading: const Icon(Icons.local_fire_department_outlined,
+                    color: KinrelColors.amber),
+                title: const Text(
+                  'Light a candle',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showLightACandleToast(context, person.name);
+                },
+              ),
+            // P3.4: "View memorial" action for deceased persons.
+            // Opens the Pitru memorials screen (existing module).
+            if (person.isDeceased && familyId != null)
+              ListTile(
+                leading: const Icon(Icons.favorite_outline,
+                    color: KinrelColors.extendedPurple),
+                title: const Text(
+                  'View memorial',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push('/memorials?familyId=$familyId');
+                },
+              ),
             // Edit
             ListTile(
               leading: const Icon(Icons.edit, color: KinrelColors.amber),
@@ -213,6 +251,28 @@ class GraphQuickActions {
             const SizedBox(height: 8.0),
           ],
         ),
+      ),
+    );
+  }
+
+  /// P3.4: Shows a brief "a candle has been lit" toast for [personName].
+  ///
+  /// This is a local-only moment (no backend record) — it's a moment,
+  /// not a metric. The toast auto-dismisses after 3 seconds, matching
+  /// the spec's "brief brighter candle that fades over 3 seconds."
+  static void _showLightACandleToast(BuildContext context, String personName) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'A candle has been lit for $personName',
+          style: const TextStyle(
+            color: KinrelColors.textWhite,
+            fontFamily: KinrelTypography.bodyFont,
+          ),
+        ),
+        backgroundColor: KinrelColors.darkCard,
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }

@@ -43,6 +43,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/animation.dart';
 
+import 'haptic_language.dart' show GraphHaptics;
+
 /// State machine for the sequential path trace.
 enum GraphPathTracePhase {
   /// No trace active. Either no path has been focused yet, or a
@@ -151,6 +153,21 @@ class GraphPathTraceController extends ChangeNotifier {
   VoidCallback? _controllerListener;
   List<String> _orderedEdgeIds = const [];
   int _currentIndex = 0;
+
+  /// P3.2: Reduced-motion flag. When true, the controller suppresses
+  /// haptic feedback on each edge completion. The consumer should
+  /// also call `revealAll()` instead of `startTrace()` when this is
+  /// true (so `_onTick` never fires) — this flag is a defensive
+  /// backstop in case `startTrace` is called while reduced motion is
+  /// active.
+  ///
+  /// Default false. The consumer sets this via [reducedMotion] when
+  /// the MediaQuery flag changes.
+  bool _reducedMotion = false;
+  bool get reducedMotion => _reducedMotion;
+  set reducedMotion(bool value) {
+    _reducedMotion = value;
+  }
 
   /// Wire the controller to a TickerProvider (typically the
   /// `_EdgeSelectionWrapperState` which already has
@@ -267,6 +284,9 @@ class GraphPathTraceController extends ChangeNotifier {
       final newCompleted =
           Set<String>.from(_state.completedEdgeIds)
             ..add(_orderedEdgeIds[_currentIndex]);
+      // P3.2: rhythmic footsteps haptic on each edge completion.
+      // Suppressed when reduced motion is active.
+      GraphHaptics.pathTraceStep(reducedMotion: _reducedMotion);
       _currentIndex += 1;
 
       if (_currentIndex >= _orderedEdgeIds.length) {

@@ -54,12 +54,22 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   }
 
   /// v62: Double-tap toggles between 1× and 2× zoom, centered on
-  /// the tap focal point. Uses the camera's zoomTo with focalPoint
-  /// so the zoom target stays under the user's finger.
+  /// the tap focal point. Uses the camera's zoomToSpring (P3.1) with
+  /// focalPoint so the zoom target stays under the user's finger and
+  /// the transition animates with a critically-damped spring.
+  ///
+  /// P3.1: switched from instant `zoomTo` to spring-based `zoomToSpring`
+  /// so the double-tap zoom feels weighted and alive. Reduced-motion
+  /// users snap instantly (no animation).
   void _handleDoubleTapZoom() {
     final currentZoom = _camera.zoomLevel;
     final targetZoom = currentZoom < 1.5 ? 2.0 : 1.0;
-    _camera.zoomTo(targetZoom, focalPoint: _doubleTapPosition);
+    final bool reduced = MediaQuery.disableAnimationsOf(context);
+    _camera.zoomToSpring(
+      targetZoom,
+      focalPoint: _doubleTapPosition,
+      reducedMotion: reduced,
+    );
   }
 
   // ── v72: Geometric Node Hit-Testing ────────────────────────────────────
@@ -451,6 +461,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     if (deduped == null) return;
     final e = deduped.edge;
 
+    // P3.2: soft tick on edge tap.
+    GraphHaptics.edgeTap(context);
+
     // Select the edge — drives the v91 premium selected-edge visual
     // + the one-shot sweep.
     ref.read(selectedEdgeProvider.notifier).state = edgeId;
@@ -539,6 +552,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     final nodeId = _hitTestNode(details.localPosition, layout);
     if (nodeId == null) return;
 
+    // P3.2: soft tick on node tap.
+    GraphHaptics.nodeTap(context);
+
     // P2.1: If path-select mode is active, intercept the tap to select
     // the from/to nodes instead of showing quick actions.
     final focusState = ref.read(graphFocusProvider);
@@ -615,6 +631,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   ) {
     final nodeId = _hitTestNode(details.localPosition, layout);
     if (nodeId == null) return;
+
+    // P3.2: clear "menu opening" haptic on long-press.
+    GraphHaptics.longPress(context);
 
     // P2.4: Start the two-node select-and-compare drag gesture.
     // Instead of immediately showing the quick-actions sheet, the
@@ -773,6 +792,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       _showNoPathSheet(fromId, toId, flat);
       return;
     }
+
+    // P3.2: clear "answer" haptic when the compare result sheet opens.
+    GraphHaptics.compareComplete(context);
 
     // P2.1: The trace animation is driven automatically by EdgeSelectionWrapper
     // when it detects the resolved path focus. No need to call startTrace directly.

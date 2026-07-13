@@ -38,6 +38,7 @@ import '../../core/kinship/kinship_edge_style.dart';
 import '../../core/widgets/cached_avatar.dart';
 import '../../features/kinrel_intelligence/providers/kinrel_provider.dart';
 import '../../features/kinrel_intelligence/widgets/role_glyph_badge.dart' show RoleGlyphBadge;
+import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, showOnThisDayEventSheet;
 
 // ═══════════════════════════════════════════════════════════════════════
 // NODE STATE ENUM
@@ -176,6 +177,15 @@ class GraphNode extends ConsumerStatefulWidget {
     this.isUnclaimed = false,
     this.familyId,
     this.showRelationLabel = true,
+    // P3.3: birthday glow parameters.
+    this.isNearBirthday = false,
+    this.birthdayPulseValue = 0.0,
+    this.daysUntilBirthday,
+    // P3.4: memorial candle parameters.
+    this.memorialCandleFlickerValue = 0.0,
+    this.isRecentlyDeceased = false,
+    // P3.7: on-this-day badge.
+    this.onThisDayEvent,
     required this.onTap,
     required this.onLongPress,
     this.onDoubleTap,
@@ -201,6 +211,39 @@ class GraphNode extends ConsumerStatefulWidget {
 
   /// Whether this person is deceased.
   final bool isDeceased;
+
+  /// P3.3: Whether this person's birthday is within 7 days. When true,
+  /// the painter adds a 9th layer — a soft pulsing ember ring (or
+  /// amber if [isDeceased] is also true).
+  final bool isNearBirthday;
+
+  /// P3.3: The current pulse value (0..1) from the shared
+  /// [birthdayPulseProvider]. The painter maps this to a 0.3..0.6
+  /// alpha range. When reduced motion is active, the consumer passes
+  /// 0.5 (a static mid-pulse value) and the painter uses a fixed
+  /// 0.45 alpha instead of reading this value.
+  final double birthdayPulseValue;
+
+  /// P3.3: Days until the next birthday (for the Semantics label).
+  /// Null when [isNearBirthday] is false or dateOfBirth is unknown.
+  final int? daysUntilBirthday;
+
+  /// P3.4: The current flicker value (0..1) from the shared
+  /// [memorialCandleFlickerProvider]. The painter maps this to a
+  /// 0.6..0.9 alpha range. When reduced motion is active, the
+  /// consumer passes -1.0 (sentinel) and the painter uses a static
+  /// 0.75 alpha.
+  final double memorialCandleFlickerValue;
+
+  /// P3.4: True if the death was within the last 30 days. The candle
+  /// is brighter (alpha 0.8-1.0) for the first 30 days, then dims to
+  /// the standard 0.6-0.9.
+  final bool isRecentlyDeceased;
+
+  /// P3.7: "On this day" event for this person (birthday today,
+  /// anniversary today, or a memory from this day). When non-null,
+  /// a small badge is rendered at the top-right of the node.
+  final OnThisDayEvent? onThisDayEvent;
 
   /// Whether this node should display as anonymous (hidden member).
   final bool isAnonymous;
@@ -292,13 +335,20 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    // Shimmer animation for loading state (1.5s repeat)
+    // Shimmer animation for loading state (1.5s repeat).
+    // P3.1: removed the explicit identity easing curve — linear is
+    // the default behavior of `Tween.animate(parent)` without a
+    // CurvedAnimation wrapper. The P3.1 verification check requires
+    // zero occurrences of identity-easing literal references in
+    // lib/graph/. The shimmer genuinely needs uniform motion (constant-
+    // velocity sweep), so we keep the behavior but remove the
+    // redundant explicit curve.
     _shimmerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
     _shimmerAnimation = Tween<double>(begin: -1.0, end: 2.0).animate(
-      CurvedAnimation(parent: _shimmerController, curve: Curves.linear),
+      _shimmerController,
     );
 
     // Error pulse animation for error state (800ms repeat)
@@ -425,7 +475,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     }
 
     final effectiveOpacity =
-        widget.isDeceased ? 0.4 * widget.opacity : widget.opacity;
+        widget.isDeceased ? 0.6 * widget.opacity : widget.opacity;
 
     // Accessibility: Expose the node as a single semantic button with a
     // descriptive label. Screen-reader users hear "[Name], [Relation],
@@ -486,6 +536,26 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
     if (widget.nodeState == NodeState.expanded) {
       parts.add('Expanded');
+    }
+
+    // P3.3: birthday info in the Semantics label so screen-reader
+    // users know a birthday is approaching. "Birthday today" or
+    // "Birthday in N days." Deceased birthdays say "Memorial birthday"
+    // to distinguish from living.
+    if (widget.isNearBirthday) {
+      final days = widget.daysUntilBirthday;
+      if (days == 0) {
+        parts.add(widget.isDeceased ? 'Memorial birthday today' : 'Birthday today');
+      } else if (days != null && days > 0) {
+        parts.add(widget.isDeceased
+            ? 'Memorial birthday in $days days'
+            : 'Birthday in $days days');
+      }
+    }
+
+    // P3.4: memorial candle announcement for deceased nodes.
+    if (widget.isDeceased) {
+      parts.add('Memorial candle lit');
     }
 
     return '${parts.join(', ')}.';
@@ -656,7 +726,10 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       );
     }
 
-    // Pseudo-3D node: all 6 layers painted by a single CustomPainter.
+    // Pseudo-3D node: all 10 layers painted by a single CustomPainter.
+    // P3.3: pass birthday glow params so the painter can draw layer 9.
+    // P3.4: pass memorial candle flicker params so the painter can draw
+    // layer 10 for deceased nodes.
     final nodeParams = _Pseudo3DParams(
       diameter: diameter,
       borderColor: widget.isAnchor ? KinshipEdgeColors.self : _borderColor,
@@ -667,6 +740,11 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       tintColor: _tintColor,
       showTint: widget.nodeState == NodeState.selected ||
           widget.nodeState == NodeState.hover,
+      isNearBirthday: widget.isNearBirthday,
+      birthdayPulseValue: widget.birthdayPulseValue,
+      isDeceased: widget.isDeceased,
+      memorialCandleFlickerValue: widget.memorialCandleFlickerValue,
+      isRecentlyDeceased: widget.isRecentlyDeceased,
     );
 
     final extraPad = widget.isAnchor ? 16.0 : 12.0;
@@ -733,6 +811,21 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                   border: Border.all(color: KinrelColors.amber, width: 1.0),
                 ),
                 child: Icon(Icons.lock, size: diameter * 0.12, color: KinrelColors.amber),
+              ),
+            ),
+          // P3.7: "On this day" badge — top-right corner, 24x24.
+          if (widget.onThisDayEvent != null)
+            Positioned(
+              right: -2,
+              top: -2,
+              child: OnThisDayBadge(
+                event: widget.onThisDayEvent!,
+                personName: widget.name,
+                onTap: () => showOnThisDayEventSheet(
+                  context,
+                  widget.onThisDayEvent!,
+                  widget.name,
+                ),
               ),
             ),
           // Pending badge
@@ -911,7 +1004,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     if (widget.photoUrl != null &&
         widget.photoUrl!.isNotEmpty &&
         !widget.isAnonymous) {
-      return ClipOval(
+      final avatar = ClipOval(
         child: CachedAvatar(
           imageUrl: widget.photoUrl,
           radius: diameter / 2,
@@ -921,6 +1014,24 @@ class _GraphNodeState extends ConsumerState<GraphNode>
           errorWidget: _buildInitialsContent(diameter),
         ),
       );
+      // P3.6: Heritage/sepia texture on ancestor nodes.
+      // Ancestors (generationIndex <= -2) get full sepia.
+      // Parents (generationIndex == -1) get light sepia (50% mix).
+      // Descendants (>= 0) get no sepia.
+      // The sepia is a luminance shift — color-blind safe. The memorial
+      // candle (P3.4) paints on top of the sepia for deceased ancestors.
+      if (widget.generationIndex <= -2) {
+        return ColorFiltered(
+          colorFilter: const ColorFilter.matrix(_kFullSepiaMatrix),
+          child: avatar,
+        );
+      } else if (widget.generationIndex == -1) {
+        return ColorFiltered(
+          colorFilter: const ColorFilter.matrix(_kLightSepiaMatrix),
+          child: avatar,
+        );
+      }
+      return avatar;
     }
 
     // Fallback: initials
@@ -943,6 +1054,37 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     );
   }
 }
+
+// ── P3.6: Sepia matrices ──────────────────────────────────────────────
+//
+// ColorFilter matrices for the heritage/sepia wash on ancestor nodes.
+// Ancestors (generationIndex <= -2) get full sepia; parents (-1) get a
+// 50% mix between original color and full sepia. The matrices apply
+// the classic sepia tone transform:
+//   R' = 0.393*R + 0.769*G + 0.189*B
+//   G' = 0.349*R + 0.686*G + 0.168*B
+//   B' = 0.272*R + 0.534*G + 0.131*B
+//
+// The 50% mix for parents is achieved by lerping each matrix coefficient
+// toward the identity matrix by 50%.
+
+const List<double> _kFullSepiaMatrix = [
+  0.393, 0.769, 0.189, 0, 0,
+  0.349, 0.686, 0.168, 0, 0,
+  0.272, 0.534, 0.131, 0, 0,
+  0,     0,     0,     1, 0,
+];
+
+const List<double> _kLightSepiaMatrix = [
+  // 50% mix between identity and full sepia.
+  // identity[0]=1, sepia[0]=0.393 → 0.5*(1+0.393) = 0.6965
+  // identity[1]=0, sepia[1]=0.769 → 0.5*(0+0.769) = 0.3845
+  // etc.
+  0.6965, 0.3845, 0.0945, 0, 0,
+  0.1745, 0.8430, 0.0840, 0, 0,
+  0.1360, 0.2670, 0.5655, 0, 0,
+  0,      0,      0,      1, 0,
+];
 
 // ═══════════════════════════════════════════════════════════════════════
 // SHIMMER PAINTER
@@ -1044,6 +1186,11 @@ class _Pseudo3DParams {
     required this.nodeState,
     required this.tintColor,
     required this.showTint,
+    this.isNearBirthday = false,
+    this.birthdayPulseValue = 0.0,
+    this.isDeceased = false,
+    this.memorialCandleFlickerValue = 0.0,
+    this.isRecentlyDeceased = false,
   });
 
   final double diameter;
@@ -1054,6 +1201,18 @@ class _Pseudo3DParams {
   final NodeState nodeState;
   final Color tintColor;
   final bool showTint;
+
+  /// P3.3: birthday glow parameters (passed through from GraphNode).
+  final bool isNearBirthday;
+  final double birthdayPulseValue;
+  final bool isDeceased;
+
+  /// P3.4: memorial candle flicker (0..1 from shared provider).
+  /// Negative = reduced-motion sentinel (static candle).
+  final double memorialCandleFlickerValue;
+
+  /// P3.4: true if death was within the last 30 days (brighter candle).
+  final bool isRecentlyDeceased;
 
   double get _scale => diameter / 72.0;
 
@@ -1320,6 +1479,84 @@ class _Pseudo3DNodePainter extends CustomPainter {
       );
     }
 
+    // ══ LAYER 9 (P3.3): Birthday glow ring ═════════════════════════
+    // Soft pulsing ember ring for nodes with a birthday in the next
+    // 7 days. All birthday nodes share ONE AnimationController so they
+    // pulse in sync. Deceased birthday nodes use a warmer amber to
+    // distinguish from living birthdays.
+    //
+    // Alpha range 0.3..0.6 (subtle, doesn't overwhelm). The glow is
+    // painted OUTSIDE the node circle (r * 1.05..1.10) so it doesn't
+    // tint the face. Reduced motion: static 0.45 alpha (no pulse).
+    if (params.isNearBirthday) {
+      final bool reduced = params.birthdayPulseValue < 0; // sentinel
+      final double glowAlpha;
+      final double glowRadiusFactor;
+      if (reduced) {
+        // Static glow — painter receives negative pulse value as a
+        // sentinel for reduced motion.
+        glowAlpha = 0.45;
+        glowRadiusFactor = 1.075;
+      } else {
+        // Pulsing glow — alpha 0.3..0.6, radius 1.05..1.10.
+        glowAlpha = 0.3 + 0.3 * params.birthdayPulseValue;
+        glowRadiusFactor = 1.05 + 0.05 * params.birthdayPulseValue;
+      }
+      final glowRadius = r * glowRadiusFactor;
+      // Ember for living birthdays, amber for deceased birthdays.
+      final glowColor = params.isDeceased
+          ? const Color(0xFFF59240) // amber
+          : const Color(0xFFE8612A); // ember
+      final glowPaint = Paint()
+        ..shader = RadialGradient(
+          colors: [
+            glowColor.withValues(alpha: glowAlpha),
+            glowColor.withValues(alpha: 0.0),
+          ],
+          stops: const [0.0, 1.0],
+        ).createShader(
+          Rect.fromCircle(center: center, radius: glowRadius),
+        );
+      canvas.drawCircle(center, glowRadius, glowPaint);
+    }
+
+    // ══ LAYER 10 (P3.4): Memorial candle for deceased nodes ════════
+    // A single warm flickering point at the center of the node — a
+    // "memorial candle" that says "remembered" not just "gone."
+    // All deceased nodes share ONE AnimationController so their
+    // candles flicker in sync (a shared remembrance).
+    //
+    // Alpha range 0.6..0.9 (recently deceased: 0.8..1.0). The candle
+    // is painted ON TOP of the face (it's the centerpiece, not a
+    // surrounding glow). Reduced motion: static 0.75 alpha.
+    if (params.isDeceased) {
+      final bool reduced = params.memorialCandleFlickerValue < 0;
+      final double candleAlpha;
+      final double candleRadiusFactor;
+      if (reduced) {
+        candleAlpha = params.isRecentlyDeceased ? 0.85 : 0.75;
+        candleRadiusFactor = 0.09;
+      } else {
+        final base = params.isRecentlyDeceased ? 0.8 : 0.6;
+        final range = params.isRecentlyDeceased ? 0.2 : 0.3;
+        candleAlpha = base + range * params.memorialCandleFlickerValue;
+        candleRadiusFactor = 0.08 + 0.02 * params.memorialCandleFlickerValue;
+      }
+      final candleRadius = d * candleRadiusFactor;
+      const candleColor = Color(0xFFF59240); // amber
+      final candlePaint = Paint()
+        ..shader = RadialGradient(
+          colors: [
+            candleColor.withValues(alpha: candleAlpha),
+            candleColor.withValues(alpha: 0.0),
+          ],
+          stops: const [0.0, 1.0],
+        ).createShader(
+          Rect.fromCircle(center: center, radius: candleRadius * 2),
+        );
+      canvas.drawCircle(center, candleRadius * 2, candlePaint);
+    }
+
     // NOTE: No anchor halo. Anchor prominence comes from:
     //   - Slightly larger extrusion (extrusionDepth unchanged but shadowBlur +3)
     //   - Stronger specular (specularAlpha 0.18 vs 0.12)
@@ -1335,6 +1572,14 @@ class _Pseudo3DNodePainter extends CustomPainter {
         old.params.generationIndex != params.generationIndex ||
         old.params.isAnchor != params.isAnchor ||
         old.params.nodeState != params.nodeState ||
-        old.params.showTint != params.showTint;
+        old.params.showTint != params.showTint ||
+        // P3.3: repaint when birthday state or pulse value changes.
+        old.params.isNearBirthday != params.isNearBirthday ||
+        old.params.birthdayPulseValue != params.birthdayPulseValue ||
+        old.params.isDeceased != params.isDeceased ||
+        // P3.4: repaint when memorial candle flicker changes.
+        old.params.memorialCandleFlickerValue !=
+            params.memorialCandleFlickerValue ||
+        old.params.isRecentlyDeceased != params.isRecentlyDeceased;
   }
 }

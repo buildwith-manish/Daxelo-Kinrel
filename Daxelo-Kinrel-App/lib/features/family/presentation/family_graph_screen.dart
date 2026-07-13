@@ -541,6 +541,10 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
             if (graph.isTruncated) _buildTruncationBanner(graph),
 
+            // P3.7: "On this day" banner — shows when any persons have
+            // a birthday or anniversary today.
+            if (_onThisDayCount(graph) > 0) _buildOnThisDayBanner(graph),
+
             Expanded(
               // v2.2: Always use the V2.1 engine view. The old
               // FamilyGraphWidget with its RelationshipEdge painter
@@ -581,24 +585,30 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
               children: [
                 GestureDetector(
                   onTap: () => setState(() => _showLegend = !_showLegend),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: KinrelColors.darkCard,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: _showLegend
-                            ? KinrelColors.orange.withValues(alpha: 0.5)
-                            : Colors.white.withValues(alpha: 0.08),
+                  child: Semantics(
+                    label: 'Toggle legend',
+                    button: true,
+                    child: Container(
+                      // P4.3: 44x44 minimum hit target per WCAG 2.5.5.
+                      // Was 36x36 (below the 44px minimum).
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: KinrelColors.darkCard,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: _showLegend
+                              ? KinrelColors.orange.withValues(alpha: 0.5)
+                              : Colors.white.withValues(alpha: 0.08),
+                        ),
                       ),
-                    ),
-                    child: Icon(
-                      Icons.help_outline_rounded,
-                      size: 18,
-                      color: _showLegend
-                          ? KinrelColors.orange
-                          : KinrelColors.textDim,
+                      child: Icon(
+                        Icons.help_outline_rounded,
+                        size: 22,
+                        color: _showLegend
+                            ? KinrelColors.orange
+                            : KinrelColors.textDim,
+                      ),
                     ),
                   ),
                 ),
@@ -933,6 +943,73 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── P3.7: "On this day" banner ──────────────────────────────────
+
+  /// Counts how many persons in [graph] have an "on this day" event
+  /// (birthday today or anniversary today).
+  int _onThisDayCount(FlatGraphResult graph) {
+    final now = DateTime.now();
+    var count = 0;
+    for (final p in graph.persons) {
+      final dobStr = p['dateOfBirth'] as String?;
+      if (dobStr != null && dobStr.isNotEmpty) {
+        final dob = DateTime.tryParse(dobStr);
+        if (dob != null && dob.month == now.month && dob.day == now.day) {
+          count++;
+          continue;
+        }
+      }
+      final annivStr = p['anniversaryDate'] as String?;
+      if (annivStr != null && annivStr.isNotEmpty) {
+        final anniv = DateTime.tryParse(annivStr);
+        if (anniv != null &&
+            anniv.month == now.month &&
+            anniv.day == now.day) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  /// Builds the "On this day" banner shown above the graph when any
+  /// persons have a birthday or anniversary today.
+  Widget _buildOnThisDayBanner(FlatGraphResult graph) {
+    final count = _onThisDayCount(graph);
+    return Semantics(
+      liveRegion: true,
+      label: '$count events on this day. Tap a badge to view.',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: const BoxDecoration(
+          color: KinrelColors.darkElevated,
+          border: Border(
+            bottom: BorderSide(color: KinrelColors.orange, width: 1),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.today, color: KinrelColors.orange, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '$count event${count == 1 ? '' : 's'} on this day. '
+                'Tap a badge to view.',
+                style: const TextStyle(
+                  color: KinrelColors.textWhite,
+                  fontFamily: 'DMSans',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
