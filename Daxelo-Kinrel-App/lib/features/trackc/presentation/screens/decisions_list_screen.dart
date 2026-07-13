@@ -16,12 +16,12 @@
 // =============================================================================
 
 import 'package:flutter/material.dart';
+import '../../../../core/constants/brand_colors.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/trackc_providers.dart';
 import '../providers/trackc_visibility.dart';
-import 'decision_create_screen.dart';
 import 'secretary_screen.dart';
 import 'analytics_screen.dart';
 
@@ -65,6 +65,7 @@ class _TrackcDecisionsListScreenState extends ConsumerState<TrackcDecisionsListS
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(
         title: const Text('Decisions'),
         bottom: TabBar(
@@ -105,11 +106,10 @@ class _TrackcDecisionsListScreenState extends ConsumerState<TrackcDecisionsListS
       floatingActionButton: caps.canAct && _currentTabIndex < 3
           ? FloatingActionButton.extended(
               onPressed: () async {
-                final created = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(
-                    builder: (_) => const TrackcDecisionCreateScreen(),
-                    fullscreenDialog: true,
-                  ),
+                // P6.3: Use GoRouter for deep-linkable navigation.
+                final familyId = ref.read(selectedFamilyIdProvider) ?? '';
+                final created = await context.push<bool>(
+                  '/family/$familyId/governance/decisions/create',
                 );
                 if (created == true) {
                   ref.invalidate(decisionsProvider(null));

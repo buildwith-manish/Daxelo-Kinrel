@@ -11,6 +11,7 @@
 // =============================================================================
 
 import 'package:flutter/material.dart';
+import '../../../../core/constants/brand_colors.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/trackc_providers.dart';
@@ -41,6 +42,7 @@ class _TrackcDecisionDetailScreenState extends ConsumerState<TrackcDecisionDetai
     final caps = ref.watch(trackcCapabilitiesProvider(familyId));
 
     return Scaffold(
+      backgroundColor: KinrelColors.darkBackground,
       appBar: AppBar(title: const Text('Decision')),
       body: decisionAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

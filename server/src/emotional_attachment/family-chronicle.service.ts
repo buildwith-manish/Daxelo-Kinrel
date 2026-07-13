@@ -1,6 +1,6 @@
 // server/src/emotional_attachment/family-chronicle.service.ts
 //
-// A-7 Family Chronicle — AI-written family history book, monthly auto-update.
+// A-7 Family Chronicle — family history book, monthly auto-update.
 //
 // What it does:
 //   Generates a beautifully-written family history from the family's graph data,

@@ -190,6 +190,7 @@ import '../../features/trackc/presentation/screens/trackc_hub_screen.dart';
 import '../../features/trackc/presentation/screens/constitution_screen.dart';
 import '../../features/trackc/presentation/screens/decisions_list_screen.dart';
 import '../../features/trackc/presentation/screens/decision_detail_screen.dart';
+import '../../features/trackc/presentation/screens/decision_create_screen.dart';
 import '../../features/trackc/presentation/screens/timeline_screen.dart';
 import '../../features/trackc/presentation/providers/trackc_providers.dart';
 
@@ -816,6 +817,22 @@ final routerProvider = Provider<GoRouter>((ref) {
               );
             },
             routes: [
+              // P6.3: Decision Create wired into GoRouter for deep-linking.
+              // URL: /family/:id/governance/decisions/create
+              GoRoute(
+                path: 'create',
+                name: 'trackc-decision-create',
+                pageBuilder: (context, state) {
+                  final familyId = state.pathParameters['id']!;
+                  return _fastFadePage(
+                    key: state.pageKey,
+                    child: _TrackcFamilyScope(
+                      familyId: familyId,
+                      child: const TrackcDecisionCreateScreen(),
+                    ),
+                  );
+                },
+              ),
               GoRoute(
                 path: ':decisionId',
                 name: 'trackc-decision-detail',

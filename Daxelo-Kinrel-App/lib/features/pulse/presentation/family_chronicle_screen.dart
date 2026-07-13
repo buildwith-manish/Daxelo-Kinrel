@@ -1,6 +1,6 @@
 // lib/features/pulse/presentation/family_chronicle_screen.dart
 //
-// A-7 Family Chronicle screen — AI-written family history book.
+// A-7 Family Chronicle screen — family history book (template-generated).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,8 +65,8 @@ class FamilyChronicleScreen extends ConsumerWidget {
                     const Text('No chronicle yet', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
                     Text(
-                      'Generate your family\'s chronicle —\na beautifully written history book\nthat updates monthly.',
-                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+                      'Your family\'s chronicle —\na history book written from your\nshared moments and milestones.',
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 20),
@@ -163,6 +163,50 @@ class _ChronicleContent extends StatelessWidget {
 
         // ── Chapters ───────────────────────────────────────────────────
         ...chronicle.chapters.map((ch) => _ChapterCard(chapter: ch)),
+
+        const SizedBox(height: 24),
+
+        // P7.1: Honest disclosure — "How is this generated?"
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.info_outline,
+                      size: 16, color: Colors.white.withValues(alpha: 0.5)),
+                  const SizedBox(width: 6),
+                  Text(
+                    'How is this generated?',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Your chronicle is compiled from your family\'s shared '
+                'data — member profiles, relationships, milestones, and '
+                'memories. Chapters are organized by generation and '
+                'updated periodically as your family grows.',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
 
         const SizedBox(height: 32),
       ],

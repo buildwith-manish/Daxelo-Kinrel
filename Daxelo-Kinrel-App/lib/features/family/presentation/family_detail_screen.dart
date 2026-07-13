@@ -20,7 +20,7 @@ import '../../../core/networking/dio_client.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/member_list_skeleton.dart';
-import 'family_tree_canvas.dart';
+import '../../../graph/widgets/family_graph_engine_view.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
 import 'relationship_builder_screen.dart';
@@ -1066,32 +1066,12 @@ class _GraphTabState extends ConsumerState<_GraphTab> {
             familyId: familyId,
           )
         else
-          FamilyTreeCanvas(
-            members: detail.members,
-            relationships: detail.relationships,
-            anchorPersonId: detail.members.firstWhere(
-              (p) => p.isAnchor,
-              orElse: () => detail.members.first,
-            ).id,
-            onNodeTap: (person) {
-              // P8: Smart preloading — warm profile provider BEFORE navigation push
-              try {
-                ref.read(profileProvider.notifier).loadProfile();
-              } catch (_) {
-                // Silently ignore — preloading is best-effort
-              }
-
-              final kinshipAsync = ref.read(kinshipServiceProvider);
-              PersonDetailSheet.show(
-                context,
-                person: person,
-                familyId: familyId,
-                kinshipService: kinshipAsync,
-              );
-            },
-            onNodeLongPress: (person) {
-              _showQuickActions(context, ref, person);
-            },
+          // P6.1: Migrated from the legacy 3,773-line canvas widget to
+          // the V2.1 graph engine. The V2.1 engine handles node taps
+          // internally via GraphQuickActions, so the onNodeTap/
+          // onNodeLongPress callbacks are no longer needed.
+          FamilyGraphEngineView(
+            familyId: familyId,
           ),
 
         // View toggle button (top-left)
