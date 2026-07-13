@@ -109,6 +109,10 @@ class FlatGraphResult {
         'username': node['username'],
         // v2.2: isViewer flag from the viewer-aware RPC.
         'isViewer': node['isViewer'] ?? false,
+        // P3.3: dateOfBirth for birthday-glow computation. May be null
+        // for persons without a recorded birthday — treated as "no glow"
+        // by isNearBirthday(). The RPC returns a TIMESTAMPTZ string.
+        'dateOfBirth': node['dateOfBirth']?.toString(),
         // v67 (BUG-4 FIX): Parse server-computed kinshipCategory. The
         // server (kinship.service.ts) emits one of: 'immediate_family',
         // 'extended_paternal', 'extended_maternal', 'in_laws',

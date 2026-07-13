@@ -60,6 +60,8 @@ import '../interaction/camera_controller.dart' show CameraController;
 import '../interaction/expand_collapse.dart'
     show ExpandCollapseController, ExpandCollapseState;
 import '../interaction/haptic_language.dart' show GraphHaptics;
+import '../rendering/birthday_pulse_controller.dart' show birthdayPulseProvider;
+import '../rendering/birthday_util.dart' show isNearBirthday, daysUntilBirthday;
 import '../interaction/graph_focus_state.dart'
     show
         GraphFocusNotifier,
@@ -456,6 +458,28 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       case Lod.dot:
         return EdgeQuality.dot;
     }
+  }
+
+  // ── P3.3: Birthday glow helpers ───────────────────────────────────────────
+
+  /// Returns true if [p] has a birthday within 7 days. Reads
+  /// `p['dateOfBirth']` (added to the graph RPC by the P3.3 migration).
+  bool isNearBirthdayForPerson(Map<String, dynamic> p) {
+    final dobStr = p['dateOfBirth'] as String?;
+    if (dobStr == null || dobStr.isEmpty) return false;
+    final dob = DateTime.tryParse(dobStr);
+    if (dob == null) return false;
+    return isNearBirthday(dob);
+  }
+
+  /// Returns days until the next birthday for [p], or null if
+  /// `dateOfBirth` is missing or invalid.
+  int? daysUntilBirthdayForPerson(Map<String, dynamic> p) {
+    final dobStr = p['dateOfBirth'] as String?;
+    if (dobStr == null || dobStr.isEmpty) return null;
+    final dob = DateTime.tryParse(dobStr);
+    if (dob == null) return null;
+    return daysUntilBirthday(dob);
   }
 
   // ── v97 Zoom-aware sizing helpers ────────────────────────────────────
@@ -1005,6 +1029,17 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       isAnchor: (p['isAnchor'] as bool?) ?? false,
       photoUrl: p['photoUrl'] as String?,
       isDeceased: (p['isDeceased'] as bool?) ?? false,
+      // P3.3: birthday glow — compute isNearBirthday from dateOfBirth
+      // (now included in the graph RPC) and pass the shared pulse value.
+      // Reduced motion → pass -1.0 as a sentinel so the painter uses a
+      // static 0.45 alpha instead of reading the pulse.
+      isNearBirthday: isNearBirthdayForPerson(p),
+      birthdayPulseValue: isNearBirthdayForPerson(p)
+          ? (MediaQuery.disableAnimationsOf(context)
+              ? -1.0 // sentinel: static glow
+              : ref.watch(birthdayPulseProvider).value)
+          : 0.0,
+      daysUntilBirthday: daysUntilBirthdayForPerson(p),
       nodeState: nodeState,
       // The "Pending" badge was previously shown for ANY person without
       // a linkedUserId (i.e., not yet claimed by a Kinrel account). But

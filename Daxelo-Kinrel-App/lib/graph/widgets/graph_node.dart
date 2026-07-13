@@ -176,6 +176,10 @@ class GraphNode extends ConsumerStatefulWidget {
     this.isUnclaimed = false,
     this.familyId,
     this.showRelationLabel = true,
+    // P3.3: birthday glow parameters.
+    this.isNearBirthday = false,
+    this.birthdayPulseValue = 0.0,
+    this.daysUntilBirthday,
     required this.onTap,
     required this.onLongPress,
     this.onDoubleTap,
@@ -201,6 +205,22 @@ class GraphNode extends ConsumerStatefulWidget {
 
   /// Whether this person is deceased.
   final bool isDeceased;
+
+  /// P3.3: Whether this person's birthday is within 7 days. When true,
+  /// the painter adds a 9th layer — a soft pulsing ember ring (or
+  /// amber if [isDeceased] is also true).
+  final bool isNearBirthday;
+
+  /// P3.3: The current pulse value (0..1) from the shared
+  /// [birthdayPulseProvider]. The painter maps this to a 0.3..0.6
+  /// alpha range. When reduced motion is active, the consumer passes
+  /// 0.5 (a static mid-pulse value) and the painter uses a fixed
+  /// 0.45 alpha instead of reading this value.
+  final double birthdayPulseValue;
+
+  /// P3.3: Days until the next birthday (for the Semantics label).
+  /// Null when [isNearBirthday] is false or dateOfBirth is unknown.
+  final int? daysUntilBirthday;
 
   /// Whether this node should display as anonymous (hidden member).
   final bool isAnonymous;
@@ -495,6 +515,21 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       parts.add('Expanded');
     }
 
+    // P3.3: birthday info in the Semantics label so screen-reader
+    // users know a birthday is approaching. "Birthday today" or
+    // "Birthday in N days." Deceased birthdays say "Memorial birthday"
+    // to distinguish from living.
+    if (widget.isNearBirthday) {
+      final days = widget.daysUntilBirthday;
+      if (days == 0) {
+        parts.add(widget.isDeceased ? 'Memorial birthday today' : 'Birthday today');
+      } else if (days != null && days > 0) {
+        parts.add(widget.isDeceased
+            ? 'Memorial birthday in $days days'
+            : 'Birthday in $days days');
+      }
+    }
+
     return '${parts.join(', ')}.';
   }
 
@@ -663,7 +698,8 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       );
     }
 
-    // Pseudo-3D node: all 6 layers painted by a single CustomPainter.
+    // Pseudo-3D node: all 9 layers painted by a single CustomPainter.
+    // P3.3: pass birthday glow params so the painter can draw layer 9.
     final nodeParams = _Pseudo3DParams(
       diameter: diameter,
       borderColor: widget.isAnchor ? KinshipEdgeColors.self : _borderColor,
@@ -674,6 +710,9 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       tintColor: _tintColor,
       showTint: widget.nodeState == NodeState.selected ||
           widget.nodeState == NodeState.hover,
+      isNearBirthday: widget.isNearBirthday,
+      birthdayPulseValue: widget.birthdayPulseValue,
+      isDeceased: widget.isDeceased,
     );
 
     final extraPad = widget.isAnchor ? 16.0 : 12.0;
@@ -1051,6 +1090,9 @@ class _Pseudo3DParams {
     required this.nodeState,
     required this.tintColor,
     required this.showTint,
+    this.isNearBirthday = false,
+    this.birthdayPulseValue = 0.0,
+    this.isDeceased = false,
   });
 
   final double diameter;
@@ -1061,6 +1103,11 @@ class _Pseudo3DParams {
   final NodeState nodeState;
   final Color tintColor;
   final bool showTint;
+
+  /// P3.3: birthday glow parameters (passed through from GraphNode).
+  final bool isNearBirthday;
+  final double birthdayPulseValue;
+  final bool isDeceased;
 
   double get _scale => diameter / 72.0;
 
@@ -1327,6 +1374,47 @@ class _Pseudo3DNodePainter extends CustomPainter {
       );
     }
 
+    // ══ LAYER 9 (P3.3): Birthday glow ring ═════════════════════════
+    // Soft pulsing ember ring for nodes with a birthday in the next
+    // 7 days. All birthday nodes share ONE AnimationController so they
+    // pulse in sync. Deceased birthday nodes use a warmer amber to
+    // distinguish from living birthdays.
+    //
+    // Alpha range 0.3..0.6 (subtle, doesn't overwhelm). The glow is
+    // painted OUTSIDE the node circle (r * 1.05..1.10) so it doesn't
+    // tint the face. Reduced motion: static 0.45 alpha (no pulse).
+    if (params.isNearBirthday) {
+      final bool reduced = params.birthdayPulseValue < 0; // sentinel
+      final double glowAlpha;
+      final double glowRadiusFactor;
+      if (reduced) {
+        // Static glow — painter receives negative pulse value as a
+        // sentinel for reduced motion.
+        glowAlpha = 0.45;
+        glowRadiusFactor = 1.075;
+      } else {
+        // Pulsing glow — alpha 0.3..0.6, radius 1.05..1.10.
+        glowAlpha = 0.3 + 0.3 * params.birthdayPulseValue;
+        glowRadiusFactor = 1.05 + 0.05 * params.birthdayPulseValue;
+      }
+      final glowRadius = r * glowRadiusFactor;
+      // Ember for living birthdays, amber for deceased birthdays.
+      final glowColor = params.isDeceased
+          ? const Color(0xFFF59240) // amber
+          : const Color(0xFFE8612A); // ember
+      final glowPaint = Paint()
+        ..shader = RadialGradient(
+          colors: [
+            glowColor.withValues(alpha: glowAlpha),
+            glowColor.withValues(alpha: 0.0),
+          ],
+          stops: const [0.0, 1.0],
+        ).createShader(
+          Rect.fromCircle(center: center, radius: glowRadius),
+        );
+      canvas.drawCircle(center, glowRadius, glowPaint);
+    }
+
     // NOTE: No anchor halo. Anchor prominence comes from:
     //   - Slightly larger extrusion (extrusionDepth unchanged but shadowBlur +3)
     //   - Stronger specular (specularAlpha 0.18 vs 0.12)
@@ -1342,6 +1430,10 @@ class _Pseudo3DNodePainter extends CustomPainter {
         old.params.generationIndex != params.generationIndex ||
         old.params.isAnchor != params.isAnchor ||
         old.params.nodeState != params.nodeState ||
-        old.params.showTint != params.showTint;
+        old.params.showTint != params.showTint ||
+        // P3.3: repaint when birthday state or pulse value changes.
+        old.params.isNearBirthday != params.isNearBirthday ||
+        old.params.birthdayPulseValue != params.birthdayPulseValue ||
+        old.params.isDeceased != params.isDeceased;
   }
 }
