@@ -585,24 +585,30 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
               children: [
                 GestureDetector(
                   onTap: () => setState(() => _showLegend = !_showLegend),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: KinrelColors.darkCard,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: _showLegend
-                            ? KinrelColors.orange.withValues(alpha: 0.5)
-                            : Colors.white.withValues(alpha: 0.08),
+                  child: Semantics(
+                    label: 'Toggle legend',
+                    button: true,
+                    child: Container(
+                      // P4.3: 44x44 minimum hit target per WCAG 2.5.5.
+                      // Was 36x36 (below the 44px minimum).
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: KinrelColors.darkCard,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: _showLegend
+                              ? KinrelColors.orange.withValues(alpha: 0.5)
+                              : Colors.white.withValues(alpha: 0.08),
+                        ),
                       ),
-                    ),
-                    child: Icon(
-                      Icons.help_outline_rounded,
-                      size: 18,
-                      color: _showLegend
-                          ? KinrelColors.orange
-                          : KinrelColors.textDim,
+                      child: Icon(
+                        Icons.help_outline_rounded,
+                        size: 22,
+                        color: _showLegend
+                            ? KinrelColors.orange
+                            : KinrelColors.textDim,
+                      ),
                     ),
                   ),
                 ),
