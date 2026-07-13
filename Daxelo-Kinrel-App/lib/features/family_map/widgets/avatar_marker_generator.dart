@@ -135,7 +135,7 @@ class AvatarMarkerGenerator {
   void _drawShadow(ui.Canvas canvas, double size) {
     final offset = MapVisualConstants.markerShadowOffset;
     final paint = ui.Paint()
-      ..color = Colors.black.withOpacity(0.35)
+      ..color = Colors.black.withOpacity(MapVisualConstants.markerShadowOpacity)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
     final center = ui.Offset(size / 2 + offset, size / 2 + offset);
     canvas.drawCircle(center, size / 2, paint);
@@ -191,7 +191,7 @@ class AvatarMarkerGenerator {
         ..strokeWidth = 1.5;
       switch (liveTier) {
         case LocationTier.live:
-          pulsePaint.color = const ui.Color(0xFF4ED9C7).withOpacity(0.85);
+          pulsePaint.color = MapVisualConstants.livePulseRingColor.withOpacity(MapVisualConstants.livePulseRingOpacity);
           canvas.drawCircle(
             ui.Offset(size / 2, size / 2),
             size / 2 + 2,
@@ -199,7 +199,7 @@ class AvatarMarkerGenerator {
           );
           break;
         case LocationTier.recent:
-          pulsePaint.color = const ui.Color(0xFFE8B941).withOpacity(0.7);
+          pulsePaint.color = MapVisualConstants.markerSelectedRingColor.withOpacity(MapVisualConstants.recentRingOpacity);
           canvas.drawCircle(
             ui.Offset(size / 2, size / 2),
             size / 2 + 1.5,
@@ -207,7 +207,7 @@ class AvatarMarkerGenerator {
           );
           break;
         case LocationTier.stale:
-          pulsePaint.color = const ui.Color(0xFF8A8A8A).withOpacity(0.5);
+          pulsePaint.color = MapVisualConstants.staleRingColor.withOpacity(MapVisualConstants.staleRingOpacity);
           canvas.drawCircle(
             ui.Offset(size / 2, size / 2),
             size / 2 + 1,
@@ -236,7 +236,7 @@ class AvatarMarkerGenerator {
         final completer = _ImageStreamCompleter();
         completer.attachTo(stream);
         final imageInfo = await completer.future.timeout(
-          const Duration(seconds: 2),
+          MapVisualConstants.photoDecodeTimeout,
           onTimeout: () => throw TimeoutException('photo decode'),
         );
         final src = imageInfo.image;
@@ -276,7 +276,7 @@ class AvatarMarkerGenerator {
     canvas.drawCircle(
       center,
       radius,
-      ui.Paint()..color = KinrelColors.orange.withOpacity(0.18),
+      ui.Paint()..color = KinrelColors.orange.withOpacity(MapVisualConstants.markerInitialsBgOpacity),
     );
 
     // Initials text. Use a sane font size relative to the radius.
@@ -334,7 +334,7 @@ class _ImageStreamCompleter {
   }
 
   Future<ImageInfo> get future => _completer.future.timeout(
-        const Duration(seconds: 3),
+        MapVisualConstants.imageStreamTimeout,
         onTimeout: () => throw TimeoutException('ImageStream'),
       );
 }

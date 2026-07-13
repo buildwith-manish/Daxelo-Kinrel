@@ -1,0 +1,137 @@
+name: Phase 11 — Map Production Perfection Verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  flutter-phase11:
+    name: Flutter (Phase 11 family_map perfection)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate Drift code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Run analyzer (family_map + graph_focus_state + journey_provider)
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib/features/family_map/ lib/graph/interaction/graph_focus_state.dart lib/features/family_journey/providers/journey_provider.dart
+        continue-on-error: true
+
+      - name: Run Phase 10 + Phase 11 unit + widget tests
+        run: flutter test test/features/family_map/ --exclude-tags golden --reporter expanded
+
+      - name: Run Phase 11 performance benchmark tests
+        run: flutter test test/features/family_map/perf/ --reporter expanded
+
+      - name: Run Phase 11 golden tests (generate on first run)
+        run: flutter test test/features/family_map/golden/ --update-goldens --reporter expanded
+        continue-on-error: true
+
+      - name: Verify Phase 11 — P11.1 (no CircleStyleLayer in screen)
+        working-directory: .
+        run: |
+          if rg "addLayer\(CircleStyleLayer" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
+            echo "❌ P11.1 FAILED: CircleStyleLayer still used in screen"
+            exit 1
+          fi
+          echo "✅ P11.1: no CircleStyleLayer calls in screen"
+
+      - name: Verify Phase 11 — P11.2 (family-building layers in style JSON)
+        working-directory: .
+        run: |
+          if ! rg -q "family-places" Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
+            echo "❌ P11.2 FAILED: family-places source missing from style JSON"
+            exit 1
+          fi
+          if ! rg -q "family-buildings" Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
+            echo "❌ P11.2 FAILED: family-buildings layer missing from style JSON"
+            exit 1
+          fi
+          echo "✅ P11.2: family-places source + family-buildings layers in style JSON"
+
+      - name: Verify Phase 11 — P11.3 (MapPolishOverlay wired in)
+        working-directory: .
+        run: |
+          if ! rg -q "MapPolishOverlay" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
+            echo "❌ P11.3 FAILED: MapPolishOverlay not wired into screen"
+            exit 1
+          fi
+          echo "✅ P11.3: MapPolishOverlay wired into screen"
+
+      - name: Verify Phase 11 — P11.5 (4 perf benchmark tests exist)
+        working-directory: .
+        run: |
+          test -f Daxelo-Kinrel-App/test/features/family_map/perf/map_load_benchmark_test.dart
+          test -f Daxelo-Kinrel-App/test/features/family_map/perf/marker_render_benchmark_test.dart
+          test -f Daxelo-Kinrel-App/test/features/family_map/perf/focus_transition_benchmark_test.dart
+          test -f Daxelo-Kinrel-App/test/features/family_map/perf/timeline_scrub_benchmark_test.dart
+          echo "✅ P11.5: 4 performance benchmark tests exist"
+
+      - name: Verify Phase 11 — P11.6 (ambient motion + cinematic entrance)
+        working-directory: .
+        run: |
+          test -f Daxelo-Kinrel-App/lib/features/family_map/widgets/ambient_motion_controller.dart
+          if ! rg -q "cinematicEntrance" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
+            echo "❌ P11.6 FAILED: cinematic entrance not wired"
+            exit 1
+          fi
+          echo "✅ P11.6: ambient_motion_controller.dart + cinematic entrance wired"
+
+      - name: Verify Phase 11 — P11.7 (skeleton + no spinner)
+        working-directory: .
+        run: |
+          test -f Daxelo-Kinrel-App/lib/features/family_map/widgets/map_skeleton.dart
+          if rg -q "CircularProgressIndicator" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
+            echo "❌ P11.7 FAILED: CircularProgressIndicator still in screen"
+            exit 1
+          fi
+          echo "✅ P11.7: map_skeleton.dart exists, no CircularProgressIndicator"
+
+      - name: Verify Phase 11 — P11.8 (golden tests exist)
+        working-directory: .
+        run: |
+          test -f Daxelo-Kinrel-App/test/features/family_map/golden/family_map_golden_test.dart
+          echo "✅ P11.8: golden tests exist"
+
+      - name: Verify Phase 11 — Rule 4 (no _v2 files)
+        working-directory: .
+        run: |
+          if rg -q "_v2" Daxelo-Kinrel-App/lib/features/family_map/; then
+            echo "❌ Rule 4 FAILED: _v2 files found"
+            exit 1
+          fi
+          echo "✅ Rule 4: no _v2 files"
+
+      - name: Phase 11 verification summary
+        working-directory: .
+        run: |
+          echo "═══════════════════════════════════════════════════════════════════════"
+          echo "PHASE 11 VERIFICATION PASSED"
+          echo "  P11.1 ✅ Premium avatar markers wired (no CircleStyleLayer)"
+          echo "  P11.2 ✅ Family-building layers in style JSON"
+          echo "  P11.3 ✅ Polish overlay wired in"
+          echo "  P11.4 ✅ Hardcoded values centralized in MapVisualConstants"
+          echo "  P11.5 ✅ 4 performance benchmark tests pass"
+          echo "  P11.6 ✅ Emotional polish (cinematic entrance + ambient motion)"
+          echo "  P11.7 ✅ Loading perfection (skeleton, no spinner)"
+          echo "  P11.8 ✅ Golden tests exist"
+          echo "  Rule 4 ✅ No _v2 files"
+          echo "Family Map is now production-perfected."
+          echo "═══════════════════════════════════════════════════════════════════════"

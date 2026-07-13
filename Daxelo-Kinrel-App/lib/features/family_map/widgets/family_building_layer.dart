@@ -126,10 +126,9 @@ class FamilyBuildingLayer {
   bool _added = false;
 
   static const String sourceId = 'family-places';
-  static const String extrusionLayerId = 'kinrel-family-buildings';
-  static const String glowLayerId = 'kinrel-family-buildings-glow';
-  static const String circleFallbackLayerId =
-      'kinrel-family-buildings-fallback';
+  static const String extrusionLayerId = 'family-buildings';
+  static const String glowLayerId = 'family-buildings-glow';
+  static const String circleFallbackLayerId = 'family-buildings-fallback';
 
   DeviceTier get _effectiveTier =>
       deviceTier ?? DeviceTierCache.instance.tier;
@@ -139,80 +138,39 @@ class FamilyBuildingLayer {
   bool get animationsEnabled =>
       _effectiveTier != DeviceTier.low;
 
-  /// Adds the family-places GeoJSON source + the FillExtrusionStyleLayer
-  /// (or CircleLayer fallback). Safe to call multiple times — only the
-  /// first call has an effect.
+  /// Adds the family-places GeoJSON source data. The source + layers
+  /// are now defined in kinrel_dark_style.json (P11.2), so this method
+  /// only needs to populate the source with place data via
+  /// updateGeoJsonSource (which IS in maplibre 0.3.5's API).
+  ///
+  /// If the source doesn't exist yet (e.g., the style was loaded before
+  /// the P11.2 JSON change), falls back to addSource (Rule 12).
   Future<void> add(StyleController style, List<FamilyPlace> places) async {
-    if (_added) {
-      // Source data refresh only.
-      await update(style, places);
-      return;
-    }
     if (places.isEmpty) return;
 
     final geojson = buildFamilyPlacesGeoJson(places);
 
     try {
-      await style.addSource(
-        GeoJsonSource(id: sourceId, data: geojson),
-      );
-
-      // 1. Soft halo circle layer beneath the extrusion. Cheap, GPU-accelerated.
-      await style.addLayer(CircleStyleLayer(
-        id: glowLayerId,
-        sourceId: sourceId,
-        paint: {
-          // match expression picks the halo color per placeType.
-          // Verified supported by maplibre 0.3.5 (Rule 11).
-          'circle-color': _buildMatchExpression(opacity: 0.30),
-          'circle-radius': 24,
-          'circle-blur': 1.0,
-          'circle-opacity': animationsEnabled ? 0.85 : 0.6,
-        },
-      ));
-
-      // 2. FillExtrusionStyleLayer — the actual 3D family buildings.
-      //    Uses the same match expression for the base color, with a
-      //    subtle vertical gradient (top brighter than base) so they
-      //    feel warm and "lit from within".
-      await style.addLayer(FillExtrusionStyleLayer(
-        id: extrusionLayerId,
-        sourceId: sourceId,
-        // No sourceLayerId — our GeoJSON source has no layers.
-        paint: {
-          'fill-extrusion-color': _buildMatchExpression(opacity: 1.0),
-          'fill-extrusion-height': 12,
-          'fill-extrusion-base': 0,
-          'fill-extrusion-opacity': 0.95,
-          'fill-extrusion-vertical-gradient': true,
-        },
-      ));
-
-      // 3. CircleLayer fallback (always added, but invisible above
-      //    buildingExtrusionMinZoom via a max-zoom filter). This ensures
-      //    the place is still visible when zoomed out (Rule 15 offline
-      //    fallback for missing tile data).
-      await style.addLayer(CircleStyleLayer(
-        id: circleFallbackLayerId,
-        sourceId: sourceId,
-        paint: {
-          'circle-color': _buildMatchExpression(opacity: 1.0),
-          'circle-radius': 6,
-          'circle-stroke-color': '#FFFFFF',
-          'circle-stroke-width': 1,
-          'circle-opacity': 0.9,
-        },
-      ));
-
+      // P11.2: The family-places source + 3 layers (glow, extrusion,
+      // fallback) are now in the style JSON. We just need to populate
+      // the source data. updateGeoJsonSource is the maplibre 0.3.5 API.
+      await style.updateGeoJsonSource(id: sourceId, data: geojson);
       _added = true;
       debugPrint(
-        '✅ FamilyBuildingLayer: added ${places.length} places '
+        '✅ FamilyBuildingLayer: populated ${places.length} places '
         '(tier: $_effectiveTier, animations: $animationsEnabled)',
       );
     } catch (e) {
-      debugPrint('⚠️ FamilyBuildingLayer.add failed: $e');
-      // Graceful degradation (Rule 12): try the circle-only fallback.
-      await _tryCircleOnlyFallback(style, places);
+      // Fallback: the source may not exist yet (style loaded before
+      // P11.2). Try addSource instead (Rule 12 graceful degradation).
+      debugPrint('⚠️ FamilyBuildingLayer.add: updateGeoJsonSource failed ($e) '
+          '— falling back to addSource');
+      try {
+        await style.addSource(GeoJsonSource(id: sourceId, data: geojson));
+        _added = true;
+      } catch (e2) {
+        debugPrint('⚠️ FamilyBuildingLayer.add fallback also failed: $e2');
+      }
     }
   }
 
@@ -375,7 +333,7 @@ class FamilyBuildingBottomSheet extends ConsumerWidget {
             Chip(
               label: Text(place.placeType.semanticLabel),
               backgroundColor:
-                  buildingColorFor(place.placeType).withOpacity(0.18),
+                  buildingColorFor(place.placeType).withOpacity(MapVisualConstants.buildingChipBgOpacity),
               labelStyle: TextStyle(
                 color: buildingColorFor(place.placeType),
               ),

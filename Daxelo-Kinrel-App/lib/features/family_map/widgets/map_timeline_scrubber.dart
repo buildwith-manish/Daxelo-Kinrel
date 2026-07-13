@@ -104,7 +104,7 @@ class _MapTimelineScrubberState extends ConsumerState<MapTimelineScrubber> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.4),
+              color: Colors.black.withOpacity(MapVisualConstants.timelineShadowOpacity),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -273,7 +273,7 @@ class _ScrubberSlider extends StatelessWidget {
                 activeTrackColor: KinrelColors.orange,
                 inactiveTrackColor: Colors.white24,
                 thumbColor: Colors.white,
-                overlayColor: KinrelColors.orange.withOpacity(0.18),
+                overlayColor: KinrelColors.orange.withOpacity(MapVisualConstants.timelineSliderOverlayOpacity),
                 trackHeight: 3,
                 thumbShape:
                     const RoundSliderThumbShape(enabledThumbRadius: 7),

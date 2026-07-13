@@ -160,7 +160,7 @@ class _FamilyJourneyAnimationState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.4),
+            color: Colors.black.withOpacity(MapVisualConstants.timelineShadowOpacity),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -262,7 +262,7 @@ class _StopDot extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = isActive
         ? KinrelColors.orange
-        : (isCompleted ? KinrelColors.orange.withOpacity(0.6) : Colors.white24);
+        : (isCompleted ? KinrelColors.orange.withOpacity(MapVisualConstants.journeyStopCompletedOpacity) : Colors.white24);
     final dot = Container(
       width: 12,
       height: 12,
@@ -279,7 +279,7 @@ class _StopDot extends StatelessWidget {
           .animate(onPlay: (c) => c.repeat())
           .shimmer(
             duration: 1500.ms,
-            color: KinrelColors.orange.withOpacity(0.4),
+            color: KinrelColors.orange.withOpacity(MapVisualConstants.journeyStopActiveShimmerOpacity),
           );
     }
     return dot;

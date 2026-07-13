@@ -81,13 +81,13 @@ class AvatarMarkerWidget extends StatelessWidget {
         boxShadow: [
           // Soft glow halo.
           BoxShadow(
-            color: KinrelColors.orange.withOpacity(selected ? 0.55 : 0.30),
+            color: KinrelColors.orange.withOpacity(selected ? MapVisualConstants.markerGlowAlphaSelected : MapVisualConstants.markerGlowAlphaNormal),
             blurRadius: glowBlur,
             spreadRadius: 0,
           ),
           // Drop shadow for depth.
           BoxShadow(
-            color: Colors.black.withOpacity(0.35),
+            color: Colors.black.withOpacity(MapVisualConstants.markerShadowOpacity),
             blurRadius: 4,
             offset: Offset(
               0,
@@ -104,7 +104,7 @@ class AvatarMarkerWidget extends StatelessWidget {
             onPlay: (c) => c.repeat(),
           ).shimmer(
             duration: MapVisualConstants.livePulseCycle,
-            color: const Color(0xFF4ED9C7).withOpacity(0.35),
+            color: MapVisualConstants.livePulseRingColor.withOpacity(MapVisualConstants.livePulseShimmerOpacity),
           )
         : core;
 

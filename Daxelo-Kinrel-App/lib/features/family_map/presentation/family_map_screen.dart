@@ -55,6 +55,8 @@ import '../widgets/map_focus_controller.dart';
 import '../widgets/map_timeline_scrubber.dart';
 import '../widgets/family_journey_animation.dart';
 import '../widgets/map_polish_overlay.dart';
+import '../widgets/ambient_motion_controller.dart';
+import '../widgets/map_skeleton.dart';
 import '../data/map_state_persistence.dart';
 import '../data/poi_filter.dart';
 import '../data/progressive_loading.dart';
@@ -144,6 +146,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// the AnimatedRelationshipPath on each animation tick.
   final ValueNotifier<int> _pathRepaintNotifier = ValueNotifier<int>(0);
 
+  /// P11.6 — Ambient motion controller (desktop/web only). Starts the
+  /// idle timer on map create; drifts the camera after 30s of no
+  /// interaction. Disabled on mobile + low-tier + reduced motion.
+  AmbientMotionController? _ambientMotion;
+
   /// Bundled Kinrel dark style — loaded at runtime from the app bundle
   /// and passed as a raw JSON string to MapLibre. This bypasses the
   /// web plugin's AssetManager URL resolution (which doesn't handle
@@ -211,6 +218,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     _avatarLayer.cache.clear();
     _relationshipPaths?.dispose();
     _pathRepaintNotifier.dispose();
+    _ambientMotion?.dispose();
     // P10.9 — flush any pending state save before tearing down.
     _stateSaver?.flushNow();
     _stateSaver?.dispose();
@@ -297,11 +305,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         ],
       ),
       body: mapAsync.when(
-        loading: () => Center(
-          child: CircularProgressIndicator(
-            color: KinrelColors.orange,
-            strokeWidth: 3,
-          ),
+        loading: () => MapSkeleton(
+          reducedMotion: MediaQuery.disableAnimationsOf(context),
         ),
         error: (error, stack) => _buildErrorState(error),
         // The map is ALWAYS rendered — even with 0 members, 0 cities,
@@ -342,6 +347,19 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // P10.6 — Reduced-motion flag from MediaQuery (matches the graph pattern).
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
 
+    // P11.2 — Update the family-buildings GeoJSON source when the filtered
+    // places list changes. The source + layers are in the style JSON; we
+    // just populate the data. Wrapped in post-frame callback to avoid
+    // calling async style methods during build.
+    if (_styleLoaded && filteredPlaces.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final style = _mapController?.style;
+        if (style != null) {
+          _familyBuildings.update(style, filteredPlaces);
+        }
+      });
+    }
+
     // P10.9 — Initial camera from restored state (if any).
     final restored = _restoredState;
     final initCenter = restored != null
@@ -354,12 +372,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       future: _loadStyleJson(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return Stack(
-            children: [
-              // Show dark background while style loads
-              Container(color: KinrelColors.darkBackground),
-              const Center(child: CircularProgressIndicator(color: KinrelColors.orange)),
-            ],
+          // P11.7 — Show the skeleton (not a spinner) while the style
+          // JSON loads. The skeleton matches the final map background
+          // so the transition is seamless.
+          return MapSkeleton(
+            reducedMotion: MediaQuery.disableAnimationsOf(context),
+            message: 'Loading map style',
           );
         }
 
@@ -517,20 +535,41 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   void _onMapCreated(MapController controller) {
     _mapController = controller;
 
-    // Premium: one-time cinematic entrance animation.
-    // Starts from high altitude and gently descends to India view.
-    // User interaction immediately cancels — no continuous movement.
-    if (!_entranceAnimationDone) {
+    // P11.6 — Attach the ambient motion controller (desktop/web only).
+    // It starts an idle timer; after 30s of no interaction, the camera
+    // slowly drifts. onUserInteraction() resets the timer.
+    _ambientMotion = AmbientMotionController(vsync: this);
+    _ambientMotion!.attach(controller);
+
+    // P11.6 — Cinematic entrance animation.
+    // Only plays on first open (no saved state from P10.9). Returning
+    // users get instant restore via _restoredState (handled in _buildMap
+    // via initCenter/initZoom).
+    if (!_entranceAnimationDone && _restoredState == null) {
       _entranceAnimationDone = true;
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (_mapController == null) return;
-        _mapController!.animateCamera(
+      final reducedMotion = MediaQuery.disableAnimationsOf(context);
+      if (reducedMotion) {
+        // Reduced motion: instant camera move (no animation).
+        controller.moveCamera(
           center: Geographic(lon: 78.9629, lat: 20.5937),
           zoom: 5.5,
-          pitch: 0,
-          bearing: 0,
         );
-      });
+      } else {
+        // Cinematic entrance: animate from zoom 4 → 5.5 over
+        // cinematicEntrance duration (1500ms, tunable — Rule 5).
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (_mapController == null) return;
+          _mapController!.animateCamera(
+            center: Geographic(lon: 78.9629, lat: 20.5937),
+            zoom: 5.5,
+            pitch: 0,
+            bearing: 0,
+            nativeDuration: MapVisualConstants.cinematicEntrance,
+          );
+        });
+      }
+    } else {
+      _entranceAnimationDone = true;
     }
   }
 

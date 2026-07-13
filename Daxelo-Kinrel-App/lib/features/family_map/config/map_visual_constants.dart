@@ -242,6 +242,128 @@ class MapVisualConstants {
   static const Duration tilesLoadingWarning = Duration(seconds: 4);
 
   // ═════════════════════════════════════════════════════════════════════
+  // P11.4 — OPACITIES (centralized per Rule 5 — no magic constants)
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// Drop shadow opacity for avatar markers.
+  static const double markerShadowOpacity = 0.35;
+
+  /// Glow alpha for unselected avatar markers.
+  static const double markerGlowAlphaNormal = 0.30;
+
+  /// Glow alpha for selected avatar markers.
+  static const double markerGlowAlphaSelected = 0.55;
+
+  /// Background tint opacity for initials avatar fallback.
+  static const double markerInitialsBgOpacity = 0.18;
+
+  /// LIVE tier pulse ring opacity.
+  static const double livePulseRingOpacity = 0.85;
+
+  /// RECENT tier solid ring opacity.
+  static const double recentRingOpacity = 0.70;
+
+  /// STALE tier dimmed ring opacity.
+  static const double staleRingOpacity = 0.50;
+
+  /// LIVE tier pulse shimmer opacity (overlay path).
+  static const double livePulseShimmerOpacity = 0.35;
+
+  /// Cluster marker shadow opacity.
+  static const double clusterShadowOpacity = 0.35;
+
+  /// Household bottom-sheet shadow opacity.
+  static const double householdSheetShadowOpacity = 0.40;
+
+  /// Journey stop dot completed opacity.
+  static const double journeyStopCompletedOpacity = 0.60;
+
+  /// Journey stop dot active shimmer opacity.
+  static const double journeyStopActiveShimmerOpacity = 0.40;
+
+  /// Timeline scrubber container shadow opacity.
+  static const double timelineShadowOpacity = 0.40;
+
+  /// Timeline slider overlay opacity.
+  static const double timelineSliderOverlayOpacity = 0.18;
+
+  /// Building glow halo opacity (from style JSON — kept here for reference).
+  static const double buildingGlowHaloOpacity = 0.65;
+
+  /// Building extrusion opacity (from style JSON — kept here for reference).
+  static const double buildingExtrusionOpacity = 0.95;
+
+  /// Building circle fallback opacity (from style JSON — kept here for reference).
+  static const double buildingCircleFallbackOpacity = 0.90;
+
+  /// Building bottom-sheet chip background opacity.
+  static const double buildingChipBgOpacity = 0.18;
+
+  // ═════════════════════════════════════════════════════════════════════
+  // P11.4 — COLORS (centralized per Rule 5)
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// Gold ring color for selected avatar markers.
+  static const Color markerSelectedRingColor = Color(0xFFE8B941);
+
+  /// Teal pulse ring color for LIVE location tier.
+  static const Color livePulseRingColor = Color(0xFF4ED9C7);
+
+  /// Dim grey ring color for STALE location tier.
+  static const Color staleRingColor = Color(0xFF8A8A8A);
+
+  /// Dark circle background for avatar marker (contrast behind photo).
+  static const Color markerBgColor = Color(0xFF1A1A22);
+
+  /// Fog color for the atmospheric fog painter.
+  static const Color fogColor = Color(0xFF1A2533);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // P11.4 — DURATIONS (centralized per Rule 5)
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// Photo decode timeout in the avatar marker generator.
+  static const Duration photoDecodeTimeout = Duration(seconds: 2);
+
+  /// Image stream completer timeout.
+  static const Duration imageStreamTimeout = Duration(seconds: 3);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // P11.6 — EMOTIONAL POLISH
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// Pin fade-in stagger delay during cinematic entrance.
+  static const Duration pinStaggerDelay = Duration(milliseconds: 50);
+
+  /// Idle time before ambient camera drift starts (desktop/web only).
+  static const Duration ambientMotionIdleDelay = Duration(seconds: 30);
+
+  /// Ambient camera drift rate (degrees per second).
+  static const double ambientDriftRate = 0.1;
+
+  /// Ambient sound interval minimum (randomized between min and max).
+  static const Duration ambientSoundMinInterval = Duration(seconds: 30);
+
+  /// Ambient sound interval maximum.
+  static const Duration ambientSoundMaxInterval = Duration(seconds: 60);
+
+  /// Ambient sound volume (very low — opt-in only).
+  static const double ambientSoundVolume = 0.10;
+
+  // ═════════════════════════════════════════════════════════════════════
+  // P11.7 — LOADING PERFECTION
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// Target time-to-first-paint for the map.
+  static const Duration firstPaintTarget = Duration(milliseconds: 500);
+
+  /// Minimum skeleton display time (avoid flash on fast loads).
+  static const Duration minSkeletonDisplay = Duration(milliseconds: 200);
+
+  /// Skeleton-to-map crossfade duration.
+  static const Duration skeletonCrossfade = Duration(milliseconds: 300);
+
+  // ═════════════════════════════════════════════════════════════════════
   // CONVENIENCE: HEX STRINGS for kinrel_dark_style.json
   // ═════════════════════════════════════════════════════════════════════
   // The map style JSON uses lowercase hex strings. Keep these in sync

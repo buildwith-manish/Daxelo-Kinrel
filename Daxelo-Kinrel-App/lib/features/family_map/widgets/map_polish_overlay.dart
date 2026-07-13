@@ -118,9 +118,9 @@ class _FogPainter extends CustomPainter {
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
       colors: [
-        const Color(0xFF1A2533).withOpacity(opacity),
+        MapVisualConstants.fogColor.withOpacity(opacity),
         Colors.transparent,
-        const Color(0xFF1A2533).withOpacity(opacity * 0.7),
+        MapVisualConstants.fogColor.withOpacity(opacity * 0.7),
       ],
       stops: const [0.0, 0.4, 1.0],
     );
