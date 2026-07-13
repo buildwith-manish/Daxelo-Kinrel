@@ -194,6 +194,11 @@ jobs:
         id: deferred_game_loader
         run: flutter test test/features/games/deferred_game_loader_test.dart --reporter expanded
 
+      # ── P5.4: Extend Drift offline sync beyond Trackc ──────────
+      - name: Run sync engine tests (P5.4)
+        id: sync_engine
+        run: flutter test test/core/database/sync/abstract_sync_engine_test.dart --reporter expanded
+
       - name: Test summary
         if: always()
         run: |
@@ -225,6 +230,7 @@ jobs:
           echo "kinship_correct (P5.2):   ${{ steps.kinship_correctness.outcome }}"
           echo "path_correct (P5.2):      ${{ steps.path_correctness.outcome }}"
           echo "deferred_games (P5.3):    ${{ steps.deferred_game_loader.outcome }}"
+          echo "sync_engine (P5.4):       ${{ steps.sync_engine.outcome }}"
           echo "=========================="
           # Fail the job if any suite failed
           if [ "${{ steps.edge_dedup.outcome }}" = "failure" ] || \
@@ -253,7 +259,8 @@ jobs:
              [ "${{ steps.pagination.outcome }}" = "failure" ] || \
              [ "${{ steps.kinship_correctness.outcome }}" = "failure" ] || \
              [ "${{ steps.path_correctness.outcome }}" = "failure" ] || \
-             [ "${{ steps.deferred_game_loader.outcome }}" = "failure" ]; then
+             [ "${{ steps.deferred_game_loader.outcome }}" = "failure" ] || \
+             [ "${{ steps.sync_engine.outcome }}" = "failure" ]; then
             echo "At least one test suite failed."
             exit 1
           fi
