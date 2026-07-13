@@ -59,6 +59,7 @@ import '../engine/edge_dedup.dart' show DedupedEdge, EdgeDeduplicator;
 import '../interaction/camera_controller.dart' show CameraController;
 import '../interaction/expand_collapse.dart'
     show ExpandCollapseController, ExpandCollapseState;
+import '../interaction/haptic_language.dart' show GraphHaptics;
 import '../interaction/graph_focus_state.dart'
     show
         GraphFocusNotifier,
@@ -648,6 +649,8 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         top: chipTop,
         child: GestureDetector(
           onTap: () {
+            // P3.2: "branch opening" haptic on branch expand.
+            GraphHaptics.branchExpand(context);
             ref.read(branchCollapseProvider.notifier).expandBranch(branch.rootPersonId);
           },
           child: Container(
@@ -1166,6 +1169,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // ── Gestures ───────────────────────────────────────────────────────────
 
   void _onFocusPerson(String personId, String personName) {
+    // P3.2: clear "moment" haptic on focus enter.
+    GraphHaptics.focusEnter(context);
+
     // Build real edge tuples from the current deduped edges.
     final edgeTuples = [
       for (final d in _currentEdges)
@@ -1190,6 +1196,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   void _onFocusBack() {
     final popped = ref.read(graphFocusProvider.notifier).back();
     if (popped == null) return;
+
+    // P3.2: gentle release haptic on focus exit (back).
+    GraphHaptics.focusExit(context);
 
     // Restore the camera viewport from the popped history entry.
     // P3.1: route through the spring-based animator so the focus-back

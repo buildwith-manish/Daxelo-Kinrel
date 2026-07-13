@@ -461,6 +461,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     if (deduped == null) return;
     final e = deduped.edge;
 
+    // P3.2: soft tick on edge tap.
+    GraphHaptics.edgeTap(context);
+
     // Select the edge — drives the v91 premium selected-edge visual
     // + the one-shot sweep.
     ref.read(selectedEdgeProvider.notifier).state = edgeId;
@@ -549,6 +552,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     final nodeId = _hitTestNode(details.localPosition, layout);
     if (nodeId == null) return;
 
+    // P3.2: soft tick on node tap.
+    GraphHaptics.nodeTap(context);
+
     // P2.1: If path-select mode is active, intercept the tap to select
     // the from/to nodes instead of showing quick actions.
     final focusState = ref.read(graphFocusProvider);
@@ -625,6 +631,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   ) {
     final nodeId = _hitTestNode(details.localPosition, layout);
     if (nodeId == null) return;
+
+    // P3.2: clear "menu opening" haptic on long-press.
+    GraphHaptics.longPress(context);
 
     // P2.4: Start the two-node select-and-compare drag gesture.
     // Instead of immediately showing the quick-actions sheet, the
@@ -783,6 +792,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       _showNoPathSheet(fromId, toId, flat);
       return;
     }
+
+    // P3.2: clear "answer" haptic when the compare result sheet opens.
+    GraphHaptics.compareComplete(context);
 
     // P2.1: The trace animation is driven automatically by EdgeSelectionWrapper
     // when it detects the resolved path focus. No need to call startTrace directly.

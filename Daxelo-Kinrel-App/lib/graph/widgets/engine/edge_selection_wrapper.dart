@@ -156,6 +156,9 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
     final bool reduced = MediaQuery.disableAnimationsOf(context);
     if (reduced != _reducedMotion) {
       _reducedMotion = reduced;
+      // P3.2: propagate the reduced-motion flag to the path-trace
+      // controller so it can suppress per-step haptics.
+      _traceController.reducedMotion = reduced;
     }
 
     // No selection → cancel any in-flight sweep.
