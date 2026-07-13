@@ -38,6 +38,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/graph/graph_provider.dart';
 import '../../../core/graph/graph_service.dart';
+import '../widgets/family_building_layer.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/widgets/cached_avatar.dart';
@@ -77,6 +78,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   Timer? _dbUpsertTimer;
   DateTime? _lastDbUpsert;
 
+  /// P10.2 — Family buildings (semantic types + emotional lighting).
+  /// Initialized on first style load; updated whenever familyMapProvider
+  /// emits a new place list.
+  final FamilyBuildingLayer _familyBuildings = FamilyBuildingLayer();
+
   /// Premium: selected pin state for relationship focus dimming.
   String? _selectedPinId;
 
@@ -115,6 +121,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
   @override
   void dispose() {
     _stopBroadcastLoop();
+    _familyBuildings.dispose();
     ref.read(liveLocationProvider.notifier).stop();
     super.dispose();
   }
@@ -312,6 +319,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen> {
     // Add family member pins as a GeoJSON source + circle layers.
     if (_lastResult != null) {
       _addFamilyPins(style, _lastResult!);
+      // P10.2 — family buildings with per-type emotional lighting.
+      if (_lastResult!.places.isNotEmpty) {
+        await _familyBuildings.add(style, _lastResult!.places);
+      }
     }
   }
 
