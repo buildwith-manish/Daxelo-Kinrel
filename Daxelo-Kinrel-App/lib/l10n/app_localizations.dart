@@ -542,6 +542,48 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Kinrel is not available.'**
   String get kinrelFeatureDisabled;
+
+  /// Skeleton message shown while the Family Map style is loading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading family map…'**
+  String get familyMapLoading;
+
+  /// Title shown when 0 family members have a located city on the map
+  ///
+  /// In en, this message translates to:
+  /// **'No family locations yet'**
+  String get familyMapEmptyTitle;
+
+  /// Body message shown when 0 family members are located
+  ///
+  /// In en, this message translates to:
+  /// **'Add a location to a family member to see your family across the map.'**
+  String get familyMapEmptyBody;
+
+  /// Title shown when the Family Map fails to initialize
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load the family map'**
+  String get familyMapFailedTitle;
+
+  /// Body message shown when the Family Map fails to initialize
+  ///
+  /// In en, this message translates to:
+  /// **'Check your connection and try again.'**
+  String get familyMapFailedBody;
+
+  /// Retry button label for the Family Map failure state
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get familyMapRetry;
+
+  /// Subtitle showing how many family members have a located city
+  ///
+  /// In en, this message translates to:
+  /// **'{count} member{count, plural, =1{} other{s}} located'**
+  String familyMapLocatedCount(int count);
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {
