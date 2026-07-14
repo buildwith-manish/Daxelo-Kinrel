@@ -24,6 +24,7 @@
 
 import 'dart:async';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -188,6 +189,186 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   static const _kStyleAssetPath = 'assets/map_styles/kinrel_dark_style.json';
   String? _loadedStyleJson;
 
+  /// WEB-SPECIFIC STYLE URL.
+  ///
+  /// On Flutter Web, the maplibre 0.3.5 web plugin's `_prepareStyleString`
+  /// converts inline JSON via `jsonDecode` + `jsify()`. For a 6000-line
+  /// style JSON, this conversion can:
+  ///   1. Take multiple seconds (blocking the JS event loop)
+  ///   2. Hit memory pressure on low-end devices
+  ///   3. Silently fail if the JS interop conversion drops nested objects
+  ///
+  /// Using a URL-based style is more reliable on web because MapLibre GL
+  /// JS fetches + parses the style natively (in C++ via the WebGL renderer,
+  /// not through JS interop). The family-places source + family-buildings
+  /// layers are then added programmatically in [_onStyleLoaded] via
+  /// [_ensureFamilyPlacesLayers].
+  ///
+  /// OpenFreeMap dark style — free, no API key, same tile source as the
+  /// bundled JSON. The visual appearance differs slightly (OpenFreeMap's
+  /// dark style vs. our custom Kinrel dark style) but the base map
+  /// renders reliably on all browsers.
+  static const _kWebStyleUrl = 'https://tiles.openfreemap.org/styles/dark';
+
+  /// Returns true when the family-places source + family-buildings layers
+  /// have been added to the current style. Reset to false on retry.
+  bool _familyPlacesLayersAdded = false;
+
+  /// Loads the map style. Strategy:
+  ///   • WEB: return the OpenFreeMap dark style URL directly. MapLibre GL
+  ///     JS fetches + parses it natively — no JSON interop overhead.
+  ///     Family-places layers are added programmatically after style load.
+  ///   • NATIVE (iOS/Android/macOS/Windows/Linux): load the bundled
+  ///     kinrel_dark_style.json, apply POI filters, return as inline JSON.
+  ///     Falls back to the minimal inline style on asset-load failure.
+  ///
+  /// The returned string is passed to `MapOptions.initStyle`. The
+  /// maplibre web plugin's `_prepareStyleString` detects:
+  ///   • strings starting with '{' → inline JSON (parsed + jsified)
+  ///   • strings starting with 'https://' → URL (passed through as-is)
+  ///   • strings starting with '/' → file path
+  ///   • everything else → flutter asset
+  Future<String> _loadStyleJson() async {
+    if (_loadedStyleJson != null) return _loadedStyleJson!;
+
+    // ── WEB: use URL-based style ─────────────────────────────────────
+    // More reliable than inline JSON on web — MapLibre GL JS fetches +
+    // parses the style natively, avoiding the dart→JS JSON conversion
+    // that can hang on large styles.
+    if (kIsWeb) {
+      debugPrint('🌐 FamilyMap: using URL-based style on web: '
+          '$_kWebStyleUrl');
+      _loadedStyleJson = _kWebStyleUrl;
+      return _loadedStyleJson!;
+    }
+
+    // ── NATIVE: load bundled JSON + apply POI filters ────────────────
+    try {
+      final raw = await rootBundle
+          .loadString(_kStyleAssetPath)
+          .timeout(const Duration(seconds: 10));
+      _loadedStyleJson = applyPoiFilters(raw);
+    } catch (e) {
+      debugPrint('⚠️ _loadStyleJson failed, using inline fallback: $e');
+      _loadedStyleJson = _kFallbackStyleJson;
+    }
+    return _loadedStyleJson!;
+  }
+
+  /// Ensures the family-places GeoJSON source + family-buildings layers
+  /// exist in the current style. Called from [_onStyleLoaded].
+  ///
+  /// On NATIVE platforms, these layers are already in the bundled style
+  /// JSON — this method is a no-op.
+  ///
+  /// On WEB, the URL-based style (OpenFreeMap dark) does NOT have these
+  /// layers — they must be added programmatically. This method:
+  ///   1. Adds the `family-places` GeoJSON source (empty FeatureCollection)
+  ///   2. Adds the `family-buildings-glow` circle layer (minzoom 10)
+  ///   3. Adds the `family-buildings` fill-extrusion layer (minzoom 13)
+  ///   4. Adds the `family-buildings-fallback` circle layer (maxzoom 13)
+  ///
+  /// All layers use a `match` expression on the `placeType` property for
+  /// per-type emotional lighting. Idempotent — safe to call multiple times.
+  Future<void> _ensureFamilyPlacesLayers(StyleController style) async {
+    if (_familyPlacesLayersAdded) return;
+    try {
+      // Add the family-places source (empty — populated by
+      // FamilyBuildingLayer.add/update).
+      try {
+        await style.addSource(GeoJsonSource(
+          id: FamilyBuildingLayer.sourceId,
+          data: '{"type":"FeatureCollection","features":[]}',
+        ));
+        debugPrint('✅ FamilyMap: added family-places source (web)');
+      } catch (e) {
+        // Source may already exist — that's fine.
+        debugPrint('ℹ️ FamilyMap: family-places source already exists: $e');
+      }
+
+      // Add the three family-buildings layers. We use addLayer with
+      // raw paint properties — the maplibre 0.3.5 API accepts a generic
+      // map for paint/layout.
+      // Note: the match expression uses the same hex colors as the
+      // bundled style JSON (single source of truth = MapVisualConstants).
+      final matchExpr = <Object>[
+        'match',
+        <String>['get', 'placeType'],
+        'current_home', MapVisualConstants.hexBuildingCurrentHome,
+        'childhood_home', MapVisualConstants.hexBuildingChildhoodHome,
+        'ancestral_home', MapVisualConstants.hexBuildingAncestralHome,
+        'birthplace', MapVisualConstants.hexBuildingBirthplace,
+        'wedding', MapVisualConstants.hexBuildingWedding,
+        'memorial', MapVisualConstants.hexBuildingMemorial,
+        'family_business', MapVisualConstants.hexBuildingFamilyBusiness,
+        'school', MapVisualConstants.hexBuildingSchool,
+        'important_place', MapVisualConstants.hexBuildingImportantPlace,
+        MapVisualConstants.hexBuildingImportantPlace, // default
+      ];
+
+      // Glow layer (circle, minZoom 10)
+      try {
+        await style.addLayer(CircleStyleLayer(
+          id: FamilyBuildingLayer.glowLayerId,
+          sourceId: FamilyBuildingLayer.sourceId,
+          minZoom: 10,
+          paint: {
+            'circle-color': matchExpr,
+            'circle-radius': 24,
+            'circle-blur': 1.0,
+            'circle-opacity': 0.65,
+          },
+        ));
+        debugPrint('✅ FamilyMap: added family-buildings-glow layer (web)');
+      } catch (e) {
+        debugPrint('ℹ️ FamilyMap: glow layer already exists: $e');
+      }
+
+      // Extrusion layer (fill-extrusion, minZoom 13)
+      try {
+        await style.addLayer(FillExtrusionStyleLayer(
+          id: FamilyBuildingLayer.extrusionLayerId,
+          sourceId: FamilyBuildingLayer.sourceId,
+          minZoom: 13,
+          paint: {
+            'fill-extrusion-color': matchExpr,
+            'fill-extrusion-height': 12,
+            'fill-extrusion-base': 0,
+            'fill-extrusion-opacity': 0.95,
+            'fill-extrusion-vertical-gradient': true,
+          },
+        ));
+        debugPrint('✅ FamilyMap: added family-buildings layer (web)');
+      } catch (e) {
+        debugPrint('ℹ️ FamilyMap: extrusion layer already exists: $e');
+      }
+
+      // Fallback circle layer (maxZoom 13)
+      try {
+        await style.addLayer(CircleStyleLayer(
+          id: FamilyBuildingLayer.circleFallbackLayerId,
+          sourceId: FamilyBuildingLayer.sourceId,
+          maxZoom: 13,
+          paint: {
+            'circle-color': matchExpr,
+            'circle-radius': 6,
+            'circle-stroke-color': '#FFFFFF',
+            'circle-stroke-width': 1,
+            'circle-opacity': 0.9,
+          },
+        ));
+        debugPrint('✅ FamilyMap: added family-buildings-fallback layer (web)');
+      } catch (e) {
+        debugPrint('ℹ️ FamilyMap: fallback layer already exists: $e');
+      }
+
+      _familyPlacesLayersAdded = true;
+    } catch (e) {
+      debugPrint('⚠️ FamilyMap: _ensureFamilyPlacesLayers failed: $e');
+      // Non-fatal — the base map still works without family-buildings.
+    }
+  }
+
   /// Minimal inline dark style — used when the bundled asset fails to
   /// load (e.g., Flutter Web `asset://` resolution issues on Vercel).
   ///
@@ -228,31 +409,6 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   ]
 }
 ''';
-
-  /// Loads the Kinrel dark style JSON. Tries the bundled asset first;
-  /// on any failure (timeout, asset not found, web `asset://` resolution
-  /// error) falls back to [_kFallbackStyleJson] so the map still renders.
-  ///
-  /// Bug 1 fix: previously this method had no try/catch and no timeout,
-  /// so on Flutter Web the `rootBundle.loadString` call could hang
-  /// indefinitely when the asset failed to resolve, leaving the
-  /// FutureBuilder stuck on the skeleton screen forever.
-  Future<String> _loadStyleJson() async {
-    if (_loadedStyleJson != null) return _loadedStyleJson!;
-    try {
-      final raw = await rootBundle
-          .loadString(_kStyleAssetPath)
-          .timeout(const Duration(seconds: 10));
-      // P10.8 — Apply POI filter at load time (Rule 15: works offline
-      // because the style is bundled). Returns input unchanged on parse
-      // error (Rule 12 graceful degradation).
-      _loadedStyleJson = applyPoiFilters(raw);
-    } catch (e) {
-      debugPrint('⚠️ _loadStyleJson failed, using inline fallback: $e');
-      _loadedStyleJson = _kFallbackStyleJson;
-    }
-    return _loadedStyleJson!;
-  }
 
   @override
   void initState() {
@@ -529,6 +685,13 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     _styleWatchdog = null;
     // Clear cached style so _loadStyleJson re-fetches from the asset.
     _loadedStyleJson = null;
+    // Reset the family-places-layers flag so _ensureFamilyPlacesLayers
+    // re-adds them when the new style loads.
+    _familyPlacesLayersAdded = false;
+    // Reset the _styleLoaded flag + _buildingsAdded so the new attempt's
+    // _onStyleLoaded runs the full initialization.
+    _styleLoaded = false;
+    _buildingsAdded = false;
     // Reset lifecycle — this increments the attempt ID, invalidating
     // any in-flight callbacks from the previous attempt.
     _lifecycle.reset();
@@ -541,14 +704,45 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// watchdog that forces `loadingStyle → ready/empty` if `onStyleLoaded`
   /// never fires (maplibre 0.3.5 web plugin has a known bug where the
   /// callback is not invoked for inline JSON styles).
+  ///
+  /// Two-phase watchdog:
+  ///   • Phase 1 (5s): if `_mapController` is still null, the JsMap
+  ///     constructor threw (WebGL failure, maplibre-gl.js not loaded,
+  ///     CSP block). Transition to `failed` — the map widget itself
+  ///     is broken, not just the style.
+  ///   • Phase 2 (10s): if `_mapController` exists but `onStyleLoaded`
+  ///     never fired, the style failed to load (network error, parse
+  ///     error). Force the lifecycle to `ready`/`empty` — the base map
+  ///     div exists even if the style is broken; the user can still
+  ///     see the dark background + empty-state overlay.
   void _startStyleWatchdog({required int attempt}) {
     _styleWatchdog?.cancel();
-    _styleWatchdog =
-        Timer(const Duration(seconds: 8), () {
+
+    // Phase 1: 5-second controller-null check.
+    Timer(const Duration(seconds: 5), () {
       if (attempt != _lifecycle.currentAttempt) return;
-      if (_lifecycle.state == FamilyMapLifecycle.loadingStyle) {
-        debugPrint('⚠️ FamilyMap: onStyleLoaded watchdog fired after 8s — '
-            'forcing lifecycle to ready/empty (maplibre web bug workaround)');
+      if (_lifecycle.state.isTerminal) return;
+      if (_mapController == null) {
+        debugPrint('❌ FamilyMap: MapController still null after 5s — '
+            'JsMap constructor likely threw (WebGL/maplibre-gl.js failure). '
+            'Transitioning to failed.');
+        _lifecycle.transition(
+          FamilyMapLifecycle.failed,
+          attempt: attempt,
+        );
+        _styleWatchdog?.cancel();
+        _styleWatchdog = null;
+      }
+    });
+
+    // Phase 2: 10-second style-loaded check.
+    _styleWatchdog = Timer(const Duration(seconds: 10), () {
+      if (attempt != _lifecycle.currentAttempt) return;
+      if (_lifecycle.state.isTerminal) return;
+      if (_lifecycle.state == FamilyMapLifecycle.loadingStyle ||
+          _lifecycle.state == FamilyMapLifecycle.preparingLayers) {
+        debugPrint('⚠️ FamilyMap: onStyleLoaded watchdog fired after 10s — '
+            'forcing lifecycle to ready/empty (state=${_lifecycle.state})');
         _advanceToReadyOrEmpty(attempt: attempt);
       }
     });
@@ -917,7 +1111,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // (kinrel_dark_style.json includes the "kinrel-3d-buildings"
     // fill-extrusion layer with render_height/render_min_height).
     _buildingsAdded = true;
-    debugPrint('✅ FamilyMap: style loaded (attempt=$attempt)');
+    debugPrint('✅ FamilyMap: style loaded (attempt=$attempt, '
+        'web=$kIsWeb)');
 
     // Transition the lifecycle to `preparingLayers` — the base map is
     // now visible + interactive. Optional premium layers attach below.
@@ -926,6 +1121,19 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       FamilyMapLifecycle.preparingLayers,
       attempt: attempt,
     );
+    if (_lifecycle.currentAttempt != attempt) return;
+
+    // ── WEB: Add family-places source + family-buildings layers ──────
+    // On web, the URL-based style (OpenFreeMap dark) does NOT include
+    // the family-* layers. We add them programmatically here. On native,
+    // they're already in the bundled JSON — this is a no-op (idempotent).
+    // Wrapped in try/catch — failure is non-fatal (base map still works).
+    try {
+      await _ensureFamilyPlacesLayers(style)
+          .timeout(const Duration(seconds: 3));
+    } catch (e) {
+      debugPrint('⚠️ FamilyMap: _ensureFamilyPlacesLayers timed out: $e');
+    }
     if (_lifecycle.currentAttempt != attempt) return;
 
     // Advance the secondary progress indicator.
