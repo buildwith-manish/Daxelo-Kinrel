@@ -17,13 +17,13 @@ void main() {
     });
 
     test('shadow offset is down-right (positive dx, positive dy)', () {
-      expect(GraphLighting.shadowOffset.x, greaterThan(0));
-      expect(GraphLighting.shadowOffset.y, greaterThan(0));
+      expect(GraphLighting.shadowOffset.dx, greaterThan(0));
+      expect(GraphLighting.shadowOffset.dy, greaterThan(0));
     });
 
     test('highlight offset is up-left (negative dx, negative dy)', () {
-      expect(GraphLighting.highlightOffset.x, lessThan(0));
-      expect(GraphLighting.highlightOffset.y, lessThan(0));
+      expect(GraphLighting.highlightOffset.dx, lessThan(0));
+      expect(GraphLighting.highlightOffset.dy, lessThan(0));
     });
   });
 

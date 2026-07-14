@@ -309,8 +309,8 @@ void main() {
       expect(dauKey, isNotNull);
 
       expect(KinshipEdgeClassifier.classify(wifeKey!), equals(KinshipEdgeCategory.spouse));
-      expect(KinshipEdgeClassifier.classify(sonKey!), equals(KinshipEdgeCategory.parent));
-      expect(KinshipEdgeClassifier.classify(dauKey!), equals(KinshipEdgeCategory.parent));
+      expect(KinshipEdgeClassifier.classify(sonKey!), equals(KinshipEdgeCategory.child));
+      expect(KinshipEdgeClassifier.classify(dauKey!), equals(KinshipEdgeCategory.child));
     });
 
     test('Family C: edges in BOTH directions (forward + inverse stored)', () {

@@ -118,19 +118,22 @@ void main() {
 
     setUpAll(() async {
       kinship = KinshipService.instance;
-      await kinship.load();
+      await kinship.loadForTest(
+        coreJsonPath: 'assets/data/kinship_core.json',
+        termsJsonPath: 'assets/data/kinship_terms.json',
+      );
     });
 
     test('every kinship key resolves to a non-null style', () {
       expect(kinship.isLoaded, isTrue);
       var count = 0;
-      for (final rel in kinship.getAllRelationships()) {
-        if (rel.relationshipKey == 'self' || rel.relationshipKey.isEmpty) {
+      for (final key in kinship.allKinshipKeys) {
+        if (key == 'self' || key.isEmpty) {
           continue;
         }
-        final style = KinshipEdgeStyleResolver.styleFor(rel.relationshipKey);
+        final style = KinshipEdgeStyleResolver.styleFor(key);
         expect(style, isNotNull,
-            reason: 'Key "${rel.relationshipKey}" must resolve to a style');
+            reason: 'Key "$key" must resolve to a style');
         expect(style.color, isNotNull);
         expect(style.strokeWidth, greaterThan(0));
         count++;
@@ -142,8 +145,7 @@ void main() {
     test('no kinship key classifies as self (except "self" itself)', () {
       // Only the literal "self" key should classify as self — no
       // compound key should accidentally land in the self category.
-      for (final rel in kinship.getAllRelationships()) {
-        final key = rel.relationshipKey;
+      for (final key in kinship.allKinshipKeys) {
         if (key == 'self' || key.isEmpty) continue;
         final cat = KinshipEdgeClassifier.classify(key);
         expect(cat, isNot(KinshipEdgeCategory.self),
