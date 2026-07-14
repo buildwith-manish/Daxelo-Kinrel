@@ -83,8 +83,25 @@ class FamilyMapScreen extends ConsumerStatefulWidget {
 class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     with TickerProviderStateMixin {
   MapController? _mapController;
+
+  /// RENDERER CAPABILITY FLAG — true once the map style has loaded.
+  /// Used ONLY to gate overlay rendering in build() (e.g.
+  /// `if (_styleLoaded && filteredPins.isNotEmpty)`). Do NOT use for
+  /// lifecycle decisions — the authoritative lifecycle is [_lifecycle].
   bool _styleLoaded = false;
-  bool _buildingsAdded = false;
+
+  /// §12 — Rendezvous: stored callback results from onMapCreated +
+  /// onStyleLoaded. Both must arrive before [_tryPrepareMapLayers]
+  /// runs. Eliminates the race where onStyleLoaded fires before
+  /// onMapCreated (or vice versa) and bails out, relying solely on
+  /// the watchdog.
+  MapController? _rendezvousController;
+  StyleController? _rendezvousStyle;
+
+  /// §12 — Idempotency guard for [_tryPrepareMapLayers]. Reset on
+  /// retry / family-switch so a new attempt can prepare layers again.
+  bool _layersPrepared = false;
+
   FamilyMapResult? _lastResult;
   Timer? _broadcastTimer;
   Timer? _dbUpsertTimer;
@@ -92,7 +109,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
   /// ── AUTHORITATIVE LIFECYCLE ────────────────────────────────────────
   /// Replaces the fragile multi-boolean lifecycle (`_styleLoaded` +
-  /// `_loadState.phase` + `_buildingsAdded` + `_entranceAnimationDone`)
+  /// `_loadState.phase` + `_entranceAnimationDone`)
   /// with a single state machine that the screen watches.
   ///
   /// INVARIANTS:
@@ -134,10 +151,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// P10.8 — Progressive loading state machine. Drives the loading
   /// indicator text + advance through 8 phases.
   ///
-  /// NOTE: This is now a SECONDARY indicator. The primary lifecycle is
-  /// [_lifecycle]. The progressive phases only matter once the lifecycle
-  /// has reached `preparingLayers` or beyond — they describe the progress
-  /// of OPTIONAL premium layer attachment, not map readiness.
+  /// COSMETIC PROGRESS INDICATOR (acknowledged secondary). The primary
+  /// lifecycle is [_lifecycle]. The progressive phases only matter once
+  /// the lifecycle has reached `preparingLayers` or beyond — they
+  /// describe the progress of OPTIONAL premium layer attachment, not
+  /// map readiness. Do NOT use for lifecycle decisions.
   MapLoadState _loadState = const MapLoadState();
 
   /// P10.9 — Debounced session-state saver. familyId is set in initState
@@ -158,7 +176,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// Premium: selected pin state for relationship focus dimming.
   String? _selectedPinId;
 
-  /// Premium: one-time cinematic entrance animation flag.
+  /// ONE-SHOT ANIMATION state — true once the cinematic entrance
+  /// camera animation has been triggered. Reset to false on
+  /// family-switch so a new family gets its own entrance. Do NOT use
+  /// for lifecycle decisions.
   bool _entranceAnimationDone = false;
 
   /// P10.5 — Trigger for relationship path overlay repaint. Bumped by
@@ -181,35 +202,55 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   static const _kStyleAssetPath = 'assets/map_styles/kinrel_dark_style.json';
   String? _loadedStyleJson;
 
-  /// WEB-SPECIFIC STYLE URL.
+  /// WEB-SPECIFIC STYLE PATH.
   ///
-  /// On Flutter Web, the maplibre 0.3.5 web plugin's `_prepareStyleString`
-  /// converts inline JSON via `jsonDecode` + `jsify()`. For a 6000-line
-  /// style JSON, this conversion can:
-  ///   1. Take multiple seconds (blocking the JS event loop)
-  ///   2. Hit memory pressure on low-end devices
-  ///   3. Silently fail if the JS interop conversion drops nested objects
+  /// §8 — WEB STYLE CONSISTENCY: web and native now share the SAME
+  /// bundled Kinrel dark style (`assets/map_styles/kinrel_dark_style.json`)
+  /// so the map looks identical on every platform.
   ///
-  /// Using a URL-based style is more reliable on web because MapLibre GL
-  /// JS fetches + parses the style natively (in C++ via the WebGL renderer,
-  /// not through JS interop). The family-places source + family-buildings
-  /// layers are then added programmatically in [_onStyleLoaded] via
-  /// [_ensureFamilyPlacesLayers].
+  /// On Flutter Web, the maplibre 0.3.5 web plugin's
+  /// `_prepareStyleString` checks the style string prefix:
+  ///   • starts with '{' → inline JSON (parsed + jsified — slow for 6k-line styles)
+  ///   • starts with '/' → file path
+  ///   • starts with 'http' → URL (passed through as-is)
+  ///   • everything else → Flutter asset (resolved via `AssetManager`)
   ///
-  /// OpenFreeMap dark style — free, no API key, same tile source as the
-  /// bundled JSON. The visual appearance differs slightly (OpenFreeMap's
-  /// dark style vs. our custom Kinrel dark style) but the base map
-  /// renders reliably on all browsers.
-  static const _kWebStyleUrl = 'https://tiles.openfreemap.org/styles/dark';
+  /// Passing the relative asset path (`assets/map_styles/...`, no
+  /// leading slash) makes the plugin fall into the "Flutter asset"
+  /// branch, which calls `AssetManager().getAssetUrl()` to resolve it
+  /// to a proper URL — typically `assets/assets/map_styles/...` (the
+  /// double `assets` is intentional: the first is the web asset root,
+  /// the second is the pubspec asset prefix). MapLibre GL JS then
+  /// fetches the JSON natively, avoiding the dart→JS interop cost of
+  /// inline JSON.
+  ///
+  /// POI FILTERING CAVEAT: the asset path bypasses the runtime
+  /// `applyPoiFilters` patching that native uses (we can't easily
+  /// rewrite a URL-served style). The bundled `kinrel_dark_style.json`
+  /// already has the POI layers curated, so the visual difference is
+  /// minimal — but if POI filtering tuning changes in
+  /// `poi_filter.dart`, the bundled JSON should be regenerated to
+  /// match. See `data/poi_filter.dart` for the filter rules.
+  ///
+  /// The family-places source + family-buildings layers are still
+  /// added programmatically in [_onStyleLoaded] via
+  /// [_ensureFamilyPlacesLayers] — they're not in the source style.
+  static const _kWebStylePath = 'assets/map_styles/kinrel_dark_style.json';
 
-  /// Returns true when the family-places source + family-buildings layers
-  /// have been added to the current style. Reset to false on retry.
+  /// RENDERER CAPABILITY FLAG — idempotency guard for
+  /// [_ensureFamilyPlacesLayers]. True once the family-places source +
+  /// family-buildings layers have been added to the current style.
+  /// Reset to false on retry. Do NOT use for lifecycle decisions —
+  /// the authoritative lifecycle is [_lifecycle].
   bool _familyPlacesLayersAdded = false;
 
   /// Loads the map style. Strategy:
-  ///   • WEB: return the OpenFreeMap dark style URL directly. MapLibre GL
-  ///     JS fetches + parses it natively — no JSON interop overhead.
-  ///     Family-places layers are added programmatically after style load.
+  ///   • WEB: return the bundled Kinrel style asset path. The maplibre
+  ///     web plugin's `AssetManager` resolves it to a proper URL —
+  ///     MapLibre GL JS fetches + parses the JSON natively, with no
+  ///     dart→JS interop cost. Web and native now share the SAME
+  ///     style file (§8). Family-places layers are added
+  ///     programmatically after style load.
   ///   • NATIVE (iOS/Android/macOS/Windows/Linux): load the bundled
   ///     kinrel_dark_style.json, apply POI filters, return as inline JSON.
   ///     Falls back to the minimal inline style on asset-load failure.
@@ -217,20 +258,24 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// The returned string is passed to `MapOptions.initStyle`. The
   /// maplibre web plugin's `_prepareStyleString` detects:
   ///   • strings starting with '{' → inline JSON (parsed + jsified)
-  ///   • strings starting with 'https://' → URL (passed through as-is)
+  ///   • strings starting with 'http' → URL (passed through as-is)
   ///   • strings starting with '/' → file path
-  ///   • everything else → flutter asset
+  ///   • everything else → flutter asset (resolved via AssetManager)
   Future<String> _loadStyleJson() async {
     if (_loadedStyleJson != null) return _loadedStyleJson!;
 
-    // ── WEB: use URL-based style ─────────────────────────────────────
-    // More reliable than inline JSON on web — MapLibre GL JS fetches +
-    // parses the style natively, avoiding the dart→JS JSON conversion
-    // that can hang on large styles.
+    // ── WEB: serve the bundled Kinrel style as a web asset URL ───────
+    // §8 — Web style consistency: web and native now use the SAME
+    // style file. Passing the relative asset path (no leading slash)
+    // lets the maplibre web plugin resolve it via `AssetManager` to a
+    // proper URL (`assets/assets/map_styles/...`), which MapLibre GL
+    // JS fetches natively. This avoids the dart→JS JSON interop cost
+    // of inline JSON AND keeps the visual style identical across
+    // platforms. See [_kWebStylePath] for the full rationale.
     if (kIsWeb) {
-      debugPrint('🌐 FamilyMap: using URL-based style on web: '
-          '$_kWebStyleUrl');
-      _loadedStyleJson = _kWebStyleUrl;
+      debugPrint('🌐 FamilyMap: using bundled Kinrel style as web asset: '
+          '$_kWebStylePath');
+      _loadedStyleJson = _kWebStylePath;
       return _loadedStyleJson!;
     }
 
@@ -250,11 +295,22 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// Ensures the family-places GeoJSON source + family-buildings layers
   /// exist in the current style. Called from [_onStyleLoaded].
   ///
-  /// On NATIVE platforms, these layers are already in the bundled style
-  /// JSON — this method is a no-op.
+  /// §8 — Web style consistency: now that web uses the bundled Kinrel
+  /// style (same as native), these layers are ALREADY in the style JSON
+  /// on BOTH platforms — this method is effectively a no-op. The
+  /// addSource/addLayer calls are still attempted (idempotently) so
+  /// that any environment where the source layers are missing (e.g. a
+  /// hand-edited style, or a future style swap) still gets them added.
   ///
-  /// On WEB, the URL-based style (OpenFreeMap dark) does NOT have these
-  /// layers — they must be added programmatically. This method:
+  /// Historically (pre-§8), web used the OpenFreeMap dark style URL
+  /// which did NOT include the family-* layers — they had to be added
+  /// programmatically here. The implementation was kept idempotent so
+  /// it continues to work whether or not the layers are already
+  /// present.
+  ///
+  /// When layers ARE already present, the addSource/addLayer calls
+  /// throw — each is wrapped in its own try/catch so a duplicate-add
+  /// is logged + skipped (non-fatal). The method:
   ///   1. Adds the `family-places` GeoJSON source (empty FeatureCollection)
   ///   2. Adds the `family-buildings-glow` circle layer (minzoom 10)
   ///   3. Adds the `family-buildings` fill-extrusion layer (minzoom 13)
@@ -498,7 +554,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // Reset lifecycle for the new family
       _lifecycle.reset();
       _styleLoaded = false;
-      _buildingsAdded = false;
+      // §12 — reset rendezvous state so the new attempt re-prepares.
+      _rendezvousController = null;
+      _rendezvousStyle = null;
+      _layersPrepared = false;
       _familyPlacesLayersAdded = false;
       _loadedStyleJson = null;
 
@@ -626,10 +685,28 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         ],
       ),
       body: mapAsync.when(
-        loading: () => MapSkeleton(
-          reducedMotion: MediaQuery.disableAnimationsOf(context),
-          message: S.of(context)?.familyMapLoading ?? 'Loading family map…',
-        ),
+        // §7 — PROGRESSIVE DATA DELIVERY: render the map shell
+        // IMMEDIATELY with an empty FamilyMapResult while
+        // `familyMapProvider` is still resolving members + places +
+        // relationships. The map SHELL (MapLibreMap widget) only needs
+        // the style JSON to render — family data is used purely for
+        // overlays (pins, edges, places). By calling `_buildMap` with
+        // an empty result here, the user sees the interactive base map
+        // right away, and the pins/edges/places appear as overlays the
+        // moment `familyMapProvider` resolves (the `data:` branch
+        // below). The maplibre lifecycle is unaffected — `_styleLoaded`
+        // gates every overlay, so an empty result simply renders a
+        // bare map. `_buildMap` is also responsible for showing the
+        // style-loading skeleton when `_loadedStyleJson == null`, so
+        // the style-JSON fetch (the only thing that should block the
+        // map shell) is still surfaced to the user via [MapSkeleton].
+        loading: () => _buildMap(const FamilyMapResult(
+          pins: [],
+          unpinnedMembers: [],
+          unpinnedCount: 0,
+          edges: [],
+          familyId: '',
+        )),
         error: (error, stack) => _buildErrorState(error),
         // The map is ALWAYS rendered — even with 0 members, 0 cities,
         // or 0 located pins. The map is the feature; pins are layers
@@ -773,10 +850,13 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // Reset the family-places-layers flag so _ensureFamilyPlacesLayers
     // re-adds them when the new style loads.
     _familyPlacesLayersAdded = false;
-    // Reset the _styleLoaded flag + _buildingsAdded so the new attempt's
-    // _onStyleLoaded runs the full initialization.
+    // Reset the _styleLoaded flag so the new attempt's _onStyleLoaded
+    // runs the full initialization.
     _styleLoaded = false;
-    _buildingsAdded = false;
+    // §12 — reset rendezvous state so the new attempt re-prepares.
+    _rendezvousController = null;
+    _rendezvousStyle = null;
+    _layersPrepared = false;
     // Reset lifecycle — this increments the attempt ID, invalidating
     // any in-flight callbacks from the previous attempt.
     _lifecycle.reset();
@@ -1107,6 +1187,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
   void _onMapCreated(MapController controller) {
     _mapController = controller;
+    _rendezvousController = controller;
+    // §12 — Try to prepare layers. Will only run if the style is also
+    // loaded (i.e. _onStyleLoaded has fired for this attempt).
+    _tryPrepareMapLayers();
     // NOTE: AmbientMotionController (idle camera rotation) was removed
     // per the regression spec — "NO idle rotation". The camera stays
     // where the user left it. Reduced-motion users especially do not
@@ -1144,14 +1228,18 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     }
   }
 
-  /// Called when the OpenFreeMap dark style finishes loading.
+  /// Called when the Kinrel dark style finishes loading.
+  ///
+  /// §12 — DETERMINISTIC RENDEZVOUS: this callback stores the style
+  /// in [_rendezvousStyle] and calls [_tryPrepareMapLayers]. The
+  /// actual layer preparation runs once BOTH `_onMapCreated` and
+  /// `_onStyleLoaded` have fired for the current attempt — see
+  /// [_tryPrepareMapLayers].
   ///
   /// REQUIRED vs OPTIONAL initialization:
   ///   • REQUIRED (failure → lifecycle stays usable): the base map is
   ///     already visible because the style JSON itself defines all
-  ///     layers (background, roads, water, family-buildings). The
-  ///     style-loaded callback is only needed to populate the
-  ///     family-places GeoJSON source + probe premium features.
+  ///     layers (background, roads, water, family-buildings).
   ///   • OPTIONAL (failure → logged + skipped): avatar overlay probe,
   ///     family buildings data population, relationship path animation.
   ///
@@ -1161,38 +1249,83 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   void _onStyleLoaded(StyleController style) async {
     final attempt = _lifecycle.currentAttempt;
     _styleLoaded = true;
-    final controller = _mapController;
-    if (controller == null) {
-      // Race condition: onStyleLoaded fired before onMapCreated on
-      // some platforms. The watchdog will still force the lifecycle
-      // to ready/empty after 8 seconds, but try to recover now.
-      debugPrint('⚠️ FamilyMap: onStyleLoaded fired before onMapCreated '
-          '(attempt=$attempt) — relying on watchdog');
-      _advanceToReadyOrEmpty(attempt: attempt);
-      return;
-    }
+    _rendezvousStyle = style;
 
-    // 3D building extrusion is already in the bundled style JSON
-    // (kinrel_dark_style.json includes the "kinrel-3d-buildings"
-    // fill-extrusion layer with render_height/render_min_height).
-    _buildingsAdded = true;
     debugPrint('✅ FamilyMap: style loaded (attempt=$attempt, '
         'web=$kIsWeb)');
 
-    // Transition the lifecycle to `preparingLayers` — the base map is
-    // now visible + interactive. Optional premium layers attach below.
-    // If the transition is dropped (stale attempt), bail out.
+    // Transition lifecycle to preparingLayers (style is loaded).
     _lifecycle.transition(
       FamilyMapLifecycle.preparingLayers,
       attempt: attempt,
     );
-    if (_lifecycle.currentAttempt != attempt) return;
 
-    // ── WEB: Add family-places source + family-buildings layers ──────
-    // On web, the URL-based style (OpenFreeMap dark) does NOT include
-    // the family-* layers. We add them programmatically here. On native,
-    // they're already in the bundled JSON — this is a no-op (idempotent).
-    // Wrapped in try/catch — failure is non-fatal (base map still works).
+    // Try to prepare layers — will only run if controller is also
+    // available.
+    _tryPrepareMapLayers();
+  }
+
+  /// §12 — Deterministic rendezvous: runs once when BOTH onMapCreated
+  /// and onStyleLoaded have fired for the current attempt. Idempotent —
+  /// safe to call from both callbacks; only runs once per attempt.
+  ///
+  /// This eliminates the race where onStyleLoaded fires before
+  /// onMapCreated (or vice versa) and bails out, relying solely on the
+  /// watchdog. Now both callbacks stash their result and the second one
+  /// to arrive triggers the actual layer preparation.
+  void _tryPrepareMapLayers() {
+    final attempt = _lifecycle.currentAttempt;
+
+    // Both callbacks must have fired.
+    if (_rendezvousController == null || _rendezvousStyle == null) return;
+
+    // Idempotency: only run once per attempt.
+    if (_layersPrepared) return;
+    _layersPrepared = true;
+
+    // Transition lifecycle if not already done (safe — transition is
+    // a no-op if already in preparingLayers).
+    _lifecycle.transition(
+      FamilyMapLifecycle.preparingLayers,
+      attempt: attempt,
+    );
+
+    // Run the optional layer preparation (avatar probe, family
+    // buildings, relationship paths, etc.) — same logic that was in
+    // _onStyleLoaded.
+    _prepareOptionalLayers(
+      _rendezvousStyle!,
+      _rendezvousController!,
+      attempt,
+    );
+  }
+
+  /// §12 — Optional premium-layer preparation. Extracted from the old
+  /// _onStyleLoaded body. Runs after the rendezvous in
+  /// [_tryPrepareMapLayers] completes.
+  ///
+  /// Steps:
+  ///   - ensure family-places layers (web only — native has them in JSON)
+  ///   - avatar probe (SymbolLayer vs Flutter overlay decision)
+  ///   - family buildings data population
+  ///   - relationship paths init
+  ///   - advance to ready/empty
+  ///
+  /// Every step is wrapped in try/catch + bounded by a timeout. An
+  /// optional layer failure is logged + skipped — it CANNOT block the
+  /// lifecycle transition to a terminal state.
+  Future<void> _prepareOptionalLayers(
+    StyleController style,
+    MapController controller,
+    int attempt,
+  ) async {
+    // ── Ensure family-places source + family-buildings layers exist ───
+    // §8 — Web and native now share the SAME bundled Kinrel style, so
+    // these layers are already in the JSON on both platforms and this
+    // call is effectively a no-op (idempotent — see
+    // [_ensureFamilyPlacesLayers]). The addSource/addLayer calls inside
+    // are wrapped in try/catch so duplicate-adds are logged + skipped
+    // (non-fatal). Kept for robustness against future style swaps.
     try {
       await _ensureFamilyPlacesLayers(style)
           .timeout(const Duration(seconds: 3));
@@ -1464,7 +1597,6 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     }
 
     debugPrint('🚀 Flying to Bengaluru: zoom=16.5, pitch=45° for 3D building test');
-    debugPrint('   3D buildings layer added: $_buildingsAdded');
     controller.animateCamera(
       center: Geographic(lon: 77.5946, lat: 12.9716), // Bengaluru
       zoom: 16.5,
@@ -1495,8 +1627,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // extrusion properties. Never runs in production builds.
     if (!kDebugMode) return;
     final controller = _mapController;
-    if (controller == null || !_buildingsAdded) {
-      debugPrint('⚠️ Cannot query buildings — controller null or layer not added');
+    if (controller == null) {
+      debugPrint('⚠️ Cannot query buildings — controller null');
       return;
     }
 

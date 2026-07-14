@@ -288,6 +288,29 @@ Future<List<FamilyPlace>> _fetchFamilyPlaces(
 /// - [unpinnedCount]: Count of unresolved members
 /// - [edges]: Relationship edges between pinned members
 /// - [familyId]: Family ID for graph resolution at tap time
+///
+/// §7 — PROGRESSIVE DATA DELIVERY NOTE
+/// -----------------------------------
+/// This provider currently BLOCKS on ALL data before returning: it
+/// awaits (a) the family members stream, (b) the family detail
+/// stream (for relationship edges), and (c) the family places fetch
+/// in parallel, then merges them into a single [FamilyMapResult].
+/// The screen therefore cannot show pins before places/relationships
+/// complete.
+///
+/// The screen-side mitigation (in `family_map_screen.dart`) is to
+/// render the map SHELL immediately with an empty
+/// [FamilyMapResult] while this provider is still loading — pins,
+/// edges, and places then appear as overlays when this provider
+/// resolves. See the `mapAsync.when(loading: ...)` branch in
+/// `FamilyMapScreen.build`.
+///
+/// A FUTURE improvement would split this into separate providers
+/// (e.g. `familyPinsProvider`, `familyEdgesProvider`,
+/// `familyPlacesProvider`) so pins can render before edges/places
+/// complete, without waiting on the slowest stream. Keeping the
+/// merged provider for now — it works, and the screen-side shell
+/// rendering already gives the user a non-blocking experience.
 final familyMapProvider =
     FutureProvider.family<FamilyMapResult, String>((ref, familyId) async {
   if (familyId.isEmpty) {
