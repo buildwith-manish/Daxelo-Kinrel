@@ -28,7 +28,10 @@ bool isCurrentLocationAnchor(PlaceType? placeType) {
     case PlaceType.ancestralHome:
     case PlaceType.childhoodHome:
     case PlaceType.importantPlace:
-      return false; // historical/ceremonial — not current residence
+    case PlaceType.vacationHome:
+    case PlaceType.familyTemple:
+    case PlaceType.grandparentsHome:
+      return false; // historical/ceremonial/secondary — not current residence
     case null:
       return false;
   }

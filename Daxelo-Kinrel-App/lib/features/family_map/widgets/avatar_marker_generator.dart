@@ -165,8 +165,10 @@ class AvatarMarkerGenerator {
   }) {
     // P11.x — Gradient ring (IgniteGradient: orange → amber) per master prompt.
     // Selected: gold → amber gradient; unselected: orange → amber gradient.
-    final ringGradient = ui.SweepGradient(
-      center: ui.Alignment.center,
+    // NOTE: SweepGradient + Alignment are Flutter framework classes
+    // (painting.dart / material.dart), NOT dart:ui — do not prefix with ui.
+    final ringGradient = SweepGradient(
+      center: Alignment.center,
       startAngle: 0.0,
       endAngle: 2 * 3.141592653589793,
       colors: selected
@@ -205,8 +207,8 @@ class AvatarMarkerGenerator {
     // Drawn outside the marker ring when selected (master prompt spec).
     if (selected) {
       final haloRadius = size / 2 + MapVisualConstants.selectionHaloRadiusPadding;
-      final haloGradient = ui.RadialGradient(
-        center: ui.Alignment.center,
+      final haloGradient = RadialGradient(
+        center: Alignment.center,
         radius: 1.0,
         colors: [
           const ui.Color(0xFFE8612A).withOpacity(0.55),
