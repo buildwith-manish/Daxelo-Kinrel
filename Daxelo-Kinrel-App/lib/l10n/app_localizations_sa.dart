@@ -243,4 +243,34 @@ class SSa extends S {
 
   @override
   String get kinrelFeatureDisabled => 'Kinrel is not available.';
+
+  @override
+  String get familyMapLoading => 'Loading family map…';
+
+  @override
+  String get familyMapEmptyTitle => 'No family locations yet';
+
+  @override
+  String get familyMapEmptyBody =>
+      'Add a location to a family member to see your family across the map.';
+
+  @override
+  String get familyMapFailedTitle => 'Couldn\'t load the family map';
+
+  @override
+  String get familyMapFailedBody => 'Check your connection and try again.';
+
+  @override
+  String get familyMapRetry => 'Retry';
+
+  @override
+  String familyMapLocatedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 's',
+      one: '',
+    );
+    return '$count member$_temp0 located';
+  }
 }

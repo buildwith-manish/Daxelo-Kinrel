@@ -251,5 +251,31 @@
   },
 
   "kinrelFeatureDisabled": "Kinrel is not available.",
-  "@kinrelFeatureDisabled": { "description": "Message shown when Kinrel is feature-flagged off" }
+  "@kinrelFeatureDisabled": { "description": "Message shown when Kinrel is feature-flagged off" },
+
+  "familyMapLoading": "Loading family map…",
+  "@familyMapLoading": { "description": "Skeleton message shown while the Family Map style is loading" },
+
+  "familyMapEmptyTitle": "No family locations yet",
+  "@familyMapEmptyTitle": { "description": "Title shown when 0 family members have a located city on the map" },
+
+  "familyMapEmptyBody": "Add a location to a family member to see your family across the map.",
+  "@familyMapEmptyBody": { "description": "Body message shown when 0 family members are located" },
+
+  "familyMapFailedTitle": "Couldn't load the family map",
+  "@familyMapFailedTitle": { "description": "Title shown when the Family Map fails to initialize" },
+
+  "familyMapFailedBody": "Check your connection and try again.",
+  "@familyMapFailedBody": { "description": "Body message shown when the Family Map fails to initialize" },
+
+  "familyMapRetry": "Retry",
+  "@familyMapRetry": { "description": "Retry button label for the Family Map failure state" },
+
+  "familyMapLocatedCount": "{count} member{count, plural, =1{} other{s}} located",
+  "@familyMapLocatedCount": {
+    "description": "Subtitle showing how many family members have a located city",
+    "placeholders": {
+      "count": { "type": "int", "example": "3" }
+    }
+  }
 }

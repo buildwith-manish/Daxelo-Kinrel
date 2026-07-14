@@ -23,8 +23,6 @@
 // Style: https://tiles.openfreemap.org/styles/dark (free, no API key)
 
 import 'dart:async';
-import 'dart:convert';
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -39,7 +37,6 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/graph/graph_provider.dart';
-import '../../../core/graph/graph_service.dart';
 import '../../../core/kinship/heart_shape.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../graph/interaction/graph_focus_state.dart';
@@ -47,7 +44,6 @@ import '../../family_journey/providers/journey_provider.dart';
 import '../config/map_visual_constants.dart';
 import '../data/place_models.dart';
 import '../widgets/family_building_layer.dart';
-import '../widgets/avatar_marker_generator.dart';
 import '../widgets/avatar_marker_overlay.dart';
 import '../widgets/household_cluster_marker.dart';
 import '../widgets/animated_relationship_path.dart';
@@ -55,14 +51,15 @@ import '../widgets/map_focus_controller.dart';
 import '../widgets/map_timeline_scrubber.dart';
 import '../widgets/family_journey_animation.dart';
 import '../widgets/map_polish_overlay.dart';
-import '../widgets/ambient_motion_controller.dart';
 import '../widgets/map_skeleton.dart';
+import '../data/family_map_lifecycle.dart';
 import '../data/map_state_persistence.dart';
 import '../data/poi_filter.dart';
 import '../data/progressive_loading.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../core/widgets/cached_avatar.dart';
+import '../../../l10n/app_localizations.dart';
 import '../providers/family_map_provider.dart';
 import '../providers/live_location_provider.dart';
 
@@ -100,6 +97,30 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   Timer? _dbUpsertTimer;
   DateTime? _lastDbUpsert;
 
+  /// ── AUTHORITATIVE LIFECYCLE ────────────────────────────────────────
+  /// Replaces the fragile multi-boolean lifecycle (`_styleLoaded` +
+  /// `_loadState.phase` + `_buildingsAdded` + `_entranceAnimationDone`)
+  /// with a single state machine that the screen watches.
+  ///
+  /// INVARIANTS:
+  ///   • Every initialization attempt MUST end in `ready`, `empty`, or
+  ///     `failed` — never in `initializing` / `loadingStyle` /
+  ///     `preparingLayers` forever.
+  ///   • 0 members located → `empty` (NOT a loading state). The base
+  ///     map is fully interactive.
+  ///   • A bounded watchdog (8 seconds) forces `loadingStyle → ready`
+  ///     even if `onStyleLoaded` never fires (maplibre 0.3.5 web bug).
+  ///   • Optional premium-layer failures are logged + skipped — they
+  ///     cannot keep the loader visible.
+  final FamilyMapLifecycleController _lifecycle =
+      FamilyMapLifecycleController();
+
+  /// Watchdog timer that forces `loadingStyle → ready/empty` if
+  /// `onStyleLoaded` never fires. Started when the MapLibreMap widget
+  /// is first mounted. Cancelled in `dispose()` and when the lifecycle
+  /// reaches a terminal state.
+  Timer? _styleWatchdog;
+
   /// P10.2 — Family buildings (semantic types + emotional lighting).
   /// Initialized on first style load; updated whenever familyMapProvider
   /// emits a new place list.
@@ -119,6 +140,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
   /// P10.8 — Progressive loading state machine. Drives the loading
   /// indicator text + advance through 8 phases.
+  ///
+  /// NOTE: This is now a SECONDARY indicator. The primary lifecycle is
+  /// [_lifecycle]. The progressive phases only matter once the lifecycle
+  /// has reached `preparingLayers` or beyond — they describe the progress
+  /// of OPTIONAL premium layer attachment, not map readiness.
   MapLoadState _loadState = const MapLoadState();
 
   /// P10.9 — Debounced session-state saver. familyId is set in initState
@@ -145,11 +171,6 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// P10.5 — Trigger for relationship path overlay repaint. Bumped by
   /// the AnimatedRelationshipPath on each animation tick.
   final ValueNotifier<int> _pathRepaintNotifier = ValueNotifier<int>(0);
-
-  /// P11.6 — Ambient motion controller (desktop/web only). Starts the
-  /// idle timer on map create; drifts the camera after 30s of no
-  /// interaction. Disabled on mobile + low-tier + reduced motion.
-  AmbientMotionController? _ambientMotion;
 
   /// Bundled Kinrel dark style — loaded at runtime from the app bundle
   /// and passed as a raw JSON string to MapLibre. This bypasses the
@@ -270,11 +291,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   @override
   void dispose() {
     _stopBroadcastLoop();
+    _styleWatchdog?.cancel();
+    _lifecycle.dispose();
     _familyBuildings.dispose();
     _avatarLayer.cache.clear();
     _relationshipPaths?.dispose();
     _pathRepaintNotifier.dispose();
-    _ambientMotion?.dispose();
     // P10.9 — flush any pending state save before tearing down.
     _stateSaver?.flushNow();
     _stateSaver?.dispose();
@@ -321,8 +343,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             mapAsync.when(
               data: (result) {
                 final locatedCount = result.pins.length;
+                final l10n = S.of(context);
                 return Text(
-                  '$locatedCount member${locatedCount == 1 ? '' : 's'} located',
+                  l10n?.familyMapLocatedCount(locatedCount) ??
+                      '$locatedCount member${locatedCount == 1 ? '' : 's'} located',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
@@ -333,7 +357,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 );
               },
               loading: () => Text(
-                'Loading...',
+                S.of(context)?.familyMapLoading ?? 'Loading...',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
@@ -341,7 +365,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 ),
               ),
               error: (_, __) => Text(
-                'Unable to load',
+                S.of(context)?.familyMapFailedTitle ?? 'Unable to load',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 12,
@@ -363,6 +387,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       body: mapAsync.when(
         loading: () => MapSkeleton(
           reducedMotion: MediaQuery.disableAnimationsOf(context),
+          message: S.of(context)?.familyMapLoading ?? 'Loading family map…',
         ),
         error: (error, stack) => _buildErrorState(error),
         // The map is ALWAYS rendered — even with 0 members, 0 cities,
@@ -380,19 +405,22 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
   // ── Map View (MapLibre 0.3.5 — 3D buildings + tilted camera) ──────
 
-  /// Bug 2 fix: Skeleton shown while the style JSON is loading.
-  /// Includes an explicit "Loading family map…" message so the user
-  /// knows what's happening — not a bare spinner.
+  /// Skeleton shown while the style JSON is loading (lifecycle ==
+  /// `initializing`). Uses the localized "Loading family map…" message
+  /// so the user knows what's happening — not a bare spinner.
   Widget _buildMapSkeleton() {
+    final l10n = S.of(context);
     return MapSkeleton(
       reducedMotion: MediaQuery.disableAnimationsOf(context),
-      message: 'Loading family map…',
+      message: l10n?.familyMapLoading ?? 'Loading family map…',
     );
   }
 
-  /// Bug 2 fix: Error UI shown when the style JSON fails to load.
-  /// Provides a Retry button that clears the cached style and re-fetches.
+  /// Error UI shown when the style JSON fails to load (lifecycle ==
+  /// `failed`). Provides a Retry button that resets the lifecycle and
+  /// re-fetches.
   Widget _buildStyleLoadError() {
+    final l10n = S.of(context);
     return Stack(
       children: [
         Container(color: KinrelColors.darkBackground),
@@ -406,7 +434,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                     color: KinrelColors.orange, size: 48),
                 const SizedBox(height: 16),
                 Text(
-                  'Could not load the family map.',
+                  l10n?.familyMapFailedTitle ?? 'Could not load the family map.',
                   style: TextStyle(
                     color: KinrelColors.textWhite,
                     fontFamily: KinrelTypography.displayFont,
@@ -416,7 +444,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Check your connection and try again.',
+                  l10n?.familyMapFailedBody ?? 'Check your connection and try again.',
                   style: TextStyle(
                     color: KinrelColors.textDim,
                     fontFamily: KinrelTypography.bodyFont,
@@ -426,15 +454,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 ),
                 const SizedBox(height: 24),
                 FilledButton(
-                  onPressed: () {
-                    setState(() {
-                      _loadedStyleJson = null;
-                    });
-                  },
+                  onPressed: _retryInitialization,
                   style: FilledButton.styleFrom(
                     backgroundColor: KinrelColors.orange,
                   ),
-                  child: const Text('Retry'),
+                  child: Text(l10n?.familyMapRetry ?? 'Retry'),
                 ),
               ],
             ),
@@ -444,13 +468,112 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     );
   }
 
+  /// Compact, non-blocking empty-state overlay shown when the lifecycle
+  /// is `empty` (0 located members). The base map is fully interactive
+  /// underneath — this overlay just nudges the user to add a location.
+  Widget _buildEmptyStateOverlay() {
+    final l10n = S.of(context);
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 16,
+      left: KinrelSpacing.base,
+      right: KinrelSpacing.base,
+      child: IgnorePointer(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkCard.withOpacity(0.92),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: KinrelColors.darkElevated),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.location_off_rounded,
+                  color: KinrelColors.orange, size: 24),
+              const SizedBox(height: 8),
+              Text(
+                l10n?.familyMapEmptyTitle ?? 'No family locations yet',
+                style: TextStyle(
+                  color: KinrelColors.textWhite,
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                l10n?.familyMapEmptyBody ??
+                    'Add a location to a family member to see your family across the map.',
+                style: TextStyle(
+                  color: KinrelColors.textSilver,
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Retry handler — clears cached state and resets the lifecycle so a
+  /// fresh initialization attempt runs. The previous attempt's stale
+  /// callbacks are invalidated by the lifecycle's attempt-ID increment.
+  void _retryInitialization() {
+    debugPrint('🔄 FamilyMap: retry requested — resetting lifecycle');
+    // Cancel any pending watchdog.
+    _styleWatchdog?.cancel();
+    _styleWatchdog = null;
+    // Clear cached style so _loadStyleJson re-fetches from the asset.
+    _loadedStyleJson = null;
+    // Reset lifecycle — this increments the attempt ID, invalidating
+    // any in-flight callbacks from the previous attempt.
+    _lifecycle.reset();
+    // Trigger a rebuild — the FutureBuilder will re-execute
+    // _loadStyleJson() because _loadedStyleJson is null again.
+    setState(() {});
+  }
+
+  /// Called when the MapLibreMap widget is first mounted — starts the
+  /// watchdog that forces `loadingStyle → ready/empty` if `onStyleLoaded`
+  /// never fires (maplibre 0.3.5 web plugin has a known bug where the
+  /// callback is not invoked for inline JSON styles).
+  void _startStyleWatchdog({required int attempt}) {
+    _styleWatchdog?.cancel();
+    _styleWatchdog =
+        Timer(const Duration(seconds: 8), () {
+      if (attempt != _lifecycle.currentAttempt) return;
+      if (_lifecycle.state == FamilyMapLifecycle.loadingStyle) {
+        debugPrint('⚠️ FamilyMap: onStyleLoaded watchdog fired after 8s — '
+            'forcing lifecycle to ready/empty (maplibre web bug workaround)');
+        _advanceToReadyOrEmpty(attempt: attempt);
+      }
+    });
+  }
+
+  /// Transitions the lifecycle to `ready` or `empty` based on the
+  /// current family data. Called when `onStyleLoaded` fires OR when
+  /// the watchdog forces the transition.
+  void _advanceToReadyOrEmpty({required int attempt}) {
+    final hasLocatedMembers = _lastResult?.pins.isNotEmpty ?? false;
+    final nextState = hasLocatedMembers
+        ? FamilyMapLifecycle.ready
+        : FamilyMapLifecycle.empty;
+    _lifecycle.transition(nextState, attempt: attempt);
+    // Cancel the watchdog — we've reached a terminal state.
+    _styleWatchdog?.cancel();
+    _styleWatchdog = null;
+  }
+
   Widget _buildMap(FamilyMapResult result) {
     _lastResult = result;
 
     // P10.7 — Filter pins + places by the journey provider's selected year.
     // On first build the journey state defaults to the current year, so all
     // alive members are shown.
-    final journeyState = ref.watch(journeyProvider);
     final filteredPins = ref
             .read(journeyProvider.notifier)
             .filterMapPins(result.pins);
@@ -460,9 +583,6 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
     // P10.4 — Compute households from the filtered pins.
     final households = computeHouseholds(filteredPins);
-
-    // P10.6 — Watch the focus state (drives per-marker opacity in the overlay).
-    final focusState = ref.watch(graphFocusProvider);
 
     // P10.6 — Reduced-motion flag from MediaQuery (matches the graph pattern).
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
@@ -496,174 +616,229 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     return FutureBuilder<String>(
       future: _loadStyleJson(),
       builder: (context, snapshot) {
-        // Bug 2 fix: explicit error UI with Retry button. Previously
-        // only `!snapshot.hasData` was checked — on error the user
-        // saw a silent spinner forever.
+        // ── LIFECYCLE TRANSITIONS ─────────────────────────────────────
+        // The FutureBuilder's snapshot drives the lifecycle:
+        //   • loading → lifecycle stays at `initializing`
+        //   • error   → lifecycle transitions to `failed`
+        //   • data    → lifecycle transitions to `loadingStyle` + starts
+        //               the 8-second watchdog (forces `ready`/`empty`
+        //               even if `onStyleLoaded` never fires).
+        // Stale attempts are dropped by the lifecycle controller's
+        // attempt-ID check.
+        final attempt = _lifecycle.currentAttempt;
         if (snapshot.hasError) {
-          return _buildStyleLoadError();
+          _lifecycle.transition(FamilyMapLifecycle.failed, attempt: attempt);
+        } else if (snapshot.hasData) {
+          if (_lifecycle.state == FamilyMapLifecycle.initializing) {
+            _lifecycle.transition(
+              FamilyMapLifecycle.loadingStyle,
+              attempt: attempt,
+            );
+            // Start the watchdog — if onStyleLoaded doesn't fire within
+            // 8 seconds, force the lifecycle to ready/empty. This is
+            // the workaround for the maplibre 0.3.5 web bug where
+            // onStyleLoaded is not invoked for inline JSON styles.
+            _startStyleWatchdog(attempt: attempt);
+          }
         }
-        if (!snapshot.hasData) {
-          return _buildMapSkeleton();
-        }
 
-        // Pass the raw JSON string directly — the maplibre web plugin
-        // detects strings starting with '{' as inline JSON, bypassing
-        // the broken AssetManager URL resolution for asset:// paths.
-        // P10.8 — POI filter is already applied in _loadStyleJson().
-        final styleJson = snapshot.data!;
+        // ── RENDER BASED ON LIFECYCLE ────────────────────────────────
+        // The skeleton shows ONLY during `initializing` and `loadingStyle`.
+        // The error UI shows during `failed`. Otherwise the base map is
+        // rendered; premium layers attach progressively on top.
+        return AnimatedBuilder(
+          animation: _lifecycle,
+          builder: (context, _) {
+            final state = _lifecycle.state;
+            if (state == FamilyMapLifecycle.failed) {
+              return _buildStyleLoadError();
+            }
+            if (state.showLoadingOverlay && !snapshot.hasData) {
+              return _buildMapSkeleton();
+            }
+            if (!snapshot.hasData) {
+              // Defensive: snapshot still loading even though lifecycle
+              // advanced — show the skeleton until the data arrives.
+              return _buildMapSkeleton();
+            }
 
-        return Stack(
-          children: [
-            // ── MapLibre map — permanent background ─────────────────────
-            MapLibreMap(
-              options: MapOptions(
-                initStyle: styleJson,
-                initCenter: initCenter,
-                // Premium: start from higher altitude for cinematic descent
-                initZoom: initZoom,
-                initPitch: initPitch,
-                minZoom: 2,
-                maxZoom: 18,
-              ),
-              onMapCreated: _onMapCreated,
-              onStyleLoaded: _onStyleLoaded,
-              // P10.2 / P10.6 — Handle map taps: if a family building is
-              // hit, open its bottom sheet; otherwise exit Focus Mode.
-              onEvent: (event) {
-                if (event is MapEventClick) {
-                  _handleMapTap(event.screenPoint);
-                }
-              },
-            ),
+            // Pass the raw JSON string directly — the maplibre web plugin
+            // detects strings starting with '{' as inline JSON, bypassing
+            // the broken AssetManager URL resolution for asset:// paths.
+            // P10.8 — POI filter is already applied in _loadStyleJson().
+            final styleJson = snapshot.data!;
 
-            // ── P10.5 — Animated relationship paths overlay ─────────────
-            // Rendered as a Flutter CustomPainter overlay because maplibre
-            // 0.3.5 does not expose setPaintProperty (Rule 12 fallback).
-            // The overlay reads pin screen positions from the controller.
-            if (_styleLoaded && filteredPins.length >= 2)
-              _RelationshipPathOverlay(
-                mapController: _mapController,
-                edges: result.edges,
-                pins: filteredPins,
-                progressNotifier: _pathRepaintNotifier,
-                reducedMotion: reducedMotion,
-              ),
-
-            // ── P10.3 — Premium avatar markers (Flutter overlay path) ───
-            // Replaces the old CircleStyleLayer pins. maplibre 0.3.5's
-            // addImage API is probed at style-load time; if it throws,
-            // the overlay path is used (Rule 12). The overlay renders
-            // AvatarMarkerWidget for each pin with per-tier opacity
-            // driven by the focus state (P10.6).
-            //
-            // Bug 4 fix: pass the live location tiers (live/recent/stale/
-            // cityFallback) from the live location provider so markers
-            // get the correct visual treatment. Previously this was an
-            // empty map, which meant no LIVE pulse / STALE dimming.
-            if (_styleLoaded && filteredPins.isNotEmpty)
-              AvatarMarkerOverlay(
-                mapController: _mapController,
-                pins: filteredPins,
-                selectedPinId: _selectedPinId,
-                liveTiers: {
-                  for (final entry in liveState.locations.entries)
-                    entry.key: entry.value.tier,
-                },
-                reducedMotion: reducedMotion,
-                onPinTap: _handlePinTap,
-                onPinLongPress: _handlePinLongPress,
-              ),
-
-            // ── P10.4 — Household cluster markers ───────────────────────
-            // Rendered as Positioned widgets for clusters with >1 member.
-            // Single-member households are rendered by the avatar overlay.
-            if (_styleLoaded && households.any((h) => h.isMulti))
-              _HouseholdClusterOverlay(
-                mapController: _mapController,
-                households: households.where((h) => h.isMulti).toList(),
-                expandedHouseholdId: _expandedHouseholdId,
-                reducedMotion: reducedMotion,
-                onClusterTap: _handleClusterTap,
-                onClusterLongPress: _handleClusterLongPress,
-              ),
-
-            // ── P10.8 — Polish overlay (vignette + fog + ambient) ───────
-            // Rendered on top of the map but below the bottom sheets.
-            // IgnorePointer so map gestures pass through.
-            // Bug 4 fix: pass deviceTier + reducedMotion so the overlay
-            // disables fog/ambient on low-tier devices and respects
-            // the user's reduced-motion preference.
-            MapPolishOverlay(
-              deviceTier: DeviceTierCache.instance.tier,
-              reducedMotion: reducedMotion,
-            ),
-
-            // ── Legend overlay — bottom-left ───────────────────────────
-            // The map is ALWAYS fully visible and interactive — no empty-state
-            // card replaces it. The header subtitle "0 members located" is the
-            // only indicator of empty data.
-            Positioned(
-              left: KinrelSpacing.base,
-              bottom: KinrelSpacing.base,
-              child: _MapLegend(result: result),
-            ),
-
-            // ── P10.7 — Timeline scrubber at the bottom ─────────────────
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: MapTimelineScrubber(
-                onYearChanged: (year) {
-                  // P10.9 — Save the new year (debounced).
-                  _scheduleStateSave();
-                },
-                reducedMotion: reducedMotion,
-              ),
-            ),
-
-            // ── P10.7 — Family Journey animation (when a person is selected) ──
-            if (_journeyStops != null && _journeyStops!.isNotEmpty)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 80,
-                child: FamilyJourneyAnimation(
-                  stops: _journeyStops!,
-                  reducedMotion: reducedMotion,
-                  onClose: () {
-                    setState(() => _journeyStops = null);
+            return Stack(
+              children: [
+                // ── MapLibre map — permanent background ─────────────────────
+                //
+                // Stable identity: no ValueKey/UniqueKey. Timeline, focus,
+                // and search changes UPDATE the existing map (via style
+                // source updates + Flutter overlay repaints); they do
+                // NOT recreate MapLibreMap.
+                MapLibreMap(
+                  options: MapOptions(
+                    initStyle: styleJson,
+                    initCenter: initCenter,
+                    // Premium: start from higher altitude for cinematic descent
+                    initZoom: initZoom,
+                    initPitch: initPitch,
+                    minZoom: 2,
+                    maxZoom: 18,
+                  ),
+                  onMapCreated: _onMapCreated,
+                  onStyleLoaded: _onStyleLoaded,
+                  // P10.2 / P10.6 — Handle map taps: if a family building is
+                  // hit, open its bottom sheet; otherwise exit Focus Mode.
+                  onEvent: (event) {
+                    if (event is MapEventClick) {
+                      _handleMapTap(event.screenPoint);
+                    }
                   },
                 ),
-              ),
 
-            // ── P10.8 — Progressive loading indicator ───────────────────
-            if (_loadState.phase != MapLoadPhase.complete &&
-                _loadState.message.isNotEmpty)
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 8,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: KinrelColors.darkCard.withOpacity(0.85),
-                      borderRadius: BorderRadius.circular(12),
+                // ── P10.5 — Animated relationship paths overlay ─────────────
+                // Rendered as a Flutter CustomPainter overlay because maplibre
+                // 0.3.5 does not expose setPaintProperty (Rule 12 fallback).
+                // The overlay reads pin screen positions from the controller.
+                if (_styleLoaded && filteredPins.length >= 2)
+                  _RelationshipPathOverlay(
+                    mapController: _mapController,
+                    edges: result.edges,
+                    pins: filteredPins,
+                    progressNotifier: _pathRepaintNotifier,
+                    reducedMotion: reducedMotion,
+                  ),
+
+                // ── P10.3 — Premium avatar markers (Flutter overlay path) ───
+                // Replaces the old CircleStyleLayer pins. maplibre 0.3.5's
+                // addImage API is probed at style-load time; if it throws,
+                // the overlay path is used (Rule 12). The overlay renders
+                // AvatarMarkerWidget for each pin with per-tier opacity
+                // driven by the focus state (P10.6).
+                //
+                // Bug 4 fix: pass the live location tiers (live/recent/stale/
+                // cityFallback) from the live location provider so markers
+                // get the correct visual treatment. Previously this was an
+                // empty map, which meant no LIVE pulse / STALE dimming.
+                if (_styleLoaded && filteredPins.isNotEmpty)
+                  AvatarMarkerOverlay(
+                    mapController: _mapController,
+                    pins: filteredPins,
+                    selectedPinId: _selectedPinId,
+                    liveTiers: {
+                      for (final entry in liveState.locations.entries)
+                        entry.key: entry.value.tier,
+                    },
+                    reducedMotion: reducedMotion,
+                    onPinTap: _handlePinTap,
+                    onPinLongPress: _handlePinLongPress,
+                  ),
+
+                // ── P10.4 — Household cluster markers ───────────────────────
+                // Rendered as Positioned widgets for clusters with >1 member.
+                // Single-member households are rendered by the avatar overlay.
+                if (_styleLoaded && households.any((h) => h.isMulti))
+                  _HouseholdClusterOverlay(
+                    mapController: _mapController,
+                    households: households.where((h) => h.isMulti).toList(),
+                    expandedHouseholdId: _expandedHouseholdId,
+                    reducedMotion: reducedMotion,
+                    onClusterTap: _handleClusterTap,
+                    onClusterLongPress: _handleClusterLongPress,
+                  ),
+
+                // ── P10.8 — Polish overlay (vignette + fog + ambient) ───────
+                // Rendered on top of the map but below the bottom sheets.
+                // IgnorePointer so map gestures pass through.
+                // Bug 4 fix: pass deviceTier + reducedMotion so the overlay
+                // disables fog/ambient on low-tier devices and respects
+                // the user's reduced-motion preference.
+                MapPolishOverlay(
+                  deviceTier: DeviceTierCache.instance.tier,
+                  reducedMotion: reducedMotion,
+                ),
+
+                // ── Empty-state overlay (lifecycle == empty) ───────────────
+                // 0 located members is NOT a loading state. The base map is
+                // fully interactive underneath this compact, non-blocking
+                // overlay. IgnorePointer so map gestures pass through.
+                if (_lifecycle.state == FamilyMapLifecycle.empty)
+                  _buildEmptyStateOverlay(),
+
+                // ── Legend overlay — bottom-left ───────────────────────────
+                // The map is ALWAYS fully visible and interactive — no
+                // empty-state card replaces it.
+                Positioned(
+                  left: KinrelSpacing.base,
+                  bottom: KinrelSpacing.base,
+                  child: _MapLegend(result: result),
+                ),
+
+                // ── P10.7 — Timeline scrubber at the bottom ─────────────────
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: MapTimelineScrubber(
+                    onYearChanged: (year) {
+                      // P10.9 — Save the new year (debounced).
+                      _scheduleStateSave();
+                    },
+                    reducedMotion: reducedMotion,
+                  ),
+                ),
+
+                // ── P10.7 — Family Journey animation (when a person is selected) ──
+                if (_journeyStops != null && _journeyStops!.isNotEmpty)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 80,
+                    child: FamilyJourneyAnimation(
+                      stops: _journeyStops!,
+                      reducedMotion: reducedMotion,
+                      onClose: () {
+                        setState(() => _journeyStops = null);
+                      },
                     ),
-                    child: Text(
-                      _loadState.message,
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        fontFamily: KinrelTypography.bodyFont,
+                  ),
+
+                // ── OPTIONAL premium-layer progress indicator ───────────────
+                // This is NOT the primary loading indicator (the lifecycle
+                // drives that). It only shows the progress of OPTIONAL
+                // premium layers (family buildings, relationship paths)
+                // while the base map is already visible + interactive.
+                // Hidden once the lifecycle reaches a terminal state.
+                if (!_lifecycle.state.isTerminal &&
+                    _loadState.phase != MapLoadPhase.complete &&
+                    _loadState.message.isNotEmpty)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 8,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: KinrelColors.darkCard.withOpacity(0.85),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          _loadState.message,
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontFamily: KinrelTypography.bodyFont,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-          ],
+              ],
+            );
+          },
         );
       },
     );
@@ -673,17 +848,14 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
   void _onMapCreated(MapController controller) {
     _mapController = controller;
+    // NOTE: AmbientMotionController (idle camera rotation) was removed
+    // per the regression spec — "NO idle rotation". The camera stays
+    // where the user left it. Reduced-motion users especially do not
+    // want any involuntary camera movement.
 
-    // P11.6 — Attach the ambient motion controller (desktop/web only).
-    // It starts an idle timer; after 30s of no interaction, the camera
-    // slowly drifts. onUserInteraction() resets the timer.
-    _ambientMotion = AmbientMotionController(vsync: this);
-    _ambientMotion!.attach(controller);
-
-    // P11.6 — Cinematic entrance animation.
-    // Only plays on first open (no saved state from P10.9). Returning
-    // users get instant restore via _restoredState (handled in _buildMap
-    // via initCenter/initZoom).
+    // Cinematic entrance animation — runs ONCE on first open.
+    // Returning users get instant restore via _restoredState (handled
+    // in _buildMap via initCenter/initZoom).
     if (!_entranceAnimationDone && _restoredState == null) {
       _entranceAnimationDone = true;
       final reducedMotion = MediaQuery.disableAnimationsOf(context);
@@ -695,9 +867,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         );
       } else {
         // Cinematic entrance: animate from zoom 4 → 5.5 over
-        // cinematicEntrance duration (1500ms, tunable — Rule 5).
+        // cinematicEntrance duration (1500ms). Runs ONCE.
         Future.delayed(const Duration(milliseconds: 500), () {
           if (_mapController == null) return;
+          if (!mounted) return;
           _mapController!.animateCamera(
             center: Geographic(lon: 78.9629, lat: 20.5937),
             zoom: 5.5,
@@ -713,74 +886,140 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   }
 
   /// Called when the OpenFreeMap dark style finishes loading.
-  /// This is where we add the 3D building extrusion layer + family pins.
+  ///
+  /// REQUIRED vs OPTIONAL initialization:
+  ///   • REQUIRED (failure → lifecycle stays usable): the base map is
+  ///     already visible because the style JSON itself defines all
+  ///     layers (background, roads, water, family-buildings). The
+  ///     style-loaded callback is only needed to populate the
+  ///     family-places GeoJSON source + probe premium features.
+  ///   • OPTIONAL (failure → logged + skipped): avatar overlay probe,
+  ///     family buildings data population, relationship path animation.
+  ///
+  /// CRITICAL: Every await is wrapped in try/catch so an optional
+  /// layer failure cannot block the lifecycle transition to
+  /// `ready`/`empty`. The lifecycle MUST reach a terminal state.
   void _onStyleLoaded(StyleController style) async {
+    final attempt = _lifecycle.currentAttempt;
     _styleLoaded = true;
     final controller = _mapController;
-    if (controller == null) return;
+    if (controller == null) {
+      // Race condition: onStyleLoaded fired before onMapCreated on
+      // some platforms. The watchdog will still force the lifecycle
+      // to ready/empty after 8 seconds, but try to recover now.
+      debugPrint('⚠️ FamilyMap: onStyleLoaded fired before onMapCreated '
+          '(attempt=$attempt) — relying on watchdog');
+      _advanceToReadyOrEmpty(attempt: attempt);
+      return;
+    }
 
     // 3D building extrusion is already in the bundled style JSON
     // (kinrel_dark_style.json includes the "kinrel-3d-buildings"
     // fill-extrusion layer with render_height/render_min_height).
-    // No need to add it programmatically — it loads with the style.
     _buildingsAdded = true;
-    debugPrint('✅ Style loaded — 3D buildings layer is in the bundled style');
+    debugPrint('✅ FamilyMap: style loaded (attempt=$attempt)');
 
-    // P10.8 — Advance progressive loading: tiles + roads/buildings are in.
-    setState(() => _loadState = _loadState.copyWith(
-      phase: MapLoadPhase.roadsAndBuildings,
-    ));
+    // Transition the lifecycle to `preparingLayers` — the base map is
+    // now visible + interactive. Optional premium layers attach below.
+    // If the transition is dropped (stale attempt), bail out.
+    _lifecycle.transition(
+      FamilyMapLifecycle.preparingLayers,
+      attempt: attempt,
+    );
+    if (_lifecycle.currentAttempt != attempt) return;
 
-    // P10.3 — Probe SymbolLayer support. If addImage throws, the
-    // AvatarMarkerOverlay (Flutter overlay path) is used. Either way,
-    // the old CircleStyleLayer pins are no longer added — the overlay
-    // renders the premium avatar markers.
-    await _avatarLayer.verifySymbolLayerSupport(style);
-    debugPrint('🎨 P10.3: avatar overlay path = ${_avatarLayer.useOverlay}');
+    // Advance the secondary progress indicator.
+    if (mounted) {
+      setState(() => _loadState = _loadState.copyWith(
+        phase: MapLoadPhase.roadsAndBuildings,
+      ));
+    }
 
-    if (_lastResult != null) {
-      // P10.2 — Family buildings with per-type emotional lighting.
-      // Rendered as a GeoJSON source + FillExtrusionStyleLayer with a
-      // match expression on the placeType property. Tap handled in
-      // _handleMapTap via featuresAtPoint.
-      if (_lastResult!.places.isNotEmpty) {
-        await _familyBuildings.add(style, _lastResult!.places);
-        setState(() => _loadState = _loadState.copyWith(
-          phase: MapLoadPhase.familyPlaces,
-        ));
+    // ── OPTIONAL: Probe SymbolLayer support for avatar markers ────────
+    // Wrapped in try/catch + bounded by a 3-second timeout. If addImage
+    // hangs (maplibre 0.3.5 web bug), we fall back to the Flutter overlay
+    // path. This MUST NOT block the lifecycle.
+    try {
+      await _avatarLayer.verifySymbolLayerSupport(style)
+          .timeout(const Duration(seconds: 3));
+      debugPrint('🎨 FamilyMap: avatar overlay path = ${_avatarLayer.useOverlay}');
+    } catch (e) {
+      debugPrint('⚠️ FamilyMap: avatar probe failed ($e) — using overlay path');
+      _avatarLayer.useOverlay = true;
+    }
+    if (_lifecycle.currentAttempt != attempt) return;
+
+    // ── OPTIONAL: Family buildings data population ────────────────────
+    // The source + layers are already in the style JSON; we just populate
+    // the data. Failure is logged — the base map remains usable.
+    final result = _lastResult;
+    if (result != null && result.places.isNotEmpty) {
+      try {
+        await _familyBuildings.add(style, result.places)
+            .timeout(const Duration(seconds: 3));
+        if (mounted && _lifecycle.currentAttempt == attempt) {
+          setState(() => _loadState = _loadState.copyWith(
+            phase: MapLoadPhase.familyPlaces,
+          ));
+        }
+      } catch (e) {
+        debugPrint('⚠️ FamilyMap: family buildings add failed ($e) — skipping');
       }
+    }
+    if (_lifecycle.currentAttempt != attempt) return;
 
-      // P10.5 — Animated relationship paths. The LineLayer is added to
-      // the style with a static color; the flow animation is rendered
-      // by the Flutter overlay (RelationshipPathOverlayPainter) driven
-      // by the AnimatedRelationshipPath controller.
-      if (_lastResult!.edges.isNotEmpty) {
+    // ── OPTIONAL: Animated relationship paths ─────────────────────────
+    if (result != null && result.edges.isNotEmpty) {
+      try {
+        // Capture reduced-motion before the async gap so we don't use
+        // BuildContext across async gaps.
+        final reducedMotion = MediaQuery.disableAnimationsOf(context);
         _relationshipPaths = AnimatedRelationshipPath(
           tickerProvider: this,
           mapController: controller,
           style: style,
-          reducedMotion: MediaQuery.disableAnimationsOf(context),
+          reducedMotion: reducedMotion,
           onRepaint: () => _pathRepaintNotifier.value++,
         );
-        await _relationshipPaths!.verifyLineGradientSupport();
+        await _relationshipPaths!.verifyLineGradientSupport()
+            .timeout(const Duration(seconds: 2));
         _relationshipPaths!.start();
-        setState(() => _loadState = _loadState.copyWith(
-          phase: MapLoadPhase.relationshipPaths,
-        ));
+        if (mounted && _lifecycle.currentAttempt == attempt) {
+          setState(() => _loadState = _loadState.copyWith(
+            phase: MapLoadPhase.relationshipPaths,
+          ));
+        }
+      } catch (e) {
+        debugPrint('⚠️ FamilyMap: relationship paths init failed ($e) — skipping');
+        _relationshipPaths?.dispose();
+        _relationshipPaths = null;
       }
+    }
+    if (_lifecycle.currentAttempt != attempt) return;
 
-      // P10.8 — Advance to markers + animations phase.
+    // ── OPTIONAL: Markers phase ───────────────────────────────────────
+    if (mounted && _lifecycle.currentAttempt == attempt) {
       setState(() => _loadState = _loadState.copyWith(
         phase: MapLoadPhase.markers,
       ));
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) {
-          setState(() => _loadState = _loadState.copyWith(
-            phase: MapLoadPhase.complete,
-          ));
-        }
-      });
     }
+
+    // ── REQUIRED: Transition to terminal state ────────────────────────
+    // This is the fix for the infinite-loading bug. The lifecycle MUST
+    // reach `ready` or `empty` — never stay in `preparingLayers` forever.
+    // 0 located members → `empty` (NOT a loading state).
+    _advanceToReadyOrEmpty(attempt: attempt);
+
+    // Advance the secondary progress indicator to `complete` after a
+    // brief delay. This is purely cosmetic — the lifecycle is already
+    // terminal.
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      if (_lifecycle.currentAttempt != attempt) return;
+      setState(() => _loadState = _loadState.copyWith(
+        phase: MapLoadPhase.complete,
+      ));
+    });
   }
 
   /// P10.3 / P10.6 — Handle a tap on a family member avatar marker.
