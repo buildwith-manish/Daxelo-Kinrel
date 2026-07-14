@@ -232,11 +232,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   static const double _kDotZoom = 0.34;
   static const double _kLabelHideZoom = 1.0;
 
-  /// Zoom level at which edge relationship labels (e.g. "Father", "Son")
-  /// become visible. Set below 1.0 so labels show even at default zoom.
-  /// At very low zoom (overview), labels are hidden to avoid clutter.
-  static const double _kEdgeLabelShowZoom = 0.65;
-
   late final PositionMemory _positionMemory;
   late final CameraController _camera;
   late final ViewportCuller _culler;

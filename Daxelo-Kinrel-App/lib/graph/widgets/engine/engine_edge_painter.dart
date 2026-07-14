@@ -57,24 +57,12 @@ class EngineEdgePainter extends CustomPainter {
     this.traceProgress = 0.0,
     this.traceActive = false,
     this.completedTraceEdgeIds,
-    this.edgeLabels,
-    this.showEdgeLabels = false,
   });
 
   final Map<String, Offset> positions;
   final List<DedupedEdge> edges;
   final Map<String, KinshipEdgeCategory> edgeCategories;
   final Map<String, Map<String, dynamic>> edgeCustomColors;
-
-  /// Relationship label text per edge ID (e.g. "Father", "Son", "Spouse").
-  /// Null or empty = no labels rendered. Labels are resolved upstream
-  /// from the relationship key via KinshipService or _prettyPrintKey.
-  final Map<String, String>? edgeLabels;
-
-  /// Master switch for edge label rendering. When false, no labels are
-  /// drawn regardless of [edgeLabels] content. Typically gated by zoom
-  /// level (showEdgeLabels = zoom >= _kEdgeLabelShowZoom).
-  final bool showEdgeLabels;
 
   /// Phase 6: Couple unions used to redirect parent→child edges to the
   /// union midpoint. Passed through unchanged from the build method via
@@ -426,6 +414,12 @@ class EngineEdgePainter extends CustomPainter {
       // ── MIDPOINT SYMBOL ───────────────────────────────────────────
       // Bead / heart only at FULL or CHIP LOD (PART 10). Skipped at
       // DOT LOD and skipped when the edge is dimmed (focus mode).
+      //
+      // This is the ONLY edge-center marker. Normal relationship edges
+      // render a small dot (●); spouse/partner edges render a heart (♥).
+      // No persistent kinship text is ever rendered on edges — the
+      // relationship data remains available for accessibility, path
+      // tracing, and the relationship info sheet (tap interaction).
       if (edgeQuality.allowsMidpoint &&
           midpointSymbol != KinshipMidpointSymbol.none &&
           !isDimmed) {
@@ -446,31 +440,6 @@ class EngineEdgePainter extends CustomPainter {
           effectiveStrokeWidth: bodyWidth,
           isSelected: isSelected,
         );
-      }
-
-      // ── EDGE LABEL ────────────────────────────────────────────────
-      // Relationship label (e.g. "Father", "Son", "Spouse") rendered as
-      // a rounded chip at the edge midpoint. Only at FULL or CHIP LOD
-      // (skipped at DOT — too small). Skipped when dimmed (focus mode)
-      // to reduce clutter. The label text is resolved upstream from the
-      // relationship key and passed in via [edgeLabels].
-      if (showEdgeLabels &&
-          edgeLabels != null &&
-          edgeLabels!.isNotEmpty &&
-          edgeQuality != EdgeQuality.dot &&
-          !isDimmed) {
-        final label = edgeLabels![e.id];
-        if (label != null && label.isNotEmpty) {
-          _paintEdgeLabel(
-            canvas: canvas,
-            path: path,
-            s: effectiveSource,
-            t: effectiveTarget,
-            label: label,
-            edgeColor: edgeColor,
-            isSelected: isSelected,
-          );
-        }
       }
     }
 
@@ -912,100 +881,6 @@ class EngineEdgePainter extends CustomPainter {
   /// between partners for each derived CoupleUnion.
   ///
   /// The glyph is a small filled circle — subtle, NOT competing with
-  // ── Edge label helper ─────────────────────────────────────────────────
-
-  /// Renders a relationship label (e.g. "Father", "Son", "Spouse") as a
-  /// rounded chip at the edge midpoint.
-  ///
-  /// The chip has a dark background with a subtle coloured border matching
-  /// the edge colour. The text is white, sized to be readable at the
-  /// current LOD. Selected edges get a brighter chip.
-  ///
-  /// The midpoint is computed via [PathMetrics] (same technique as
-  /// [_paintMidpoint]) so the label sits exactly on the curve, not on
-  /// the straight-line midpoint.
-  void _paintEdgeLabel({
-    required Canvas canvas,
-    required Path path,
-    required Offset s,
-    required Offset t,
-    required String label,
-    required Color edgeColor,
-    required bool isSelected,
-  }) {
-    // Compute midpoint along the actual path (matches the midpoint symbol).
-    Offset midPoint = Offset((s.dx + t.dx) / 2, (s.dy + t.dy) / 2);
-    for (final metric in path.computeMetrics()) {
-      if (metric.length > 0) {
-        final tangent = metric.getTangentForOffset(metric.length * 0.5);
-        if (tangent != null) {
-          midPoint = tangent.position;
-          break;
-        }
-      }
-    }
-
-    // Skip if the edge is too short for a label to fit.
-    final edgeLength = (s - t).distance;
-    if (edgeLength < 40.0) return;
-
-    // Layout the text.
-    final fontSize = edgeQuality == EdgeQuality.full ? 11.0 : 9.0;
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: label,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: fontSize,
-          fontWeight: FontWeight.w600,
-          fontFamily: 'Inter',
-          letterSpacing: 0.2,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-      textAlign: TextAlign.center,
-    )..layout();
-
-    // Chip background — rounded rect with padding.
-    const horizontalPadding = 6.0;
-    const verticalPadding = 3.0;
-    final chipRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(
-        midPoint.dx - textPainter.width / 2 - horizontalPadding,
-        midPoint.dy - textPainter.height / 2 - verticalPadding,
-        textPainter.width + horizontalPadding * 2,
-        textPainter.height + verticalPadding * 2,
-      ),
-      const Radius.circular(8.0),
-    );
-
-    // Draw chip background (dark, semi-opaque).
-    canvas.drawRRect(
-      chipRect,
-      Paint()
-        ..color = const Color(0xFF1A1A22).withValues(alpha: isSelected ? 0.95 : 0.85)
-        ..style = PaintingStyle.fill,
-    );
-
-    // Draw chip border (edge colour, subtle).
-    canvas.drawRRect(
-      chipRect,
-      Paint()
-        ..color = edgeColor.withValues(alpha: isSelected ? 0.9 : 0.5)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = isSelected ? 1.5 : 1.0,
-    );
-
-    // Draw the text centered on the midpoint.
-    textPainter.paint(
-      canvas,
-      Offset(
-        midPoint.dx - textPainter.width / 2,
-        midPoint.dy - textPainter.height / 2,
-      ),
-    );
-  }
-
   /// person nodes. It visually marks where a couple connects and
   /// where children descend from. The glyph reuses the relationship
   /// edge colour (spouse orange) for visual consistency.
@@ -1096,25 +971,7 @@ class EngineEdgePainter extends CustomPainter {
         old.traceActive != traceActive ||
         old.traceEdgeId != traceEdgeId ||
         (traceActive && old.traceProgress != traceProgress) ||
-        !_sameSet(old.completedTraceEdgeIds, completedTraceEdgeIds) ||
-        // Edge label changes (show/hide toggle or label content change)
-        old.showEdgeLabels != showEdgeLabels ||
-        _edgeLabelsChanged(old.edgeLabels);
-  }
-
-  /// Lightweight edge-labels comparison: if both are null or empty, no
-  /// change. Otherwise compare lengths (content changes bump graphRevision
-  /// already, so this catches the show/hide toggle).
-  bool _edgeLabelsChanged(Map<String, String>? old) {
-    final a = edgeLabels;
-    if (a == null && old == null) return false;
-    if (a == null || old == null) return true;
-    if (a.length != old.length) return true;
-    // Deep compare only when lengths match (rare — happens on edit).
-    for (final key in a.keys) {
-      if (a[key] != old[key]) return true;
-    }
-    return false;
+        !_sameSet(old.completedTraceEdgeIds, completedTraceEdgeIds);
   }
 
   /// Lightweight dimmed-set comparison. We do NOT deep-compare element

@@ -253,11 +253,6 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         final String? anchorId = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
         final edgeCategories = <String, KinshipEdgeCategory>{};
         final edgeCustomColors = <String, Map<String, dynamic>>{};
-        // Relationship label text per edge ID — resolved from the
-        // relationship key via KinshipService (englishTerm) or
-        // _prettyPrintKey fallback. Passed to EngineEdgePainter via
-        // EdgeSelectionWrapper so labels render on every edge.
-        final edgeLabels = <String, String>{};
         if (anchorId != null) {
           for (final deduped in edges) {
             final e = deduped.edge;
@@ -277,13 +272,6 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             }
             if (cat != null) {
               edgeCategories[e.id] = cat;
-            }
-            // Resolve the relationship label from the key.
-            // Try KinshipService first (localized), fall back to
-            // pretty-printed key ("father" → "Father").
-            final label = _resolveEdgeLabel(e.relationshipKey);
-            if (label != null && label.isNotEmpty) {
-              edgeLabels[e.id] = label;
             }
           }
         }
@@ -459,11 +447,6 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     // unrelated edges dim.
                     pathFocusedEdgeIds: pathFocus?.orderedEdgeIds.toSet(),
                     pathFocusActive: pathFocus != null,
-                    // Relationship labels on edges (e.g. "Father", "Son").
-                    // Show when zoomed in enough for labels to be readable.
-                    edgeLabels: edgeLabels,
-                    showEdgeLabels: _camera.zoomLevel >=
-                        _FamilyGraphEngineViewState._kEdgeLabelShowZoom,
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
@@ -655,32 +638,6 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
       graphPos.dx * zoom + panX,
       graphPos.dy * zoom + panY,
     );
-  }
-
-  // ── Edge label resolution ─────────────────────────────────────────────
-
-  /// Resolves a relationship key (e.g. "father", "son", "spouse",
-  /// "father_in_law") into a human-readable label for display on the
-  /// edge midpoint.
-  ///
-  /// Tries KinshipService first (localized englishTerm), falls back to
-  /// a pretty-printed version of the key ("father_in_law" → "Father In Law").
-  /// Returns null for empty/null keys.
-  String? _resolveEdgeLabel(String? key) {
-    if (key == null || key.trim().isEmpty) return null;
-    try {
-      final kinship = KinshipService.instance;
-      if (kinship.isLoaded) {
-        final rel = kinship.getRelationship(key);
-        final term = rel?.englishTerm;
-        if (term != null && term.isNotEmpty) {
-          return term;
-        }
-      }
-    } catch (_) {
-      // Fall through to pretty-print.
-    }
-    return _prettyPrintKey(key);
   }
 
   // ── P3.5: Ambient particle layer ────────────────────────────────────
