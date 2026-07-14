@@ -28,14 +28,16 @@ class MapVisualConstants {
   // between this file and the JSON.
   // ═════════════════════════════════════════════════════════════════════
 
-  /// Base background of the dark map.
-  static const Color background = Color(0xFF131416);
+  /// Base background of the dark map — P12 premium warm charcoal.
+  /// Slightly warmer than the original #131416 to match the
+  /// Snapchat-style 3D map aesthetic with Kinrel warmth.
+  static const Color background = Color(0xFF0F1014);
 
-  /// Land color (parks, land-use polygons).
-  static const Color land = Color(0xFF191B2C);
+  /// Land color (parks, land-use polygons) — warm dark purple-grey.
+  static const Color land = Color(0xFF1B1A24);
 
-  /// Water bodies.
-  static const Color water = Color(0xFF162335);
+  /// Water bodies — warm navy with amber undertone.
+  static const Color water = Color(0xFF1A1E2A);
 
   /// Minor / residential roads.
   static const Color roadMinor = Color(0xFF2A2440);
@@ -46,9 +48,17 @@ class MapVisualConstants {
   /// Motorways / highways.
   static const Color roadMotorway = Color(0xFF4A3F63);
 
-  /// Generic non-family buildings.
-  /// Matches the value in kinrel_dark_style.json (lines 3926, 3955, 6055).
-  static const Color buildingNormal = Color(0xFF1A1B2E);
+  /// Generic non-family buildings — warm dark base for 3D extrusion.
+  /// P12 premium: generic 3D buildings now extrude (Snapchat-style
+  /// blocky) with this warm-tinted base. Family buildings still pop
+  /// on top with their warm beacon colors.
+  static const Color buildingNormal = Color(0xFF1C1B26);
+
+  /// Generic building top color (slightly lighter for vertical gradient).
+  static const Color buildingNormalTop = Color(0xFF2A2638);
+
+  /// Generic building tall accent (high-rises get this tint).
+  static const Color buildingNormalTall = Color(0xFF352D44);
 
   // ═════════════════════════════════════════════════════════════════════
   // FAMILY BUILDING COLORS (by PlaceType — P10.2)
@@ -98,10 +108,13 @@ class MapVisualConstants {
   // ═════════════════════════════════════════════════════════════════════
 
   /// Diameter of an unselected avatar marker (logical px).
-  static const double markerNormalSize = 40.0;
+  /// P12: bumped from 40 → 44 for more prominent Snapchat-style
+  /// photo markers.
+  static const double markerNormalSize = 44.0;
 
   /// Diameter of a selected avatar marker.
-  static const double markerSelectedSize = 56.0;
+  /// P12: bumped from 56 → 60 for stronger focus emphasis.
+  static const double markerSelectedSize = 60.0;
 
   /// Ring stroke width for an unselected marker.
   static const double markerRingWidthNormal = 2.0;
@@ -110,10 +123,12 @@ class MapVisualConstants {
   static const double markerRingWidthSelected = 3.0;
 
   /// Outer glow blur radius (unselected).
-  static const double markerGlowBlurNormal = 6.0;
+  /// P12: increased from 6 → 8 for more prominent photo markers.
+  static const double markerGlowBlurNormal = 8.0;
 
   /// Outer glow blur radius (selected).
-  static const double markerGlowBlurSelected = 12.0;
+  /// P12: increased from 12 → 16 for stronger focus glow.
+  static const double markerGlowBlurSelected = 16.0;
 
   /// Drop shadow offset for markers.
   static const double markerShadowOffset = 2.0;
@@ -167,20 +182,27 @@ class MapVisualConstants {
   // ═════════════════════════════════════════════════════════════════════
 
   /// Vignette intensity at the corners. Per master prompt: 0.35.
-  static const double vignetteOpacity = 0.35;
+  /// P12 premium: bumped to 0.40 for the cinematic Snapchat-style mood
+  /// (darker corners focus attention on the 3D buildings + markers).
+  static const double vignetteOpacity = 0.40;
 
   /// Atmospheric fog opacity (barely visible).
-  static const double fogOpacity = 0.05;
+  /// P12: bumped slightly to 0.06 for more depth perception.
+  static const double fogOpacity = 0.06;
 
   /// Warm ambient lighting overlay opacity.
-  static const double ambientWarmthOpacity = 0.03;
+  /// P12: bumped slightly to 0.04 to amplify the warm Kinrel orange
+  /// mood over the whole map (matches the Snapchat "lit" feel).
+  static const double ambientWarmthOpacity = 0.04;
 
   // ═════════════════════════════════════════════════════════════════════
   // ZOOM THRESHOLDS
   // ═════════════════════════════════════════════════════════════════════
 
   /// Below this zoom, 3D building extrusion is hidden for performance.
-  static const double buildingExtrusionMinZoom = 15.0;
+  /// P12 premium: lowered from 15 → 14 to match Snapchat-style 3D
+  /// appearance earlier (buildings extrude at city-street view).
+  static const double buildingExtrusionMinZoom = 14.0;
 
   /// P11.x — Above this zoom, the per-type roof detail layer renders.
   /// Per master prompt: roof pattern added at runtime at zoom 17+.
@@ -442,13 +464,17 @@ class MapVisualConstants {
   // at the documentation level (the JSON itself is the runtime source).
   // ═════════════════════════════════════════════════════════════════════
 
-  static const String hexBackground = '#131416';
-  static const String hexLand = '#191B2C';
-  static const String hexWater = '#162335';
+  static const String hexBackground = '#0F1014';
+  static const String hexLand = '#1B1A24';
+  static const String hexWater = '#1A1E2A';
   static const String hexRoadMinor = '#2A2440';
   static const String hexRoadPrimary = '#3A3252';
   static const String hexRoadMotorway = '#4A3F63';
-  static const String hexBuildingNormal = '#1A1B2E';
+  static const String hexBuildingNormal = '#1C1B26';
+  /// P12: generic building top color (vertical gradient).
+  static const String hexBuildingNormalTop = '#2A2638';
+  /// P12: generic building tall accent color.
+  static const String hexBuildingNormalTall = '#352D44';
   static const String hexBuildingCurrentHome = '#E8612A';
   static const String hexBuildingChildhoodHome = '#F59240';
   static const String hexBuildingAncestralHome = '#917520';
@@ -508,7 +534,7 @@ class MapVisualConstants {
   // ═════════════════════════════════════════════════════════════════════
 
   /// Park fill color (warm dark green, handcrafted for family palette).
-  static const String hexPark = '#1A2A1F';
+  static const String hexPark = '#1F2620';
 
   /// Park fill opacity (reduced from 0.7 → 0.55 per master prompt).
   static const double parkOpacity = 0.55;

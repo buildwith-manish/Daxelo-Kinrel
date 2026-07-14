@@ -69,8 +69,25 @@ void main() {
       expect(MapVisualConstants.hexLabelHaloColor, equals('#0D0D0D'));
     });
 
-    test('P11.x — vignette opacity is 0.35 (per master prompt)', () {
-      expect(MapVisualConstants.vignetteOpacity, equals(0.35));
+    test('P12 — vignette opacity is 0.40 (cinematic premium)', () {
+      expect(MapVisualConstants.vignetteOpacity, equals(0.40));
+    });
+
+    test('P12 — generic 3D building colors exist (Snapchat-style blocky)', () {
+      expect(MapVisualConstants.buildingNormal, isA<Color>());
+      expect(MapVisualConstants.buildingNormalTop, isA<Color>());
+      expect(MapVisualConstants.buildingNormalTall, isA<Color>());
+    });
+
+    test('P12 — avatar marker sizes are prominent (Snapchat-style)', () {
+      expect(MapVisualConstants.markerNormalSize, equals(44.0));
+      expect(MapVisualConstants.markerSelectedSize, equals(60.0));
+      expect(MapVisualConstants.markerGlowBlurNormal, equals(8.0));
+      expect(MapVisualConstants.markerGlowBlurSelected, equals(16.0));
+    });
+
+    test('P12 — building extrusion min zoom is 14 (3D appears earlier)', () {
+      expect(MapVisualConstants.buildingExtrusionMinZoom, equals(14.0));
     });
   });
 

@@ -149,21 +149,36 @@ jobs:
       # that can be verified statically (without running the app).
       # ───────────────────────────────────────────────────────────────
 
-      - name: Verify P1.1 — Generic building layer removed from style JSON
+      - name: Verify P1.1 — Generic 3D buildings present (Snapchat-style) + family-buildings
         working-directory: .
         run: |
-          # The generic OSM `building` fill layer MUST be removed.
-          # Only family-buildings renders in 3D per master prompt.
-          if rg -q '"id":"building"' Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
-            echo "❌ P1.1 FAILED: generic building layer still present in style JSON"
+          # P12 PREMIUM UPDATE: Generic 3D buildings are NOW RE-ENABLED
+          # with a Kinrel-warm tint (Snapchat-style blocky 3D aesthetic
+          # but with Kinrel orange/amber palette, not Snapchat cool blue).
+          # The layer is called `kinrel-3d-buildings` (fill-extrusion).
+          if ! rg -q '"id":"kinrel-3d-buildings"' Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
+            echo "❌ P1.1 FAILED: kinrel-3d-buildings fill-extrusion layer missing"
             exit 1
           fi
-          # Verify the family-buildings layer IS present.
+          # Verify it's a fill-extrusion (3D) layer.
+          if ! python3 -c "
+          import json
+          s = json.load(open('Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json'))
+          l = next((x for x in s['layers'] if x.get('id') == 'kinrel-3d-buildings'), None)
+          assert l is not None, 'kinrel-3d-buildings layer missing'
+          assert l.get('type') == 'fill-extrusion', f'expected fill-extrusion, got {l.get(\"type\")}'
+          assert l.get('source-layer') == 'building', f'expected source-layer=building, got {l.get(\"source-layer\")}'
+          assert l.get('minzoom') == 14, f'expected minzoom 14, got {l.get(\"minzoom\")}'
+          "; then
+            echo "❌ P1.1 FAILED: kinrel-3d-buildings not configured correctly"
+            exit 1
+          fi
+          # Verify family-buildings layer IS present (renders on top of generic 3D).
           if ! rg -q '"id":"family-buildings"' Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
             echo "❌ P1.1 FAILED: family-buildings layer missing from style JSON"
             exit 1
           fi
-          echo "✅ P1.1: generic building layer removed; family-buildings present"
+          echo "✅ P1.1: kinrel-3d-buildings (generic 3D, warm-tinted) + family-buildings both present"
 
       - name: Verify P1.2 — Road colors warmed with Kinrel orange tint
         working-directory: .
@@ -352,14 +367,17 @@ jobs:
           fi
           echo "✅ P5.2: polish overlay merged into single _KinrelPolishPainter (1 draw call)"
 
-      - name: Verify P5.3 — Vignette opacity is 0.35 (master prompt)
+      - name: Verify P5.3 — Vignette opacity is 0.40 (P12 premium)
         working-directory: .
         run: |
-          if ! rg -q "vignetteOpacity = 0.35" Daxelo-Kinrel-App/lib/features/family_map/config/map_visual_constants.dart; then
-            echo "❌ P5.3 FAILED: vignette opacity is not 0.35"
+          # P12 PREMIUM UPDATE: Vignette opacity bumped from 0.35 → 0.40
+          # for the cinematic Snapchat-style mood (darker corners focus
+          # attention on 3D buildings + markers).
+          if ! rg -q "vignetteOpacity = 0.40" Daxelo-Kinrel-App/lib/features/family_map/config/map_visual_constants.dart; then
+            echo "❌ P5.3 FAILED: vignette opacity is not 0.40"
             exit 1
           fi
-          echo "✅ P5.3: vignette opacity is 0.35 (per master prompt)"
+          echo "✅ P5.3: vignette opacity is 0.40 (P12 premium cinematic)"
 
       - name: Verify P6.1 — New PlaceType values exist
         working-directory: .
