@@ -23,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/utils/device_tier.dart';
+import '../../../l10n/app_localizations.dart';
 import '../config/map_visual_constants.dart';
 import '../data/place_models.dart';
 import '../providers/family_map_provider.dart';
@@ -50,17 +51,20 @@ class JourneyStop {
 ///
 /// The screen calls this with the person's linked places (P10.1) and
 /// optionally with their birthYear for an extra "Birthplace" stop.
+/// [bornLabel] is the localized label for the birthplace stop; the
+/// caller should pass `S.of(context)?.familyMapJourneyBorn ?? 'Born'`.
 List<JourneyStop> buildJourneyStops({
   required MapPin pin,
   required List<FamilyPlace> linkedPlaces,
   int? birthYear,
+  String bornLabel = 'Born',
 }) {
   final stops = <JourneyStop>[];
 
   if (birthYear != null) {
     stops.add(JourneyStop(
       year: birthYear,
-      label: 'Born',
+      label: bornLabel,
       lat: pin.lat,
       lng: pin.lng,
       placeType: PlaceType.birthplace,
@@ -149,8 +153,12 @@ class _FamilyJourneyAnimationState
       return const SizedBox.shrink();
     }
     final theme = Theme.of(context);
+    final l10n = S.of(context);
     final current = widget.stops[_currentStopIndex];
     final isPlaying = _playTimer != null;
+    final playLabel = isPlaying
+        ? (l10n?.familyMapJourneyPause ?? 'Pause journey')
+        : (l10n?.familyMapJourneyPlay ?? 'Play journey');
 
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -177,7 +185,7 @@ class _FamilyJourneyAnimationState
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Family Journey',
+                  l10n?.familyMapJourneyTitle ?? 'Family Journey',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
@@ -188,6 +196,8 @@ class _FamilyJourneyAnimationState
                 IconButton(
                   icon: const Icon(Icons.close, color: Colors.white70),
                   onPressed: widget.onClose,
+                  tooltip:
+                      l10n?.familyMapJourneyClose ?? 'Close journey',
                   iconSize: 20,
                   visualDensity: VisualDensity.compact,
                 ),
@@ -228,14 +238,21 @@ class _FamilyJourneyAnimationState
                 icon: const Icon(Icons.skip_previous_rounded,
                     color: Colors.white),
                 onPressed: _currentStopIndex > 0 ? _previous : null,
+                tooltip:
+                    l10n?.familyMapJourneyPrevious ?? 'Previous stop',
               ),
-              _PlayButton(isPlaying: isPlaying, onTap: _togglePlay),
+              _PlayButton(
+                isPlaying: isPlaying,
+                onTap: _togglePlay,
+                semanticLabel: playLabel,
+              ),
               IconButton(
                 icon: const Icon(Icons.skip_next_rounded,
                     color: Colors.white),
                 onPressed: _currentStopIndex < widget.stops.length - 1
                     ? _next
                     : null,
+                tooltip: l10n?.familyMapJourneyNext ?? 'Next stop',
               ),
             ],
           ),
@@ -326,24 +343,36 @@ class _StopDetail extends StatelessWidget {
 }
 
 class _PlayButton extends StatelessWidget {
-  const _PlayButton({required this.isPlaying, required this.onTap});
+  const _PlayButton({
+    required this.isPlaying,
+    required this.onTap,
+    required this.semanticLabel,
+  });
   final bool isPlaying;
   final VoidCallback onTap;
+  final String semanticLabel;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: KinrelColors.orange,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Icon(
-            isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-            color: Colors.white,
-            size: 22,
+    return Tooltip(
+      message: semanticLabel,
+      child: Semantics(
+        button: true,
+        label: semanticLabel,
+        child: Material(
+          color: KinrelColors.orange,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Icon(
+                isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
           ),
         ),
       ),

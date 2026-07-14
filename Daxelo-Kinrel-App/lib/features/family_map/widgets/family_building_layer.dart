@@ -42,6 +42,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre/maplibre.dart';
 
 import '../../../core/utils/device_tier.dart';
+import '../../../l10n/app_localizations.dart';
 import '../config/map_visual_constants.dart';
 import '../data/place_models.dart';
 
@@ -300,6 +301,7 @@ class FamilyBuildingBottomSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final l10n = S.of(context);
 
     return SafeArea(
       child: Padding(
@@ -352,14 +354,14 @@ class FamilyBuildingBottomSheet extends ConsumerWidget {
             const SizedBox(height: 12),
             if (linkedPersonName != null) ...[
               _DetailRow(
-                label: 'Linked family member',
+                label: l10n?.familyMapLinkedMember ?? 'Linked family member',
                 value: linkedPersonName!,
                 icon: Icons.person_outline,
               ),
               const SizedBox(height: 8),
             ],
             _DetailRow(
-              label: 'Memories',
+              label: l10n?.familyMapMemories ?? 'Memories',
               value: '${place.memoryCount}',
               icon: Icons.photo_library_outlined,
             ),
@@ -372,7 +374,7 @@ class FamilyBuildingBottomSheet extends ConsumerWidget {
                     onClose?.call();
                     Navigator.of(context).maybePop();
                   },
-                  child: const Text('Close'),
+                  child: Text(l10n?.familyMapClose ?? 'Close'),
                 ),
               ],
             ),

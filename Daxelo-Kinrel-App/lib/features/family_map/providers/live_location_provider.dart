@@ -31,6 +31,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
+import '../../../l10n/app_localizations.dart';
 // StateNotifier is re-exported by flutter_riverpod in 2.x
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -61,6 +62,11 @@ LocationTier computeTier(DateTime? lastUpdated) {
 }
 
 /// Human-readable label for a tier, e.g. "Live • now" or "Updated 5m ago".
+///
+/// §10 — Returns a hardcoded English string. Use [tierLabelLocalized] when
+/// a localized [S] instance is available so the label respects the user's
+/// locale. Kept for backward-compatibility with non-context callers (e.g.
+/// debug logs, tests).
 String tierLabel(LocationTier tier, DateTime? lastUpdated) {
   switch (tier) {
     case LocationTier.live:
@@ -73,6 +79,25 @@ String tierLabel(LocationTier tier, DateTime? lastUpdated) {
       return 'Updated ${mins}m ago';
     case LocationTier.cityFallback:
       return 'Last known';
+  }
+}
+
+/// §10 — Localized version of [tierLabel]. Returns the same tier
+/// description translated via the provided [S] instance. Falls back to
+/// the English [tierLabel] when [l10n] is null (e.g. in tests).
+String tierLabelLocalized(LocationTier tier, DateTime? lastUpdated, S? l10n) {
+  if (l10n == null) return tierLabel(tier, lastUpdated);
+  switch (tier) {
+    case LocationTier.live:
+      return l10n.familyMapTierLive;
+    case LocationTier.recent:
+    case LocationTier.stale:
+      if (lastUpdated == null) return l10n.familyMapTierUpdatedRecently;
+      final mins = DateTime.now().toUtc().difference(lastUpdated).inMinutes;
+      if (mins < 1) return l10n.familyMapTierUpdatedJustNow;
+      return l10n.familyMapTierUpdatedMinsAgo(mins);
+    case LocationTier.cityFallback:
+      return l10n.familyMapTierLastKnown;
   }
 }
 

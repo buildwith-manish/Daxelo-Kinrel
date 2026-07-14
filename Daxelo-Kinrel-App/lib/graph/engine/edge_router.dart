@@ -308,6 +308,14 @@ class EdgeRouter {
   ///
   /// v57: Also populates [controlPoints] for each edge so callers can
   /// compute the correct t=0.5 bezier midpoint (Bug 4 fix).
+  ///
+  /// v59: controlPoints now stores a [List<Offset>] per edge so the
+  /// routing helpers can describe their actual path geometry:
+  ///   - 2 points  → line:  [start, end]
+  ///   - 3 points  → quad:  [p0, cp1, p2]
+  ///   - 4 points  → cubic: [p0, cp1, cp2, p3]
+  /// [computeMidpoint] uses the stored points (including the actual
+  /// path endpoints p0/p3) so the midpoint sits ON the rendered curve.
   Map<String, Path> computePaths({
     required Map<String, Offset> positions,
     required List<GraphRelationship> relationships,
@@ -317,7 +325,7 @@ class EdgeRouter {
     final paths = <String, Path>{};
     // v57 Bug 4: Store control points for each edge so computeMidpoint
     // can use the bezier t=0.5 formula instead of the linear midpoint.
-    controlPoints = <String, (Offset, Offset)>{};
+    controlPoints = <String, List<Offset>>{};
 
     // Track child count per parent for horizontal offset
     final parentChildCount = <String, int>{};
@@ -347,7 +355,10 @@ class EdgeRouter {
       final category = _categorizeKey(r.relationshipKey);
       final halfNode = nodeSize / 2;
 
-      final path = switch (category) {
+      // v59 Bug fix: each routing helper now returns both the [Path]
+      // and the list of control points that describe it, so we can
+      // populate [controlPoints] for later midpoint lookup.
+      final (path, cps) = switch (category) {
         RelationshipCategory.parent => _routeParentChildEdge(
             // v58 Fix 1: 'parent'/'father'/'mother' key means
             // fromPerson IS the parent of toPerson. Previously this
@@ -434,16 +445,28 @@ class EdgeRouter {
       };
 
       paths[r.id] = path;
+      // v59: Store the control points produced by the routing helper.
+      // Only store when the list is non-empty (empty list = skipped
+      // degenerate edge, e.g. zero-distance extended edge).
+      if (cps.isNotEmpty) {
+        controlPoints[r.id] = cps;
+      }
     }
 
     return paths;
   }
 
-  /// v57 Bug 4: Control points for each edge, populated by computePaths.
+  /// v59 Bug 4: Control points for each edge, populated by computePaths.
   /// Used by computeMidpoint to calculate the t=0.5 bezier point.
-  /// Key = edge ID, value = (controlPoint1, controlPoint2).
-  /// For quadratic beziers (sibling arcs), controlPoint2 is unused.
-  Map<String, (Offset, Offset)> controlPoints = {};
+  ///
+  /// Key = edge ID. Value = ordered list of points describing the path:
+  ///   - 2 points → line:        [start, end]
+  ///   - 3 points → quadratic:   [p0, cp1, p2]
+  ///   - 4 points → cubic:       [p0, cp1, cp2, p3]
+  ///
+  /// Empty list means the edge produced no path (degenerate) and
+  /// computeMidpoint should fall back to its legacy linear logic.
+  Map<String, List<Offset>> controlPoints = {};
 
   /// Get the visual style for a relationship key.
   ///
@@ -547,12 +570,22 @@ class EdgeRouter {
 
   /// Compute the midpoint of a path for placing decorations.
   ///
-  /// v57 Bug 4 FIX: If [edgeId] is provided and control points were
-  /// stored during computePaths(), uses the cubic bezier t=0.5 formula:
-  ///   B(0.5) = 0.125·P0 + 0.375·CP1 + 0.375·CP2 + 0.125·P3
-  /// This ensures the dot sits ON the curve, not at the linear midpoint.
+  /// v59 Bug 4 FIX: If [edgeId] is provided and control points were
+  /// stored during computePaths(), uses the stored points to evaluate
+  /// the bezier at t=0.5. The list length determines the formula:
+  ///   - 4 points (cubic):       B(0.5) = 0.125·P0 + 0.375·CP1 + 0.375·CP2 + 0.125·P3
+  ///   - 3 points (quadratic):   B(0.5) = 0.25·P0  + 0.5·CP1  + 0.25·P2
+  ///   - 2 points (line):        B(0.5) = (P0 + P1) / 2
   ///
-  /// Falls back to linear midpoint if no control points are available.
+  /// This ensures the dot/ring sits ON the rendered curve, not at the
+  /// linear midpoint. The stored points are the ACTUAL path endpoints
+  /// (e.g. bottom-center of parent → top-center of child), so the result
+  /// matches what the user sees on screen.
+  ///
+  /// If [controlPoint1]/[controlPoint2] are passed explicitly, those
+  /// are combined with direction-vector-clipped p0/p3 (legacy callers).
+  ///
+  /// Falls back to the linear midpoint if no control points are available.
   Offset computeMidpoint({
     required Offset posA,
     required Offset posB,
@@ -562,6 +595,40 @@ class EdgeRouter {
     Offset? controlPoint2,
   }) {
     final halfNode = nodeSize / 2;
+
+    // v59 Bug 4: Prefer the control points stored during computePaths().
+    // These describe the actual path geometry (including real endpoints),
+    // so the midpoint lands exactly on the rendered curve.
+    if (edgeId != null && controlPoints.containsKey(edgeId)) {
+      final cps = controlPoints[edgeId]!;
+      if (cps.length >= 4) {
+        // Cubic bezier t=0.5:
+        //   B(0.5) = 0.125·P0 + 0.375·CP1 + 0.375·CP2 + 0.125·P3
+        final p0s = cps[0], cp1s = cps[1], cp2s = cps[2], p3s = cps[3];
+        return Offset(
+          0.125 * p0s.dx + 0.375 * cp1s.dx + 0.375 * cp2s.dx + 0.125 * p3s.dx,
+          0.125 * p0s.dy + 0.375 * cp1s.dy + 0.375 * cp2s.dy + 0.125 * p3s.dy,
+        );
+      }
+      if (cps.length == 3) {
+        // Quadratic bezier t=0.5:
+        //   B(0.5) = 0.25·P0 + 0.5·CP1 + 0.25·P2
+        final p0s = cps[0], cp1s = cps[1], p2s = cps[2];
+        return Offset(
+          0.25 * p0s.dx + 0.5 * cp1s.dx + 0.25 * p2s.dx,
+          0.25 * p0s.dy + 0.5 * cp1s.dy + 0.25 * p2s.dy,
+        );
+      }
+      if (cps.length == 2) {
+        // Line: simple midpoint of the two stored endpoints.
+        final p0s = cps[0], p1s = cps[1];
+        return Offset(
+          (p0s.dx + p1s.dx) / 2,
+          (p0s.dy + p1s.dy) / 2,
+        );
+      }
+      // Empty list or unexpected length → fall through to legacy logic.
+    }
 
     // Adjust start and end to node edges (direction-vector clipping)
     final dx = posB.dx - posA.dx;
@@ -582,14 +649,8 @@ class EdgeRouter {
       posB.dy - ny * halfNode,
     );
 
-    // v57 Bug 4: Try to get control points from the stored map first.
-    Offset? cp1 = controlPoint1;
-    Offset? cp2 = controlPoint2;
-    if (edgeId != null && cp1 == null && controlPoints.containsKey(edgeId)) {
-      final stored = controlPoints[edgeId]!;
-      cp1 = stored.$1;
-      cp2 = stored.$2;
-    }
+    final cp1 = controlPoint1;
+    final cp2 = controlPoint2;
 
     // If control points provided, use cubic bezier t=0.5 formula.
     if (cp1 != null && cp2 != null) {
@@ -626,7 +687,9 @@ class EdgeRouter {
   /// v57 Bug 5 FIX: Checks allPositions for intermediate nodes that
   /// fall within halfNode+15px of the line path. If found, adds a
   /// lateral offset to both control points to steer around the obstacle.
-  Path _routeParentChildEdge({
+  /// Returns `(path, controlPoints)` where controlPoints is the cubic
+  /// bezier's 4 points: `[start, control1, control2, end]`.
+  (Path, List<Offset>) _routeParentChildEdge({
     required Offset parentPos,
     required Offset childPos,
     required double halfNode,
@@ -691,13 +754,16 @@ class EdgeRouter {
       control2.dx, control2.dy,
       end.dx, end.dy,
     );
-    return path;
+    return (path, [start, control1, control2, end]);
   }
 
   /// Route a spouse edge: horizontal line with ring icon at midpoint.
   ///
   /// For divorced spouses, the path is the same but styling is dashed.
-  Path _routeSpouseEdge({
+  /// Returns `(path, controlPoints)`:
+  ///   - Non-divorced (line):       `[start, end]`
+  ///   - Divorced (quadratic):      `[start, control, end]`
+  (Path, List<Offset>) _routeSpouseEdge({
     required Offset posA,
     required Offset posB,
     required double halfNode,
@@ -718,11 +784,11 @@ class EdgeRouter {
       final midX = (start.dx + end.dx) / 2;
       final midY = (start.dy + end.dy) / 2 - 10.0;
       path.quadraticBezierTo(midX, midY, end.dx, end.dy);
+      return (path, [start, Offset(midX, midY), end]);
     } else {
       path.lineTo(end.dx, end.dy);
+      return (path, [start, end]);
     }
-
-    return path;
   }
 
   /// Route a sibling arc: dashed curved arc above the sibling group.
@@ -736,7 +802,9 @@ class EdgeRouter {
   /// The control point is placed above BOTH nodes (topY - arcHeight),
   /// guaranteeing the arc curves UP and OVER, never dipping through
   /// intermediate nodes.
-  Path _routeSiblingArc({
+  /// Returns `(path, controlPoints)` — quadratic bezier as
+  /// `[start, controlPoint, end]`.
+  (Path, List<Offset>) _routeSiblingArc({
     required Offset posA,
     required Offset posB,
     required double halfNode,
@@ -769,11 +837,16 @@ class EdgeRouter {
       end.dx,
       end.dy,
     );
-    return path;
+    return (path, [start, controlPoint, end]);
   }
 
   /// Route a grandparent edge: extended bezier spanning two generations.
-  Path _routeGrandparentEdge({
+  /// Returns `(path, controlPoints)` — a cubic approximation
+  /// `[start, (start.dx, midY), (end.dx, midY), end]`. The actual
+  /// path is rendered as two cubic beziers joined at the waypoint,
+  /// but this single cubic has the same t=0.5 point (the waypoint),
+  /// which is exactly the path midpoint.
+  (Path, List<Offset>) _routeGrandparentEdge({
     required Offset grandparentPos,
     required Offset grandchildPos,
     required double halfNode,
@@ -801,12 +874,14 @@ class EdgeRouter {
       end.dx, midY,
       end.dx, end.dy,
     );
-    return path;
+    return (path, [start, Offset(start.dx, midY), Offset(end.dx, midY), end]);
   }
 
   /// Route a cousin edge: curved bezier routed below parent generation
   /// to avoid crossing parent-child lines.
-  Path _routeCousinEdge({
+  /// Returns `(path, controlPoints)` — cubic bezier as
+  /// `[start, (start.dx, belowY), (end.dx, belowY), end]`.
+  (Path, List<Offset>) _routeCousinEdge({
     required Offset posA,
     required Offset posB,
     required double halfNode,
@@ -825,12 +900,15 @@ class EdgeRouter {
       end.dx, belowY,
       end.dx, end.dy,
     );
-    return path;
+    return (path, [start, Offset(start.dx, belowY), Offset(end.dx, belowY), end]);
   }
 
   /// Route an extended family edge: curved bezier routed to avoid
   /// crossing parent-child lines.
-  Path _routeExtendedEdge({
+  /// Returns `(path, controlPoints)`:
+  ///   - Degenerate (dist ≤ 0): `(Path(), [])`
+  ///   - Quadratic:              `[start, control, end]`
+  (Path, List<Offset>) _routeExtendedEdge({
     required Offset posA,
     required Offset posB,
     required double halfNode,
@@ -840,7 +918,7 @@ class EdgeRouter {
     final dist = sqrt(dx * dx + dy * dy);
 
     if (dist <= 0) {
-      return Path();
+      return (Path(), const <Offset>[]);
     }
 
     // Normalize direction
@@ -867,7 +945,7 @@ class EdgeRouter {
     final path = Path();
     path.moveTo(start.dx, start.dy);
     path.quadraticBezierTo(midX, midY, end.dx, end.dy);
-    return path;
+    return (path, [start, Offset(midX, midY), end]);
   }
 
   // ── Private: Utility methods ──────────────────────────────────────

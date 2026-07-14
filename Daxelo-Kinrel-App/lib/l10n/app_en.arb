@@ -347,5 +347,142 @@
   "@familyMapMemories": { "description": "Label for memory count in building bottom sheet" },
 
   "familyMapClose": "Close",
-  "@familyMapClose": { "description": "Close button in building bottom sheet" }
+  "@familyMapClose": { "description": "Close button in building bottom sheet" },
+
+  "familyMapBack": "Back",
+  "@familyMapBack": { "description": "Tooltip for the Family Map AppBar back button" },
+
+  "familyMapTest3dBengaluru": "Test 3D: Bengaluru",
+  "@familyMapTest3dBengaluru": { "description": "Tooltip for the debug-only AppBar action that flies the camera to Bengaluru to verify 3D building extrusion" },
+
+  "familyMapFlyToBengaluruSnackbar": "Flying to Bengaluru — 3D buildings should appear at this zoom level",
+  "@familyMapFlyToBengaluruSnackbar": { "description": "SnackBar message shown after tapping the debug Bengaluru test action" },
+
+  "familyMapFamilyMember": "Family Member",
+  "@familyMapFamilyMember": { "description": "Fallback kinship label shown in the relationship bottom sheet when the kinship term cannot be resolved" },
+
+  "familyMapViewMember": "View {name}",
+  "@familyMapViewMember": {
+    "description": "Button label to view a named member's profile (relationship bottom sheet)",
+    "placeholders": {
+      "name": { "type": "String", "example": "Aarav" }
+    }
+  },
+
+  "familyMapHouseholdClusterLabel": "Household with {count} members. Double-tap to expand.",
+  "@familyMapHouseholdClusterLabel": {
+    "description": "Semantic label for a household cluster marker",
+    "placeholders": {
+      "count": { "type": "int", "example": "3" }
+    }
+  },
+
+  "familyMapTimelineLabel": "Family timeline. Currently viewing {year}. Drag to change.",
+  "@familyMapTimelineLabel": {
+    "description": "Semantic label for the timeline scrubber container",
+    "placeholders": {
+      "year": { "type": "int", "example": "2024" }
+    }
+  },
+
+  "familyMapTimelinePreviousYear": "Previous year",
+  "@familyMapTimelinePreviousYear": { "description": "Tooltip for the timeline scrubber's previous-year button" },
+
+  "familyMapTimelineNextYear": "Next year",
+  "@familyMapTimelineNextYear": { "description": "Tooltip for the timeline scrubber's next-year button" },
+
+  "familyMapTimelinePlay": "Play timeline",
+  "@familyMapTimelinePlay": { "description": "Tooltip / semantic label for the timeline play button" },
+
+  "familyMapTimelinePause": "Pause timeline",
+  "@familyMapTimelinePause": { "description": "Tooltip / semantic label for the timeline pause button" },
+
+  "familyMapTimelineRange": "{min}–{max}",
+  "@familyMapTimelineRange": {
+    "description": "Range label shown next to the timeline scrubber (e.g. 1900–2024)",
+    "placeholders": {
+      "min": { "type": "int", "example": "1900" },
+      "max": { "type": "int", "example": "2024" }
+    }
+  },
+
+  "familyMapJourneyTitle": "Family Journey",
+  "@familyMapJourneyTitle": { "description": "Header text for the Family Journey animation card" },
+
+  "familyMapJourneyBorn": "Born",
+  "@familyMapJourneyBorn": { "description": "Label for the birth stop in the family journey animation" },
+
+  "familyMapJourneyPrevious": "Previous stop",
+  "@familyMapJourneyPrevious": { "description": "Tooltip for the journey animation's previous-stop button" },
+
+  "familyMapJourneyNext": "Next stop",
+  "@familyMapJourneyNext": { "description": "Tooltip for the journey animation's next-stop button" },
+
+  "familyMapJourneyPlay": "Play journey",
+  "@familyMapJourneyPlay": { "description": "Tooltip / semantic label for the journey animation play button" },
+
+  "familyMapJourneyPause": "Pause journey",
+  "@familyMapJourneyPause": { "description": "Tooltip / semantic label for the journey animation pause button" },
+
+  "familyMapJourneyClose": "Close journey",
+  "@familyMapJourneyClose": { "description": "Tooltip for the journey animation close button" },
+
+  "familyMapAvatarPinLabel": "{name}{tier}. Double-tap to focus.",
+  "@familyMapAvatarPinLabel": {
+    "description": "Semantic label for a single family-member avatar marker. {tier} is a pre-localized tier description (e.g. ' (Live • now)') or empty.",
+    "placeholders": {
+      "name": { "type": "String", "example": "Aarav" },
+      "tier": { "type": "String", "example": " (Live • now)" }
+    }
+  },
+
+  "familyMapAvatarSelectedSuffix": "Selected.",
+  "@familyMapAvatarSelectedSuffix": { "description": "Suffix appended to the avatar marker semantic label when the marker is selected" },
+
+  "familyMapAvatarDoubleTapFocus": "Double-tap to focus.",
+  "@familyMapAvatarDoubleTapFocus": { "description": "Hint appended to the avatar marker semantic label" },
+
+  "familyMapTierLive": "Live • now",
+  "@familyMapTierLive": { "description": "Tier label for a live-updating family member location" },
+
+  "familyMapTierUpdatedRecently": "Updated recently",
+  "@familyMapTierUpdatedRecently": { "description": "Tier label for a recently-updated location when no timestamp is available" },
+
+  "familyMapTierUpdatedJustNow": "Updated just now",
+  "@familyMapTierUpdatedJustNow": { "description": "Tier label for a location updated within the last minute" },
+
+  "familyMapTierUpdatedMinsAgo": "Updated {mins}m ago",
+  "@familyMapTierUpdatedMinsAgo": {
+    "description": "Tier label for a location updated a number of minutes ago",
+    "placeholders": {
+      "mins": { "type": "int", "example": "5" }
+    }
+  },
+
+  "familyMapTierLastKnown": "Last known",
+  "@familyMapTierLastKnown": { "description": "Tier label for a city-fallback location (no precise location known)" },
+
+  "familyMapProgressOffline": "Offline — showing cached data",
+  "@familyMapProgressOffline": { "description": "Progress message shown when the map is offline and showing cached data" },
+
+  "familyMapProgressRestoring": "Restoring your view…",
+  "@familyMapProgressRestoring": { "description": "Progress message shown while restoring the cached viewport" },
+
+  "familyMapProgressMap": "Loading map…",
+  "@familyMapProgressMap": { "description": "Progress message shown while map tiles are loading" },
+
+  "familyMapProgressLandmarks": "Loading landmarks…",
+  "@familyMapProgressLandmarks": { "description": "Progress message shown while roads + buildings are loading" },
+
+  "familyMapProgressFamilyPlaces": "Loading family places…",
+  "@familyMapProgressFamilyPlaces": { "description": "Progress message shown while family places are loading" },
+
+  "familyMapProgressConnections": "Loading connections…",
+  "@familyMapProgressConnections": { "description": "Progress message shown while relationship paths are loading" },
+
+  "familyMapProgressMembers": "Loading family members…",
+  "@familyMapProgressMembers": { "description": "Progress message shown while avatar markers are loading" },
+
+  "familyMapProgressAlmost": "Almost there…",
+  "@familyMapProgressAlmost": { "description": "Progress message shown while the final animation phase is starting" }
 }

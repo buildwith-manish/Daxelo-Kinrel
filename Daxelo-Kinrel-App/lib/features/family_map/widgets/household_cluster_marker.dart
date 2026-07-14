@@ -34,6 +34,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../core/widgets/cached_avatar.dart';
+import '../../../l10n/app_localizations.dart';
 import '../config/map_visual_constants.dart';
 import '../providers/family_map_provider.dart';
 import 'avatar_marker_generator.dart';
@@ -214,53 +215,58 @@ class HouseholdClusterMarkerWidget extends StatelessWidget {
     final stackOffset = MapVisualConstants.clusterStackOffset;
     final visible = household.size > 3 ? 1 : household.size;
     final theme = Theme.of(context);
+    final l10n = S.of(context);
+    final semanticLabel = l10n?.familyMapHouseholdClusterLabel(household.size) ??
+        'Household with ${household.size} members. Double-tap to expand.';
 
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
-      child: Semantics(
-        button: true,
-        label:
-            'Household with ${household.size} members. Double-tap to expand.',
-        child: SizedBox(
-          width: size + stackOffset * (visible - 1) + 12,
-          height: size + 12,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // Stacked avatars.
-              for (int i = 0; i < visible; i++)
-                Positioned(
-                  left: i * stackOffset + 6,
-                  top: 6,
-                  child: _avatarCircle(household.members[i], size),
-                ),
-              // +N badge.
-              if (household.size > 3)
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    width: MapVisualConstants.clusterBadgeSize,
-                    height: MapVisualConstants.clusterBadgeSize,
-                    decoration: BoxDecoration(
-                      color: KinrelColors.orange,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1.5),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '+${household.size}',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 10,
-                        height: 1,
+      child: Tooltip(
+        message: semanticLabel,
+        child: Semantics(
+          button: true,
+          label: semanticLabel,
+          child: SizedBox(
+            width: size + stackOffset * (visible - 1) + 12,
+            height: size + 12,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Stacked avatars.
+                for (int i = 0; i < visible; i++)
+                  Positioned(
+                    left: i * stackOffset + 6,
+                    top: 6,
+                    child: _avatarCircle(household.members[i], size),
+                  ),
+                // +N badge.
+                if (household.size > 3)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: MapVisualConstants.clusterBadgeSize,
+                      height: MapVisualConstants.clusterBadgeSize,
+                      decoration: BoxDecoration(
+                        color: KinrelColors.orange,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '+${household.size}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10,
+                          height: 1,
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

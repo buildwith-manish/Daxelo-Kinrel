@@ -674,6 +674,216 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Close'**
   String get familyMapClose;
+
+  /// Tooltip for the Family Map AppBar back button
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get familyMapBack;
+
+  /// Tooltip for the debug-only AppBar action that flies the camera to Bengaluru to verify 3D building extrusion
+  ///
+  /// In en, this message translates to:
+  /// **'Test 3D: Bengaluru'**
+  String get familyMapTest3dBengaluru;
+
+  /// SnackBar message shown after tapping the debug Bengaluru test action
+  ///
+  /// In en, this message translates to:
+  /// **'Flying to Bengaluru — 3D buildings should appear at this zoom level'**
+  String get familyMapFlyToBengaluruSnackbar;
+
+  /// Fallback kinship label shown in the relationship bottom sheet when the kinship term cannot be resolved
+  ///
+  /// In en, this message translates to:
+  /// **'Family Member'**
+  String get familyMapFamilyMember;
+
+  /// Button label to view a named member's profile (relationship bottom sheet)
+  ///
+  /// In en, this message translates to:
+  /// **'View {name}'**
+  String familyMapViewMember(String name);
+
+  /// Semantic label for a household cluster marker
+  ///
+  /// In en, this message translates to:
+  /// **'Household with {count} members. Double-tap to expand.'**
+  String familyMapHouseholdClusterLabel(int count);
+
+  /// Semantic label for the timeline scrubber container
+  ///
+  /// In en, this message translates to:
+  /// **'Family timeline. Currently viewing {year}. Drag to change.'**
+  String familyMapTimelineLabel(int year);
+
+  /// Tooltip for the timeline scrubber's previous-year button
+  ///
+  /// In en, this message translates to:
+  /// **'Previous year'**
+  String get familyMapTimelinePreviousYear;
+
+  /// Tooltip for the timeline scrubber's next-year button
+  ///
+  /// In en, this message translates to:
+  /// **'Next year'**
+  String get familyMapTimelineNextYear;
+
+  /// Tooltip / semantic label for the timeline play button
+  ///
+  /// In en, this message translates to:
+  /// **'Play timeline'**
+  String get familyMapTimelinePlay;
+
+  /// Tooltip / semantic label for the timeline pause button
+  ///
+  /// In en, this message translates to:
+  /// **'Pause timeline'**
+  String get familyMapTimelinePause;
+
+  /// Range label shown next to the timeline scrubber (e.g. 1900–2024)
+  ///
+  /// In en, this message translates to:
+  /// **'{min}–{max}'**
+  String familyMapTimelineRange(int min, int max);
+
+  /// Header text for the Family Journey animation card
+  ///
+  /// In en, this message translates to:
+  /// **'Family Journey'**
+  String get familyMapJourneyTitle;
+
+  /// Label for the birth stop in the family journey animation
+  ///
+  /// In en, this message translates to:
+  /// **'Born'**
+  String get familyMapJourneyBorn;
+
+  /// Tooltip for the journey animation's previous-stop button
+  ///
+  /// In en, this message translates to:
+  /// **'Previous stop'**
+  String get familyMapJourneyPrevious;
+
+  /// Tooltip for the journey animation's next-stop button
+  ///
+  /// In en, this message translates to:
+  /// **'Next stop'**
+  String get familyMapJourneyNext;
+
+  /// Tooltip / semantic label for the journey animation play button
+  ///
+  /// In en, this message translates to:
+  /// **'Play journey'**
+  String get familyMapJourneyPlay;
+
+  /// Tooltip / semantic label for the journey animation pause button
+  ///
+  /// In en, this message translates to:
+  /// **'Pause journey'**
+  String get familyMapJourneyPause;
+
+  /// Tooltip for the journey animation close button
+  ///
+  /// In en, this message translates to:
+  /// **'Close journey'**
+  String get familyMapJourneyClose;
+
+  /// Semantic label for a single family-member avatar marker. {tier} is a pre-localized tier description (e.g. ' (Live • now)') or empty.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}{tier}. Double-tap to focus.'**
+  String familyMapAvatarPinLabel(String name, String tier);
+
+  /// Suffix appended to the avatar marker semantic label when the marker is selected
+  ///
+  /// In en, this message translates to:
+  /// **'Selected.'**
+  String get familyMapAvatarSelectedSuffix;
+
+  /// Hint appended to the avatar marker semantic label
+  ///
+  /// In en, this message translates to:
+  /// **'Double-tap to focus.'**
+  String get familyMapAvatarDoubleTapFocus;
+
+  /// Tier label for a live-updating family member location
+  ///
+  /// In en, this message translates to:
+  /// **'Live • now'**
+  String get familyMapTierLive;
+
+  /// Tier label for a recently-updated location when no timestamp is available
+  ///
+  /// In en, this message translates to:
+  /// **'Updated recently'**
+  String get familyMapTierUpdatedRecently;
+
+  /// Tier label for a location updated within the last minute
+  ///
+  /// In en, this message translates to:
+  /// **'Updated just now'**
+  String get familyMapTierUpdatedJustNow;
+
+  /// Tier label for a location updated a number of minutes ago
+  ///
+  /// In en, this message translates to:
+  /// **'Updated {mins}m ago'**
+  String familyMapTierUpdatedMinsAgo(int mins);
+
+  /// Tier label for a city-fallback location (no precise location known)
+  ///
+  /// In en, this message translates to:
+  /// **'Last known'**
+  String get familyMapTierLastKnown;
+
+  /// Progress message shown when the map is offline and showing cached data
+  ///
+  /// In en, this message translates to:
+  /// **'Offline — showing cached data'**
+  String get familyMapProgressOffline;
+
+  /// Progress message shown while restoring the cached viewport
+  ///
+  /// In en, this message translates to:
+  /// **'Restoring your view…'**
+  String get familyMapProgressRestoring;
+
+  /// Progress message shown while map tiles are loading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading map…'**
+  String get familyMapProgressMap;
+
+  /// Progress message shown while roads + buildings are loading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading landmarks…'**
+  String get familyMapProgressLandmarks;
+
+  /// Progress message shown while family places are loading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading family places…'**
+  String get familyMapProgressFamilyPlaces;
+
+  /// Progress message shown while relationship paths are loading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading connections…'**
+  String get familyMapProgressConnections;
+
+  /// Progress message shown while avatar markers are loading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading family members…'**
+  String get familyMapProgressMembers;
+
+  /// Progress message shown while the final animation phase is starting
+  ///
+  /// In en, this message translates to:
+  /// **'Almost there…'**
+  String get familyMapProgressAlmost;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

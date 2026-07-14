@@ -27,6 +27,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../family_journey/providers/journey_provider.dart';
 import '../config/map_visual_constants.dart';
 
@@ -91,11 +92,13 @@ class _MapTimelineScrubberState extends ConsumerState<MapTimelineScrubber> {
   Widget build(BuildContext context) {
     final state = ref.watch(journeyProvider);
     final theme = Theme.of(context);
+    final l10n = S.of(context);
+    final semanticsLabel = l10n?.familyMapTimelineLabel(state.selectedYear) ??
+        'Family timeline. Currently viewing ${state.selectedYear}. Drag to change.';
 
     return Semantics(
       container: true,
-      label:
-          'Family timeline. Currently viewing ${state.selectedYear}. Drag to change.',
+      label: semanticsLabel,
       child: Container(
         margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -119,13 +122,18 @@ class _MapTimelineScrubberState extends ConsumerState<MapTimelineScrubber> {
                 _PlayButton(
                   isPlaying: state.isPlaying,
                   onTap: _togglePlay,
+                  playLabel:
+                      l10n?.familyMapTimelinePlay ?? 'Play timeline',
+                  pauseLabel:
+                      l10n?.familyMapTimelinePause ?? 'Pause timeline',
                 ),
                 const SizedBox(width: 8),
                 // Previous year
                 IconButton(
                   icon: const Icon(Icons.chevron_left, color: Colors.white70),
                   onPressed: () => _stepYear(-1),
-                  tooltip: 'Previous year',
+                  tooltip:
+                      l10n?.familyMapTimelinePreviousYear ?? 'Previous year',
                   iconSize: 20,
                   visualDensity: VisualDensity.compact,
                 ),
@@ -144,13 +152,15 @@ class _MapTimelineScrubberState extends ConsumerState<MapTimelineScrubber> {
                 IconButton(
                   icon: const Icon(Icons.chevron_right, color: Colors.white70),
                   onPressed: () => _stepYear(1),
-                  tooltip: 'Next year',
+                  tooltip: l10n?.familyMapTimelineNextYear ?? 'Next year',
                   iconSize: 20,
                   visualDensity: VisualDensity.compact,
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '${state.minYear}–${state.maxYear}',
+                  l10n?.familyMapTimelineRange(
+                          state.minYear, state.maxYear) ??
+                      '${state.minYear}–${state.maxYear}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: Colors.white54,
                     fontFamily: KinrelTypography.bodyFont,
@@ -176,24 +186,39 @@ class _MapTimelineScrubberState extends ConsumerState<MapTimelineScrubber> {
 }
 
 class _PlayButton extends StatelessWidget {
-  const _PlayButton({required this.isPlaying, required this.onTap});
+  const _PlayButton({
+    required this.isPlaying,
+    required this.onTap,
+    required this.playLabel,
+    required this.pauseLabel,
+  });
   final bool isPlaying;
   final VoidCallback onTap;
+  final String playLabel;
+  final String pauseLabel;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: KinrelColors.orange,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Icon(
-            isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-            color: Colors.white,
-            size: 18,
+    final label = isPlaying ? pauseLabel : playLabel;
+    return Tooltip(
+      message: label,
+      child: Semantics(
+        button: true,
+        label: label,
+        child: Material(
+          color: KinrelColors.orange,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Icon(
+                isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
           ),
         ),
       ),

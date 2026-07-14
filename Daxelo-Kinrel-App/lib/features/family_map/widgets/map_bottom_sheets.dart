@@ -25,6 +25,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/graph/graph_provider.dart';
 import '../../../core/widgets/cached_avatar.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/place_models.dart';
 import '../providers/family_map_provider.dart';
@@ -47,6 +48,7 @@ class MapBottomSheets {
   /// Shows the family member pin bottom sheet (avatar, name, city,
   /// "View Profile" button).
   static void showPinBottomSheet(BuildContext context, MapPin pin) {
+    final l10n = S.of(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: KinrelColors.darkCard,
@@ -160,7 +162,7 @@ class MapBottomSheets {
               SizedBox(
                 width: double.infinity,
                 child: DKButton(
-                  label: 'View Profile',
+                  label: l10n?.familyMapViewProfile ?? 'View Profile',
                   variant: DKButtonVariant.primary,
                   size: DKButtonSize.md,
                   fullWidth: true,
@@ -193,8 +195,12 @@ class MapBottomSheets {
     String familyId,
     MapRelationshipEdge edge,
   ) async {
+    // Capture l10n before the async gap so we don't use BuildContext
+    // across it.
+    final l10n = S.of(context);
+    final fallbackLabel = l10n?.familyMapFamilyMember ?? 'Family Member';
     // Resolve kinship term asynchronously before showing the sheet
-    String kinshipLabel = 'Family Member';
+    String kinshipLabel = fallbackLabel;
     try {
       final graphService = ref.read(graphServiceProvider);
       final mapResult = ref.read(familyMapProvider(familyId)).valueOrNull;
@@ -215,12 +221,12 @@ class MapBottomSheets {
           );
           kinshipLabel = pathResult?.composedKinshipTerm ??
               pathResult?.relationshipDescription ??
-              'Family Member';
+              fallbackLabel;
         }
       }
     } catch (e) {
       // Never block the UI with an error — use fallback label
-      kinshipLabel = 'Family Member';
+      kinshipLabel = fallbackLabel;
     }
 
     if (!context.mounted) return;
@@ -440,7 +446,9 @@ class MapBottomSheets {
                 children: [
                   Expanded(
                     child: DKButton(
-                      label: 'View ${edge.pinA.name.split(' ').first}',
+                      label: l10n?.familyMapViewMember(
+                              edge.pinA.name.split(' ').first) ??
+                          'View ${edge.pinA.name.split(' ').first}',
                       variant: DKButtonVariant.secondary,
                       size: DKButtonSize.md,
                       fullWidth: true,
@@ -453,7 +461,9 @@ class MapBottomSheets {
                   SizedBox(width: KinrelSpacing.sm),
                   Expanded(
                     child: DKButton(
-                      label: 'View ${edge.pinB.name.split(' ').first}',
+                      label: l10n?.familyMapViewMember(
+                              edge.pinB.name.split(' ').first) ??
+                          'View ${edge.pinB.name.split(' ').first}',
                       variant: DKButtonVariant.primary,
                       size: DKButtonSize.md,
                       fullWidth: true,
@@ -508,6 +518,7 @@ class MapBottomSheets {
     Household household,
     void Function(MapPin) onMemberTap,
   ) {
+    final l10n = S.of(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: KinrelColors.darkCard,
@@ -524,7 +535,8 @@ class MapBottomSheets {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Household — ${household.size} members',
+                l10n?.familyMapHouseholdMembers(household.size) ??
+                    'Household — ${household.size} members',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 16,
@@ -568,6 +580,7 @@ class MapBottomSheets {
   /// Shows the unpinned members list (members whose city could not be
   /// resolved to coordinates).
   static void showUnpinnedSheet(BuildContext context, FamilyMapResult result) {
+    final l10n = S.of(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: KinrelColors.darkCard,
@@ -607,7 +620,9 @@ class MapBottomSheets {
                       SizedBox(width: KinrelSpacing.sm),
                       Expanded(
                         child: Text(
-                          '${result.unpinnedCount} member${result.unpinnedCount == 1 ? '' : 's'} without map pin',
+                          l10n?.familyMapUnpinnedCount(
+                                  result.unpinnedCount) ??
+                              '${result.unpinnedCount} member${result.unpinnedCount == 1 ? '' : 's'} without map pin',
                           style: TextStyle(
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 16,
@@ -622,7 +637,8 @@ class MapBottomSheets {
                   SizedBox(height: KinrelSpacing.sm),
 
                   Text(
-                    'Add a city to these members to see them on the map.',
+                    l10n?.familyMapAddCityPrompt ??
+                        'Add a city to these members to see them on the map.',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
@@ -698,8 +714,9 @@ class MapBottomSheets {
                     ),
                     subtitle: Text(
                       member.city.isEmpty
-                          ? 'No city set'
-                          : '${member.city} (not found)',
+                          ? (l10n?.familyMapNoCitySet ?? 'No city set')
+                          : (l10n?.familyMapCityNotFound(member.city) ??
+                              '${member.city} (not found)'),
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,

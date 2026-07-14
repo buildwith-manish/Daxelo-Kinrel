@@ -624,12 +624,13 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
               color: KinrelColors.textWhite, size: 20),
           onPressed: () => context.pop(),
+          tooltip: S.of(context)?.familyMapBack ?? 'Back',
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Family Map',
+              S.of(context)?.familyMapTitle ?? 'Family Map',
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 18,
@@ -679,7 +680,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
           if (kDebugMode)
             IconButton(
               icon: const Icon(Icons.location_city, size: 20),
-              tooltip: 'Test 3D: Bengaluru',
+              tooltip:
+                  S.of(context)?.familyMapTest3dBengaluru ?? 'Test 3D: Bengaluru',
               onPressed: _flyToBengaluru3D,
             ),
         ],
@@ -1462,12 +1464,16 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     final stops = buildJourneyStops(
       pin: pin,
       linkedPlaces: linkedPlaces,
+      bornLabel:
+          S.of(context)?.familyMapJourneyBorn ?? 'Born',
     );
     if (stops.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No journey data for this family member yet.'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(
+              S.of(context)?.familyMapNoJourney ??
+                  'No journey data for this family member yet.'),
+          duration: const Duration(seconds: 2),
         ),
       );
       return;
@@ -1605,9 +1611,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     );
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Flying to Bengaluru — 3D buildings should appear at this zoom level'),
-        duration: Duration(seconds: 4),
+      SnackBar(
+        content: Text(S.of(context)?.familyMapFlyToBengaluruSnackbar ??
+            'Flying to Bengaluru — 3D buildings should appear at this zoom level'),
+        duration: const Duration(seconds: 4),
       ),
     );
 
@@ -1744,6 +1751,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   // The only full-page replacement state is the error state below.
 
   Widget _buildErrorState(Object error) {
+    final l10n = S.of(context);
     return Center(
       child: Padding(
         padding: EdgeInsets.all(KinrelSpacing.xxl),
@@ -1759,7 +1767,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
               ),
               SizedBox(height: KinrelSpacing.lg),
               Text(
-                'Could Not Load Map',
+                l10n?.familyMapCouldNotLoad ?? 'Could Not Load Map',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 18,
@@ -1770,7 +1778,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
               ),
               SizedBox(height: KinrelSpacing.sm),
               Text(
-                'Something went wrong while loading the family map. Please try again.',
+                l10n?.familyMapErrorBody ??
+                    'Something went wrong while loading the family map. Please try again.',
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 14,
@@ -1780,7 +1789,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
               ),
               SizedBox(height: KinrelSpacing.lg),
               DKButton(
-                label: 'Retry',
+                label: l10n?.familyMapRetry ?? 'Retry',
                 variant: DKButtonVariant.primary,
                 size: DKButtonSize.md,
                 onPressed: () =>

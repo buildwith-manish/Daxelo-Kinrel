@@ -18,6 +18,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/widgets/cached_avatar.dart';
+import '../../../l10n/app_localizations.dart';
 import '../providers/family_map_provider.dart';
 import 'map_initials.dart';
 
@@ -31,6 +32,7 @@ class MapLegendWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = S.of(context);
     return GestureDetector(
       onTap: result.unpinnedCount > 0
           ? () => _showUnpinnedSheetFromLegend(context)
@@ -80,7 +82,8 @@ class MapLegendWidget extends StatelessWidget {
                 ),
                 SizedBox(width: KinrelSpacing.sm),
                 Text(
-                  '${result.pins.length} pinned',
+                  l10n?.familyMapPinned(result.pins.length) ??
+                      '${result.pins.length} pinned',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 12,
@@ -111,7 +114,8 @@ class MapLegendWidget extends StatelessWidget {
                   ),
                   SizedBox(width: KinrelSpacing.sm),
                   Text(
-                    '${result.unpinnedCount} not pinned',
+                    l10n?.familyMapNotPinned(result.unpinnedCount) ??
+                        '${result.unpinnedCount} not pinned',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,
@@ -144,6 +148,7 @@ class MapLegendWidget extends StatelessWidget {
     // [FamilyMapResult.familyId] is preserved on the field for any
     // downstream sheet consumer that needs it.
     if (result.unpinnedCount == 0) return;
+    final l10n = S.of(context);
 
     showModalBottomSheet(
       context: context,
@@ -181,7 +186,9 @@ class MapLegendWidget extends StatelessWidget {
                       SizedBox(width: KinrelSpacing.sm),
                       Expanded(
                         child: Text(
-                          '${result.unpinnedCount} member${result.unpinnedCount == 1 ? '' : 's'} without map pin',
+                          l10n?.familyMapUnpinnedCount(
+                                  result.unpinnedCount) ??
+                              '${result.unpinnedCount} member${result.unpinnedCount == 1 ? '' : 's'} without map pin',
                           style: TextStyle(
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 16,
@@ -194,7 +201,8 @@ class MapLegendWidget extends StatelessWidget {
                   ),
                   SizedBox(height: KinrelSpacing.sm),
                   Text(
-                    'Add a city to these members to see them on the map.',
+                    l10n?.familyMapAddCityPrompt ??
+                        'Add a city to these members to see them on the map.',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
@@ -264,8 +272,9 @@ class MapLegendWidget extends StatelessWidget {
                     ),
                     subtitle: Text(
                       member.city.isEmpty
-                          ? 'No city set'
-                          : '${member.city} (not found)',
+                          ? (l10n?.familyMapNoCitySet ?? 'No city set')
+                          : (l10n?.familyMapCityNotFound(member.city) ??
+                              '${member.city} (not found)'),
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,

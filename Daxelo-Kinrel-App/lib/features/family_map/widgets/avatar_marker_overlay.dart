@@ -28,6 +28,7 @@ import 'package:maplibre/maplibre.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../core/widgets/cached_avatar.dart';
+import '../../../l10n/app_localizations.dart';
 import '../config/map_visual_constants.dart';
 import '../providers/family_map_provider.dart';
 import '../providers/live_location_provider.dart';
@@ -111,22 +112,38 @@ class AvatarMarkerWidget extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
-      child: Semantics(
-        button: true,
-        label: _semanticsLabel(),
-        child: SizedBox(
-          width: size + glowBlur * 2,
-          height: size + glowBlur * 2,
-          child: Center(child: withPulse),
+      child: Tooltip(
+        message: _semanticsLabel(context),
+        child: Semantics(
+          button: true,
+          label: _semanticsLabel(context),
+          child: SizedBox(
+            width: size + glowBlur * 2,
+            height: size + glowBlur * 2,
+            child: Center(child: withPulse),
+          ),
         ),
       ),
     );
   }
 
-  String _semanticsLabel() {
-    final tierStr = liveTier == null ? '' : ' (${tierLabel(liveTier!, null)})';
-    final selStr = selected ? '. Selected.' : '';
-    return '${pin.name}$tierStr$selStr. Double-tap to focus.';
+  /// §10 / §19 — Localized semantic label for the avatar marker.
+  /// Includes the member's name, optional tier freshness (localized),
+  /// and a "Double-tap to focus" hint. Adds a "Selected." suffix when
+  /// the marker is the current focus target.
+  String _semanticsLabel(BuildContext context) {
+    final l10n = S.of(context);
+    final tierStr = liveTier == null
+        ? ''
+        : ' (${tierLabelLocalized(liveTier!, null, l10n)})';
+    final name = pin.name;
+    if (l10n == null) {
+      // Fallback for tests / pre-localization bootstrap.
+      final selStr = selected ? '. Selected.' : '';
+      return '$name$tierStr$selStr. Double-tap to focus.';
+    }
+    final selStr = selected ? ' ${l10n.familyMapAvatarSelectedSuffix}' : '';
+    return '${l10n.familyMapAvatarPinLabel(name, tierStr)}$selStr';
   }
 }
 

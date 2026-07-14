@@ -336,4 +336,122 @@ class STa extends S {
 
   @override
   String get familyMapClose => 'Close';
+
+  @override
+  String get familyMapBack => 'Back';
+
+  @override
+  String get familyMapTest3dBengaluru => 'Test 3D: Bengaluru';
+
+  @override
+  String get familyMapFlyToBengaluruSnackbar =>
+      'Flying to Bengaluru — 3D buildings should appear at this zoom level';
+
+  @override
+  String get familyMapFamilyMember => 'Family Member';
+
+  @override
+  String familyMapViewMember(String name) {
+    return 'View $name';
+  }
+
+  @override
+  String familyMapHouseholdClusterLabel(int count) {
+    return 'Household with $count members. Double-tap to expand.';
+  }
+
+  @override
+  String familyMapTimelineLabel(int year) {
+    return 'Family timeline. Currently viewing $year. Drag to change.';
+  }
+
+  @override
+  String get familyMapTimelinePreviousYear => 'Previous year';
+
+  @override
+  String get familyMapTimelineNextYear => 'Next year';
+
+  @override
+  String get familyMapTimelinePlay => 'Play timeline';
+
+  @override
+  String get familyMapTimelinePause => 'Pause timeline';
+
+  @override
+  String familyMapTimelineRange(int min, int max) {
+    return '$min–$max';
+  }
+
+  @override
+  String get familyMapJourneyTitle => 'Family Journey';
+
+  @override
+  String get familyMapJourneyBorn => 'Born';
+
+  @override
+  String get familyMapJourneyPrevious => 'Previous stop';
+
+  @override
+  String get familyMapJourneyNext => 'Next stop';
+
+  @override
+  String get familyMapJourneyPlay => 'Play journey';
+
+  @override
+  String get familyMapJourneyPause => 'Pause journey';
+
+  @override
+  String get familyMapJourneyClose => 'Close journey';
+
+  @override
+  String familyMapAvatarPinLabel(String name, String tier) {
+    return '$name$tier. Double-tap to focus.';
+  }
+
+  @override
+  String get familyMapAvatarSelectedSuffix => 'Selected.';
+
+  @override
+  String get familyMapAvatarDoubleTapFocus => 'Double-tap to focus.';
+
+  @override
+  String get familyMapTierLive => 'Live • now';
+
+  @override
+  String get familyMapTierUpdatedRecently => 'Updated recently';
+
+  @override
+  String get familyMapTierUpdatedJustNow => 'Updated just now';
+
+  @override
+  String familyMapTierUpdatedMinsAgo(int mins) {
+    return 'Updated ${mins}m ago';
+  }
+
+  @override
+  String get familyMapTierLastKnown => 'Last known';
+
+  @override
+  String get familyMapProgressOffline => 'Offline — showing cached data';
+
+  @override
+  String get familyMapProgressRestoring => 'Restoring your view…';
+
+  @override
+  String get familyMapProgressMap => 'Loading map…';
+
+  @override
+  String get familyMapProgressLandmarks => 'Loading landmarks…';
+
+  @override
+  String get familyMapProgressFamilyPlaces => 'Loading family places…';
+
+  @override
+  String get familyMapProgressConnections => 'Loading connections…';
+
+  @override
+  String get familyMapProgressMembers => 'Loading family members…';
+
+  @override
+  String get familyMapProgressAlmost => 'Almost there…';
 }

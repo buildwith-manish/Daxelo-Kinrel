@@ -33,10 +33,12 @@ class MapSkeleton extends StatelessWidget {
   const MapSkeleton({
     super.key,
     this.reducedMotion = false,
-    this.message = 'Loading family map',
+    this.message = 'Loading family map\u2026',
   });
 
   final bool reducedMotion;
+  /// Default fallback message. Callers should pass the localized
+  /// `S.of(context)?.familyMapLoading` value when available.
   final String message;
 
   @override
