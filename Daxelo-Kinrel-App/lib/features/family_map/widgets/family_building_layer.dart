@@ -78,17 +78,35 @@ String buildingHexFor(PlaceType type) {
 
 /// Builds the GeoJSON FeatureCollection for the `family-places` source.
 ///
-/// Each feature is a Point at the place's lat/lng with a `placeType`
-/// property. The FillExtrusionStyleLayer reads this property via a
-/// `match` expression to pick the per-type color.
+/// Each feature is a small **Polygon** footprint (~20m box) around the
+/// place's lat/lng. MapLibre's `fill-extrusion` layer only extrudes
+/// Polygon/MultiPolygon features — Points produce no visible extrusion.
+/// By emitting a small polygon, family buildings actually appear as 3D
+/// extruded blocks with per-type warm colors.
+///
+/// The `placeType` property drives the per-type color via a `match`
+/// expression. The `height` property (optional) allows data-driven
+/// extrusion height — defaults to 12 via the style's `coalesce`.
 String buildFamilyPlacesGeoJson(Iterable<FamilyPlace> places) {
   final features = places.map((p) {
+    // Build a small ~20m box around the coordinate.
+    // 0.0002° ≈ 22m at the equator. This is intentionally small —
+    // it represents a building footprint, not a city block.
+    const boxSize = 0.0002;
+    final lng = p.lng;
+    final lat = p.lat;
     return {
       'type': 'Feature',
       'id': p.id,
       'geometry': {
-        'type': 'Point',
-        'coordinates': [p.lng, p.lat],
+        'type': 'Polygon',
+        'coordinates': [[
+          [lng - boxSize, lat - boxSize],
+          [lng + boxSize, lat - boxSize],
+          [lng + boxSize, lat + boxSize],
+          [lng - boxSize, lat + boxSize],
+          [lng - boxSize, lat - boxSize], // close the ring
+        ]],
       },
       'properties': {
         'placeId': p.id,

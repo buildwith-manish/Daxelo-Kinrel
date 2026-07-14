@@ -117,16 +117,26 @@ void main() {
       }));
     });
 
-    test('coordinates are [lng, lat] (GeoJSON order, not lat,lng)', () {
+    test('geometry is Polygon with [lng, lat] coordinates (GeoJSON order)', () {
       final json = jsonDecode(buildFamilyPlacesGeoJson(places))
           as Map<String, dynamic>;
       final features = json['features'] as List<dynamic>;
       final first = features[0] as Map<String, dynamic>;
-      final coords =
-          (first['geometry'] as Map<String, dynamic>)['coordinates'] as List;
-      // Lng comes first in GeoJSON.
-      expect(coords[0], equals(73.85));
-      expect(coords[1], equals(18.52));
+      final geometry = first['geometry'] as Map<String, dynamic>;
+      // Now emits Polygon (not Point) for fill-extrusion support.
+      expect(geometry['type'], equals('Polygon'));
+      final rings = geometry['coordinates'] as List;
+      final ring = rings[0] as List;
+      // The ring has 5 points (4 corners + closing point).
+      expect(ring.length, equals(5));
+      // First corner is [lng - boxSize, lat - boxSize] — verify lng comes first.
+      final corner = ring[0] as List;
+      expect(corner[0], isA<double>());
+      expect(corner[1], isA<double>());
+      // Lng should be close to 73.85 (slightly less due to boxSize offset).
+      expect((corner[0] as double), closeTo(73.85, 0.001));
+      // Lat should be close to 18.52 (slightly less due to boxSize offset).
+      expect((corner[1] as double), closeTo(18.52, 0.001));
     });
 
     test('isMemorial / isWedding flags are set on the right features', () {

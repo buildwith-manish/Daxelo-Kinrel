@@ -380,7 +380,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
           minZoom: 13,
           paint: {
             'fill-extrusion-color': matchExpr,
-            'fill-extrusion-height': 12,
+            'fill-extrusion-height': ['coalesce', ['get', 'height'], 12],
             'fill-extrusion-base': 0,
             'fill-extrusion-opacity': 0.95,
             'fill-extrusion-vertical-gradient': true,
@@ -452,7 +452,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     {"id":"road-primary","type":"line","source":"openmaptiles","source-layer":"transportation","filter":["==",["get","class"],"primary"],"paint":{"line-color":"#3A3252","line-width":2}},
     {"id":"road-motorway","type":"line","source":"openmaptiles","source-layer":"transportation","filter":["==",["get","class"],"motorway"],"paint":{"line-color":"#4A3F63","line-width":3}},
     {"id":"family-buildings-glow","type":"circle","source":"family-places","minzoom":10,"paint":{"circle-color":["match",["get","placeType"],"current_home","#E8612A","childhood_home","#F59240","ancestral_home","#917520","birthplace","#F5B841","wedding","#E8612A","memorial","#F59240","family_business","#C44A18","school","#4E6984","important_place","#E8612A","#E8612A"],"circle-radius":24,"circle-blur":1.0,"circle-opacity":0.65}},
-    {"id":"family-buildings","type":"fill-extrusion","source":"family-places","minzoom":13,"paint":{"fill-extrusion-color":["match",["get","placeType"],"current_home","#E8612A","childhood_home","#F59240","ancestral_home","#917520","birthplace","#F5B841","wedding","#E8612A","memorial","#F59240","family_business","#C44A18","school","#4E6984","important_place","#E8612A","#E8612A"],"fill-extrusion-height":12,"fill-extrusion-base":0,"fill-extrusion-opacity":0.95,"fill-extrusion-vertical-gradient":true}},
+    {"id":"family-buildings","type":"fill-extrusion","source":"family-places","minzoom":13,"paint":{"fill-extrusion-color":["match",["get","placeType"],"current_home","#E8612A","childhood_home","#F59240","ancestral_home","#917520","birthplace","#F5B841","wedding","#E8612A","memorial","#F59240","family_business","#C44A18","school","#4E6984","important_place","#E8612A","#E8612A"],"fill-extrusion-height":["coalesce",["get","height"],12],"fill-extrusion-base":0,"fill-extrusion-opacity":0.95,"fill-extrusion-vertical-gradient":true}},
     {"id":"family-buildings-fallback","type":"circle","source":"family-places","maxzoom":13,"paint":{"circle-color":["match",["get","placeType"],"current_home","#E8612A","childhood_home","#F59240","ancestral_home","#917520","birthplace","#F5B841","wedding","#E8612A","memorial","#F59240","family_business","#C44A18","school","#4E6984","important_place","#E8612A","#E8612A"],"circle-radius":6,"circle-stroke-color":"#FFFFFF","circle-stroke-width":1,"circle-opacity":0.9}}
   ]
 }
@@ -1648,7 +1648,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
       final features = controller.featuresAtPoint(
         centerPoint,
-        layerIds: ['kinrel-3d-buildings'],
+        layerIds: const [
+          FamilyBuildingLayer.extrusionLayerId,
+          FamilyBuildingLayer.circleFallbackLayerId,
+        ],
       );
 
       if (features.isEmpty) {
