@@ -24,7 +24,7 @@
 
 import 'dart:async';
 import 'dart:ui' as ui;
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -82,7 +82,16 @@ String _initials(String name) {
 // ═══════════════════════════════════════════════════════════════════════
 
 class FamilyMapScreen extends ConsumerStatefulWidget {
-  const FamilyMapScreen({super.key});
+  const FamilyMapScreen({
+    super.key,
+    required this.familyId,
+  });
+
+  /// The family whose members + places are rendered on the map.
+  /// Required — the map screen no longer falls back to
+  /// `familyListProvider.first`. Callers (route + navigation push)
+  /// MUST supply a concrete familyId.
+  final String familyId;
 
   @override
   ConsumerState<FamilyMapScreen> createState() => _FamilyMapScreenState();
@@ -415,8 +424,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     super.initState();
     // Start the live location provider when the map screen mounts.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final familyId = ref.read(familyListProvider).valueOrNull?.first.id;
-      if (familyId != null) {
+      final familyId = widget.familyId;
+      if (familyId.isNotEmpty) {
         ref.read(liveLocationProvider.notifier).start(familyId);
         // P10.9 — initialize the debounced state saver for this family.
         _stateSaver = DebouncedMapStateSaver(familyId);
@@ -425,7 +434,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         // restores the camera + selection + timeline year. Gracefully
         // returns null on first launch / corrupted JSON.
         MapStatePersistence.load(familyId).then((state) {
-          if (state != null && mounted) {
+          if (!mounted) return;
+          // Guard against stale result from a previous family
+          // (if didUpdateWidget changed the family before this completes).
+          if (widget.familyId != familyId) return;
+          if (state != null) {
             setState(() => _restoredState = state);
             // Restore selection.
             _selectedPinId = state.selectedPersonId;
@@ -481,6 +494,57 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   }
 
   @override
+  void didUpdateWidget(covariant FamilyMapScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.familyId != widget.familyId) {
+      // Family changed — flush old saver, stop old live location,
+      // clear stale state, re-initialize for new family.
+      _stopBroadcastLoop();
+      _stateSaver?.flushNow();
+      _stateSaver?.dispose();
+      _stateSaver = null;
+      ref.read(liveLocationProvider.notifier).stop();
+
+      // Clear stale selection/journey state
+      _selectedPinId = null;
+      _expandedHouseholdId = null;
+      _journeyStops = null;
+      _restoredState = null;
+      _entranceAnimationDone = false;
+
+      // Reset lifecycle for the new family
+      _lifecycle.reset();
+      _styleLoaded = false;
+      _buildingsAdded = false;
+      _familyPlacesLayersAdded = false;
+      _loadedStyleJson = null;
+
+      // Start live location + persistence for the new family
+      if (widget.familyId.isNotEmpty) {
+        final loadedFamilyId = widget.familyId;
+        ref.read(liveLocationProvider.notifier).start(loadedFamilyId);
+        _stateSaver = DebouncedMapStateSaver(loadedFamilyId);
+        MapStatePersistence.load(loadedFamilyId).then((state) {
+          if (!mounted) return;
+          if (widget.familyId != loadedFamilyId) return; // stale — family changed again
+          if (state != null && mounted) {
+            setState(() {
+              _restoredState = state;
+              _selectedPinId = state.selectedPersonId;
+              _expandedHouseholdId = state.expandedHouseholdId;
+              if (state.timelineYear != null) {
+                ref.read(journeyProvider.notifier).setYear(state.timelineYear!);
+              }
+            });
+          }
+        });
+      }
+
+      setState(() {});
+    }
+  }
+
+  @override
   void dispose() {
     _stopBroadcastLoop();
     _styleWatchdog?.cancel();
@@ -498,7 +562,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
   @override
   Widget build(BuildContext context) {
-    final mapAsync = ref.watch(familyMapProvider);
+    final mapAsync = ref.watch(familyMapProvider(widget.familyId));
 
     // Watch live location state — start/stop the broadcast loop based
     // on the current user's sharing preference.
@@ -568,12 +632,14 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
           ],
         ),
         actions: [
-          // Dev test: fly to Bengaluru at zoom 16, tilt 45° to verify 3D buildings.
-          IconButton(
-            icon: const Icon(Icons.location_city, size: 20),
-            tooltip: 'Test 3D: Bengaluru',
-            onPressed: _flyToBengaluru3D,
-          ),
+          // Dev test: fly to Bengaluru at zoom 16, tilt 45° to verify 3D
+          // buildings. Debug builds only — never shipped to production.
+          if (kDebugMode)
+            IconButton(
+              icon: const Icon(Icons.location_city, size: 20),
+              tooltip: 'Test 3D: Bengaluru',
+              onPressed: _flyToBengaluru3D,
+            ),
         ],
       ),
       body: mapAsync.when(
@@ -1476,6 +1542,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// Dev test: animate the camera to Bengaluru at zoom 16, tilt 45°
   /// to visually verify 3D building extrusion.
   void _flyToBengaluru3D() {
+    // Debug-only: this is a dev test for visually verifying 3D building
+    // extrusion. The AppBar entry is also gated by kDebugMode; this guard
+    // is defensive in case the method is invoked from elsewhere.
+    if (!kDebugMode) return;
     final controller = _mapController;
     if (controller == null) {
       debugPrint('❌ Map controller not ready');
@@ -1510,6 +1580,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// Query rendered building features at the map center and log their
   /// available property keys + render_height value.
   void _queryBengaluruBuildingProperties() async {
+    // Debug-only: runtime feature query for verifying 3D building
+    // extrusion properties. Never runs in production builds.
+    if (!kDebugMode) return;
     final controller = _mapController;
     if (controller == null || !_buildingsAdded) {
       debugPrint('⚠️ Cannot query buildings — controller null or layer not added');
@@ -1586,7 +1659,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
           timeLimit: Duration(seconds: 3),
         ),
       );
-      final familyId = ref.read(familyListProvider).valueOrNull?.first.id ?? '';
+      final familyId = widget.familyId;
       if (familyId.isEmpty) return;
 
       // We need the current user's personId. Get it from the family
@@ -1763,8 +1836,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     String kinshipLabel = 'Family Member';
     try {
       final graphService = ref.read(graphServiceProvider);
-      final mapResult = ref.read(familyMapProvider).valueOrNull;
-      final familyId = mapResult?.familyId ?? '';
+      final mapResult = ref.read(familyMapProvider(widget.familyId)).valueOrNull;
+      final familyId = mapResult?.familyId ?? widget.familyId;
 
       if (familyId.isNotEmpty) {
         final detail = await ref.read(familyDetailProvider(familyId).future);
@@ -2246,7 +2319,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 variant: DKButtonVariant.primary,
                 size: DKButtonSize.md,
                 onPressed: () =>
-                    ref.invalidate(familyMapProvider),
+                    ref.invalidate(familyMapProvider(widget.familyId)),
               ),
             ],
           ),
@@ -2443,11 +2516,12 @@ class _MapLegend extends StatelessWidget {
   }
 
   void _showUnpinnedSheetFromLegend(BuildContext context) {
-    // Access the provider from the widget tree to show the sheet.
-    // We use the ConsumerStatefulWidget's context pattern.
-    final container = ProviderScope.containerOf(context);
-    final result = container.read(familyMapProvider).valueOrNull;
-    if (result == null) return;
+    // _MapLegend is rebuilt whenever the parent's familyMapProvider
+    // emits a new result, so [result] is already the freshest value —
+    // no need to re-read the (now family-scoped) provider here.
+    // [FamilyMapResult.familyId] is preserved on the field for any
+    // downstream sheet consumer that needs it.
+    if (result.unpinnedCount == 0) return;
 
     showModalBottomSheet(
       context: context,

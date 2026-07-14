@@ -584,6 +584,96 @@ abstract class S {
   /// In en, this message translates to:
   /// **'{count} member{count, plural, =1{} other{s}} located'**
   String familyMapLocatedCount(int count);
+
+  /// AppBar title for the Family Map screen
+  ///
+  /// In en, this message translates to:
+  /// **'Family Map'**
+  String get familyMapTitle;
+
+  /// SnackBar shown when a member has no journey stops
+  ///
+  /// In en, this message translates to:
+  /// **'No journey data for this family member yet.'**
+  String get familyMapNoJourney;
+
+  /// Bottom sheet title for a household cluster
+  ///
+  /// In en, this message translates to:
+  /// **'Household — {count} members'**
+  String familyMapHouseholdMembers(int count);
+
+  /// Button label to view a member's profile
+  ///
+  /// In en, this message translates to:
+  /// **'View Profile'**
+  String get familyMapViewProfile;
+
+  /// Title for the unpinned members bottom sheet
+  ///
+  /// In en, this message translates to:
+  /// **'{count} member{count, plural, =1{} other{s}} without map pin'**
+  String familyMapUnpinnedCount(int count);
+
+  /// Body text for the unpinned members bottom sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Add a city to these members to see them on the map.'**
+  String get familyMapAddCityPrompt;
+
+  /// Subtitle for a member with no city
+  ///
+  /// In en, this message translates to:
+  /// **'No city set'**
+  String get familyMapNoCitySet;
+
+  /// Subtitle for a member whose city couldn't be resolved
+  ///
+  /// In en, this message translates to:
+  /// **'{city} (not found)'**
+  String familyMapCityNotFound(String city);
+
+  /// Legend showing count of pinned members
+  ///
+  /// In en, this message translates to:
+  /// **'{count} pinned'**
+  String familyMapPinned(int count);
+
+  /// Legend showing count of unpinned members
+  ///
+  /// In en, this message translates to:
+  /// **'{count} not pinned'**
+  String familyMapNotPinned(int count);
+
+  /// Error state title when map data fails to load
+  ///
+  /// In en, this message translates to:
+  /// **'Could Not Load Map'**
+  String get familyMapCouldNotLoad;
+
+  /// Error state body text
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong while loading the family map. Please try again.'**
+  String get familyMapErrorBody;
+
+  /// Label for the linked family member in building bottom sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Linked family member'**
+  String get familyMapLinkedMember;
+
+  /// Label for memory count in building bottom sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Memories'**
+  String get familyMapMemories;
+
+  /// Close button in building bottom sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get familyMapClose;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

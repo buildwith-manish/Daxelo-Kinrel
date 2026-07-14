@@ -16,6 +16,9 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/services/supabase_service.dart' show supabaseProvider;
 import '../config/map_visual_constants.dart';
 import '../data/city_coordinates.dart';
+import '../data/map_data_validator.dart';
+import '../data/map_location_resolver.dart';
+import '../data/map_location_source.dart';
 import '../data/place_models.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -33,6 +36,7 @@ class MapPin {
     required this.lng,
     this.placeType,
     this.placeId,
+    this.locationSource,
   });
 
   /// Unique ID of the person.
@@ -60,6 +64,17 @@ class MapPin {
 
   /// P10.1 — Optional Place row ID this pin is linked to.
   final String? placeId;
+
+  /// Source of this pin's coordinates (live GPS, exact linked place,
+  /// saved member location, locality, or city centroid). Null only
+  /// when the pin was constructed without going through
+  /// [resolvePrimaryMapLocation] (legacy callers).
+  ///
+  /// Drives household clustering in [computeHouseholds]: city-centroid
+  /// pins (and locality pins) must NOT cluster into households — they
+  /// render independently with a deterministic spread so visually
+  /// overlapping pins don't collapse into a false "household".
+  final MapLocationSource? locationSource;
 
   @override
   bool operator ==(Object other) =>
@@ -194,11 +209,26 @@ class Household {
 /// integer bucket. This is a fast O(N) grid-based clustering that
 /// avoids Haversine distance calculations.
 ///
+/// City-centroid fallback pins (and locality pins) are SKIPPED — only
+/// pins with exact coordinates ([MapLocationSource.exactPlace],
+/// [MapLocationSource.savedLocation], [MapLocationSource.live]) can
+/// form households. City-centroid pins render independently with a
+/// deterministic spread so visually overlapping pins don't collapse
+/// into a false "household".
+///
 /// Tunable: change `householdEpsilon` in MapVisualConstants (Rule 14, 16).
 List<Household> computeHouseholds(List<MapPin> pins) {
   final epsilon = MapVisualConstants.householdEpsilon;
   final groups = <String, List<MapPin>>{};
   for (final pin in pins) {
+    // City-centroid fallback pins must NOT cluster into households.
+    // Only pins with exact coordinates (exactPlace, savedLocation, live)
+    // can form households — others render independently with a
+    // deterministic spread so visually overlapping pins don't collapse
+    // into a false "household".
+    if (pin.locationSource != null && !pin.locationSource!.canCluster) {
+      continue;
+    }
     final key =
         '${(pin.lat / epsilon).round()}_${(pin.lng / epsilon).round()}';
     groups.putIfAbsent(key, () => <MapPin>[]).add(pin);
@@ -248,8 +278,9 @@ Future<List<FamilyPlace>> _fetchFamilyPlaces(
 // FAMILY MAP PROVIDER
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Watches the first family from [familyListProvider] and resolves
-/// all its members to [MapPin] objects using [kCityCoordinates].
+/// Resolves all members of the family identified by [familyId] to
+/// [MapPin] objects using [kCityCoordinates] and
+/// [resolvePrimaryMapLocation].
 ///
 /// Returns a [FamilyMapResult] containing:
 /// - [pins]: Members with resolved coordinates
@@ -258,12 +289,8 @@ Future<List<FamilyPlace>> _fetchFamilyPlaces(
 /// - [edges]: Relationship edges between pinned members
 /// - [familyId]: Family ID for graph resolution at tap time
 final familyMapProvider =
-    FutureProvider<FamilyMapResult>((ref) async {
-  // Get the first family from the user's family list
-  final familiesAsync = ref.watch(familyListProvider);
-  final families = familiesAsync.valueOrNull;
-
-  if (families == null || families.isEmpty) {
+    FutureProvider.family<FamilyMapResult, String>((ref, familyId) async {
+  if (familyId.isEmpty) {
     return const FamilyMapResult(
       pins: [],
       unpinnedMembers: [],
@@ -272,9 +299,6 @@ final familyMapProvider =
       familyId: '',
     );
   }
-
-  final firstFamily = families.first;
-  final familyId = firstFamily.id;
 
   // Watch the members of that family
   final membersAsync = ref.watch(familyMembersProvider(familyId));
@@ -296,7 +320,7 @@ final familyMapProvider =
   final supabaseClient = ref.read(supabaseProvider);
   final placesFuture = _fetchFamilyPlaces(supabaseClient, familyId);
 
-  final pins = <MapPin>[];
+  var pins = <MapPin>[];
   final unpinned = <UnpinnedMember>[];
 
   for (final person in members) {
@@ -333,6 +357,12 @@ final familyMapProvider =
       ));
     }
   }
+
+  // Filter out pins with invalid coordinates (NaN, Infinity, out of
+  // range). The city centroid table is curated, but defensive
+  // validation ensures a corrupt/edited entry can never produce a
+  // broken pin that crashes the map renderer.
+  pins = pins.where((p) => isValidCoordinate(p.lat, p.lng)).toList();
 
   // ── Resolve relationship edges between pinned members ─────────────
   List<MapRelationshipEdge> edges = [];
@@ -379,17 +409,25 @@ final familyMapProvider =
   };
   final enrichedPins = pins.map((pin) {
     final linked = placeByPersonId[pin.personId];
-    if (linked == null) return pin;
-    return MapPin(
-      personId: pin.personId,
-      name: pin.name,
-      city: pin.city,
-      photoUrl: pin.photoUrl,
-      lat: pin.lat,
-      lng: pin.lng,
-      placeType: linked.placeType,
-      placeId: linked.id,
+    final resolved = resolvePrimaryMapLocation(
+      cityLat: pin.lat,
+      cityLng: pin.lng,
+      linkedPlace: linked,
     );
+    if (resolved != null) {
+      return MapPin(
+        personId: pin.personId,
+        name: pin.name,
+        city: pin.city,
+        photoUrl: pin.photoUrl,
+        lat: resolved.lat,
+        lng: resolved.lng,
+        placeType: linked?.placeType,
+        placeId: linked?.id,
+        locationSource: resolved.source,
+      );
+    }
+    return pin;
   }).toList(growable: false);
 
   return FamilyMapResult(
