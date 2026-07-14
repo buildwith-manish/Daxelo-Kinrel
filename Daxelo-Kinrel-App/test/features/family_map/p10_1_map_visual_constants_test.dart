@@ -69,25 +69,43 @@ void main() {
       expect(MapVisualConstants.hexLabelHaloColor, equals('#0D0D0D'));
     });
 
-    test('P12 — vignette opacity is 0.40 (cinematic premium)', () {
-      expect(MapVisualConstants.vignetteOpacity, equals(0.40));
+    test('P12 — vignette opacity is 0.45 (ultra-premium cinematic)', () {
+      expect(MapVisualConstants.vignetteOpacity, equals(0.45));
     });
 
-    test('P12 — generic 3D building colors exist (Snapchat-style blocky)', () {
+    test('P12.1 — fog opacity is 0.07 (more depth perception)', () {
+      expect(MapVisualConstants.fogOpacity, equals(0.07));
+    });
+
+    test('P12.1 — ambient warmth opacity is 0.05 (stronger Kinrel orange)', () {
+      expect(MapVisualConstants.ambientWarmthOpacity, equals(0.05));
+    });
+
+    test('P12.1 — generic 3D building colors exist (ultra-premium gradient)', () {
       expect(MapVisualConstants.buildingNormal, isA<Color>());
+      expect(MapVisualConstants.buildingNormalMid, isA<Color>());
       expect(MapVisualConstants.buildingNormalTop, isA<Color>());
       expect(MapVisualConstants.buildingNormalTall, isA<Color>());
+      expect(MapVisualConstants.buildingNormalEdge, isA<Color>());
     });
 
-    test('P12 — avatar marker sizes are prominent (Snapchat-style)', () {
+    test('P12.1 — avatar marker sizes are prominent (Snapchat-style)', () {
       expect(MapVisualConstants.markerNormalSize, equals(44.0));
       expect(MapVisualConstants.markerSelectedSize, equals(60.0));
       expect(MapVisualConstants.markerGlowBlurNormal, equals(8.0));
       expect(MapVisualConstants.markerGlowBlurSelected, equals(16.0));
     });
 
-    test('P12 — building extrusion min zoom is 14 (3D appears earlier)', () {
-      expect(MapVisualConstants.buildingExtrusionMinZoom, equals(14.0));
+    test('P12.1 — building extrusion min zoom is 13.5 (3D appears even earlier)', () {
+      expect(MapVisualConstants.buildingExtrusionMinZoom, equals(13.5));
+    });
+
+    test('P12.1 — ancestral home color is brighter gold #B8901F', () {
+      expect(MapVisualConstants.buildingAncestralHome, equals(const Color(0xFFB8901F)));
+    });
+
+    test('P12.1 — family business color is brighter #D85720', () {
+      expect(MapVisualConstants.buildingFamilyBusiness, equals(const Color(0xFFD85720)));
     });
   });
 

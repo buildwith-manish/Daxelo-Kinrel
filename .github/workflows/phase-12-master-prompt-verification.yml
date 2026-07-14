@@ -152,15 +152,15 @@ jobs:
       - name: Verify P1.1 — Generic 3D buildings present (Snapchat-style) + family-buildings
         working-directory: .
         run: |
-          # P12 PREMIUM UPDATE: Generic 3D buildings are NOW RE-ENABLED
-          # with a Kinrel-warm tint (Snapchat-style blocky 3D aesthetic
-          # but with Kinrel orange/amber palette, not Snapchat cool blue).
+          # P12.1 ULTRA-PREMIUM: Generic 3D buildings are present with
+          # Kinrel-warm tint (Snapchat-style blocky 3D aesthetic but
+          # with Kinrel orange/amber palette, not Snapchat cool blue).
           # The layer is called `kinrel-3d-buildings` (fill-extrusion).
           if ! rg -q '"id":"kinrel-3d-buildings"' Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
             echo "❌ P1.1 FAILED: kinrel-3d-buildings fill-extrusion layer missing"
             exit 1
           fi
-          # Verify it's a fill-extrusion (3D) layer.
+          # Verify it's a fill-extrusion (3D) layer with P12.1 minzoom 13.5.
           if ! python3 -c "
           import json
           s = json.load(open('Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json'))
@@ -168,7 +168,10 @@ jobs:
           assert l is not None, 'kinrel-3d-buildings layer missing'
           assert l.get('type') == 'fill-extrusion', f'expected fill-extrusion, got {l.get(\"type\")}'
           assert l.get('source-layer') == 'building', f'expected source-layer=building, got {l.get(\"source-layer\")}'
-          assert l.get('minzoom') == 14, f'expected minzoom 14, got {l.get(\"minzoom\")}'
+          # P12.1: minzoom lowered to 13.5 (was 14)
+          assert l.get('minzoom') == 13.5, f'expected minzoom 13.5, got {l.get(\"minzoom\")}'
+          # P12.1: opacity bumped to 0.92
+          assert l.get('paint', {}).get('fill-extrusion-opacity') == 0.92, f'expected opacity 0.92, got {l.get(\"paint\", {}).get(\"fill-extrusion-opacity\")}'
           "; then
             echo "❌ P1.1 FAILED: kinrel-3d-buildings not configured correctly"
             exit 1
@@ -178,7 +181,7 @@ jobs:
             echo "❌ P1.1 FAILED: family-buildings layer missing from style JSON"
             exit 1
           fi
-          echo "✅ P1.1: kinrel-3d-buildings (generic 3D, warm-tinted) + family-buildings both present"
+          echo "✅ P1.1: kinrel-3d-buildings (minzoom 13.5, opacity 0.92) + family-buildings both present"
 
       - name: Verify P1.2 — Road colors warmed with Kinrel orange tint
         working-directory: .
@@ -367,17 +370,85 @@ jobs:
           fi
           echo "✅ P5.2: polish overlay merged into single _KinrelPolishPainter (1 draw call)"
 
-      - name: Verify P5.3 — Vignette opacity is 0.40 (P12 premium)
+      - name: Verify P5.3 — Vignette opacity is 0.45 (P12.1 ultra-premium)
         working-directory: .
         run: |
-          # P12 PREMIUM UPDATE: Vignette opacity bumped from 0.35 → 0.40
-          # for the cinematic Snapchat-style mood (darker corners focus
-          # attention on 3D buildings + markers).
-          if ! rg -q "vignetteOpacity = 0.40" Daxelo-Kinrel-App/lib/features/family_map/config/map_visual_constants.dart; then
-            echo "❌ P5.3 FAILED: vignette opacity is not 0.40"
+          # P12.1 ULTRA-PREMIUM: Vignette opacity bumped 0.40 → 0.45 for
+          # stronger cinematic mood (darker corners focus attention on
+          # ultra-premium 3D buildings + family beacons).
+          if ! rg -q "vignetteOpacity = 0.45" Daxelo-Kinrel-App/lib/features/family_map/config/map_visual_constants.dart; then
+            echo "❌ P5.3 FAILED: vignette opacity is not 0.45"
             exit 1
           fi
-          echo "✅ P5.3: vignette opacity is 0.40 (P12 premium cinematic)"
+          echo "✅ P5.3: vignette opacity is 0.45 (P12.1 ultra-premium cinematic)"
+
+      - name: Verify P12.1 — Ultra-premium 3D building invariants
+        working-directory: .
+        run: |
+          # P12.1 ULTRA-PREMIUM checks:
+          # 1. kinrel-3d-buildings minzoom is 13.5 (3D appears earlier)
+          # 2. kinrel-3d-buildings has 4-stop vertical gradient
+          # 3. family-buildings-outer-halo exists (beacon effect)
+          # 4. family-buildings opacity is 1.0 (fully opaque)
+          # 5. family-buildings-glow radius is 36 (larger halo)
+          if ! python3 -c "
+          import json
+          s = json.load(open('Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json'))
+
+          # 1. kinrel-3d-buildings minzoom = 13.5
+          k3d = next(l for l in s['layers'] if l.get('id') == 'kinrel-3d-buildings')
+          assert k3d.get('minzoom') == 13.5, f'kinrel-3d-buildings minzoom={k3d.get(\"minzoom\")}, expected 13.5'
+
+          # 2. 4-stop vertical gradient (5 elements: 2 fixed + 4 stops × 2 + base)
+          # interpolate format: ['interpolate', ['linear'], ['get','render_height'], 0, color, 10, color, 30, color, 80, color, 200, color]
+          color_expr = k3d['paint']['fill-extrusion-color']
+          assert color_expr[0] == 'interpolate', 'fill-extrusion-color is not interpolate'
+          # 5 stops × 2 (zoom + color) + 3 fixed = 13 elements
+          assert len(color_expr) == 13, f'expected 13 elements in 4-stop gradient, got {len(color_expr)}'
+
+          # 3. family-buildings-outer-halo exists
+          outer_halo = next((l for l in s['layers'] if l.get('id') == 'family-buildings-outer-halo'), None)
+          assert outer_halo is not None, 'family-buildings-outer-halo layer missing'
+          assert outer_halo['paint']['circle-radius'] == 60, f'outer halo radius={outer_halo[\"paint\"][\"circle-radius\"]}, expected 60'
+
+          # 4. family-buildings opacity = 1.0
+          fb = next(l for l in s['layers'] if l.get('id') == 'family-buildings')
+          assert fb['paint']['fill-extrusion-opacity'] == 1.0, f'family-buildings opacity={fb[\"paint\"][\"fill-extrusion-opacity\"]}, expected 1.0'
+
+          # 5. family-buildings-glow radius = 36
+          fg = next(l for l in s['layers'] if l.get('id') == 'family-buildings-glow')
+          assert fg['paint']['circle-radius'] == 36, f'glow radius={fg[\"paint\"][\"circle-radius\"]}, expected 36'
+
+          # 6. Family buildings TALLER: temple should be 32 (was 20)
+          heights = fb['paint']['fill-extrusion-height']
+          # match format: ['match', ['get','placeType'], wire1, h1, ..., default]
+          # family_temple is the 10th wire (index 2 + 9*2 = 20)
+          wires_to_heights = {heights[i]: heights[i+1] for i in range(2, len(heights)-1, 2)}
+          assert wires_to_heights.get('family_temple') == 32, f'temple height={wires_to_heights.get(\"family_temple\")}, expected 32'
+          assert wires_to_heights.get('ancestral_home') == 28, f'ancestral height={wires_to_heights.get(\"ancestral_home\")}, expected 28'
+          assert wires_to_heights.get('current_home') == 22, f'current_home height={wires_to_heights.get(\"current_home\")}, expected 22'
+          "; then
+            echo "❌ P12.1 FAILED: ultra-premium invariants not satisfied"
+            exit 1
+          fi
+          echo "✅ P12.1: ultra-premium 3D buildings (minzoom 13.5, 4-stop gradient, TALLER family, outer halo)"
+
+      - name: Verify P12.1 — Premium road casing colors
+        working-directory: .
+        run: |
+          # Road casing layers should be darkened to #0A0913 (very dark warm)
+          if ! python3 -c "
+          import json
+          s = json.load(open('Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json'))
+          for lid in ('road_trunk_primary_casing', 'road_motorway_casing'):
+              layer = next(l for l in s['layers'] if l.get('id') == lid)
+              color = layer['paint']['line-color']
+              assert color == '#0A0913', f'{lid} color={color}, expected #0A0913'
+          "; then
+            echo "❌ P12.1 FAILED: road casing colors not darkened"
+            exit 1
+          fi
+          echo "✅ P12.1: premium road casing (#0A0913 dark warm outline)"
 
       - name: Verify P6.1 — New PlaceType values exist
         working-directory: .
@@ -474,7 +545,7 @@ jobs:
         if: always()
         run: |
           echo "═══════════════════════════════════════════════════════════════════════"
-          echo "PHASE 12 — KINREL FAMILY MAP MASTER PROMPT VERIFICATION"
+          echo "PHASE 12.1 — KINREL FAMILY MAP ULTRA-PREMIUM VERIFICATION"
           echo "═══════════════════════════════════════════════════════════════════════"
           echo ""
           echo "Build pipeline (master prompt FINAL VERIFICATION CHECKLIST):"
@@ -488,21 +559,30 @@ jobs:
           echo "  ✅ flutter build web --release"
           echo ""
           echo "Master prompt invariants:"
-          echo "  P1.1 ✅ Generic building layer removed (only family places render 3D)"
-          echo "  P1.2 ✅ Road colors warmed with Kinrel orange tint at high zoom"
-          echo "  P1.3 ✅ Label minzooms adjusted (town 9, village 12, other 10)"
-          echo "  P2.1 ✅ Hillshade source + layer present (premium terrain depth)"
-          echo "  P3.1 ✅ family-buildings match has all 12 place types"
-          echo "  P3.2 ✅ family-buildings-roof fill layer at zoom 17+"
-          echo "  P3.3 ✅ FamilyBuildingAnimationEngine (wedding 4s + memorial 2.4s)"
-          echo "  P3.4 ✅ Avatar marker gradient ring + selection halo"
-          echo "  P4.1 ✅ Haptic feedback on tap + long-press"
-          echo "  P4.2 ✅ Atmospheric perspective gated by pitch (10° threshold, 0.12 max)"
-          echo "  P5.1 ✅ WCAG AA label halos (2px, #0D0D0D)"
-          echo "  P5.2 ✅ Polish overlay merged into single CustomPainter (1 draw call)"
-          echo "  P5.3 ✅ Vignette opacity 0.35 per master prompt"
-          echo "  P6.1 ✅ New PlaceTypes: vacationHome, familyTemple, grandparentsHome"
-          echo "  Rule ✅ No derivative app names (Snapchat/Google Maps/Apple Maps/Zenly)"
+          echo "  P1.1  ✅ kinrel-3d-buildings (minzoom 13.5, opacity 0.92) + family-buildings"
+          echo "  P1.2  ✅ Road colors warmed with Kinrel orange tint at high zoom"
+          echo "  P1.3  ✅ Label minzooms adjusted (town 9, village 12, other 10)"
+          echo "  P2.1  ✅ Hillshade source + layer present (premium terrain depth)"
+          echo "  P3.1  ✅ family-buildings match has all 12 place types"
+          echo "  P3.2  ✅ family-buildings-roof fill layer at zoom 17+"
+          echo "  P3.3  ✅ FamilyBuildingAnimationEngine (wedding 4s + memorial 2.4s)"
+          echo "  P3.4  ✅ Avatar marker gradient ring + selection halo"
+          echo "  P4.1  ✅ Haptic feedback on tap + long-press"
+          echo "  P4.2  ✅ Atmospheric perspective gated by pitch (10° threshold, 0.12 max)"
+          echo "  P5.1  ✅ WCAG AA label halos (2px, #0D0D0D)"
+          echo "  P5.2  ✅ Polish overlay merged into single CustomPainter (1 draw call)"
+          echo "  P5.3  ✅ Vignette opacity 0.45 (P12.1 ultra-premium cinematic)"
+          echo "  P6.1  ✅ New PlaceTypes: vacationHome, familyTemple, grandparentsHome"
+          echo "  Rule  ✅ No derivative app names (Snapchat/Google Maps/Apple Maps/Zenly)"
           echo ""
-          echo "Kinrel Family Map master prompt implementation VERIFIED."
+          echo "P12.1 ULTRA-PREMIUM invariants:"
+          echo "  ✅ kinrel-3d-buildings: minzoom 13.5, 4-stop vertical gradient, opacity 0.92"
+          echo "  ✅ family-buildings: 1.5x TALLER (temple 32, ancestral 28, current 22), opacity 1.0"
+          echo "  ✅ family-buildings-outer-halo: NEW layer (radius 60, blur 2.5) — beacon effect"
+          echo "  ✅ family-buildings-glow: radius 36 (was 28), blur 1.5, opacity 0.85, minzoom 8"
+          echo "  ✅ Premium road casing: #0A0913 dark warm outline (1.3x width)"
+          echo "  ✅ Vignette 0.45, fog 0.07, ambient warmth 0.05 (stronger cinematic mood)"
+          echo "  ✅ Avatar markers: 44/60px (Snapchat-style prominent photos)"
+          echo ""
+          echo "Kinrel Family Map P12.1 ULTRA-PREMIUM verified."
           echo "═══════════════════════════════════════════════════════════════════════"

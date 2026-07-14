@@ -28,16 +28,15 @@ class MapVisualConstants {
   // between this file and the JSON.
   // ═════════════════════════════════════════════════════════════════════
 
-  /// Base background of the dark map — P12 premium warm charcoal.
-  /// Slightly warmer than the original #131416 to match the
-  /// Snapchat-style 3D map aesthetic with Kinrel warmth.
-  static const Color background = Color(0xFF0F1014);
+  /// Base background of the dark map — P12.1 ultra-premium dark warm charcoal.
+  /// Even darker than P12 (#0F1014) for stronger cinematic mood.
+  static const Color background = Color(0xFF0E0F13);
 
   /// Land color (parks, land-use polygons) — warm dark purple-grey.
   static const Color land = Color(0xFF1B1A24);
 
   /// Water bodies — warm navy with amber undertone.
-  static const Color water = Color(0xFF1A1E2A);
+  static const Color water = Color(0xFF191D29);
 
   /// Minor / residential roads.
   static const Color roadMinor = Color(0xFF2A2440);
@@ -48,17 +47,21 @@ class MapVisualConstants {
   /// Motorways / highways.
   static const Color roadMotorway = Color(0xFF4A3F63);
 
-  /// Generic non-family buildings — warm dark base for 3D extrusion.
-  /// P12 premium: generic 3D buildings now extrude (Snapchat-style
-  /// blocky) with this warm-tinted base. Family buildings still pop
-  /// on top with their warm beacon colors.
-  static const Color buildingNormal = Color(0xFF1C1B26);
+  /// Generic non-family buildings — ultra-premium dark base for 3D extrusion.
+  /// P12.1: darker base for stronger contrast against the bright warm top.
+  static const Color buildingNormal = Color(0xFF1A1925);
 
-  /// Generic building top color (slightly lighter for vertical gradient).
-  static const Color buildingNormalTop = Color(0xFF2A2638);
+  /// Generic building mid-tone (vertical gradient middle stop).
+  static const Color buildingNormalMid = Color(0xFF2A2638);
 
-  /// Generic building tall accent (high-rises get this tint).
-  static const Color buildingNormalTall = Color(0xFF352D44);
+  /// Generic building top color (brighter for window-lit premium feel).
+  static const Color buildingNormalTop = Color(0xFF3D3450);
+
+  /// Generic building tall accent (high-rises get this bright tint).
+  static const Color buildingNormalTall = Color(0xFF4D4060);
+
+  /// Generic building edge highlight (warm purple stroke).
+  static const Color buildingNormalEdge = Color(0xFF5A4D70);
 
   // ═════════════════════════════════════════════════════════════════════
   // FAMILY BUILDING COLORS (by PlaceType — P10.2)
@@ -73,8 +76,8 @@ class MapVisualConstants {
   /// Childhood home — soft amber (memory).
   static const Color buildingChildhoodHome = Color(0xFFF59240);
 
-  /// Ancestral home — gold (heritage).
-  static const Color buildingAncestralHome = Color(0xFF917520);
+  /// Ancestral home — gold (heritage). P12.1: brighter for visibility.
+  static const Color buildingAncestralHome = Color(0xFFB8901F);
 
   /// Birthplace — gentle highlight.
   static const Color buildingBirthplace = Color(0xFFF5B841);
@@ -85,8 +88,8 @@ class MapVisualConstants {
   /// Memorial location — soft candle amber (also flicker-animated).
   static const Color buildingMemorial = Color(0xFFF59240);
 
-  /// Family business — neutral warm.
-  static const Color buildingFamilyBusiness = Color(0xFFC44A18);
+  /// Family business — neutral warm. P12.1: brighter for visibility.
+  static const Color buildingFamilyBusiness = Color(0xFFD85720);
 
   /// School — cool neutral (the only cool color in the family palette).
   static const Color buildingSchool = Color(0xFF4E6984);
@@ -182,27 +185,29 @@ class MapVisualConstants {
   // ═════════════════════════════════════════════════════════════════════
 
   /// Vignette intensity at the corners. Per master prompt: 0.35.
-  /// P12 premium: bumped to 0.40 for the cinematic Snapchat-style mood
+  /// P12 premium: bumped to 0.40 for the cinematic Snapchat-style mood.
+  /// P12.1 ultra-premium: bumped to 0.45 for even stronger cinematic mood
   /// (darker corners focus attention on the 3D buildings + markers).
-  static const double vignetteOpacity = 0.40;
+  static const double vignetteOpacity = 0.45;
 
   /// Atmospheric fog opacity (barely visible).
-  /// P12: bumped slightly to 0.06 for more depth perception.
-  static const double fogOpacity = 0.06;
+  /// P12.1: bumped to 0.07 for more depth perception.
+  static const double fogOpacity = 0.07;
 
   /// Warm ambient lighting overlay opacity.
-  /// P12: bumped slightly to 0.04 to amplify the warm Kinrel orange
-  /// mood over the whole map (matches the Snapchat "lit" feel).
-  static const double ambientWarmthOpacity = 0.04;
+  /// P12.1: bumped to 0.05 for stronger Kinrel orange ambient wash
+  /// (matches the premium "lit from within" feel).
+  static const double ambientWarmthOpacity = 0.05;
 
   // ═════════════════════════════════════════════════════════════════════
   // ZOOM THRESHOLDS
   // ═════════════════════════════════════════════════════════════════════
 
   /// Below this zoom, 3D building extrusion is hidden for performance.
-  /// P12 premium: lowered from 15 → 14 to match Snapchat-style 3D
-  /// appearance earlier (buildings extrude at city-street view).
-  static const double buildingExtrusionMinZoom = 14.0;
+  /// P12 premium: lowered from 15 → 14 to match Snapchat-style 3D.
+  /// P12.1 ultra-premium: lowered to 13.5 so 3D appears even earlier
+  /// (premium feel — buildings extrude as soon as you see a city).
+  static const double buildingExtrusionMinZoom = 13.5;
 
   /// P11.x — Above this zoom, the per-type roof detail layer renders.
   /// Per master prompt: roof pattern added at runtime at zoom 17+.
@@ -464,24 +469,28 @@ class MapVisualConstants {
   // at the documentation level (the JSON itself is the runtime source).
   // ═════════════════════════════════════════════════════════════════════
 
-  static const String hexBackground = '#0F1014';
+  static const String hexBackground = '#0E0F13';
   static const String hexLand = '#1B1A24';
-  static const String hexWater = '#1A1E2A';
+  static const String hexWater = '#191D29';
   static const String hexRoadMinor = '#2A2440';
   static const String hexRoadPrimary = '#3A3252';
   static const String hexRoadMotorway = '#4A3F63';
-  static const String hexBuildingNormal = '#1C1B26';
+  static const String hexBuildingNormal = '#1A1925';
+  /// P12.1: generic building mid-tone (vertical gradient middle stop).
+  static const String hexBuildingNormalMid = '#2A2638';
   /// P12: generic building top color (vertical gradient).
-  static const String hexBuildingNormalTop = '#2A2638';
+  static const String hexBuildingNormalTop = '#3D3450';
   /// P12: generic building tall accent color.
-  static const String hexBuildingNormalTall = '#352D44';
+  static const String hexBuildingNormalTall = '#4D4060';
+  /// P12.1: generic building edge highlight color.
+  static const String hexBuildingNormalEdge = '#5A4D70';
   static const String hexBuildingCurrentHome = '#E8612A';
   static const String hexBuildingChildhoodHome = '#F59240';
-  static const String hexBuildingAncestralHome = '#917520';
+  static const String hexBuildingAncestralHome = '#B8901F';
   static const String hexBuildingBirthplace = '#F5B841';
   static const String hexBuildingWedding = '#E8612A';
   static const String hexBuildingMemorial = '#F59240';
-  static const String hexBuildingFamilyBusiness = '#C44A18';
+  static const String hexBuildingFamilyBusiness = '#D85720';
   static const String hexBuildingSchool = '#4E6984';
   static const String hexBuildingVacationHome = '#4E6984';
   static const String hexBuildingFamilyTemple = '#E8612A';
