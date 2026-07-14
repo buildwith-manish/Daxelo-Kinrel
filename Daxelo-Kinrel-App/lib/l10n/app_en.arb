@@ -277,5 +277,75 @@
     "placeholders": {
       "count": { "type": "int", "example": "3" }
     }
-  }
+  },
+
+  "familyMapTitle": "Family Map",
+  "@familyMapTitle": { "description": "AppBar title for the Family Map screen" },
+
+  "familyMapNoJourney": "No journey data for this family member yet.",
+  "@familyMapNoJourney": { "description": "SnackBar shown when a member has no journey stops" },
+
+  "familyMapHouseholdMembers": "Household — {count} members",
+  "@familyMapHouseholdMembers": {
+    "description": "Bottom sheet title for a household cluster",
+    "placeholders": {
+      "count": { "type": "int", "example": "3" }
+    }
+  },
+
+  "familyMapViewProfile": "View Profile",
+  "@familyMapViewProfile": { "description": "Button label to view a member's profile" },
+
+  "familyMapUnpinnedCount": "{count} member{count, plural, =1{} other{s}} without map pin",
+  "@familyMapUnpinnedCount": {
+    "description": "Title for the unpinned members bottom sheet",
+    "placeholders": {
+      "count": { "type": "int", "example": "2" }
+    }
+  },
+
+  "familyMapAddCityPrompt": "Add a city to these members to see them on the map.",
+  "@familyMapAddCityPrompt": { "description": "Body text for the unpinned members bottom sheet" },
+
+  "familyMapNoCitySet": "No city set",
+  "@familyMapNoCitySet": { "description": "Subtitle for a member with no city" },
+
+  "familyMapCityNotFound": "{city} (not found)",
+  "@familyMapCityNotFound": {
+    "description": "Subtitle for a member whose city couldn't be resolved",
+    "placeholders": {
+      "city": { "type": "String", "example": "Mumbai" }
+    }
+  },
+
+  "familyMapPinned": "{count} pinned",
+  "@familyMapPinned": {
+    "description": "Legend showing count of pinned members",
+    "placeholders": {
+      "count": { "type": "int", "example": "5" }
+    }
+  },
+
+  "familyMapNotPinned": "{count} not pinned",
+  "@familyMapNotPinned": {
+    "description": "Legend showing count of unpinned members",
+    "placeholders": {
+      "count": { "type": "int", "example": "2" }
+    }
+  },
+
+  "familyMapCouldNotLoad": "Could Not Load Map",
+  "@familyMapCouldNotLoad": { "description": "Error state title when map data fails to load" },
+
+  "familyMapErrorBody": "Something went wrong while loading the family map. Please try again.",
+  "@familyMapErrorBody": { "description": "Error state body text" },
+
+  "familyMapLinkedMember": "Linked family member",
+  "@familyMapLinkedMember": { "description": "Label for the linked family member in building bottom sheet" },
+
+  "familyMapMemories": "Memories",
+  "@familyMapMemories": { "description": "Label for memory count in building bottom sheet" },
+
+  "familyMapClose": "Close",
+  "@familyMapClose": { "description": "Close button in building bottom sheet" }
 }

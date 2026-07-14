@@ -1735,10 +1735,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Social System Routes ─────────────────────────────────────────
 
       // ── Phase B: Family Map ────────────────────────────────────────
+      // The map screen takes a concrete familyId (just like the graph
+      // screen at /family/:id/graph) — it no longer falls back to
+      // familyListProvider.first. Callers MUST supply the family ID.
       GoRoute(
-        path: '/family-map',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const FamilyMapScreen()),
+        path: '/family/:id/map',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyMapScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
       ),
 
       // ── Phase B: Memory Vault ──────────────────────────────────────

@@ -288,7 +288,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         IconButton(
           icon: const Icon(Icons.map_outlined, size: 22),
           tooltip: 'Family map',
-          onPressed: () => context.push('/family-map'),
+          onPressed: () => context.push('/family/${widget.familyId}/map'),
         ),
         // Search button — opens the graph search overlay.
         IconButton(

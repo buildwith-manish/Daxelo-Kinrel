@@ -272,4 +272,68 @@ class STa extends S {
     );
     return '$count member$_temp0 located';
   }
+
+  @override
+  String get familyMapTitle => 'Family Map';
+
+  @override
+  String get familyMapNoJourney =>
+      'No journey data for this family member yet.';
+
+  @override
+  String familyMapHouseholdMembers(int count) {
+    return 'Household — $count members';
+  }
+
+  @override
+  String get familyMapViewProfile => 'View Profile';
+
+  @override
+  String familyMapUnpinnedCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 's',
+      one: '',
+    );
+    return '$count member$_temp0 without map pin';
+  }
+
+  @override
+  String get familyMapAddCityPrompt =>
+      'Add a city to these members to see them on the map.';
+
+  @override
+  String get familyMapNoCitySet => 'No city set';
+
+  @override
+  String familyMapCityNotFound(String city) {
+    return '$city (not found)';
+  }
+
+  @override
+  String familyMapPinned(int count) {
+    return '$count pinned';
+  }
+
+  @override
+  String familyMapNotPinned(int count) {
+    return '$count not pinned';
+  }
+
+  @override
+  String get familyMapCouldNotLoad => 'Could Not Load Map';
+
+  @override
+  String get familyMapErrorBody =>
+      'Something went wrong while loading the family map. Please try again.';
+
+  @override
+  String get familyMapLinkedMember => 'Linked family member';
+
+  @override
+  String get familyMapMemories => 'Memories';
+
+  @override
+  String get familyMapClose => 'Close';
 }

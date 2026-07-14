@@ -605,7 +605,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               icon: Icons.public,
               label: 'Family Map',
               iconColor: KinrelColors.orange,
-              onTap: () { Navigator.pop(ctx); context.push('/family-map'); },
+              onTap: () { Navigator.pop(ctx); context.push('/family/${widget.familyId}/map'); },
             ),
             Divider(color: KinrelColors.border, height: 1),
 
