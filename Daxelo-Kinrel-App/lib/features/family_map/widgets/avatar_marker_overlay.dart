@@ -272,9 +272,6 @@ class AvatarMarkerLayer {
 
   final DeviceTier? deviceTier;
 
-  DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.tier;
-
   /// True when the Flutter overlay path should be used (Rule 12 fallback).
   /// Determined at runtime by the screen via [verifySymbolLayerSupport].
   bool useOverlay = false;

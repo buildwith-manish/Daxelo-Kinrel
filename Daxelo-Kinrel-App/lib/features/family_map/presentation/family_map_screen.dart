@@ -933,8 +933,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     _lastResult = result;
 
     // P10.7 — Filter pins + places by the journey provider's selected year.
-    // On first build the journey state defaults to the current year, so all
-    // alive members are shown.
+    // CRITICAL: ref.watch(journeyProvider) is needed here so the screen
+    // rebuilds when the user drags the timeline year slider. Without it,
+    // the slider updates its own label but the map pins/places are never
+    // re-filtered — the timeline appears broken.
+    ref.watch(journeyProvider);
     final filteredPins = ref
             .read(journeyProvider.notifier)
             .filterMapPins(result.pins);
@@ -1530,7 +1533,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       );
       if (features.isNotEmpty) {
         final feature = features.first;
-        final props = feature.properties ?? const <String, dynamic>{};
+        final props = feature.properties;
         final placeId = props['placeId'] as String?;
         if (placeId != null) {
           final place = _lastResult?.places.firstWhere(
@@ -1661,7 +1664,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
       final firstFeature = features.first;
       final props = firstFeature.properties;
-      if (props == null || props.isEmpty) {
+      if (props.isEmpty) {
         debugPrint('   ⚠️ Feature has no properties — cannot verify render_height');
         return;
       }

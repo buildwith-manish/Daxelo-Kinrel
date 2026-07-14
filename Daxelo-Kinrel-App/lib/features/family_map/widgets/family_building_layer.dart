@@ -255,30 +255,6 @@ class FamilyBuildingLayer {
         '${g.toRadixString(16).toUpperCase().padLeft(2, '0')}'
         '${b.toRadixString(16).toUpperCase().padLeft(2, '0')}';
   }
-
-  /// Circle-only fallback (Rule 12). Used when FillExtrusionStyleLayer
-  /// throws on a platform (e.g., web in some maplibre builds).
-  Future<void> _tryCircleOnlyFallback(
-      StyleController style, List<FamilyPlace> places) async {
-    try {
-      await style.addLayer(CircleStyleLayer(
-        id: circleFallbackLayerId,
-        sourceId: sourceId,
-        paint: {
-          'circle-color': _buildMatchExpression(opacity: 1.0),
-          'circle-radius': 10,
-          'circle-stroke-color': '#FFFFFF',
-          'circle-stroke-width': 1.5,
-          'circle-opacity': 0.95,
-        },
-      ));
-      _added = true;
-      debugPrint('⚠️ FamilyBuildingLayer: FillExtrusion unsupported — '
-          'using CircleLayer fallback (Rule 12).');
-    } catch (e) {
-      debugPrint('⚠️ FamilyBuildingLayer fallback also failed: $e');
-    }
-  }
 }
 
 /// Widget that wraps a [FamilyBuildingLayer] and shows a bottom sheet
