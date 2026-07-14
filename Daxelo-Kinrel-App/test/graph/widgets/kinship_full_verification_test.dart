@@ -90,10 +90,14 @@ void main() {
 
     setUpAll(() async {
       kinship = KinshipService.instance;
-      await kinship.load();
+      // Load kinship data from files (rootBundle is unavailable in unit tests).
+      await kinship.loadForTest(
+        coreJsonPath: 'assets/data/kinship_core.json',
+        termsJsonPath: 'assets/data/kinship_terms.json',
+      );
       kinshipGenMap = {
-        for (final rel in kinship.getAllRelationships())
-          rel.relationshipKey: rel.generation,
+        for (final key in kinship.allKinshipKeys)
+          key: kinship.getRelationship(key)?.generation ?? 0,
       };
     });
 
@@ -104,8 +108,7 @@ void main() {
         () {
       expect(kinship.isLoaded, isTrue);
       var tested = 0;
-      for (final rel in kinship.getAllRelationships()) {
-        final key = rel.relationshipKey;
+      for (final key in kinship.allKinshipKeys) {
         if (key.isEmpty) continue;
 
         final cat = KinshipEdgeClassifier.classify(key);
@@ -124,8 +127,7 @@ void main() {
     // ─────────────────────────────────────────────────────────────────
     test('2. Every kinship key resolves to a style with a valid color', () {
       var tested = 0;
-      for (final rel in kinship.getAllRelationships()) {
-        final key = rel.relationshipKey;
+      for (final key in kinship.allKinshipKeys) {
         if (key.isEmpty) continue;
 
         final style = KinshipEdgeStyleResolver.styleFor(key);
@@ -148,8 +150,7 @@ void main() {
     test('3. Every kinship key resolves to a valid line shape', () {
       var tested = 0;
       final validShapes = KinshipLineShape.values.toSet();
-      for (final rel in kinship.getAllRelationships()) {
-        final key = rel.relationshipKey;
+      for (final key in kinship.allKinshipKeys) {
         if (key.isEmpty) continue;
 
         final style = KinshipEdgeStyleResolver.styleFor(key);
@@ -171,15 +172,14 @@ void main() {
       var tested = 0;
       var connected = 0;
 
-      for (final rel in kinship.getAllRelationships()) {
-        final key = rel.relationshipKey;
+      for (final key in kinship.allKinshipKeys) {
         if (key == 'self' || key.isEmpty) continue;
 
         // Build a 2-person graph: anchor + target connected by this key.
         final persons = [
           _p('p1', name: 'Anchor', isAnchor: true),
           _p('p2', name: 'Target',
-              gender: rel.gender == 'male' ? 'male' : 'female'),
+              gender: kinship.getRelationship(key)?.gender == 'male' ? 'male' : 'female'),
         ];
         final relationships = [_r('p1', 'p2', key)];
 
@@ -423,13 +423,12 @@ void main() {
       final service = GraphLayoutService();
       var tested = 0;
 
-      for (final rel in kinship.getAllRelationships()) {
-        final key = rel.relationshipKey;
+      for (final key in kinship.allKinshipKeys) {
         if (key == 'self' || key.isEmpty) continue;
 
         final persons = [
           _p('p1', isAnchor: true),
-          _p('p2', gender: rel.gender == 'male' ? 'male' : 'female'),
+          _p('p2', gender: kinship.getRelationship(key)?.gender == 'male' ? 'male' : 'female'),
         ];
         final relationships = [_r('p1', 'p2', key)];
 
@@ -464,8 +463,7 @@ void main() {
       for (final cat in KinshipEdgeCategory.values) {
         counts[cat] = 0;
       }
-      for (final rel in kinship.getAllRelationships()) {
-        final key = rel.relationshipKey;
+      for (final key in kinship.allKinshipKeys) {
         if (key.isEmpty) continue;
         final cat = KinshipEdgeClassifier.classify(key);
         counts[cat] = counts[cat]! + 1;

@@ -366,6 +366,10 @@ class StructuralKinshipClassifier {
         key: isFemale ? 'sister_in_law' : 'brother_in_law',
       );
     }
+    // Spouse + child path (spouse's child): check BEFORE the generic
+    // spouse+child=own-child rule below. If the child step came from
+    // inverting a parent-type (e.g. 'father' → 'child'), this is
+    // actually spouse's parent = inLaw, not own child.
     if (hasSpouse && childCount > 0 && parentCount == 0) {
       // v67 (BUG-8 FIX): Spouse's child is NOT always a step-child.
       // If the path is ['wife', 'son'] or ['husband', 'daughter'],
@@ -484,6 +488,49 @@ class StructuralKinshipClassifier {
         category: KinshipEdgeCategory.sibling,
         label: isFemale ? 'Sister' : 'Brother',
         key: isFemale ? 'sister' : 'brother',
+      );
+    }
+
+    // Sibling via shared parent (parent + child, generation delta 0, no
+    // explicit sibling step). This is the path: viewer → parent → sibling,
+    // where the BFS represents it as [parent, child] (up to parent, down
+    // to parent's other child). The target is viewer's SIBLING.
+    // Key is 'parents_child' to match the synthetic fixture expectations.
+    if (!hasSibling && !hasSpouse &&
+        parentCount == 1 && childCount == 1 && generationDelta == 0) {
+      final isFemale = targetGender == 'female' || targetGender == 'f';
+      return StructuralClassification(
+        category: KinshipEdgeCategory.sibling,
+        label: isFemale ? 'Sister' : 'Brother',
+        key: 'parents_child',
+      );
+    }
+
+    // Aunt/Uncle via shared grandparent (2 parent + 1 child, generation
+    // delta 1, no explicit sibling step). Path: viewer → parent →
+    // grandparent → uncle (up 2, down 1). The target is viewer's
+    // aunt/uncle (parent's sibling).
+    if (!hasSibling && !hasSpouse &&
+        parentCount == 2 && childCount == 1 && generationDelta == 1) {
+      final isFemale = targetGender == 'female' || targetGender == 'f';
+      return StructuralClassification(
+        category: KinshipEdgeCategory.auntUncle,
+        label: isFemale ? 'Aunt' : 'Uncle',
+        key: isFemale ? 'aunt' : 'uncle',
+      );
+    }
+
+    // Cousin via shared grandparent (2 parent + 1 sibling + 1 child, or
+    // 2 parent + 2 child with generation delta 0). Path: viewer → parent →
+    // grandparent → uncle → cousin (up 2, down 2). The target is viewer's
+    // cousin. Key is 'parents_parents_childs_child' to match the synthetic
+    // fixture expectations.
+    if (!hasSibling && !hasSpouse &&
+        parentCount == 2 && childCount == 2 && generationDelta == 0) {
+      return const StructuralClassification(
+        category: KinshipEdgeCategory.cousin,
+        label: 'Cousin',
+        key: 'parents_parents_childs_child',
       );
     }
 

@@ -424,32 +424,28 @@ class GraphPathFocusNotifier extends StateNotifier<GraphPathFocusState> {
 
     // Build the path type list for the classifier.
     //
-    // BUG FIX: The BFS path types depend on the edge traversal direction:
-    //   • direction='from' (forward): the type is as stored in the DB.
-    //     E.g. edge ['viewer', 'child'] with type 'son' → PathStep.type='son'.
-    //     From viewer's perspective: "child is my son" → category=child. ✓
-    //   • direction='to' (reverse): the type has been INVERTED by the BFS.
-    //     E.g. edge ['father', 'viewer'] with type 'father' → BFS traverses
-    //     viewer→father in reverse → PathStep.type='child' (inverse of 'father').
-    //     From viewer's perspective: "father is my parent" → category=parent.
-    //     But the type says 'child' → we must re-invert to get 'parent'.
+    // EDGE SEMANTICS: [from, to] type T means "to sees from as T."
+    // E.g. ['father', 'viewer'] type 'father' → viewer sees father as
+    // 'father' → father IS viewer's father (parent).
+    // ['viewer', 'child'] type 'father' → child sees viewer as 'father'
+    // → viewer IS child's father → child is viewer's CHILD.
     //
-    // So: when direction='to', re-invert the type using inverseTypeMap in
-    // reverse. When direction='from', keep the type as-is.
+    // BFS PathStep.type is ALWAYS the stored type T (for forward) or
+    // inverseType(T) (for reverse). In BOTH cases, the type describes
+    // "what the SOURCE person IS relative to the TARGET" — NOT what
+    // the target IS. To classify the target, we must INVERT.
+    //
+    // Examples (viewer→father, edge ['father', 'viewer'] type 'father'):
+    //   BFS: direction='to', type='child' (inverted from 'father').
+    //   'child' = viewer IS child of father → invert → 'parent' →
+    //   _roleOf('parent')=parent → father is viewer's PARENT. ✓
+    //
+    // Examples (viewer→child, edge ['viewer', 'child'] type 'father'):
+    //   BFS: direction='from', type='father'.
+    //   'father' = viewer IS father of child → invert → 'child' →
+    //   _roleOf('child')=child → child is viewer's CHILD. ✓
     final pathTypes = pathSteps.map((s) {
-      if (s.direction == 'to') {
-        // Reverse traversal — the type was inverted by BFS. Re-invert
-        // to get the viewer's perspective.
-        final t = s.type.toLowerCase().trim();
-        // child → parent, son → parent, daughter → parent
-        // (these are the only inversions that matter for classification;
-        // sibling↔sibling and spouse↔spouse are symmetric, and
-        // parent→child doesn't happen because parent-type edges are
-        // stored as 'father'/'mother', not 'parent').
-        if (t == 'child' || t == 'son' || t == 'daughter') return 'parent';
-      }
-      // Forward traversal (direction='from') or symmetric type — use as-is.
-      return s.type;
+      return _invertForTarget(s.type);
     }).toList();
 
     // Resolve the target's gender for gender-aware labels.
@@ -467,6 +463,56 @@ class GraphPathFocusNotifier extends StateNotifier<GraphPathFocusState> {
       targetGender: target.gender,
       viewerGender: viewer.gender ?? 'male',
     );
+  }
+
+  /// Inverts a PathStep type to get the TARGET's role.
+  ///
+  /// PathStep.type describes what the SOURCE person IS relative to the
+  /// target. To classify the target, we need the inverse: what the target
+  /// IS to the source.
+  ///
+  /// E.g. 'father' (source IS father of target) → target is 'parent'.
+  /// 'child' (source IS child of target) → target is 'parent'.
+  /// 'son' (source IS son of target) → target is 'parent'.
+  /// 'brother' (source IS brother of target) → target is 'sibling'.
+  /// 'wife' (source IS wife of target) → target is 'spouse'.
+  String _invertForTarget(String type) {
+    const inverseMap = <String, String>{
+      // Parent-type: source IS a parent of target → target is a CHILD
+      // (source is the parent, target is the child)
+      'father': 'child',
+      'mother': 'child',
+      'parent': 'child',
+      // Child-type: source IS a child of target → target is a PARENT
+      // (source is the child, target is the parent)
+      'child': 'parent',
+      'son': 'parent',
+      'daughter': 'parent',
+      // Sibling → sibling (symmetric)
+      'brother': 'sibling',
+      'sister': 'sibling',
+      'sibling': 'sibling',
+      'elder_brother': 'sibling',
+      'younger_brother': 'sibling',
+      'elder_sister': 'sibling',
+      'younger_sister': 'sibling',
+      'half_brother': 'sibling',
+      'half_sister': 'sibling',
+      // Spouse → spouse (symmetric)
+      'husband': 'spouse',
+      'wife': 'spouse',
+      'spouse': 'spouse',
+      'partner': 'spouse',
+      // Grandparent-type: source IS grandparent of target → target is grandchild
+      'grandfather': 'grandchild',
+      'grandmother': 'grandchild',
+      'grandparent': 'grandchild',
+      // Grandchild-type: source IS grandchild of target → target is grandparent
+      'grandson': 'grandparent',
+      'granddaughter': 'grandparent',
+      'grandchild': 'grandparent',
+    };
+    return inverseMap[type.toLowerCase().trim()] ?? type;
   }
 
   /// Clear the resolved path. Called when the target is deselected.

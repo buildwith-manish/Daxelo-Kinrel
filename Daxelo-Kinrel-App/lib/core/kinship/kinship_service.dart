@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show File;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'kinship_models.dart';
@@ -75,6 +76,20 @@ class KinshipService {
   /// files downloaded on demand, without touching this service.
   Future<void> load({String? localFilePath}) async {
     if (_isLoaded) return;
+    await _loadFromAssets();
+  }
+
+  /// Test-only method that loads kinship data from file paths instead
+  /// of rootBundle. Used by unit tests where rootBundle is unavailable.
+  Future<void> loadForTest({
+    required String coreJsonPath,
+    required String termsJsonPath,
+  }) async {
+    if (_isLoaded) return;
+    await _loadFromFilePaths(coreJsonPath, termsJsonPath);
+  }
+
+  Future<void> _loadFromAssets() async {
 
     try {
       // v78: Load TWO data sources:
@@ -156,6 +171,60 @@ class KinshipService {
       debugPrint('✅ KinshipService ready: ${_byKey.length} searchable terms');
     } catch (e) {
       debugPrint('❌ Failed to load kinship data: $e');
+      _isLoaded = false;
+      rethrow;
+    }
+  }
+
+  /// Loads kinship data from file paths (test-only).
+  Future<void> _loadFromFilePaths(
+    String coreJsonPath,
+    String termsJsonPath,
+  ) async {
+    try {
+      // Step 1: Load core JSON from file.
+      final coreFile = File(coreJsonPath);
+      final coreJsonStr = await coreFile.readAsString();
+      final coreData = jsonDecode(coreJsonStr) as Map<String, dynamic>;
+      _data = KinshipData.fromJson(coreData);
+      _buildIndices();
+
+      // Step 2: Load full terms JSON from file.
+      final termsFile = File(termsJsonPath);
+      final termsJsonStr = await termsFile.readAsString();
+      final termsData = jsonDecode(termsJsonStr) as Map<String, dynamic>;
+      final terms = termsData['terms'] as List<dynamic>;
+      for (final term in terms) {
+        final t = term as Map<String, dynamic>;
+        final key = t['k'] as String;
+        final englishTerm = t['e'] as String;
+        final searchKeywords = (t['s'] as List<dynamic>).cast<String>();
+        if (!_byKey.containsKey(key)) {
+          final rel = KinshipRelationship(
+            id: 'term_${_byKey.length + 1}',
+            relationshipKey: key,
+            englishTerm: englishTerm,
+            gender: 'neutral',
+            lineage: 'bilateral',
+            generation: 0,
+            relationType: 'extended',
+            elderYounger: '',
+            relationshipCategory: 'extended',
+            relationshipPath: const [],
+            searchKeywords: searchKeywords,
+            chainRules: const [],
+          );
+          _byKey[key] = rel;
+          _searchIndex[englishTerm.toLowerCase()] = rel;
+          _searchIndex[key.toLowerCase()] = rel;
+          for (final kw in searchKeywords) {
+            _searchIndex[kw.toLowerCase()] = rel;
+          }
+        }
+      }
+      _isLoaded = true;
+    } catch (e) {
+      debugPrint('❌ Failed to load kinship data from files: $e');
       _isLoaded = false;
       rethrow;
     }
@@ -503,8 +572,12 @@ class KinshipService {
     return getRelationship(key)?.indianKinshipClass;
   }
 
-  /// Get all relationships
+  /// Get all relationships from the core dataset (26 entries).
   List<KinshipRelationship> getAllRelationships() => _data?.relationships ?? [];
+
+  /// Get ALL kinship keys — core (26) + terms (5,363) = 5,389 total.
+  /// Used by verification tests to ensure every key resolves.
+  Iterable<String> get allKinshipKeys => _byKey.keys;
 
   /// Get meta information about the kinship database
   Map<String, dynamic> getMeta() {
