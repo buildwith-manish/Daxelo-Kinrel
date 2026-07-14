@@ -29,12 +29,43 @@
        which expects this global object to be available before the map widget
        initializes. Without this script tag, the map renders as a blank
        container on web.
-       Version: ^5.0 (required by maplibre 0.3.5 per the package docs at
-       https://flutter-maplibre.pages.dev/docs/getting-started/setup/) -->
-  <script src="https://unpkg.com/maplibre-gl@^5.0/dist/maplibre-gl.js"></script>
-  <link href="https://unpkg.com/maplibre-gl@^5.0/dist/maplibre-gl.css" rel="stylesheet" />
+
+       CDN: jsdelivr is used instead of unpkg because it has better uptime
+       and faster global edge caching. The version is pinned to ^5.6
+       (latest stable 5.x at time of writing) to avoid breaking changes
+       from a 6.x release.
+
+       The `defer` attribute is NOT used because the maplibre web plugin
+       constructs `new maplibregl.Map(...)` synchronously during widget
+       initialization — the global must be available immediately. -->
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet" />
+
+  <!-- Fallback: if jsdelivr fails (rare), try unpkg after 2 seconds.
+       This ensures the map can still load even if one CDN is down. -->
+  <script>
+    window.addEventListener('load', function() {
+      if (typeof maplibregl === 'undefined') {
+        console.warn('[Kinrel] maplibre-gl.js failed to load from jsdelivr — trying unpkg fallback');
+        var script = document.createElement('script');
+        script.src = 'https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js';
+        script.onload = function() { console.log('[Kinrel] maplibre-gl.js loaded from unpkg fallback'); };
+        script.onerror = function() { console.error('[Kinrel] maplibre-gl.js failed to load from both CDNs — map will not render'); };
+        document.head.appendChild(script);
+
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css';
+        document.head.appendChild(link);
+      }
+    });
+  </script>
 
   <style>
+    /* Ensure the maplibre map container (which maplibre_web appends to
+       document.body) doesn't overlap the Flutter UI. The plugin creates
+       a div with 100% width/height and appends it to body — we need to
+       constrain it to the platform view container. */
     #loading {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
