@@ -167,13 +167,69 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   static const _kStyleAssetPath = 'assets/map_styles/kinrel_dark_style.json';
   String? _loadedStyleJson;
 
+  /// Minimal inline dark style — used when the bundled asset fails to
+  /// load (e.g., Flutter Web `asset://` resolution issues on Vercel).
+  ///
+  /// Just enough to render a usable map:
+  ///   - background + water + land + roads from OpenFreeMap planet tiles
+  ///   - the `family-places` GeoJSON source (empty by default — populated
+  ///     at runtime by [FamilyBuildingLayer.add])
+  ///   - the `family-buildings-glow`, `family-buildings`, and
+  ///     `family-buildings-fallback` layers with the per-PlaceType
+  ///     `match` color expression
+  ///
+  /// This is the single source of truth for the fallback. It must stay
+  /// in sync with the family-* layers in `kinrel_dark_style.json`.
+  static const _kFallbackStyleJson = '''
+{
+  "version": 8,
+  "sources": {
+    "openmaptiles": {
+      "type": "vector",
+      "url": "https://tiles.openfreemap.org/planet"
+    },
+    "family-places": {
+      "type": "geojson",
+      "data": { "type": "FeatureCollection", "features": [] }
+    }
+  },
+  "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+  "layers": [
+    {"id":"background","type":"background","paint":{"background-color":"#131416"}},
+    {"id":"water","type":"fill","source":"openmaptiles","source-layer":"water","paint":{"fill-color":"#162335"}},
+    {"id":"land","type":"fill","source":"openmaptiles","source-layer":"landcover","paint":{"fill-color":"#191B2C"}},
+    {"id":"road-minor","type":"line","source":"openmaptiles","source-layer":"transportation","paint":{"line-color":"#2A2440","line-width":1}},
+    {"id":"road-primary","type":"line","source":"openmaptiles","source-layer":"transportation","filter":["==",["get","class"],"primary"],"paint":{"line-color":"#3A3252","line-width":2}},
+    {"id":"road-motorway","type":"line","source":"openmaptiles","source-layer":"transportation","filter":["==",["get","class"],"motorway"],"paint":{"line-color":"#4A3F63","line-width":3}},
+    {"id":"family-buildings-glow","type":"circle","source":"family-places","minzoom":10,"paint":{"circle-color":["match",["get","placeType"],"current_home","#E8612A","childhood_home","#F59240","ancestral_home","#917520","birthplace","#F5B841","wedding","#E8612A","memorial","#F59240","family_business","#C44A18","school","#4E6984","important_place","#E8612A","#E8612A"],"circle-radius":24,"circle-blur":1.0,"circle-opacity":0.65}},
+    {"id":"family-buildings","type":"fill-extrusion","source":"family-places","minzoom":13,"paint":{"fill-extrusion-color":["match",["get","placeType"],"current_home","#E8612A","childhood_home","#F59240","ancestral_home","#917520","birthplace","#F5B841","wedding","#E8612A","memorial","#F59240","family_business","#C44A18","school","#4E6984","important_place","#E8612A","#E8612A"],"fill-extrusion-height":12,"fill-extrusion-base":0,"fill-extrusion-opacity":0.95,"fill-extrusion-vertical-gradient":true}},
+    {"id":"family-buildings-fallback","type":"circle","source":"family-places","maxzoom":13,"paint":{"circle-color":["match",["get","placeType"],"current_home","#E8612A","childhood_home","#F59240","ancestral_home","#917520","birthplace","#F5B841","wedding","#E8612A","memorial","#F59240","family_business","#C44A18","school","#4E6984","important_place","#E8612A","#E8612A"],"circle-radius":6,"circle-stroke-color":"#FFFFFF","circle-stroke-width":1,"circle-opacity":0.9}}
+  ]
+}
+''';
+
+  /// Loads the Kinrel dark style JSON. Tries the bundled asset first;
+  /// on any failure (timeout, asset not found, web `asset://` resolution
+  /// error) falls back to [_kFallbackStyleJson] so the map still renders.
+  ///
+  /// Bug 1 fix: previously this method had no try/catch and no timeout,
+  /// so on Flutter Web the `rootBundle.loadString` call could hang
+  /// indefinitely when the asset failed to resolve, leaving the
+  /// FutureBuilder stuck on the skeleton screen forever.
   Future<String> _loadStyleJson() async {
     if (_loadedStyleJson != null) return _loadedStyleJson!;
-    final raw = await rootBundle.loadString(_kStyleAssetPath);
-    // P10.8 — Apply POI filter at load time (Rule 15: works offline
-    // because the style is bundled). Returns input unchanged on parse
-    // error (Rule 12 graceful degradation).
-    _loadedStyleJson = applyPoiFilters(raw);
+    try {
+      final raw = await rootBundle
+          .loadString(_kStyleAssetPath)
+          .timeout(const Duration(seconds: 10));
+      // P10.8 — Apply POI filter at load time (Rule 15: works offline
+      // because the style is bundled). Returns input unchanged on parse
+      // error (Rule 12 graceful degradation).
+      _loadedStyleJson = applyPoiFilters(raw);
+    } catch (e) {
+      debugPrint('⚠️ _loadStyleJson failed, using inline fallback: $e');
+      _loadedStyleJson = _kFallbackStyleJson;
+    }
     return _loadedStyleJson!;
   }
 
@@ -324,6 +380,70 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
   // ── Map View (MapLibre 0.3.5 — 3D buildings + tilted camera) ──────
 
+  /// Bug 2 fix: Skeleton shown while the style JSON is loading.
+  /// Includes an explicit "Loading family map…" message so the user
+  /// knows what's happening — not a bare spinner.
+  Widget _buildMapSkeleton() {
+    return MapSkeleton(
+      reducedMotion: MediaQuery.disableAnimationsOf(context),
+      message: 'Loading family map…',
+    );
+  }
+
+  /// Bug 2 fix: Error UI shown when the style JSON fails to load.
+  /// Provides a Retry button that clears the cached style and re-fetches.
+  Widget _buildStyleLoadError() {
+    return Stack(
+      children: [
+        Container(color: KinrelColors.darkBackground),
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.map_outlined,
+                    color: KinrelColors.orange, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  'Could not load the family map.',
+                  style: TextStyle(
+                    color: KinrelColors.textWhite,
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 16,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Check your connection and try again.',
+                  style: TextStyle(
+                    color: KinrelColors.textDim,
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: () {
+                    setState(() {
+                      _loadedStyleJson = null;
+                    });
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: KinrelColors.orange,
+                  ),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildMap(FamilyMapResult result) {
     _lastResult = result;
 
@@ -346,6 +466,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
     // P10.6 — Reduced-motion flag from MediaQuery (matches the graph pattern).
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
+
+    // Bug 4 fix: watch live location state so the AvatarMarkerOverlay can
+    // pass per-pin LocationTier (live/recent/stale/cityFallback) — needed
+    // for the LIVE pulse + STALE dimming visual treatments.
+    final liveState = ref.watch(liveLocationProvider);
 
     // P11.2 — Update the family-buildings GeoJSON source when the filtered
     // places list changes. The source + layers are in the style JSON; we
@@ -371,14 +496,14 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     return FutureBuilder<String>(
       future: _loadStyleJson(),
       builder: (context, snapshot) {
+        // Bug 2 fix: explicit error UI with Retry button. Previously
+        // only `!snapshot.hasData` was checked — on error the user
+        // saw a silent spinner forever.
+        if (snapshot.hasError) {
+          return _buildStyleLoadError();
+        }
         if (!snapshot.hasData) {
-          // P11.7 — Show the skeleton (not a spinner) while the style
-          // JSON loads. The skeleton matches the final map background
-          // so the transition is seamless.
-          return MapSkeleton(
-            reducedMotion: MediaQuery.disableAnimationsOf(context),
-            message: 'Loading map style',
-          );
+          return _buildMapSkeleton();
         }
 
         // Pass the raw JSON string directly — the maplibre web plugin
@@ -430,12 +555,20 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             // the overlay path is used (Rule 12). The overlay renders
             // AvatarMarkerWidget for each pin with per-tier opacity
             // driven by the focus state (P10.6).
+            //
+            // Bug 4 fix: pass the live location tiers (live/recent/stale/
+            // cityFallback) from the live location provider so markers
+            // get the correct visual treatment. Previously this was an
+            // empty map, which meant no LIVE pulse / STALE dimming.
             if (_styleLoaded && filteredPins.isNotEmpty)
               AvatarMarkerOverlay(
                 mapController: _mapController,
                 pins: filteredPins,
                 selectedPinId: _selectedPinId,
-                liveTiers: const {},
+                liveTiers: {
+                  for (final entry in liveState.locations.entries)
+                    entry.key: entry.value.tier,
+                },
                 reducedMotion: reducedMotion,
                 onPinTap: _handlePinTap,
                 onPinLongPress: _handlePinLongPress,
@@ -457,7 +590,13 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             // ── P10.8 — Polish overlay (vignette + fog + ambient) ───────
             // Rendered on top of the map but below the bottom sheets.
             // IgnorePointer so map gestures pass through.
-            const MapPolishOverlay(),
+            // Bug 4 fix: pass deviceTier + reducedMotion so the overlay
+            // disables fog/ambient on low-tier devices and respects
+            // the user's reduced-motion preference.
+            MapPolishOverlay(
+              deviceTier: DeviceTierCache.instance.tier,
+              reducedMotion: reducedMotion,
+            ),
 
             // ── Legend overlay — bottom-left ───────────────────────────
             // The map is ALWAYS fully visible and interactive — no empty-state

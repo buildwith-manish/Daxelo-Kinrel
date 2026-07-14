@@ -350,6 +350,36 @@ class MapVisualConstants {
   /// Ambient sound volume (very low — opt-in only).
   static const double ambientSoundVolume = 0.10;
 
+  /// P11.6 — Full rotation duration for the ambient drift (60 minutes).
+  /// The ambient motion controller repeats its AnimationController over
+  /// this duration so the camera completes one full bearing rotation
+  /// (360°) per cycle. Tuned to be barely perceptible.
+  static const Duration ambientDriftCycle = Duration(seconds: 3600);
+
+  /// P11.7 — Skeleton shimmer opacity for the icon placeholder.
+  static const double skeletonShimmerOpacity = 0.15;
+
+  /// P11.4 — Cluster marker outer glow alpha (used in both the generator
+  /// and the Flutter widget fallback). Matches the orange glow used on
+  /// unselected avatar markers for visual consistency.
+  static const double clusterGlowAlpha = 0.30;
+
+  /// P10.8 — Warm ambient overlay color used by the polish overlay's
+  /// ambient warmth painter. Same hex as `buildingImportantPlace` /
+  /// `buildingCurrentHome` so the polish wash matches the family
+  /// building palette.
+  static const Color ambientWarmthColor = Color(0xFFE8612A);
+
+  /// P10.8 — Vignette gradient midpoint intensity multiplier. The
+  /// vignette paints three stops (transparent → 50% intensity → full
+  /// intensity); this constant tunes the midpoint value.
+  static const double vignetteMidpointMultiplier = 0.5;
+
+  /// P10.8 — Fog gradient bottom-stop intensity multiplier. The fog
+  /// paints top → transparent → bottom; this constant tunes the
+  /// bottom stop (slightly dimmer than the top).
+  static const double fogBottomStopMultiplier = 0.7;
+
   // ═════════════════════════════════════════════════════════════════════
   // P11.7 — LOADING PERFECTION
   // ═════════════════════════════════════════════════════════════════════

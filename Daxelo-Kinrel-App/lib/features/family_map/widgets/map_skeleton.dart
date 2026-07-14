@@ -71,7 +71,8 @@ class MapSkeleton extends StatelessWidget {
                     .animate(onPlay: (c) => c.repeat())
                     .shimmer(
                       duration: 1500.ms,
-                      color: KinrelColors.orange.withOpacity(0.15),
+                      color: KinrelColors.orange
+                          .withOpacity(MapVisualConstants.skeletonShimmerOpacity),
                     ),
             const SizedBox(height: 24),
             Text(

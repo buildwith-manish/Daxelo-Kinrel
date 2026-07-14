@@ -92,7 +92,7 @@ class _VignettePainter extends CustomPainter {
       radius: 1.0,
       colors: [
         Colors.transparent,
-        Colors.black.withOpacity(opacity * 0.5),
+        Colors.black.withOpacity(opacity * MapVisualConstants.vignetteMidpointMultiplier),
         Colors.black.withOpacity(opacity),
       ],
       stops: const [0.55, 0.85, 1.0],
@@ -120,7 +120,7 @@ class _FogPainter extends CustomPainter {
       colors: [
         MapVisualConstants.fogColor.withOpacity(opacity),
         Colors.transparent,
-        MapVisualConstants.fogColor.withOpacity(opacity * 0.7),
+        MapVisualConstants.fogColor.withOpacity(opacity * MapVisualConstants.fogBottomStopMultiplier),
       ],
       stops: const [0.0, 0.4, 1.0],
     );
@@ -141,7 +141,7 @@ class _AmbientWarmthPainter extends CustomPainter {
     final rect = Offset.zero & size;
     // Very subtle warm orange wash across the whole map.
     final paint = Paint()
-      ..color = const Color(0xFFE8612A).withOpacity(opacity)
+      ..color = MapVisualConstants.ambientWarmthColor.withOpacity(opacity)
       ..blendMode = BlendMode.overlay;
     canvas.drawRect(rect, paint);
   }
