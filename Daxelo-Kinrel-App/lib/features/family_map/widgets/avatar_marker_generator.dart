@@ -163,9 +163,17 @@ class AvatarMarkerGenerator {
     required bool selected,
     LocationTier? liveTier,
   }) {
-    final ringColor = selected
-        ? const ui.Color(0xFFE8B941) // gold
-        : KinrelColors.orange;
+    // P11.x — Gradient ring (IgniteGradient: orange → amber) per master prompt.
+    // Selected: gold → amber gradient; unselected: orange → amber gradient.
+    final ringGradient = ui.SweepGradient(
+      center: ui.Alignment.center,
+      startAngle: 0.0,
+      endAngle: 2 * 3.141592653589793,
+      colors: selected
+          ? [const ui.Color(0xFFE8B941), const ui.Color(0xFFF59240), const ui.Color(0xFFE8B941)]
+          : [const ui.Color(0xFFE8612A), const ui.Color(0xFFF59240), const ui.Color(0xFFE8612A)],
+      stops: const [0.0, 0.5, 1.0],
+    );
 
     final strokeWidth = selected
         ? MapVisualConstants.markerRingWidthSelected
@@ -178,15 +186,49 @@ class AvatarMarkerGenerator {
       ui.Paint()..color = const ui.Color(0xFF1A1A22),
     );
 
-    // Outer ring stroke.
+    // Outer ring stroke (gradient).
     canvas.drawCircle(
       ui.Offset(size / 2, size / 2),
       size / 2 - strokeWidth / 2,
       ui.Paint()
         ..style = ui.PaintingStyle.stroke
         ..strokeWidth = strokeWidth
-        ..color = ringColor,
+        ..shader = ringGradient.createShader(
+          ui.Rect.fromCircle(
+            center: ui.Offset(size / 2, size / 2),
+            radius: size / 2,
+          ),
+        ),
     );
+
+    // P11.x — Selection halo (radial gradient orange→transparent, 4px stroke).
+    // Drawn outside the marker ring when selected (master prompt spec).
+    if (selected) {
+      final haloRadius = size / 2 + MapVisualConstants.selectionHaloRadiusPadding;
+      final haloGradient = ui.RadialGradient(
+        center: ui.Alignment.center,
+        radius: 1.0,
+        colors: [
+          const ui.Color(0xFFE8612A).withOpacity(0.55),
+          const ui.Color(0xFFE8612A).withOpacity(0.20),
+          const ui.Color(0x00E8612A),
+        ],
+        stops: const [0.55, 0.85, 1.0],
+      );
+      canvas.drawCircle(
+        ui.Offset(size / 2, size / 2),
+        haloRadius,
+        ui.Paint()
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = MapVisualConstants.selectionHaloStrokeWidth
+          ..shader = haloGradient.createShader(
+            ui.Rect.fromCircle(
+              center: ui.Offset(size / 2, size / 2),
+              radius: haloRadius,
+            ),
+          ),
+      );
+    }
 
     // Live-location pulse indicator — a thin outer arc.
     if (liveTier != null) {

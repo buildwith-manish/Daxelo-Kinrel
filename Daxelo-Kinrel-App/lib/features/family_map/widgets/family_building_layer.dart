@@ -65,6 +65,12 @@ Color buildingColorFor(PlaceType type) {
       return MapVisualConstants.buildingFamilyBusiness;
     case PlaceType.school:
       return MapVisualConstants.buildingSchool;
+    case PlaceType.vacationHome:
+      return MapVisualConstants.buildingVacationHome;
+    case PlaceType.familyTemple:
+      return MapVisualConstants.buildingFamilyTemple;
+    case PlaceType.grandparentsHome:
+      return MapVisualConstants.buildingGrandparentsHome;
     case PlaceType.importantPlace:
       return MapVisualConstants.buildingImportantPlace;
   }
@@ -115,6 +121,8 @@ String buildFamilyPlacesGeoJson(Iterable<FamilyPlace> places) {
         'memoryCount': p.memoryCount,
         'isMemorial': p.placeType == PlaceType.memorial,
         'isWedding': p.placeType == PlaceType.wedding,
+        'isTemple': p.placeType == PlaceType.familyTemple,
+        'isAncestral': p.placeType == PlaceType.ancestralHome,
       },
     };
   }).toList();
@@ -230,48 +238,215 @@ class FamilyBuildingLayer {
   void dispose() {
     _added = false;
   }
+}
 
-  // ─────────────────────────────────────────────────────────────────────
-  // Internal helpers
-  // ─────────────────────────────────────────────────────────────────────
+/// P11.x — Family Building Animation Engine.
+///
+/// Drives the per-type glow animations described in the master prompt:
+///   - **Wedding**: sine wave, 4s cycle (0.45 → 0.85 → 0.45)
+///   - **Memorial**: sine + pseudo-random flicker, 2.4s cycle
+///   - **Temple**: reverent pulse (slow sine, 6s cycle)
+///   - **Ancestral**: steady noble glow (no animation, slight breathing)
+///
+/// Implementation notes:
+///   - Uses `Timer.periodic(100ms)` per master prompt.
+///   - Respects reduced motion (disabled entirely).
+///   - Pauses when the style is not ready or the layer has no
+///     wedding/memorial/temple/ancestral features.
+///   - Because maplibre 0.3.5 does not expose `setPaintProperty`, the
+///     engine recomputes the `circle-opacity` expression as a function
+///     of time and writes it via `updateGeoJsonSource` feature
+///     properties (`glowOpacity`), which the style JSON can read via a
+///     `coalesce` expression. (Rule 12 graceful degradation: if the
+///     style doesn't read the property, the engine is a no-op.)
+class FamilyBuildingAnimationEngine {
+  FamilyBuildingAnimationEngine({
+    this.deviceTier,
+    this.reducedMotion = false,
+  });
 
-  /// Builds a MapLibre `match` expression that picks a hex color per
-  /// `placeType`. `opacity` is applied by pre-multiplying the alpha
-  /// channel because the match expression returns a color literal.
-  ///
-  /// Example output (opacity 1.0):
-  ///   ['match', ['get', 'placeType'],
-  ///     'current_home', '#E8612A',
-  ///     'childhood_home', '#F59240',
-  ///     ...
-  ///     '#E8612A']
-  Object _buildMatchExpression({required double opacity}) {
-    final branches = <Object>[];
-    for (final type in PlaceType.values) {
-      branches.add(type.wireName);
-      branches.add(_withAlpha(buildingHexFor(type), opacity));
+  final DeviceTier? deviceTier;
+  final bool reducedMotion;
+
+  Timer? _timer;
+  StyleController? _style;
+  List<FamilyPlace> _places = const <FamilyPlace>[];
+  bool _running = false;
+
+  DeviceTier get _effectiveTier =>
+      deviceTier ?? DeviceTierCache.instance.tier;
+
+  bool get _animationsEnabled =>
+      !reducedMotion && _effectiveTier != DeviceTier.low;
+
+  /// Whether any of the current places require animation.
+  bool get _hasAnimatedPlaces => _places.any(
+        (p) =>
+            p.placeType == PlaceType.wedding ||
+            p.placeType == PlaceType.memorial ||
+            p.placeType == PlaceType.familyTemple ||
+            p.placeType == PlaceType.ancestralHome,
+      );
+
+  /// Start the animation loop. Safe to call multiple times — the
+  /// engine will only start a timer if it has animated places and
+  /// animations are enabled.
+  void start(StyleController style, List<FamilyPlace> places) {
+    _style = style;
+    _places = List<FamilyPlace>.unmodifiable(places);
+
+    if (!_animationsEnabled || !_hasAnimatedPlaces) {
+      stop();
+      return;
     }
-    // Default = importantPlace color.
-    branches.add(_withAlpha(buildingHexFor(PlaceType.importantPlace), opacity));
-    return <Object>[
-      'match',
-      <String>['get', 'placeType'],
-      ...branches,
-    ];
+
+    if (_running) return;
+    _running = true;
+    _timer = Timer.periodic(
+      const Duration(milliseconds: 100),
+      (_) => _tick(),
+    );
+    debugPrint('✅ FamilyBuildingAnimationEngine: started '
+        '(${_places.where((p) => p.placeType == PlaceType.wedding).length} wedding, '
+        '${_places.where((p) => p.placeType == PlaceType.memorial).length} memorial, '
+        '${_places.where((p) => p.placeType == PlaceType.familyTemple).length} temple)');
   }
 
-  /// Applies an alpha multiplier to a hex color string.
-  /// `#RRGGBB` → `#RRGGBB` with alpha pre-multiplied (returns 8-char hex).
-  String _withAlpha(String hex, double opacity) {
-    final cleanHex = hex.replaceFirst('#', '');
-    final r = int.parse(cleanHex.substring(0, 2), radix: 16);
-    final g = int.parse(cleanHex.substring(2, 4), radix: 16);
-    final b = int.parse(cleanHex.substring(4, 6), radix: 16);
-    final a = (opacity * 255).round().clamp(0, 255);
-    return '#${a.toRadixString(16).toUpperCase().padLeft(2, '0')}'
-        '${r.toRadixString(16).toUpperCase().padLeft(2, '0')}'
-        '${g.toRadixString(16).toUpperCase().padLeft(2, '0')}'
-        '${b.toRadixString(16).toUpperCase().padLeft(2, '0')}';
+  /// Stop the animation loop. Safe to call when not running.
+  void stop() {
+    _timer?.cancel();
+    _timer = null;
+    _running = false;
+  }
+
+  /// Releases all resources. Call from the screen's `dispose()`.
+  void dispose() {
+    stop();
+    _style = null;
+    _places = const <FamilyPlace>[];
+  }
+
+  void _tick() {
+    final style = _style;
+    if (style == null || _places.isEmpty) return;
+
+    // Recompute the GeoJSON with per-feature glowOpacity reflecting the
+    // current animation tick. updateGeoJsonSource is the only MapLibre
+    // 0.3.5 API that lets us mutate paint-time data without
+    // setPaintProperty (which isn't exposed — Rule 12).
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final geojson = _buildAnimatedGeoJson(_places, now);
+    try {
+      style.updateGeoJsonSource(
+        id: FamilyBuildingLayer.sourceId,
+        data: geojson,
+      );
+    } catch (e) {
+      // Style may have been torn down mid-tick. Pause + log.
+      debugPrint('⚠️ FamilyBuildingAnimationEngine._tick: $e — pausing');
+      stop();
+    }
+  }
+
+  /// Builds the GeoJSON FeatureCollection with per-feature `glowOpacity`
+  /// reflecting the current animation tick.
+  ///
+  /// Wedding: sine wave, 4s cycle (0.45 → 0.85 → 0.45)
+  /// Memorial: sine + pseudo-random, 2.4s cycle (organic flicker)
+  /// Temple: slow sine, 6s cycle (reverent pulse)
+  /// Ancestral: steady glow with very slight breathing (8s cycle)
+  /// Other: 1.0 (no animation)
+  String _buildAnimatedGeoJson(
+    List<FamilyPlace> places,
+    int nowMs,
+  ) {
+    final features = places.map((p) {
+      const boxSize = 0.0002;
+      final lng = p.lng;
+      final lat = p.lat;
+      return {
+        'type': 'Feature',
+        'id': p.id,
+        'geometry': {
+          'type': 'Polygon',
+          'coordinates': [[
+            [lng - boxSize, lat - boxSize],
+            [lng + boxSize, lat - boxSize],
+            [lng + boxSize, lat + boxSize],
+            [lng - boxSize, lat + boxSize],
+            [lng - boxSize, lat - boxSize],
+          ]],
+        },
+        'properties': {
+          'placeId': p.id,
+          'placeType': p.placeType.wireName,
+          'name': p.name,
+          'memoryCount': p.memoryCount,
+          'isMemorial': p.placeType == PlaceType.memorial,
+          'isWedding': p.placeType == PlaceType.wedding,
+          'isTemple': p.placeType == PlaceType.familyTemple,
+          'isAncestral': p.placeType == PlaceType.ancestralHome,
+          'glowOpacity': _glowOpacityFor(p.placeType, nowMs),
+        },
+      };
+    }).toList();
+    return jsonEncode({
+      'type': 'FeatureCollection',
+      'features': features,
+    });
+  }
+
+  /// Computes the per-type glow opacity at the given timestamp (ms).
+  ///
+  /// Wedding: sine wave, 4s cycle, range [0.45, 0.85]
+  /// Memorial: sine + deterministic pseudo-random, 2.4s cycle, range [0.40, 0.80]
+  /// Temple: slow sine, 6s cycle, range [0.55, 0.85]
+  /// Ancestral: very slow breathing, 8s cycle, range [0.70, 0.85]
+  /// Other: 1.0 (no animation)
+  double _glowOpacityFor(PlaceType type, int nowMs) {
+    switch (type) {
+      case PlaceType.wedding:
+        // 4s cycle: sine wave 0.45 → 0.85 → 0.45
+        final phase = (nowMs % MapVisualConstants.weddingGlowCycle.inMilliseconds) /
+            MapVisualConstants.weddingGlowCycle.inMilliseconds;
+        final sine = (1 - math.cos(phase * 2 * math.pi)) / 2; // 0..1
+        return MapVisualConstants.weddingGlowMin +
+            sine * (MapVisualConstants.weddingGlowMax - MapVisualConstants.weddingGlowMin);
+      case PlaceType.memorial:
+        // 2.4s cycle: sine + deterministic pseudo-random (organic flicker)
+        final cycleMs = MapVisualConstants.memorialFlickerCycle.inMilliseconds;
+        final phase = (nowMs % cycleMs) / cycleMs;
+        final sine = (1 - math.cos(phase * 2 * math.pi)) / 2;
+        // Deterministic pseudo-random offset (seedable — same data = same visual).
+        final seed = (nowMs ~/ 100) * 0.13;
+        final jitter = (math.sin(seed) + 1) / 2 * 0.15; // ±15% jitter
+        final raw = sine * 0.85 + jitter * 0.15;
+        return (MapVisualConstants.memorialFlickerMin +
+                raw.clamp(0.0, 1.0) *
+                    (MapVisualConstants.memorialFlickerMax - MapVisualConstants.memorialFlickerMin))
+            .clamp(0.0, 1.0);
+      case PlaceType.familyTemple:
+        // 6s cycle: slow reverent pulse (0.55 → 0.85 → 0.55)
+        const cycleMs = 6000;
+        final phase = (nowMs % cycleMs) / cycleMs;
+        final sine = (1 - math.cos(phase * 2 * math.pi)) / 2;
+        return 0.55 + sine * 0.30;
+      case PlaceType.ancestralHome:
+        // 8s cycle: very subtle breathing (0.70 → 0.85 → 0.70)
+        const cycleMs = 8000;
+        final phase = (nowMs % cycleMs) / cycleMs;
+        final sine = (1 - math.cos(phase * 2 * math.pi)) / 2;
+        return 0.70 + sine * 0.15;
+      case PlaceType.currentHome:
+      case PlaceType.childhoodHome:
+      case PlaceType.birthplace:
+      case PlaceType.familyBusiness:
+      case PlaceType.school:
+      case PlaceType.vacationHome:
+      case PlaceType.grandparentsHome:
+      case PlaceType.importantPlace:
+        return 1.0;
+    }
   }
 }
 

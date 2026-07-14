@@ -18,8 +18,9 @@ void main() {
       expect(MapVisualConstants.background, isNot(equals(MapVisualConstants.water)));
     });
 
-    test('building colors cover all 9 PlaceTypes', () {
+    test('building colors cover all 12 PlaceTypes', () {
       // Every PlaceType has a dedicated building color constant.
+      // P11.x: vacationHome, familyTemple, grandparentsHome added per master prompt.
       expect(MapVisualConstants.buildingCurrentHome, isA<Color>());
       expect(MapVisualConstants.buildingChildhoodHome, isA<Color>());
       expect(MapVisualConstants.buildingAncestralHome, isA<Color>());
@@ -28,7 +29,48 @@ void main() {
       expect(MapVisualConstants.buildingMemorial, isA<Color>());
       expect(MapVisualConstants.buildingFamilyBusiness, isA<Color>());
       expect(MapVisualConstants.buildingSchool, isA<Color>());
+      expect(MapVisualConstants.buildingVacationHome, isA<Color>());
+      expect(MapVisualConstants.buildingFamilyTemple, isA<Color>());
+      expect(MapVisualConstants.buildingGrandparentsHome, isA<Color>());
       expect(MapVisualConstants.buildingImportantPlace, isA<Color>());
+    });
+
+    test('P11.x — atmospheric perspective constants exist', () {
+      expect(MapVisualConstants.atmosphericPerspectivePitchThreshold, equals(10.0));
+      expect(MapVisualConstants.atmosphericPerspectiveMaxOpacity, equals(0.12));
+    });
+
+    test('P11.x — building roof min zoom is 17', () {
+      expect(MapVisualConstants.buildingRoofMinZoom, equals(17.0));
+    });
+
+    test('P11.x — wedding glow cycle is 4 seconds', () {
+      expect(MapVisualConstants.weddingGlowCycle, equals(const Duration(seconds: 4)));
+      expect(MapVisualConstants.weddingGlowMin, lessThan(MapVisualConstants.weddingGlowMax));
+    });
+
+    test('P11.x — memorial flicker cycle is 2.4 seconds', () {
+      expect(MapVisualConstants.memorialFlickerCycle,
+          equals(const Duration(milliseconds: 2400)));
+      expect(MapVisualConstants.memorialFlickerMin,
+          lessThan(MapVisualConstants.memorialFlickerMax));
+    });
+
+    test('P11.x — hillshade constants exist', () {
+      expect(MapVisualConstants.hexHillshadeShadow, isA<String>());
+      expect(MapVisualConstants.hexHillshadeHighlight, isA<String>());
+      expect(MapVisualConstants.hexHillshadeAccent, isA<String>());
+      expect(MapVisualConstants.hillshadeExaggeration, equals(0.25));
+      expect(MapVisualConstants.hillshadeMaxZoom, equals(14.0));
+    });
+
+    test('P11.x — WCAG AA label halo is 2px', () {
+      expect(MapVisualConstants.labelHaloWidth, equals(2.0));
+      expect(MapVisualConstants.hexLabelHaloColor, equals('#0D0D0D'));
+    });
+
+    test('P11.x — vignette opacity is 0.35 (per master prompt)', () {
+      expect(MapVisualConstants.vignetteOpacity, equals(0.35));
     });
   });
 

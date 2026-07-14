@@ -25,7 +25,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show rootBundle, HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre/maplibre.dart';
 import 'package:go_router/go_router.dart';
@@ -136,6 +136,16 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// Initialized on first style load; updated whenever familyMapProvider
   /// emits a new place list.
   final FamilyBuildingLayer _familyBuildings = FamilyBuildingLayer();
+
+  /// P11.x — Family Building Animation Engine.
+  /// Drives the per-type glow animations (wedding pulse, memorial flicker,
+  /// temple pulse, ancestral breathing) per master prompt Phase 3.
+  FamilyBuildingAnimationEngine? _buildingAnimEngine;
+
+  /// P11.x — Current camera pitch (degrees), tracked on camera move events.
+  /// Drives the atmospheric perspective overlay opacity (linear fade
+  /// top-down when pitch > 10° per master prompt).
+  double _currentPitch = 0.0;
 
   /// P10.3 — Premium avatar markers. Owns the SymbolLayer vs Flutter
   /// overlay decision (Rule 12 fallback) and the marker image cache.
@@ -622,6 +632,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     _stopBroadcastLoop();
     _styleWatchdog?.cancel();
     _lifecycle.dispose();
+    _buildingAnimEngine?.dispose();
     _familyBuildings.dispose();
     _avatarLayer.cache.clear();
     _relationshipPaths?.dispose();
@@ -1005,8 +1016,19 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         final style = _mapController?.style;
         if (style != null) {
           _familyBuildings.update(style, filteredPlaces);
+          // P11.x — Start (or restart) the building animation engine for
+          // wedding pulse / memorial flicker / temple pulse / ancestral
+          // breathing. Engine self-disables on reduced motion + low-tier.
+          _buildingAnimEngine ??= FamilyBuildingAnimationEngine(
+            deviceTier: DeviceTierCache.instance.tier,
+            reducedMotion: reducedMotion,
+          );
+          _buildingAnimEngine!.start(style, filteredPlaces);
         }
       });
+    } else if (filteredPlaces.isEmpty) {
+      // P11.x — Stop the animation engine when there are no places.
+      _buildingAnimEngine?.stop();
     }
 
     // P10.9 — Initial camera from restored state (if any).
@@ -1134,15 +1156,17 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 onClusterLongPress: _handleClusterLongPress,
               ),
 
-            // ── P10.8 — Polish overlay (vignette + fog + ambient) ───────
+            // ── P10.8 — Polish overlay (vignette + fog + ambient + atmospheric perspective) ───────
             // Rendered on top of the map but below the bottom sheets.
             // IgnorePointer so map gestures pass through.
             // Bug 4 fix: pass deviceTier + reducedMotion so the overlay
             // disables fog/ambient on low-tier devices and respects
             // the user's reduced-motion preference.
+            // P11.x: pass current pitch for atmospheric perspective (master prompt).
             MapPolishOverlay(
               deviceTier: DeviceTierCache.instance.tier,
               reducedMotion: reducedMotion,
+              pitch: _currentPitch,
             ),
 
             // ── Empty-state overlay (lifecycle == empty) ───────────────
@@ -1477,7 +1501,14 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// Activates Focus Mode (P10.6): camera springs to center on them,
   /// non-focus markers dim, related relationship paths brighten.
   void _handlePinTap(MapPin pin) async {
-    setState(() => _selectedPinId = pin.personId);
+    // P11.x — Haptic feedback on tap (selection click).
+    await HapticFeedback.selectionClick();
+    setState(() {
+      _selectedPinId = pin.personId;
+      // P11.x — Focus Mode pitches the camera to 45° per master prompt.
+      // Track this so the atmospheric perspective overlay can fade in.
+      _currentPitch = MapVisualConstants.focusPitch;
+    });
 
     // P10.6 — Enter Focus Mode via the MapFocusController.
     final focusState = ref.read(graphFocusProvider);
@@ -1499,7 +1530,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// P10.7 — Handle a long-press on a family member avatar marker.
   /// Builds the journey stops from the person's linked places and
   /// shows the FamilyJourneyAnimation widget.
-  void _handlePinLongPress(MapPin pin) {
+  void _handlePinLongPress(MapPin pin) async {
+    // P11.x — Haptic feedback on long-press (heavy impact).
+    await HapticFeedback.heavyImpact();
     final result = _lastResult;
     if (result == null) return;
     final linkedPlaces =
@@ -1599,7 +1632,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
     // P10.6 — Tap empty map → exit Focus Mode.
     if (_selectedPinId != null) {
-      setState(() => _selectedPinId = null);
+      setState(() {
+        _selectedPinId = null;
+        // P11.x — Exiting Focus Mode resets the camera pitch to 0°.
+        _currentPitch = 0.0;
+      });
       await _focusController.exitFocus(
         mapController: _mapController,
         style: _mapController?.style,

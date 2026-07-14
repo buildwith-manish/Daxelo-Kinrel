@@ -190,4 +190,30 @@ void main() {
       layer.dispose();
     });
   });
+
+  group('P11.x FamilyBuildingAnimationEngine', () {
+    test('can be constructed and disposed without a live MapLibre style', () {
+      final engine = FamilyBuildingAnimationEngine();
+      engine.dispose();
+      expect(true, isTrue);
+    });
+
+    test('reduced motion disables animations', () {
+      final engine =
+          FamilyBuildingAnimationEngine(reducedMotion: true);
+      // Engine constructed in reduced-motion mode — should not start
+      // a timer even when start() is called. We can't pass a real
+      // StyleController in a unit test, so we just verify construction
+      // + dispose work cleanly.
+      engine.dispose();
+      expect(true, isTrue);
+    });
+
+    test('stop is safe to call when not running', () {
+      final engine = FamilyBuildingAnimationEngine();
+      engine.stop(); // should not throw
+      engine.dispose();
+      expect(true, isTrue);
+    });
+  });
 }

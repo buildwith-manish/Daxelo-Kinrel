@@ -15,8 +15,8 @@ import 'package:kinrel/features/family_map/data/place_models.dart';
 
 void main() {
   group('P10.1 PlaceType enum', () {
-    test('has exactly 9 values', () {
-      expect(PlaceType.values, hasLength(9));
+    test('has exactly 12 values', () {
+      expect(PlaceType.values, hasLength(12));
     });
 
     test('every type has a non-empty semantic label', () {
@@ -45,6 +45,8 @@ void main() {
     test('expected values are present in order (forward-compat)', () {
       // DO NOT reorder — persistence relies on enum name, but tests guard
       // against accidental reordering during refactors.
+      // P11.x: vacation_home, family_temple, grandparents_home appended
+      // per master prompt (kept before important_place as the default).
       expect(PlaceType.values, equals(<PlaceType>[
         PlaceType.currentHome,
         PlaceType.childhoodHome,
@@ -54,6 +56,9 @@ void main() {
         PlaceType.memorial,
         PlaceType.familyBusiness,
         PlaceType.school,
+        PlaceType.vacationHome,
+        PlaceType.familyTemple,
+        PlaceType.grandparentsHome,
         PlaceType.importantPlace,
       ]));
     });

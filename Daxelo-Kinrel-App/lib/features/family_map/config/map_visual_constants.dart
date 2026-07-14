@@ -81,6 +81,15 @@ class MapVisualConstants {
   /// School — cool neutral (the only cool color in the family palette).
   static const Color buildingSchool = Color(0xFF4E6984);
 
+  /// Vacation home — cool serenity glow (retreat / getaway).
+  static const Color buildingVacationHome = Color(0xFF4E6984);
+
+  /// Family temple — sacred warm glow (reverent pulse).
+  static const Color buildingFamilyTemple = Color(0xFFE8612A);
+
+  /// Grandparents home — amber warmth (gentle pulse).
+  static const Color buildingGrandparentsHome = Color(0xFFF59240);
+
   /// Important family place — default warm.
   static const Color buildingImportantPlace = Color(0xFFE8612A);
 
@@ -157,8 +166,8 @@ class MapVisualConstants {
   // POLISH OVERLAY (P10.8) — Rule 16: tune after testing
   // ═════════════════════════════════════════════════════════════════════
 
-  /// Vignette intensity at the corners.
-  static const double vignetteOpacity = 0.4;
+  /// Vignette intensity at the corners. Per master prompt: 0.35.
+  static const double vignetteOpacity = 0.35;
 
   /// Atmospheric fog opacity (barely visible).
   static const double fogOpacity = 0.05;
@@ -173,6 +182,10 @@ class MapVisualConstants {
   /// Below this zoom, 3D building extrusion is hidden for performance.
   static const double buildingExtrusionMinZoom = 15.0;
 
+  /// P11.x — Above this zoom, the per-type roof detail layer renders.
+  /// Per master prompt: roof pattern added at runtime at zoom 17+.
+  static const double buildingRoofMinZoom = 17.0;
+
   /// Above this zoom, household clustering is disabled (show individuals).
   static const double clusterMaxZoom = 14.0;
 
@@ -184,6 +197,34 @@ class MapVisualConstants {
 
   /// Camera pitch (tilt) for Focus Mode and cinematic entrance.
   static const double focusPitch = 45.0;
+
+  /// P11.x — Pitch (degrees) above which atmospheric perspective fades in.
+  /// Per master prompt: linear fade top-down when pitch > 10°, max 0.12.
+  static const double atmosphericPerspectivePitchThreshold = 10.0;
+
+  /// P11.x — Maximum opacity of the atmospheric perspective overlay.
+  static const double atmosphericPerspectiveMaxOpacity = 0.12;
+
+  /// P11.x — Wedding glow pulse minimum opacity (sine wave trough).
+  static const double weddingGlowMin = 0.45;
+
+  /// P11.x — Wedding glow pulse maximum opacity (sine wave peak).
+  static const double weddingGlowMax = 0.85;
+
+  /// P11.x — Memorial candle flicker minimum opacity.
+  static const double memorialFlickerMin = 0.40;
+
+  /// P11.x — Memorial candle flicker maximum opacity.
+  static const double memorialFlickerMax = 0.80;
+
+  /// P11.x — Selection halo stroke width (px) for the focused avatar.
+  static const double selectionHaloStrokeWidth = 4.0;
+
+  /// P11.x — Selection halo radius increase beyond the marker (px).
+  static const double selectionHaloRadiusPadding = 8.0;
+
+  /// P11.x — Focus Mode dimmed opacity for non-related markers (per master prompt).
+  static const double focusModeDimmedOpacity = 0.4;
 
   // ═════════════════════════════════════════════════════════════════════
   // FOCUS MODE (P10.6)
@@ -416,5 +457,75 @@ class MapVisualConstants {
   static const String hexBuildingMemorial = '#F59240';
   static const String hexBuildingFamilyBusiness = '#C44A18';
   static const String hexBuildingSchool = '#4E6984';
+  static const String hexBuildingVacationHome = '#4E6984';
+  static const String hexBuildingFamilyTemple = '#E8612A';
+  static const String hexBuildingGrandparentsHome = '#F59240';
   static const String hexBuildingImportantPlace = '#E8612A';
+
+  // ═════════════════════════════════════════════════════════════════════
+  // P11.x — HILLSHADE (premium terrain depth)
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// Hillshade shadow color (deep charcoal).
+  static const String hexHillshadeShadow = '#0A0A0F';
+
+  /// Hillshade highlight color (cool grey).
+  static const String hexHillshadeHighlight = '#2A2A3A';
+
+  /// Hillshade accent color — Kinrel orange tint on peaks.
+  static const String hexHillshadeAccent = '#E8612A';
+
+  /// Hillshade exaggeration (0.25 = subtle depth).
+  static const double hillshadeExaggeration = 0.25;
+
+  /// Hillshade max zoom.
+  static const double hillshadeMaxZoom = 14.0;
+
+  // ═════════════════════════════════════════════════════════════════════
+  // P11.x — ROAD HIGH-ZOOM TINTS (Kinrel orange)
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// Minor road base color (warmer than original).
+  static const String hexRoadMinorV2 = '#2E2642';
+
+  /// Primary road base color (warmer than original).
+  static const String hexRoadPrimaryV2 = '#3E3656';
+
+  /// Motorway road base color (warmer than original).
+  static const String hexRoadMotorwayV2 = '#4E4468';
+
+  /// Kinrel orange — applied to primary roads at zoom 14+.
+  static const String hexRoadHighZoomTint = '#E8612A';
+
+  /// Zoom threshold above which primary roads get the Kinrel orange tint.
+  static const double roadPrimaryTintZoom = 14.0;
+
+  /// Zoom threshold above which motorways get the Kinrel orange tint.
+  static const double roadMotorwayTintZoom = 15.0;
+
+  // ═════════════════════════════════════════════════════════════════════
+  // P11.x — PARK / LAND WARMTH
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// Park fill color (warm dark green, handcrafted for family palette).
+  static const String hexPark = '#1A2A1F';
+
+  /// Park fill opacity (reduced from 0.7 → 0.55 per master prompt).
+  static const double parkOpacity = 0.55;
+
+  /// Landcover opacity for wood/grass (reduced per master prompt).
+  static const double landcoverOpacity = 0.55;
+
+  // ═════════════════════════════════════════════════════════════════════
+  // P11.x — WCAG AA LABEL CONTRAST
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// Text halo width for all map labels (WCAG AA — 2px per master prompt).
+  static const double labelHaloWidth = 2.0;
+
+  /// Text halo color for all map labels (deep black per master prompt).
+  static const String hexLabelHaloColor = '#0D0D0D';
+
+  /// Text halo blur radius.
+  static const double labelHaloBlur = 1.0;
 }

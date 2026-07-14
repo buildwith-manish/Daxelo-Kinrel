@@ -46,6 +46,15 @@ enum PlaceType {
   /// School / college / university. Cool neutral.
   school,
 
+  /// Vacation / retreat home. Cool serenity glow (per master prompt).
+  vacationHome,
+
+  /// Family temple / place of worship. Sacred warm glow (per master prompt).
+  familyTemple,
+
+  /// Grandparents' home. Amber warmth, gentle pulse (per master prompt).
+  grandparentsHome,
+
   /// Any other place of family significance. Default warm.
   importantPlace;
 
@@ -72,6 +81,12 @@ enum PlaceType {
         return 'Family Business';
       case PlaceType.school:
         return 'School';
+      case PlaceType.vacationHome:
+        return 'Vacation Home';
+      case PlaceType.familyTemple:
+        return 'Family Temple';
+      case PlaceType.grandparentsHome:
+        return 'Grandparents\' Home';
       case PlaceType.importantPlace:
         return 'Important Family Place';
     }
@@ -97,6 +112,12 @@ enum PlaceType {
         return 'family_business';
       case PlaceType.school:
         return 'school';
+      case PlaceType.vacationHome:
+        return 'vacation_home';
+      case PlaceType.familyTemple:
+        return 'family_temple';
+      case PlaceType.grandparentsHome:
+        return 'grandparents_home';
       case PlaceType.importantPlace:
         return 'important_place';
     }
