@@ -145,7 +145,11 @@ class AvatarMarkerGenerator {
     final blur = selected
         ? MapVisualConstants.markerGlowBlurSelected
         : MapVisualConstants.markerGlowBlurNormal;
-    final baseAlpha = selected ? 0.55 : 0.30;
+    // Bug 7 fix: reference the centralized glow-alpha constants instead
+    // of magic 0.55 / 0.30 literals. Same values, single source of truth.
+    final baseAlpha = selected
+        ? MapVisualConstants.markerGlowAlphaSelected
+        : MapVisualConstants.markerGlowAlphaNormal;
     final paint = ui.Paint()
       ..color = KinrelColors.orange.withOpacity(baseAlpha)
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur);

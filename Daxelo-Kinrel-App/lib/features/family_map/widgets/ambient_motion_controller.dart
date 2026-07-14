@@ -87,11 +87,12 @@ class AmbientMotionController {
   void _startDrift() {
     if (_mapController == null || !isPlatformSupported) return;
     _enabled = true;
-    // Very slow drift: 1 full rotation in 3600 seconds (60 minutes).
-    // At 0.1°/second, this is barely perceptible — "alive" not "moving."
+    // Very slow drift: one full rotation per ambientDriftCycle (60 minutes).
+    // At the configured ambientDriftRate, this is barely perceptible —
+    // "alive" not "moving."
     _driftController = AnimationController(
       vsync: vsync,
-      duration: const Duration(seconds: 3600),
+      duration: MapVisualConstants.ambientDriftCycle,
     )..repeat();
     _driftController!.addListener(_onDriftTick);
     debugPrint('🎨 P11.6: ambient motion drift started');
