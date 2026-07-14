@@ -59,6 +59,7 @@ import '../widgets/household_cluster_overlay.dart';
 import '../widgets/map_bottom_sheets.dart';
 import '../widgets/map_legend_widget.dart';
 import '../widgets/relationship_path_overlay.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // FAMILY MAP SCREEN
@@ -237,6 +238,16 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// [_ensureFamilyPlacesLayers] — they're not in the source style.
   static const _kWebStylePath = 'assets/map_styles/kinrel_dark_style.json';
 
+  /// Light "Snapchat-style" map style URL — OpenFreeMap liberty is a
+  /// clean, light, social-friendly style that matches the Snapchat map
+  /// aesthetic: white background, pastel water, light parks, clean roads.
+  /// Family-building layers are added programmatically after style load.
+  static const _kLightStyleUrl = 'https://tiles.openfreemap.org/styles/liberty';
+
+  /// Whether the user has selected light map theme. Loaded from
+  /// SharedPreferences in initState. Toggled via the AppBar sun/moon button.
+  bool _isLightMap = false;
+
   /// RENDERER CAPABILITY FLAG — idempotency guard for
   /// [_ensureFamilyPlacesLayers]. True once the family-places source +
   /// family-buildings layers have been added to the current style.
@@ -245,41 +256,35 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   bool _familyPlacesLayersAdded = false;
 
   /// Loads the map style. Strategy:
-  ///   • WEB: return the bundled Kinrel style asset path. The maplibre
-  ///     web plugin's `AssetManager` resolves it to a proper URL —
-  ///     MapLibre GL JS fetches + parses the JSON natively, with no
-  ///     dart→JS interop cost. Web and native now share the SAME
-  ///     style file (§8). Family-places layers are added
-  ///     programmatically after style load.
-  ///   • NATIVE (iOS/Android/macOS/Windows/Linux): load the bundled
-  ///     kinrel_dark_style.json, apply POI filters, return as inline JSON.
-  ///     Falls back to the minimal inline style on asset-load failure.
-  ///
-  /// The returned string is passed to `MapOptions.initStyle`. The
-  /// maplibre web plugin's `_prepareStyleString` detects:
-  ///   • strings starting with '{' → inline JSON (parsed + jsified)
-  ///   • strings starting with 'http' → URL (passed through as-is)
-  ///   • strings starting with '/' → file path
-  ///   • everything else → flutter asset (resolved via AssetManager)
+  ///   • LIGHT MODE (Snapchat-style): use OpenFreeMap liberty style URL.
+  ///     Clean, light, social — white base, pastel water, light parks.
+  ///     Family-buildings layers added programmatically after load.
+  ///   • DARK MODE (Kinrel premium): use the bundled kinrel_dark_style.json.
+  ///     Dark, cinematic, immersive — matches the rest of the Kinrel app.
+  ///     Family-buildings layers are already in the JSON.
+  ///   • WEB: both modes pass the style path/URL to the maplibre plugin
+  ///     which resolves it natively (no dart→JS interop).
+  ///   • NATIVE: dark mode loads the bundled JSON via rootBundle;
+  ///     light mode passes the URL directly to MapLibre.
   Future<String> _loadStyleJson() async {
     if (_loadedStyleJson != null) return _loadedStyleJson!;
 
-    // ── WEB: serve the bundled Kinrel style as a web asset URL ───────
-    // §8 — Web style consistency: web and native now use the SAME
-    // style file. Passing the relative asset path (no leading slash)
-    // lets the maplibre web plugin resolve it via `AssetManager` to a
-    // proper URL (`assets/assets/map_styles/...`), which MapLibre GL
-    // JS fetches natively. This avoids the dart→JS JSON interop cost
-    // of inline JSON AND keeps the visual style identical across
-    // platforms. See [_kWebStylePath] for the full rationale.
+    if (_isLightMap) {
+      // ── LIGHT MODE: Snapchat-style ───────────────────────────────
+      debugPrint('☀️ FamilyMap: using light Snapchat-style: $_kLightStyleUrl');
+      _loadedStyleJson = _kLightStyleUrl;
+      return _loadedStyleJson!;
+    }
+
+    // ── DARK MODE: Kinrel premium ─────────────────────────────────
     if (kIsWeb) {
-      debugPrint('🌐 FamilyMap: using bundled Kinrel style as web asset: '
+      debugPrint('🌙 FamilyMap: using bundled Kinrel dark style as web asset: '
           '$_kWebStylePath');
       _loadedStyleJson = _kWebStylePath;
       return _loadedStyleJson!;
     }
 
-    // ── NATIVE: load bundled JSON + apply POI filters ────────────────
+    // Native dark mode: load bundled JSON + apply POI filters
     try {
       final raw = await rootBundle
           .loadString(_kStyleAssetPath)
@@ -290,6 +295,41 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       _loadedStyleJson = _kFallbackStyleJson;
     }
     return _loadedStyleJson!;
+  }
+
+  /// Toggles between dark and light map themes. Clears the cached style
+  /// so _loadStyleJson re-fetches with the new theme. Resets the
+  /// family-places layers flag so they get re-added for the new style.
+  void _toggleMapTheme() {
+    setState(() {
+      _isLightMap = !_isLightMap;
+      _loadedStyleJson = null;
+      _familyPlacesLayersAdded = false;
+      _styleLoaded = false;
+      _lifecycle.reset();
+      // Persist the preference
+      _saveMapThemePreference(_isLightMap);
+    });
+  }
+
+  /// Saves the map theme preference to SharedPreferences.
+  void _saveMapThemePreference(bool isLight) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('family_map_light_theme', isLight);
+    } catch (e) {
+      debugPrint('⚠️ Failed to save map theme preference: $e');
+    }
+  }
+
+  /// Loads the map theme preference from SharedPreferences.
+  Future<void> _loadMapThemePreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _isLightMap = prefs.getBool('family_map_light_theme') ?? false;
+    } catch (e) {
+      debugPrint('⚠️ Failed to load map theme preference: $e');
+    }
   }
 
   /// Ensures the family-places GeoJSON source + family-buildings layers
@@ -495,40 +535,31 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       }
     });
 
-    // ── CRITICAL: Load style in initState, NOT in build() ────────────
-    // Previously, _loadStyleJson() was called inside a FutureBuilder in
-    // build(). This created a new Future on every rebuild, causing the
-    // FutureBuilder to re-subscribe on every provider change / setState.
-    // The re-subscription briefly reset the snapshot state, which could
-    // cause the MapLibreMap to be removed and re-inserted into the widget
-    // tree — destroying and recreating the native map on every rebuild.
-    //
-    // By loading the style here in initState, the style is available
-    // before the first build(). The build() method simply checks
-    // `_loadedStyleJson != null` — no FutureBuilder needed.
-    _loadStyleJson().then((style) {
-      if (mounted) {
-        debugPrint('✅ FamilyMap: style loaded in initState '
-            '(${style.length} chars, web=$kIsWeb)');
-        // Transition lifecycle: initializing → loadingStyle.
-        // The MapLibreMap widget will be rendered on the next build.
-        // The watchdog starts when the MapLibreMap is first rendered
-        // (in _onMapCreated or the build method).
-        _lifecycle.transition(
-          FamilyMapLifecycle.loadingStyle,
-          attempt: _lifecycle.currentAttempt,
-        );
-        setState(() {});
-      }
-    }).catchError((e) {
-      if (mounted) {
-        debugPrint('❌ FamilyMap: style load failed in initState: $e');
-        _lifecycle.transition(
-          FamilyMapLifecycle.failed,
-          attempt: _lifecycle.currentAttempt,
-        );
-        setState(() {});
-      }
+    // ── CRITICAL: Load map theme preference BEFORE style ────────────
+    // The theme preference (dark/light) must be loaded before _loadStyleJson
+    // so the correct style is fetched on the first render.
+    _loadMapThemePreference().then((_) {
+      if (!mounted) return;
+      _loadStyleJson().then((style) {
+        if (mounted) {
+          debugPrint('✅ FamilyMap: style loaded in initState '
+              '(${style.length} chars, web=$kIsWeb, light=$_isLightMap)');
+          _lifecycle.transition(
+            FamilyMapLifecycle.loadingStyle,
+            attempt: _lifecycle.currentAttempt,
+          );
+          setState(() {});
+        }
+      }).catchError((e) {
+        if (mounted) {
+          debugPrint('❌ FamilyMap: style load failed in initState: $e');
+          _lifecycle.transition(
+            FamilyMapLifecycle.failed,
+            attempt: _lifecycle.currentAttempt,
+          );
+          setState(() {});
+        }
+      });
     });
   }
 
@@ -675,6 +706,15 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
           ],
         ),
         actions: [
+          // Map theme toggle — dark (Kinrel premium) ↔ light (Snapchat-style)
+          IconButton(
+            icon: Icon(
+              _isLightMap ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+              size: 22,
+            ),
+            tooltip: _isLightMap ? 'Dark map' : 'Light map',
+            onPressed: _toggleMapTheme,
+          ),
           // Dev test: fly to Bengaluru at zoom 16, tilt 45° to verify 3D
           // buildings. Debug builds only — never shipped to production.
           if (kDebugMode)
