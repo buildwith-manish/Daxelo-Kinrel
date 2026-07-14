@@ -39,12 +39,21 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
     required this.pathFocusedEdgeIds,
     required this.pathFocusActive,
     this.coupleUnions = const [],
+    this.edgeLabels,
+    this.showEdgeLabels = false,
   });
 
   final Map<String, Offset> positions;
   final List<DedupedEdge> edges;
   final Map<String, KinshipEdgeCategory> edgeCategories;
   final Map<String, Map<String, dynamic>> edgeCustomColors;
+
+  /// Relationship label text per edge ID (e.g. "Father", "Son", "Spouse").
+  /// Null or empty = no labels rendered. Passed through to EngineEdgePainter.
+  final Map<String, String>? edgeLabels;
+
+  /// Master switch for edge label rendering. Typically gated by zoom level.
+  final bool showEdgeLabels;
 
   /// v99 (Phase 6): Derived couple unions from the layout. The painter
   /// renders a subtle junction glyph at the midpoint between partners
@@ -270,6 +279,9 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
         completedTraceEdgeIds: traceState.completedEdgeIds.isNotEmpty
             ? traceState.completedEdgeIds
             : null,
+        // Edge relationship labels (e.g. "Father", "Son", "Spouse").
+        edgeLabels: widget.edgeLabels,
+        showEdgeLabels: widget.showEdgeLabels,
       ),
       child: const SizedBox.expand(),
     );

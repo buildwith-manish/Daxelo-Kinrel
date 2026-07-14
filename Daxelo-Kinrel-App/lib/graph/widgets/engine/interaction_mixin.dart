@@ -6,6 +6,34 @@ part of '../family_graph_engine_view.dart';
 
 /// Mixin containing interaction handlers for _FamilyGraphEngineViewState.
 extension _InteractionMethods on _FamilyGraphEngineViewState {
+  // ── Pan tuning constants ─────────────────────────────────────────────
+  //
+  // These values are the single source of truth for graph pan feel.
+  // Tuned for a premium, controlled experience comparable to Figma /
+  // Google Maps — small drags produce small movements, large drags
+  // move proportionally, and release momentum is minimal.
+  //
+  // The key insight: live-drag sensitivity MUST match release-momentum
+  // sensitivity. If they differ, the user feels a velocity discontinuity
+  // the instant their finger lifts — the #1 cause of "uncontrolled" feel.
+
+  /// Minimum finger movement before pan engages. Filters finger jitter.
+  static const double _kPanDeadZone = 3.0;
+
+  /// Drag sensitivity multiplier applied to BOTH live drag AND release
+  /// momentum. 0.78 = 22% slower than raw finger movement. This gives
+  /// a controlled, premium feel without feeling sluggish.
+  static const double _kPanSensitivity = 0.78;
+
+  /// Max pan delta per frame (px). Caps live-drag speed at
+  /// 40 × 60fps = 2400px/s — comfortably above the momentum clamp
+  /// (1800px/s) so drag never outpaces fling.
+  static const double _kPanMaxDeltaPerFrame = 40.0;
+
+  /// Minimum release velocity (px/s) to trigger momentum. Below this,
+  /// the graph just stops where the finger lifted.
+  static const double _kMomentumMinVelocity = 200.0;
+
   void _onScaleStart(ScaleStartDetails d) {
     _camera.stopAnimation(); // cancel any in-flight fling/animateTo
     _lastFocal = d.focalPoint;
@@ -19,10 +47,15 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // (pinch-release jitter produces large fake velocities).
     if (!_isPinching) {
       final v = d.velocity.pixelsPerSecond;
-      // Premium control: raise threshold from 50 to 200 px/s so
-      // tiny accidental flicks don't trigger momentum.
-      if (v.distance > 200) {
-        _camera.applyMomentum(v.dx, v.dy);
+      if (v.distance > _kMomentumMinVelocity) {
+        // Apply the SAME sensitivity as live drag so there's no velocity
+        // discontinuity on release. Without this, a slow controlled drag
+        // suddenly becomes a full-velocity fling the instant the finger
+        // lifts — the primary cause of "uncontrolled" feel.
+        _camera.applyMomentum(
+          v.dx * _kPanSensitivity,
+          v.dy * _kPanSensitivity,
+        );
       }
     }
     _isPinching = false;
@@ -38,20 +71,16 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
 
     // Pan (works for one- and two-finger drags).
     // Premium control: dead zone + sensitivity multiplier + max delta cap.
-    // - Dead zone (3px): ignore micro-movements from finger jitter
-    // - Sensitivity (0.85x): slightly reduce raw delta for controlled feel
-    // - Max delta (80px/frame): prevent sudden large jumps
+    // - Dead zone (_kPanDeadZone): ignore micro-movements from finger jitter
+    // - Sensitivity (_kPanSensitivity): 0.78x for controlled, premium feel
+    // - Max delta (_kPanMaxDeltaPerFrame): prevent sudden large jumps
     final Offset rawDelta = d.focalPoint - _lastFocal;
     if (rawDelta != Offset.zero) {
-      // Dead zone: ignore tiny movements that are likely finger jitter
-      const deadZone = 3.0;
-      if (rawDelta.distance.abs() > deadZone) {
-        // Sensitivity multiplier: 0.85x for controlled, premium feel
-        const sensitivity = 0.85;
-        // Max delta per frame cap: prevents sudden large jumps
-        const maxDelta = 80.0;
-        double dx = (rawDelta.dx * sensitivity).clamp(-maxDelta, maxDelta);
-        double dy = (rawDelta.dy * sensitivity).clamp(-maxDelta, maxDelta);
+      if (rawDelta.distance > _kPanDeadZone) {
+        double dx = (rawDelta.dx * _kPanSensitivity)
+            .clamp(-_kPanMaxDeltaPerFrame, _kPanMaxDeltaPerFrame);
+        double dy = (rawDelta.dy * _kPanSensitivity)
+            .clamp(-_kPanMaxDeltaPerFrame, _kPanMaxDeltaPerFrame);
         _camera.panBy(dx, dy);
       }
     }

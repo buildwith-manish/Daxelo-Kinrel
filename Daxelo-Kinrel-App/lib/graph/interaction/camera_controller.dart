@@ -203,11 +203,13 @@ class CameraController extends ChangeNotifier {
   /// pixels per second, clamped to ±4000 px/sec to prevent extreme
   /// flicks from overshooting the viewport.
   void applyMomentum(double velocityX, double velocityY) {
-    // Premium control: reduce max velocity from 4000 to 2200 px/sec.
+    // Premium control: max velocity clamped to 1800 px/sec.
     // This prevents fast flicks from sending the graph flying across
-    // the screen. 2200 px/s is still fast enough for natural fling
-    // but doesn't overshoot.
-    const maxVelocity = 2200.0; // px/sec — clamp hard flicks
+    // the screen. 1800 px/s is still fast enough for natural fling
+    // but doesn't overshoot. Combined with the reduced projection
+    // factor in _startMomentumDecay (0.15s), a max-velocity flick
+    // travels only 270px — less than one screen width on most phones.
+    const maxVelocity = 1800.0; // px/sec — clamp hard flicks
     // Save the clamped velocities BEFORE _startMomentumDecay, which
     // calls _cancelAnimation() (which resets _velocityX/_velocityY to
     // zero as part of invalidating in-flight animations).
@@ -784,23 +786,31 @@ class CameraController extends ChangeNotifier {
     notifyListeners();
 
     // P3.1: Spring-seeded momentum. The target is the position the
-    // camera would reach at constant velocity for one "throw second",
-    // but the critically-damped spring decelerates it to zero there.
-    // Using a fixed projection (1 second of gesture velocity) gives a
-    // consistent feel regardless of flick strength — the spring does
-    // the work of decelerating from the start velocity to zero.
+    // camera would reach at constant velocity for a short projection
+    // window, but the critically-damped spring decelerates it to zero
+    // there. Using a fixed projection gives a consistent feel regardless
+    // of flick strength — the spring does the work of decelerating from
+    // the start velocity to zero.
     //
     // SpringPalette.pan is critically damped so the camera does NOT
     // overshoot (no oscillation). Tolerance ensures the simulation
     // terminates within ~300ms for typical flick velocities.
     final spring = SpringPalette.pan;
 
-    // Premium control: reduce momentum projection from 1.0s to 0.4s.
-    // This means a 2200px/s flick targets 880px away instead of 2200px.
-    // The graph still moves naturally on a deliberate swipe but doesn't
-    // fly across the screen on an accidental flick.
-    final targetPanX = startPanX + startVelocityX * 0.4;
-    final targetPanY = startPanY + startVelocityY * 0.4;
+    // Premium control: momentum projection factor of 0.15s.
+    // This means a max-velocity 1800px/s flick targets 270px away
+    // (1800 × 0.15 = 270). On a 390px-wide phone, that's ~0.7 screen
+    // widths — enough to feel like a natural continuation of the drag
+    // without overshooting. The previous value of 0.4s targeted 880px
+    // (2.25 screen widths) which felt uncontrolled.
+    //
+    // The spring is critically damped (damping ratio ≈ 0.87), so there
+    // is NO oscillation — the camera smoothly decelerates to the target
+    // and stops. The user perceives this as "the graph glides to a halt
+    // right where I expected."
+    const momentumProjectionSeconds = 0.15;
+    final targetPanX = startPanX + startVelocityX * momentumProjectionSeconds;
+    final targetPanY = startPanY + startVelocityY * momentumProjectionSeconds;
 
     final simX = SpringSimulation(
       spring,
