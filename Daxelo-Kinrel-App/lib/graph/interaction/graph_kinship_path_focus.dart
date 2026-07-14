@@ -42,9 +42,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/relationship/relationship_engine.dart' show RelationshipEngine;
+import '../../core/relationship/relationship_engine.dart'
+    show RelationshipEngine;
+import '../../core/graph/graph_service.dart' show PathStep;
 import '../../core/kinship/structural_kinship_classifier.dart'
-    show StructuralClassification;
+    show StructuralClassification, StructuralKinshipClassifier;
 import '../data/graph_data_models.dart' show GraphEdgeData;
 import '../engine/edge_dedup.dart' show DedupedEdge, EdgeDeduplicator;
 import '../../features/family/presentation/providers/family_graph_provider.dart'
@@ -373,20 +375,98 @@ class GraphPathFocusNotifier extends StateNotifier<GraphPathFocusState> {
       ));
     }
 
+    // BUG FIX: Compute the structural classification from the resolved
+    // path steps when the caller didn't pass an explicit classification.
+    // This ensures `resolvedCategory` is non-null for single-hop paths
+    // (spouse, parent, child, sibling) and multi-hop paths (grandparent,
+    // aunt/uncle, cousin, etc.).
+    final _computedClassification = classification ??
+        _computeClassification(pathSteps, persons, targetPersonId, viewerPersonId);
+
     final focus = GraphKinshipPathFocus(
       viewerPersonId: viewerPersonId,
       targetPersonId: targetPersonId,
       steps: List.unmodifiable(focusSteps),
       orderedPersonIds: List.unmodifiable(orderedPersonIds),
       orderedEdgeIds: List.unmodifiable(orderedEdgeIds),
-      resolvedRelationshipKey: classification?.key,
-      resolvedRelationshipLabel: classification?.label,
-      resolvedCategory: classification?.category,
+      // BUG FIX: When the caller doesn't pass an explicit classification,
+      // compute one from the resolved path steps. Previously, `resolvedCategory`
+      // was always null when no classification was passed — even though the
+      // path was successfully resolved. This made the "How We're Connected"
+      // feature show no category/label for the resolved relationship.
+      resolvedRelationshipKey: classification?.key ?? _computedClassification?.key,
+      resolvedRelationshipLabel: classification?.label ?? _computedClassification?.label,
+      resolvedCategory: classification?.category ?? _computedClassification?.category,
       graphRevision: graphRevision,
     );
 
     state = GraphPathFocusState(focus: focus, resolvedAt: graphRevision);
     return focus;
+  }
+
+  /// Computes a [StructuralClassification] from the resolved path steps
+  /// when the caller didn't pass an explicit classification.
+  ///
+  /// This uses the [StructuralKinshipClassifier] — the same classifier
+  /// used by the live graph — to map the BFS path types (e.g.
+  /// ['father'], ['wife'], ['father', 'father']) to a category +
+  /// human-readable label.
+  ///
+  /// Returns null only when the path is empty (shouldn't happen here
+  /// because we already checked for null/empty above).
+  StructuralClassification? _computeClassification(
+    List<PathStep> pathSteps,
+    List<GraphPerson> persons,
+    String? targetPersonId,
+    String? viewerPersonId,
+  ) {
+    if (pathSteps.isEmpty) return null;
+
+    // Build the path type list for the classifier.
+    //
+    // BUG FIX: The BFS path types depend on the edge traversal direction:
+    //   • direction='from' (forward): the type is as stored in the DB.
+    //     E.g. edge ['viewer', 'child'] with type 'son' → PathStep.type='son'.
+    //     From viewer's perspective: "child is my son" → category=child. ✓
+    //   • direction='to' (reverse): the type has been INVERTED by the BFS.
+    //     E.g. edge ['father', 'viewer'] with type 'father' → BFS traverses
+    //     viewer→father in reverse → PathStep.type='child' (inverse of 'father').
+    //     From viewer's perspective: "father is my parent" → category=parent.
+    //     But the type says 'child' → we must re-invert to get 'parent'.
+    //
+    // So: when direction='to', re-invert the type using inverseTypeMap in
+    // reverse. When direction='from', keep the type as-is.
+    final pathTypes = pathSteps.map((s) {
+      if (s.direction == 'to') {
+        // Reverse traversal — the type was inverted by BFS. Re-invert
+        // to get the viewer's perspective.
+        final t = s.type.toLowerCase().trim();
+        // child → parent, son → parent, daughter → parent
+        // (these are the only inversions that matter for classification;
+        // sibling↔sibling and spouse↔spouse are symmetric, and
+        // parent→child doesn't happen because parent-type edges are
+        // stored as 'father'/'mother', not 'parent').
+        if (t == 'child' || t == 'son' || t == 'daughter') return 'parent';
+      }
+      // Forward traversal (direction='from') or symmetric type — use as-is.
+      return s.type;
+    }).toList();
+
+    // Resolve the target's gender for gender-aware labels.
+    final target = persons.firstWhere(
+      (p) => p.id == targetPersonId,
+      orElse: () => GraphPerson(id: targetPersonId ?? '', name: ''),
+    );
+    final viewer = persons.firstWhere(
+      (p) => p.id == viewerPersonId,
+      orElse: () => GraphPerson(id: viewerPersonId ?? '', name: ''),
+    );
+
+    return StructuralKinshipClassifier.classify(
+      path: pathTypes,
+      targetGender: target.gender,
+      viewerGender: viewer.gender ?? 'male',
+    );
   }
 
   /// Clear the resolved path. Called when the target is deselected.

@@ -185,24 +185,29 @@ class GraphFocusState {
 
   GraphFocusState copyWith({
     String? focusedPersonId,
+    bool clearFocusedPersonId = false,
     List<FocusHistoryEntry>? history,
     Set<String>? firstDegreeIds,
     Set<String>? secondDegreeIds,
     int? revision,
     PathSelectPhase? pathSelectPhase,
     String? pathSelectFromId,
+    bool clearPathSelectFromId = false,
     String? pathSelectToId,
+    bool clearPathSelectToId = false,
     bool? isMapFocus,
   }) {
     return GraphFocusState(
-      focusedPersonId: focusedPersonId ?? this.focusedPersonId,
+      // Use the explicit clear flag to allow setting focusedPersonId to null.
+      // Without this, `null ?? this.focusedPersonId` would keep the old value.
+      focusedPersonId: clearFocusedPersonId ? null : (focusedPersonId ?? this.focusedPersonId),
       history: history ?? this.history,
       firstDegreeIds: firstDegreeIds ?? this.firstDegreeIds,
       secondDegreeIds: secondDegreeIds ?? this.secondDegreeIds,
       revision: revision ?? this.revision,
       pathSelectPhase: pathSelectPhase ?? this.pathSelectPhase,
-      pathSelectFromId: pathSelectFromId ?? this.pathSelectFromId,
-      pathSelectToId: pathSelectToId ?? this.pathSelectToId,
+      pathSelectFromId: clearPathSelectFromId ? null : (pathSelectFromId ?? this.pathSelectFromId),
+      pathSelectToId: clearPathSelectToId ? null : (pathSelectToId ?? this.pathSelectToId),
       isMapFocus: isMapFocus ?? this.isMapFocus,
     );
   }
@@ -305,15 +310,20 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
     );
   }
 
-  /// Go back to the previous focused person. Returns the entry to
-  /// restore (person + viewport), or null if history is empty.
+  /// Go back to the previous focused person. Returns the entry that
+  /// was popped from history (the current focus before back was called),
+  /// or null if history is empty.
+  ///
+  /// After calling this:
+  ///   • If there was a previous entry in history, focus moves to it.
+  ///   • If history is now empty, focus is cleared.
   ///
   /// The caller is responsible for animating the camera to the
   /// restored viewport — this method only updates the focus state.
   FocusHistoryEntry? back() {
     if (state.history.isEmpty) return null;
 
-    // Pop the last entry.
+    // Pop the last entry (the current focus person).
     final newHistory = List<FocusHistoryEntry>.from(state.history);
     final popped = newHistory.removeLast();
 
@@ -327,10 +337,10 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
         secondDegreeIds: const {},
         revision: state.revision + 1,
       );
-      // The caller should re-compute neighbour sets by calling
-      // focus() with the previous person's edges. But for the simple
-      // case we just restore the focus ID.
-      return previous;
+      // Return the popped entry so the caller knows what was removed.
+      // The caller can read `state.focusedPersonId` to get the restored
+      // person (the previous entry).
+      return popped;
     }
 
     // No previous entry — clear focus.
@@ -348,7 +358,7 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
   void clearFocus() {
     if (state.focusedPersonId == null) return;
     state = state.copyWith(
-      focusedPersonId: null,
+      clearFocusedPersonId: true,
       firstDegreeIds: const {},
       secondDegreeIds: const {},
       revision: state.revision + 1,
@@ -406,8 +416,8 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
     if (state.pathSelectPhase == PathSelectPhase.idle) return;
     state = state.copyWith(
       pathSelectPhase: PathSelectPhase.idle,
-      pathSelectFromId: null,
-      pathSelectToId: null,
+      clearPathSelectFromId: true,
+      clearPathSelectToId: true,
     );
   }
 
@@ -450,16 +460,25 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
   ///
   /// Returns a [NeighbourSets] (a simple class — NOT a record type,
   /// because dart2js has trouble destructuring named records).
+  ///
+  /// BUG FIX: The focus person is NEVER included in their own first or
+  /// second degree sets. Previously, a self-loop edge (A→A) would add
+  /// 'A' to firstDegreeIds, which is incorrect — the focus person is
+  /// tracked separately via `focusedPersonId`.
   NeighbourSets _computeNeighbours(
     String personId,
     List<({String fromId, String toId})> edges,
   ) {
-    // First degree: directly connected persons.
+    // First degree: directly connected persons (excluding self).
     final first = <String>{};
     for (final e in edges) {
       if (e.fromId == personId) {
+        // Skip self-loops — the focus person is never their own neighbour.
+        if (e.toId == personId) continue;
         first.add(e.toId);
       } else if (e.toId == personId) {
+        // Skip self-loops (already covered above, but defensive).
+        if (e.fromId == personId) continue;
         first.add(e.fromId);
       }
     }
