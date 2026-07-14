@@ -33,6 +33,7 @@
 // offline; the CircleLayer fallback renders a labeled marker so the
 // place is still visible.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
