@@ -64,6 +64,12 @@ class GraphSearchState {
   /// True when [personId] is the currently-selected match.
   bool isCurrentMatch(String personId) => personId == currentMatchId;
 
+  /// True when this state is semantically "empty" — no query, no
+  /// matches, not active. The revision is NOT compared because it
+  /// is a monotonically-increasing counter, not a semantic field.
+  bool get isEmpty =>
+      query.isEmpty && matchIds.isEmpty && !isActive && currentIndex == -1;
+
   GraphSearchState copyWith({
     String? query,
     List<String>? matchIds,
@@ -81,12 +87,30 @@ class GraphSearchState {
   }
 
   @override
+  /// Two states are equal when their SEMANTIC fields match (query,
+  /// matchIds, currentIndex, isActive). The revision is a paint-loop
+  /// counter and is NOT compared — it would make two semantically-
+  /// identical states with different revisions unequal, breaking
+  /// `clear()` which bumps revision but should still produce a state
+  /// that equals `GraphSearchState.empty`.
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is GraphSearchState && other.revision == revision;
+      other is GraphSearchState &&
+          other.query == query &&
+          _listEquals(other.matchIds, matchIds) &&
+          other.currentIndex == currentIndex &&
+          other.isActive == isActive;
+
+  bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 
   @override
-  int get hashCode => revision.hashCode;
+  int get hashCode => Object.hash(query, matchIds.length, currentIndex, isActive);
 
   @override
   String toString() =>
@@ -103,9 +127,13 @@ class GraphSearchNotifier extends StateNotifier<GraphSearchState> {
   ///
   /// [matchIds] is the ordered list of person IDs matching the query,
   /// ranked by relevance (same order as the search result list).
+  ///
+  /// BUG FIX: `isActive` is true ONLY when the query is non-empty AND
+  /// there is at least one match. Previously, a query with zero matches
+  /// kept `isActive = true`, which left the graph in a dimmed state
+  /// with no highlighted nodes — confusing the user.
   void setResults(String query, List<String> matchIds) {
-    final wasActive = state.isActive;
-    final newIsActive = query.trim().isNotEmpty;
+    final newIsActive = query.trim().isNotEmpty && matchIds.isNotEmpty;
 
     state = GraphSearchState(
       query: query,
@@ -114,11 +142,6 @@ class GraphSearchNotifier extends StateNotifier<GraphSearchState> {
       isActive: newIsActive,
       revision: state.revision + 1,
     );
-
-    // If search just became inactive, clear the state entirely.
-    if (wasActive && !newIsActive) {
-      state = GraphSearchState.empty;
-    }
   }
 
   /// Move to the next match. Wraps around to the first match if at
@@ -157,9 +180,26 @@ class GraphSearchNotifier extends StateNotifier<GraphSearchState> {
   }
 
   /// Clear the search — restores the graph to its normal emphasis state.
+  ///
+  /// BUG FIX: Previously, `clear()` set `state = GraphSearchState.empty`,
+  /// which has `revision = 0`. This meant the revision went DOWN (e.g.
+  /// from 1 to 0), so the painter's `shouldRepaint` (which checks
+  /// `old.revision != new.revision`) would fire — but the revision
+  /// counter was lost, making future comparisons unreliable.
+  ///
+  /// Now, `clear()` preserves the revision counter and bumps it by 1,
+  /// so the painter always sees a monotonically increasing revision.
   void clear() {
-    if (state == GraphSearchState.empty) return;
-    state = GraphSearchState.empty;
+    if (state.query.isEmpty && state.matchIds.isEmpty && !state.isActive) {
+      return; // Already cleared — no-op.
+    }
+    state = GraphSearchState(
+      query: '',
+      matchIds: const [],
+      currentIndex: -1,
+      isActive: false,
+      revision: state.revision + 1,
+    );
   }
 }
 

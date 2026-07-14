@@ -19,6 +19,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/interaction/graph_path_trace_controller.dart';
 
 void main() {
+  // CRITICAL: Initialize the test binding BEFORE any AnimationController
+  // is created. Without this, SemanticsBinding.instance throws when
+  // AnimationController.forward() is called.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   // Use a fake vsync so the AnimationController can tick without a
   // real widget tree.
   late FakeVsync vsync;
