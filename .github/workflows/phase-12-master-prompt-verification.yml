@@ -233,7 +233,7 @@ jobs:
               assert layer.get('minzoom') is not None and layer.get('minzoom') <= 13, f'{lid} minzoom={layer.get(\"minzoom\")}, expected <= 13'
               # Verify the render_height >= 30 filter
               filt = layer.get('filter', [])
-              assert len(filt) >= 3 and filt[0] == '>=' and filt[2] == ['get', 'render_height'] and filt[1] == 30, f'{lid} missing render_height >= 30 filter'
+              assert len(filt) >= 3 and filt[0] == '>=' and filt[1] == ['get', 'render_height'] and filt[2] == 30, f'{lid} missing render_height >= 30 filter'
           "; then
             echo "❌ P2.1 FAILED: warm-glow layers missing or not configured for global visibility"
             exit 1
