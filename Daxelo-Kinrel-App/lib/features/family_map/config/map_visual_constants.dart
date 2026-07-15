@@ -203,11 +203,14 @@ class MapVisualConstants {
   // ZOOM THRESHOLDS
   // ═════════════════════════════════════════════════════════════════════
 
-  /// Below this zoom, 3D building extrusion is hidden for performance.
-  /// P12 premium: lowered from 15 → 14 to match Snapchat-style 3D.
-  /// P12.1 ultra-premium: lowered to 13.5 so 3D appears even earlier
-  /// (premium feel — buildings extrude as soon as you see a city).
-  static const double buildingExtrusionMinZoom = 13.5;
+  /// P12.4 — CLEANED UP: This constant is DOCUMENTATION-ONLY.
+  /// The real 3D building zoom threshold lives in the style JSON
+  /// (`kinrel_dark_style.json` layer `minzoom` properties). This
+  /// constant is NOT referenced by any functional code path — it
+  /// exists only for test assertions and as a readable reference of
+  /// what the style JSON is configured to. Do NOT use this to gate
+  /// runtime behavior; read the style JSON instead.
+  static const double buildingExtrusionMinZoom = 13.0;
 
   /// P11.x — Above this zoom, the per-type roof detail layer renders.
   /// Per master prompt: roof pattern added at runtime at zoom 17+.
@@ -220,7 +223,19 @@ class MapVisualConstants {
   static const double secondaryPoiMinZoom = 14.0;
 
   /// Minimum zoom the camera will use when entering Focus Mode.
-  static const double focusMinZoom = 13.0;
+  ///
+  /// P12.4 BUG FIX: Was 13.0 — at zoom 13, 3D buildings had barely
+  /// started fading in under the opacity ramp, so tapping a family
+  /// member's pin anywhere in the world parked the camera at a zoom
+  /// where buildings were barely visible. The only code path that
+  /// reached a zoom where 3D was clearly visible was the hardcoded
+  /// _flyToBengaluru3D() debug button (zoom 16.5).
+  ///
+  /// Fix: raised to 16.5 — the zoom where 3D buildings are clearly,
+  /// richly visible with warm-glow treatment. Now every family member
+  /// tap (in any city worldwide) zooms to the same premium 3D view
+  /// that was previously only reachable via the debug button.
+  static const double focusMinZoom = 16.5;
 
   /// Camera pitch (tilt) for Focus Mode and cinematic entrance.
   static const double focusPitch = 45.0;

@@ -333,6 +333,23 @@ jobs:
           fi
           echo "✅ P3.4: avatar marker has gradient ring (SweepGradient) + selection halo"
 
+      - name: Verify P4.0 — focusMinZoom ≥ 16 (3D buildings visible on pin tap)
+        working-directory: .
+        run: |
+          # P12.4 BUG FIX: focusMinZoom was 13.0 — at zoom 13, 3D buildings
+          # had barely started fading in. Tapping any family member pin
+          # parked the camera at a zoom where buildings were barely visible.
+          # The only path to clear 3D was the hardcoded _flyToBengaluru3D()
+          # debug button (zoom 16.5). Fix: raised to 16.5 so every pin tap
+          # worldwide shows premium 3D.
+          # REGRESSION GUARD: focusMinZoom must never drop below 16.
+          if ! rg -q "focusMinZoom = 16.5" Daxelo-Kinrel-App/lib/features/family_map/config/map_visual_constants.dart; then
+            echo "❌ P4.0 FAILED: focusMinZoom is not 16.5 (3D buildings invisible on pin tap)"
+            echo "   This was the root cause of '3D only visible in Bengaluru' — do not regress."
+            exit 1
+          fi
+          echo "✅ P4.0: focusMinZoom = 16.5 (3D buildings clearly visible on every pin tap worldwide)"
+
       - name: Verify P4.1 — Haptic feedback on tap + long-press
         working-directory: .
         run: |

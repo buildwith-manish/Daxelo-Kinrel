@@ -96,8 +96,19 @@ void main() {
       expect(MapVisualConstants.markerGlowBlurSelected, equals(16.0));
     });
 
-    test('P12.1 — building extrusion min zoom is 13.5 (3D appears even earlier)', () {
-      expect(MapVisualConstants.buildingExtrusionMinZoom, equals(13.5));
+    test('P12.4 — building extrusion min zoom is 13.0 (documentation-only, style JSON is authoritative)', () {
+      expect(MapVisualConstants.buildingExtrusionMinZoom, equals(13.0));
+    });
+
+    test('P12.4 BUG FIX — focusMinZoom is 16.5 (3D buildings clearly visible)', () {
+      // BUG: focusMinZoom was 13.0 — at zoom 13, 3D buildings had barely
+      // started fading in. Tapping any family member pin parked the camera
+      // at a zoom where buildings were barely visible. The only path to
+      // a clear 3D view was the hardcoded _flyToBengaluru3D() debug button.
+      // FIX: raised to 16.5 so every pin tap shows premium 3D worldwide.
+      expect(MapVisualConstants.focusMinZoom, equals(16.5),
+          reason: 'focusMinZoom must be 16.5 so 3D buildings are clearly '
+                  'visible when tapping any family member pin worldwide');
     });
 
     test('P12.1 — ancestral home color is brighter gold #B8901F', () {
