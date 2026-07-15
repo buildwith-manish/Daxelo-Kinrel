@@ -18,6 +18,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../features/cameo/cameo.dart' show CameoAvatar, CameoFallbackConfig;
 import '../constants/brand_colors.dart';
 import '../utils/image_cache_config.dart';
 
@@ -52,6 +53,7 @@ class CachedAvatar extends StatelessWidget {
     this.backgroundColor,
     this.border,
     this.fit,
+    this.cameoFallback,
   });
 
   /// The URL of the image to display.
@@ -86,6 +88,14 @@ class CachedAvatar extends StatelessWidget {
   /// Defaults to [BoxFit.cover].
   final BoxFit? fit;
 
+  /// Optional Kinrel Cameo fallback. When [imageUrl] is null/empty AND
+  /// this is provided, the avatar renders a [CameoAvatar] (the
+  /// deterministic Kinrel portrait) instead of the legacy person icon.
+  ///
+  /// When this is null (the default), the legacy person-icon fallback
+  /// is used — existing call sites are 100% preserved.
+  final CameoFallbackConfig? cameoFallback;
+
   @override
   Widget build(BuildContext context) {
     final diameter = radius * 2;
@@ -93,8 +103,29 @@ class CachedAvatar extends StatelessWidget {
     final effectiveFit = fit ?? BoxFit.cover;
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
 
-    // No URL — show icon fallback
+    // No URL — show Cameo fallback if configured, else legacy icon.
     if (imageUrl == null || imageUrl!.isEmpty) {
+      if (cameoFallback != null) {
+        return SizedBox(
+          width: diameter,
+          height: diameter,
+          child: ClipOval(
+            child: CameoAvatar(
+              personName: cameoFallback!.personName,
+              ageBand: cameoFallback!.ageBand,
+              skinToneIndex: cameoFallback!.skinToneIndex,
+              surfaceId: cameoFallback!.surfaceId,
+              expressionId: cameoFallback!.expressionId,
+              poseId: cameoFallback!.poseId,
+              memorialAtmosphere: cameoFallback!.memorialAtmosphere,
+              familyEventId: cameoFallback!.familyEventId,
+              relationshipLabel: cameoFallback!.relationshipLabel,
+              isDeceased: cameoFallback!.isDeceased,
+              enableAnimation: cameoFallback!.enableAnimation,
+            ),
+          ),
+        );
+      }
       if (border != null) {
         return Container(
           width: diameter,
@@ -212,6 +243,7 @@ class InitialsAvatar extends StatelessWidget {
     this.foregroundColor,
     this.fontSize,
     this.border,
+    this.cameoFallback,
   });
 
   /// The URL of the image to display.
@@ -242,6 +274,11 @@ class InitialsAvatar extends StatelessWidget {
   /// Optional border around the avatar.
   final BoxBorder? border;
 
+  /// Optional Kinrel Cameo fallback. When [imageUrl] is null/empty AND
+  /// this is provided, the avatar renders a [CameoAvatar] instead of
+  /// the initials. When null, the legacy initials fallback is used.
+  final CameoFallbackConfig? cameoFallback;
+
   @override
   Widget build(BuildContext context) {
     // If an image URL exists, use CachedAvatar
@@ -251,6 +288,29 @@ class InitialsAvatar extends StatelessWidget {
         radius: radius,
         backgroundColor: backgroundColor,
         border: border,
+      );
+    }
+
+    // No image — show Cameo fallback if configured, else initials.
+    if (cameoFallback != null) {
+      return SizedBox(
+        width: radius * 2,
+        height: radius * 2,
+        child: ClipOval(
+          child: CameoAvatar(
+            personName: cameoFallback!.personName,
+            ageBand: cameoFallback!.ageBand,
+            skinToneIndex: cameoFallback!.skinToneIndex,
+            surfaceId: cameoFallback!.surfaceId,
+            expressionId: cameoFallback!.expressionId,
+            poseId: cameoFallback!.poseId,
+            memorialAtmosphere: cameoFallback!.memorialAtmosphere,
+            familyEventId: cameoFallback!.familyEventId,
+            relationshipLabel: cameoFallback!.relationshipLabel,
+            isDeceased: cameoFallback!.isDeceased,
+            enableAnimation: cameoFallback!.enableAnimation,
+          ),
+        ),
       );
     }
 
