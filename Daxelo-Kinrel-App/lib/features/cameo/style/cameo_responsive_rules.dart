@@ -62,8 +62,10 @@ class CameoResponsiveRules {
   // SAFETY INVARIANTS — all must be false for a Kinrel Cameo.
   /// ALWAYS false. The Cameo never stretches.
   final bool allowStretch;
+
   /// ALWAYS false. The Cameo never crops the face.
   final bool allowCrop;
+
   /// ALWAYS false. The Cameo never forces a viewport.
   final bool allowViewportForce;
 
@@ -80,8 +82,14 @@ class CameoResponsiveRules {
       CameoBreakpoint.mobile => mobileMaxSize,
     };
 
-    final maxWidth = [maxRenderSize.$1, bpMax.$1].reduce((a, b) => a < b ? a : b);
-    final maxHeight = [maxRenderSize.$2, bpMax.$2].reduce((a, b) => a < b ? a : b);
+    final maxWidth = [
+      maxRenderSize.$1,
+      bpMax.$1,
+    ].reduce((a, b) => a < b ? a : b);
+    final maxHeight = [
+      maxRenderSize.$2,
+      bpMax.$2,
+    ].reduce((a, b) => a < b ? a : b);
 
     // Fit aspect ratio inside container, then clamp.
     double w = containerSize.width;
@@ -230,7 +238,13 @@ class CameoResponsiveLibrary {
 
   /// All approved responsive presets.
   static const List<CameoResponsiveRules> all = <CameoResponsiveRules>[
-    studio, profileHero, mapMarker, graphNode, chatAvatar, journey, timelineCard,
+    studio,
+    profileHero,
+    mapMarker,
+    graphNode,
+    chatAvatar,
+    journey,
+    timelineCard,
   ];
 
   /// Look up by surface id. Returns [studio] as the safe default.

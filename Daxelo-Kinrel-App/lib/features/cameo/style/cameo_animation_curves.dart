@@ -33,6 +33,8 @@
 //   • No procedural fidgeting.
 
 import 'package:flutter/animation.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 /// Deterministic animation tuning for a Cameo surface.
 @immutable
@@ -145,6 +147,7 @@ class CameoAnimationCurves {
 
   /// Generic copy-with.
   CameoAnimationCurves copyWith({
+    String? surfaceId,
     bool? allowBreathing,
     bool? allowBlink,
     bool? allowSaccades,
@@ -157,7 +160,7 @@ class CameoAnimationCurves {
     int? traitChangeCrossfadeMs,
   }) {
     return CameoAnimationCurves(
-      surfaceId: surfaceId,
+      surfaceId: surfaceId ?? this.surfaceId,
       breathingPeriod: breathingPeriod,
       breathingAmplitudePx: breathingAmplitudePx ?? this.breathingAmplitudePx,
       blinkCloseMs: blinkCloseMs,
@@ -182,8 +185,7 @@ class CameoAnimationCurves {
       allowBlink: allowBlink ?? this.allowBlink,
       allowSaccades: allowSaccades ?? this.allowSaccades,
       allowHeadSway: allowHeadSway ?? this.allowHeadSway,
-      allowCameraIdleDrift:
-          allowCameraIdleDrift ?? this.allowCameraIdleDrift,
+      allowCameraIdleDrift: allowCameraIdleDrift ?? this.allowCameraIdleDrift,
     );
   }
 }
@@ -275,17 +277,17 @@ class CameoAnimationPresets {
   );
 
   /// Family Graph node — same as Map marker (derived PNG).
-  static const CameoAnimationCurves graphNode = mapMarker.copyWith(
+  static final CameoAnimationCurves graphNode = mapMarker.copyWith(
     surfaceId: 'graph_node',
   );
 
   /// Chat avatar — same as Map marker.
-  static const CameoAnimationCurves chatAvatar = mapMarker.copyWith(
+  static final CameoAnimationCurves chatAvatar = mapMarker.copyWith(
     surfaceId: 'chat_avatar',
   );
 
   /// Timeline card — same as Map marker.
-  static const CameoAnimationCurves timelineCard = mapMarker.copyWith(
+  static final CameoAnimationCurves timelineCard = mapMarker.copyWith(
     surfaceId: 'timeline_card',
   );
 
@@ -317,8 +319,14 @@ class CameoAnimationPresets {
   );
 
   /// All approved animation presets.
-  static const List<CameoAnimationCurves> all = <CameoAnimationCurves>[
-    studio, profileHero, mapMarker, graphNode, chatAvatar, timelineCard, journey,
+  static final List<CameoAnimationCurves> all = <CameoAnimationCurves>[
+    studio,
+    profileHero,
+    mapMarker,
+    graphNode,
+    chatAvatar,
+    timelineCard,
+    journey,
   ];
 
   /// Look up by surface id. Returns [studio] as the safe default.

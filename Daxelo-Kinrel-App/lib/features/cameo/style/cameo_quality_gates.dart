@@ -66,7 +66,9 @@ class CameoQualityReport {
 
   @override
   String toString() {
-    final buf = StringBuffer('Cameo Quality Report: $passCount/${results.length} passed');
+    final buf = StringBuffer(
+      'Cameo Quality Report: $passCount/${results.length} passed',
+    );
     if (!allPassed) {
       buf.writeln();
       for (final f in failures) {
@@ -84,17 +86,19 @@ class CameoQualityGates {
 
   /// Verify ALL structural quality gates. Call from CI.
   static CameoQualityReport verifyAll() {
-    return CameoQualityReport(results: <CameoQualityResult>[
-      verifySignaturePairPresent(),
-      verifyResponsiveSafetyInvariants(),
-      verifyChildSafetyRules(),
-      verifyMemorialDefaults(),
-      verifyNoBannedSurfaces(),
-      verifyExpressionCatalogInRange(),
-      verifyAnimationWithinBounds(),
-      verifyCameraFramesValid(),
-      verifySceneDensityBounded(),
-    ]);
+    return CameoQualityReport(
+      results: <CameoQualityResult>[
+        verifySignaturePairPresent(),
+        verifyResponsiveSafetyInvariants(),
+        verifyChildSafetyRules(),
+        verifyMemorialDefaults(),
+        verifyNoBannedSurfaces(),
+        verifyExpressionCatalogInRange(),
+        verifyAnimationWithinBounds(),
+        verifyCameraFramesValid(),
+        verifySceneDensityBounded(),
+      ],
+    );
   }
 
   /// Every lighting preset MUST carry the Kinrel signature pair
@@ -131,8 +135,7 @@ class CameoQualityGates {
   static CameoQualityResult verifyChildSafetyRules() {
     for (final band in CameoAgeBand.values) {
       if (CameoChildSafetyRules.isMinor(band)) {
-        for (final trait
-            in CameoChildSafetyRules.forbiddenTraitsForMinors) {
+        for (final trait in CameoChildSafetyRules.forbiddenTraitsForMinors) {
           if (CameoChildSafetyRules.isTraitAllowedForAgeBand(trait, band)) {
             return CameoQualityResult(
               checkId: 'child_safety_rules',
@@ -158,7 +161,8 @@ class CameoQualityGates {
         return CameoQualityResult(
           checkId: 'memorial_defaults',
           passed: false,
-          message: 'Default memorial for $band is "$def", expected "softLight".',
+          message:
+              'Default memorial for $band is "$def", expected "softLight".',
         );
       }
     }
@@ -185,10 +189,7 @@ class CameoQualityGates {
         message: 'memorialFor("candleGlow") did not return memorialCandle.',
       );
     }
-    return const CameoQualityResult(
-      checkId: 'memorial_defaults',
-      passed: true,
-    );
+    return const CameoQualityResult(checkId: 'memorial_defaults', passed: true);
   }
 
   /// No surface may render live 3D except Studio, Profile hero, and
@@ -196,13 +197,19 @@ class CameoQualityGates {
   static CameoQualityResult verifyNoBannedSurfaces() {
     const liveSurfaces = <String>{'studio', 'profile_hero', 'journey'};
     const derivedSurfaces = <String>{
-      'map_marker', 'graph_node', 'chat_avatar', 'timeline_card',
+      'map_marker',
+      'graph_node',
+      'chat_avatar',
+      'timeline_card',
     };
     // All derived surfaces must have animation disabled.
     for (final id in derivedSurfaces) {
       final anim = CameoAnimationPresets.byId(id);
-      if (anim.allowBreathing || anim.allowBlink || anim.allowSaccades ||
-          anim.allowHeadSway || anim.allowCameraIdleDrift) {
+      if (anim.allowBreathing ||
+          anim.allowBlink ||
+          anim.allowSaccades ||
+          anim.allowHeadSway ||
+          anim.allowCameraIdleDrift) {
         return CameoQualityResult(
           checkId: 'no_banned_live_3d_surfaces',
           passed: false,
@@ -285,7 +292,8 @@ class CameoQualityGates {
         return CameoQualityResult(
           checkId: 'camera_frames_valid',
           passed: false,
-          message: 'Surface "${c.surfaceId}" FOV ${c.fovDegrees}° out of [24,35].',
+          message:
+              'Surface "${c.surfaceId}" FOV ${c.fovDegrees}° out of [24,35].',
         );
       }
       if (c.zoomRange.$1 < 0.5 || c.zoomRange.$2 > 2.0) {
@@ -312,14 +320,16 @@ class CameoQualityGates {
         return CameoQualityResult(
           checkId: 'scene_density_bounded',
           passed: false,
-          message: 'Surface "${s.surfaceId}" face width [$lo,$hi] out of bounds.',
+          message:
+              'Surface "${s.surfaceId}" face width [$lo,$hi] out of bounds.',
         );
       }
       if (s.backgroundComplexity < 0 || s.backgroundComplexity > 0.25) {
         return CameoQualityResult(
           checkId: 'scene_density_bounded',
           passed: false,
-          message: 'Surface "${s.surfaceId}" background complexity out of bounds.',
+          message:
+              'Surface "${s.surfaceId}" background complexity out of bounds.',
         );
       }
       if (s.foregroundObjectCount != 0) {

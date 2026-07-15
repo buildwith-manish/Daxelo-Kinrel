@@ -97,8 +97,16 @@ class CameoColorPalette {
 
   /// All 10 skin tones in index order (1-based → index 0 = tone 1).
   static const List<Color> skinTones = <Color>[
-    skinTone1, skinTone2, skinTone3, skinTone4, skinTone5,
-    skinTone6, skinTone7, skinTone8, skinTone9, skinTone10,
+    skinTone1,
+    skinTone2,
+    skinTone3,
+    skinTone4,
+    skinTone5,
+    skinTone6,
+    skinTone7,
+    skinTone8,
+    skinTone9,
+    skinTone10,
   ];
 
   /// Returns a skin tone by 1-based index, clamped to [1, 10].
@@ -123,8 +131,13 @@ class CameoColorPalette {
   static const Color hairWhite = Color(0xFFEDE6DC);
 
   static const List<Color> hairColors = <Color>[
-    hairJet, hairBlack, hairDarkBrown, hairBrown, hairAuburn,
-    hairGrey, hairWhite,
+    hairJet,
+    hairBlack,
+    hairDarkBrown,
+    hairBrown,
+    hairAuburn,
+    hairGrey,
+    hairWhite,
   ];
 
   // ── Eye Color Palette ───────────────────────────────────────────────
@@ -136,7 +149,11 @@ class CameoColorPalette {
   static const Color eyeGreen = Color(0xFF3A5A3A);
 
   static const List<Color> eyeColors = <Color>[
-    eyeDarkBrown, eyeBrown, eyeHazel, eyeAmber, eyeGreen,
+    eyeDarkBrown,
+    eyeBrown,
+    eyeHazel,
+    eyeAmber,
+    eyeGreen,
   ];
 
   // ── Scene Backdrop ──────────────────────────────────────────────────
@@ -153,7 +170,8 @@ class CameoColorPalette {
 
   /// Vignette gradient (radial, center → edge).
   static const List<Color> vignetteGradient = <Color>[
-    vignetteCenter, vignetteEdge,
+    vignetteCenter,
+    vignetteEdge,
   ];
 
   // ── State Overlay Tints (V2 §44 — UI overlays, NOT character mutation) ──
@@ -214,7 +232,8 @@ class CameoColorPalette {
 
   /// The signature pair, in render order: key first, rim second.
   static const List<Color> signaturePair = <Color>[
-    keyLightIvory, rimLightEmber,
+    keyLightIvory,
+    rimLightEmber,
   ];
 
   /// True if a color is approximately one of the signature colors.
@@ -222,12 +241,12 @@ class CameoColorPalette {
   /// actually carries the Kinrel signature.
   static bool isSignatureColor(Color c) {
     return _approx(c, keyLightIvory, tolerance: 12) ||
-           _approx(c, rimLightEmber, tolerance: 12);
+        _approx(c, rimLightEmber, tolerance: 12);
   }
 
   static bool _approx(Color a, Color b, {required int tolerance}) {
     return (a.red - b.red).abs() <= tolerance &&
-           (a.green - b.green).abs() <= tolerance &&
-           (a.blue - b.blue).abs() <= tolerance;
+        (a.green - b.green).abs() <= tolerance &&
+        (a.blue - b.blue).abs() <= tolerance;
   }
 }

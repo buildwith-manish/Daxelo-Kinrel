@@ -12,6 +12,7 @@
 // 100% preserved — they simply don't pass this config and get the
 // legacy behavior.
 
+import 'package:flutter/foundation.dart';
 import '../../style/cameo_shape_language.dart';
 
 /// Configuration for the Kinrel Cameo fallback on [CachedAvatar].

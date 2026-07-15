@@ -47,6 +47,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../../style/cameo_animation_curves.dart';
+import '../../style/cameo_color_palette.dart';
 import '../../style/cameo_responsive_rules.dart';
 import '../../style/cameo_shape_language.dart';
 import '../../style/cameo_style_system.dart';
@@ -134,13 +135,13 @@ class _CameoAvatarState extends State<CameoAvatar>
   void initState() {
     super.initState();
     _ticker = Ticker(_onTick);
-    _scheduleNextBlink();
-    _scheduleNextSaccade();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _scheduleNextBlink();
+    _scheduleNextSaccade();
     _maybeStartOrStopTicker();
   }
 
@@ -156,16 +157,17 @@ class _CameoAvatarState extends State<CameoAvatar>
       reduceMotion: _reduceMotion(),
       isLowTierDevice: false,
     );
-    final wantsMotion = widget.enableAnimation &&
+    final wantsMotion =
+        widget.enableAnimation &&
         !_reduceMotion() &&
         (anim.allowBreathing ||
             anim.allowBlink ||
             anim.allowSaccades ||
             anim.allowHeadSway);
-    if (wantsMotion && !_ticker.active) {
+    if (wantsMotion && !_ticker.isActive) {
       _lastElapsed = null; // reset so first frame after restart has dt=0
       _ticker.start();
-    } else if (!wantsMotion && _ticker.active) {
+    } else if (!wantsMotion && _ticker.isActive) {
       _ticker.stop();
     }
   }
@@ -234,11 +236,11 @@ class _CameoAvatarState extends State<CameoAvatar>
       reduceMotion: _reduceMotion(),
       isLowTierDevice: false,
     );
-    if (!anim.allowBlink ||
-        anim.blinkIntervalMaxS == double.infinity) {
+    if (!anim.allowBlink || anim.blinkIntervalMaxS == double.infinity) {
       return;
     }
-    final delaySeconds = anim.blinkIntervalMinS +
+    final delaySeconds =
+        anim.blinkIntervalMinS +
         math.Random().nextDouble() *
             (anim.blinkIntervalMaxS - anim.blinkIntervalMinS);
     _blinkTimer = Timer(Duration(seconds: delaySeconds.toInt()), () {
@@ -257,11 +259,11 @@ class _CameoAvatarState extends State<CameoAvatar>
       reduceMotion: _reduceMotion(),
       isLowTierDevice: false,
     );
-    if (!anim.allowSaccades ||
-        anim.saccadeIntervalMaxS == double.infinity) {
+    if (!anim.allowSaccades || anim.saccadeIntervalMaxS == double.infinity) {
       return;
     }
-    final delaySeconds = anim.saccadeIntervalMinS +
+    final delaySeconds =
+        anim.saccadeIntervalMinS +
         math.Random().nextDouble() *
             (anim.saccadeIntervalMaxS - anim.saccadeIntervalMinS);
     _saccadeTimer = Timer(Duration(seconds: delaySeconds.toInt()), () {
@@ -452,7 +454,8 @@ class _MonogramPainter extends CustomPainter {
   }
 }
 
-// Re-export the breakpoint helper here so callers of CameoAvatar can
-// reach it without an extra import.
-export '../../style/cameo_responsive_rules.dart'
-    show CameoBreakpoint, cameoBreakpointForWidth;
+/// Re-export the breakpoint helper here so callers of CameoAvatar can
+/// reach it without an extra import.
+// (Note: export directives must come after imports but before declarations
+// in Dart. Since we can't move it, we provide the values as re-exports
+// via the barrel file lib/features/cameo/cameo.dart instead.)

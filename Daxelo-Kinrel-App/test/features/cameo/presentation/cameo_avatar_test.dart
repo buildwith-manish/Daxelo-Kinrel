@@ -19,8 +19,9 @@ import 'package:kinrel/core/widgets/cached_avatar.dart';
 import 'package:kinrel/features/cameo/cameo.dart';
 
 void main() {
-  testWidgets('CameoAvatar mounts and paints without error',
-      (WidgetTester tester) async {
+  testWidgets('CameoAvatar mounts and paints without error', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -45,8 +46,9 @@ void main() {
     // No exceptions thrown (tester error will fail the test otherwise).
   });
 
-  testWidgets('CameoAvatar produces a Semantics node for screen readers',
-      (WidgetTester tester) async {
+  testWidgets('CameoAvatar produces a Semantics node for screen readers', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -73,11 +75,17 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('CameoAvatar renders for every surface id',
-      (WidgetTester tester) async {
+  testWidgets('CameoAvatar renders for every surface id', (
+    WidgetTester tester,
+  ) async {
     const surfaces = <String>[
-      'studio', 'profile_hero', 'map_marker', 'graph_node',
-      'chat_avatar', 'journey', 'timeline_card',
+      'studio',
+      'profile_hero',
+      'map_marker',
+      'graph_node',
+      'chat_avatar',
+      'journey',
+      'timeline_card',
     ];
     for (final surface in surfaces) {
       await tester.pumpWidget(
@@ -100,13 +108,17 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.byType(CustomPaint), findsWidgets,
-          reason: 'Failed to paint for surface $surface');
+      expect(
+        find.byType(CustomPaint),
+        findsWidgets,
+        reason: 'Failed to paint for surface $surface',
+      );
     }
   });
 
-  testWidgets('CameoAvatar renders for every age band',
-      (WidgetTester tester) async {
+  testWidgets('CameoAvatar renders for every age band', (
+    WidgetTester tester,
+  ) async {
     for (final band in CameoAgeBand.values) {
       await tester.pumpWidget(
         MaterialApp(
@@ -128,13 +140,17 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.byType(CustomPaint), findsWidgets,
-          reason: 'Failed to paint for age band ${band.semanticLabel}');
+      expect(
+        find.byType(CustomPaint),
+        findsWidgets,
+        reason: 'Failed to paint for age band ${band.semanticLabel}',
+      );
     }
   });
 
-  testWidgets('CameoAvatar renders deceased with memorial lighting',
-      (WidgetTester tester) async {
+  testWidgets('CameoAvatar renders deceased with memorial lighting', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -160,51 +176,48 @@ void main() {
   });
 
   testWidgets(
-      'CachedAvatar with cameoFallback and no imageUrl renders CameoAvatar',
-      (WidgetTester tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: CachedAvatar(
-            imageUrl: null,
-            radius: 40,
-            cameoFallback: const CameoFallbackConfig(
-              personName: 'Aaji',
-              ageBand: CameoAgeBand.elder,
-              skinToneIndex: 7,
-              surfaceId: 'profile_hero',
-              enableAnimation: false,
+    'CachedAvatar with cameoFallback and no imageUrl renders CameoAvatar',
+    (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CachedAvatar(
+              imageUrl: null,
+              radius: 40,
+              cameoFallback: const CameoFallbackConfig(
+                personName: 'Aaji',
+                ageBand: CameoAgeBand.elder,
+                skinToneIndex: 7,
+                surfaceId: 'profile_hero',
+                enableAnimation: false,
+              ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.pump();
-    expect(find.byType(CameoAvatar), findsOneWidget);
-  });
+      );
+      await tester.pump();
+      expect(find.byType(CameoAvatar), findsOneWidget);
+    },
+  );
 
   testWidgets(
-      'CachedAvatar without cameoFallback and no imageUrl renders legacy icon '
-      '(no regression)', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: CachedAvatar(
-            imageUrl: null,
-            radius: 24,
-          ),
+    'CachedAvatar without cameoFallback and no imageUrl renders legacy icon '
+    '(no regression)',
+    (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: CachedAvatar(imageUrl: null, radius: 24)),
         ),
-      ),
-    );
-    await tester.pump();
-    // CameoAvatar should NOT be present.
-    expect(find.byType(CameoAvatar), findsNothing);
-    // The legacy Icon should be present.
-    expect(find.byIcon(Icons.person), findsOneWidget);
-  });
+      );
+      await tester.pump();
+      // CameoAvatar should NOT be present.
+      expect(find.byType(CameoAvatar), findsNothing);
+      // The legacy Icon should be present.
+      expect(find.byIcon(Icons.person), findsOneWidget);
+    },
+  );
 
-  testWidgets(
-      'CachedAvatar with imageUrl does NOT route to CameoAvatar '
+  testWidgets('CachedAvatar with imageUrl does NOT route to CameoAvatar '
       '(no regression)', (WidgetTester tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -227,8 +240,9 @@ void main() {
     expect(find.byType(CameoAvatar), findsNothing);
   });
 
-  testWidgets('InitialsAvatar with cameoFallback renders CameoAvatar',
-      (WidgetTester tester) async {
+  testWidgets('InitialsAvatar with cameoFallback renders CameoAvatar', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -250,17 +264,12 @@ void main() {
     expect(find.byType(CameoAvatar), findsOneWidget);
   });
 
-  testWidgets(
-      'InitialsAvatar without cameoFallback renders initials '
+  testWidgets('InitialsAvatar without cameoFallback renders initials '
       '(no regression)', (WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: InitialsAvatar(
-            imageUrl: null,
-            initials: 'AK',
-            radius: 28,
-          ),
+          body: InitialsAvatar(imageUrl: null, initials: 'AK', radius: 28),
         ),
       ),
     );

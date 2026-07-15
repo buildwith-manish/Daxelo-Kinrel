@@ -98,13 +98,19 @@ class CameoLightingPreset {
 
   /// All lights in render-relevant order.
   List<CameoLight> get all => <CameoLight>[
-        key, fill, rim, ambient, ibl, if (accent != null) accent!,
-      ];
+    key,
+    fill,
+    rim,
+    ambient,
+    ibl,
+    if (accent != null) accent!,
+  ];
 
   /// True if this preset carries the Kinrel signature pair
   /// (ivory key + ember rim). Quality gates check this.
   bool get hasKinrelSignature {
-    final keyMatches = CameoColorPalette.isSignatureColor(key.color) ||
+    final keyMatches =
+        CameoColorPalette.isSignatureColor(key.color) ||
         _approxHue(key.color, CameoColorPalette.keyLightIvory);
     final rimMatches = _approxHue(rim.color, CameoColorPalette.rimLightEmber);
     return keyMatches && rimMatches;
@@ -405,7 +411,12 @@ class CameoLightingPresets {
 
   /// All presets in deterministic order.
   static const List<CameoLightingPreset> all = <CameoLightingPreset>[
-    studio, profileHero, journey, derivedPng, memorialSoft, memorialCandle,
+    studio,
+    profileHero,
+    journey,
+    derivedPng,
+    memorialSoft,
+    memorialCandle,
   ];
 
   /// Look up a preset by id. Returns [studio] as the safe default.

@@ -24,6 +24,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../style/cameo_color_palette.dart';
+import '../../style/cameo_material_specs.dart';
 import '../../style/cameo_shape_language.dart';
 import '../../style/cameo_style_system.dart';
 
@@ -43,8 +44,10 @@ class CameoPortraitPainter extends CustomPainter {
     // Debug-only quality check. Cheap; runs only in debug builds.
     assert(() {
       if (!style.passesQualityGates) {
-        debugPrint('CameoPortraitPainter: resolved style failed quality '
-            'gates for surface "${style.surfaceId}".');
+        debugPrint(
+          'CameoPortraitPainter: resolved style failed quality '
+          'gates for surface "${style.surfaceId}".',
+        );
       }
       return true;
     }());
@@ -72,8 +75,9 @@ class CameoPortraitPainter extends CustomPainter {
     }
 
     // 3. Breathing offset (subtle chest rise).
-    final breathe =
-        style.animation.allowBreathing ? math.sin(animationPhase * 2 * math.pi) : 0.0;
+    final breathe = style.animation.allowBreathing
+        ? math.sin(animationPhase * 2 * math.pi)
+        : 0.0;
     final breathDy = breathe * style.animation.breathingAmplitudePx;
 
     // 4. Body silhouette (shoulders + neck).
@@ -118,7 +122,10 @@ class CameoPortraitPainter extends CustomPainter {
   void _paintBackdrop(Canvas canvas, Size size) {
     final paint = Paint()
       ..shader = const RadialGradient(
-        center: Alignment(0, -0.08), // slightly above center, where the head sits
+        center: Alignment(
+          0,
+          -0.08,
+        ), // slightly above center, where the head sits
         radius: 0.85,
         colors: CameoColorPalette.vignetteGradient,
         stops: <double>[0.0, 1.0],
@@ -143,7 +150,8 @@ class CameoPortraitPainter extends CustomPainter {
 
   void _paintBody(Canvas canvas, Size size, double breathDy) {
     final cx = size.width / 2;
-    final shoulderW = size.width *
+    final shoulderW =
+        size.width *
         (CameoShapeLanguage.shoulderToHeadWidth *
             (style.ageBand == CameoAgeBand.baby ||
                     style.ageBand == CameoAgeBand.child
@@ -159,12 +167,20 @@ class CameoPortraitPainter extends CustomPainter {
     path.moveTo(leftShoulder.dx + cornerR, top);
     path.lineTo(rightShoulder.dx - cornerR, top);
     path.quadraticBezierTo(
-        rightShoulder.dx, top, rightShoulder.dx, top + cornerR);
+      rightShoulder.dx,
+      top,
+      rightShoulder.dx,
+      top + cornerR,
+    );
     path.lineTo(rightShoulder.dx + 4, bottom);
     path.lineTo(leftShoulder.dx - 4, bottom);
     path.lineTo(leftShoulder.dx, top + cornerR);
     path.quadraticBezierTo(
-        leftShoulder.dx, top, leftShoulder.dx + cornerR, top);
+      leftShoulder.dx,
+      top,
+      leftShoulder.dx + cornerR,
+      top,
+    );
     path.close();
 
     // Clothing color: pick a neutral that complements the skin tone.
@@ -193,11 +209,7 @@ class CameoPortraitPainter extends CustomPainter {
     final paint = Paint()
       ..color = hairColor
       ..style = PaintingStyle.fill;
-    canvas.drawCircle(
-      Offset(cx, headCy - volume * 0.4),
-      headR + volume,
-      paint,
-    );
+    canvas.drawCircle(Offset(cx, headCy - volume * 0.4), headR + volume, paint);
   }
 
   void _paintNeck(Canvas canvas, Size size, double breathDy) {
@@ -331,7 +343,11 @@ class CameoPortraitPainter extends CustomPainter {
     final earH = headR * 0.32;
 
     final paint = Paint()
-      ..color = Color.lerp(style.skinTone, CameoColorPalette.vignetteEdge, 0.2)!;
+      ..color = Color.lerp(
+        style.skinTone,
+        CameoColorPalette.vignetteEdge,
+        0.2,
+      )!;
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromCenter(
@@ -361,7 +377,9 @@ class CameoPortraitPainter extends CustomPainter {
     final headR = _headRadius(size);
     final headCy = _headCenterY(size) + breathDy;
     final eyeW = headR * 2 * CameoShapeLanguage.eyeWidthFraction;
-    final eyeH = eyeW * CameoShapeLanguage.eyeHeightToWidth *
+    final eyeH =
+        eyeW *
+        CameoShapeLanguage.eyeHeightToWidth *
         (1.0 - blinkCloseFactor * 0.92);
     final eyeY = headCy - headR * 0.05;
     final eyeSeparation = eyeW * 1.05;
@@ -415,7 +433,7 @@ class CameoPortraitPainter extends CustomPainter {
       canvas.rotate(sign * -0.08);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromCenter(width: browW, height: browH),
+          Rect.fromCenter(center: Offset.zero, width: browW, height: browH),
           Radius.circular(browH * 0.5),
         ),
         paint,
@@ -568,14 +586,22 @@ class CameoPortraitPainter extends CustomPainter {
 
   int _ageBandIndex(CameoAgeBand band) {
     switch (band) {
-      case CameoAgeBand.baby:        return 1;
-      case CameoAgeBand.child:       return 2;
-      case CameoAgeBand.teenager:    return 3;
-      case CameoAgeBand.youngAdult:  return 4;
-      case CameoAgeBand.adult:       return 5;
-      case CameoAgeBand.middleAged:  return 6;
-      case CameoAgeBand.senior:      return 7;
-      case CameoAgeBand.elder:       return 8;
+      case CameoAgeBand.baby:
+        return 1;
+      case CameoAgeBand.child:
+        return 2;
+      case CameoAgeBand.teenager:
+        return 3;
+      case CameoAgeBand.youngAdult:
+        return 4;
+      case CameoAgeBand.adult:
+        return 5;
+      case CameoAgeBand.middleAged:
+        return 6;
+      case CameoAgeBand.senior:
+        return 7;
+      case CameoAgeBand.elder:
+        return 8;
     }
   }
 

@@ -51,16 +51,16 @@ class CameoPose {
     switch (band) {
       case CameoAgeBand.baby:
       case CameoAgeBand.child:
-        return centered;
+        return CameoPoseCatalog.centered;
       case CameoAgeBand.teenager:
       case CameoAgeBand.youngAdult:
-        return threeQuarter;
+        return CameoPoseCatalog.threeQuarter;
       case CameoAgeBand.adult:
       case CameoAgeBand.middleAged:
-        return dignified;
+        return CameoPoseCatalog.dignified;
       case CameoAgeBand.senior:
       case CameoAgeBand.elder:
-        return dignifiedStooped;
+        return CameoPoseCatalog.dignifiedStooped;
     }
   }
 }
@@ -170,7 +170,11 @@ class CameoPoseCatalog {
 
   /// All approved poses in deterministic order.
   static const List<CameoPose> all = <CameoPose>[
-    centered, threeQuarter, dignified, dignifiedStooped, journeyWalk,
+    centered,
+    threeQuarter,
+    dignified,
+    dignifiedStooped,
+    journeyWalk,
   ];
 
   /// Look up a pose by id. Returns [threeQuarter] as the safe default.

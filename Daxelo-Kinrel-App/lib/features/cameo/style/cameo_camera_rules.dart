@@ -178,7 +178,13 @@ class CameoCameraPresets {
 
   /// All approved camera presets.
   static const List<CameoCameraRules> all = <CameoCameraRules>[
-    studio, profileHero, mapMarker, graphNode, chatAvatar, journey, timelineCard,
+    studio,
+    profileHero,
+    mapMarker,
+    graphNode,
+    chatAvatar,
+    journey,
+    timelineCard,
   ];
 
   /// Look up a preset by surface id. Returns [studio] as the safe default.

@@ -72,8 +72,11 @@ class CameoAccessibilityRules {
   }
 
   /// Returns true if a foreground/background color pair meets contrast.
-  static bool meetsContrast(Color foreground, Color background,
-      {required double minRatio}) {
+  static bool meetsContrast(
+    Color foreground,
+    Color background, {
+    required double minRatio,
+  }) {
     final ratio = wcag.contrastRatio(foreground, background);
     return ratio >= minRatio;
   }
@@ -190,7 +193,13 @@ class CameoAccessibilityLibrary {
 
   /// All approved a11y presets.
   static const List<CameoAccessibilityRules> all = <CameoAccessibilityRules>[
-    studio, profileHero, mapMarker, graphNode, chatAvatar, journey, timelineCard,
+    studio,
+    profileHero,
+    mapMarker,
+    graphNode,
+    chatAvatar,
+    journey,
+    timelineCard,
   ];
 
   /// Look up by surface id. Returns [studio] as the safe default.

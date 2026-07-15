@@ -98,6 +98,7 @@ class CameoHairMaterial {
   final Color baseColor;
   final double roughness;
   final double specular;
+
   /// Hair anisotropy (strand direction highlight). 0 = isotropic.
   final double anisotropy;
   final double greyingMix;
@@ -159,6 +160,7 @@ class CameoClothMaterial {
 
   final Color baseColor;
   final double roughness;
+
   /// Cloth sheen (Fabric Transmission). 0 = none, 1 = strong velvet.
   final double sheen;
   final double drape;

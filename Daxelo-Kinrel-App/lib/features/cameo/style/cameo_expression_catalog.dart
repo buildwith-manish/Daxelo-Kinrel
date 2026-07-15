@@ -57,8 +57,10 @@ class CameoExpression {
       morphWeights: blended,
       blinkOverride: t < 0.5 ? blinkOverride : other.blinkOverride,
       saccadeOverride: Offset(
-        saccadeOverride.dx + (other.saccadeOverride.dx - saccadeOverride.dx) * t,
-        saccadeOverride.dy + (other.saccadeOverride.dy - saccadeOverride.dy) * t,
+        saccadeOverride.dx +
+            (other.saccadeOverride.dx - saccadeOverride.dx) * t,
+        saccadeOverride.dy +
+            (other.saccadeOverride.dy - saccadeOverride.dy) * t,
       ),
     );
   }
@@ -77,10 +79,7 @@ class CameoExpressionCatalog {
   static const CameoExpression neutral = CameoExpression(
     id: 'neutral',
     displayName: 'Neutral',
-    morphWeights: <String, double>{
-      'brow_inner_up': 0.05,
-      'mouth_relax': 0.85,
-    },
+    morphWeights: <String, double>{'brow_inner_up': 0.05, 'mouth_relax': 0.85},
   );
 
   /// Slight smile — the default Kinrel warmth. NEVER a full grin.
@@ -148,15 +147,19 @@ class CameoExpressionCatalog {
   static const CameoExpression blink = CameoExpression(
     id: 'blink',
     displayName: 'Blink',
-    morphWeights: <String, double>{
-      'eye_close': 1.0,
-    },
+    morphWeights: <String, double>{'eye_close': 1.0},
     blinkOverride: true,
   );
 
   /// All approved expressions in deterministic order.
   static const List<CameoExpression> all = <CameoExpression>[
-    neutral, slightSmile, gentleSmile, reverent, softSurprise, tender, blink,
+    neutral,
+    slightSmile,
+    gentleSmile,
+    reverent,
+    softSurprise,
+    tender,
+    blink,
   ];
 
   /// Look up an expression by id. Returns [neutral] as the safe default.

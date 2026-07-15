@@ -144,7 +144,7 @@ class CameoStyleSystem {
     // 2. Pick the pose: explicit > age-band-default.
     final pose = poseId != null
         ? CameoPoseCatalog.byId(poseId)
-        : CameoPoseCatalog.defaultForAgeBand(ageBand);
+        : CameoPose.defaultForAgeBand(ageBand);
 
     // 3. Pick the lighting: memorial if deceased, else surface default.
     final lighting = isDeceased
@@ -228,14 +228,22 @@ class CameoStyleSystem {
   /// Maps an age band to a 0–1 age-progression value for skin aging.
   static double _ageProgressionFor(CameoAgeBand band) {
     switch (band) {
-      case CameoAgeBand.baby:        return 0.0;
-      case CameoAgeBand.child:       return 0.0;
-      case CameoAgeBand.teenager:    return 0.05;
-      case CameoAgeBand.youngAdult:  return 0.12;
-      case CameoAgeBand.adult:       return 0.30;
-      case CameoAgeBand.middleAged:  return 0.55;
-      case CameoAgeBand.senior:      return 0.78;
-      case CameoAgeBand.elder:       return 1.0;
+      case CameoAgeBand.baby:
+        return 0.0;
+      case CameoAgeBand.child:
+        return 0.0;
+      case CameoAgeBand.teenager:
+        return 0.05;
+      case CameoAgeBand.youngAdult:
+        return 0.12;
+      case CameoAgeBand.adult:
+        return 0.30;
+      case CameoAgeBand.middleAged:
+        return 0.55;
+      case CameoAgeBand.senior:
+        return 0.78;
+      case CameoAgeBand.elder:
+        return 1.0;
     }
   }
 

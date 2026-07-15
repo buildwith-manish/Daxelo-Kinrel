@@ -58,7 +58,7 @@ class CameoSceneDensityRules {
   /// Returns true if a given face width fraction is within range.
   bool isFaceWidthAcceptable(double fraction) {
     return fraction >= faceWidthFractionRange.$1 &&
-           fraction <= faceWidthFractionRange.$2;
+        fraction <= faceWidthFractionRange.$2;
   }
 }
 
@@ -139,7 +139,13 @@ class CameoSceneDensityLibrary {
 
   /// All approved scene-density presets.
   static const List<CameoSceneDensityRules> all = <CameoSceneDensityRules>[
-    studio, profileHero, mapMarker, graphNode, chatAvatar, journey, timelineCard,
+    studio,
+    profileHero,
+    mapMarker,
+    graphNode,
+    chatAvatar,
+    journey,
+    timelineCard,
   ];
 
   /// Look up by surface id. Returns [studio] as the safe default.

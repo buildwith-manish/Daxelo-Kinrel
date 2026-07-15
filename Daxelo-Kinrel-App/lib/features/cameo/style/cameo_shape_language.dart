@@ -150,14 +150,22 @@ class CameoShapeLanguage {
   /// Babies have larger heads relative to body; elders slightly narrower.
   static double headWidthScaleForAgeBand(CameoAgeBand band) {
     switch (band) {
-      case CameoAgeBand.baby:        return 1.18;
-      case CameoAgeBand.child:       return 1.10;
-      case CameoAgeBand.teenager:    return 1.04;
-      case CameoAgeBand.youngAdult:  return 1.00;
-      case CameoAgeBand.adult:       return 0.99;
-      case CameoAgeBand.middleAged:  return 0.98;
-      case CameoAgeBand.senior:      return 0.97;
-      case CameoAgeBand.elder:       return 0.96;
+      case CameoAgeBand.baby:
+        return 1.18;
+      case CameoAgeBand.child:
+        return 1.10;
+      case CameoAgeBand.teenager:
+        return 1.04;
+      case CameoAgeBand.youngAdult:
+        return 1.00;
+      case CameoAgeBand.adult:
+        return 0.99;
+      case CameoAgeBand.middleAged:
+        return 0.98;
+      case CameoAgeBand.senior:
+        return 0.97;
+      case CameoAgeBand.elder:
+        return 0.96;
     }
   }
 
@@ -165,14 +173,22 @@ class CameoShapeLanguage {
   /// Jaws soften with age; babies are roundest.
   static double jawSoftnessForAgeBand(CameoAgeBand band) {
     switch (band) {
-      case CameoAgeBand.baby:        return 1.30;
-      case CameoAgeBand.child:       return 1.18;
-      case CameoAgeBand.teenager:    return 1.06;
-      case CameoAgeBand.youngAdult:  return 1.00;
-      case CameoAgeBand.adult:       return 0.94;
-      case CameoAgeBand.middleAged:  return 0.88;
-      case CameoAgeBand.senior:      return 0.82;
-      case CameoAgeBand.elder:       return 0.76;
+      case CameoAgeBand.baby:
+        return 1.30;
+      case CameoAgeBand.child:
+        return 1.18;
+      case CameoAgeBand.teenager:
+        return 1.06;
+      case CameoAgeBand.youngAdult:
+        return 1.00;
+      case CameoAgeBand.adult:
+        return 0.94;
+      case CameoAgeBand.middleAged:
+        return 0.88;
+      case CameoAgeBand.senior:
+        return 0.82;
+      case CameoAgeBand.elder:
+        return 0.76;
     }
   }
 
@@ -180,14 +196,22 @@ class CameoShapeLanguage {
   /// V2 §15.7 — posture softens with age, never cartoonishly.
   static double postureDroopForAgeBand(CameoAgeBand band) {
     switch (band) {
-      case CameoAgeBand.baby:        return 0.00;
-      case CameoAgeBand.child:       return 0.00;
-      case CameoAgeBand.teenager:    return 0.02;
-      case CameoAgeBand.youngAdult:  return 0.04;
-      case CameoAgeBand.adult:       return 0.08;
-      case CameoAgeBand.middleAged:  return 0.14;
-      case CameoAgeBand.senior:      return 0.22;
-      case CameoAgeBand.elder:       return 0.30;
+      case CameoAgeBand.baby:
+        return 0.00;
+      case CameoAgeBand.child:
+        return 0.00;
+      case CameoAgeBand.teenager:
+        return 0.02;
+      case CameoAgeBand.youngAdult:
+        return 0.04;
+      case CameoAgeBand.adult:
+        return 0.08;
+      case CameoAgeBand.middleAged:
+        return 0.14;
+      case CameoAgeBand.senior:
+        return 0.22;
+      case CameoAgeBand.elder:
+        return 0.30;
     }
   }
 }
@@ -195,28 +219,36 @@ class CameoShapeLanguage {
 /// The 8 age bands (V2 §15.3). Used across shape language, lighting,
 /// and animation. Deterministic enum — no stringly-typed age bands.
 enum CameoAgeBand {
-  baby,       // 0–2
-  child,      // 3–12
-  teenager,   // 13–17
+  baby, // 0–2
+  child, // 3–12
+  teenager, // 13–17
   youngAdult, // 18–29
-  adult,      // 30–44
+  adult, // 30–44
   middleAged, // 45–59
-  senior,     // 60–74
-  elder,      // 75+
+  senior, // 60–74
+  elder, // 75+
 }
 
 /// Extension: human-readable label (used by a11y semantic labels).
 extension CameoAgeBandLabel on CameoAgeBand {
   String get semanticLabel {
     switch (this) {
-      case CameoAgeBand.baby:        return 'baby';
-      case CameoAgeBand.child:       return 'child';
-      case CameoAgeBand.teenager:    return 'teenager';
-      case CameoAgeBand.youngAdult:  return 'young adult';
-      case CameoAgeBand.adult:       return 'adult';
-      case CameoAgeBand.middleAged:  return 'middle-aged';
-      case CameoAgeBand.senior:      return 'senior';
-      case CameoAgeBand.elder:       return 'elder';
+      case CameoAgeBand.baby:
+        return 'baby';
+      case CameoAgeBand.child:
+        return 'child';
+      case CameoAgeBand.teenager:
+        return 'teenager';
+      case CameoAgeBand.youngAdult:
+        return 'young adult';
+      case CameoAgeBand.adult:
+        return 'adult';
+      case CameoAgeBand.middleAged:
+        return 'middle-aged';
+      case CameoAgeBand.senior:
+        return 'senior';
+      case CameoAgeBand.elder:
+        return 'elder';
     }
   }
 }

@@ -44,13 +44,17 @@ void main() {
       // Spot-check: facial_hair_beard forbidden for child.
       expect(
         CameoChildSafetyRules.isTraitAllowedForAgeBand(
-            'facial_hair_beard', CameoAgeBand.child),
+          'facial_hair_beard',
+          CameoAgeBand.child,
+        ),
         false,
       );
       // And allowed for adult.
       expect(
         CameoChildSafetyRules.isTraitAllowedForAgeBand(
-            'facial_hair_beard', CameoAgeBand.adult),
+          'facial_hair_beard',
+          CameoAgeBand.adult,
+        ),
         true,
       );
     });
@@ -93,8 +97,13 @@ void main() {
     // Iterate every surface × every age band to verify the resolver
     // produces a complete, valid ResolvedCameoStyle for all combos.
     const surfaces = <String>[
-      'studio', 'profile_hero', 'map_marker', 'graph_node',
-      'chat_avatar', 'journey', 'timeline_card',
+      'studio',
+      'profile_hero',
+      'map_marker',
+      'graph_node',
+      'chat_avatar',
+      'journey',
+      'timeline_card',
     ];
     const bands = CameoAgeBand.values;
 
@@ -119,14 +128,8 @@ void main() {
           // Effective render size is finite and positive.
           expect(resolved.effectiveRenderSize.width, greaterThan(0));
           expect(resolved.effectiveRenderSize.height, greaterThan(0));
-          expect(
-            resolved.effectiveRenderSize.width.isFinite,
-            true,
-          );
-          expect(
-            resolved.effectiveRenderSize.height.isFinite,
-            true,
-          );
+          expect(resolved.effectiveRenderSize.width.isFinite, true);
+          expect(resolved.effectiveRenderSize.height.isFinite, true);
 
           // Lighting is non-null and carries the signature.
           expect(resolved.lighting.hasKinrelSignature, true);
@@ -253,7 +256,8 @@ void main() {
         breakpoint: CameoBreakpoint.desktop,
         containerSize: const Size(400, 400),
       );
-      final ratio = resolved.effectiveRenderSize.width /
+      final ratio =
+          resolved.effectiveRenderSize.width /
           resolved.effectiveRenderSize.height;
       final expected = resolved.responsive.aspectRatio;
       expect((ratio - expected).abs(), lessThan(0.01));
@@ -307,41 +311,26 @@ void main() {
         CameoExpressionCatalog.defaultForEvent('birthday').id,
         'gentle_smile',
       );
-      expect(
-        CameoExpressionCatalog.defaultForEvent('memorial').id,
-        'reverent',
-      );
-      expect(
-        CameoExpressionCatalog.defaultForEvent('wedding').id,
-        'tender',
-      );
-      expect(
-        CameoExpressionCatalog.defaultForEvent(null).id,
-        'slight_smile',
-      );
+      expect(CameoExpressionCatalog.defaultForEvent('memorial').id, 'reverent');
+      expect(CameoExpressionCatalog.defaultForEvent('wedding').id, 'tender');
+      expect(CameoExpressionCatalog.defaultForEvent(null).id, 'slight_smile');
     });
 
     test('byId returns neutral for unknown id', () {
-      expect(
-        CameoExpressionCatalog.byId('nonexistent').id,
-        'neutral',
-      );
+      expect(CameoExpressionCatalog.byId('nonexistent').id, 'neutral');
     });
   });
 
   group('CameoPoseCatalog', () {
     test('defaultForAgeBand returns dignified stooped for elder', () {
       expect(
-        CameoPoseCatalog.defaultForAgeBand(CameoAgeBand.elder).id,
+        CameoPose.defaultForAgeBand(CameoAgeBand.elder).id,
         'dignified_stooped',
       );
     });
 
     test('defaultForAgeBand returns centered for baby', () {
-      expect(
-        CameoPoseCatalog.defaultForAgeBand(CameoAgeBand.baby).id,
-        'centered',
-      );
+      expect(CameoPose.defaultForAgeBand(CameoAgeBand.baby).id, 'centered');
     });
 
     test('byId returns threeQuarter for unknown id', () {
@@ -373,7 +362,10 @@ void main() {
   group('CameoAnimationPresets', () {
     test('derived surfaces have all motion disabled', () {
       const derivedIds = <String>[
-        'map_marker', 'graph_node', 'chat_avatar', 'timeline_card',
+        'map_marker',
+        'graph_node',
+        'chat_avatar',
+        'timeline_card',
       ];
       for (final id in derivedIds) {
         final a = CameoAnimationPresets.byId(id);
