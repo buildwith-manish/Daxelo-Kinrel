@@ -149,12 +149,13 @@ jobs:
       # that can be verified statically (without running the app).
       # ───────────────────────────────────────────────────────────────
 
-      - name: Verify P1.1 — Generic 3D buildings present (Snapchat-style) + family-buildings
+      - name: Verify P1.1 — 3D buildings visible worldwide (minzoom ≤ 13, no maxzoom cap)
         working-directory: .
         run: |
-          # P12.2: User's style JSON has kinrel-3d-buildings (fill-extrusion)
-          # at minzoom 15, maxzoom 18, opacity 0.8. The layer uses height
-          # interpolation for the premium vertical gradient effect.
+          # P12.3: 3D buildings must be visible WORLDWIDE, not just at street level.
+          # Previous config had minzoom 14-15 + maxzoom 18, which meant 3D only
+          # appeared between zoom 15-18 (Bengaluru test flew to 16.5).
+          # Now: minzoom 13 (earliest zoom with tile data), maxzoom 22 (no cap).
           if ! rg -q '"id":"kinrel-3d-buildings"' Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
             echo "❌ P1.1 FAILED: kinrel-3d-buildings fill-extrusion layer missing"
             exit 1
@@ -166,9 +167,16 @@ jobs:
           assert l is not None, 'kinrel-3d-buildings layer missing'
           assert l.get('type') == 'fill-extrusion', f'expected fill-extrusion, got {l.get(\"type\")}'
           assert l.get('source-layer') == 'building', f'expected source-layer=building, got {l.get(\"source-layer\")}'
-          assert l.get('minzoom') is not None and l.get('minzoom') >= 14, f'expected minzoom >= 14, got {l.get(\"minzoom\")}'
+          # P12.3: minzoom must be <= 13 for global 3D visibility
+          assert l.get('minzoom') is not None and l.get('minzoom') <= 13, f'expected minzoom <= 13 for global 3D, got {l.get(\"minzoom\")}'
+          # P12.3: maxzoom must be >= 22 (no restrictive cap)
+          maxzoom = l.get('maxzoom', 22)
+          assert maxzoom is None or maxzoom >= 22, f'expected maxzoom >= 22 (no cap), got {maxzoom}'
+          # P12.3: height must be zoom-interpolated with multiplier (taller at low zoom)
+          height = l.get('paint', {}).get('fill-extrusion-height', [])
+          assert isinstance(height, list) and height[0] == 'interpolate', 'fill-extrusion-height must be zoom-interpolated'
           "; then
-            echo "❌ P1.1 FAILED: kinrel-3d-buildings not configured correctly"
+            echo "❌ P1.1 FAILED: kinrel-3d-buildings not configured for global 3D visibility"
             exit 1
           fi
           # Verify family-buildings layer IS present (renders on top of generic 3D).
@@ -176,7 +184,7 @@ jobs:
             echo "❌ P1.1 FAILED: family-buildings layer missing from style JSON"
             exit 1
           fi
-          echo "✅ P1.1: kinrel-3d-buildings (fill-extrusion, minzoom >= 14) + family-buildings both present"
+          echo "✅ P1.1: kinrel-3d-buildings (minzoom ≤ 13, maxzoom ≥ 22, zoom-interpolated height) — 3D visible worldwide"
 
       - name: Verify P1.2 — Road colors warmed with Kinrel orange tint
         working-directory: .
@@ -212,13 +220,11 @@ jobs:
           fi
           echo "✅ P1.3: label minzooms adjusted (town 9, village 12)"
 
-      - name: Verify P2.1 — Warm-glow layers present (Kinrel premium 3D)
+      - name: Verify P2.1 — Warm-glow layers present (Kinrel premium 3D, global)
         working-directory: .
         run: |
-          # P12.2: User replaced hillshade with warm-glow layers for a
-          # more premium 3D look. Verify both warm-glow layers exist:
-          #   - building-3d-warm-glow (zoom 15+, render_height >= 30, #E8612A @ 12%)
-          #   - kinrel-3d-buildings-warm-glow (zoom 15-18, same filter)
+          # P12.3: Both warm-glow layers must have minzoom <= 13 for global
+          # 3D visibility (not just street level). Previously minzoom was 15.
           if ! python3 -c "
           import json
           s = json.load(open('Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json'))
@@ -227,15 +233,16 @@ jobs:
               assert layer is not None, f'{lid} layer missing'
               assert layer.get('type') == 'fill-extrusion', f'{lid} not fill-extrusion'
               assert layer.get('paint', {}).get('fill-extrusion-color') == '#E8612A', f'{lid} color is not Kinrel orange #E8612A'
-              assert layer.get('paint', {}).get('fill-extrusion-opacity') == 0.12, f'{lid} opacity is not 0.12'
+              # P12.3: minzoom must be <= 13 for global warm-glow
+              assert layer.get('minzoom') is not None and layer.get('minzoom') <= 13, f'{lid} minzoom={layer.get(\"minzoom\")}, expected <= 13'
               # Verify the render_height >= 30 filter
               filt = layer.get('filter', [])
               assert len(filt) >= 3 and filt[0] == '>=' and filt[2] == ['get', 'render_height'] and filt[1] == 30, f'{lid} missing render_height >= 30 filter'
           "; then
-            echo "❌ P2.1 FAILED: warm-glow layers missing or misconfigured"
+            echo "❌ P2.1 FAILED: warm-glow layers missing or not configured for global visibility"
             exit 1
           fi
-          echo "✅ P2.1: building-3d-warm-glow + kinrel-3d-buildings-warm-glow present (#E8612A @ 12%, height >= 30)"
+          echo "✅ P2.1: building-3d-warm-glow + kinrel-3d-buildings-warm-glow (minzoom ≤ 13, #E8612A @ 12%, height >= 30) — global"
 
       - name: Verify P3.1 — Family-buildings match has 9+ place types
         working-directory: .
