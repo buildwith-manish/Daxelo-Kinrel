@@ -250,9 +250,12 @@ class FamilyPlace {
   factory FamilyPlace.fromJson(Map<String, dynamic> json) {
     return FamilyPlace(
       id: json['id'] as String,
-      familyId: json['familyId'] as String? ?? json['family_id'] as String? ?? '',
+      familyId:
+          json['familyId'] as String? ?? json['family_id'] as String? ?? '',
       name: json['name'] as String? ?? '',
-      placeType: PlaceType.fromWireName(json['placeType'] as String? ?? json['place_type'] as String?),
+      placeType: PlaceType.fromWireName(
+        json['placeType'] as String? ?? json['place_type'] as String?,
+      ),
       lat: (json['lat'] as num?)?.toDouble() ?? 0.0,
       lng: (json['lng'] as num?)?.toDouble() ?? 0.0,
       address: json['address'] as String?,
@@ -260,11 +263,16 @@ class FamilyPlace {
       description: json['description'] as String?,
       validFrom: json['validFrom'] != null
           ? DateTime.tryParse(json['validFrom'].toString())
-          : (json['valid_from'] != null ? DateTime.tryParse(json['valid_from'].toString()) : null),
+          : (json['valid_from'] != null
+                ? DateTime.tryParse(json['valid_from'].toString())
+                : null),
       validTo: json['validTo'] != null
           ? DateTime.tryParse(json['validTo'].toString())
-          : (json['valid_to'] != null ? DateTime.tryParse(json['valid_to'].toString()) : null),
-      memoryCount: (json['memoryCount'] as num?)?.toInt() ??
+          : (json['valid_to'] != null
+                ? DateTime.tryParse(json['valid_to'].toString())
+                : null),
+      memoryCount:
+          (json['memoryCount'] as num?)?.toInt() ??
           (json['memory_count'] as num?)?.toInt() ??
           0,
       createdAt: json['createdAt'] != null
@@ -277,21 +285,21 @@ class FamilyPlace {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'familyId': familyId,
-        'name': name,
-        'placeType': placeType.wireName,
-        'lat': lat,
-        'lng': lng,
-        'address': address,
-        'personId': personId,
-        'description': description,
-        'validFrom': validFrom?.toIso8601String(),
-        'validTo': validTo?.toIso8601String(),
-        'memoryCount': memoryCount,
-        'createdAt': createdAt?.toIso8601String(),
-        'updatedAt': updatedAt?.toIso8601String(),
-      };
+    'id': id,
+    'familyId': familyId,
+    'name': name,
+    'placeType': placeType.wireName,
+    'lat': lat,
+    'lng': lng,
+    'address': address,
+    'personId': personId,
+    'description': description,
+    'validFrom': validFrom?.toIso8601String(),
+    'validTo': validTo?.toIso8601String(),
+    'memoryCount': memoryCount,
+    'createdAt': createdAt?.toIso8601String(),
+    'updatedAt': updatedAt?.toIso8601String(),
+  };
 
   @override
   bool operator ==(Object other) =>

@@ -229,17 +229,18 @@ List<Household> computeHouseholds(List<MapPin> pins) {
     if (pin.locationSource != null && !pin.locationSource!.canCluster) {
       continue;
     }
-    final key =
-        '${(pin.lat / epsilon).round()}_${(pin.lng / epsilon).round()}';
+    final key = '${(pin.lat / epsilon).round()}_${(pin.lng / epsilon).round()}';
     groups.putIfAbsent(key, () => <MapPin>[]).add(pin);
   }
   return groups.entries
-      .map((e) => Household(
-            id: e.key,
-            members: e.value,
-            lat: e.value.first.lat,
-            lng: e.value.first.lng,
-          ))
+      .map(
+        (e) => Household(
+          id: e.key,
+          members: e.value,
+          lat: e.value.first.lat,
+          lng: e.value.first.lng,
+        ),
+      )
       .toList(growable: false);
 }
 
@@ -266,7 +267,8 @@ Future<List<FamilyPlace>> _fetchFamilyPlaces(
     if (rows.isEmpty) return const [];
     return rows
         .map<FamilyPlace>(
-            (row) => FamilyPlace.fromJson(row as Map<String, dynamic>))
+          (row) => FamilyPlace.fromJson(row as Map<String, dynamic>),
+        )
         .toList(growable: false);
   } catch (e) {
     debugPrint('⚠️ familyMapProvider: place fetch failed: $e');
@@ -311,8 +313,10 @@ Future<List<FamilyPlace>> _fetchFamilyPlaces(
 /// complete, without waiting on the slowest stream. Keeping the
 /// merged provider for now — it works, and the screen-side shell
 /// rendering already gives the user a non-blocking experience.
-final familyMapProvider =
-    FutureProvider.family<FamilyMapResult, String>((ref, familyId) async {
+final familyMapProvider = FutureProvider.family<FamilyMapResult, String>((
+  ref,
+  familyId,
+) async {
   if (familyId.isEmpty) {
     return const FamilyMapResult(
       pins: [],
@@ -349,12 +353,14 @@ final familyMapProvider =
   for (final person in members) {
     final city = person.city;
     if (city == null || city.trim().isEmpty) {
-      unpinned.add(UnpinnedMember(
-        personId: person.id,
-        name: person.name,
-        city: city ?? '',
-        photoUrl: person.photoUrl,
-      ));
+      unpinned.add(
+        UnpinnedMember(
+          personId: person.id,
+          name: person.name,
+          city: city ?? '',
+          photoUrl: person.photoUrl,
+        ),
+      );
       continue;
     }
 
@@ -363,21 +369,25 @@ final familyMapProvider =
 
     if (coords != null) {
       final (lat, lng) = coords;
-      pins.add(MapPin(
-        personId: person.id,
-        name: person.name,
-        city: city.trim(),
-        photoUrl: person.photoUrl,
-        lat: lat,
-        lng: lng,
-      ));
+      pins.add(
+        MapPin(
+          personId: person.id,
+          name: person.name,
+          city: city.trim(),
+          photoUrl: person.photoUrl,
+          lat: lat,
+          lng: lng,
+        ),
+      );
     } else {
-      unpinned.add(UnpinnedMember(
-        personId: person.id,
-        name: person.name,
-        city: city.trim(),
-        photoUrl: person.photoUrl,
-      ));
+      unpinned.add(
+        UnpinnedMember(
+          personId: person.id,
+          name: person.name,
+          city: city.trim(),
+          photoUrl: person.photoUrl,
+        ),
+      );
     }
   }
 
@@ -409,11 +419,13 @@ final familyMapProvider =
         if (seenKeys.contains(canonicalKey)) continue;
         seenKeys.add(canonicalKey);
 
-        edges.add(MapRelationshipEdge(
-          pinA: pinById[rel.fromPersonId]!,
-          pinB: pinById[rel.toPersonId]!,
-          relationshipKey: rel.relationshipKey,
-        ));
+        edges.add(
+          MapRelationshipEdge(
+            pinA: pinById[rel.fromPersonId]!,
+            pinB: pinById[rel.toPersonId]!,
+            relationshipKey: rel.relationshipKey,
+          ),
+        );
       }
     }
   } catch (e) {
@@ -430,28 +442,30 @@ final familyMapProvider =
     for (final p in places)
       if (p.personId != null) p.personId!: p,
   };
-  final enrichedPins = pins.map((pin) {
-    final linked = placeByPersonId[pin.personId];
-    final resolved = resolvePrimaryMapLocation(
-      cityLat: pin.lat,
-      cityLng: pin.lng,
-      linkedPlace: linked,
-    );
-    if (resolved != null) {
-      return MapPin(
-        personId: pin.personId,
-        name: pin.name,
-        city: pin.city,
-        photoUrl: pin.photoUrl,
-        lat: resolved.lat,
-        lng: resolved.lng,
-        placeType: linked?.placeType,
-        placeId: linked?.id,
-        locationSource: resolved.source,
-      );
-    }
-    return pin;
-  }).toList(growable: false);
+  final enrichedPins = pins
+      .map((pin) {
+        final linked = placeByPersonId[pin.personId];
+        final resolved = resolvePrimaryMapLocation(
+          cityLat: pin.lat,
+          cityLng: pin.lng,
+          linkedPlace: linked,
+        );
+        if (resolved != null) {
+          return MapPin(
+            personId: pin.personId,
+            name: pin.name,
+            city: pin.city,
+            photoUrl: pin.photoUrl,
+            lat: resolved.lat,
+            lng: resolved.lng,
+            placeType: linked?.placeType,
+            placeId: linked?.id,
+            locationSource: resolved.source,
+          );
+        }
+        return pin;
+      })
+      .toList(growable: false);
 
   return FamilyMapResult(
     pins: enrichedPins,

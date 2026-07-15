@@ -34,108 +34,105 @@ class MapLegendWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = S.of(context);
     return GestureDetector(
-      onTap: result.unpinnedCount > 0
-          ? () => _showUnpinnedSheetFromLegend(context)
-          : null,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: KinrelSpacing.md,
-          vertical: KinrelSpacing.sm,
-        ),
-        decoration: BoxDecoration(
-          color: KinrelColors.darkCard.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(KinrelRadius.lg),
-          border: Border.all(
-            color: KinrelColors.darkElevated,
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+          onTap: result.unpinnedCount > 0
+              ? () => _showUnpinnedSheetFromLegend(context)
+              : null,
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: KinrelSpacing.md,
+              vertical: KinrelSpacing.sm,
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Pinned count
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: KinrelColors.orange,
-                    boxShadow: [
-                      BoxShadow(
-                        color: KinrelColors.orangeGlow,
-                        blurRadius: 4,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(width: KinrelSpacing.sm),
-                Text(
-                  l10n?.familyMapPinned(result.pins.length) ??
-                      '${result.pins.length} pinned',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: KinrelColors.textWhite,
-                  ),
+            decoration: BoxDecoration(
+              color: KinrelColors.darkCard.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(KinrelRadius.lg),
+              border: Border.all(color: KinrelColors.darkElevated, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
-
-            // Unpinned count (only if there are unpinned members)
-            if (result.unpinnedCount > 0) ...[
-              SizedBox(height: KinrelSpacing.xs),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: KinrelColors.darkElevated,
-                      border: Border.all(
-                        color: KinrelColors.textDim,
-                        width: 1,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Pinned count
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: KinrelColors.orange,
+                        boxShadow: [
+                          BoxShadow(
+                            color: KinrelColors.orangeGlow,
+                            blurRadius: 4,
+                            spreadRadius: 1,
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                  SizedBox(width: KinrelSpacing.sm),
-                  Text(
-                    l10n?.familyMapNotPinned(result.unpinnedCount) ??
-                        '${result.unpinnedCount} not pinned',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: KinrelColors.textDim,
+                    SizedBox(width: KinrelSpacing.sm),
+                    Text(
+                      l10n?.familyMapPinned(result.pins.length) ??
+                          '${result.pins.length} pinned',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: KinrelColors.textWhite,
+                      ),
                     ),
-                  ),
-                  SizedBox(width: KinrelSpacing.xs),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    size: 14,
-                    color: KinrelColors.textDim,
+                  ],
+                ),
+
+                // Unpinned count (only if there are unpinned members)
+                if (result.unpinnedCount > 0) ...[
+                  SizedBox(height: KinrelSpacing.xs),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: KinrelColors.darkElevated,
+                          border: Border.all(
+                            color: KinrelColors.textDim,
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: KinrelSpacing.sm),
+                      Text(
+                        l10n?.familyMapNotPinned(result.unpinnedCount) ??
+                            '${result.unpinnedCount} not pinned',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
+                      SizedBox(width: KinrelSpacing.xs),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 14,
+                        color: KinrelColors.textDim,
+                      ),
+                    ],
                   ),
                 ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    )
+              ],
+            ),
+          ),
+        )
         .animate(onPlay: (c) => c.forward())
         .fadeIn(duration: 500.ms, delay: 300.ms)
         .slideY(begin: 0.2, end: 0, duration: 400.ms);
@@ -186,8 +183,7 @@ class MapLegendWidget extends StatelessWidget {
                       SizedBox(width: KinrelSpacing.sm),
                       Expanded(
                         child: Text(
-                          l10n?.familyMapUnpinnedCount(
-                                  result.unpinnedCount) ??
+                          l10n?.familyMapUnpinnedCount(result.unpinnedCount) ??
                               '${result.unpinnedCount} member${result.unpinnedCount == 1 ? '' : 's'} without map pin',
                           style: TextStyle(
                             fontFamily: KinrelTypography.displayFont,
@@ -218,15 +214,11 @@ class MapLegendWidget extends StatelessWidget {
               ),
               child: ListView.separated(
                 shrinkWrap: true,
-                padding: EdgeInsets.symmetric(
-                  horizontal: KinrelSpacing.xl,
-                ),
+                padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.xl),
                 physics: const AlwaysScrollableScrollPhysics(),
                 itemCount: result.unpinnedMembers.length,
-                separatorBuilder: (_, __) => Divider(
-                  color: KinrelColors.darkElevated,
-                  height: 1,
-                ),
+                separatorBuilder: (_, __) =>
+                    Divider(color: KinrelColors.darkElevated, height: 1),
                 itemBuilder: (context, index) {
                   final member = result.unpinnedMembers[index];
                   return ListTile(
@@ -240,8 +232,8 @@ class MapLegendWidget extends StatelessWidget {
                         shape: BoxShape.circle,
                         color: KinrelColors.darkElevated,
                       ),
-                      child: member.photoUrl != null &&
-                              member.photoUrl!.isNotEmpty
+                      child:
+                          member.photoUrl != null && member.photoUrl!.isNotEmpty
                           ? ClipOval(
                               child: CachedAvatar(
                                 imageUrl: member.photoUrl,
@@ -274,7 +266,7 @@ class MapLegendWidget extends StatelessWidget {
                       member.city.isEmpty
                           ? (l10n?.familyMapNoCitySet ?? 'No city set')
                           : (l10n?.familyMapCityNotFound(member.city) ??
-                              '${member.city} (not found)'),
+                                '${member.city} (not found)'),
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,

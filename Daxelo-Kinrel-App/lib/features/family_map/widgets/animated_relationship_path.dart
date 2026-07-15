@@ -68,24 +68,58 @@ enum RelationshipCategory {
 RelationshipCategory categorizeRelationship(String key) {
   final k = key.toLowerCase().trim();
   const parentKeys = <String>{
-    'father', 'mother', 'parent', 'stepfather', 'stepmother',
-    'dad', 'mom', 'papa', 'mama', 'appa', 'amma',
+    'father',
+    'mother',
+    'parent',
+    'stepfather',
+    'stepmother',
+    'dad',
+    'mom',
+    'papa',
+    'mama',
+    'appa',
+    'amma',
   };
   const siblingKeys = <String>{
-    'brother', 'sister', 'sibling', 'half-brother', 'half-sister',
-    'stepbrother', 'stepsister', 'bhai', 'behan', 'didhi',
+    'brother',
+    'sister',
+    'sibling',
+    'half-brother',
+    'half-sister',
+    'stepbrother',
+    'stepsister',
+    'bhai',
+    'behan',
+    'didhi',
   };
   const spouseKeys = <String>{
-    'spouse', 'husband', 'wife', 'partner', 'married',
+    'spouse',
+    'husband',
+    'wife',
+    'partner',
+    'married',
   };
   const ancestorKeys = <String>{
-    'grandfather', 'grandmother', 'grandparent', 'great-grandfather',
-    'great-grandmother', 'ancestor',
-    'dada', 'dadi', 'nana', 'nani',
+    'grandfather',
+    'grandmother',
+    'grandparent',
+    'great-grandfather',
+    'great-grandmother',
+    'ancestor',
+    'dada',
+    'dadi',
+    'nana',
+    'nani',
   };
   const descendantKeys = <String>{
-    'son', 'daughter', 'child', 'grandson', 'granddaughter',
-    'great-grandson', 'great-granddaughter', 'descendant',
+    'son',
+    'daughter',
+    'child',
+    'grandson',
+    'granddaughter',
+    'great-grandson',
+    'great-granddaughter',
+    'descendant',
   };
   if (parentKeys.contains(k)) return RelationshipCategory.parentChild;
   if (siblingKeys.contains(k)) return RelationshipCategory.sibling;
@@ -199,8 +233,7 @@ class AnimatedRelationshipPath {
   static const String sourceId = 'relationship-edges';
   static const String lineLayerId = 'kinrel-relationship-paths';
 
-  DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.tier;
+  DeviceTier get _effectiveTier => deviceTier ?? DeviceTierCache.instance.tier;
 
   /// True when the maplibre 0.3.5 install supports line-gradient. Set
   /// by [verifyLineGradientSupport] — when false, the layer falls back
@@ -306,8 +339,10 @@ class RelationshipPathOverlayPainter extends CustomPainter {
     // CustomPaint widgets, one per edge, sized to the bounding box.
     // This painter handles a single edge when used that way.
     final a = Offset.zero;
-    final b = Offset(edge.pinB.lat - edge.pinA.lat,
-        edge.pinB.lng - edge.pinA.lng); // placeholder — screen overrides
+    final b = Offset(
+      edge.pinB.lat - edge.pinA.lat,
+      edge.pinB.lng - edge.pinA.lng,
+    ); // placeholder — screen overrides
 
     final category = categorizeRelationship(edge.relationshipKey);
     final style = PathStyle.forCategory(category);
@@ -346,11 +381,7 @@ class RelationshipPathOverlayPainter extends CustomPainter {
   void _drawHeartMidpoint(Canvas canvas, Offset a, Offset b) {
     final mid = (a + b) / 2;
     // Reuse the existing HeartShape painter from the kinship core.
-    final path = HeartShape.buildPath(
-      center: mid,
-      width: 14,
-      height: 14,
-    );
+    final path = HeartShape.buildPath(center: mid, width: 14, height: 14);
     canvas.drawPath(
       path,
       Paint()
@@ -396,9 +427,9 @@ String buildRelationshipEdgesGeoJson(List<MapRelationshipEdge> edges) {
   "features": ${features.map((f) => f.toString()).join(',')}
 }
 '''
-      // Quick & dirty JSON — the screen typically uses jsonEncode.
-      // Kept as a string here for clarity; production code uses jsonEncode.
-      ;
+  // Quick & dirty JSON — the screen typically uses jsonEncode.
+  // Kept as a string here for clarity; production code uses jsonEncode.
+  ;
 }
 
 /// Viewport-cull edges so only the visible ones are animated.

@@ -97,14 +97,14 @@ class MapSessionState {
   /// Default state — used on first launch when no saved state exists.
   /// Centered on India at a country-level zoom.
   factory MapSessionState.defaults() => MapSessionState(
-        lat: 22.0,
-        lng: 79.0,
-        zoom: 4.5,
-        pitch: 0,
-        bearing: 0,
-        version: MapVisualConstants.stateVersion,
-        savedAt: DateTime.now().toUtc().toIso8601String(),
-      );
+    lat: 22.0,
+    lng: 79.0,
+    zoom: 4.5,
+    pitch: 0,
+    bearing: 0,
+    version: MapVisualConstants.stateVersion,
+    savedAt: DateTime.now().toUtc().toIso8601String(),
+  );
 
   MapSessionState copyWith({
     double? lat,
@@ -137,19 +137,19 @@ class MapSessionState {
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-        'lat': lat,
-        'lng': lng,
-        'zoom': zoom,
-        'pitch': pitch,
-        'bearing': bearing,
-        'selectedPersonId': selectedPersonId,
-        'timelineYear': timelineYear,
-        'isFocusMode': isFocusMode,
-        'expandedHouseholdId': expandedHouseholdId,
-        'mapStyleId': mapStyleId,
-        'version': version,
-        'savedAt': savedAt ?? DateTime.now().toUtc().toIso8601String(),
-      };
+    'lat': lat,
+    'lng': lng,
+    'zoom': zoom,
+    'pitch': pitch,
+    'bearing': bearing,
+    'selectedPersonId': selectedPersonId,
+    'timelineYear': timelineYear,
+    'isFocusMode': isFocusMode,
+    'expandedHouseholdId': expandedHouseholdId,
+    'mapStyleId': mapStyleId,
+    'version': version,
+    'savedAt': savedAt ?? DateTime.now().toUtc().toIso8601String(),
+  };
 
   /// Parse from JSON. Gracefully handles missing fields + version skew.
   /// Returns null only on a JSON parse error (caller treats as "no saved state").
@@ -257,7 +257,7 @@ class MapStatePersistence {
 /// timer so rapid camera changes don't write to disk on every frame.
 class DebouncedMapStateSaver {
   DebouncedMapStateSaver(this.familyId, {Duration? debounce})
-      : _debounce = debounce ?? MapVisualConstants.stateSaveDebounce;
+    : _debounce = debounce ?? MapVisualConstants.stateSaveDebounce;
 
   final String familyId;
   final Duration _debounce;

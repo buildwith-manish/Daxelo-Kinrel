@@ -54,8 +54,7 @@ class AvatarMarkerGenerator {
 
   final DeviceTier? deviceTier;
 
-  DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.tier;
+  DeviceTier get _effectiveTier => deviceTier ?? DeviceTierCache.instance.tier;
 
   /// Tunable scale factor applied to marker sizes on low-tier devices
   /// (Rule 13). 1.0 on mid/high, 0.8 on low.
@@ -90,12 +89,7 @@ class AvatarMarkerGenerator {
     _drawShadow(canvas, logicalSize);
     _drawGlow(canvas, logicalSize, selected: selected);
     _drawRing(canvas, logicalSize, selected: selected, liveTier: liveTier);
-    await _drawAvatar(
-      canvas,
-      logicalSize,
-      photo: photo,
-      initials: initials,
-    );
+    await _drawAvatar(canvas, logicalSize, photo: photo, initials: initials);
 
     final picture = recorder.endRecording();
     final image = await picture.toImage(
@@ -172,8 +166,16 @@ class AvatarMarkerGenerator {
       startAngle: 0.0,
       endAngle: 2 * 3.141592653589793,
       colors: selected
-          ? [const ui.Color(0xFFE8B941), const ui.Color(0xFFF59240), const ui.Color(0xFFE8B941)]
-          : [const ui.Color(0xFFE8612A), const ui.Color(0xFFF59240), const ui.Color(0xFFE8612A)],
+          ? [
+              const ui.Color(0xFFE8B941),
+              const ui.Color(0xFFF59240),
+              const ui.Color(0xFFE8B941),
+            ]
+          : [
+              const ui.Color(0xFFE8612A),
+              const ui.Color(0xFFF59240),
+              const ui.Color(0xFFE8612A),
+            ],
       stops: const [0.0, 0.5, 1.0],
     );
 
@@ -206,7 +208,8 @@ class AvatarMarkerGenerator {
     // P11.x — Selection halo (radial gradient orange→transparent, 4px stroke).
     // Drawn outside the marker ring when selected (master prompt spec).
     if (selected) {
-      final haloRadius = size / 2 + MapVisualConstants.selectionHaloRadiusPadding;
+      final haloRadius =
+          size / 2 + MapVisualConstants.selectionHaloRadiusPadding;
       final haloGradient = RadialGradient(
         center: Alignment.center,
         radius: 1.0,
@@ -239,7 +242,9 @@ class AvatarMarkerGenerator {
         ..strokeWidth = 1.5;
       switch (liveTier) {
         case LocationTier.live:
-          pulsePaint.color = MapVisualConstants.livePulseRingColor.withOpacity(MapVisualConstants.livePulseRingOpacity);
+          pulsePaint.color = MapVisualConstants.livePulseRingColor.withOpacity(
+            MapVisualConstants.livePulseRingOpacity,
+          );
           canvas.drawCircle(
             ui.Offset(size / 2, size / 2),
             size / 2 + 2,
@@ -247,7 +252,8 @@ class AvatarMarkerGenerator {
           );
           break;
         case LocationTier.recent:
-          pulsePaint.color = MapVisualConstants.markerSelectedRingColor.withOpacity(MapVisualConstants.recentRingOpacity);
+          pulsePaint.color = MapVisualConstants.markerSelectedRingColor
+              .withOpacity(MapVisualConstants.recentRingOpacity);
           canvas.drawCircle(
             ui.Offset(size / 2, size / 2),
             size / 2 + 1.5,
@@ -255,7 +261,9 @@ class AvatarMarkerGenerator {
           );
           break;
         case LocationTier.stale:
-          pulsePaint.color = MapVisualConstants.staleRingColor.withOpacity(MapVisualConstants.staleRingOpacity);
+          pulsePaint.color = MapVisualConstants.staleRingColor.withOpacity(
+            MapVisualConstants.staleRingOpacity,
+          );
           canvas.drawCircle(
             ui.Offset(size / 2, size / 2),
             size / 2 + 1,
@@ -307,8 +315,10 @@ class AvatarMarkerGenerator {
         canvas.restore();
         return;
       } catch (e) {
-        debugPrint('AvatarMarkerGenerator: photo decode failed: $e — '
-            'falling back to initials.');
+        debugPrint(
+          'AvatarMarkerGenerator: photo decode failed: $e — '
+          'falling back to initials.',
+        );
       }
     }
     _drawInitials(canvas, center, radius, initials);
@@ -324,24 +334,30 @@ class AvatarMarkerGenerator {
     canvas.drawCircle(
       center,
       radius,
-      ui.Paint()..color = KinrelColors.orange.withOpacity(MapVisualConstants.markerInitialsBgOpacity),
+      ui.Paint()
+        ..color = KinrelColors.orange.withOpacity(
+          MapVisualConstants.markerInitialsBgOpacity,
+        ),
     );
 
     // Initials text. Use a sane font size relative to the radius.
     final fontSize = radius * 0.85;
-    final paragraphBuilder = ui.ParagraphBuilder(
-      ui.ParagraphStyle(
-        textAlign: TextAlign.center,
-        fontSize: fontSize,
-        fontWeight: FontWeight.w700,
-      ),
-    )
-      ..pushStyle(ui.TextStyle(
-        color: Colors.white,
-        fontSize: fontSize,
-        fontWeight: FontWeight.w700,
-      ))
-      ..addText(initials);
+    final paragraphBuilder =
+        ui.ParagraphBuilder(
+            ui.ParagraphStyle(
+              textAlign: TextAlign.center,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+            ),
+          )
+          ..pushStyle(
+            ui.TextStyle(
+              color: Colors.white,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+            ),
+          )
+          ..addText(initials);
     final paragraph = paragraphBuilder.build()
       ..layout(ui.ParagraphConstraints(width: radius * 2));
     canvas.drawParagraph(
@@ -382,9 +398,9 @@ class _ImageStreamCompleter {
   }
 
   Future<ImageInfo> get future => _completer.future.timeout(
-        MapVisualConstants.imageStreamTimeout,
-        onTimeout: () => throw TimeoutException('ImageStream'),
-      );
+    MapVisualConstants.imageStreamTimeout,
+    onTimeout: () => throw TimeoutException('ImageStream'),
+  );
 }
 
 /// Helper that builds a list of (pin, marker bytes) pairs ready to be

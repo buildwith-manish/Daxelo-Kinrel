@@ -24,14 +24,29 @@ void main() {
       controller.setYear(1990);
       final pins = <MapPin>[
         const MapPin(
-            personId: 'a', name: 'A', city: 'X', photoUrl: null,
-            lat: 0, lng: 0),
+          personId: 'a',
+          name: 'A',
+          city: 'X',
+          photoUrl: null,
+          lat: 0,
+          lng: 0,
+        ),
         const MapPin(
-            personId: 'b', name: 'B', city: 'Y', photoUrl: null,
-            lat: 0, lng: 1),
+          personId: 'b',
+          name: 'B',
+          city: 'Y',
+          photoUrl: null,
+          lat: 0,
+          lng: 1,
+        ),
         const MapPin(
-            personId: 'c', name: 'C', city: 'Z', photoUrl: null,
-            lat: 1, lng: 0),
+          personId: 'c',
+          name: 'C',
+          city: 'Z',
+          photoUrl: null,
+          lat: 1,
+          lng: 0,
+        ),
       ];
       final dobs = <String, DateTime>{
         'a': DateTime(1950),
@@ -56,8 +71,13 @@ void main() {
       controller.setYear(1900);
       final pins = <MapPin>[
         const MapPin(
-            personId: 'unknown', name: 'X', city: 'Y', photoUrl: null,
-            lat: 0, lng: 0),
+          personId: 'unknown',
+          name: 'X',
+          city: 'Y',
+          photoUrl: null,
+          lat: 0,
+          lng: 0,
+        ),
       ];
       final filtered = controller.filterMapPins(pins);
       expect(filtered, hasLength(1));
@@ -67,8 +87,13 @@ void main() {
       controller.setYear(2024);
       final pins = <MapPin>[
         const MapPin(
-            personId: 'a', name: 'A', city: 'X', photoUrl: null,
-            lat: 0, lng: 0),
+          personId: 'a',
+          name: 'A',
+          city: 'X',
+          photoUrl: null,
+          lat: 0,
+          lng: 0,
+        ),
       ];
       final dobs = <String, DateTime>{'a': DateTime(2000)};
       expect(
@@ -128,15 +153,21 @@ void main() {
   group('P10.7 buildJourneyStops', () {
     test('orders stops by year, oldest first', () {
       final pin = const MapPin(
-          personId: 'p1', name: 'Test', city: 'X', photoUrl: null,
-          lat: 0, lng: 0);
+        personId: 'p1',
+        name: 'Test',
+        city: 'X',
+        photoUrl: null,
+        lat: 0,
+        lng: 0,
+      );
       final places = <FamilyPlace>[
         FamilyPlace(
           id: 'p2',
           familyId: 'f',
           name: 'Recent Home',
           placeType: PlaceType.currentHome,
-          lat: 1, lng: 1,
+          lat: 1,
+          lng: 1,
           validFrom: DateTime(2020),
         ),
         FamilyPlace(
@@ -144,7 +175,8 @@ void main() {
           familyId: 'f',
           name: 'Childhood Home',
           placeType: PlaceType.childhoodHome,
-          lat: 2, lng: 2,
+          lat: 2,
+          lng: 2,
           validFrom: DateTime(1990),
         ),
       ];
@@ -162,15 +194,21 @@ void main() {
 
     test('without birthYear, only place stops are returned', () {
       final pin = const MapPin(
-          personId: 'p1', name: 'Test', city: 'X', photoUrl: null,
-          lat: 0, lng: 0);
+        personId: 'p1',
+        name: 'Test',
+        city: 'X',
+        photoUrl: null,
+        lat: 0,
+        lng: 0,
+      );
       final places = <FamilyPlace>[
         FamilyPlace(
           id: 'p1',
           familyId: 'f',
           name: 'Home',
           placeType: PlaceType.currentHome,
-          lat: 1, lng: 1,
+          lat: 1,
+          lng: 1,
           validFrom: DateTime(2020),
         ),
       ];

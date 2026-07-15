@@ -25,21 +25,38 @@ void main() {
     test('groups pins sharing the same coordinates', () {
       final pins = <MapPin>[
         const MapPin(
-            personId: 'a', name: 'A', city: 'Pune', photoUrl: null,
-            lat: 18.52, lng: 73.85),
+          personId: 'a',
+          name: 'A',
+          city: 'Pune',
+          photoUrl: null,
+          lat: 18.52,
+          lng: 73.85,
+        ),
         const MapPin(
-            personId: 'b', name: 'B', city: 'Pune', photoUrl: null,
-            lat: 18.52, lng: 73.85),
+          personId: 'b',
+          name: 'B',
+          city: 'Pune',
+          photoUrl: null,
+          lat: 18.52,
+          lng: 73.85,
+        ),
         const MapPin(
-            personId: 'c', name: 'C', city: 'Mumbai', photoUrl: null,
-            lat: 19.07, lng: 72.87),
+          personId: 'c',
+          name: 'C',
+          city: 'Mumbai',
+          photoUrl: null,
+          lat: 19.07,
+          lng: 72.87,
+        ),
       ];
       final households = computeHouseholds(pins);
       expect(households, hasLength(2));
       final multi = households.firstWhere((h) => h.size == 2);
       expect(multi.isMulti, isTrue);
-      expect(multi.members.map((m) => m.personId).toSet(),
-          containsAll(<String>{'a', 'b'}));
+      expect(
+        multi.members.map((m) => m.personId).toSet(),
+        containsAll(<String>{'a', 'b'}),
+      );
       final single = households.firstWhere((h) => h.size == 1);
       expect(single.isMulti, isFalse);
       expect(single.members.first.personId, equals('c'));
@@ -50,14 +67,29 @@ void main() {
       // the same bucket; two pins 0.002 apart do not.
       final pins = <MapPin>[
         const MapPin(
-            personId: 'a', name: 'A', city: 'X', photoUrl: null,
-            lat: 18.5200, lng: 73.8500),
+          personId: 'a',
+          name: 'A',
+          city: 'X',
+          photoUrl: null,
+          lat: 18.5200,
+          lng: 73.8500,
+        ),
         const MapPin(
-            personId: 'b', name: 'B', city: 'X', photoUrl: null,
-            lat: 18.5203, lng: 73.8503),
+          personId: 'b',
+          name: 'B',
+          city: 'X',
+          photoUrl: null,
+          lat: 18.5203,
+          lng: 73.8503,
+        ),
         const MapPin(
-            personId: 'c', name: 'C', city: 'Y', photoUrl: null,
-            lat: 18.5220, lng: 73.8520),
+          personId: 'c',
+          name: 'C',
+          city: 'Y',
+          photoUrl: null,
+          lat: 18.5220,
+          lng: 73.8520,
+        ),
       ];
       final households = computeHouseholds(pins);
       expect(households, hasLength(2));
@@ -73,8 +105,13 @@ void main() {
       final pins = List.generate(
         5,
         (i) => MapPin(
-            personId: 'p$i', name: 'P$i', city: 'Pune', photoUrl: null,
-            lat: 18.52, lng: 73.85),
+          personId: 'p$i',
+          name: 'P$i',
+          city: 'Pune',
+          photoUrl: null,
+          lat: 18.52,
+          lng: 73.85,
+        ),
       );
       final households = computeHouseholds(pins);
       expect(households, hasLength(1));
@@ -90,15 +127,24 @@ void main() {
         members: List.generate(
           1,
           (i) => const MapPin(
-              personId: 'p1', name: 'Solo', city: 'X', photoUrl: null,
-              lat: 0, lng: 0),
+            personId: 'p1',
+            name: 'Solo',
+            city: 'X',
+            photoUrl: null,
+            lat: 0,
+            lng: 0,
+          ),
         ),
         lat: 0,
         lng: 0,
       );
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(body: Center(child: HouseholdClusterMarkerWidget(household: h))),
-      ));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(child: HouseholdClusterMarkerWidget(household: h)),
+          ),
+        ),
+      );
       await tester.pump();
       expect(find.byType(HouseholdClusterMarkerWidget), findsOneWidget);
       // No badge text.
@@ -111,15 +157,24 @@ void main() {
         members: List.generate(
           2,
           (i) => MapPin(
-              personId: 'p$i', name: 'P$i', city: 'X', photoUrl: null,
-              lat: 0, lng: 0),
+            personId: 'p$i',
+            name: 'P$i',
+            city: 'X',
+            photoUrl: null,
+            lat: 0,
+            lng: 0,
+          ),
         ),
         lat: 0,
         lng: 0,
       );
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(body: Center(child: HouseholdClusterMarkerWidget(household: h))),
-      ));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(child: HouseholdClusterMarkerWidget(household: h)),
+          ),
+        ),
+      );
       await tester.pump();
       expect(find.byType(HouseholdClusterMarkerWidget), findsOneWidget);
       expect(find.text('+2'), findsNothing); // 2 → no badge, just 2 avatars
@@ -131,15 +186,24 @@ void main() {
         members: List.generate(
           4,
           (i) => MapPin(
-              personId: 'p$i', name: 'P$i', city: 'X', photoUrl: null,
-              lat: 0, lng: 0),
+            personId: 'p$i',
+            name: 'P$i',
+            city: 'X',
+            photoUrl: null,
+            lat: 0,
+            lng: 0,
+          ),
         ),
         lat: 0,
         lng: 0,
       );
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(body: Center(child: HouseholdClusterMarkerWidget(household: h))),
-      ));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(child: HouseholdClusterMarkerWidget(household: h)),
+          ),
+        ),
+      );
       await tester.pump();
       expect(find.byType(HouseholdClusterMarkerWidget), findsOneWidget);
       expect(find.text('+4'), findsOneWidget);
@@ -151,15 +215,24 @@ void main() {
         members: List.generate(
           3,
           (i) => MapPin(
-              personId: 'p$i', name: 'P$i', city: 'X', photoUrl: null,
-              lat: 0, lng: 0),
+            personId: 'p$i',
+            name: 'P$i',
+            city: 'X',
+            photoUrl: null,
+            lat: 0,
+            lng: 0,
+          ),
         ),
         lat: 0,
         lng: 0,
       );
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(body: Center(child: HouseholdClusterMarkerWidget(household: h))),
-      ));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(child: HouseholdClusterMarkerWidget(household: h)),
+          ),
+        ),
+      );
       await tester.pump();
       expect(find.bySemanticsLabel(RegExp(r'3 members')), findsOneWidget);
     });
@@ -174,8 +247,13 @@ void main() {
         members: List.generate(
           3,
           (i) => MapPin(
-              personId: 'p$i', name: 'P$i', city: 'X', photoUrl: null,
-              lat: 0, lng: 0),
+            personId: 'p$i',
+            name: 'P$i',
+            city: 'X',
+            photoUrl: null,
+            lat: 0,
+            lng: 0,
+          ),
         ),
         lat: 0,
         lng: 0,
@@ -184,8 +262,11 @@ void main() {
       final second = await cache.bytesFor(h);
       expect(first, isA<Uint8List>());
       expect(first.length, greaterThan(100));
-      expect(identical(first, second), isTrue,
-          reason: 'second call returns cached');
+      expect(
+        identical(first, second),
+        isTrue,
+        reason: 'second call returns cached',
+      );
     });
 
     test('clear() empties the cache', () {

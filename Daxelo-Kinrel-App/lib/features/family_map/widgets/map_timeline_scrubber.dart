@@ -93,7 +93,8 @@ class _MapTimelineScrubberState extends ConsumerState<MapTimelineScrubber> {
     final state = ref.watch(journeyProvider);
     final theme = Theme.of(context);
     final l10n = S.of(context);
-    final semanticsLabel = l10n?.familyMapTimelineLabel(state.selectedYear) ??
+    final semanticsLabel =
+        l10n?.familyMapTimelineLabel(state.selectedYear) ??
         'Family timeline. Currently viewing ${state.selectedYear}. Drag to change.';
 
     return Semantics(
@@ -107,7 +108,9 @@ class _MapTimelineScrubberState extends ConsumerState<MapTimelineScrubber> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(MapVisualConstants.timelineShadowOpacity),
+              color: Colors.black.withOpacity(
+                MapVisualConstants.timelineShadowOpacity,
+              ),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -122,10 +125,8 @@ class _MapTimelineScrubberState extends ConsumerState<MapTimelineScrubber> {
                 _PlayButton(
                   isPlaying: state.isPlaying,
                   onTap: _togglePlay,
-                  playLabel:
-                      l10n?.familyMapTimelinePlay ?? 'Play timeline',
-                  pauseLabel:
-                      l10n?.familyMapTimelinePause ?? 'Pause timeline',
+                  playLabel: l10n?.familyMapTimelinePlay ?? 'Play timeline',
+                  pauseLabel: l10n?.familyMapTimelinePause ?? 'Pause timeline',
                 ),
                 const SizedBox(width: 8),
                 // Previous year
@@ -158,8 +159,7 @@ class _MapTimelineScrubberState extends ConsumerState<MapTimelineScrubber> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  l10n?.familyMapTimelineRange(
-                          state.minYear, state.maxYear) ??
+                  l10n?.familyMapTimelineRange(state.minYear, state.maxYear) ??
                       '${state.minYear}–${state.maxYear}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: Colors.white54,
@@ -298,10 +298,11 @@ class _ScrubberSlider extends StatelessWidget {
                 activeTrackColor: KinrelColors.orange,
                 inactiveTrackColor: Colors.white24,
                 thumbColor: Colors.white,
-                overlayColor: KinrelColors.orange.withOpacity(MapVisualConstants.timelineSliderOverlayOpacity),
+                overlayColor: KinrelColors.orange.withOpacity(
+                  MapVisualConstants.timelineSliderOverlayOpacity,
+                ),
                 trackHeight: 3,
-                thumbShape:
-                    const RoundSliderThumbShape(enabledThumbRadius: 7),
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
               ),
               child: Slider(
                 value: value.clamp(min, max),

@@ -62,24 +62,28 @@ List<JourneyStop> buildJourneyStops({
   final stops = <JourneyStop>[];
 
   if (birthYear != null) {
-    stops.add(JourneyStop(
-      year: birthYear,
-      label: bornLabel,
-      lat: pin.lat,
-      lng: pin.lng,
-      placeType: PlaceType.birthplace,
-    ));
+    stops.add(
+      JourneyStop(
+        year: birthYear,
+        label: bornLabel,
+        lat: pin.lat,
+        lng: pin.lng,
+        placeType: PlaceType.birthplace,
+      ),
+    );
   }
 
   for (final place in linkedPlaces) {
     final year = place.validFrom?.year ?? place.createdAt?.year ?? 2000;
-    stops.add(JourneyStop(
-      year: year,
-      label: place.name,
-      lat: place.lat,
-      lng: place.lng,
-      placeType: place.placeType,
-    ));
+    stops.add(
+      JourneyStop(
+        year: year,
+        label: place.name,
+        lat: place.lat,
+        lng: place.lng,
+        placeType: place.placeType,
+      ),
+    );
   }
 
   stops.sort((a, b) => a.year.compareTo(b.year));
@@ -132,17 +136,14 @@ class _FamilyJourneyAnimationState
       _playTimer!.cancel();
       _playTimer = null;
     } else {
-      _playTimer = Timer.periodic(
-        MapVisualConstants.timelinePlayInterval,
-        (_) {
-          if (_currentStopIndex < widget.stops.length - 1) {
-            setState(() => _currentStopIndex++);
-          } else {
-            _playTimer?.cancel();
-            _playTimer = null;
-          }
-        },
-      );
+      _playTimer = Timer.periodic(MapVisualConstants.timelinePlayInterval, (_) {
+        if (_currentStopIndex < widget.stops.length - 1) {
+          setState(() => _currentStopIndex++);
+        } else {
+          _playTimer?.cancel();
+          _playTimer = null;
+        }
+      });
     }
     setState(() {});
   }
@@ -168,7 +169,9 @@ class _FamilyJourneyAnimationState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(MapVisualConstants.timelineShadowOpacity),
+            color: Colors.black.withOpacity(
+              MapVisualConstants.timelineShadowOpacity,
+            ),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -180,8 +183,7 @@ class _FamilyJourneyAnimationState
         children: [
           Row(
             children: [
-              const Icon(Icons.timeline,
-                  color: KinrelColors.orange, size: 20),
+              const Icon(Icons.timeline, color: KinrelColors.orange, size: 20),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -196,8 +198,7 @@ class _FamilyJourneyAnimationState
                 IconButton(
                   icon: const Icon(Icons.close, color: Colors.white70),
                   onPressed: widget.onClose,
-                  tooltip:
-                      l10n?.familyMapJourneyClose ?? 'Close journey',
+                  tooltip: l10n?.familyMapJourneyClose ?? 'Close journey',
                   iconSize: 20,
                   visualDensity: VisualDensity.compact,
                 ),
@@ -235,11 +236,12 @@ class _FamilyJourneyAnimationState
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                icon: const Icon(Icons.skip_previous_rounded,
-                    color: Colors.white),
+                icon: const Icon(
+                  Icons.skip_previous_rounded,
+                  color: Colors.white,
+                ),
                 onPressed: _currentStopIndex > 0 ? _previous : null,
-                tooltip:
-                    l10n?.familyMapJourneyPrevious ?? 'Previous stop',
+                tooltip: l10n?.familyMapJourneyPrevious ?? 'Previous stop',
               ),
               _PlayButton(
                 isPlaying: isPlaying,
@@ -247,8 +249,7 @@ class _FamilyJourneyAnimationState
                 semanticLabel: playLabel,
               ),
               IconButton(
-                icon: const Icon(Icons.skip_next_rounded,
-                    color: Colors.white),
+                icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
                 onPressed: _currentStopIndex < widget.stops.length - 1
                     ? _next
                     : null,
@@ -279,7 +280,11 @@ class _StopDot extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = isActive
         ? KinrelColors.orange
-        : (isCompleted ? KinrelColors.orange.withOpacity(MapVisualConstants.journeyStopCompletedOpacity) : Colors.white24);
+        : (isCompleted
+              ? KinrelColors.orange.withOpacity(
+                  MapVisualConstants.journeyStopCompletedOpacity,
+                )
+              : Colors.white24);
     final dot = Container(
       width: 12,
       height: 12,
@@ -296,7 +301,9 @@ class _StopDot extends StatelessWidget {
           .animate(onPlay: (c) => c.repeat())
           .shimmer(
             duration: 1500.ms,
-            color: KinrelColors.orange.withOpacity(MapVisualConstants.journeyStopActiveShimmerOpacity),
+            color: KinrelColors.orange.withOpacity(
+              MapVisualConstants.journeyStopActiveShimmerOpacity,
+            ),
           );
     }
     return dot;

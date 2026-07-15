@@ -66,10 +66,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 class FamilyMapScreen extends ConsumerStatefulWidget {
-  const FamilyMapScreen({
-    super.key,
-    required this.familyId,
-  });
+  const FamilyMapScreen({super.key, required this.familyId});
 
   /// The family whose members + places are rendered on the map.
   /// Required — the map screen no longer falls back to
@@ -300,8 +297,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
     // ── DARK MODE: Kinrel premium ─────────────────────────────────
     if (kIsWeb) {
-      debugPrint('🌙 FamilyMap: using bundled Kinrel dark style as web asset: '
-          '$_kWebStylePath');
+      debugPrint(
+        '🌙 FamilyMap: using bundled Kinrel dark style as web asset: '
+        '$_kWebStylePath',
+      );
       _loadedStyleJson = _kWebStylePath;
       return _loadedStyleJson!;
     }
@@ -389,10 +388,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // Add the family-places source (empty — populated by
       // FamilyBuildingLayer.add/update).
       try {
-        await style.addSource(GeoJsonSource(
-          id: FamilyBuildingLayer.sourceId,
-          data: '{"type":"FeatureCollection","features":[]}',
-        ));
+        await style.addSource(
+          GeoJsonSource(
+            id: FamilyBuildingLayer.sourceId,
+            data: '{"type":"FeatureCollection","features":[]}',
+          ),
+        );
         debugPrint('✅ FamilyMap: added family-places source (web)');
       } catch (e) {
         // Source may already exist — that's fine.
@@ -421,17 +422,19 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
       // Glow layer (circle, minZoom 10)
       try {
-        await style.addLayer(CircleStyleLayer(
-          id: FamilyBuildingLayer.glowLayerId,
-          sourceId: FamilyBuildingLayer.sourceId,
-          minZoom: 10,
-          paint: {
-            'circle-color': matchExpr,
-            'circle-radius': 24,
-            'circle-blur': 1.0,
-            'circle-opacity': 0.65,
-          },
-        ));
+        await style.addLayer(
+          CircleStyleLayer(
+            id: FamilyBuildingLayer.glowLayerId,
+            sourceId: FamilyBuildingLayer.sourceId,
+            minZoom: 10,
+            paint: {
+              'circle-color': matchExpr,
+              'circle-radius': 24,
+              'circle-blur': 1.0,
+              'circle-opacity': 0.65,
+            },
+          ),
+        );
         debugPrint('✅ FamilyMap: added family-buildings-glow layer (web)');
       } catch (e) {
         debugPrint('ℹ️ FamilyMap: glow layer already exists: $e');
@@ -439,18 +442,24 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
       // Extrusion layer (fill-extrusion, minZoom 13)
       try {
-        await style.addLayer(FillExtrusionStyleLayer(
-          id: FamilyBuildingLayer.extrusionLayerId,
-          sourceId: FamilyBuildingLayer.sourceId,
-          minZoom: 13,
-          paint: {
-            'fill-extrusion-color': matchExpr,
-            'fill-extrusion-height': ['coalesce', ['get', 'height'], 12],
-            'fill-extrusion-base': 0,
-            'fill-extrusion-opacity': 0.95,
-            'fill-extrusion-vertical-gradient': true,
-          },
-        ));
+        await style.addLayer(
+          FillExtrusionStyleLayer(
+            id: FamilyBuildingLayer.extrusionLayerId,
+            sourceId: FamilyBuildingLayer.sourceId,
+            minZoom: 13,
+            paint: {
+              'fill-extrusion-color': matchExpr,
+              'fill-extrusion-height': [
+                'coalesce',
+                ['get', 'height'],
+                12,
+              ],
+              'fill-extrusion-base': 0,
+              'fill-extrusion-opacity': 0.95,
+              'fill-extrusion-vertical-gradient': true,
+            },
+          ),
+        );
         debugPrint('✅ FamilyMap: added family-buildings layer (web)');
       } catch (e) {
         debugPrint('ℹ️ FamilyMap: extrusion layer already exists: $e');
@@ -458,18 +467,20 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
       // Fallback circle layer (maxZoom 13)
       try {
-        await style.addLayer(CircleStyleLayer(
-          id: FamilyBuildingLayer.circleFallbackLayerId,
-          sourceId: FamilyBuildingLayer.sourceId,
-          maxZoom: 13,
-          paint: {
-            'circle-color': matchExpr,
-            'circle-radius': 6,
-            'circle-stroke-color': '#FFFFFF',
-            'circle-stroke-width': 1,
-            'circle-opacity': 0.9,
-          },
-        ));
+        await style.addLayer(
+          CircleStyleLayer(
+            id: FamilyBuildingLayer.circleFallbackLayerId,
+            sourceId: FamilyBuildingLayer.sourceId,
+            maxZoom: 13,
+            paint: {
+              'circle-color': matchExpr,
+              'circle-radius': 6,
+              'circle-stroke-color': '#FFFFFF',
+              'circle-stroke-width': 1,
+              'circle-opacity': 0.9,
+            },
+          ),
+        );
         debugPrint('✅ FamilyMap: added family-buildings-fallback layer (web)');
       } catch (e) {
         debugPrint('ℹ️ FamilyMap: fallback layer already exists: $e');
@@ -500,13 +511,17 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // 1. Add the live-location-point source (empty — populated by
       // _updateLiveLocationPoint).
       try {
-        await style.addSource(GeoJsonSource(
-          id: 'live-location-point',
-          data: '{"type":"FeatureCollection","features":[]}',
-        ));
+        await style.addSource(
+          GeoJsonSource(
+            id: 'live-location-point',
+            data: '{"type":"FeatureCollection","features":[]}',
+          ),
+        );
         debugPrint('✅ FamilyMap: added live-location-point source');
       } catch (e) {
-        debugPrint('ℹ️ FamilyMap: live-location-point source already exists: $e');
+        debugPrint(
+          'ℹ️ FamilyMap: live-location-point source already exists: $e',
+        );
       }
 
       // 2. Add the ambient glow layer. Large, soft, teal-tinted circle
@@ -514,24 +529,33 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // Uses MapVisualConstants.livePulseRingColor (#4ED9C7) for the
       // cool "live presence" contrast against warm family beacons.
       try {
-        await style.addLayer(CircleStyleLayer(
-          id: 'live-location-ambient-glow',
-          sourceId: 'live-location-point',
-          minZoom: 8,
-          paint: {
-            'circle-color': '#4ED9C7', // MapVisualConstants.livePulseRingColor
-            'circle-radius': [
-              'interpolate', ['linear'], ['zoom'],
-              10, 40,
-              16, 150,
-            ],
-            'circle-blur': 1.2,
-            'circle-opacity': 0.22,
-          },
-        ));
+        await style.addLayer(
+          CircleStyleLayer(
+            id: 'live-location-ambient-glow',
+            sourceId: 'live-location-point',
+            minZoom: 8,
+            paint: {
+              'circle-color':
+                  '#4ED9C7', // MapVisualConstants.livePulseRingColor
+              'circle-radius': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                10,
+                40,
+                16,
+                150,
+              ],
+              'circle-blur': 1.2,
+              'circle-opacity': 0.22,
+            },
+          ),
+        );
         debugPrint('✅ FamilyMap: added live-location-ambient-glow layer');
       } catch (e) {
-        debugPrint('ℹ️ FamilyMap: live-location-ambient-glow layer already exists: $e');
+        debugPrint(
+          'ℹ️ FamilyMap: live-location-ambient-glow layer already exists: $e',
+        );
       }
 
       _liveLocationGlowAdded = true;
@@ -553,7 +577,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     final style = _mapController?.style;
     if (style == null) return;
     try {
-      final geojson = '{"type":"FeatureCollection","features":['
+      final geojson =
+          '{"type":"FeatureCollection","features":['
           '{"type":"Feature","geometry":{"type":"Point","coordinates":[$lng,$lat]},'
           '"properties":{"kind":"live-location"}}'
           ']}';
@@ -636,9 +661,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             _expandedHouseholdId = state.expandedHouseholdId;
             // Restore timeline year via the journey provider.
             if (state.timelineYear != null) {
-              ref
-                  .read(journeyProvider.notifier)
-                  .setYear(state.timelineYear!);
+              ref.read(journeyProvider.notifier).setYear(state.timelineYear!);
             }
             debugPrint('📦 P10.9: restored map session state $state');
           }
@@ -651,26 +674,30 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // so the correct style is fetched on the first render.
     _loadMapThemePreference().then((_) {
       if (!mounted) return;
-      _loadStyleJson().then((style) {
-        if (mounted) {
-          debugPrint('✅ FamilyMap: style loaded in initState '
-              '(${style.length} chars, web=$kIsWeb, light=$_isLightMap)');
-          _lifecycle.transition(
-            FamilyMapLifecycle.loadingStyle,
-            attempt: _lifecycle.currentAttempt,
-          );
-          setState(() {});
-        }
-      }).catchError((e) {
-        if (mounted) {
-          debugPrint('❌ FamilyMap: style load failed in initState: $e');
-          _lifecycle.transition(
-            FamilyMapLifecycle.failed,
-            attempt: _lifecycle.currentAttempt,
-          );
-          setState(() {});
-        }
-      });
+      _loadStyleJson()
+          .then((style) {
+            if (mounted) {
+              debugPrint(
+                '✅ FamilyMap: style loaded in initState '
+                '(${style.length} chars, web=$kIsWeb, light=$_isLightMap)',
+              );
+              _lifecycle.transition(
+                FamilyMapLifecycle.loadingStyle,
+                attempt: _lifecycle.currentAttempt,
+              );
+              setState(() {});
+            }
+          })
+          .catchError((e) {
+            if (mounted) {
+              debugPrint('❌ FamilyMap: style load failed in initState: $e');
+              _lifecycle.transition(
+                FamilyMapLifecycle.failed,
+                attempt: _lifecycle.currentAttempt,
+              );
+              setState(() {});
+            }
+          });
     });
   }
 
@@ -713,7 +740,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         _stateSaver = DebouncedMapStateSaver(loadedFamilyId);
         MapStatePersistence.load(loadedFamilyId).then((state) {
           if (!mounted) return;
-          if (widget.familyId != loadedFamilyId) return; // stale — family changed again
+          if (widget.familyId != loadedFamilyId)
+            return; // stale — family changed again
           if (state != null && mounted) {
             setState(() {
               _restoredState = state;
@@ -767,8 +795,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         backgroundColor: KinrelColors.darkCard,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: KinrelColors.textWhite, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: KinrelColors.textWhite,
+            size: 20,
+          ),
           onPressed: () => context.pop(),
           tooltip: S.of(context)?.familyMapBack ?? 'Back',
         ),
@@ -824,7 +855,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
           // Map theme toggle — dark (Kinrel premium) ↔ light (Snapchat-style)
           IconButton(
             icon: Icon(
-              _isLightMap ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+              _isLightMap
+                  ? Icons.dark_mode_outlined
+                  : Icons.light_mode_outlined,
               size: 22,
             ),
             tooltip: _isLightMap ? 'Dark map' : 'Light map',
@@ -836,7 +869,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             IconButton(
               icon: const Icon(Icons.location_city, size: 20),
               tooltip:
-                  S.of(context)?.familyMapTest3dBengaluru ?? 'Test 3D: Bengaluru',
+                  S.of(context)?.familyMapTest3dBengaluru ??
+                  'Test 3D: Bengaluru',
               onPressed: _flyToBengaluru3D,
             ),
         ],
@@ -857,13 +891,15 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         // style-loading skeleton when `_loadedStyleJson == null`, so
         // the style-JSON fetch (the only thing that should block the
         // map shell) is still surfaced to the user via [MapSkeleton].
-        loading: () => _buildMap(const FamilyMapResult(
-          pins: [],
-          unpinnedMembers: [],
-          unpinnedCount: 0,
-          edges: [],
-          familyId: '',
-        )),
+        loading: () => _buildMap(
+          const FamilyMapResult(
+            pins: [],
+            unpinnedMembers: [],
+            unpinnedCount: 0,
+            edges: [],
+            familyId: '',
+          ),
+        ),
         error: (error, stack) => _buildErrorState(error),
         // The map is ALWAYS rendered — even with 0 members, 0 cities,
         // or 0 located pins. The map is the feature; pins are layers
@@ -905,11 +941,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.map_outlined,
-                    color: KinrelColors.orange, size: 48),
+                Icon(Icons.map_outlined, color: KinrelColors.orange, size: 48),
                 const SizedBox(height: 16),
                 Text(
-                  l10n?.familyMapFailedTitle ?? 'Could not load the family map.',
+                  l10n?.familyMapFailedTitle ??
+                      'Could not load the family map.',
                   style: TextStyle(
                     color: KinrelColors.textWhite,
                     fontFamily: KinrelTypography.displayFont,
@@ -919,7 +955,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  l10n?.familyMapFailedBody ?? 'Check your connection and try again.',
+                  l10n?.familyMapFailedBody ??
+                      'Check your connection and try again.',
                   style: TextStyle(
                     color: KinrelColors.textDim,
                     fontFamily: KinrelTypography.bodyFont,
@@ -963,8 +1000,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.location_off_rounded,
-                  color: KinrelColors.orange, size: 24),
+              Icon(
+                Icons.location_off_rounded,
+                color: KinrelColors.orange,
+                size: 24,
+              ),
               const SizedBox(height: 8),
               Text(
                 l10n?.familyMapEmptyTitle ?? 'No family locations yet',
@@ -1049,13 +1089,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       if (attempt != _lifecycle.currentAttempt) return;
       if (_lifecycle.state.isTerminal) return;
       if (_mapController == null) {
-        debugPrint('❌ FamilyMap: MapController still null after 5s — '
-            'JsMap constructor likely threw (WebGL/maplibre-gl.js failure). '
-            'Transitioning to failed.');
-        _lifecycle.transition(
-          FamilyMapLifecycle.failed,
-          attempt: attempt,
+        debugPrint(
+          '❌ FamilyMap: MapController still null after 5s — '
+          'JsMap constructor likely threw (WebGL/maplibre-gl.js failure). '
+          'Transitioning to failed.',
         );
+        _lifecycle.transition(FamilyMapLifecycle.failed, attempt: attempt);
         _styleWatchdog?.cancel();
         _styleWatchdog = null;
       }
@@ -1067,8 +1106,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       if (_lifecycle.state.isTerminal) return;
       if (_lifecycle.state == FamilyMapLifecycle.loadingStyle ||
           _lifecycle.state == FamilyMapLifecycle.preparingLayers) {
-        debugPrint('⚠️ FamilyMap: onStyleLoaded watchdog fired after 10s — '
-            'forcing lifecycle to ready/empty (state=${_lifecycle.state})');
+        debugPrint(
+          '⚠️ FamilyMap: onStyleLoaded watchdog fired after 10s — '
+          'forcing lifecycle to ready/empty (state=${_lifecycle.state})',
+        );
         _advanceToReadyOrEmpty(attempt: attempt);
       }
     });
@@ -1098,8 +1139,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // re-filtered — the timeline appears broken.
     ref.watch(journeyProvider);
     final filteredPins = ref
-            .read(journeyProvider.notifier)
-            .filterMapPins(result.pins);
+        .read(journeyProvider.notifier)
+        .filterMapPins(result.pins);
     final filteredPlaces = ref
         .read(journeyProvider.notifier)
         .filterMapPlaces(result.places);
@@ -1338,7 +1379,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 child: Center(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: KinrelColors.darkCard.withOpacity(0.85),
                       borderRadius: BorderRadius.circular(12),
@@ -1428,14 +1471,13 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     _styleLoaded = true;
     _rendezvousStyle = style;
 
-    debugPrint('✅ FamilyMap: style loaded (attempt=$attempt, '
-        'web=$kIsWeb)');
+    debugPrint(
+      '✅ FamilyMap: style loaded (attempt=$attempt, '
+      'web=$kIsWeb)',
+    );
 
     // Transition lifecycle to preparingLayers (style is loaded).
-    _lifecycle.transition(
-      FamilyMapLifecycle.preparingLayers,
-      attempt: attempt,
-    );
+    _lifecycle.transition(FamilyMapLifecycle.preparingLayers, attempt: attempt);
 
     // Try to prepare layers — will only run if controller is also
     // available.
@@ -1462,19 +1504,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
     // Transition lifecycle if not already done (safe — transition is
     // a no-op if already in preparingLayers).
-    _lifecycle.transition(
-      FamilyMapLifecycle.preparingLayers,
-      attempt: attempt,
-    );
+    _lifecycle.transition(FamilyMapLifecycle.preparingLayers, attempt: attempt);
 
     // Run the optional layer preparation (avatar probe, family
     // buildings, relationship paths, etc.) — same logic that was in
     // _onStyleLoaded.
-    _prepareOptionalLayers(
-      _rendezvousStyle!,
-      _rendezvousController!,
-      attempt,
-    );
+    _prepareOptionalLayers(_rendezvousStyle!, _rendezvousController!, attempt);
   }
 
   /// §12 — Optional premium-layer preparation. Extracted from the old
@@ -1504,8 +1539,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // are wrapped in try/catch so duplicate-adds are logged + skipped
     // (non-fatal). Kept for robustness against future style swaps.
     try {
-      await _ensureFamilyPlacesLayers(style)
-          .timeout(const Duration(seconds: 3));
+      await _ensureFamilyPlacesLayers(
+        style,
+      ).timeout(const Duration(seconds: 3));
     } catch (e) {
       debugPrint('⚠️ FamilyMap: _ensureFamilyPlacesLayers timed out: $e');
     }
@@ -1516,8 +1552,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // CircleLayer for the "lit pool" effect at the current user's location.
     // Idempotent — safe to call multiple times.
     try {
-      await _ensureLiveLocationGlow(style)
-          .timeout(const Duration(seconds: 3));
+      await _ensureLiveLocationGlow(style).timeout(const Duration(seconds: 3));
     } catch (e) {
       debugPrint('⚠️ FamilyMap: _ensureLiveLocationGlow timed out: $e');
     }
@@ -1525,9 +1560,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
     // Advance the secondary progress indicator.
     if (mounted) {
-      setState(() => _loadState = _loadState.copyWith(
-        phase: MapLoadPhase.roadsAndBuildings,
-      ));
+      setState(
+        () => _loadState = _loadState.copyWith(
+          phase: MapLoadPhase.roadsAndBuildings,
+        ),
+      );
     }
 
     // ── OPTIONAL: Probe SymbolLayer support for avatar markers ────────
@@ -1535,9 +1572,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // hangs (maplibre 0.3.5 web bug), we fall back to the Flutter overlay
     // path. This MUST NOT block the lifecycle.
     try {
-      await _avatarLayer.verifySymbolLayerSupport(style)
+      await _avatarLayer
+          .verifySymbolLayerSupport(style)
           .timeout(const Duration(seconds: 3));
-      debugPrint('🎨 FamilyMap: avatar overlay path = ${_avatarLayer.useOverlay}');
+      debugPrint(
+        '🎨 FamilyMap: avatar overlay path = ${_avatarLayer.useOverlay}',
+      );
     } catch (e) {
       debugPrint('⚠️ FamilyMap: avatar probe failed ($e) — using overlay path');
       _avatarLayer.useOverlay = true;
@@ -1550,12 +1590,15 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     final result = _lastResult;
     if (result != null && result.places.isNotEmpty) {
       try {
-        await _familyBuildings.add(style, result.places)
+        await _familyBuildings
+            .add(style, result.places)
             .timeout(const Duration(seconds: 3));
         if (mounted && _lifecycle.currentAttempt == attempt) {
-          setState(() => _loadState = _loadState.copyWith(
-            phase: MapLoadPhase.familyPlaces,
-          ));
+          setState(
+            () => _loadState = _loadState.copyWith(
+              phase: MapLoadPhase.familyPlaces,
+            ),
+          );
         }
       } catch (e) {
         debugPrint('⚠️ FamilyMap: family buildings add failed ($e) — skipping');
@@ -1576,16 +1619,21 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
           reducedMotion: reducedMotion,
           onRepaint: () => _pathRepaintNotifier.value++,
         );
-        await _relationshipPaths!.verifyLineGradientSupport()
-            .timeout(const Duration(seconds: 2));
+        await _relationshipPaths!.verifyLineGradientSupport().timeout(
+          const Duration(seconds: 2),
+        );
         _relationshipPaths!.start();
         if (mounted && _lifecycle.currentAttempt == attempt) {
-          setState(() => _loadState = _loadState.copyWith(
-            phase: MapLoadPhase.relationshipPaths,
-          ));
+          setState(
+            () => _loadState = _loadState.copyWith(
+              phase: MapLoadPhase.relationshipPaths,
+            ),
+          );
         }
       } catch (e) {
-        debugPrint('⚠️ FamilyMap: relationship paths init failed ($e) — skipping');
+        debugPrint(
+          '⚠️ FamilyMap: relationship paths init failed ($e) — skipping',
+        );
         _relationshipPaths?.dispose();
         _relationshipPaths = null;
       }
@@ -1594,9 +1642,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
     // ── OPTIONAL: Markers phase ───────────────────────────────────────
     if (mounted && _lifecycle.currentAttempt == attempt) {
-      setState(() => _loadState = _loadState.copyWith(
-        phase: MapLoadPhase.markers,
-      ));
+      setState(
+        () => _loadState = _loadState.copyWith(phase: MapLoadPhase.markers),
+      );
     }
 
     // ── REQUIRED: Transition to terminal state ────────────────────────
@@ -1611,9 +1659,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     Future.delayed(const Duration(milliseconds: 300), () {
       if (!mounted) return;
       if (_lifecycle.currentAttempt != attempt) return;
-      setState(() => _loadState = _loadState.copyWith(
-        phase: MapLoadPhase.complete,
-      ));
+      setState(
+        () => _loadState = _loadState.copyWith(phase: MapLoadPhase.complete),
+      );
     });
   }
 
@@ -1655,20 +1703,21 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     await HapticFeedback.heavyImpact();
     final result = _lastResult;
     if (result == null) return;
-    final linkedPlaces =
-        result.places.where((p) => p.personId == pin.personId).toList();
+    final linkedPlaces = result.places
+        .where((p) => p.personId == pin.personId)
+        .toList();
     final stops = buildJourneyStops(
       pin: pin,
       linkedPlaces: linkedPlaces,
-      bornLabel:
-          S.of(context)?.familyMapJourneyBorn ?? 'Born',
+      bornLabel: S.of(context)?.familyMapJourneyBorn ?? 'Born',
     );
     if (stops.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              S.of(context)?.familyMapNoJourney ??
-                  'No journey data for this family member yet.'),
+            S.of(context)?.familyMapNoJourney ??
+                'No journey data for this family member yet.',
+          ),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -1693,7 +1742,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     } else {
       setState(() => _expandedHouseholdId = household.id);
       MapBottomSheets.showHouseholdBottomSheet(
-          context, household, _handlePinTap);
+        context,
+        household,
+        _handlePinTap,
+      );
     }
     _scheduleStateSave();
   }
@@ -1702,8 +1754,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// Temporarily expands the cluster to show individual members.
   void _handleClusterLongPress(Household household) {
     setState(() => _expandedHouseholdId = household.id);
-    MapBottomSheets.showHouseholdBottomSheet(
-        context, household, _handlePinTap);
+    MapBottomSheets.showHouseholdBottomSheet(context, household, _handlePinTap);
     _scheduleStateSave();
   }
 
@@ -1741,7 +1792,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 )
                 .name;
             MapBottomSheets.showFamilyBuildingBottomSheet(
-                context, place, linkedPersonName);
+              context,
+              place,
+              linkedPersonName,
+            );
             return;
           }
         }
@@ -1802,7 +1856,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       return;
     }
 
-    debugPrint('🚀 Flying to Bengaluru: zoom=16.5, pitch=45° for 3D building test');
+    debugPrint(
+      '🚀 Flying to Bengaluru: zoom=16.5, pitch=45° for 3D building test',
+    );
     controller.animateCamera(
       center: Geographic(lon: 77.5946, lat: 12.9716), // Bengaluru
       zoom: 16.5,
@@ -1812,8 +1868,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(S.of(context)?.familyMapFlyToBengaluruSnackbar ??
-            'Flying to Bengaluru — 3D buildings should appear at this zoom level'),
+        content: Text(
+          S.of(context)?.familyMapFlyToBengaluruSnackbar ??
+              'Flying to Bengaluru — 3D buildings should appear at this zoom level',
+        ),
         duration: const Duration(seconds: 4),
       ),
     );
@@ -1855,17 +1913,23 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         debugPrint('⚠️ No building features found at Bengaluru center.');
         debugPrint('   Possible causes:');
         debugPrint('   - Zoom level too low (need 15+ for the minzoom filter)');
-        debugPrint('   - Source "openmaptiles" or source-layer "building" not in style');
+        debugPrint(
+          '   - Source "openmaptiles" or source-layer "building" not in style',
+        );
         debugPrint('   - Camera animation not yet complete');
         return;
       }
 
-      debugPrint('✅ Found ${features.length} building feature(s) at Bengaluru center');
+      debugPrint(
+        '✅ Found ${features.length} building feature(s) at Bengaluru center',
+      );
 
       final firstFeature = features.first;
       final props = firstFeature.properties;
       if (props.isEmpty) {
-        debugPrint('   ⚠️ Feature has no properties — cannot verify render_height');
+        debugPrint(
+          '   ⚠️ Feature has no properties — cannot verify render_height',
+        );
         return;
       }
 
@@ -1875,9 +1939,13 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
       final rh = props['render_height'];
       if (rh != null && rh is num && rh > 0) {
-        debugPrint('✅ render_height is present and non-zero ($rh) — 3D extrusion should be visible');
+        debugPrint(
+          '✅ render_height is present and non-zero ($rh) — 3D extrusion should be visible',
+        );
       } else {
-        debugPrint('❌ render_height is null or zero — buildings will appear flat!');
+        debugPrint(
+          '❌ render_height is null or zero — buildings will appear flat!',
+        );
       }
     } catch (e) {
       debugPrint('❌ queryRenderedFeatures failed: $e');
@@ -1928,10 +1996,14 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       final members = ref.read(familyMembersProvider(familyId)).valueOrNull;
       final userId = ref.read(supabaseProvider)?.auth.currentUser?.id;
       if (members == null || userId == null) return;
-      final myPerson = members.where((p) => p.linkedUserId == userId).firstOrNull;
+      final myPerson = members
+          .where((p) => p.linkedUserId == userId)
+          .firstOrNull;
       if (myPerson == null) return;
 
-      ref.read(liveLocationProvider.notifier).broadcastMyLocation(
+      ref
+          .read(liveLocationProvider.notifier)
+          .broadcastMyLocation(
             familyId: familyId,
             personId: myPerson.id,
             lat: pos.latitude,
@@ -1940,8 +2012,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
       // Throttle DB writes to once per 30s.
       final now = DateTime.now();
-      if (_lastDbUpsert == null || now.difference(_lastDbUpsert!).inSeconds >= 30) {
-        await ref.read(liveLocationProvider.notifier).upsertMyLocation(
+      if (_lastDbUpsert == null ||
+          now.difference(_lastDbUpsert!).inSeconds >= 30) {
+        await ref
+            .read(liveLocationProvider.notifier)
+            .upsertMyLocation(
               familyId: familyId,
               personId: myPerson.id,
               lat: pos.latitude,
@@ -2012,4 +2087,3 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     );
   }
 }
-

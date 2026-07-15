@@ -109,31 +109,50 @@ void main() {
     test('identical city-centroid pins do NOT create a household', () {
       final pins = [
         MapPin(
-          personId: 'a', name: 'A', city: 'Mumbai', photoUrl: null,
-          lat: 19.076, lng: 72.877,
+          personId: 'a',
+          name: 'A',
+          city: 'Mumbai',
+          photoUrl: null,
+          lat: 19.076,
+          lng: 72.877,
           locationSource: MapLocationSource.cityCentroid,
         ),
         MapPin(
-          personId: 'b', name: 'B', city: 'Mumbai', photoUrl: null,
-          lat: 19.076, lng: 72.877,
+          personId: 'b',
+          name: 'B',
+          city: 'Mumbai',
+          photoUrl: null,
+          lat: 19.076,
+          lng: 72.877,
           locationSource: MapLocationSource.cityCentroid,
         ),
       ];
       final households = computeHouseholds(pins);
-      expect(households, isEmpty,
-          reason: 'City-centroid fallback pins must not cluster');
+      expect(
+        households,
+        isEmpty,
+        reason: 'City-centroid fallback pins must not cluster',
+      );
     });
 
     test('two exact-home pins sharing coordinates CAN cluster', () {
       final pins = [
         MapPin(
-          personId: 'a', name: 'A', city: 'Mumbai', photoUrl: null,
-          lat: 19.076, lng: 72.877,
+          personId: 'a',
+          name: 'A',
+          city: 'Mumbai',
+          photoUrl: null,
+          lat: 19.076,
+          lng: 72.877,
           locationSource: MapLocationSource.exactPlace,
         ),
         MapPin(
-          personId: 'b', name: 'B', city: 'Mumbai', photoUrl: null,
-          lat: 19.076, lng: 72.877,
+          personId: 'b',
+          name: 'B',
+          city: 'Mumbai',
+          photoUrl: null,
+          lat: 19.076,
+          lng: 72.877,
           locationSource: MapLocationSource.exactPlace,
         ),
       ];
@@ -145,8 +164,12 @@ void main() {
     test('single member remains single household', () {
       final pins = [
         MapPin(
-          personId: 'a', name: 'A', city: 'Mumbai', photoUrl: null,
-          lat: 19.076, lng: 72.877,
+          personId: 'a',
+          name: 'A',
+          city: 'Mumbai',
+          photoUrl: null,
+          lat: 19.076,
+          lng: 72.877,
           locationSource: MapLocationSource.exactPlace,
         ),
       ];
@@ -159,12 +182,20 @@ void main() {
       // Backward compatibility: pins without locationSource (legacy) still cluster.
       final pins = [
         MapPin(
-          personId: 'a', name: 'A', city: 'Mumbai', photoUrl: null,
-          lat: 19.076, lng: 72.877,
+          personId: 'a',
+          name: 'A',
+          city: 'Mumbai',
+          photoUrl: null,
+          lat: 19.076,
+          lng: 72.877,
         ),
         MapPin(
-          personId: 'b', name: 'B', city: 'Mumbai', photoUrl: null,
-          lat: 19.076, lng: 72.877,
+          personId: 'b',
+          name: 'B',
+          city: 'Mumbai',
+          photoUrl: null,
+          lat: 19.076,
+          lng: 72.877,
         ),
       ];
       final households = computeHouseholds(pins);
@@ -194,7 +225,10 @@ void main() {
     test('spread stays within configured maximum', () {
       const maxOffset = 0.01;
       for (var i = 0; i < 100; i++) {
-        final offset = deterministicSpreadOffset('person-$i', maxOffsetDegrees: maxOffset);
+        final offset = deterministicSpreadOffset(
+          'person-$i',
+          maxOffsetDegrees: maxOffset,
+        );
         expect(offset.lat.abs(), lessThanOrEqualTo(maxOffset));
         expect(offset.lng.abs(), lessThanOrEqualTo(maxOffset));
       }

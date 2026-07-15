@@ -19,7 +19,8 @@
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:maplibre/maplibre.dart';
 
@@ -46,8 +47,7 @@ class AmbientMotionController {
   AnimationController? _driftController;
   bool _enabled = false;
 
-  DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.tier;
+  DeviceTier get _effectiveTier => deviceTier ?? DeviceTierCache.instance.tier;
 
   /// True if ambient motion is supported on this platform:
   /// - Desktop/web only (disabled on mobile — battery drain).
@@ -55,7 +55,8 @@ class AmbientMotionController {
   /// - Not when reduced motion is on (Rule 8).
   bool get isPlatformSupported {
     // Mobile (iOS/Android) — disabled to preserve battery.
-    if (!kIsWeb && defaultTargetPlatform != TargetPlatform.macOS &&
+    if (!kIsWeb &&
+        defaultTargetPlatform != TargetPlatform.macOS &&
         defaultTargetPlatform != TargetPlatform.windows &&
         defaultTargetPlatform != TargetPlatform.linux) {
       return false;

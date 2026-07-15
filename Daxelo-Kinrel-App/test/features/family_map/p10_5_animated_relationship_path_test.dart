@@ -23,50 +23,68 @@ void main() {
   group('P10.5 categorizeRelationship', () {
     test('parent keys → parentChild', () {
       for (final k in <String>['father', 'mother', 'parent', 'papa', 'amma']) {
-        expect(categorizeRelationship(k),
-            equals(RelationshipCategory.parentChild),
-            reason: k);
+        expect(
+          categorizeRelationship(k),
+          equals(RelationshipCategory.parentChild),
+          reason: k,
+        );
       }
     });
     test('sibling keys → sibling', () {
       for (final k in <String>['brother', 'sister', 'bhai', 'behan']) {
-        expect(categorizeRelationship(k),
-            equals(RelationshipCategory.sibling),
-            reason: k);
+        expect(
+          categorizeRelationship(k),
+          equals(RelationshipCategory.sibling),
+          reason: k,
+        );
       }
     });
     test('spouse keys → spouse', () {
       for (final k in <String>['spouse', 'husband', 'wife', 'partner']) {
-        expect(categorizeRelationship(k),
-            equals(RelationshipCategory.spouse),
-            reason: k);
+        expect(
+          categorizeRelationship(k),
+          equals(RelationshipCategory.spouse),
+          reason: k,
+        );
       }
     });
     test('ancestor keys → ancestorChain', () {
       for (final k in <String>['grandfather', 'grandmother', 'dada', 'nani']) {
-        expect(categorizeRelationship(k),
-            equals(RelationshipCategory.ancestorChain),
-            reason: k);
+        expect(
+          categorizeRelationship(k),
+          equals(RelationshipCategory.ancestorChain),
+          reason: k,
+        );
       }
     });
     test('descendant keys → descendantChain', () {
       for (final k in <String>['son', 'daughter', 'grandson']) {
-        expect(categorizeRelationship(k),
-            equals(RelationshipCategory.descendantChain),
-            reason: k);
+        expect(
+          categorizeRelationship(k),
+          equals(RelationshipCategory.descendantChain),
+          reason: k,
+        );
       }
     });
     test('unknown keys → generic', () {
-      expect(categorizeRelationship('cousin'),
-          equals(RelationshipCategory.generic));
-      expect(categorizeRelationship('xyz'),
-          equals(RelationshipCategory.generic));
+      expect(
+        categorizeRelationship('cousin'),
+        equals(RelationshipCategory.generic),
+      );
+      expect(
+        categorizeRelationship('xyz'),
+        equals(RelationshipCategory.generic),
+      );
     });
     test('case insensitive', () {
-      expect(categorizeRelationship('FATHER'),
-          equals(RelationshipCategory.parentChild));
-      expect(categorizeRelationship(' Spouse '),
-          equals(RelationshipCategory.spouse));
+      expect(
+        categorizeRelationship('FATHER'),
+        equals(RelationshipCategory.parentChild),
+      );
+      expect(
+        categorizeRelationship(' Spouse '),
+        equals(RelationshipCategory.spouse),
+      );
     });
   });
 
@@ -119,19 +137,27 @@ void main() {
         max + 5,
         (i) => MapRelationshipEdge(
           pinA: MapPin(
-              personId: 'a$i', name: 'A', city: 'X', photoUrl: null,
-              lat: 0, lng: 0),
+            personId: 'a$i',
+            name: 'A',
+            city: 'X',
+            photoUrl: null,
+            lat: 0,
+            lng: 0,
+          ),
           pinB: MapPin(
-              personId: 'b$i', name: 'B', city: 'Y', photoUrl: null,
-              lat: 0, lng: 1),
+            personId: 'b$i',
+            name: 'B',
+            city: 'Y',
+            photoUrl: null,
+            lat: 0,
+            lng: 1,
+          ),
           relationshipKey: 'father',
         ),
       );
       final positions = <String, Offset>{
-        for (var i = 0; i < max + 5; i++)
-          'a$i': Offset(i.toDouble(), 0.0),
-        for (var i = 0; i < max + 5; i++)
-          'b$i': Offset(i.toDouble(), 100.0),
+        for (var i = 0; i < max + 5; i++) 'a$i': Offset(i.toDouble(), 0.0),
+        for (var i = 0; i < max + 5; i++) 'b$i': Offset(i.toDouble(), 100.0),
       };
       final culled = cullEdgesToViewport(
         all: edges,
@@ -145,11 +171,21 @@ void main() {
       final edges = <MapRelationshipEdge>[
         MapRelationshipEdge(
           pinA: const MapPin(
-              personId: 'a', name: 'A', city: 'X', photoUrl: null,
-              lat: 0, lng: 0),
+            personId: 'a',
+            name: 'A',
+            city: 'X',
+            photoUrl: null,
+            lat: 0,
+            lng: 0,
+          ),
           pinB: const MapPin(
-              personId: 'b', name: 'B', city: 'Y', photoUrl: null,
-              lat: 0, lng: 0),
+            personId: 'b',
+            name: 'B',
+            city: 'Y',
+            photoUrl: null,
+            lat: 0,
+            lng: 0,
+          ),
           relationshipKey: 'father',
         ),
       ];
@@ -185,6 +221,5 @@ void main() {
 class _DummyTickerProvider implements TickerProvider {
   const _DummyTickerProvider();
   @override
-  Ticker createTicker(TickerCallback onTick) =>
-      Ticker(onTick);
+  Ticker createTicker(TickerCallback onTick) => Ticker(onTick);
 }

@@ -71,8 +71,9 @@ class _HouseholdClusterOverlayState extends State<HouseholdClusterOverlay>
     bool changed = false;
     for (final h in widget.households) {
       try {
-        final screen =
-            controller.toScreenLocation(Geographic(lon: h.lng, lat: h.lat));
+        final screen = controller.toScreenLocation(
+          Geographic(lon: h.lng, lat: h.lat),
+        );
         if (_positions[h.id] != screen) {
           _positions[h.id] = screen;
           changed = true;
@@ -87,10 +88,7 @@ class _HouseholdClusterOverlayState extends State<HouseholdClusterOverlay>
   @override
   Widget build(BuildContext context) {
     return Stack(
-      children: [
-        for (final h in widget.households)
-          _buildPositioned(h),
-      ],
+      children: [for (final h in widget.households) _buildPositioned(h)],
     );
   }
 

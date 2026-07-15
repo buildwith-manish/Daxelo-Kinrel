@@ -144,7 +144,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
             icon: const Icon(Icons.chat_bubble_outline),
             tooltip: 'Family Chat',
             onPressed: () {
-              final detail = ref.read(familyDetailProvider(widget.familyId)).valueOrNull;
+              final detail = ref
+                  .read(familyDetailProvider(widget.familyId))
+                  .valueOrNull;
               final familyName = detail?.family.name ?? 'Family';
               context.push(
                 '/family/${widget.familyId}/chat?name=${Uri.encodeComponent(familyName)}',
@@ -339,10 +341,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
   void _shareFamily(BuildContext context) {
     final detailAsync = ref.read(familyDetailProvider(widget.familyId));
     final familyName = detailAsync.valueOrNull?.family.name ?? 'Family';
-    ShareHelper.shareFamily(
-      familyId: widget.familyId,
-      familyName: familyName,
-    );
+    ShareHelper.shareFamily(familyId: widget.familyId, familyName: familyName);
   }
 
   /// Leave family dialog — confirms with the user before removing their
@@ -352,7 +351,8 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
     final detailAsync = ref.read(familyDetailProvider(widget.familyId));
     final family = detailAsync.valueOrNull?.family;
     final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-    final isCreator = family != null &&
+    final isCreator =
+        family != null &&
         family.createdBy != null &&
         family.createdBy == currentUserId;
 
@@ -367,11 +367,11 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
         content: Text(
           isCreator
               ? 'You are the creator of this family. To leave, you must '
-                  'transfer ownership to another admin or delete the family '
-                  'from Settings. Would you like to open Settings?'
+                    'transfer ownership to another admin or delete the family '
+                    'from Settings. Would you like to open Settings?'
               : 'Are you sure you want to leave "${family?.name ?? 'this family'}"? '
-                  'You will lose access to the family graph, members, and chat. '
-                  'You can rejoin if you receive a new invite.',
+                    'You will lose access to the family graph, members, and chat. '
+                    'You can rejoin if you receive a new invite.',
           style: TextStyle(color: DKColors.textSecondary(context)),
         ),
         actions: [
@@ -428,19 +428,21 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
         family.createdBy == currentUserId;
 
     // Determine current user's role from FamilyMember table
-    final membershipsAsync = ref.read(familyMembershipsProvider(widget.familyId));
+    final membershipsAsync = ref.read(
+      familyMembershipsProvider(widget.familyId),
+    );
     final memberships = membershipsAsync.valueOrNull ?? [];
     final currentUserMembership = memberships
         .where((m) => m.userId == currentUserId)
         .firstOrNull;
     final currentUserRole = currentUserMembership?.role;
-    final isAdminOrOwner = isCreator ||
-        currentUserRole == 'admin' ||
-        currentUserRole == 'owner';
+    final isAdminOrOwner =
+        isCreator || currentUserRole == 'admin' || currentUserRole == 'owner';
 
     // Count how many admins are in the family (to prevent sole admin from leaving)
     final adminCount = memberships.where((m) => m.isAdmin).length;
-    final isOnlyAdmin = (currentUserMembership?.isAdmin ?? false) && adminCount <= 1;
+    final isOnlyAdmin =
+        (currentUserMembership?.isAdmin ?? false) && adminCount <= 1;
 
     showModalBottomSheet(
       context: context,
@@ -520,10 +522,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                             SizedBox(height: 2),
                             GestureDetector(
                               onTap: () {
-                                Clipboard.setData(ClipboardData(text: family.kinFamilyId!));
+                                Clipboard.setData(
+                                  ClipboardData(text: family.kinFamilyId!),
+                                );
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('Family ID copied: ${family.kinFamilyId}'),
+                                    content: Text(
+                                      'Family ID copied: ${family.kinFamilyId}',
+                                    ),
                                     behavior: SnackBarBehavior.floating,
                                     duration: const Duration(seconds: 2),
                                   ),
@@ -532,7 +538,11 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.copy, size: 12, color: KinrelColors.purple),
+                                  Icon(
+                                    Icons.copy,
+                                    size: 12,
+                                    color: KinrelColors.purple,
+                                  ),
                                   SizedBox(width: 4),
                                   Text(
                                     family.kinFamilyId!,
@@ -605,7 +615,10 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               icon: Icons.public,
               label: 'Family Map',
               iconColor: KinrelColors.orange,
-              onTap: () { Navigator.pop(ctx); context.push('/family/${widget.familyId}/map'); },
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/family/${widget.familyId}/map');
+              },
             ),
             Divider(color: KinrelColors.border, height: 1),
 
@@ -614,7 +627,10 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               icon: Icons.photo_library_outlined,
               label: 'Memory Vault',
               iconColor: KinrelColors.gold,
-              onTap: () { Navigator.pop(ctx); context.push('/memory-vault'); },
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/memory-vault');
+              },
             ),
             Divider(color: KinrelColors.border, height: 1),
 
@@ -623,7 +639,10 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               icon: Icons.auto_stories_outlined,
               label: 'Story Mode',
               iconColor: KinrelColors.amber,
-              onTap: () { Navigator.pop(ctx); context.push('/family/${widget.familyId}/story-mode'); },
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/family/${widget.familyId}/story-mode');
+              },
             ),
             Divider(color: KinrelColors.border, height: 1),
 
@@ -632,7 +651,10 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               icon: Icons.settings_outlined,
               label: 'Family Settings',
               iconColor: KinrelColors.blue,
-              onTap: () { Navigator.pop(ctx); context.push('/family/${widget.familyId}/settings'); },
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/family/${widget.familyId}/settings');
+              },
             ),
             Divider(color: KinrelColors.border, height: 1),
 
@@ -848,13 +870,18 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
     );
 
     try {
-      await deleteFamilyOptimistic(container: container, familyId: widget.familyId);
+      await deleteFamilyOptimistic(
+        container: container,
+        familyId: widget.familyId,
+      );
 
       // Use captured references — the original context may be unmounted now
       navigator.pop(); // Close loading dialog
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Family moved to archive. You can restore it from the Archived section.'),
+          content: Text(
+            'Family moved to archive. You can restore it from the Archived section.',
+          ),
           backgroundColor: KinrelColors.success,
           behavior: SnackBarBehavior.floating,
         ),
@@ -864,9 +891,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
       navigator.pop(); // Close loading dialog
       messenger.showSnackBar(
         SnackBar(
-          content: Text(
-            'Failed to delete: ${e.toString().split('\n').first}',
-          ),
+          content: Text('Failed to delete: ${e.toString().split('\n').first}'),
           backgroundColor: KinrelColors.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -927,7 +952,11 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, size: 18, color: KinrelColors.warning),
+                  Icon(
+                    Icons.info_outline,
+                    size: 18,
+                    color: KinrelColors.warning,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -1079,18 +1108,13 @@ class _GraphTabState extends ConsumerState<_GraphTab> {
         // Primary graph view
         if (_showHierarchy)
           // Embedded relationship graph — navigates to full screen on tap
-          _EmbeddedHierarchyGraph(
-            detail: detail,
-            familyId: familyId,
-          )
+          _EmbeddedHierarchyGraph(detail: detail, familyId: familyId)
         else
           // P6.1: Migrated from the legacy 3,773-line canvas widget to
           // the V2.1 graph engine. The V2.1 engine handles node taps
           // internally via GraphQuickActions, so the onNodeTap/
           // onNodeLongPress callbacks are no longer needed.
-          FamilyGraphEngineView(
-            familyId: familyId,
-          ),
+          FamilyGraphEngineView(familyId: familyId),
 
         // View toggle button (top-left)
         Positioned(
@@ -1133,8 +1157,14 @@ class _GraphTabState extends ConsumerState<_GraphTab> {
             icon: Icons.fullscreen_rounded,
             tooltip: 'Full Screen Graph',
             onTap: () {
-              final name = ref.read(familyDetailProvider(widget.familyId)).valueOrNull?.family.name;
-              context.push('/family/${widget.familyId}/graph${name != null ? '?name=${Uri.encodeComponent(name)}' : ''}');
+              final name = ref
+                  .read(familyDetailProvider(widget.familyId))
+                  .valueOrNull
+                  ?.family
+                  .name;
+              context.push(
+                '/family/${widget.familyId}/graph${name != null ? '?name=${Uri.encodeComponent(name)}' : ''}',
+              );
             },
           ),
         ),
@@ -1297,8 +1327,12 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
   /// Scroll listener that precaches avatar images for upcoming items.
   void _onScroll() {
     try {
-      final combinedMembers = ref.read(combinedMembersProvider(widget.familyId));
-      final activeMembers = combinedMembers.where((p) => p.deletedAt == null).toList();
+      final combinedMembers = ref.read(
+        combinedMembersProvider(widget.familyId),
+      );
+      final activeMembers = combinedMembers
+          .where((p) => p.deletedAt == null)
+          .toList();
       final imageUrls = activeMembers.map((p) => p.photoUrl).toList();
       SmartPreloader.precacheUpcomingImages(
         context: context,
@@ -1318,11 +1352,14 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
     final combinedMembers = ref.watch(combinedMembersProvider(widget.familyId));
 
     // Watch memberships provider to get collaborator info with user profiles
-    final membershipsAsync = ref.watch(familyMembershipsProvider(widget.familyId));
+    final membershipsAsync = ref.watch(
+      familyMembershipsProvider(widget.familyId),
+    );
     final memberships = membershipsAsync.valueOrNull ?? [];
     final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     final family = widget.detail.family;
-    final isCreator = family.createdBy != null && family.createdBy == currentUserId;
+    final isCreator =
+        family.createdBy != null && family.createdBy == currentUserId;
 
     // Determine if current user is admin
     final currentUserMembership = memberships
@@ -1457,7 +1494,9 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
               DKStatChip(
                 icon: Icons.group_outlined,
                 value: '${memberships.length}',
-                label: memberships.length == 1 ? 'collaborator' : 'collaborators',
+                label: memberships.length == 1
+                    ? 'collaborator'
+                    : 'collaborators',
                 color: KinrelColors.blue,
               ),
             ],
@@ -1470,23 +1509,26 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
           _CollaboratorsHeader(
             count: memberships.length,
             isAdmin: isAdmin,
-            onInviteTap: () => context.push('/family/${widget.familyId}/invite'),
+            onInviteTap: () =>
+                context.push('/family/${widget.familyId}/invite'),
           ),
           const SizedBox(height: 8),
-          ...memberships.map((membership) => _CollaboratorCard(
-            membership: membership,
-            isCurrentUser: membership.userId == currentUserId,
-            canManage: isAdmin && membership.userId != currentUserId,
-            familyId: widget.familyId,
-            isCreator: isCreator,
-            onRoleChanged: () {
-              ref.invalidate(familyMembershipsProvider(widget.familyId));
-            },
-            onRemoved: () {
-              ref.invalidate(familyMembershipsProvider(widget.familyId));
-              ref.invalidate(familyDetailProvider(widget.familyId));
-            },
-          )),
+          ...memberships.map(
+            (membership) => _CollaboratorCard(
+              membership: membership,
+              isCurrentUser: membership.userId == currentUserId,
+              canManage: isAdmin && membership.userId != currentUserId,
+              familyId: widget.familyId,
+              isCreator: isCreator,
+              onRoleChanged: () {
+                ref.invalidate(familyMembershipsProvider(widget.familyId));
+              },
+              onRemoved: () {
+                ref.invalidate(familyMembershipsProvider(widget.familyId));
+                ref.invalidate(familyDetailProvider(widget.familyId));
+              },
+            ),
+          ),
           Divider(
             color: KinrelColors.border,
             height: 24,
@@ -1534,7 +1576,9 @@ class _MembersTabState extends ConsumerState<_MembersTab> {
           child: filtered.isEmpty
               ? DKEmptyState(
                   icon: Icons.person_search_outlined,
-                  title: _searchQuery.isEmpty ? 'No Linked Members' : 'No Match',
+                  title: _searchQuery.isEmpty
+                      ? 'No Linked Members'
+                      : 'No Match',
                   subtitle: _searchQuery.isEmpty
                       ? 'No Kinrel users have joined this family yet. Invite family members to link their accounts, or add them to the family tree first.'
                       : 'No members match "$_searchQuery"',
@@ -1595,11 +1639,7 @@ class _CollaboratorsHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       child: Row(
         children: [
-          Icon(
-            Icons.group_outlined,
-            size: 14,
-            color: KinrelColors.textSilver,
-          ),
+          Icon(Icons.group_outlined, size: 14, color: KinrelColors.textSilver),
           const SizedBox(width: 6),
           Text(
             'Collaborators',
@@ -1678,10 +1718,7 @@ class _CollaboratorCard extends ConsumerWidget {
         onTap: canManage ? () => _showMemberActions(context, ref) : null,
         borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
         child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 10,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: DKColors.cardColor(context),
             borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
@@ -1729,7 +1766,9 @@ class _CollaboratorCard extends ConsumerWidget {
                               vertical: 1,
                             ),
                             decoration: BoxDecoration(
-                              color: KinrelColors.purple.withValues(alpha: 0.15),
+                              color: KinrelColors.purple.withValues(
+                                alpha: 0.15,
+                              ),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -1868,7 +1907,9 @@ class _CollaboratorCard extends ConsumerWidget {
                   Wrap(
                     spacing: 8,
                     runSpacing: 6,
-                    children: ['admin', 'editor', 'member', 'viewer'].map((role) {
+                    children: ['admin', 'editor', 'member', 'viewer'].map((
+                      role,
+                    ) {
                       final isSelected = membership.role.toLowerCase() == role;
                       return GestureDetector(
                         onTap: isSelected
@@ -1934,7 +1975,11 @@ class _CollaboratorCard extends ConsumerWidget {
     );
   }
 
-  Future<void> _changeRole(BuildContext context, WidgetRef ref, String newRole) async {
+  Future<void> _changeRole(
+    BuildContext context,
+    WidgetRef ref,
+    String newRole,
+  ) async {
     try {
       final dio = ref.read(dioProvider);
       await dio.patch(
@@ -1945,7 +1990,9 @@ class _CollaboratorCard extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Role updated to ${newRole[0].toUpperCase()}${newRole.substring(1)}'),
+            content: Text(
+              'Role updated to ${newRole[0].toUpperCase()}${newRole.substring(1)}',
+            ),
             backgroundColor: KinrelColors.success,
             behavior: SnackBarBehavior.floating,
           ),
@@ -1955,7 +2002,9 @@ class _CollaboratorCard extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to update role: ${e.toString().split('\n').first}'),
+            content: Text(
+              'Failed to update role: ${e.toString().split('\n').first}',
+            ),
             backgroundColor: KinrelColors.error,
             behavior: SnackBarBehavior.floating,
           ),
@@ -2025,7 +2074,9 @@ class _CollaboratorCard extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${membership.user?.displayName ?? 'Member'} removed'),
+            content: Text(
+              '${membership.user?.displayName ?? 'Member'} removed',
+            ),
             backgroundColor: KinrelColors.success,
             behavior: SnackBarBehavior.floating,
           ),
@@ -2035,7 +2086,9 @@ class _CollaboratorCard extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to remove: ${e.toString().split('\n').first}'),
+            content: Text(
+              'Failed to remove: ${e.toString().split('\n').first}',
+            ),
             backgroundColor: KinrelColors.error,
             behavior: SnackBarBehavior.floating,
           ),
@@ -2120,9 +2173,7 @@ class _InviteCollaboratorCTA extends StatelessWidget {
         decoration: BoxDecoration(
           color: KinrelColors.purple.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-          border: Border.all(
-            color: KinrelColors.purple.withValues(alpha: 0.2),
-          ),
+          border: Border.all(color: KinrelColors.purple.withValues(alpha: 0.2)),
         ),
         child: Row(
           children: [
@@ -2428,8 +2479,7 @@ class _MembersPreviewRow extends StatelessWidget {
               ),
               const Spacer(),
               TextButton(
-                onPressed: () =>
-                    context.push('/family/$familyId/members'),
+                onPressed: () => context.push('/family/$familyId/members'),
                 child: Text(
                   'View All',
                   style: TextStyle(
@@ -2457,7 +2507,9 @@ class _MembersPreviewRow extends StatelessWidget {
                     children: [
                       CircleAvatar(
                         radius: 22,
-                        backgroundColor: KinrelColors.orange.withValues(alpha: 0.12),
+                        backgroundColor: KinrelColors.orange.withValues(
+                          alpha: 0.12,
+                        ),
                         backgroundImage: person.photoUrl != null
                             ? NetworkImage(person.photoUrl!)
                             : null,
@@ -2469,8 +2521,12 @@ class _MembersPreviewRow extends StatelessWidget {
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
                                     colors: [
-                                      KinrelColors.orange.withValues(alpha: 0.45),
-                                      KinrelColors.amber.withValues(alpha: 0.25),
+                                      KinrelColors.orange.withValues(
+                                        alpha: 0.45,
+                                      ),
+                                      KinrelColors.amber.withValues(
+                                        alpha: 0.25,
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -2491,29 +2547,34 @@ class _MembersPreviewRow extends StatelessWidget {
                             : null,
                       ),
                       const SizedBox(height: 4),
-                      Builder(builder: (context) {
-                        // Disambiguate same-first-name members
-                        final firstName = person.name.split(' ').first;
-                        final sameFirstName = members.where((m) =>
-                            m.name.split(' ').first == firstName).length;
-                        String label = firstName;
-                        if (sameFirstName > 1) {
-                          final parts = person.name.split(' ');
-                          if (parts.length > 1) {
-                            label = '$firstName ${parts[1][0]}.';
+                      Builder(
+                        builder: (context) {
+                          // Disambiguate same-first-name members
+                          final firstName = person.name.split(' ').first;
+                          final sameFirstName = members
+                              .where(
+                                (m) => m.name.split(' ').first == firstName,
+                              )
+                              .length;
+                          String label = firstName;
+                          if (sameFirstName > 1) {
+                            final parts = person.name.split(' ');
+                            if (parts.length > 1) {
+                              label = '$firstName ${parts[1][0]}.';
+                            }
                           }
-                        }
-                        return Text(
-                          label,
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 10,
-                            color: KinrelColors.textDim,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        );
-                      }),
+                          return Text(
+                            label,
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 10,
+                              color: KinrelColors.textDim,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          );
+                        },
+                      ),
                     ],
                   ),
                 );
@@ -2537,23 +2598,29 @@ class _ActivityPreviewCard extends StatelessWidget {
     final activities = <_ActivityItem>[];
 
     for (final rel in detail.relationships) {
-      final fromPerson =
-          detail.members.where((p) => p.id == rel.fromPersonId).firstOrNull;
-      final toPerson =
-          detail.members.where((p) => p.id == rel.toPersonId).firstOrNull;
-      activities.add(_ActivityItem(
-        type: _ActivityType.link,
-        description:
-            '${fromPerson?.name ?? "Someone"} added ${toPerson?.name ?? "a family member"} as ${rel.relationshipKey.replaceAll("_", " ")}',
-        timestamp: rel.createdAt,
-      ));
+      final fromPerson = detail.members
+          .where((p) => p.id == rel.fromPersonId)
+          .firstOrNull;
+      final toPerson = detail.members
+          .where((p) => p.id == rel.toPersonId)
+          .firstOrNull;
+      activities.add(
+        _ActivityItem(
+          type: _ActivityType.link,
+          description:
+              '${fromPerson?.name ?? "Someone"} added ${toPerson?.name ?? "a family member"} as ${rel.relationshipKey.replaceAll("_", " ")}',
+          timestamp: rel.createdAt,
+        ),
+      );
     }
     for (final member in detail.members) {
-      activities.add(_ActivityItem(
-        type: _ActivityType.memberAdded,
-        description: '${member.name} joined the family',
-        timestamp: member.createdAt,
-      ));
+      activities.add(
+        _ActivityItem(
+          type: _ActivityType.memberAdded,
+          description: '${member.name} joined the family',
+          timestamp: member.createdAt,
+        ),
+      );
     }
     activities.sort((a, b) {
       if (a.timestamp == null && b.timestamp == null) return 0;
@@ -2582,8 +2649,7 @@ class _ActivityPreviewCard extends StatelessWidget {
               ),
               const Spacer(),
               TextButton(
-                onPressed: () =>
-                    context.push('/family/$familyId/activity'),
+                onPressed: () => context.push('/family/$familyId/activity'),
                 child: Text(
                   'View All',
                   style: TextStyle(
@@ -2597,40 +2663,42 @@ class _ActivityPreviewCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          ...recent.map((activity) => Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: KinrelColors.darkCard,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      activity.type == _ActivityType.link
-                          ? Icons.link_rounded
-                          : Icons.person_add_alt_1_rounded,
-                      size: 18,
-                      color: activity.type == _ActivityType.link
-                          ? KinrelColors.orange
-                          : KinrelColors.purple,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        activity.description,
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 13,
-                          color: KinrelColors.textSilver,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+          ...recent.map(
+            (activity) => Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: KinrelColors.darkCard,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    activity.type == _ActivityType.link
+                        ? Icons.link_rounded
+                        : Icons.person_add_alt_1_rounded,
+                    size: 18,
+                    color: activity.type == _ActivityType.link
+                        ? KinrelColors.orange
+                        : KinrelColors.purple,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      activity.description,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 13,
+                        color: KinrelColors.textSilver,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
-              )),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -2649,9 +2717,11 @@ class _FamilyCalendarCard extends ConsumerWidget {
     final occasions = ref.watch(familyOccasionsProvider(familyId));
     final upcoming = occasions.take(3).toList();
     final missingDob = detail.members
-        .where((p) =>
-            p.deletedAt == null &&
-            (p.dateOfBirth == null || p.dateOfBirth!.isEmpty))
+        .where(
+          (p) =>
+              p.deletedAt == null &&
+              (p.dateOfBirth == null || p.dateOfBirth!.isEmpty),
+        )
         .toList();
 
     // If no occasions AND no missing DOB, hide the card
@@ -2666,8 +2736,11 @@ class _FamilyCalendarCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.calendar_today_outlined,
-                  size: 18, color: KinrelColors.orange),
+              Icon(
+                Icons.calendar_today_outlined,
+                size: 18,
+                color: KinrelColors.orange,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Family Calendar',
@@ -2695,86 +2768,92 @@ class _FamilyCalendarCard extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           // Upcoming occasions
-          ...upcoming.map((occasion) => Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: KinrelColors.darkCard,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 18,
-                      backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
-                      backgroundImage: occasion.photoUrl != null
-                          ? NetworkImage(occasion.photoUrl!)
-                          : null,
-                      child: occasion.photoUrl == null
-                          ? Icon(
-                              occasion.type == OccasionType.birthday
-                                  ? Icons.cake_outlined
-                                  : Icons.favorite_outline,
-                              size: 18,
-                              color: KinrelColors.orange,
-                            )
-                          : null,
+          ...upcoming.map(
+            (occasion) => Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: KinrelColors.darkCard,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: KinrelColors.orange.withValues(
+                      alpha: 0.15,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            occasion.name,
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.displayFont,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: KinrelColors.textWhite,
-                            ),
-                          ),
-                          Text(
+                    backgroundImage: occasion.photoUrl != null
+                        ? NetworkImage(occasion.photoUrl!)
+                        : null,
+                    child: occasion.photoUrl == null
+                        ? Icon(
                             occasion.type == OccasionType.birthday
-                                ? 'Birthday'
-                                : 'Anniversary',
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 12,
-                              color: KinrelColors.textDim,
-                            ),
+                                ? Icons.cake_outlined
+                                : Icons.favorite_outline,
+                            size: 18,
+                            color: KinrelColors.orange,
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          occasion.name,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: KinrelColors.textWhite,
                           ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: occasion.daysUntil <= 7
-                            ? KinrelColors.orange.withValues(alpha: 0.15)
-                            : KinrelColors.darkElevated,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        occasion.daysUntil == 0
-                            ? 'Today!'
-                            : occasion.daysUntil == 1
-                                ? 'Tomorrow'
-                                : '${occasion.daysUntil} days',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: occasion.daysUntil <= 7
-                              ? KinrelColors.orange
-                              : KinrelColors.textDim,
                         ),
+                        Text(
+                          occasion.type == OccasionType.birthday
+                              ? 'Birthday'
+                              : 'Anniversary',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 12,
+                            color: KinrelColors.textDim,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: occasion.daysUntil <= 7
+                          ? KinrelColors.orange.withValues(alpha: 0.15)
+                          : KinrelColors.darkElevated,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      occasion.daysUntil == 0
+                          ? 'Today!'
+                          : occasion.daysUntil == 1
+                          ? 'Tomorrow'
+                          : '${occasion.daysUntil} days',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: occasion.daysUntil <= 7
+                            ? KinrelColors.orange
+                            : KinrelColors.textDim,
                       ),
                     ),
-                  ],
-                ),
-              )),
+                  ),
+                ],
+              ),
+            ),
+          ),
           // Missing DOB prompt
           if (missingDob.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -2792,8 +2871,11 @@ class _FamilyCalendarCard extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.info_outline,
-                          size: 14, color: KinrelColors.textDim),
+                      Icon(
+                        Icons.info_outline,
+                        size: 14,
+                        color: KinrelColors.textDim,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         'Missing info',
@@ -2807,39 +2889,45 @@ class _FamilyCalendarCard extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  ...missingDob.take(3).map((person) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: GestureDetector(
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            AddPersonSheet.show(
-                              context,
-                              familyId: familyId,
-                              existingPerson: person,
-                            );
-                          },
-                          child: Row(
-                            children: [
-                              Icon(Icons.cake_outlined,
-                                  size: 14, color: KinrelColors.textDim),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  'Add ${person.name}\'s birthday',
-                                  style: TextStyle(
-                                    fontFamily: KinrelTypography.bodyFont,
-                                    fontSize: 12,
-                                    color: KinrelColors.textDim,
-                                    decoration: TextDecoration.underline,
-                                    decorationColor:
-                                        KinrelColors.textDim,
+                  ...missingDob
+                      .take(3)
+                      .map(
+                        (person) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              AddPersonSheet.show(
+                                context,
+                                familyId: familyId,
+                                existingPerson: person,
+                              );
+                            },
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.cake_outlined,
+                                  size: 14,
+                                  color: KinrelColors.textDim,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Add ${person.name}\'s birthday',
+                                    style: TextStyle(
+                                      fontFamily: KinrelTypography.bodyFont,
+                                      fontSize: 12,
+                                      color: KinrelColors.textDim,
+                                      decoration: TextDecoration.underline,
+                                      decorationColor: KinrelColors.textDim,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      )),
+                      ),
                 ],
               ),
             ),
@@ -2857,31 +2945,145 @@ class _GamesRow extends ConsumerWidget {
   final String familyId;
 
   static const List<_GameEntry> _games = [
-    _GameEntry(gameId: 'hot-seat', name: 'Hot Seat', icon: Icons.local_fire_department_outlined, color: Color(0xFFF59E0B), route: '/family/\$familyId/hot-seat'),
-    _GameEntry(gameId: 'relation-riddles', name: 'Riddles', icon: Icons.extension_outlined, color: Color(0xFF8B5CF6), route: '/family/\$familyId/relation-riddles'),
-    _GameEntry(gameId: 'ghost-painter', name: 'Ghost Painter', icon: Icons.brush_outlined, color: Color(0xFFEC4899), route: '/family/\$familyId/ghost-painter/draw'),
-    _GameEntry(gameId: 'freeze-dash', name: 'Freeze & Dash', icon: Icons.directions_run_rounded, color: Color(0xFF10B981), route: '/family/\$familyId/freeze-dash/lobby'),
-    _GameEntry(gameId: 'sos', name: 'SOS', icon: Icons.grid_on_rounded, color: Color(0xFFF59E0B), route: '/family/\$familyId/sos/lobby'),
-    _GameEntry(gameId: 'antakshari', name: 'Antakshari', icon: Icons.music_note_rounded, color: Color(0xFF8B5CF6), route: '/family/\$familyId/antakshari/lobby'),
-    _GameEntry(gameId: 'bingo', name: 'Bingo', icon: Icons.grid_view_rounded, color: Color(0xFF06B6D4), route: '/family/\$familyId/bingo/lobby'),
-    _GameEntry(gameId: 'checkers', name: 'Checkers', icon: Icons.grid_on_outlined, color: Color(0xFF6366F1), route: '/family/\$familyId/checkers/lobby'),
-    _GameEntry(gameId: 'ludo', name: 'Ludo', icon: Icons.casino_outlined, color: Color(0xFFE11D48), route: '/family/\$familyId/ludo/lobby'),
-    _GameEntry(gameId: 'carrom', name: 'Carrom', icon: Icons.sports_esports_rounded, color: Color(0xFFF59E0B), route: '/family/\$familyId/carrom/lobby'),
-    _GameEntry(gameId: 'chess', name: 'Chess', icon: Icons.castle_outlined, color: Color(0xFF64748B), route: '/family/\$familyId/chess/lobby'),
-    _GameEntry(gameId: 'chitmatch', name: 'TripleMatch', icon: Icons.style_outlined, color: Color(0xFFEC4899), route: '/family/\$familyId/chitmatch/lobby'),
-    _GameEntry(gameId: 'nameplace', name: 'Name Place Animal', icon: Icons.abc_rounded, color: Color(0xFF10B981), route: '/family/\$familyId/nameplace/lobby'),
-    _GameEntry(gameId: 'tictactoe', name: 'Tic-Tac-Toe', icon: Icons.grid_3x3, color: Color(0xFF8B5CF6), route: '/family/\$familyId/tictactoe/lobby'),
-    _GameEntry(gameId: 'truthordare', name: 'Truth or Dare', icon: Icons.rotate_right, color: Color(0xFFEF4444), route: '/family/\$familyId/truthordare/lobby'),
-    _GameEntry(gameId: 'twotruths', name: 'Two Truths', icon: Icons.psychology, color: Color(0xFFD946EF), route: '/family/\$familyId/twotruths/lobby'),
-    _GameEntry(gameId: 'dotsboxes', name: 'Dots & Boxes', icon: Icons.grid_on_rounded, color: Color(0xFF06B6D4), route: '/family/\$familyId/dotsboxes/lobby'),
+    _GameEntry(
+      gameId: 'hot-seat',
+      name: 'Hot Seat',
+      icon: Icons.local_fire_department_outlined,
+      color: Color(0xFFF59E0B),
+      route: '/family/\$familyId/hot-seat',
+    ),
+    _GameEntry(
+      gameId: 'relation-riddles',
+      name: 'Riddles',
+      icon: Icons.extension_outlined,
+      color: Color(0xFF8B5CF6),
+      route: '/family/\$familyId/relation-riddles',
+    ),
+    _GameEntry(
+      gameId: 'ghost-painter',
+      name: 'Ghost Painter',
+      icon: Icons.brush_outlined,
+      color: Color(0xFFEC4899),
+      route: '/family/\$familyId/ghost-painter/draw',
+    ),
+    _GameEntry(
+      gameId: 'freeze-dash',
+      name: 'Freeze & Dash',
+      icon: Icons.directions_run_rounded,
+      color: Color(0xFF10B981),
+      route: '/family/\$familyId/freeze-dash/lobby',
+    ),
+    _GameEntry(
+      gameId: 'sos',
+      name: 'SOS',
+      icon: Icons.grid_on_rounded,
+      color: Color(0xFFF59E0B),
+      route: '/family/\$familyId/sos/lobby',
+    ),
+    _GameEntry(
+      gameId: 'antakshari',
+      name: 'Antakshari',
+      icon: Icons.music_note_rounded,
+      color: Color(0xFF8B5CF6),
+      route: '/family/\$familyId/antakshari/lobby',
+    ),
+    _GameEntry(
+      gameId: 'bingo',
+      name: 'Bingo',
+      icon: Icons.grid_view_rounded,
+      color: Color(0xFF06B6D4),
+      route: '/family/\$familyId/bingo/lobby',
+    ),
+    _GameEntry(
+      gameId: 'checkers',
+      name: 'Checkers',
+      icon: Icons.grid_on_outlined,
+      color: Color(0xFF6366F1),
+      route: '/family/\$familyId/checkers/lobby',
+    ),
+    _GameEntry(
+      gameId: 'ludo',
+      name: 'Ludo',
+      icon: Icons.casino_outlined,
+      color: Color(0xFFE11D48),
+      route: '/family/\$familyId/ludo/lobby',
+    ),
+    _GameEntry(
+      gameId: 'carrom',
+      name: 'Carrom',
+      icon: Icons.sports_esports_rounded,
+      color: Color(0xFFF59E0B),
+      route: '/family/\$familyId/carrom/lobby',
+    ),
+    _GameEntry(
+      gameId: 'chess',
+      name: 'Chess',
+      icon: Icons.castle_outlined,
+      color: Color(0xFF64748B),
+      route: '/family/\$familyId/chess/lobby',
+    ),
+    _GameEntry(
+      gameId: 'chitmatch',
+      name: 'TripleMatch',
+      icon: Icons.style_outlined,
+      color: Color(0xFFEC4899),
+      route: '/family/\$familyId/chitmatch/lobby',
+    ),
+    _GameEntry(
+      gameId: 'nameplace',
+      name: 'Name Place Animal',
+      icon: Icons.abc_rounded,
+      color: Color(0xFF10B981),
+      route: '/family/\$familyId/nameplace/lobby',
+    ),
+    _GameEntry(
+      gameId: 'tictactoe',
+      name: 'Tic-Tac-Toe',
+      icon: Icons.grid_3x3,
+      color: Color(0xFF8B5CF6),
+      route: '/family/\$familyId/tictactoe/lobby',
+    ),
+    _GameEntry(
+      gameId: 'truthordare',
+      name: 'Truth or Dare',
+      icon: Icons.rotate_right,
+      color: Color(0xFFEF4444),
+      route: '/family/\$familyId/truthordare/lobby',
+    ),
+    _GameEntry(
+      gameId: 'twotruths',
+      name: 'Two Truths',
+      icon: Icons.psychology,
+      color: Color(0xFFD946EF),
+      route: '/family/\$familyId/twotruths/lobby',
+    ),
+    _GameEntry(
+      gameId: 'dotsboxes',
+      name: 'Dots & Boxes',
+      icon: Icons.grid_on_rounded,
+      color: Color(0xFF06B6D4),
+      route: '/family/\$familyId/dotsboxes/lobby',
+    ),
   ];
 
   /// Games that require download-gating (have manifests in game-assets bucket).
   /// Hot Seat and Relation Riddles are native (no download needed).
   static const Set<String> _downloadGatedGames = {
-    'ghost-painter', 'freeze-dash', 'sos', 'antakshari', 'bingo',
-    'checkers', 'ludo', 'carrom', 'chess', 'chitmatch', 'nameplace',
-    'tictactoe', 'truthordare', 'twotruths', 'dotsboxes',
+    'ghost-painter',
+    'freeze-dash',
+    'sos',
+    'antakshari',
+    'bingo',
+    'checkers',
+    'ludo',
+    'carrom',
+    'chess',
+    'chitmatch',
+    'nameplace',
+    'tictactoe',
+    'truthordare',
+    'twotruths',
+    'dotsboxes',
   };
 
   @override
@@ -2890,10 +3092,17 @@ class _GamesRow extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base, vertical: 8),
+          padding: const EdgeInsets.symmetric(
+            horizontal: KinrelSpacing.base,
+            vertical: 8,
+          ),
           child: Row(
             children: [
-              Icon(Icons.sports_esports_outlined, size: 18, color: KinrelColors.orange),
+              Icon(
+                Icons.sports_esports_outlined,
+                size: 18,
+                color: KinrelColors.orange,
+              ),
               const SizedBox(width: 6),
               Text(
                 'Games',
@@ -2971,7 +3180,8 @@ class _CompactGameCard extends ConsumerWidget {
     final dlState = isDownloadGated
         ? ref.watch(gameDownloadStatusProvider(game.gameId))
         : null;
-    final isDownloaded = !isDownloadGated || dlState?.status == GameDownloadStatus.downloaded;
+    final isDownloaded =
+        !isDownloadGated || dlState?.status == GameDownloadStatus.downloaded;
 
     return GestureDetector(
       onTap: () {
@@ -3009,11 +3219,17 @@ class _CompactGameCard extends ConsumerWidget {
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: isDownloaded ? KinrelColors.textWhite : KinrelColors.textDim,
+                color: isDownloaded
+                    ? KinrelColors.textWhite
+                    : KinrelColors.textDim,
               ),
             ),
             if (isDownloadGated && !isDownloaded)
-              Icon(Icons.download_outlined, size: 10, color: KinrelColors.textDim),
+              Icon(
+                Icons.download_outlined,
+                size: 10,
+                color: KinrelColors.textDim,
+              ),
           ],
         ),
       ),
@@ -3039,61 +3255,62 @@ class _BottomActionBar extends StatelessWidget {
     // ✅ FIX (BUG-08): Wrap in IntrinsicWidth to prevent full-width stretching
     // when rendered as a floating action bar
     return IntrinsicWidth(
-      child: Container(
-          margin: const EdgeInsets.symmetric(
-            horizontal: KinrelSpacing.base,
-            vertical: 6,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: DKColors.cardColor(context).withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
-            border: Border.all(
-              color: KinrelColors.purple.withValues(alpha: 0.15),
+          child: Container(
+            margin: const EdgeInsets.symmetric(
+              horizontal: KinrelSpacing.base,
+              vertical: 6,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                blurRadius: 12,
-                offset: Offset(0, 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: DKColors.cardColor(context).withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
+              border: Border.all(
+                color: KinrelColors.purple.withValues(alpha: 0.15),
               ),
-            ],
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Add Member
+                DKButton(
+                  label: 'Add Member',
+                  variant: DKButtonVariant.secondary,
+                  icon: Icons.person_add,
+                  size: DKButtonSize.sm,
+                  onPressed: () =>
+                      showAddMemberOptions(context, familyId: familyId),
+                ),
+                const SizedBox(width: 8),
+                // Share
+                DKButton(
+                  label: 'Share',
+                  variant: DKButtonVariant.icon,
+                  icon: Icons.share,
+                  size: DKButtonSize.sm,
+                  onPressed: () => context.push('/family/$familyId/share'),
+                ),
+                SizedBox(width: 8),
+                // Path Finder
+                DKButton(
+                  label: 'Path',
+                  variant: DKButtonVariant.icon,
+                  icon: Icons.route,
+                  size: DKButtonSize.sm,
+                  onPressed: () =>
+                      context.push('/family/$familyId/path-finder'),
+                ),
+              ],
+            ),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Add Member
-              DKButton(
-                label: 'Add Member',
-                variant: DKButtonVariant.secondary,
-                icon: Icons.person_add,
-                size: DKButtonSize.sm,
-                onPressed: () =>
-                    showAddMemberOptions(context, familyId: familyId),
-              ),
-              const SizedBox(width: 8),
-              // Share
-              DKButton(
-                label: 'Share',
-                variant: DKButtonVariant.icon,
-                icon: Icons.share,
-                size: DKButtonSize.sm,
-                onPressed: () => context.push('/family/$familyId/share'),
-              ),
-              SizedBox(width: 8),
-              // Path Finder
-              DKButton(
-                label: 'Path',
-                variant: DKButtonVariant.icon,
-                icon: Icons.route,
-                size: DKButtonSize.sm,
-                onPressed: () => context.push('/family/$familyId/path-finder'),
-              ),
-            ],
-          ),
-        ),
-    )
+        )
         .animate(onPlay: (c) => c.forward())
         .fadeIn(duration: 400.ms)
         .slideY(begin: 0.2, end: 0, duration: 400.ms);
@@ -3103,10 +3320,7 @@ class _BottomActionBar extends StatelessWidget {
 // ── Embedded Hierarchy Graph (opens full-screen on tap) ─────────────
 
 class _EmbeddedHierarchyGraph extends StatelessWidget {
-  const _EmbeddedHierarchyGraph({
-    required this.detail,
-    required this.familyId,
-  });
+  const _EmbeddedHierarchyGraph({required this.detail, required this.familyId});
 
   final FamilyDetail detail;
   final String familyId;
@@ -3117,7 +3331,9 @@ class _EmbeddedHierarchyGraph extends StatelessWidget {
     final relCount = detail.relationships.where((r) => r.isActive).length;
 
     return Container(
-      color: DKColors.isLight(context) ? DKColors.lightBg : KinrelColors.darkBackground,
+      color: DKColors.isLight(context)
+          ? DKColors.lightBg
+          : KinrelColors.darkBackground,
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -3126,7 +3342,9 @@ class _EmbeddedHierarchyGraph extends StatelessWidget {
             children: [
               // Graph preview card
               GestureDetector(
-                onTap: () => context.push('/family/$familyId/graph?name=${Uri.encodeComponent(detail.family.name)}'),
+                onTap: () => context.push(
+                  '/family/$familyId/graph?name=${Uri.encodeComponent(detail.family.name)}',
+                ),
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
@@ -3208,7 +3426,10 @@ class _EmbeddedHierarchyGraph extends StatelessWidget {
                       const SizedBox(height: 20),
                       // Open button
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Color(0xFFE8612A), Color(0xFFF59240)],
@@ -3302,10 +3523,7 @@ class _StatBadge extends StatelessWidget {
 // ── View Toggle Pill ─────────────────────────────────────────────────
 
 class _ViewTogglePill extends StatelessWidget {
-  const _ViewTogglePill({
-    required this.isHierarchy,
-    required this.onToggle,
-  });
+  const _ViewTogglePill({required this.isHierarchy, required this.onToggle});
 
   final bool isHierarchy;
   final VoidCallback onToggle;
@@ -3344,9 +3562,7 @@ class _ViewTogglePill extends StatelessWidget {
           ),
         ],
       ),
-    )
-    .animate(onPlay: (c) => c.forward())
-    .fadeIn(duration: 300.ms);
+    ).animate(onPlay: (c) => c.forward()).fadeIn(duration: 300.ms);
   }
 }
 
@@ -3457,8 +3673,12 @@ class _QuickActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = iconColor ?? (isDestructive ? KinrelColors.coral : KinrelColors.textSilver);
-    final textColor = iconColor ?? (isDestructive ? KinrelColors.coral : KinrelColors.textWhite);
+    final color =
+        iconColor ??
+        (isDestructive ? KinrelColors.coral : KinrelColors.textSilver);
+    final textColor =
+        iconColor ??
+        (isDestructive ? KinrelColors.coral : KinrelColors.textWhite);
     return ListTile(
       leading: Icon(icon, color: color, size: 20),
       title: Text(
@@ -3490,7 +3710,8 @@ class _MemberCard extends StatelessWidget {
   final VoidCallback onTap;
 
   /// Whether this person is pending (optimistic UI).
-  bool get _isPending => person is OptimisticPerson && (person as OptimisticPerson).isPending;
+  bool get _isPending =>
+      person is OptimisticPerson && (person as OptimisticPerson).isPending;
 
   @override
   Widget build(BuildContext context) {
@@ -3500,142 +3721,145 @@ class _MemberCard extends StatelessWidget {
         .toList();
 
     final cardContent = DKCard(
-          borderColor: person.isDeceased
-              ? KinrelColors.border
-              : KinrelColors.purple.withValues(alpha: 0.15),
-          onTap: _isPending ? null : onTap,
-          padding: 12,
-          child: Row(
-            children: [
-              // Avatar
-              DKAvatar(
-                initials: person.name.isNotEmpty
-                    ? person.name[0].toUpperCase()
-                    : '?',
-                size: DKAvatarSize.md,
-                backgroundColor: person.isDeceased
-                    ? KinrelColors.textSilver.withValues(alpha: 0.3)
-                    : KinrelColors.purple,
-              ),
-              SizedBox(width: 12),
+      borderColor: person.isDeceased
+          ? KinrelColors.border
+          : KinrelColors.purple.withValues(alpha: 0.15),
+      onTap: _isPending ? null : onTap,
+      padding: 12,
+      child: Row(
+        children: [
+          // Avatar
+          DKAvatar(
+            initials: person.name.isNotEmpty
+                ? person.name[0].toUpperCase()
+                : '?',
+            size: DKAvatarSize.md,
+            backgroundColor: person.isDeceased
+                ? KinrelColors.textSilver.withValues(alpha: 0.3)
+                : KinrelColors.purple,
+          ),
+          SizedBox(width: 12),
 
-              // Name and relationship
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          // Name and relationship
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            person.name,
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.displayFont,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: person.isDeceased
-                                  ? KinrelColors.textSilver
-                                  : KinrelColors.textWhite,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                    Flexible(
+                      child: Text(
+                        person.name,
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: person.isDeceased
+                              ? KinrelColors.textSilver
+                              : KinrelColors.textWhite,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    // Pending indicator badge
+                    if (_isPending) ...[
+                      SizedBox(width: 6),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: KinrelColors.orange.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: KinrelColors.orange.withValues(alpha: 0.3),
                           ),
                         ),
-                        // Pending indicator badge
-                        if (_isPending) ...[
-                          SizedBox(width: 6),
-                          Container(
-                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: KinrelColors.orange.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: KinrelColors.orange.withValues(alpha: 0.3),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 8,
+                              height: 8,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: KinrelColors.orange,
                               ),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  width: 8,
-                                  height: 8,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 1.5,
-                                    color: KinrelColors.orange,
-                                  ),
-                                ),
-                                SizedBox(width: 4),
-                                Text(
-                                  'Saving',
-                                  style: TextStyle(
-                                    fontFamily: KinrelTypography.bodyFont,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w600,
-                                    color: KinrelColors.orange,
-                                    letterSpacing: 0.3,
-                                  ),
-                                ),
-                              ],
+                            SizedBox(width: 4),
+                            Text(
+                              'Saving',
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                                color: KinrelColors.orange,
+                                letterSpacing: 0.3,
+                              ),
                             ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    if (person.gender != null) ...[
-                      SizedBox(height: 2),
-                      Text(
-                        person.gender!.toUpperCase(),
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 12,
-                          color: KinrelColors.purple,
-                          fontWeight: FontWeight.w500,
+                          ],
                         ),
-                      ),
-                    ],
-                    if (personRels.isNotEmpty) ...[
-                      SizedBox(height: 4),
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 2,
-                        children: personRels.take(3).map((rel) {
-                          return DKSuggestionChip(
-                            label: rel.replaceAll('_', ' '),
-                            isSelected: false,
-                            onTap: () {},
-                          );
-                        }).toList(),
                       ),
                     ],
                   ],
                 ),
-              ),
+                if (person.gender != null) ...[
+                  SizedBox(height: 2),
+                  Text(
+                    person.gender!.toUpperCase(),
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12,
+                      color: KinrelColors.purple,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+                if (personRels.isNotEmpty) ...[
+                  SizedBox(height: 4),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 2,
+                    children: personRels.take(3).map((rel) {
+                      return DKSuggestionChip(
+                        label: rel.replaceAll('_', ' '),
+                        isSelected: false,
+                        onTap: () {},
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ],
+            ),
+          ),
 
-              // Gender icon + deceased
-              Column(
-                children: [
-                  Icon(
-                    person.gender == 'female'
-                        ? Icons.female
-                        : person.gender == 'male'
-                        ? Icons.male
-                        : Icons.person,
-                    size: 16,
+          // Gender icon + deceased
+          Column(
+            children: [
+              Icon(
+                person.gender == 'female'
+                    ? Icons.female
+                    : person.gender == 'male'
+                    ? Icons.male
+                    : Icons.person,
+                size: 16,
+                color: KinrelColors.textSilver,
+              ),
+              if (person.isDeceased)
+                Text(
+                  'Late',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 9,
                     color: KinrelColors.textSilver,
                   ),
-                  if (person.isDeceased)
-                    Text(
-                      'Late',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 9,
-                        color: KinrelColors.textSilver,
-                      ),
-                    ),
-                ],
-              ),
+                ),
             ],
           ),
-        );
+        ],
+      ),
+    );
 
     // Wrap pending members in a subtle opacity to indicate they're not confirmed yet
     return Opacity(
@@ -3767,7 +3991,11 @@ class _LeaderboardCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.emoji_events, color: Color(0xFFFF6B35), size: 18),
+              const Icon(
+                Icons.emoji_events,
+                color: Color(0xFFFF6B35),
+                size: 18,
+              ),
               const SizedBox(width: 8),
               Text(
                 'FAMILY LEADERBOARD',
@@ -3858,39 +4086,55 @@ class _CrossFeatureMomentsCard extends ConsumerWidget {
                   const SizedBox(width: 6),
                   Text(
                     'Recent Moments',
-                    style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              ...moments.map((m) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(m.emoji, style: const TextStyle(fontSize: 14)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(m.title, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500)),
-                          if (m.subtitle != null)
-                            Text(m.subtitle!, style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.outline, fontSize: 11,
-                            ), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        ],
+              ...moments.map(
+                (m) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(m.emoji, style: const TextStyle(fontSize: 14)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              m.title,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            if (m.subtitle != null)
+                              Text(
+                                m.subtitle!,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.outline,
+                                  fontSize: 11,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                    Text(
-                      _timeAgo(m.createdAt),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.outline, fontSize: 10,
+                      Text(
+                        _timeAgo(m.createdAt),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                          fontSize: 10,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              )),
+              ),
             ],
           ),
         );
@@ -3926,7 +4170,9 @@ class _SharedListTile extends StatelessWidget {
         child: InkWell(
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => SharedListScreen(familyId: familyId)),
+            MaterialPageRoute(
+              builder: (_) => SharedListScreen(familyId: familyId),
+            ),
           ),
           borderRadius: BorderRadius.circular(12),
           child: Padding(
@@ -3939,9 +4185,17 @@ class _SharedListTile extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Lists & Errands', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
-                      Text('Groceries, chores, pick-up requests',
-                        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
+                      Text(
+                        'Lists & Errands',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        'Groceries, chores, pick-up requests',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
                       ),
                     ],
                   ),
@@ -4023,7 +4277,9 @@ class _DiscoveryGrid extends StatelessWidget {
             padding: const EdgeInsets.only(left: 4, bottom: 8),
             child: Text(
               'Discover',
-              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           GridView.builder(
@@ -4074,7 +4330,8 @@ class _DiscoveryTile extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 36, height: 36,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(10),
@@ -4084,7 +4341,9 @@ class _DiscoveryTile extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 label,
-                style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w600),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

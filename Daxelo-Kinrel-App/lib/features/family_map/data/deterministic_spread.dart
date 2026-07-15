@@ -21,13 +21,13 @@ import 'dart:ui';
     hash = (hash * 31 + c) & 0x7FFFFFFF;
   }
   // Use two different "random" values derived from the hash.
-  final r1 = (hash % 1000) / 1000.0;        // 0.0..1.0
+  final r1 = (hash % 1000) / 1000.0; // 0.0..1.0
   final r2 = ((hash ~/ 1000) % 1000) / 1000.0; // 0.0..1.0
   // Map to -1..1 range.
   final magnitude = r2 * maxOffsetDegrees; // 0..maxOffset
   return (
-    lat: magnitude * 0.7 * (r1 > 0.5 ? 1 : -1),  // lat spread (smaller)
-    lng: magnitude * (r2 > 0.5 ? 1 : -1),         // lng spread
+    lat: magnitude * 0.7 * (r1 > 0.5 ? 1 : -1), // lat spread (smaller)
+    lng: magnitude * (r2 > 0.5 ? 1 : -1), // lng spread
   );
 }
 
@@ -38,6 +38,9 @@ Offset applyDeterministicSpread(
   double lng, {
   double maxOffsetDegrees = 0.01,
 }) {
-  final offset = deterministicSpreadOffset(personId, maxOffsetDegrees: maxOffsetDegrees);
+  final offset = deterministicSpreadOffset(
+    personId,
+    maxOffsetDegrees: maxOffsetDegrees,
+  );
   return Offset(lng + offset.lng, lat + offset.lat);
 }

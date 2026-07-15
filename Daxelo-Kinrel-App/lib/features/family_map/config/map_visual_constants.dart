@@ -491,12 +491,16 @@ class MapVisualConstants {
   static const String hexRoadPrimary = '#3A3252';
   static const String hexRoadMotorway = '#4A3F63';
   static const String hexBuildingNormal = '#1A1925';
+
   /// P12.1: generic building mid-tone (vertical gradient middle stop).
   static const String hexBuildingNormalMid = '#2A2638';
+
   /// P12: generic building top color (vertical gradient).
   static const String hexBuildingNormalTop = '#3D3450';
+
   /// P12: generic building tall accent color.
   static const String hexBuildingNormalTall = '#4D4060';
+
   /// P12.1: generic building edge highlight color.
   static const String hexBuildingNormalEdge = '#5A4D70';
   static const String hexBuildingCurrentHome = '#E8612A';

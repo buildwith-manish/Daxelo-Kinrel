@@ -45,13 +45,13 @@ class HouseholdClusterMarkerGenerator {
 
   final DeviceTier? deviceTier;
 
-  DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.tier;
+  DeviceTier get _effectiveTier => deviceTier ?? DeviceTierCache.instance.tier;
 
   Future<Uint8List> generate(Household household) async {
-    final size = (MapVisualConstants.clusterMarkerSize *
-            (_effectiveTier == DeviceTier.low ? 0.85 : 1.0))
-        .ceilToDouble();
+    final size =
+        (MapVisualConstants.clusterMarkerSize *
+                (_effectiveTier == DeviceTier.low ? 0.85 : 1.0))
+            .ceilToDouble();
 
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
@@ -63,8 +63,9 @@ class HouseholdClusterMarkerGenerator {
       ui.Offset(size / 2, size / 2),
       size / 2 + 4,
       ui.Paint()
-        ..color = KinrelColors.orange
-            .withOpacity(MapVisualConstants.clusterGlowAlpha)
+        ..color = KinrelColors.orange.withOpacity(
+          MapVisualConstants.clusterGlowAlpha,
+        )
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
     );
 
@@ -122,67 +123,68 @@ class HouseholdClusterMarkerGenerator {
   }
 
   void _drawInitials(
-      ui.Canvas canvas, ui.Offset center, double radius, String text) {
+    ui.Canvas canvas,
+    ui.Offset center,
+    double radius,
+    String text,
+  ) {
     final fontSize = radius * 0.85;
-    final p = ui.ParagraphBuilder(
-      ui.ParagraphStyle(
-        textAlign: TextAlign.center,
-        fontSize: fontSize,
-        fontWeight: FontWeight.w700,
-      ),
-    )
-      ..pushStyle(ui.TextStyle(
-        color: Colors.white,
-        fontSize: fontSize,
-        fontWeight: FontWeight.w700,
-      ))
-      ..addText(text);
+    final p =
+        ui.ParagraphBuilder(
+            ui.ParagraphStyle(
+              textAlign: TextAlign.center,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+            ),
+          )
+          ..pushStyle(
+            ui.TextStyle(
+              color: Colors.white,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+            ),
+          )
+          ..addText(text);
     final para = p.build()..layout(ui.ParagraphConstraints(width: radius * 2));
     canvas.drawParagraph(
       para,
-      ui.Offset(
-        center.dx - para.width / 2,
-        center.dy - para.height / 2,
-      ),
+      ui.Offset(center.dx - para.width / 2, center.dy - para.height / 2),
     );
   }
 
   void _drawBadge(ui.Canvas canvas, double size, int count) {
     final badgeSize = MapVisualConstants.clusterBadgeSize;
-    final center =
-        ui.Offset(size - badgeSize / 2 - 2, badgeSize / 2 + 2);
+    final center = ui.Offset(size - badgeSize / 2 - 2, badgeSize / 2 + 2);
     // Badge background.
     canvas.drawRRect(
       ui.RRect.fromRectAndRadius(
-        ui.Rect.fromCenter(
-            center: center, width: badgeSize, height: badgeSize),
+        ui.Rect.fromCenter(center: center, width: badgeSize, height: badgeSize),
         ui.Radius.circular(badgeSize / 2),
       ),
       ui.Paint()..color = KinrelColors.orange,
     );
     // Count text.
     final fontSize = badgeSize * 0.6;
-    final p = ui.ParagraphBuilder(
-      ui.ParagraphStyle(
-        textAlign: TextAlign.center,
-        fontSize: fontSize,
-        fontWeight: FontWeight.w800,
-      ),
-    )
-      ..pushStyle(ui.TextStyle(
-        color: Colors.white,
-        fontSize: fontSize,
-        fontWeight: FontWeight.w800,
-      ))
-      ..addText('+$count');
-    final para = p.build()
-      ..layout(ui.ParagraphConstraints(width: badgeSize));
+    final p =
+        ui.ParagraphBuilder(
+            ui.ParagraphStyle(
+              textAlign: TextAlign.center,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w800,
+            ),
+          )
+          ..pushStyle(
+            ui.TextStyle(
+              color: Colors.white,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w800,
+            ),
+          )
+          ..addText('+$count');
+    final para = p.build()..layout(ui.ParagraphConstraints(width: badgeSize));
     canvas.drawParagraph(
       para,
-      ui.Offset(
-        center.dx - para.width / 2,
-        center.dy - para.height / 2,
-      ),
+      ui.Offset(center.dx - para.width / 2, center.dy - para.height / 2),
     );
   }
 
@@ -216,7 +218,8 @@ class HouseholdClusterMarkerWidget extends StatelessWidget {
     final visible = household.size > 3 ? 1 : household.size;
     final theme = Theme.of(context);
     final l10n = S.of(context);
-    final semanticLabel = l10n?.familyMapHouseholdClusterLabel(household.size) ??
+    final semanticLabel =
+        l10n?.familyMapHouseholdClusterLabel(household.size) ??
         'Household with ${household.size} members. Double-tap to expand.';
 
     return GestureDetector(
@@ -286,22 +289,21 @@ class HouseholdClusterMarkerWidget extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: KinrelColors.orange
-                .withOpacity(MapVisualConstants.clusterGlowAlpha),
+            color: KinrelColors.orange.withOpacity(
+              MapVisualConstants.clusterGlowAlpha,
+            ),
             blurRadius: 6,
           ),
           BoxShadow(
-            color: Colors.black
-                .withOpacity(MapVisualConstants.clusterShadowOpacity),
+            color: Colors.black.withOpacity(
+              MapVisualConstants.clusterShadowOpacity,
+            ),
             blurRadius: 4,
             offset: Offset(0, MapVisualConstants.markerShadowOffset),
           ),
         ],
       ),
-      child: CachedAvatar(
-        imageUrl: pin.photoUrl,
-        radius: (size / 2) - 4,
-      ),
+      child: CachedAvatar(imageUrl: pin.photoUrl, radius: (size / 2) - 4),
     );
   }
 }

@@ -54,8 +54,7 @@ class MapPolishOverlay extends StatelessWidget {
   /// When 0.0, atmospheric perspective is disabled.
   final double pitch;
 
-  DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.tier;
+  DeviceTier get _effectiveTier => deviceTier ?? DeviceTierCache.instance.tier;
 
   bool get _fogEnabled => _effectiveTier != DeviceTier.low;
   bool get _ambientEnabled =>
@@ -74,13 +73,13 @@ class MapPolishOverlay extends StatelessWidget {
           vignetteOpacity: _vignetteEnabled
               ? MapVisualConstants.vignetteOpacity
               : 0.0,
-          fogOpacity:
-              _fogEnabled ? MapVisualConstants.fogOpacity : 0.0,
+          fogOpacity: _fogEnabled ? MapVisualConstants.fogOpacity : 0.0,
           ambientOpacity: _ambientEnabled
               ? MapVisualConstants.ambientWarmthOpacity
               : 0.0,
-          atmosphericPerspectiveOpacity:
-              _atmosphericPerspectiveEnabled ? _atmosphericOpacity : 0.0,
+          atmosphericPerspectiveOpacity: _atmosphericPerspectiveEnabled
+              ? _atmosphericOpacity
+              : 0.0,
         ),
         size: Size.infinite,
       ),
@@ -95,9 +94,11 @@ class MapPolishOverlay extends StatelessWidget {
     }
     // Linear ramp: 10° → 0.0, 45° → max.
     const maxPitch = 45.0;
-    final t = ((pitch - MapVisualConstants.atmosphericPerspectivePitchThreshold) /
-            (maxPitch - MapVisualConstants.atmosphericPerspectivePitchThreshold))
-        .clamp(0.0, 1.0);
+    final t =
+        ((pitch - MapVisualConstants.atmosphericPerspectivePitchThreshold) /
+                (maxPitch -
+                    MapVisualConstants.atmosphericPerspectivePitchThreshold))
+            .clamp(0.0, 1.0);
     return t * MapVisualConstants.atmosphericPerspectiveMaxOpacity;
   }
 }
@@ -140,10 +141,7 @@ class _KinrelPolishPainter extends CustomPainter {
         ],
         stops: const [0.0, 0.5, 1.0],
       );
-      canvas.drawRect(
-        rect,
-        Paint()..shader = gradient.createShader(rect),
-      );
+      canvas.drawRect(rect, Paint()..shader = gradient.createShader(rect));
     }
 
     // ── 2. Warm ambient wash (BlendMode.overlay) ─────────────────────
@@ -151,8 +149,9 @@ class _KinrelPolishPainter extends CustomPainter {
       canvas.drawRect(
         rect,
         Paint()
-          ..color =
-              MapVisualConstants.ambientWarmthColor.withOpacity(ambientOpacity)
+          ..color = MapVisualConstants.ambientWarmthColor.withOpacity(
+            ambientOpacity,
+          )
           ..blendMode = BlendMode.overlay,
       );
     }
@@ -165,15 +164,13 @@ class _KinrelPolishPainter extends CustomPainter {
         colors: [
           MapVisualConstants.fogColor.withOpacity(fogOpacity),
           Colors.transparent,
-          MapVisualConstants.fogColor
-              .withOpacity(fogOpacity * MapVisualConstants.fogBottomStopMultiplier),
+          MapVisualConstants.fogColor.withOpacity(
+            fogOpacity * MapVisualConstants.fogBottomStopMultiplier,
+          ),
         ],
         stops: const [0.0, 0.4, 1.0],
       );
-      canvas.drawRect(
-        rect,
-        Paint()..shader = gradient.createShader(rect),
-      );
+      canvas.drawRect(rect, Paint()..shader = gradient.createShader(rect));
     }
 
     // ── 4. Vignette (radial gradient — darkens corners) ──────────────
@@ -184,15 +181,13 @@ class _KinrelPolishPainter extends CustomPainter {
         colors: [
           Colors.transparent,
           Colors.black.withOpacity(
-              vignetteOpacity * MapVisualConstants.vignetteMidpointMultiplier),
+            vignetteOpacity * MapVisualConstants.vignetteMidpointMultiplier,
+          ),
           Colors.black.withOpacity(vignetteOpacity),
         ],
         stops: const [0.55, 0.85, 1.0],
       );
-      canvas.drawRect(
-        rect,
-        Paint()..shader = gradient.createShader(rect),
-      );
+      canvas.drawRect(rect, Paint()..shader = gradient.createShader(rect));
     }
   }
 

@@ -80,10 +80,7 @@ class MapBottomSheets {
                 height: 80,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: KinrelColors.orange,
-                    width: 2,
-                  ),
+                  border: Border.all(color: KinrelColors.orange, width: 2),
                 ),
                 child: ClipOval(
                   child: pin.photoUrl != null && pin.photoUrl!.isNotEmpty
@@ -207,19 +204,22 @@ class MapBottomSheets {
       final resolvedFamilyId = mapResult?.familyId ?? familyId;
 
       if (resolvedFamilyId.isNotEmpty) {
-        final detail =
-            await ref.read(familyDetailProvider(resolvedFamilyId).future);
+        final detail = await ref.read(
+          familyDetailProvider(resolvedFamilyId).future,
+        );
 
         if (detail != null) {
           final pathResult = await graphService.findPathAsync(
             persons: detail.members.map((m) => m.toGraphPerson()).toList(),
-            relationships:
-                detail.relationships.map((r) => r.toGraphEdge()).toList(),
+            relationships: detail.relationships
+                .map((r) => r.toGraphEdge())
+                .toList(),
             fromPersonId: edge.pinA.personId,
             toPersonId: edge.pinB.personId,
             familyId: resolvedFamilyId,
           );
-          kinshipLabel = pathResult?.composedKinshipTerm ??
+          kinshipLabel =
+              pathResult?.composedKinshipTerm ??
               pathResult?.relationshipDescription ??
               fallbackLabel;
         }
@@ -267,13 +267,11 @@ class MapBottomSheets {
                     height: 48,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(
-                        color: KinrelColors.orange,
-                        width: 2,
-                      ),
+                      border: Border.all(color: KinrelColors.orange, width: 2),
                     ),
                     child: ClipOval(
-                      child: edge.pinA.photoUrl != null &&
+                      child:
+                          edge.pinA.photoUrl != null &&
                               edge.pinA.photoUrl!.isNotEmpty
                           ? CachedAvatar(
                               imageUrl: edge.pinA.photoUrl,
@@ -331,13 +329,11 @@ class MapBottomSheets {
                     height: 48,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(
-                        color: KinrelColors.orange,
-                        width: 2,
-                      ),
+                      border: Border.all(color: KinrelColors.orange, width: 2),
                     ),
                     child: ClipOval(
-                      child: edge.pinB.photoUrl != null &&
+                      child:
+                          edge.pinB.photoUrl != null &&
                               edge.pinB.photoUrl!.isNotEmpty
                           ? CachedAvatar(
                               imageUrl: edge.pinB.photoUrl,
@@ -384,8 +380,7 @@ class MapBottomSheets {
                     ),
                   ),
                   Padding(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: KinrelSpacing.sm),
+                    padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.sm),
                     child: Text(
                       '&',
                       style: TextStyle(
@@ -446,8 +441,10 @@ class MapBottomSheets {
                 children: [
                   Expanded(
                     child: DKButton(
-                      label: l10n?.familyMapViewMember(
-                              edge.pinA.name.split(' ').first) ??
+                      label:
+                          l10n?.familyMapViewMember(
+                            edge.pinA.name.split(' ').first,
+                          ) ??
                           'View ${edge.pinA.name.split(' ').first}',
                       variant: DKButtonVariant.secondary,
                       size: DKButtonSize.md,
@@ -461,8 +458,10 @@ class MapBottomSheets {
                   SizedBox(width: KinrelSpacing.sm),
                   Expanded(
                     child: DKButton(
-                      label: l10n?.familyMapViewMember(
-                              edge.pinB.name.split(' ').first) ??
+                      label:
+                          l10n?.familyMapViewMember(
+                            edge.pinB.name.split(' ').first,
+                          ) ??
                           'View ${edge.pinB.name.split(' ').first}',
                       variant: DKButtonVariant.primary,
                       size: DKButtonSize.md,
@@ -545,28 +544,30 @@ class MapBottomSheets {
                 ),
               ),
               const SizedBox(height: 12),
-              ...household.members.map((pin) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      backgroundColor: KinrelColors.darkElevated,
-                      child: Text(
-                        initials(pin.name),
-                        style: TextStyle(color: KinrelColors.orange),
-                      ),
+              ...household.members.map(
+                (pin) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor: KinrelColors.darkElevated,
+                    child: Text(
+                      initials(pin.name),
+                      style: TextStyle(color: KinrelColors.orange),
                     ),
-                    title: Text(
-                      pin.name,
-                      style: TextStyle(color: KinrelColors.textWhite),
-                    ),
-                    subtitle: Text(
-                      pin.city,
-                      style: TextStyle(color: KinrelColors.textSilver),
-                    ),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      onMemberTap(pin);
-                    },
-                  )),
+                  ),
+                  title: Text(
+                    pin.name,
+                    style: TextStyle(color: KinrelColors.textWhite),
+                  ),
+                  subtitle: Text(
+                    pin.city,
+                    style: TextStyle(color: KinrelColors.textSilver),
+                  ),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    onMemberTap(pin);
+                  },
+                ),
+              ),
               const SizedBox(height: 16),
             ],
           ),
@@ -620,8 +621,7 @@ class MapBottomSheets {
                       SizedBox(width: KinrelSpacing.sm),
                       Expanded(
                         child: Text(
-                          l10n?.familyMapUnpinnedCount(
-                                  result.unpinnedCount) ??
+                          l10n?.familyMapUnpinnedCount(result.unpinnedCount) ??
                               '${result.unpinnedCount} member${result.unpinnedCount == 1 ? '' : 's'} without map pin',
                           style: TextStyle(
                             fontFamily: KinrelTypography.displayFont,
@@ -656,15 +656,11 @@ class MapBottomSheets {
               ),
               child: ListView.separated(
                 shrinkWrap: true,
-                padding: EdgeInsets.symmetric(
-                  horizontal: KinrelSpacing.xl,
-                ),
+                padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.xl),
                 physics: const AlwaysScrollableScrollPhysics(),
                 itemCount: result.unpinnedMembers.length,
-                separatorBuilder: (_, __) => Divider(
-                  color: KinrelColors.darkElevated,
-                  height: 1,
-                ),
+                separatorBuilder: (_, __) =>
+                    Divider(color: KinrelColors.darkElevated, height: 1),
                 itemBuilder: (context, index) {
                   final member = result.unpinnedMembers[index];
                   return ListTile(
@@ -682,8 +678,8 @@ class MapBottomSheets {
                           width: 1,
                         ),
                       ),
-                      child: member.photoUrl != null &&
-                              member.photoUrl!.isNotEmpty
+                      child:
+                          member.photoUrl != null && member.photoUrl!.isNotEmpty
                           ? ClipOval(
                               child: CachedAvatar(
                                 imageUrl: member.photoUrl,
@@ -716,7 +712,7 @@ class MapBottomSheets {
                       member.city.isEmpty
                           ? (l10n?.familyMapNoCitySet ?? 'No city set')
                           : (l10n?.familyMapCityNotFound(member.city) ??
-                              '${member.city} (not found)'),
+                                '${member.city} (not found)'),
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,

@@ -59,10 +59,13 @@ void main() {
       expect(FamilyMapScreen, isNotNull);
     });
 
-    test('P10.2 — FamilyBuildingLayer + FamilyBuildingBottomSheet imported', () {
-      expect(FamilyBuildingLayer, isNotNull);
-      expect(FamilyBuildingBottomSheet, isNotNull);
-    });
+    test(
+      'P10.2 — FamilyBuildingLayer + FamilyBuildingBottomSheet imported',
+      () {
+        expect(FamilyBuildingLayer, isNotNull);
+        expect(FamilyBuildingBottomSheet, isNotNull);
+      },
+    );
 
     test('P10.3 — AvatarMarkerLayer + AvatarMarkerOverlay imported', () {
       expect(AvatarMarkerLayer, isNotNull);
@@ -81,152 +84,221 @@ void main() {
       expect(categorizeRelationship, isNotNull);
     });
 
-    test('P10.6 — MapFocusController + FocusTier + focusTierOpacity imported', () {
-      expect(MapFocusController, isNotNull);
-      expect(FocusTier, isNotNull);
-      expect(focusTierOpacity, isNotNull);
-    });
+    test(
+      'P10.6 — MapFocusController + FocusTier + focusTierOpacity imported',
+      () {
+        expect(MapFocusController, isNotNull);
+        expect(FocusTier, isNotNull);
+        expect(focusTierOpacity, isNotNull);
+      },
+    );
 
-    test('P10.7 — MapTimelineScrubber + FamilyJourneyAnimation + JourneyStop imported', () {
-      expect(MapTimelineScrubber, isNotNull);
-      expect(FamilyJourneyAnimation, isNotNull);
-      expect(JourneyStop, isNotNull);
-      expect(buildJourneyStops, isNotNull);
-    });
+    test(
+      'P10.7 — MapTimelineScrubber + FamilyJourneyAnimation + JourneyStop imported',
+      () {
+        expect(MapTimelineScrubber, isNotNull);
+        expect(FamilyJourneyAnimation, isNotNull);
+        expect(JourneyStop, isNotNull);
+        expect(buildJourneyStops, isNotNull);
+      },
+    );
 
-    test('P10.8 — MapPolishOverlay + applyPoiFilters + MapLoadState imported', () {
-      expect(MapPolishOverlay, isNotNull);
-      expect(applyPoiFilters, isNotNull);
-      expect(MapLoadState, isNotNull);
-      expect(MapLoadPhase.complete, isNotNull);
-    });
+    test(
+      'P10.8 — MapPolishOverlay + applyPoiFilters + MapLoadState imported',
+      () {
+        expect(MapPolishOverlay, isNotNull);
+        expect(applyPoiFilters, isNotNull);
+        expect(MapLoadState, isNotNull);
+        expect(MapLoadPhase.complete, isNotNull);
+      },
+    );
 
-    test('P10.9 — MapSessionState + MapStatePersistence + DebouncedMapStateSaver imported', () {
-      expect(MapSessionState, isNotNull);
-      expect(MapStatePersistence, isNotNull);
-      expect(DebouncedMapStateSaver, isNotNull);
-    });
+    test(
+      'P10.9 — MapSessionState + MapStatePersistence + DebouncedMapStateSaver imported',
+      () {
+        expect(MapSessionState, isNotNull);
+        expect(MapStatePersistence, isNotNull);
+        expect(DebouncedMapStateSaver, isNotNull);
+      },
+    );
   });
 
   group('Phase 10 Integration — call-site proofs (runtime)', () {
-    test('P10.4 — computeHouseholds is callable (screen calls it in _buildMap)', () {
-      final households = computeHouseholds([
-        const MapPin(
-            personId: 'a', name: 'A', city: 'X', photoUrl: null,
-            lat: 18.52, lng: 73.85),
-        const MapPin(
-            personId: 'b', name: 'B', city: 'X', photoUrl: null,
-            lat: 18.52, lng: 73.85),
-      ]);
-      expect(households, hasLength(1));
-      expect(households.first.isMulti, isTrue);
-    });
+    test(
+      'P10.4 — computeHouseholds is callable (screen calls it in _buildMap)',
+      () {
+        final households = computeHouseholds([
+          const MapPin(
+            personId: 'a',
+            name: 'A',
+            city: 'X',
+            photoUrl: null,
+            lat: 18.52,
+            lng: 73.85,
+          ),
+          const MapPin(
+            personId: 'b',
+            name: 'B',
+            city: 'X',
+            photoUrl: null,
+            lat: 18.52,
+            lng: 73.85,
+          ),
+        ]);
+        expect(households, hasLength(1));
+        expect(households.first.isMulti, isTrue);
+      },
+    );
 
-    test('P10.7 — JourneyController.filterMapPins is callable (screen calls it in _buildMap)', () {
-      final controller = JourneyController();
-      controller.setYear(1990);
-      final pins = <MapPin>[
-        const MapPin(
-            personId: 'a', name: 'A', city: 'X', photoUrl: null,
-            lat: 0, lng: 0),
-      ];
-      final filtered = controller.filterMapPins(pins);
-      expect(filtered, hasLength(1));
-    });
+    test(
+      'P10.7 — JourneyController.filterMapPins is callable (screen calls it in _buildMap)',
+      () {
+        final controller = JourneyController();
+        controller.setYear(1990);
+        final pins = <MapPin>[
+          const MapPin(
+            personId: 'a',
+            name: 'A',
+            city: 'X',
+            photoUrl: null,
+            lat: 0,
+            lng: 0,
+          ),
+        ];
+        final filtered = controller.filterMapPins(pins);
+        expect(filtered, hasLength(1));
+      },
+    );
 
-    test('P10.7 — JourneyController.filterMapPlaces is callable (screen calls it in _buildMap)', () {
-      final controller = JourneyController();
-      controller.setYear(1995);
-      final places = <FamilyPlace>[
-        FamilyPlace(
-          id: 'p1',
-          familyId: 'f',
-          name: 'Home',
-          placeType: PlaceType.currentHome,
-          lat: 0, lng: 0,
-          validFrom: DateTime(2000),
-        ),
-      ];
-      final filtered = controller.filterMapPlaces(places);
-      // 2000 > 1995, so this place is not yet valid.
-      expect(filtered, isEmpty);
-    });
+    test(
+      'P10.7 — JourneyController.filterMapPlaces is callable (screen calls it in _buildMap)',
+      () {
+        final controller = JourneyController();
+        controller.setYear(1995);
+        final places = <FamilyPlace>[
+          FamilyPlace(
+            id: 'p1',
+            familyId: 'f',
+            name: 'Home',
+            placeType: PlaceType.currentHome,
+            lat: 0,
+            lng: 0,
+            validFrom: DateTime(2000),
+          ),
+        ];
+        final filtered = controller.filterMapPlaces(places);
+        // 2000 > 1995, so this place is not yet valid.
+        expect(filtered, isEmpty);
+      },
+    );
 
-    test('P10.8 — applyPoiFilters is callable (screen calls it in _loadStyleJson)', () {
-      const styleJson = '''
+    test(
+      'P10.8 — applyPoiFilters is callable (screen calls it in _loadStyleJson)',
+      () {
+        const styleJson = '''
 {"version": 8, "layers": [
   {"id": "poi_r1", "type": "symbol", "source-layer": "poi"}
 ]}
 ''';
-      final patched = applyPoiFilters(styleJson);
-      expect(patched, contains('all'));
-    });
+        final patched = applyPoiFilters(styleJson);
+        expect(patched, contains('all'));
+      },
+    );
 
-    test('P10.9 — MapStatePersistence.save/load is callable (screen calls them in initState + _scheduleStateSave)', () async {
-      SharedPreferences.setMockInitialValues({});
-      final state = MapSessionState.defaults();
-      await MapStatePersistence.save('fam-test', state);
-      final loaded = await MapStatePersistence.load('fam-test');
-      expect(loaded, isNotNull);
-      expect(loaded!.lat, equals(state.lat));
-      expect(loaded.lng, equals(state.lng));
-      await MapStatePersistence.clear('fam-test');
-    });
+    test(
+      'P10.9 — MapStatePersistence.save/load is callable (screen calls them in initState + _scheduleStateSave)',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final state = MapSessionState.defaults();
+        await MapStatePersistence.save('fam-test', state);
+        final loaded = await MapStatePersistence.load('fam-test');
+        expect(loaded, isNotNull);
+        expect(loaded!.lat, equals(state.lat));
+        expect(loaded.lng, equals(state.lng));
+        await MapStatePersistence.clear('fam-test');
+      },
+    );
 
-    test('P10.9 — DebouncedMapStateSaver.schedule is callable (screen calls it in _scheduleStateSave)', () async {
-      SharedPreferences.setMockInitialValues({});
-      final saver = DebouncedMapStateSaver('fam-test');
-      saver.schedule(MapSessionState.defaults());
-      await saver.flushNow();
-      saver.dispose();
-      // Verify the save actually wrote to SharedPreferences.
-      final loaded = await MapStatePersistence.load('fam-test');
-      expect(loaded, isNotNull);
-      await MapStatePersistence.clear('fam-test');
-    });
+    test(
+      'P10.9 — DebouncedMapStateSaver.schedule is callable (screen calls it in _scheduleStateSave)',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final saver = DebouncedMapStateSaver('fam-test');
+        saver.schedule(MapSessionState.defaults());
+        await saver.flushNow();
+        saver.dispose();
+        // Verify the save actually wrote to SharedPreferences.
+        final loaded = await MapStatePersistence.load('fam-test');
+        expect(loaded, isNotNull);
+        await MapStatePersistence.clear('fam-test');
+      },
+    );
 
-    test('P10.6 — focusTierOpacity is callable (screen uses it via MapFocusController)', () {
-      expect(focusTierOpacity(FocusTier.focused), equals(1.0));
-      expect(focusTierOpacity(FocusTier.unrelated), equals(0.4));
-    });
+    test(
+      'P10.6 — focusTierOpacity is callable (screen uses it via MapFocusController)',
+      () {
+        expect(focusTierOpacity(FocusTier.focused), equals(1.0));
+        expect(focusTierOpacity(FocusTier.unrelated), equals(0.4));
+      },
+    );
 
-    test('P10.5 — categorizeRelationship + PathStyle.forCategory are callable', () {
-      final cat = categorizeRelationship('father');
-      expect(cat, equals(RelationshipCategory.parentChild));
-      final style = PathStyle.forCategory(cat);
-      expect(style.width, greaterThan(0));
-    });
+    test(
+      'P10.5 — categorizeRelationship + PathStyle.forCategory are callable',
+      () {
+        final cat = categorizeRelationship('father');
+        expect(cat, equals(RelationshipCategory.parentChild));
+        final style = PathStyle.forCategory(cat);
+        expect(style.width, greaterThan(0));
+      },
+    );
 
-    test('P10.7 — buildJourneyStops is callable (screen calls it in _handlePinLongPress)', () {
-      const pin = MapPin(
-          personId: 'p1', name: 'Test', city: 'X', photoUrl: null,
-          lat: 0, lng: 0);
-      final stops = buildJourneyStops(
-        pin: pin,
-        linkedPlaces: [],
-        birthYear: 1990,
-      );
-      expect(stops, hasLength(1));
-      expect(stops.first.year, equals(1990));
-      expect(stops.first.label, equals('Born'));
-    });
+    test(
+      'P10.7 — buildJourneyStops is callable (screen calls it in _handlePinLongPress)',
+      () {
+        const pin = MapPin(
+          personId: 'p1',
+          name: 'Test',
+          city: 'X',
+          photoUrl: null,
+          lat: 0,
+          lng: 0,
+        );
+        final stops = buildJourneyStops(
+          pin: pin,
+          linkedPlaces: [],
+          birthYear: 1990,
+        );
+        expect(stops, hasLength(1));
+        expect(stops.first.year, equals(1990));
+        expect(stops.first.label, equals('Born'));
+      },
+    );
 
-    test('P10.2 — FamilyBuildingLayer is constructible (screen constructs it as a field)', () {
-      final layer = FamilyBuildingLayer();
-      expect(layer, isNotNull);
-      layer.dispose();
-    });
+    test(
+      'P10.2 — FamilyBuildingLayer is constructible (screen constructs it as a field)',
+      () {
+        final layer = FamilyBuildingLayer();
+        expect(layer, isNotNull);
+        layer.dispose();
+      },
+    );
 
-    test('P10.3 — AvatarMarkerLayer is constructible (screen constructs it as a field)', () {
-      final layer = AvatarMarkerLayer();
-      expect(layer, isNotNull);
-      layer.cache.clear();
-    });
+    test(
+      'P10.3 — AvatarMarkerLayer is constructible (screen constructs it as a field)',
+      () {
+        final layer = AvatarMarkerLayer();
+        expect(layer, isNotNull);
+        layer.cache.clear();
+      },
+    );
 
-    test('P10.6 — MapFocusController is constructible (screen constructs it as a field)', () {
-      final controller = MapFocusController();
-      expect(controller, isNotNull);
-    });
+    test(
+      'P10.6 — MapFocusController is constructible (screen constructs it as a field)',
+      () {
+        final controller = MapFocusController();
+        expect(controller, isNotNull);
+      },
+    );
   });
 
   group('Phase 10 Integration — GraphFocusState.isMapFocus (P10.6)', () {

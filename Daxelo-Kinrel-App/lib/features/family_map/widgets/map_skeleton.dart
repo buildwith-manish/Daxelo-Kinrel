@@ -37,6 +37,7 @@ class MapSkeleton extends StatelessWidget {
   });
 
   final bool reducedMotion;
+
   /// Default fallback message. Callers should pass the localized
   /// `S.of(context)?.familyMapLoading` value when available.
   final String message;
@@ -55,7 +56,8 @@ class MapSkeleton extends StatelessWidget {
         Icons.map_outlined,
         size: 48,
         color: KinrelColors.orange.withOpacity(
-            MapVisualConstants.timelineSliderOverlayOpacity),
+          MapVisualConstants.timelineSliderOverlayOpacity,
+        ),
       ),
     );
 
@@ -70,12 +72,13 @@ class MapSkeleton extends StatelessWidget {
             reducedMotion
                 ? iconPlaceholder
                 : iconPlaceholder
-                    .animate(onPlay: (c) => c.repeat())
-                    .shimmer(
-                      duration: 1500.ms,
-                      color: KinrelColors.orange
-                          .withOpacity(MapVisualConstants.skeletonShimmerOpacity),
-                    ),
+                      .animate(onPlay: (c) => c.repeat())
+                      .shimmer(
+                        duration: 1500.ms,
+                        color: KinrelColors.orange.withOpacity(
+                          MapVisualConstants.skeletonShimmerOpacity,
+                        ),
+                      ),
             const SizedBox(height: 24),
             Text(
               message,

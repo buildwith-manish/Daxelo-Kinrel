@@ -21,8 +21,12 @@ import 'package:kinrel/features/family_map/data/map_data_validator.dart';
 import 'package:kinrel/features/family_map/data/deterministic_spread.dart';
 
 /// Type alias for the relationship-edge record used by the validator.
-typedef _Edge =
-    ({String fromId, String toId, String edgeId, String relationshipKey});
+typedef _Edge = ({
+  String fromId,
+  String toId,
+  String edgeId,
+  String relationshipKey,
+});
 
 /// Builds a list of [n] MapPins with `exactPlace` location source.
 ///
@@ -95,8 +99,11 @@ void main() {
       final households = computeHouseholds(pins);
       sw.stop();
       expect(households, isNotEmpty);
-      expect(sw.elapsedMilliseconds, lessThan(50),
-          reason: '10 pins should cluster in well under 50ms');
+      expect(
+        sw.elapsedMilliseconds,
+        lessThan(50),
+        reason: '10 pins should cluster in well under 50ms',
+      );
     });
 
     test('100 members with exactPlace: completes in < 50ms', () {
@@ -105,8 +112,11 @@ void main() {
       final households = computeHouseholds(pins);
       sw.stop();
       expect(households, isNotEmpty);
-      expect(sw.elapsedMilliseconds, lessThan(50),
-          reason: 'computeHouseholds should be O(N), not O(N²)');
+      expect(
+        sw.elapsedMilliseconds,
+        lessThan(50),
+        reason: 'computeHouseholds should be O(N), not O(N²)',
+      );
     });
 
     test('500 members with exactPlace: completes in < 75ms', () {
@@ -115,8 +125,11 @@ void main() {
       final households = computeHouseholds(pins);
       sw.stop();
       expect(households, isNotEmpty);
-      expect(sw.elapsedMilliseconds, lessThan(75),
-          reason: 'computeHouseholds should be O(N), not O(N²)');
+      expect(
+        sw.elapsedMilliseconds,
+        lessThan(75),
+        reason: 'computeHouseholds should be O(N), not O(N²)',
+      );
     });
 
     test('1000 members with exactPlace: completes in < 100ms', () {
@@ -124,8 +137,11 @@ void main() {
       final sw = Stopwatch()..start();
       final households = computeHouseholds(pins);
       sw.stop();
-      expect(sw.elapsedMilliseconds, lessThan(100),
-          reason: 'computeHouseholds should be O(N), not O(N²)');
+      expect(
+        sw.elapsedMilliseconds,
+        lessThan(100),
+        reason: 'computeHouseholds should be O(N), not O(N²)',
+      );
     });
 
     test('1000 members with cityCentroid: completes in < 50ms (skips all)', () {
@@ -154,8 +170,11 @@ void main() {
       // Only exact pins can cluster — 500 city-centroid pins are filtered.
       expect(households.length, lessThanOrEqualTo(500));
       expect(households, isNotEmpty);
-      expect(sw.elapsedMilliseconds, lessThan(75),
-          reason: 'Filtering + clustering must remain O(N)');
+      expect(
+        sw.elapsedMilliseconds,
+        lessThan(75),
+        reason: 'Filtering + clustering must remain O(N)',
+      );
     });
 
     test('null locationSource pins still cluster (backward compat)', () {
@@ -174,8 +193,11 @@ void main() {
       final households = computeHouseholds(pins);
       sw.stop();
       expect(households, isNotEmpty);
-      expect(sw.elapsedMilliseconds, lessThan(100),
-          reason: 'Legacy null-source pins must still cluster in O(N)');
+      expect(
+        sw.elapsedMilliseconds,
+        lessThan(100),
+        reason: 'Legacy null-source pins must still cluster in O(N)',
+      );
     });
   });
 
@@ -187,11 +209,12 @@ void main() {
     test('1000 edges: validation completes in < 50ms', () {
       final edges = List.generate(1000, (i) {
         return (
-          fromId: 'p$i',
-          toId: 'p${(i + 1) % 1000}',
-          edgeId: 'e$i',
-          relationshipKey: 'father',
-        ) as _Edge;
+              fromId: 'p$i',
+              toId: 'p${(i + 1) % 1000}',
+              edgeId: 'e$i',
+              relationshipKey: 'father',
+            )
+            as _Edge;
       });
       final sw = Stopwatch()..start();
       final deduped = removeDuplicateEdges(edges);
@@ -200,17 +223,17 @@ void main() {
       // All 1000 edges are unique pairs (p_i -> p_{i+1} mod 1000), so
       // none should be deduped; no self-edges exist either.
       expect(noSelf, hasLength(1000));
-      expect(sw.elapsedMilliseconds, lessThan(50),
-          reason: 'Edge validation must be O(N), not O(N²)');
+      expect(
+        sw.elapsedMilliseconds,
+        lessThan(50),
+        reason: 'Edge validation must be O(N), not O(N²)',
+      );
     });
 
     test('1000 duplicate edges: dedupe collapses to 1 in < 50ms', () {
-      final baseEdge = (
-        fromId: 'p0',
-        toId: 'p1',
-        edgeId: 'e0',
-        relationshipKey: 'father',
-      ) as _Edge;
+      final baseEdge =
+          (fromId: 'p0', toId: 'p1', edgeId: 'e0', relationshipKey: 'father')
+              as _Edge;
       final edges = List.filled(1000, baseEdge);
       final sw = Stopwatch()..start();
       final deduped = removeDuplicateEdges(edges);
@@ -222,11 +245,12 @@ void main() {
     test('1000 self-edges: removal collapses to 0 in < 50ms', () {
       final edges = List.generate(1000, (i) {
         return (
-          fromId: 'p$i',
-          toId: 'p$i', // self-edge
-          edgeId: 'e$i',
-          relationshipKey: 'self',
-        ) as _Edge;
+              fromId: 'p$i',
+              toId: 'p$i', // self-edge
+              edgeId: 'e$i',
+              relationshipKey: 'self',
+            )
+            as _Edge;
       });
       final sw = Stopwatch()..start();
       final noSelf = removeSelfEdges(edges);
@@ -247,8 +271,11 @@ void main() {
         deterministicSpreadOffset('person-$i');
       }
       sw.stop();
-      expect(sw.elapsedMilliseconds, lessThan(50),
-          reason: 'Spread computation must be O(N) — char-code hash per pin');
+      expect(
+        sw.elapsedMilliseconds,
+        lessThan(50),
+        reason: 'Spread computation must be O(N) — char-code hash per pin',
+      );
     });
 
     test('spread is stable across calls (determinism)', () {

@@ -83,18 +83,21 @@ class AvatarMarkerWidget extends StatelessWidget {
         boxShadow: [
           // Soft glow halo.
           BoxShadow(
-            color: KinrelColors.orange.withOpacity(selected ? MapVisualConstants.markerGlowAlphaSelected : MapVisualConstants.markerGlowAlphaNormal),
+            color: KinrelColors.orange.withOpacity(
+              selected
+                  ? MapVisualConstants.markerGlowAlphaSelected
+                  : MapVisualConstants.markerGlowAlphaNormal,
+            ),
             blurRadius: glowBlur,
             spreadRadius: 0,
           ),
           // Drop shadow for depth.
           BoxShadow(
-            color: Colors.black.withOpacity(MapVisualConstants.markerShadowOpacity),
-            blurRadius: 4,
-            offset: Offset(
-              0,
-              MapVisualConstants.markerShadowOffset,
+            color: Colors.black.withOpacity(
+              MapVisualConstants.markerShadowOpacity,
             ),
+            blurRadius: 4,
+            offset: Offset(0, MapVisualConstants.markerShadowOffset),
           ),
         ],
       ),
@@ -102,12 +105,14 @@ class AvatarMarkerWidget extends StatelessWidget {
     );
 
     final withPulse = (liveTier == LocationTier.live && !reducedMotion)
-        ? core.animate(
-            onPlay: (c) => c.repeat(),
-          ).shimmer(
-            duration: MapVisualConstants.livePulseCycle,
-            color: MapVisualConstants.livePulseRingColor.withOpacity(MapVisualConstants.livePulseShimmerOpacity),
-          )
+        ? core
+              .animate(onPlay: (c) => c.repeat())
+              .shimmer(
+                duration: MapVisualConstants.livePulseCycle,
+                color: MapVisualConstants.livePulseRingColor.withOpacity(
+                  MapVisualConstants.livePulseShimmerOpacity,
+                ),
+              )
         : core;
 
     return GestureDetector(
@@ -233,10 +238,7 @@ class _AvatarMarkerOverlayState extends State<AvatarMarkerOverlay>
       ignoring: false,
       child: Stack(
         clipBehavior: Clip.none,
-        children: [
-          for (final pin in widget.pins)
-            _buildPositioned(pin),
-        ],
+        children: [for (final pin in widget.pins) _buildPositioned(pin)],
       ),
     );
   }
@@ -362,8 +364,7 @@ class DirectionalSpotlightCone extends StatelessWidget {
   /// [MapVisualConstants.markerNormalSize] for consistency.
   final double size;
 
-  DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.tier;
+  DeviceTier get _effectiveTier => deviceTier ?? DeviceTierCache.instance.tier;
 
   @override
   Widget build(BuildContext context) {
@@ -439,7 +440,7 @@ class _SpotlightConePainter extends CustomPainter {
       colors: [
         const ui.Color(0xFFE8B941).withOpacity(0.35), // Kinrel gold
         const ui.Color(0xFFE8612A).withOpacity(0.15), // Kinrel orange
-        const ui.Color(0x00E8612A),                   // transparent
+        const ui.Color(0x00E8612A), // transparent
       ],
       stops: const [0.0, 0.5, 1.0],
     );

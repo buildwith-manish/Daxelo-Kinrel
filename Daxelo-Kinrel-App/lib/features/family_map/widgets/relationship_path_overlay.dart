@@ -24,8 +24,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/kinship/heart_shape.dart';
 import '../config/map_visual_constants.dart';
 import '../providers/family_map_provider.dart';
-import 'animated_relationship_path.dart'
-    show categorizeRelationship, PathStyle;
+import 'animated_relationship_path.dart' show categorizeRelationship, PathStyle;
 
 /// Renders relationship edges as a Flutter overlay.
 ///
@@ -78,8 +77,9 @@ class _RelationshipPathOverlayState extends State<RelationshipPathOverlay>
     bool changed = false;
     for (final pin in widget.pins) {
       try {
-        final screen =
-            controller.toScreenLocation(Geographic(lon: pin.lng, lat: pin.lat));
+        final screen = controller.toScreenLocation(
+          Geographic(lon: pin.lng, lat: pin.lat),
+        );
         if (_screenPositions[pin.personId] != screen) {
           _screenPositions[pin.personId] = screen;
           changed = true;
@@ -102,9 +102,11 @@ class _RelationshipPathOverlayState extends State<RelationshipPathOverlay>
           progress: widget.reducedMotion
               ? 0.0
               : (DateTime.now().millisecondsSinceEpoch %
-                      MapVisualConstants.relationshipFlowCycle.inMilliseconds)
-                  .toDouble() /
-                  MapVisualConstants.relationshipFlowCycle.inMilliseconds,
+                            MapVisualConstants
+                                .relationshipFlowCycle
+                                .inMilliseconds)
+                        .toDouble() /
+                    MapVisualConstants.relationshipFlowCycle.inMilliseconds,
           repaintNotifier: widget.progressNotifier,
         ),
       ),

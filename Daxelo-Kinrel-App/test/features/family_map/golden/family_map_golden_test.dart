@@ -116,14 +116,17 @@ void main() {
     testWidgets('HouseholdClusterMarkerWidget golden (size=3)', (tester) async {
       final household = Household(
         id: 'h1',
-        members: List.generate(3, (i) => MapPin(
-          personId: 'p$i',
-          name: 'Member $i',
-          city: 'Pune',
-          photoUrl: null,
-          lat: 18.52,
-          lng: 73.85,
-        )),
+        members: List.generate(
+          3,
+          (i) => MapPin(
+            personId: 'p$i',
+            name: 'Member $i',
+            city: 'Pune',
+            photoUrl: null,
+            lat: 18.52,
+            lng: 73.85,
+          ),
+        ),
         lat: 18.52,
         lng: 73.85,
       );
@@ -147,18 +150,22 @@ void main() {
       );
     });
 
-    testWidgets('HouseholdClusterMarkerWidget golden (size=5 with badge)',
-        (tester) async {
+    testWidgets('HouseholdClusterMarkerWidget golden (size=5 with badge)', (
+      tester,
+    ) async {
       final household = Household(
         id: 'h5',
-        members: List.generate(5, (i) => MapPin(
-          personId: 'p$i',
-          name: 'Member $i',
-          city: 'Pune',
-          photoUrl: null,
-          lat: 18.52,
-          lng: 73.85,
-        )),
+        members: List.generate(
+          5,
+          (i) => MapPin(
+            personId: 'p$i',
+            name: 'Member $i',
+            city: 'Pune',
+            photoUrl: null,
+            lat: 18.52,
+            lng: 73.85,
+          ),
+        ),
         lat: 18.52,
         lng: 73.85,
       );
@@ -187,11 +194,7 @@ void main() {
         const MaterialApp(
           home: Scaffold(
             backgroundColor: Color(0xFF131416),
-            body: SizedBox(
-              width: 300,
-              height: 600,
-              child: MapPolishOverlay(),
-            ),
+            body: SizedBox(width: 300, height: 600, child: MapPolishOverlay()),
           ),
         ),
       );

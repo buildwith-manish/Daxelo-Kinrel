@@ -13,9 +13,15 @@ import 'package:kinrel/features/family_map/config/map_visual_constants.dart';
 void main() {
   group('P10.1 MapVisualConstants — palette', () {
     test('background / land / water are distinct dark colors', () {
-      expect(MapVisualConstants.background, isNot(equals(MapVisualConstants.land)));
+      expect(
+        MapVisualConstants.background,
+        isNot(equals(MapVisualConstants.land)),
+      );
       expect(MapVisualConstants.land, isNot(equals(MapVisualConstants.water)));
-      expect(MapVisualConstants.background, isNot(equals(MapVisualConstants.water)));
+      expect(
+        MapVisualConstants.background,
+        isNot(equals(MapVisualConstants.water)),
+      );
     });
 
     test('building colors cover all 12 PlaceTypes', () {
@@ -36,7 +42,10 @@ void main() {
     });
 
     test('P11.x — atmospheric perspective constants exist', () {
-      expect(MapVisualConstants.atmosphericPerspectivePitchThreshold, equals(10.0));
+      expect(
+        MapVisualConstants.atmosphericPerspectivePitchThreshold,
+        equals(10.0),
+      );
       expect(MapVisualConstants.atmosphericPerspectiveMaxOpacity, equals(0.12));
     });
 
@@ -45,15 +54,25 @@ void main() {
     });
 
     test('P11.x — wedding glow cycle is 4 seconds', () {
-      expect(MapVisualConstants.weddingGlowCycle, equals(const Duration(seconds: 4)));
-      expect(MapVisualConstants.weddingGlowMin, lessThan(MapVisualConstants.weddingGlowMax));
+      expect(
+        MapVisualConstants.weddingGlowCycle,
+        equals(const Duration(seconds: 4)),
+      );
+      expect(
+        MapVisualConstants.weddingGlowMin,
+        lessThan(MapVisualConstants.weddingGlowMax),
+      );
     });
 
     test('P11.x — memorial flicker cycle is 2.4 seconds', () {
-      expect(MapVisualConstants.memorialFlickerCycle,
-          equals(const Duration(milliseconds: 2400)));
-      expect(MapVisualConstants.memorialFlickerMin,
-          lessThan(MapVisualConstants.memorialFlickerMax));
+      expect(
+        MapVisualConstants.memorialFlickerCycle,
+        equals(const Duration(milliseconds: 2400)),
+      );
+      expect(
+        MapVisualConstants.memorialFlickerMin,
+        lessThan(MapVisualConstants.memorialFlickerMax),
+      );
     });
 
     test('P11.x — hillshade constants exist', () {
@@ -81,13 +100,16 @@ void main() {
       expect(MapVisualConstants.ambientWarmthOpacity, equals(0.05));
     });
 
-    test('P12.1 — generic 3D building colors exist (ultra-premium gradient)', () {
-      expect(MapVisualConstants.buildingNormal, isA<Color>());
-      expect(MapVisualConstants.buildingNormalMid, isA<Color>());
-      expect(MapVisualConstants.buildingNormalTop, isA<Color>());
-      expect(MapVisualConstants.buildingNormalTall, isA<Color>());
-      expect(MapVisualConstants.buildingNormalEdge, isA<Color>());
-    });
+    test(
+      'P12.1 — generic 3D building colors exist (ultra-premium gradient)',
+      () {
+        expect(MapVisualConstants.buildingNormal, isA<Color>());
+        expect(MapVisualConstants.buildingNormalMid, isA<Color>());
+        expect(MapVisualConstants.buildingNormalTop, isA<Color>());
+        expect(MapVisualConstants.buildingNormalTall, isA<Color>());
+        expect(MapVisualConstants.buildingNormalEdge, isA<Color>());
+      },
+    );
 
     test('P12.1 — avatar marker sizes are prominent (Snapchat-style)', () {
       expect(MapVisualConstants.markerNormalSize, equals(44.0));
@@ -96,27 +118,43 @@ void main() {
       expect(MapVisualConstants.markerGlowBlurSelected, equals(16.0));
     });
 
-    test('P12.4 — building extrusion min zoom is 13.0 (documentation-only, style JSON is authoritative)', () {
-      expect(MapVisualConstants.buildingExtrusionMinZoom, equals(13.0));
-    });
+    test(
+      'P12.4 — building extrusion min zoom is 13.0 (documentation-only, style JSON is authoritative)',
+      () {
+        expect(MapVisualConstants.buildingExtrusionMinZoom, equals(13.0));
+      },
+    );
 
-    test('P12.4 BUG FIX — focusMinZoom is 16.5 (3D buildings clearly visible)', () {
-      // BUG: focusMinZoom was 13.0 — at zoom 13, 3D buildings had barely
-      // started fading in. Tapping any family member pin parked the camera
-      // at a zoom where buildings were barely visible. The only path to
-      // a clear 3D view was the hardcoded _flyToBengaluru3D() debug button.
-      // FIX: raised to 16.5 so every pin tap shows premium 3D worldwide.
-      expect(MapVisualConstants.focusMinZoom, equals(16.5),
-          reason: 'focusMinZoom must be 16.5 so 3D buildings are clearly '
-                  'visible when tapping any family member pin worldwide');
-    });
+    test(
+      'P12.4 BUG FIX — focusMinZoom is 16.5 (3D buildings clearly visible)',
+      () {
+        // BUG: focusMinZoom was 13.0 — at zoom 13, 3D buildings had barely
+        // started fading in. Tapping any family member pin parked the camera
+        // at a zoom where buildings were barely visible. The only path to
+        // a clear 3D view was the hardcoded _flyToBengaluru3D() debug button.
+        // FIX: raised to 16.5 so every pin tap shows premium 3D worldwide.
+        expect(
+          MapVisualConstants.focusMinZoom,
+          equals(16.5),
+          reason:
+              'focusMinZoom must be 16.5 so 3D buildings are clearly '
+              'visible when tapping any family member pin worldwide',
+        );
+      },
+    );
 
     test('P12.1 — ancestral home color is brighter gold #B8901F', () {
-      expect(MapVisualConstants.buildingAncestralHome, equals(const Color(0xFFB8901F)));
+      expect(
+        MapVisualConstants.buildingAncestralHome,
+        equals(const Color(0xFFB8901F)),
+      );
     });
 
     test('P12.1 — family business color is brighter #D85720', () {
-      expect(MapVisualConstants.buildingFamilyBusiness, equals(const Color(0xFFD85720)));
+      expect(
+        MapVisualConstants.buildingFamilyBusiness,
+        equals(const Color(0xFFD85720)),
+      );
     });
   });
 
@@ -126,31 +164,43 @@ void main() {
         '#${c.value.toRadixString(16).toUpperCase().padLeft(8, '0').substring(2)}';
 
     test('background hex matches Color', () {
-      expect(MapVisualConstants.hexBackground.toUpperCase(),
-          colorToHex(MapVisualConstants.background));
+      expect(
+        MapVisualConstants.hexBackground.toUpperCase(),
+        colorToHex(MapVisualConstants.background),
+      );
     });
     test('land hex matches Color', () {
-      expect(MapVisualConstants.hexLand.toUpperCase(),
-          colorToHex(MapVisualConstants.land));
+      expect(
+        MapVisualConstants.hexLand.toUpperCase(),
+        colorToHex(MapVisualConstants.land),
+      );
     });
     test('water hex matches Color', () {
-      expect(MapVisualConstants.hexWater.toUpperCase(),
-          colorToHex(MapVisualConstants.water));
+      expect(
+        MapVisualConstants.hexWater.toUpperCase(),
+        colorToHex(MapVisualConstants.water),
+      );
     });
     test('building normal hex matches Color', () {
-      expect(MapVisualConstants.hexBuildingNormal.toUpperCase(),
-          colorToHex(MapVisualConstants.buildingNormal));
+      expect(
+        MapVisualConstants.hexBuildingNormal.toUpperCase(),
+        colorToHex(MapVisualConstants.buildingNormal),
+      );
     });
   });
 
   group('P10.1 MapVisualConstants — sizes & durations are positive', () {
     test('marker sizes', () {
       expect(MapVisualConstants.markerNormalSize, greaterThan(0));
-      expect(MapVisualConstants.markerSelectedSize,
-          greaterThan(MapVisualConstants.markerNormalSize));
+      expect(
+        MapVisualConstants.markerSelectedSize,
+        greaterThan(MapVisualConstants.markerNormalSize),
+      );
       expect(MapVisualConstants.markerRingWidthNormal, greaterThan(0));
-      expect(MapVisualConstants.markerRingWidthSelected,
-          greaterThan(MapVisualConstants.markerRingWidthNormal));
+      expect(
+        MapVisualConstants.markerRingWidthSelected,
+        greaterThan(MapVisualConstants.markerRingWidthNormal),
+      );
     });
 
     test('cluster sizes', () {
@@ -161,20 +211,28 @@ void main() {
 
     test('durations are non-zero', () {
       expect(MapVisualConstants.focusTransition.inMilliseconds, greaterThan(0));
-      expect(MapVisualConstants.cinematicEntrance.inMilliseconds,
-          greaterThan(0));
-      expect(MapVisualConstants.relationshipFlowCycle.inSeconds,
-          greaterThan(0));
+      expect(
+        MapVisualConstants.cinematicEntrance.inMilliseconds,
+        greaterThan(0),
+      );
+      expect(
+        MapVisualConstants.relationshipFlowCycle.inSeconds,
+        greaterThan(0),
+      );
       expect(MapVisualConstants.clusterExpand.inMilliseconds, greaterThan(0));
-      expect(MapVisualConstants.timelineCrossfade.inMilliseconds,
-          greaterThan(0));
+      expect(
+        MapVisualConstants.timelineCrossfade.inMilliseconds,
+        greaterThan(0),
+      );
     });
 
     test('polish opacities are between 0 and 1', () {
       expect(MapVisualConstants.vignetteOpacity, inInclusiveRange(0.0, 1.0));
       expect(MapVisualConstants.fogOpacity, inInclusiveRange(0.0, 1.0));
-      expect(MapVisualConstants.ambientWarmthOpacity,
-          inInclusiveRange(0.0, 1.0));
+      expect(
+        MapVisualConstants.ambientWarmthOpacity,
+        inInclusiveRange(0.0, 1.0),
+      );
     });
 
     test('zoom thresholds are sensible', () {
@@ -188,8 +246,10 @@ void main() {
     test('focus opacity bounds', () {
       expect(MapVisualConstants.nonFocusOpacity, inInclusiveRange(0.0, 1.0));
       expect(MapVisualConstants.focusOpacity, inInclusiveRange(0.0, 1.0));
-      expect(MapVisualConstants.nonFocusOpacity,
-          lessThan(MapVisualConstants.focusOpacity));
+      expect(
+        MapVisualConstants.nonFocusOpacity,
+        lessThan(MapVisualConstants.focusOpacity),
+      );
     });
 
     test('performance constants are positive', () {
@@ -205,8 +265,10 @@ void main() {
     });
 
     test('state persistence constants', () {
-      expect(MapVisualConstants.stateSaveDebounce.inMilliseconds,
-          greaterThan(0));
+      expect(
+        MapVisualConstants.stateSaveDebounce.inMilliseconds,
+        greaterThan(0),
+      );
       expect(MapVisualConstants.stateKeyPrefix, isNotEmpty);
       expect(MapVisualConstants.stateVersion, greaterThan(0));
     });

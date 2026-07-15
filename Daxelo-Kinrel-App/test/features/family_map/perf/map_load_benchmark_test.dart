@@ -55,12 +55,17 @@ void main() {
       stopwatch.stop();
 
       final avgMs = stopwatch.elapsedMilliseconds / 100;
-      debugPrint('P11.5 map_load_benchmark: avg ${avgMs.toStringAsFixed(2)}ms '
-          'per style parse + POI filter');
+      debugPrint(
+        'P11.5 map_load_benchmark: avg ${avgMs.toStringAsFixed(2)}ms '
+        'per style parse + POI filter',
+      );
       // The threshold is generous because CI runners vary. On a real
       // mid-tier device this completes in < 50ms.
-      expect(avgMs, lessThan(500),
-          reason: 'Style parse + POI filter must be < 500ms (Rule 6)');
+      expect(
+        avgMs,
+        lessThan(500),
+        reason: 'Style parse + POI filter must be < 500ms (Rule 6)',
+      );
     });
 
     test('firstPaintTarget constant is 500ms', () {
@@ -87,11 +92,17 @@ void main() {
       final raw = file.readAsStringSync();
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
       final sources = decoded['sources'] as Map<String, dynamic>;
-      expect(sources.containsKey('family-places'), isTrue,
-          reason: 'family-places GeoJSON source must exist in style JSON');
+      expect(
+        sources.containsKey('family-places'),
+        isTrue,
+        reason: 'family-places GeoJSON source must exist in style JSON',
+      );
       final familyPlaces = sources['family-places'] as Map<String, dynamic>;
-      expect(familyPlaces['type'], equals('geojson'),
-          reason: 'family-places source must be of type geojson');
+      expect(
+        familyPlaces['type'],
+        equals('geojson'),
+        reason: 'family-places source must be of type geojson',
+      );
     });
 
     test('kinrel_dark_style.json contains family-buildings layer', () {
@@ -102,12 +113,21 @@ void main() {
       final layerIds = layers
           .map((l) => (l as Map<String, dynamic>)['id'] as String?)
           .toSet();
-      expect(layerIds.contains('family-buildings'), isTrue,
-          reason: 'family-buildings fill-extrusion layer must exist');
-      expect(layerIds.contains('family-buildings-glow'), isTrue,
-          reason: 'family-buildings-glow circle layer must exist');
-      expect(layerIds.contains('family-buildings-fallback'), isTrue,
-          reason: 'family-buildings-fallback circle layer must exist');
+      expect(
+        layerIds.contains('family-buildings'),
+        isTrue,
+        reason: 'family-buildings fill-extrusion layer must exist',
+      );
+      expect(
+        layerIds.contains('family-buildings-glow'),
+        isTrue,
+        reason: 'family-buildings-glow circle layer must exist',
+      );
+      expect(
+        layerIds.contains('family-buildings-fallback'),
+        isTrue,
+        reason: 'family-buildings-fallback circle layer must exist',
+      );
     });
 
     test('family-buildings layer uses match expression on placeType', () {
@@ -115,17 +135,24 @@ void main() {
       final raw = file.readAsStringSync();
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
       final layers = decoded['layers'] as List<dynamic>;
-      final familyBuildings = layers.firstWhere(
-        (l) =>
-            (l as Map<String, dynamic>)['id'] == 'family-buildings',
-        orElse: () => <String, dynamic>{},
-      ) as Map<String, dynamic>;
+      final familyBuildings =
+          layers.firstWhere(
+                (l) => (l as Map<String, dynamic>)['id'] == 'family-buildings',
+                orElse: () => <String, dynamic>{},
+              )
+              as Map<String, dynamic>;
       final paint = familyBuildings['paint'] as Map<String, dynamic>?;
-      expect(paint, isNotNull,
-          reason: 'family-buildings layer must have a paint block');
+      expect(
+        paint,
+        isNotNull,
+        reason: 'family-buildings layer must have a paint block',
+      );
       final colorExpr = paint!['fill-extrusion-color'] as List<dynamic>;
-      expect(colorExpr.first, equals('match'),
-          reason: 'fill-extrusion-color must be a match expression');
+      expect(
+        colorExpr.first,
+        equals('match'),
+        reason: 'fill-extrusion-color must be a match expression',
+      );
       // The match expression should reference the placeType property.
       final lookup = colorExpr[1] as List<dynamic>;
       expect(lookup.first, equals('get'));
@@ -160,8 +187,11 @@ void main() {
       // contract so the screen can pass it as a raw string.
       final file = File('assets/map_styles/kinrel_dark_style.json');
       final raw = file.readAsStringSync();
-      expect(raw.trimLeft().startsWith('{'), isTrue,
-          reason: 'Bundled style must start with { for maplibre inline detection');
+      expect(
+        raw.trimLeft().startsWith('{'),
+        isTrue,
+        reason: 'Bundled style must start with { for maplibre inline detection',
+      );
     });
   });
 
@@ -176,8 +206,10 @@ void main() {
 
     test('skeleton shimmer opacity constant exists', () {
       expect(MapVisualConstants.skeletonShimmerOpacity, isA<double>());
-      expect(MapVisualConstants.skeletonShimmerOpacity,
-          inInclusiveRange(0.0, 1.0));
+      expect(
+        MapVisualConstants.skeletonShimmerOpacity,
+        inInclusiveRange(0.0, 1.0),
+      );
     });
 
     test('ambient drift cycle constant exists', () {
@@ -191,14 +223,18 @@ void main() {
 
     test('vignette midpoint multiplier constant exists', () {
       expect(MapVisualConstants.vignetteMidpointMultiplier, isA<double>());
-      expect(MapVisualConstants.vignetteMidpointMultiplier,
-          inInclusiveRange(0.0, 1.0));
+      expect(
+        MapVisualConstants.vignetteMidpointMultiplier,
+        inInclusiveRange(0.0, 1.0),
+      );
     });
 
     test('fog bottom stop multiplier constant exists', () {
       expect(MapVisualConstants.fogBottomStopMultiplier, isA<double>());
-      expect(MapVisualConstants.fogBottomStopMultiplier,
-          inInclusiveRange(0.0, 1.0));
+      expect(
+        MapVisualConstants.fogBottomStopMultiplier,
+        inInclusiveRange(0.0, 1.0),
+      );
     });
 
     test('marker sizes are positive (required by Step 4 wiring)', () {
@@ -207,10 +243,11 @@ void main() {
     });
 
     test('focusTransition + cinematicEntrance are non-zero', () {
-      expect(MapVisualConstants.focusTransition.inMilliseconds,
-          greaterThan(0));
-      expect(MapVisualConstants.cinematicEntrance.inMilliseconds,
-          greaterThan(0));
+      expect(MapVisualConstants.focusTransition.inMilliseconds, greaterThan(0));
+      expect(
+        MapVisualConstants.cinematicEntrance.inMilliseconds,
+        greaterThan(0),
+      );
     });
   });
 }

@@ -40,16 +40,12 @@ import 'family_building_layer.dart';
 /// the screen passes in the map controller + style + current focus
 /// state, and this class applies the camera + opacity changes.
 class MapFocusController {
-  MapFocusController({
-    this.deviceTier,
-    this.reducedMotion = false,
-  });
+  MapFocusController({this.deviceTier, this.reducedMotion = false});
 
   final DeviceTier? deviceTier;
   final bool reducedMotion;
 
-  DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.tier;
+  DeviceTier get _effectiveTier => deviceTier ?? DeviceTierCache.instance.tier;
 
   bool _animating = false;
 
@@ -199,10 +195,7 @@ class MapFocusController {
 /// Bundle of state returned by [MapFocusController.enterFocus] — the
 /// screen reads this to populate the bottom sheet.
 class MapFocusContext {
-  const MapFocusContext({
-    required this.pin,
-    required this.tier,
-  });
+  const MapFocusContext({required this.pin, required this.tier});
 
   final MapPin pin;
   final FocusTier tier;

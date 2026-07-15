@@ -20,16 +20,20 @@ bool isValidPersonId(String? id) {
 
 /// Removes self-relationship edges (fromId == toId) from a list.
 /// Returns a new list; does not modify the input.
-List<({String fromId, String toId, String edgeId, String relationshipKey})> removeSelfEdges(
-  List<({String fromId, String toId, String edgeId, String relationshipKey})> edges,
+List<({String fromId, String toId, String edgeId, String relationshipKey})>
+removeSelfEdges(
+  List<({String fromId, String toId, String edgeId, String relationshipKey})>
+  edges,
 ) {
   return edges.where((e) => e.fromId != e.toId).toList();
 }
 
 /// Removes duplicate relationship edges (same canonical pair).
 /// First occurrence wins.
-List<({String fromId, String toId, String edgeId, String relationshipKey})> removeDuplicateEdges(
-  List<({String fromId, String toId, String edgeId, String relationshipKey})> edges,
+List<({String fromId, String toId, String edgeId, String relationshipKey})>
+removeDuplicateEdges(
+  List<({String fromId, String toId, String edgeId, String relationshipKey})>
+  edges,
 ) {
   final seen = <String>{};
   return edges.where((e) {
@@ -43,11 +47,17 @@ List<({String fromId, String toId, String edgeId, String relationshipKey})> remo
 }
 
 /// Filters out relationship edges that reference a person ID not in the valid set.
-List<({String fromId, String toId, String edgeId, String relationshipKey})> removeEdgesWithMissingPins(
-  List<({String fromId, String toId, String edgeId, String relationshipKey})> edges,
+List<({String fromId, String toId, String edgeId, String relationshipKey})>
+removeEdgesWithMissingPins(
+  List<({String fromId, String toId, String edgeId, String relationshipKey})>
+  edges,
   Set<String> validPersonIds,
 ) {
-  return edges.where((e) =>
-    validPersonIds.contains(e.fromId) && validPersonIds.contains(e.toId)
-  ).toList();
+  return edges
+      .where(
+        (e) =>
+            validPersonIds.contains(e.fromId) &&
+            validPersonIds.contains(e.toId),
+      )
+      .toList();
 }

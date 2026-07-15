@@ -32,6 +32,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../../../l10n/app_localizations.dart';
+
 // StateNotifier is re-exported by flutter_riverpod in 2.x
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -42,10 +43,13 @@ import '../../../l10n/app_localizations.dart';
 enum LocationTier {
   /// 0-2 min: pulsing teal/orange ring, labeled "Live • now"
   live,
+
   /// 2-15 min: solid ring, labeled "Updated Xm ago"
   recent,
+
   /// 15-60 min: dimmed ring, labeled "Updated Xm ago"
   stale,
+
   /// >60 min or city-only: standard pin, labeled "Last known" / city name
   cityFallback,
 }
@@ -132,14 +136,13 @@ class LiveLocation {
     double? lng,
     bool? isSharing,
     DateTime? updatedAt,
-  }) =>
-      LiveLocation(
-        personId: personId,
-        lat: lat ?? this.lat,
-        lng: lng ?? this.lng,
-        isSharing: isSharing ?? this.isSharing,
-        updatedAt: updatedAt ?? this.updatedAt,
-      );
+  }) => LiveLocation(
+    personId: personId,
+    lat: lat ?? this.lat,
+    lng: lng ?? this.lng,
+    isSharing: isSharing ?? this.isSharing,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -172,13 +175,12 @@ class LiveLocationState {
     bool? isSharing,
     bool? isLoading,
     String? error,
-  }) =>
-      LiveLocationState(
-        locations: locations ?? this.locations,
-        isSharing: isSharing ?? this.isSharing,
-        isLoading: isLoading ?? this.isLoading,
-        error: error,
-      );
+  }) => LiveLocationState(
+    locations: locations ?? this.locations,
+    isSharing: isSharing ?? this.isSharing,
+    isLoading: isLoading ?? this.isLoading,
+    error: error,
+  );
 }
 
 /// Manages live + last-known family member locations for a family map.
@@ -198,7 +200,8 @@ class LiveLocationState {
 /// capturing GPS and calling [broadcastMyLocation] every few seconds,
 /// and [upsertMyLocation] on the 30-60s throttle.
 class LiveLocationNotifier extends StateNotifier<LiveLocationState> {
-  LiveLocationNotifier(this._ref) : super(const LiveLocationState(isLoading: false));
+  LiveLocationNotifier(this._ref)
+    : super(const LiveLocationState(isLoading: false));
 
   final Ref _ref;
   RealtimeChannel? _channel;
@@ -223,10 +226,12 @@ class LiveLocationNotifier extends StateNotifier<LiveLocationState> {
       }
 
       // ── Step 1: Read last-known locations from MemberLocation table ──
-      final response = await client
-          .from('MemberLocation')
-          .select('personId, lat, lng, isSharing, updatedAt')
-          .eq('familyId', familyId) as List<dynamic>;
+      final response =
+          await client
+                  .from('MemberLocation')
+                  .select('personId, lat, lng, isSharing, updatedAt')
+                  .eq('familyId', familyId)
+              as List<dynamic>;
 
       final locations = <String, LiveLocation>{};
       for (final row in response) {
@@ -236,8 +241,9 @@ class LiveLocationNotifier extends StateNotifier<LiveLocationState> {
         final lng = (map['lng'] as num).toDouble();
         final isSharing = map['isSharing'] as bool? ?? false;
         final updatedAtStr = map['updatedAt'] as String?;
-        final updatedAt =
-            updatedAtStr != null ? DateTime.tryParse(updatedAtStr)?.toUtc() : null;
+        final updatedAt = updatedAtStr != null
+            ? DateTime.tryParse(updatedAtStr)?.toUtc()
+            : null;
 
         locations[personId] = LiveLocation(
           personId: personId,
@@ -251,11 +257,13 @@ class LiveLocationNotifier extends StateNotifier<LiveLocationState> {
       // ── Check current user's own sharing status ──
       final userId = client.auth.currentUser?.id;
       if (userId != null) {
-        final myRow = await client
-            .from('MemberLocation')
-            .select('isSharing')
-            .eq('userId', userId)
-            .maybeSingle() as Map<String, dynamic>?;
+        final myRow =
+            await client
+                    .from('MemberLocation')
+                    .select('isSharing')
+                    .eq('userId', userId)
+                    .maybeSingle()
+                as Map<String, dynamic>?;
         final mySharing = myRow?['isSharing'] as bool? ?? false;
         state = LiveLocationState(
           locations: locations,
@@ -263,10 +271,7 @@ class LiveLocationNotifier extends StateNotifier<LiveLocationState> {
           isLoading: false,
         );
       } else {
-        state = LiveLocationState(
-          locations: locations,
-          isLoading: false,
-        );
+        state = LiveLocationState(locations: locations, isLoading: false);
       }
 
       // ── Step 2: Subscribe to live broadcast channel ──
@@ -296,32 +301,37 @@ class LiveLocationNotifier extends StateNotifier<LiveLocationState> {
     _channel?.unsubscribe();
     _channel = client.channel('family-map:$familyId');
 
-    _channel!.onBroadcast(event: 'location_move', callback: (payload) {
-      final data = payload;
+    _channel!.onBroadcast(
+      event: 'location_move',
+      callback: (payload) {
+        final data = payload;
 
-      final personId = data['personId'] as String?;
-      final lat = (data['lat'] as num?)?.toDouble();
-      final lng = (data['lng'] as num?)?.toDouble();
-      final ts = data['ts'] as String?;
+        final personId = data['personId'] as String?;
+        final lat = (data['lat'] as num?)?.toDouble();
+        final lng = (data['lng'] as num?)?.toDouble();
+        final ts = data['ts'] as String?;
 
-      if (personId == null || lat == null || lng == null) return;
+        if (personId == null || lat == null || lng == null) return;
 
-      final updatedAt = ts != null ? DateTime.tryParse(ts)?.toUtc() : DateTime.now().toUtc();
+        final updatedAt = ts != null
+            ? DateTime.tryParse(ts)?.toUtc()
+            : DateTime.now().toUtc();
 
-      // Merge: update only this person's position, don't refetch the whole map.
-      final existing = state.locations[personId];
-      final updated = LiveLocation(
-        personId: personId,
-        lat: lat,
-        lng: lng,
-        isSharing: existing?.isSharing ?? true,
-        updatedAt: updatedAt ?? DateTime.now().toUtc(),
-      );
+        // Merge: update only this person's position, don't refetch the whole map.
+        final existing = state.locations[personId];
+        final updated = LiveLocation(
+          personId: personId,
+          lat: lat,
+          lng: lng,
+          isSharing: existing?.isSharing ?? true,
+          updatedAt: updatedAt ?? DateTime.now().toUtc(),
+        );
 
-      final newLocations = Map<String, LiveLocation>.from(state.locations);
-      newLocations[personId] = updated;
-      state = state.copyWith(locations: newLocations);
-    });
+        final newLocations = Map<String, LiveLocation>.from(state.locations);
+        newLocations[personId] = updated;
+        state = state.copyWith(locations: newLocations);
+      },
+    );
 
     _channel!.subscribe((status, error) {
       if (error != null) {
@@ -424,5 +434,5 @@ class LiveLocationNotifier extends StateNotifier<LiveLocationState> {
 /// map screen mounts, `stop()` when it unmounts.
 final liveLocationProvider =
     StateNotifierProvider.autoDispose<LiveLocationNotifier, LiveLocationState>(
-  (ref) => LiveLocationNotifier(ref),
-);
+      (ref) => LiveLocationNotifier(ref),
+    );

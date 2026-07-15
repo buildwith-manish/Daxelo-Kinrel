@@ -42,13 +42,17 @@ void main() {
     });
 
     test('currentHome matches the brand orange', () {
-      expect(buildingColorFor(PlaceType.currentHome),
-          equals(MapVisualConstants.buildingCurrentHome));
+      expect(
+        buildingColorFor(PlaceType.currentHome),
+        equals(MapVisualConstants.buildingCurrentHome),
+      );
     });
 
     test('ancestralHome is the gold heritage color', () {
-      expect(buildingColorFor(PlaceType.ancestralHome),
-          equals(MapVisualConstants.buildingAncestralHome));
+      expect(
+        buildingColorFor(PlaceType.ancestralHome),
+        equals(MapVisualConstants.buildingAncestralHome),
+      );
     });
   });
 
@@ -94,32 +98,34 @@ void main() {
     ];
 
     test('produces a valid FeatureCollection', () {
-      final json = jsonDecode(buildFamilyPlacesGeoJson(places))
-          as Map<String, dynamic>;
+      final json =
+          jsonDecode(buildFamilyPlacesGeoJson(places)) as Map<String, dynamic>;
       expect(json['type'], equals('FeatureCollection'));
       final features = json['features'] as List<dynamic>;
       expect(features, hasLength(3));
     });
 
     test('each feature has placeType wire-name', () {
-      final json = jsonDecode(buildFamilyPlacesGeoJson(places))
-          as Map<String, dynamic>;
+      final json =
+          jsonDecode(buildFamilyPlacesGeoJson(places)) as Map<String, dynamic>;
       final features = json['features'] as List<dynamic>;
       final wireNames = features
-          .map((f) => (f as Map<String, dynamic>)['properties']
-              as Map<String, dynamic>)
+          .map(
+            (f) =>
+                (f as Map<String, dynamic>)['properties']
+                    as Map<String, dynamic>,
+          )
           .map((p) => p['placeType'] as String)
           .toSet();
-      expect(wireNames, containsAll(<String>{
-        'ancestral_home',
-        'memorial',
-        'wedding',
-      }));
+      expect(
+        wireNames,
+        containsAll(<String>{'ancestral_home', 'memorial', 'wedding'}),
+      );
     });
 
     test('geometry is Polygon with [lng, lat] coordinates (GeoJSON order)', () {
-      final json = jsonDecode(buildFamilyPlacesGeoJson(places))
-          as Map<String, dynamic>;
+      final json =
+          jsonDecode(buildFamilyPlacesGeoJson(places)) as Map<String, dynamic>;
       final features = json['features'] as List<dynamic>;
       final first = features[0] as Map<String, dynamic>;
       final geometry = first['geometry'] as Map<String, dynamic>;
@@ -140,12 +146,13 @@ void main() {
     });
 
     test('isMemorial / isWedding flags are set on the right features', () {
-      final json = jsonDecode(buildFamilyPlacesGeoJson(places))
-          as Map<String, dynamic>;
+      final json =
+          jsonDecode(buildFamilyPlacesGeoJson(places)) as Map<String, dynamic>;
       final features = json['features'] as List<dynamic>;
       final byName = <String, Map<String, dynamic>>{
         for (final f in features)
-          ((f as Map<String, dynamic>)['properties'] as Map<String, dynamic>)['name']
+          ((f as Map<String, dynamic>)['properties']
+                      as Map<String, dynamic>)['name']
                   as String:
               (f['properties'] as Map<String, dynamic>),
       };
@@ -156,20 +163,24 @@ void main() {
     });
 
     test('memoryCount is exposed as a property', () {
-      final json = jsonDecode(buildFamilyPlacesGeoJson(places))
-          as Map<String, dynamic>;
+      final json =
+          jsonDecode(buildFamilyPlacesGeoJson(places)) as Map<String, dynamic>;
       final features = json['features'] as List<dynamic>;
       final counts = features
-          .map((f) => (f as Map<String, dynamic>)['properties']
-              as Map<String, dynamic>)
+          .map(
+            (f) =>
+                (f as Map<String, dynamic>)['properties']
+                    as Map<String, dynamic>,
+          )
           .map((p) => p['memoryCount'])
           .toSet();
       expect(counts, containsAll(<int>{7, 0, 3}));
     });
 
     test('empty place list produces an empty FeatureCollection', () {
-      final json = jsonDecode(buildFamilyPlacesGeoJson(<FamilyPlace>[]))
-          as Map<String, dynamic>;
+      final json =
+          jsonDecode(buildFamilyPlacesGeoJson(<FamilyPlace>[]))
+              as Map<String, dynamic>;
       expect(json['type'], equals('FeatureCollection'));
       expect(json['features'] as List, isEmpty);
     });
@@ -199,8 +210,7 @@ void main() {
     });
 
     test('reduced motion disables animations', () {
-      final engine =
-          FamilyBuildingAnimationEngine(reducedMotion: true);
+      final engine = FamilyBuildingAnimationEngine(reducedMotion: true);
       // Engine constructed in reduced-motion mode — should not start
       // a timer even when start() is called. We can't pass a real
       // StyleController in a unit test, so we just verify construction

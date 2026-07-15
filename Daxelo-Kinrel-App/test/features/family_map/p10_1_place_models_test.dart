@@ -21,25 +21,36 @@ void main() {
 
     test('every type has a non-empty semantic label', () {
       for (final t in PlaceType.values) {
-        expect(t.semanticLabel, isNotEmpty,
-            reason: '$t should have a semantic label');
+        expect(
+          t.semanticLabel,
+          isNotEmpty,
+          reason: '$t should have a semantic label',
+        );
       }
     });
 
     test('wireName is snake_case and round-trips via fromWireName', () {
       for (final t in PlaceType.values) {
-        expect(t.wireName, matches(r'^[a-z_]+$'),
-            reason: '$t wireName should be snake_case');
-        expect(PlaceType.fromWireName(t.wireName), equals(t),
-            reason: '$t should round-trip through wireName');
+        expect(
+          t.wireName,
+          matches(r'^[a-z_]+$'),
+          reason: '$t wireName should be snake_case',
+        );
+        expect(
+          PlaceType.fromWireName(t.wireName),
+          equals(t),
+          reason: '$t should round-trip through wireName',
+        );
       }
     });
 
     test('fromWireName returns importantPlace for unknown / null', () {
       expect(PlaceType.fromWireName(null), equals(PlaceType.importantPlace));
       expect(PlaceType.fromWireName(''), equals(PlaceType.importantPlace));
-      expect(PlaceType.fromWireName('not_a_real_type'),
-          equals(PlaceType.importantPlace));
+      expect(
+        PlaceType.fromWireName('not_a_real_type'),
+        equals(PlaceType.importantPlace),
+      );
     });
 
     test('expected values are present in order (forward-compat)', () {
@@ -47,20 +58,23 @@ void main() {
       // against accidental reordering during refactors.
       // P11.x: vacation_home, family_temple, grandparents_home appended
       // per master prompt (kept before important_place as the default).
-      expect(PlaceType.values, equals(<PlaceType>[
-        PlaceType.currentHome,
-        PlaceType.childhoodHome,
-        PlaceType.ancestralHome,
-        PlaceType.birthplace,
-        PlaceType.wedding,
-        PlaceType.memorial,
-        PlaceType.familyBusiness,
-        PlaceType.school,
-        PlaceType.vacationHome,
-        PlaceType.familyTemple,
-        PlaceType.grandparentsHome,
-        PlaceType.importantPlace,
-      ]));
+      expect(
+        PlaceType.values,
+        equals(<PlaceType>[
+          PlaceType.currentHome,
+          PlaceType.childhoodHome,
+          PlaceType.ancestralHome,
+          PlaceType.birthplace,
+          PlaceType.wedding,
+          PlaceType.memorial,
+          PlaceType.familyBusiness,
+          PlaceType.school,
+          PlaceType.vacationHome,
+          PlaceType.familyTemple,
+          PlaceType.grandparentsHome,
+          PlaceType.importantPlace,
+        ]),
+      );
     });
   });
 

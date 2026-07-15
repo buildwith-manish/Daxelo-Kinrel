@@ -27,14 +27,17 @@ void main() {
       final generator = AvatarMarkerGenerator();
 
       // Build 50 pins (simulating a large family).
-      final pins = List.generate(50, (i) => MapPin(
-        personId: 'p$i',
-        name: 'Member $i',
-        city: 'City $i',
-        photoUrl: null, // initials fallback — no network
-        lat: 18.52 + (i * 0.001),
-        lng: 73.85 + (i * 0.001),
-      ));
+      final pins = List.generate(
+        50,
+        (i) => MapPin(
+          personId: 'p$i',
+          name: 'Member $i',
+          city: 'City $i',
+          photoUrl: null, // initials fallback — no network
+          lat: 18.52 + (i * 0.001),
+          lng: 73.85 + (i * 0.001),
+        ),
+      );
 
       final stopwatch = Stopwatch()..start();
       for (final pin in pins) {
@@ -47,28 +50,35 @@ void main() {
       }
       stopwatch.stop();
 
-      debugPrint('P11.5 marker_render_benchmark: ${stopwatch.elapsedMilliseconds}ms '
-          'for 50 marker images');
+      debugPrint(
+        'P11.5 marker_render_benchmark: ${stopwatch.elapsedMilliseconds}ms '
+        'for 50 marker images',
+      );
       // 500ms threshold per Rule 6. On a real mid-tier device this is
       // typically < 200ms. CI runners may be slower.
-      expect(stopwatch.elapsedMilliseconds, lessThan(5000),
-          reason: '50 marker images must generate in < 5s on CI '
-          '(< 500ms on mid-tier device per Rule 6)');
+      expect(
+        stopwatch.elapsedMilliseconds,
+        lessThan(5000),
+        reason:
+            '50 marker images must generate in < 5s on CI '
+            '(< 500ms on mid-tier device per Rule 6)',
+      );
     });
 
     test('selected marker regeneration < 50ms', () async {
       final generator = AvatarMarkerGenerator();
       final stopwatch = Stopwatch()..start();
-      await generator.generate(
-        photo: null,
-        initials: 'RS',
-        selected: true,
-      );
+      await generator.generate(photo: null, initials: 'RS', selected: true);
       stopwatch.stop();
-      debugPrint('P11.5 marker_render_benchmark: selected regen '
-          '${stopwatch.elapsedMilliseconds}ms');
-      expect(stopwatch.elapsedMilliseconds, lessThan(500),
-          reason: 'Selected marker regeneration must be < 500ms');
+      debugPrint(
+        'P11.5 marker_render_benchmark: selected regen '
+        '${stopwatch.elapsedMilliseconds}ms',
+      );
+      expect(
+        stopwatch.elapsedMilliseconds,
+        lessThan(500),
+        reason: 'Selected marker regeneration must be < 500ms',
+      );
     });
 
     test('all 4 LocationTier values render without crashing', () async {
@@ -85,10 +95,16 @@ void main() {
     });
 
     test('MapVisualConstants marker sizes are sensible for 60 FPS', () {
-      expect(MapVisualConstants.markerNormalSize, lessThan(60),
-          reason: 'Normal marker must be < 60px for 60 FPS with 50 markers');
-      expect(MapVisualConstants.markerSelectedSize, lessThan(80),
-          reason: 'Selected marker must be < 80px');
+      expect(
+        MapVisualConstants.markerNormalSize,
+        lessThan(60),
+        reason: 'Normal marker must be < 60px for 60 FPS with 50 markers',
+      );
+      expect(
+        MapVisualConstants.markerSelectedSize,
+        lessThan(80),
+        reason: 'Selected marker must be < 80px',
+      );
     });
   });
 }

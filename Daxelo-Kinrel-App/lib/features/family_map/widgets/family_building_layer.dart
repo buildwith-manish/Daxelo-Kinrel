@@ -107,13 +107,15 @@ String buildFamilyPlacesGeoJson(Iterable<FamilyPlace> places) {
       'id': p.id,
       'geometry': {
         'type': 'Polygon',
-        'coordinates': [[
-          [lng - boxSize, lat - boxSize],
-          [lng + boxSize, lat - boxSize],
-          [lng + boxSize, lat + boxSize],
-          [lng - boxSize, lat + boxSize],
-          [lng - boxSize, lat - boxSize], // close the ring
-        ]],
+        'coordinates': [
+          [
+            [lng - boxSize, lat - boxSize],
+            [lng + boxSize, lat - boxSize],
+            [lng + boxSize, lat + boxSize],
+            [lng - boxSize, lat + boxSize],
+            [lng - boxSize, lat - boxSize], // close the ring
+          ],
+        ],
       },
       'properties': {
         'placeId': p.id,
@@ -127,10 +129,7 @@ String buildFamilyPlacesGeoJson(Iterable<FamilyPlace> places) {
       },
     };
   }).toList();
-  return jsonEncode({
-    'type': 'FeatureCollection',
-    'features': features,
-  });
+  return jsonEncode({'type': 'FeatureCollection', 'features': features});
 }
 
 /// Stateless helper that registers the family-buildings layers on a
@@ -158,13 +157,11 @@ class FamilyBuildingLayer {
   static const String glowLayerId = 'family-buildings-glow';
   static const String circleFallbackLayerId = 'family-buildings-fallback';
 
-  DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.tier;
+  DeviceTier get _effectiveTier => deviceTier ?? DeviceTierCache.instance.tier;
 
   /// True on mid/high-tier devices — wedding pulse and memorial candle
   /// are enabled. Low-tier devices disable animation per Rule 13.
-  bool get animationsEnabled =>
-      _effectiveTier != DeviceTier.low;
+  bool get animationsEnabled => _effectiveTier != DeviceTier.low;
 
   /// Adds the family-places GeoJSON source data. The source + layers
   /// are now defined in kinrel_dark_style.json (P11.2), so this method
@@ -191,8 +188,10 @@ class FamilyBuildingLayer {
     } catch (e) {
       // Fallback: the source may not exist yet (style loaded before
       // P11.2). Try addSource instead (Rule 12 graceful degradation).
-      debugPrint('⚠️ FamilyBuildingLayer.add: updateGeoJsonSource failed ($e) '
-          '— falling back to addSource');
+      debugPrint(
+        '⚠️ FamilyBuildingLayer.add: updateGeoJsonSource failed ($e) '
+        '— falling back to addSource',
+      );
       try {
         await style.addSource(GeoJsonSource(id: sourceId, data: geojson));
         _added = true;
@@ -230,8 +229,10 @@ class FamilyBuildingLayer {
     if (style == null || !_added) return;
     // No setPaintProperty in maplibre 0.3.5 — opacity changes are handled
     // by the screen's Flutter overlay. Document per Rule 12.
-    debugPrint('FamilyBuildingLayer.setOpacity($opacity): no-op (Rule 12 '
-        'fallback — dimming handled by Flutter overlay).');
+    debugPrint(
+      'FamilyBuildingLayer.setOpacity($opacity): no-op (Rule 12 '
+      'fallback — dimming handled by Flutter overlay).',
+    );
   }
 
   /// Releases any resources. Currently a no-op — MapLibre owns the
@@ -261,10 +262,7 @@ class FamilyBuildingLayer {
 ///     `coalesce` expression. (Rule 12 graceful degradation: if the
 ///     style doesn't read the property, the engine is a no-op.)
 class FamilyBuildingAnimationEngine {
-  FamilyBuildingAnimationEngine({
-    this.deviceTier,
-    this.reducedMotion = false,
-  });
+  FamilyBuildingAnimationEngine({this.deviceTier, this.reducedMotion = false});
 
   final DeviceTier? deviceTier;
   final bool reducedMotion;
@@ -274,20 +272,19 @@ class FamilyBuildingAnimationEngine {
   List<FamilyPlace> _places = const <FamilyPlace>[];
   bool _running = false;
 
-  DeviceTier get _effectiveTier =>
-      deviceTier ?? DeviceTierCache.instance.tier;
+  DeviceTier get _effectiveTier => deviceTier ?? DeviceTierCache.instance.tier;
 
   bool get _animationsEnabled =>
       !reducedMotion && _effectiveTier != DeviceTier.low;
 
   /// Whether any of the current places require animation.
   bool get _hasAnimatedPlaces => _places.any(
-        (p) =>
-            p.placeType == PlaceType.wedding ||
-            p.placeType == PlaceType.memorial ||
-            p.placeType == PlaceType.familyTemple ||
-            p.placeType == PlaceType.ancestralHome,
-      );
+    (p) =>
+        p.placeType == PlaceType.wedding ||
+        p.placeType == PlaceType.memorial ||
+        p.placeType == PlaceType.familyTemple ||
+        p.placeType == PlaceType.ancestralHome,
+  );
 
   /// Start the animation loop. Safe to call multiple times — the
   /// engine will only start a timer if it has animated places and
@@ -303,14 +300,13 @@ class FamilyBuildingAnimationEngine {
 
     if (_running) return;
     _running = true;
-    _timer = Timer.periodic(
-      const Duration(milliseconds: 100),
-      (_) => _tick(),
+    _timer = Timer.periodic(const Duration(milliseconds: 100), (_) => _tick());
+    debugPrint(
+      '✅ FamilyBuildingAnimationEngine: started '
+      '(${_places.where((p) => p.placeType == PlaceType.wedding).length} wedding, '
+      '${_places.where((p) => p.placeType == PlaceType.memorial).length} memorial, '
+      '${_places.where((p) => p.placeType == PlaceType.familyTemple).length} temple)',
     );
-    debugPrint('✅ FamilyBuildingAnimationEngine: started '
-        '(${_places.where((p) => p.placeType == PlaceType.wedding).length} wedding, '
-        '${_places.where((p) => p.placeType == PlaceType.memorial).length} memorial, '
-        '${_places.where((p) => p.placeType == PlaceType.familyTemple).length} temple)');
   }
 
   /// Stop the animation loop. Safe to call when not running.
@@ -357,10 +353,7 @@ class FamilyBuildingAnimationEngine {
   /// Temple: slow sine, 6s cycle (reverent pulse)
   /// Ancestral: steady glow with very slight breathing (8s cycle)
   /// Other: 1.0 (no animation)
-  String _buildAnimatedGeoJson(
-    List<FamilyPlace> places,
-    int nowMs,
-  ) {
+  String _buildAnimatedGeoJson(List<FamilyPlace> places, int nowMs) {
     final features = places.map((p) {
       const boxSize = 0.0002;
       final lng = p.lng;
@@ -370,13 +363,15 @@ class FamilyBuildingAnimationEngine {
         'id': p.id,
         'geometry': {
           'type': 'Polygon',
-          'coordinates': [[
-            [lng - boxSize, lat - boxSize],
-            [lng + boxSize, lat - boxSize],
-            [lng + boxSize, lat + boxSize],
-            [lng - boxSize, lat + boxSize],
-            [lng - boxSize, lat - boxSize],
-          ]],
+          'coordinates': [
+            [
+              [lng - boxSize, lat - boxSize],
+              [lng + boxSize, lat - boxSize],
+              [lng + boxSize, lat + boxSize],
+              [lng - boxSize, lat + boxSize],
+              [lng - boxSize, lat - boxSize],
+            ],
+          ],
         },
         'properties': {
           'placeId': p.id,
@@ -391,10 +386,7 @@ class FamilyBuildingAnimationEngine {
         },
       };
     }).toList();
-    return jsonEncode({
-      'type': 'FeatureCollection',
-      'features': features,
-    });
+    return jsonEncode({'type': 'FeatureCollection', 'features': features});
   }
 
   /// Computes the per-type glow opacity at the given timestamp (ms).
@@ -408,11 +400,14 @@ class FamilyBuildingAnimationEngine {
     switch (type) {
       case PlaceType.wedding:
         // 4s cycle: sine wave 0.45 → 0.85 → 0.45
-        final phase = (nowMs % MapVisualConstants.weddingGlowCycle.inMilliseconds) /
+        final phase =
+            (nowMs % MapVisualConstants.weddingGlowCycle.inMilliseconds) /
             MapVisualConstants.weddingGlowCycle.inMilliseconds;
         final sine = (1 - math.cos(phase * 2 * math.pi)) / 2; // 0..1
         return MapVisualConstants.weddingGlowMin +
-            sine * (MapVisualConstants.weddingGlowMax - MapVisualConstants.weddingGlowMin);
+            sine *
+                (MapVisualConstants.weddingGlowMax -
+                    MapVisualConstants.weddingGlowMin);
       case PlaceType.memorial:
         // 2.4s cycle: sine + deterministic pseudo-random (organic flicker)
         final cycleMs = MapVisualConstants.memorialFlickerCycle.inMilliseconds;
@@ -424,7 +419,8 @@ class FamilyBuildingAnimationEngine {
         final raw = sine * 0.85 + jitter * 0.15;
         return (MapVisualConstants.memorialFlickerMin +
                 raw.clamp(0.0, 1.0) *
-                    (MapVisualConstants.memorialFlickerMax - MapVisualConstants.memorialFlickerMin))
+                    (MapVisualConstants.memorialFlickerMax -
+                        MapVisualConstants.memorialFlickerMin))
             .clamp(0.0, 1.0);
       case PlaceType.familyTemple:
         // 6s cycle: slow reverent pulse (0.55 → 0.85 → 0.55)
@@ -504,11 +500,10 @@ class FamilyBuildingBottomSheet extends ConsumerWidget {
             const SizedBox(height: 8),
             Chip(
               label: Text(place.placeType.semanticLabel),
-              backgroundColor:
-                  buildingColorFor(place.placeType).withOpacity(MapVisualConstants.buildingChipBgOpacity),
-              labelStyle: TextStyle(
-                color: buildingColorFor(place.placeType),
-              ),
+              backgroundColor: buildingColorFor(
+                place.placeType,
+              ).withOpacity(MapVisualConstants.buildingChipBgOpacity),
+              labelStyle: TextStyle(color: buildingColorFor(place.placeType)),
               side: BorderSide.none,
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             ),

@@ -57,9 +57,13 @@ void main() {
       final providerB = familyMapProvider('fam-b');
 
       // Different familyId arguments → different provider identities.
-      expect(identical(providerA, providerB), isFalse,
-          reason: 'familyMapProvider must be a FutureProvider.family so '
-              'each familyId yields an independent provider instance.');
+      expect(
+        identical(providerA, providerB),
+        isFalse,
+        reason:
+            'familyMapProvider must be a FutureProvider.family so '
+            'each familyId yields an independent provider instance.',
+      );
 
       // Reading both must not throw. Both will resolve to an empty
       // FamilyMapResult because the test container has no Supabase
@@ -68,21 +72,18 @@ void main() {
       expect(
         () => container.read(providerA.future),
         returnsNormally,
-        reason: 'familyMapProvider must accept a familyId argument '
+        reason:
+            'familyMapProvider must accept a familyId argument '
             '(i.e. must be FutureProvider.family).',
       );
-      expect(
-        () => container.read(providerB.future),
-        returnsNormally,
-      );
+      expect(() => container.read(providerB.future), returnsNormally);
     });
 
     test('empty familyId returns an empty result without error', () async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      final result =
-          await container.read(familyMapProvider('').future);
+      final result = await container.read(familyMapProvider('').future);
       expect(result.pins, isEmpty);
       expect(result.unpinnedCount, 0);
       expect(result.familyId, '');
@@ -138,81 +139,105 @@ void main() {
   // semantics explicit.
   group('FamilyMapLifecycleController — multi-family switch safety', () {
     test(
-        'family A late callback cannot overwrite family B state after switch',
-        () {
-      final c = FamilyMapLifecycleController();
-      addTearDown(c.dispose);
+      'family A late callback cannot overwrite family B state after switch',
+      () {
+        final c = FamilyMapLifecycleController();
+        addTearDown(c.dispose);
 
-      // ── Family A starts loading ────────────────────────────────────
-      // Attempt 0. The map screen reads style JSON and waits for
-      // onStyleLoaded.
-      final attemptA = c.currentAttempt; // 0
-      expect(attemptA, 0);
-      c.transition(FamilyMapLifecycle.loadingStyle, attempt: attemptA);
-      expect(c.state, FamilyMapLifecycle.loadingStyle,
-          reason: 'Family A should be in loadingStyle.');
+        // ── Family A starts loading ────────────────────────────────────
+        // Attempt 0. The map screen reads style JSON and waits for
+        // onStyleLoaded.
+        final attemptA = c.currentAttempt; // 0
+        expect(attemptA, 0);
+        c.transition(FamilyMapLifecycle.loadingStyle, attempt: attemptA);
+        expect(
+          c.state,
+          FamilyMapLifecycle.loadingStyle,
+          reason: 'Family A should be in loadingStyle.',
+        );
 
-      // ── User switches to family B ─────────────────────────────────
-      // reset() invalidates family A's in-flight callbacks by bumping
-      // the attempt counter.
-      c.reset();
-      final attemptB = c.currentAttempt; // 1
-      expect(attemptB, 1);
-      expect(c.state, FamilyMapLifecycle.initializing,
-          reason: 'Family B should start fresh in initializing.');
+        // ── User switches to family B ─────────────────────────────────
+        // reset() invalidates family A's in-flight callbacks by bumping
+        // the attempt counter.
+        c.reset();
+        final attemptB = c.currentAttempt; // 1
+        expect(attemptB, 1);
+        expect(
+          c.state,
+          FamilyMapLifecycle.initializing,
+          reason: 'Family B should start fresh in initializing.',
+        );
 
-      // Family B progresses normally through its own lifecycle.
-      c.transition(FamilyMapLifecycle.loadingStyle, attempt: attemptB);
-      c.transition(FamilyMapLifecycle.preparingLayers, attempt: attemptB);
-      c.transition(FamilyMapLifecycle.ready, attempt: attemptB);
-      expect(c.state, FamilyMapLifecycle.ready,
-          reason: 'Family B should be fully ready.');
+        // Family B progresses normally through its own lifecycle.
+        c.transition(FamilyMapLifecycle.loadingStyle, attempt: attemptB);
+        c.transition(FamilyMapLifecycle.preparingLayers, attempt: attemptB);
+        c.transition(FamilyMapLifecycle.ready, attempt: attemptB);
+        expect(
+          c.state,
+          FamilyMapLifecycle.ready,
+          reason: 'Family B should be fully ready.',
+        );
 
-      // ── Family A's late callback finally fires ────────────────────
-      // It carries the stale attemptA (0). The controller MUST drop it
-      // silently — family B's `ready` state must be preserved.
-      c.transition(FamilyMapLifecycle.ready, attempt: attemptA);
-      expect(c.state, FamilyMapLifecycle.ready,
-          reason: 'Family A\'s stale callback must NOT overwrite '
-              'family B\'s ready state.');
+        // ── Family A's late callback finally fires ────────────────────
+        // It carries the stale attemptA (0). The controller MUST drop it
+        // silently — family B's `ready` state must be preserved.
+        c.transition(FamilyMapLifecycle.ready, attempt: attemptA);
+        expect(
+          c.state,
+          FamilyMapLifecycle.ready,
+          reason:
+              'Family A\'s stale callback must NOT overwrite '
+              'family B\'s ready state.',
+        );
 
-      // And a stale transition to a *different* state must also be
-      // dropped (e.g. family A's late "empty" callback).
-      c.transition(FamilyMapLifecycle.empty, attempt: attemptA);
-      expect(c.state, FamilyMapLifecycle.ready,
-          reason: 'Family A\'s stale transition to empty must be '
-              'dropped — family B is still ready.');
-    });
+        // And a stale transition to a *different* state must also be
+        // dropped (e.g. family A's late "empty" callback).
+        c.transition(FamilyMapLifecycle.empty, attempt: attemptA);
+        expect(
+          c.state,
+          FamilyMapLifecycle.ready,
+          reason:
+              'Family A\'s stale transition to empty must be '
+              'dropped — family B is still ready.',
+        );
+      },
+    );
 
-    test('multiple rapid family switches keep the latest attempt authoritative',
-        () {
-      final c = FamilyMapLifecycleController();
-      addTearDown(c.dispose);
+    test(
+      'multiple rapid family switches keep the latest attempt authoritative',
+      () {
+        final c = FamilyMapLifecycleController();
+        addTearDown(c.dispose);
 
-      // Family A
-      final attemptA = c.currentAttempt;
-      c.transition(FamilyMapLifecycle.loadingStyle, attempt: attemptA);
+        // Family A
+        final attemptA = c.currentAttempt;
+        c.transition(FamilyMapLifecycle.loadingStyle, attempt: attemptA);
 
-      // Switch to family B
-      c.reset();
-      final attemptB = c.currentAttempt;
-      c.transition(FamilyMapLifecycle.loadingStyle, attempt: attemptB);
+        // Switch to family B
+        c.reset();
+        final attemptB = c.currentAttempt;
+        c.transition(FamilyMapLifecycle.loadingStyle, attempt: attemptB);
 
-      // Switch to family C (rapid, before B's style even loaded)
-      c.reset();
-      final attemptC = c.currentAttempt;
-      c.transition(FamilyMapLifecycle.loadingStyle, attempt: attemptC);
-      c.transition(FamilyMapLifecycle.ready, attempt: attemptC);
+        // Switch to family C (rapid, before B's style even loaded)
+        c.reset();
+        final attemptC = c.currentAttempt;
+        c.transition(FamilyMapLifecycle.loadingStyle, attempt: attemptC);
+        c.transition(FamilyMapLifecycle.ready, attempt: attemptC);
 
-      // Late callbacks from A and B both fire — both must be dropped.
-      c.transition(FamilyMapLifecycle.ready, attempt: attemptA);
-      c.transition(FamilyMapLifecycle.empty, attempt: attemptB);
-      expect(c.state, FamilyMapLifecycle.ready,
-          reason: 'Family C is the current authoritative attempt; '
-              'A and B callbacks must be ignored.');
+        // Late callbacks from A and B both fire — both must be dropped.
+        c.transition(FamilyMapLifecycle.ready, attempt: attemptA);
+        c.transition(FamilyMapLifecycle.empty, attempt: attemptB);
+        expect(
+          c.state,
+          FamilyMapLifecycle.ready,
+          reason:
+              'Family C is the current authoritative attempt; '
+              'A and B callbacks must be ignored.',
+        );
 
-      expect(c.currentAttempt, attemptC);
-    });
+        expect(c.currentAttempt, attemptC);
+      },
+    );
   });
 
   // ─────────────────────────────────────────────────────────────────────
@@ -232,9 +257,13 @@ void main() {
         lat: 19.076,
         lng: 72.877,
       );
-      expect(pin.locationSource, isNull,
-          reason: 'MapPin.locationSource must default to null for '
-              'backward compatibility with legacy callers.');
+      expect(
+        pin.locationSource,
+        isNull,
+        reason:
+            'MapPin.locationSource must default to null for '
+            'backward compatibility with legacy callers.',
+      );
     });
 
     test('locationSource can be set to a specific source', () {
@@ -261,10 +290,8 @@ void main() {
   // fallback and must NEVER collapse into a household with an exact
   // pin — even if they happen to share coordinates.
   group('computeHouseholds — locationSource authority', () {
-    test(
-        'two pins at same coords: both city-centroid → no household; '
-        'both exact → one household; mixed → only the exact pin clusters',
-        () {
+    test('two pins at same coords: both city-centroid → no household; '
+        'both exact → one household; mixed → only the exact pin clusters', () {
       const lat = 19.076;
       const lng = 72.877;
 
@@ -284,8 +311,11 @@ void main() {
         pin(source: MapLocationSource.cityCentroid, id: 'a1'),
         pin(source: MapLocationSource.cityCentroid, id: 'a2'),
       ]);
-      expect(householdsA, isEmpty,
-          reason: 'City-centroid pins must never cluster.');
+      expect(
+        householdsA,
+        isEmpty,
+        reason: 'City-centroid pins must never cluster.',
+      );
 
       // Case B: both exactPlace → 1 multi-member household.
       final householdsB = computeHouseholds([
@@ -303,17 +333,19 @@ void main() {
         pin(source: MapLocationSource.cityCentroid, id: 'c1'),
         pin(source: MapLocationSource.exactPlace, id: 'c2'),
       ]);
-      expect(householdsC, hasLength(1),
-          reason: 'Only the exactPlace pin should cluster; the '
-              'city-centroid pin is skipped.');
+      expect(
+        householdsC,
+        hasLength(1),
+        reason:
+            'Only the exactPlace pin should cluster; the '
+            'city-centroid pin is skipped.',
+      );
       expect(householdsC.first.size, 1);
       expect(householdsC.first.members.first.personId, 'c2');
     });
 
-    test(
-        'null locationSource (legacy pin) at same coords as city-centroid '
-        'pin: legacy pin clusters alone, city-centroid skipped',
-        () {
+    test('null locationSource (legacy pin) at same coords as city-centroid '
+        'pin: legacy pin clusters alone, city-centroid skipped', () {
       const lat = 12.9716;
       const lng = 77.5946;
 

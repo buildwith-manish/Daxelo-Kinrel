@@ -36,9 +36,11 @@ void main() {
       final patched = applyPoiFilters(styleJson);
       final decoded = jsonDecode(patched) as Map<String, dynamic>;
       final layers = decoded['layers'] as List<dynamic>;
-      final poi = layers.firstWhere(
-        (l) => (l as Map<String, dynamic>)['id'] == 'poi_r1',
-      ) as Map<String, dynamic>;
+      final poi =
+          layers.firstWhere(
+                (l) => (l as Map<String, dynamic>)['id'] == 'poi_r1',
+              )
+              as Map<String, dynamic>;
       final filter = poi['filter'];
       // The filter should be wrapped in an 'all' with the exclusion.
       expect(filter, isA<Map<String, dynamic>>());
@@ -64,9 +66,9 @@ void main() {
       final patched = applyPoiFilters(styleJson);
       final decoded = jsonDecode(patched) as Map<String, dynamic>;
       final layers = decoded['layers'] as List<dynamic>;
-      final road = layers.firstWhere(
-        (l) => (l as Map<String, dynamic>)['id'] == 'road',
-      ) as Map<String, dynamic>;
+      final road =
+          layers.firstWhere((l) => (l as Map<String, dynamic>)['id'] == 'road')
+              as Map<String, dynamic>;
       // Original filter preserved.
       expect(road['filter'], equals(['==', 'class', 'motorway']));
     });
@@ -84,12 +86,16 @@ void main() {
       final patched = applyPoiFilters(styleJson);
       final decoded = jsonDecode(patched) as Map<String, dynamic>;
       final layers = decoded['layers'] as List<dynamic>;
-      final r20 = layers.firstWhere(
-        (l) => (l as Map<String, dynamic>)['id'] == 'poi_r20',
-      ) as Map<String, dynamic>;
-      final r1 = layers.firstWhere(
-        (l) => (l as Map<String, dynamic>)['id'] == 'poi_r1',
-      ) as Map<String, dynamic>;
+      final r20 =
+          layers.firstWhere(
+                (l) => (l as Map<String, dynamic>)['id'] == 'poi_r20',
+              )
+              as Map<String, dynamic>;
+      final r1 =
+          layers.firstWhere(
+                (l) => (l as Map<String, dynamic>)['id'] == 'poi_r1',
+              )
+              as Map<String, dynamic>;
       expect(r20['minzoom'], equals(14));
       expect(r1['minzoom'], isNull); // primary POI keeps its default
     });
@@ -132,9 +138,7 @@ void main() {
   group('P10.8 MapPolishOverlay', () {
     testWidgets('can be constructed without throwing', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: MapPolishOverlay()),
-        ),
+        const MaterialApp(home: Scaffold(body: MapPolishOverlay())),
       );
       expect(find.byType(MapPolishOverlay), findsOneWidget);
     });

@@ -47,8 +47,10 @@ void main() {
       expect(restored.selectedPersonId, equals(original.selectedPersonId));
       expect(restored.timelineYear, equals(original.timelineYear));
       expect(restored.isFocusMode, equals(original.isFocusMode));
-      expect(restored.expandedHouseholdId,
-          equals(original.expandedHouseholdId));
+      expect(
+        restored.expandedHouseholdId,
+        equals(original.expandedHouseholdId),
+      );
       expect(restored.mapStyleId, equals(original.mapStyleId));
       expect(restored.version, equals(original.version));
       expect(restored.savedAt, equals(original.savedAt));
@@ -118,7 +120,11 @@ void main() {
   group('P10.9 MapSessionState.copyWith', () {
     test('preserves unspecified fields', () {
       final original = MapSessionState(
-        lat: 1, lng: 2, zoom: 3, pitch: 4, bearing: 5,
+        lat: 1,
+        lng: 2,
+        zoom: 3,
+        pitch: 4,
+        bearing: 5,
         selectedPersonId: 'p1',
       );
       final copy = original.copyWith(zoom: 99);
@@ -133,10 +139,18 @@ void main() {
     test('can override every field', () {
       final original = MapSessionState.defaults();
       final copy = original.copyWith(
-        lat: 18.52, lng: 73.85, zoom: 14, pitch: 45, bearing: 12,
-        selectedPersonId: 'p2', timelineYear: 1990,
-        isFocusMode: true, expandedHouseholdId: 'hh',
-        mapStyleId: 'other', version: 2, savedAt: 'now',
+        lat: 18.52,
+        lng: 73.85,
+        zoom: 14,
+        pitch: 45,
+        bearing: 12,
+        selectedPersonId: 'p2',
+        timelineYear: 1990,
+        isFocusMode: true,
+        expandedHouseholdId: 'hh',
+        mapStyleId: 'other',
+        version: 2,
+        savedAt: 'now',
       );
       expect(copy.lat, equals(18.52));
       expect(copy.selectedPersonId, equals('p2'));

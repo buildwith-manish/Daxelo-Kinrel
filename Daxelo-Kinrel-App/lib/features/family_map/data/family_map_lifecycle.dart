@@ -166,16 +166,20 @@ class FamilyMapLifecycleController extends ChangeNotifier {
   /// Stale attempts are silently dropped.
   void transition(FamilyMapLifecycle next, {required int attempt}) {
     if (attempt != _currentAttempt) {
-      debugPrint('FamilyMapLifecycle: dropping stale transition to '
-          '$next (attempt=$attempt, current=$_currentAttempt)');
+      debugPrint(
+        'FamilyMapLifecycle: dropping stale transition to '
+        '$next (attempt=$attempt, current=$_currentAttempt)',
+      );
       return;
     }
     if (_state == next) return;
     // Once terminal, no further transitions are allowed (a new attempt
     // must call reset() first).
     if (_state.isTerminal) {
-      debugPrint('FamilyMapLifecycle: ignoring transition to $next '
-          'from terminal state $_state');
+      debugPrint(
+        'FamilyMapLifecycle: ignoring transition to $next '
+        'from terminal state $_state',
+      );
       return;
     }
     debugPrint('FamilyMapLifecycle: $_state → $next (attempt=$attempt)');

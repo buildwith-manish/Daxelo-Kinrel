@@ -12,10 +12,13 @@ import 'package:geolocator/geolocator.dart';
 enum PermissionResult {
   /// Permission granted (whileInUse or always).
   granted,
+
   /// Permission denied — user can try again.
   denied,
+
   /// Permission permanently denied — must open app settings.
   deniedForever,
+
   /// Location services disabled on the device.
   serviceDisabled,
 }

@@ -89,8 +89,11 @@ void main() {
       );
       final first = await cache.bytesFor(pin, selected: false);
       final second = await cache.bytesFor(pin, selected: false);
-      expect(identical(first, second), isTrue,
-          reason: 'second call should return cached bytes');
+      expect(
+        identical(first, second),
+        isTrue,
+        reason: 'second call should return cached bytes',
+      );
     });
 
     test('invalidate evicts entries for a person', () async {
@@ -134,8 +137,7 @@ void main() {
   });
 
   group('P10.3 AvatarMarkerWidget', () {
-    testWidgets('renders with unselected size and orange ring',
-        (tester) async {
+    testWidgets('renders with unselected size and orange ring', (tester) async {
       const pin = MapPin(
         personId: 'p1',
         name: 'Test Person',
@@ -163,8 +165,9 @@ void main() {
       expect(find.byType(Container), findsWidgets);
     });
 
-    testWidgets('renders selected marker (gold ring + larger size)',
-        (tester) async {
+    testWidgets('renders selected marker (gold ring + larger size)', (
+      tester,
+    ) async {
       const pin = MapPin(
         personId: 'p1',
         name: 'Test Person',
@@ -177,11 +180,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: Center(
-              child: AvatarMarkerWidget(
-                pin: pin,
-                selected: true,
-                onTap: () {},
-              ),
+              child: AvatarMarkerWidget(pin: pin, selected: true, onTap: () {}),
             ),
           ),
         ),

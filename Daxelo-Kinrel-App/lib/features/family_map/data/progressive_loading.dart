@@ -66,8 +66,7 @@ extension MapLoadPhaseX on MapLoadPhase {
 
   /// True when this phase is at or beyond [other].
   bool isAtLeast(MapLoadPhase other) =>
-      MapLoadPhase.values.indexOf(this) >=
-      MapLoadPhase.values.indexOf(other);
+      MapLoadPhase.values.indexOf(this) >= MapLoadPhase.values.indexOf(other);
 }
 
 /// Tracks the current load phase + a short human-readable label.

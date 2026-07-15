@@ -108,14 +108,20 @@ void main() {
 
   group('P10.6 focusTierOpacity', () {
     test('focused + firstDegree = focusOpacity', () {
-      expect(focusTierOpacity(FocusTier.focused),
-          equals(MapVisualConstants.focusOpacity));
-      expect(focusTierOpacity(FocusTier.firstDegree),
-          equals(MapVisualConstants.focusOpacity));
+      expect(
+        focusTierOpacity(FocusTier.focused),
+        equals(MapVisualConstants.focusOpacity),
+      );
+      expect(
+        focusTierOpacity(FocusTier.firstDegree),
+        equals(MapVisualConstants.focusOpacity),
+      );
     });
     test('unrelated = nonFocusOpacity', () {
-      expect(focusTierOpacity(FocusTier.unrelated),
-          equals(MapVisualConstants.nonFocusOpacity));
+      expect(
+        focusTierOpacity(FocusTier.unrelated),
+        equals(MapVisualConstants.nonFocusOpacity),
+      );
     });
     test('secondDegree is between non-focus and focus', () {
       final v = focusTierOpacity(FocusTier.secondDegree);
@@ -125,12 +131,16 @@ void main() {
   });
 
   group('P10.6 MapFocusController lifecycle', () {
-    test('enterFocus is a graceful no-op when mapController is null',
-        () async {
+    test('enterFocus is a graceful no-op when mapController is null', () async {
       final controller = MapFocusController(reducedMotion: true);
       const pin = MapPin(
-          personId: 'p1', name: 'X', city: 'Y', photoUrl: null,
-          lat: 18.52, lng: 73.85);
+        personId: 'p1',
+        name: 'X',
+        city: 'Y',
+        photoUrl: null,
+        lat: 18.52,
+        lng: 73.85,
+      );
       const focusState = GraphFocusState(focusedPersonId: 'p1');
       final ctx = await controller.enterFocus(
         mapController: null,
@@ -143,15 +153,17 @@ void main() {
       expect(ctx.tier, equals(FocusTier.focused));
     });
 
-    test('exitFocus is a graceful no-op when familyBuildings is null',
-        () async {
-      final controller = MapFocusController();
-      await controller.exitFocus(
-        mapController: null,
-        style: null,
-        familyBuildings: null,
-      );
-      expect(true, isTrue);
-    });
+    test(
+      'exitFocus is a graceful no-op when familyBuildings is null',
+      () async {
+        final controller = MapFocusController();
+        await controller.exitFocus(
+          mapController: null,
+          style: null,
+          familyBuildings: null,
+        );
+        expect(true, isTrue);
+      },
+    );
   });
 }

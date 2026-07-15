@@ -40,144 +40,150 @@ void main() {
   // ═══════════════════════════════════════════════════════════════════════
   // §36 — PROGRESSIVE DATA TESTS
   // ═══════════════════════════════════════════════════════════════════════
-  group('P12 Progressive data — pins not blocked by Place/relationship loading', () {
-    test('pins are available immediately (before Place fetch completes)', () {
-      // The provider architecture uses Future.wait for members + places
-      // in parallel, but the FamilyMapResult always includes pins even
-      // when places is empty. Verify that a result with pins + empty
-      // places is valid (pins not blocked by Place loading).
-      final result = FamilyMapResult(
-        pins: [
-          MapPin(
-            personId: 'p1',
-            name: 'Alice',
-            city: 'Mumbai',
-            photoUrl: null,
-            lat: 19.0760,
-            lng: 72.8777,
-            locationSource: MapLocationSource.cityCentroid,
-          ),
-        ],
-        unpinnedMembers: const [],
-        unpinnedCount: 0,
-        edges: const [],
-        familyId: 'fam1',
-        places: const [], // Places still loading → empty
-      );
-      expect(result.pins, hasLength(1));
-      expect(result.places, isEmpty);
-      // The map can render pins even without places.
-      expect(result.pins.first.personId, equals('p1'));
-    });
+  group(
+    'P12 Progressive data — pins not blocked by Place/relationship loading',
+    () {
+      test('pins are available immediately (before Place fetch completes)', () {
+        // The provider architecture uses Future.wait for members + places
+        // in parallel, but the FamilyMapResult always includes pins even
+        // when places is empty. Verify that a result with pins + empty
+        // places is valid (pins not blocked by Place loading).
+        final result = FamilyMapResult(
+          pins: [
+            MapPin(
+              personId: 'p1',
+              name: 'Alice',
+              city: 'Mumbai',
+              photoUrl: null,
+              lat: 19.0760,
+              lng: 72.8777,
+              locationSource: MapLocationSource.cityCentroid,
+            ),
+          ],
+          unpinnedMembers: const [],
+          unpinnedCount: 0,
+          edges: const [],
+          familyId: 'fam1',
+          places: const [], // Places still loading → empty
+        );
+        expect(result.pins, hasLength(1));
+        expect(result.places, isEmpty);
+        // The map can render pins even without places.
+        expect(result.pins.first.personId, equals('p1'));
+      });
 
-    test('pins are available immediately (before relationship fetch completes)', () {
-      // Relationships are fetched AFTER pins. A result with pins + empty
-      // edges is valid (pins not blocked by relationship loading).
-      final result = FamilyMapResult(
-        pins: [
-          MapPin(
-            personId: 'p1',
-            name: 'Alice',
-            city: 'Mumbai',
-            photoUrl: null,
-            lat: 19.0760,
-            lng: 72.8777,
-          ),
-          MapPin(
-            personId: 'p2',
-            name: 'Bob',
-            city: 'Mumbai',
-            photoUrl: null,
-            lat: 19.0760,
-            lng: 72.8777,
-          ),
-        ],
-        unpinnedMembers: const [],
-        unpinnedCount: 0,
-        edges: const [], // Relationships still loading → empty
-        familyId: 'fam1',
-        places: const [],
+      test(
+        'pins are available immediately (before relationship fetch completes)',
+        () {
+          // Relationships are fetched AFTER pins. A result with pins + empty
+          // edges is valid (pins not blocked by relationship loading).
+          final result = FamilyMapResult(
+            pins: [
+              MapPin(
+                personId: 'p1',
+                name: 'Alice',
+                city: 'Mumbai',
+                photoUrl: null,
+                lat: 19.0760,
+                lng: 72.8777,
+              ),
+              MapPin(
+                personId: 'p2',
+                name: 'Bob',
+                city: 'Mumbai',
+                photoUrl: null,
+                lat: 19.0760,
+                lng: 72.8777,
+              ),
+            ],
+            unpinnedMembers: const [],
+            unpinnedCount: 0,
+            edges: const [], // Relationships still loading → empty
+            familyId: 'fam1',
+            places: const [],
+          );
+          expect(result.pins, hasLength(2));
+          expect(result.edges, isEmpty);
+        },
       );
-      expect(result.pins, hasLength(2));
-      expect(result.edges, isEmpty);
-    });
 
-    test('Place failure does not fail the whole map', () {
-      // If the Place fetch fails, the provider catches the error and
-      // returns an empty places list. The map still renders pins.
-      final result = FamilyMapResult(
-        pins: [
-          MapPin(
-            personId: 'p1',
-            name: 'Alice',
-            city: 'Mumbai',
-            photoUrl: null,
-            lat: 19.0760,
-            lng: 72.8777,
-          ),
-        ],
-        unpinnedMembers: const [],
-        unpinnedCount: 0,
-        edges: const [],
-        familyId: 'fam1',
-        places: const [], // Place fetch failed → empty (not error)
-      );
-      expect(result.pins, isNotEmpty);
-      expect(result.places, isEmpty);
-      // The result is still a valid FamilyMapResult — no exception thrown.
-    });
+      test('Place failure does not fail the whole map', () {
+        // If the Place fetch fails, the provider catches the error and
+        // returns an empty places list. The map still renders pins.
+        final result = FamilyMapResult(
+          pins: [
+            MapPin(
+              personId: 'p1',
+              name: 'Alice',
+              city: 'Mumbai',
+              photoUrl: null,
+              lat: 19.0760,
+              lng: 72.8777,
+            ),
+          ],
+          unpinnedMembers: const [],
+          unpinnedCount: 0,
+          edges: const [],
+          familyId: 'fam1',
+          places: const [], // Place fetch failed → empty (not error)
+        );
+        expect(result.pins, isNotEmpty);
+        expect(result.places, isEmpty);
+        // The result is still a valid FamilyMapResult — no exception thrown.
+      });
 
-    test('relationship failure does not fail the whole map', () {
-      // If the relationship fetch fails, the provider catches the error
-      // and returns an empty edges list. The map still renders pins.
-      final result = FamilyMapResult(
-        pins: [
-          MapPin(
-            personId: 'p1',
-            name: 'Alice',
-            city: 'Mumbai',
-            photoUrl: null,
-            lat: 19.0760,
-            lng: 72.8777,
-          ),
-        ],
-        unpinnedMembers: const [],
-        unpinnedCount: 0,
-        edges: const [], // Relationship fetch failed → empty (not error)
-        familyId: 'fam1',
-        places: const [],
-      );
-      expect(result.pins, isNotEmpty);
-      expect(result.edges, isEmpty);
-    });
+      test('relationship failure does not fail the whole map', () {
+        // If the relationship fetch fails, the provider catches the error
+        // and returns an empty edges list. The map still renders pins.
+        final result = FamilyMapResult(
+          pins: [
+            MapPin(
+              personId: 'p1',
+              name: 'Alice',
+              city: 'Mumbai',
+              photoUrl: null,
+              lat: 19.0760,
+              lng: 72.8777,
+            ),
+          ],
+          unpinnedMembers: const [],
+          unpinnedCount: 0,
+          edges: const [], // Relationship fetch failed → empty (not error)
+          familyId: 'fam1',
+          places: const [],
+        );
+        expect(result.pins, isNotEmpty);
+        expect(result.edges, isEmpty);
+      });
 
-    test('optional refresh preserves usable data', () {
-      // When the provider refreshes, it returns a NEW FamilyMapResult.
-      // The old result's pins/places are still valid until the new one
-      // arrives. Verify that a "stale" result is still usable.
-      final staleResult = FamilyMapResult(
-        pins: [
-          MapPin(
-            personId: 'p1',
-            name: 'Alice',
-            city: 'Mumbai',
-            photoUrl: null,
-            lat: 19.0760,
-            lng: 72.8777,
-          ),
-        ],
-        unpinnedMembers: const [],
-        unpinnedCount: 0,
-        edges: const [],
-        familyId: 'fam1',
-        places: const [],
-      );
-      // The stale result is still a valid object — its pins haven't
-      // been mutated or cleared.
-      expect(staleResult.pins, hasLength(1));
-      expect(staleResult.pins.first.name, equals('Alice'));
-    });
-  });
+      test('optional refresh preserves usable data', () {
+        // When the provider refreshes, it returns a NEW FamilyMapResult.
+        // The old result's pins/places are still valid until the new one
+        // arrives. Verify that a "stale" result is still usable.
+        final staleResult = FamilyMapResult(
+          pins: [
+            MapPin(
+              personId: 'p1',
+              name: 'Alice',
+              city: 'Mumbai',
+              photoUrl: null,
+              lat: 19.0760,
+              lng: 72.8777,
+            ),
+          ],
+          unpinnedMembers: const [],
+          unpinnedCount: 0,
+          edges: const [],
+          familyId: 'fam1',
+          places: const [],
+        );
+        // The stale result is still a valid object — its pins haven't
+        // been mutated or cleared.
+        expect(staleResult.pins, hasLength(1));
+        expect(staleResult.pins.first.name, equals('Alice'));
+      });
+    },
+  );
 
   // ═══════════════════════════════════════════════════════════════════════
   // §24 — CALLBACK COORDINATION TESTS
@@ -191,7 +197,10 @@ void main() {
 
       // onMapCreated fires — store controller. No transition yet (need style).
       // onStyleLoaded fires — transition to preparingLayers.
-      lifecycle.transition(FamilyMapLifecycle.preparingLayers, attempt: attempt);
+      lifecycle.transition(
+        FamilyMapLifecycle.preparingLayers,
+        attempt: attempt,
+      );
 
       // Layers prepared — transition to ready.
       lifecycle.transition(FamilyMapLifecycle.ready, attempt: attempt);
@@ -209,7 +218,10 @@ void main() {
       // onStyleLoaded fires first — but we can't prepare layers without
       // the controller. Wait for onMapCreated.
       // onMapCreated fires — now both are present. Transition.
-      lifecycle.transition(FamilyMapLifecycle.preparingLayers, attempt: attempt);
+      lifecycle.transition(
+        FamilyMapLifecycle.preparingLayers,
+        attempt: attempt,
+      );
       lifecycle.transition(FamilyMapLifecycle.ready, attempt: attempt);
 
       expect(lifecycle.state, equals(FamilyMapLifecycle.ready));
@@ -223,11 +235,17 @@ void main() {
       final attempt = lifecycle.currentAttempt;
 
       // First onStyleLoaded → preparingLayers
-      lifecycle.transition(FamilyMapLifecycle.preparingLayers, attempt: attempt);
+      lifecycle.transition(
+        FamilyMapLifecycle.preparingLayers,
+        attempt: attempt,
+      );
       expect(lifecycle.state, equals(FamilyMapLifecycle.preparingLayers));
 
       // Second onStyleLoaded (duplicate) → no-op (already past loadingStyle)
-      lifecycle.transition(FamilyMapLifecycle.preparingLayers, attempt: attempt);
+      lifecycle.transition(
+        FamilyMapLifecycle.preparingLayers,
+        attempt: attempt,
+      );
       expect(lifecycle.state, equals(FamilyMapLifecycle.preparingLayers));
 
       // Continue to ready
@@ -257,8 +275,12 @@ void main() {
 
       // Family A's late callback fires with attempt 0 → MUST be dropped
       lifecycle.transition(FamilyMapLifecycle.ready, attempt: attemptA);
-      expect(lifecycle.state, equals(FamilyMapLifecycle.ready),
-          reason: 'Family A stale callback must not overwrite Family B ready state');
+      expect(
+        lifecycle.state,
+        equals(FamilyMapLifecycle.ready),
+        reason:
+            'Family A stale callback must not overwrite Family B ready state',
+      );
     });
 
     test('terminal state rejects late transitions', () {
@@ -267,13 +289,22 @@ void main() {
       final attempt = lifecycle.currentAttempt;
 
       lifecycle.transition(FamilyMapLifecycle.loadingStyle, attempt: attempt);
-      lifecycle.transition(FamilyMapLifecycle.preparingLayers, attempt: attempt);
+      lifecycle.transition(
+        FamilyMapLifecycle.preparingLayers,
+        attempt: attempt,
+      );
       lifecycle.transition(FamilyMapLifecycle.ready, attempt: attempt);
 
       // Late callback tries to transition back to preparingLayers
-      lifecycle.transition(FamilyMapLifecycle.preparingLayers, attempt: attempt);
-      expect(lifecycle.state, equals(FamilyMapLifecycle.ready),
-          reason: 'Terminal state must reject late transitions');
+      lifecycle.transition(
+        FamilyMapLifecycle.preparingLayers,
+        attempt: attempt,
+      );
+      expect(
+        lifecycle.state,
+        equals(FamilyMapLifecycle.ready),
+        reason: 'Terminal state must reject late transitions',
+      );
     });
   });
 
@@ -344,8 +375,14 @@ void main() {
       // two results are independent objects with different family IDs.
       final resultA = FamilyMapResult(
         pins: [
-          MapPin(personId: 'a1', name: 'Alice', city: 'Mumbai',
-              photoUrl: null, lat: 19.0, lng: 72.0),
+          MapPin(
+            personId: 'a1',
+            name: 'Alice',
+            city: 'Mumbai',
+            photoUrl: null,
+            lat: 19.0,
+            lng: 72.0,
+          ),
         ],
         unpinnedMembers: const [],
         unpinnedCount: 0,
@@ -355,8 +392,14 @@ void main() {
       );
       final resultB = FamilyMapResult(
         pins: [
-          MapPin(personId: 'b1', name: 'Bob', city: 'Delhi',
-              photoUrl: null, lat: 28.0, lng: 77.0),
+          MapPin(
+            personId: 'b1',
+            name: 'Bob',
+            city: 'Delhi',
+            photoUrl: null,
+            lat: 28.0,
+            lng: 77.0,
+          ),
         ],
         unpinnedMembers: const [],
         unpinnedCount: 0,
@@ -393,8 +436,11 @@ void main() {
 
       // Family A's late callback fires with attemptA → must be dropped
       lifecycle.transition(FamilyMapLifecycle.empty, attempt: attemptA);
-      expect(lifecycle.state, equals(FamilyMapLifecycle.ready),
-          reason: 'Family A stale callback must not overwrite Family B ready');
+      expect(
+        lifecycle.state,
+        equals(FamilyMapLifecycle.ready),
+        reason: 'Family A stale callback must not overwrite Family B ready',
+      );
     });
 
     test('persistence is family-scoped (saver belongs to one family)', () {
@@ -438,30 +484,39 @@ void main() {
       // (isValidCoordinate) filters out the invalid one.
       final rawPins = <MapPin>[];
       for (var i = 0; i < 99; i++) {
-        rawPins.add(MapPin(
-          personId: 'p$i',
-          name: 'Person $i',
-          city: 'Mumbai',
-          photoUrl: null,
-          lat: 19.0 + i * 0.001,
-          lng: 72.0 + i * 0.001,
-        ));
+        rawPins.add(
+          MapPin(
+            personId: 'p$i',
+            name: 'Person $i',
+            city: 'Mumbai',
+            photoUrl: null,
+            lat: 19.0 + i * 0.001,
+            lng: 72.0 + i * 0.001,
+          ),
+        );
       }
       // 1 invalid pin (NaN latitude)
-      rawPins.add(MapPin(
-        personId: 'p-bad',
-        name: 'Bad Pin',
-        city: 'Nowhere',
-        photoUrl: null,
-        lat: double.nan,
-        lng: 72.0,
-      ));
+      rawPins.add(
+        MapPin(
+          personId: 'p-bad',
+          name: 'Bad Pin',
+          city: 'Nowhere',
+          photoUrl: null,
+          lat: double.nan,
+          lng: 72.0,
+        ),
+      );
 
       // Apply the same validation the provider uses
-      final validPins = rawPins.where((p) => isValidCoordinate(p.lat, p.lng)).toList();
+      final validPins = rawPins
+          .where((p) => isValidCoordinate(p.lat, p.lng))
+          .toList();
 
-      expect(validPins, hasLength(99),
-          reason: '99 valid pins must render; 1 invalid pin must be filtered');
+      expect(
+        validPins,
+        hasLength(99),
+        reason: '99 valid pins must render; 1 invalid pin must be filtered',
+      );
       expect(validPins.any((p) => p.personId == 'p-bad'), isFalse);
     });
 
@@ -469,14 +524,38 @@ void main() {
       // An empty person ID, NaN coordinates, and infinite coordinates
       // must all be filtered out without throwing.
       final malformedPins = <MapPin>[
-        MapPin(personId: '', name: 'Empty ID', city: 'X',
-            photoUrl: null, lat: 19.0, lng: 72.0),
-        MapPin(personId: 'nan', name: 'NaN lat', city: 'X',
-            photoUrl: null, lat: double.nan, lng: 72.0),
-        MapPin(personId: 'inf', name: 'Inf lng', city: 'X',
-            photoUrl: null, lat: 19.0, lng: double.infinity),
-        MapPin(personId: 'oor', name: 'Out of range', city: 'X',
-            photoUrl: null, lat: 91.0, lng: 72.0),
+        MapPin(
+          personId: '',
+          name: 'Empty ID',
+          city: 'X',
+          photoUrl: null,
+          lat: 19.0,
+          lng: 72.0,
+        ),
+        MapPin(
+          personId: 'nan',
+          name: 'NaN lat',
+          city: 'X',
+          photoUrl: null,
+          lat: double.nan,
+          lng: 72.0,
+        ),
+        MapPin(
+          personId: 'inf',
+          name: 'Inf lng',
+          city: 'X',
+          photoUrl: null,
+          lat: 19.0,
+          lng: double.infinity,
+        ),
+        MapPin(
+          personId: 'oor',
+          name: 'Out of range',
+          city: 'X',
+          photoUrl: null,
+          lat: 91.0,
+          lng: 72.0,
+        ),
       ];
 
       // Validation does not throw — it returns false for each.
@@ -487,40 +566,86 @@ void main() {
           // only looks at lat/lng. The point is: no exception thrown.
           expect(() => isValidCoordinate(pin.lat, pin.lng), returnsNormally);
         } else {
-          expect(valid, isFalse,
-              reason: '${pin.personId} should be rejected');
+          expect(valid, isFalse, reason: '${pin.personId} should be rejected');
         }
       }
     });
 
     test('self-relationship edge is removed', () {
-      final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[
-        (fromId: 'a', toId: 'b', edgeId: 'e1', relationshipKey: 'father'),
-        (fromId: 'a', toId: 'a', edgeId: 'e2', relationshipKey: 'self'), // self-edge
-        (fromId: 'b', toId: 'c', edgeId: 'e3', relationshipKey: 'mother'),
-      ];
+      final edges =
+          <
+            ({
+              String fromId,
+              String toId,
+              String edgeId,
+              String relationshipKey,
+            })
+          >[
+            (fromId: 'a', toId: 'b', edgeId: 'e1', relationshipKey: 'father'),
+            (
+              fromId: 'a',
+              toId: 'a',
+              edgeId: 'e2',
+              relationshipKey: 'self',
+            ), // self-edge
+            (fromId: 'b', toId: 'c', edgeId: 'e3', relationshipKey: 'mother'),
+          ];
       final filtered = removeSelfEdges(edges);
       expect(filtered, hasLength(2));
       expect(filtered.every((e) => e.fromId != e.toId), isTrue);
     });
 
     test('duplicate relationship edge is removed (first wins)', () {
-      final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[
-        (fromId: 'a', toId: 'b', edgeId: 'e1', relationshipKey: 'father'),
-        (fromId: 'b', toId: 'a', edgeId: 'e2', relationshipKey: 'father'), // duplicate (canonical)
-        (fromId: 'b', toId: 'c', edgeId: 'e3', relationshipKey: 'mother'),
-      ];
+      final edges =
+          <
+            ({
+              String fromId,
+              String toId,
+              String edgeId,
+              String relationshipKey,
+            })
+          >[
+            (fromId: 'a', toId: 'b', edgeId: 'e1', relationshipKey: 'father'),
+            (
+              fromId: 'b',
+              toId: 'a',
+              edgeId: 'e2',
+              relationshipKey: 'father',
+            ), // duplicate (canonical)
+            (fromId: 'b', toId: 'c', edgeId: 'e3', relationshipKey: 'mother'),
+          ];
       final filtered = removeDuplicateEdges(edges);
-      expect(filtered, hasLength(2),
-          reason: 'a→b and b→a are the same canonical pair, so one is removed');
+      expect(
+        filtered,
+        hasLength(2),
+        reason: 'a→b and b→a are the same canonical pair, so one is removed',
+      );
     });
 
     test('edge with missing pin is removed', () {
-      final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[
-        (fromId: 'a', toId: 'b', edgeId: 'e1', relationshipKey: 'father'),
-        (fromId: 'a', toId: 'x', edgeId: 'e2', relationshipKey: 'mother'), // x missing
-        (fromId: 'y', toId: 'b', edgeId: 'e3', relationshipKey: 'sister'), // y missing
-      ];
+      final edges =
+          <
+            ({
+              String fromId,
+              String toId,
+              String edgeId,
+              String relationshipKey,
+            })
+          >[
+            (fromId: 'a', toId: 'b', edgeId: 'e1', relationshipKey: 'father'),
+            (
+              fromId: 'a',
+              toId: 'x',
+              edgeId: 'e2',
+              relationshipKey: 'mother',
+            ), // x missing
+            (
+              fromId: 'y',
+              toId: 'b',
+              edgeId: 'e3',
+              relationshipKey: 'sister',
+            ), // y missing
+          ];
       final validIds = <String>{'a', 'b', 'c'};
       final filtered = removeEdgesWithMissingPins(edges, validIds);
       expect(filtered, hasLength(1));
@@ -591,8 +716,11 @@ void main() {
         linkedPlace: place,
       );
       expect(resolved, isNotNull);
-      expect(resolved!.source, equals(MapLocationSource.cityCentroid),
-          reason: 'Birthplace is historical — must not imply current residence');
+      expect(
+        resolved!.source,
+        equals(MapLocationSource.cityCentroid),
+        reason: 'Birthplace is historical — must not imply current residence',
+      );
       expect(resolved.lat, equals(18.5204));
     });
 
@@ -623,11 +751,14 @@ void main() {
       expect(resolved, isNull);
     });
 
-    test('all new PlaceTypes (vacationHome, familyTemple, grandparentsHome) are NOT anchors', () {
-      expect(isCurrentLocationAnchor(PlaceType.vacationHome), isFalse);
-      expect(isCurrentLocationAnchor(PlaceType.familyTemple), isFalse);
-      expect(isCurrentLocationAnchor(PlaceType.grandparentsHome), isFalse);
-    });
+    test(
+      'all new PlaceTypes (vacationHome, familyTemple, grandparentsHome) are NOT anchors',
+      () {
+        expect(isCurrentLocationAnchor(PlaceType.vacationHome), isFalse);
+        expect(isCurrentLocationAnchor(PlaceType.familyTemple), isFalse);
+        expect(isCurrentLocationAnchor(PlaceType.grandparentsHome), isFalse);
+      },
+    );
   });
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -636,26 +767,53 @@ void main() {
   group('P12 Households — no false city-centroid clusters', () {
     test('two city-centroid pins at same point do NOT cluster', () {
       final pins = [
-        MapPin(personId: 'a', name: 'A', city: 'Pune', photoUrl: null,
-            lat: 18.52, lng: 73.85,
-            locationSource: MapLocationSource.cityCentroid),
-        MapPin(personId: 'b', name: 'B', city: 'Pune', photoUrl: null,
-            lat: 18.52, lng: 73.85,
-            locationSource: MapLocationSource.cityCentroid),
+        MapPin(
+          personId: 'a',
+          name: 'A',
+          city: 'Pune',
+          photoUrl: null,
+          lat: 18.52,
+          lng: 73.85,
+          locationSource: MapLocationSource.cityCentroid,
+        ),
+        MapPin(
+          personId: 'b',
+          name: 'B',
+          city: 'Pune',
+          photoUrl: null,
+          lat: 18.52,
+          lng: 73.85,
+          locationSource: MapLocationSource.cityCentroid,
+        ),
       ];
       final households = computeHouseholds(pins);
-      expect(households, isEmpty,
-          reason: 'City-centroid pins must never form a household');
+      expect(
+        households,
+        isEmpty,
+        reason: 'City-centroid pins must never form a household',
+      );
     });
 
     test('two exact-place pins at same point CAN cluster', () {
       final pins = [
-        MapPin(personId: 'a', name: 'A', city: 'Pune', photoUrl: null,
-            lat: 18.52, lng: 73.85,
-            locationSource: MapLocationSource.exactPlace),
-        MapPin(personId: 'b', name: 'B', city: 'Pune', photoUrl: null,
-            lat: 18.52, lng: 73.85,
-            locationSource: MapLocationSource.exactPlace),
+        MapPin(
+          personId: 'a',
+          name: 'A',
+          city: 'Pune',
+          photoUrl: null,
+          lat: 18.52,
+          lng: 73.85,
+          locationSource: MapLocationSource.exactPlace,
+        ),
+        MapPin(
+          personId: 'b',
+          name: 'B',
+          city: 'Pune',
+          photoUrl: null,
+          lat: 18.52,
+          lng: 73.85,
+          locationSource: MapLocationSource.exactPlace,
+        ),
       ];
       final households = computeHouseholds(pins);
       expect(households, hasLength(1));
@@ -663,27 +821,52 @@ void main() {
       expect(households.first.size, equals(2));
     });
 
-    test('mixed: 1 exact + 1 city-centroid → only 1 household (the exact one)', () {
-      final pins = [
-        MapPin(personId: 'a', name: 'A', city: 'Pune', photoUrl: null,
-            lat: 18.52, lng: 73.85,
-            locationSource: MapLocationSource.exactPlace),
-        MapPin(personId: 'b', name: 'B', city: 'Pune', photoUrl: null,
-            lat: 18.52, lng: 73.85,
-            locationSource: MapLocationSource.cityCentroid),
-      ];
-      final households = computeHouseholds(pins);
-      expect(households, hasLength(1),
-          reason: 'Only the exact-place pin clusters; the city-centroid pin is skipped');
-      expect(households.first.size, equals(1));
-      expect(households.first.members.first.personId, equals('a'));
-    });
+    test(
+      'mixed: 1 exact + 1 city-centroid → only 1 household (the exact one)',
+      () {
+        final pins = [
+          MapPin(
+            personId: 'a',
+            name: 'A',
+            city: 'Pune',
+            photoUrl: null,
+            lat: 18.52,
+            lng: 73.85,
+            locationSource: MapLocationSource.exactPlace,
+          ),
+          MapPin(
+            personId: 'b',
+            name: 'B',
+            city: 'Pune',
+            photoUrl: null,
+            lat: 18.52,
+            lng: 73.85,
+            locationSource: MapLocationSource.cityCentroid,
+          ),
+        ];
+        final households = computeHouseholds(pins);
+        expect(
+          households,
+          hasLength(1),
+          reason:
+              'Only the exact-place pin clusters; the city-centroid pin is skipped',
+        );
+        expect(households.first.size, equals(1));
+        expect(households.first.members.first.personId, equals('a'));
+      },
+    );
 
     test('single member remains a single household', () {
       final pins = [
-        MapPin(personId: 'a', name: 'A', city: 'Pune', photoUrl: null,
-            lat: 18.52, lng: 73.85,
-            locationSource: MapLocationSource.exactPlace),
+        MapPin(
+          personId: 'a',
+          name: 'A',
+          city: 'Pune',
+          photoUrl: null,
+          lat: 18.52,
+          lng: 73.85,
+          locationSource: MapLocationSource.exactPlace,
+        ),
       ];
       final households = computeHouseholds(pins);
       expect(households, hasLength(1));
@@ -692,14 +875,23 @@ void main() {
 
     test('household ID is stable (deterministic by rounded coordinates)', () {
       final pins = [
-        MapPin(personId: 'a', name: 'A', city: 'Pune', photoUrl: null,
-            lat: 18.5204, lng: 73.8567,
-            locationSource: MapLocationSource.exactPlace),
+        MapPin(
+          personId: 'a',
+          name: 'A',
+          city: 'Pune',
+          photoUrl: null,
+          lat: 18.5204,
+          lng: 73.8567,
+          locationSource: MapLocationSource.exactPlace,
+        ),
       ];
       final h1 = computeHouseholds(pins);
       final h2 = computeHouseholds(pins);
-      expect(h1.first.id, equals(h2.first.id),
-          reason: 'Same coordinates → same household ID');
+      expect(
+        h1.first.id,
+        equals(h2.first.id),
+        reason: 'Same coordinates → same household ID',
+      );
     });
   });
 }

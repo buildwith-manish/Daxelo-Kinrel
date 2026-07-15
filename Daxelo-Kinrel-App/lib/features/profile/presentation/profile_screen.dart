@@ -29,7 +29,8 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
-import '../../../core/theme/theme_provider.dart' show themeModeProvider, fontScaleProvider, localeProvider;
+import '../../../core/theme/theme_provider.dart'
+    show themeModeProvider, fontScaleProvider, localeProvider;
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/analytics_service.dart';
 import '../../../core/extensions/context_extensions.dart';
@@ -113,9 +114,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   Future<void> _loadInitialData() async {
     // Load profile & stats (fire-and-forget, provider handles state)
-    unawaited(ref.read(profileProvider.notifier).loadProfile().catchError((_) {}));
-    unawaited(ref.read(profileProvider.notifier).loadStats().catchError((_) {}));
-    unawaited(ref.read(profileProvider.notifier).loadInvitations().catchError((_) {}));
+    unawaited(
+      ref.read(profileProvider.notifier).loadProfile().catchError((_) {}),
+    );
+    unawaited(
+      ref.read(profileProvider.notifier).loadStats().catchError((_) {}),
+    );
+    unawaited(
+      ref.read(profileProvider.notifier).loadInvitations().catchError((_) {}),
+    );
 
     // Auto-fetch KIN IDs for families that don't have one
     unawaited(_ensureFamilyIds());
@@ -211,474 +218,500 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   _buildStatsRow(ref.watch(profileStatsProvider)),
                   const SizedBox(height: 28),
 
-            // ── Account ───────────────────────────────────────────
-            _buildSectionHeader('Account'),
-            const SizedBox(height: 8),
-            _buildSectionCard([
-              // Multi-account switcher — prominent entry at the top
-              _SettingsRow(
-                icon: Icons.swap_horiz,
-                label: 'Switch Account',
-                subtitle: 'Add or switch between accounts',
-                iconColor: _orange,
-                labelColor: _orange,
-                onTap: () {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (_) => const AccountSwitcherSheet(),
-                  );
-                },
-              ),
-              _divider(),
-              if (kEnableProfileEditing) ...[
-                _SettingsRow(
-                  icon: Icons.person_outline,
-                  label: 'Profile details',
-                  subtitle: 'Name, email, phone, DOB',
-                  onTap: () => context.push('/profile/edit'),
-                ),
-                _divider(),
-              ],
-              _SettingsRow(
-                icon: Icons.lock_outline,
-                label: 'Change password',
-                onTap: () => context.push('/profile/change-password'),
-              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.link_outlined,
-                label: 'Linked accounts',
-                subtitle: 'Google',
-                onTap: () => context.push('/profile/linked-accounts'),
-              ),
-              _divider(),
-              // KIN-02 FIX: Removed duplicate "Preferred language" row.
-              // Both rows bound the same field (preferredLanguage) and
-              // opened the same sheet (_showLanguageSheet). Keeping only
-              // the Appearance-section "App language" row, relabelled
-              // to just "Language" per the audit recommendation.
-              _divider(),
-              _SettingsRow(
-                icon: Icons.shield_outlined,
-                label: 'Two-factor authentication',
-                subtitle: profile?.twoFactorEnabled == true
-                    ? 'Enabled'
-                    : 'Disabled',
-                onTap: () => context.push('/profile/2fa-setup'),
-              ),
-            ]),
-            const SizedBox(height: 24),
+                  // ── Account ───────────────────────────────────────────
+                  _buildSectionHeader('Account'),
+                  const SizedBox(height: 8),
+                  _buildSectionCard([
+                    // Multi-account switcher — prominent entry at the top
+                    _SettingsRow(
+                      icon: Icons.swap_horiz,
+                      label: 'Switch Account',
+                      subtitle: 'Add or switch between accounts',
+                      iconColor: _orange,
+                      labelColor: _orange,
+                      onTap: () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (_) => const AccountSwitcherSheet(),
+                        );
+                      },
+                    ),
+                    _divider(),
+                    if (kEnableProfileEditing) ...[
+                      _SettingsRow(
+                        icon: Icons.person_outline,
+                        label: 'Profile details',
+                        subtitle: 'Name, email, phone, DOB',
+                        onTap: () => context.push('/profile/edit'),
+                      ),
+                      _divider(),
+                    ],
+                    _SettingsRow(
+                      icon: Icons.lock_outline,
+                      label: 'Change password',
+                      onTap: () => context.push('/profile/change-password'),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.link_outlined,
+                      label: 'Linked accounts',
+                      subtitle: 'Google',
+                      onTap: () => context.push('/profile/linked-accounts'),
+                    ),
+                    _divider(),
+                    // KIN-02 FIX: Removed duplicate "Preferred language" row.
+                    // Both rows bound the same field (preferredLanguage) and
+                    // opened the same sheet (_showLanguageSheet). Keeping only
+                    // the Appearance-section "App language" row, relabelled
+                    // to just "Language" per the audit recommendation.
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.shield_outlined,
+                      label: 'Two-factor authentication',
+                      subtitle: profile?.twoFactorEnabled == true
+                          ? 'Enabled'
+                          : 'Disabled',
+                      onTap: () => context.push('/profile/2fa-setup'),
+                    ),
+                  ]),
+                  const SizedBox(height: 24),
 
-            // ── Appearance ────────────────────────────────────────
-            _buildSectionHeader('Appearance'),
-            const SizedBox(height: 8),
-            _buildSectionCard([
-              _SettingsSegmentedRow<ThemeMode>(
-                icon: Icons.dark_mode_outlined,
-                label: 'Theme',
-                segments: {
-                  ThemeMode.dark: 'Dark',
-                  ThemeMode.light: 'Light',
-                  ThemeMode.system: 'System',
-                },
-                value: themeMode,
-                onChanged: (v) =>
-                    ref.read(themeModeProvider.notifier).state = v,
-              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.translate_outlined,
-                label: 'Language',
-                subtitle:
-                    _languageOptions[profile?.preferredLanguage ?? 'en'] ??
-                    'English',
-                onTap: () => _showLanguageSheet(
-                  context,
-                  profile?.preferredLanguage ?? 'en',
-                ),
-              ),
-              _divider(),
-              _SettingsFontScaleRow(
-                icon: Icons.text_fields,
-                label: 'Text size',
-                value: fontScale,
-                onChanged: (v) =>
-                    ref.read(fontScaleProvider.notifier).state = v,
-              ),
-            ]),
-            const SizedBox(height: 24),
+                  // ── Appearance ────────────────────────────────────────
+                  _buildSectionHeader('Appearance'),
+                  const SizedBox(height: 8),
+                  _buildSectionCard([
+                    _SettingsSegmentedRow<ThemeMode>(
+                      icon: Icons.dark_mode_outlined,
+                      label: 'Theme',
+                      segments: {
+                        ThemeMode.dark: 'Dark',
+                        ThemeMode.light: 'Light',
+                        ThemeMode.system: 'System',
+                      },
+                      value: themeMode,
+                      onChanged: (v) =>
+                          ref.read(themeModeProvider.notifier).state = v,
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.translate_outlined,
+                      label: 'Language',
+                      subtitle:
+                          _languageOptions[profile?.preferredLanguage ??
+                              'en'] ??
+                          'English',
+                      onTap: () => _showLanguageSheet(
+                        context,
+                        profile?.preferredLanguage ?? 'en',
+                      ),
+                    ),
+                    _divider(),
+                    _SettingsFontScaleRow(
+                      icon: Icons.text_fields,
+                      label: 'Text size',
+                      value: fontScale,
+                      onChanged: (v) =>
+                          ref.read(fontScaleProvider.notifier).state = v,
+                    ),
+                  ]),
+                  const SizedBox(height: 24),
 
-            // ── Notifications ─────────────────────────────────────
-            _buildSectionHeader('Notifications'),
-            const SizedBox(height: 8),
-            _buildSectionCard([
-              _SettingsToggleRow(
-                icon: Icons.notifications_outlined,
-                label: 'Push notifications',
-                provider: _pushNotifProvider,
-                onChanged: (v) => _persistToggle('push_notifications', v),
-              ),
-              _divider(),
-              _SettingsToggleRow(
-                icon: Icons.cake_outlined,
-                label: 'Birthday reminders',
-                provider: _birthdayRemindersProvider,
-                onChanged: (v) => _persistToggle('birthday_reminders', v),
-              ),
-              _divider(),
-              _SettingsToggleRow(
-                icon: Icons.favorite_outline,
-                label: 'Anniversary reminders',
-                provider: _anniversaryRemindersProvider,
-                onChanged: (v) => _persistToggle('anniversary_reminders', v),
-              ),
-              _divider(),
-              _SettingsToggleRow(
-                icon: Icons.group_outlined,
-                label: 'Family activity',
-                provider: _familyActivityProvider,
-                onChanged: (v) => _persistToggle('family_activity', v),
-              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.bedtime_outlined,
-                label: 'Quiet hours',
-                onTap: () => context.push('/profile/quiet-hours'),
-              ),
-              _divider(),
-              ListTile(
-                leading: Icon(Icons.celebration_outlined, color: KinrelColors.orange),
-                title: Text(
-                  'Occasion Reminders',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-                subtitle: Text(
-                  'Birthdays & anniversaries',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    color: KinrelColors.textDim,
-                    fontSize: 12,
-                  ),
-                ),
-                trailing: Icon(Icons.chevron_right, color: KinrelColors.textDim),
-                onTap: () => context.push('/occasions'),
-              ),
-            ]),
-            const SizedBox(height: 24),
-
-            // ── Privacy & Security ────────────────────────────────
-            _buildSectionHeader('Privacy & Security'),
-            const SizedBox(height: 8),
-            _buildSectionCard([
-              _SettingsRow(
-                icon: Icons.visibility_outlined,
-                label: 'Profile visibility',
-                subtitle: _visibilityLabel(profile?.profileVisibility ?? 'public'),
-                onTap: () => _showVisibilitySheet(
-                  context,
-                  profile?.profileVisibility ?? 'public',
-                ),
-              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.person_add_outlined,
-                label: 'Who can invite me',
-                subtitle: _invitePermissionLabel(
-                  profile?.invitePermission ?? 'anyone',
-                ),
-                onTap: () => _showInvitePermissionSheet(
-                  context,
-                  profile?.invitePermission ?? 'anyone',
-                ),
-              ),
-              _divider(),
-              _SettingsToggleRow(
-                icon: Icons.fingerprint,
-                label: 'Biometric lock',
-                provider: _biometricLockProvider,
-                onChanged: (value) => _onBiometricToggle(value),
-              ),
-              _divider(),
-              // Family Map — live location sharing toggle.
-              // Off by default. When enabled, requests GPS permission,
-              // gets one fix, and starts the broadcast loop on the map
-              // screen. Other family members see your pin move in
-              // near-real-time.
-              _SettingsToggleRow(
-                icon: Icons.location_on_outlined,
-                label: 'Share my location with family',
-                provider: _locationSharingProvider,
-                onChanged: (value) => _onLocationSharingToggle(value),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(left: 50, right: 16, bottom: 8),
-                child: Text(
-                  'When on, family members see your pin on the Family Map in near-real-time. '
-                  'Turn off anytime to stop sharing.',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 11,
-                    color: DKColors.isLight(context)
-                        ? const Color(0xFF9CA3AF)
-                        : const Color(0xFF8A7A72),
-                    height: 1.4,
-                  ),
-                ),
-              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.devices_outlined,
-                label: 'Active sessions',
-                subtitle: () {
-                  final count = ref.watch(profileProvider).sessions.length;
-                  return count > 0 ? '$count active ${count == 1 ? 'session' : 'sessions'}' : null;
-                }(),
-                onTap: () => context.push('/profile/sessions'),
-              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.download_outlined,
-                label: 'Download my data',
-                subtitle: _dataExportRequested ? 'Request pending' : null,
-                onTap: () => _showDataExportSheet(context),
-              ),
-              _divider(),
-              // Kinrel Learning profile — moved here from the Governance hub.
-              // Invisible infra that powers suggestions; needs a transparency/
-              // reset screen but doesn't belong in governance nav.
-              _SettingsRow(
-                icon: Icons.lightbulb_outline,
-                label: 'Kinrel Learning Profile',
-                subtitle: 'View what Kinrel has learned + reset',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const TrackcLearningProfileScreen(),
-                  ),
-                ),
-              ),
-              _divider(),
-              // Silent Alarms — moved here from the Pulse hub.
-              // Passive background nudge system, not something you "go do."
-              _SettingsRow(
-                icon: Icons.notifications_off_outlined,
-                label: 'Silent Alarms',
-                subtitle: 'Private nudges when someone goes quiet',
-                onTap: () => context.push('/pulse/alarms'),
-              ),
-              _divider(),
-              // P12.6 — Pulse Learning Profile (ML engagement transparency)
-              _SettingsRow(
-                icon: Icons.insights_outlined,
-                label: 'Pulse Learning Profile',
-                subtitle: 'See what Kinrel has learned about your engagement',
-                onTap: () => context.push('/profile/pulse-learning'),
-              ),
-              _divider(),
-              // P12.6 — Community Discovery
-              _SettingsRow(
-                icon: Icons.groups_outlined,
-                label: 'Communities',
-                subtitle: 'Browse gotra, village, and surname communities',
-                onTap: () => context.push('/community'),
-              ),
-              _divider(),
-              // P12.6 — Your Family, Your Data (trust/privacy)
-              _SettingsRow(
-                icon: Icons.shield_outlined,
-                label: 'Your Family, Your Data',
-                subtitle: 'What we store, export, and delete',
-                onTap: () => context.push('/your-data'),
-              ),
-              _divider(),
-              // P12.6 — Grandparent Mode (accessibility profile)
-              Consumer(builder: (context, ref, _) {
-                final gpMode = ref.watch(grandparentModeProvider);
-                return _SettingsRow(
-                  icon: Icons.elderly_outlined,
-                  label: 'Grandparent Mode',
-                  subtitle: gpMode.enabled
-                      ? 'On — larger text, simpler navigation'
-                      : 'Larger text, simpler navigation, fewer options',
-                  onTap: () => ref.read(grandparentModeProvider.notifier).toggle(),
-                );
-              }),
-              _divider(),
-              _SettingsDeleteRow(
-                label: 'Delete my account',
-                onTap: () => context.push('/profile/delete-account'),
-              ),
-            ]),
-            const SizedBox(height: 24),
-
-            // ── Family Management ─────────────────────────────────
-            _buildSectionHeader('Family Management'),
-            const SizedBox(height: 8),
-            _buildSectionCard([
-              _SettingsRow(
-                icon: Icons.qr_code_rounded,
-                label: 'Join Family by ID',
-                subtitle: 'Enter KIN-XXXXXXXX to join',
-                iconColor: _orange,
-                labelColor: _orange,
-                onTap: () => context.push('/join-family'),
-              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.account_tree_outlined,
-                label: 'My family trees',
-                onTap: () => context.push('/profile/my-families'),
-              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.mail_outline,
-                label: 'Pending invitations',
-                badge: ref.watch(pendingInvitationCountProvider),
-                onTap: () => context.push('/profile/invitations'),
-              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.block_outlined,
-                label: 'Blocked members',
-                onTap: () => context.push('/profile/blocked'),
-              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.upload_file_outlined,
-                label: 'Export family tree',
-                onTap: () => _showExportFamilyTreeSheet(context),
-              ),
-            ]),
-            const SizedBox(height: 24),
-
-            // ── My Family IDs ─────────────────────────────────────
-            _buildSectionHeader('My Family IDs'),
-            const SizedBox(height: 8),
-            _buildFamilyIdsSection(),
-            const SizedBox(height: 24),
-
-            // ── Support ───────────────────────────────────────────
-            _buildSectionHeader('Support'),
-            const SizedBox(height: 8),
-            _buildSectionCard([
-              _SettingsRow(
-                icon: Icons.help_outline,
-                label: 'Help center / FAQ',
-                onTap: () => context.push('/profile/help'),
-              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.support_agent,
-                label: 'Contact support',
-                onTap: () => context.push('/profile/contact-support'),
-              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.bug_report_outlined,
-                label: 'Report a bug',
-                onTap: () => context.push('/profile/report-bug'),
-              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.star_outline,
-                label: 'Rate the app',
-                onTap: () => _rateApp(),
-              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.share_outlined,
-                label: 'Share Kinrel with friends',
-                iconColor: _orange,
-                labelColor: _orange,
-                onTap: () => _shareApp(),
-              ),
-            ]),
-            const SizedBox(height: 24),
-
-            // ── About ─────────────────────────────────────────────
-            _buildSectionHeader('About'),
-            const SizedBox(height: 8),
-            _buildSectionCard([
-              _SettingsRow(
-                icon: Icons.info_outline,
-                label: 'App version',
-                trailing: Semantics(
-                  button: true,
-                  label: 'App version ${_appVersion ?? '1.0.0'}',
-                  hint: 'Long press for build details',
-                  child: GestureDetector(
-                  onLongPress: () {
-                    if (_buildInfo != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(_buildInfo!),
-                          behavior: SnackBarBehavior.floating,
-                          duration: const Duration(seconds: 4),
+                  // ── Notifications ─────────────────────────────────────
+                  _buildSectionHeader('Notifications'),
+                  const SizedBox(height: 8),
+                  _buildSectionCard([
+                    _SettingsToggleRow(
+                      icon: Icons.notifications_outlined,
+                      label: 'Push notifications',
+                      provider: _pushNotifProvider,
+                      onChanged: (v) => _persistToggle('push_notifications', v),
+                    ),
+                    _divider(),
+                    _SettingsToggleRow(
+                      icon: Icons.cake_outlined,
+                      label: 'Birthday reminders',
+                      provider: _birthdayRemindersProvider,
+                      onChanged: (v) => _persistToggle('birthday_reminders', v),
+                    ),
+                    _divider(),
+                    _SettingsToggleRow(
+                      icon: Icons.favorite_outline,
+                      label: 'Anniversary reminders',
+                      provider: _anniversaryRemindersProvider,
+                      onChanged: (v) =>
+                          _persistToggle('anniversary_reminders', v),
+                    ),
+                    _divider(),
+                    _SettingsToggleRow(
+                      icon: Icons.group_outlined,
+                      label: 'Family activity',
+                      provider: _familyActivityProvider,
+                      onChanged: (v) => _persistToggle('family_activity', v),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.bedtime_outlined,
+                      label: 'Quiet hours',
+                      onTap: () => context.push('/profile/quiet-hours'),
+                    ),
+                    _divider(),
+                    ListTile(
+                      leading: Icon(
+                        Icons.celebration_outlined,
+                        color: KinrelColors.orange,
+                      ),
+                      title: Text(
+                        'Occasion Reminders',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          color: KinrelColors.textWhite,
                         ),
-                      );
-                    }
-                  },
-                  child: Text(
-                    _appVersion ?? '1.0.0',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.monoFont,
-                      fontSize: 13,
-                      color: _textDim,
+                      ),
+                      subtitle: Text(
+                        'Birthdays & anniversaries',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          color: KinrelColors.textDim,
+                          fontSize: 12,
+                        ),
+                      ),
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: KinrelColors.textDim,
+                      ),
+                      onTap: () => context.push('/occasions'),
+                    ),
+                  ]),
+                  const SizedBox(height: 24),
+
+                  // ── Privacy & Security ────────────────────────────────
+                  _buildSectionHeader('Privacy & Security'),
+                  const SizedBox(height: 8),
+                  _buildSectionCard([
+                    _SettingsRow(
+                      icon: Icons.visibility_outlined,
+                      label: 'Profile visibility',
+                      subtitle: _visibilityLabel(
+                        profile?.profileVisibility ?? 'public',
+                      ),
+                      onTap: () => _showVisibilitySheet(
+                        context,
+                        profile?.profileVisibility ?? 'public',
+                      ),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.person_add_outlined,
+                      label: 'Who can invite me',
+                      subtitle: _invitePermissionLabel(
+                        profile?.invitePermission ?? 'anyone',
+                      ),
+                      onTap: () => _showInvitePermissionSheet(
+                        context,
+                        profile?.invitePermission ?? 'anyone',
+                      ),
+                    ),
+                    _divider(),
+                    _SettingsToggleRow(
+                      icon: Icons.fingerprint,
+                      label: 'Biometric lock',
+                      provider: _biometricLockProvider,
+                      onChanged: (value) => _onBiometricToggle(value),
+                    ),
+                    _divider(),
+                    // Family Map — live location sharing toggle.
+                    // Off by default. When enabled, requests GPS permission,
+                    // gets one fix, and starts the broadcast loop on the map
+                    // screen. Other family members see your pin move in
+                    // near-real-time.
+                    _SettingsToggleRow(
+                      icon: Icons.location_on_outlined,
+                      label: 'Share my location with family',
+                      provider: _locationSharingProvider,
+                      onChanged: (value) => _onLocationSharingToggle(value),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: 50,
+                        right: 16,
+                        bottom: 8,
+                      ),
+                      child: Text(
+                        'When on, family members see your pin on the Family Map in near-real-time. '
+                        'Turn off anytime to stop sharing.',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 11,
+                          color: DKColors.isLight(context)
+                              ? const Color(0xFF9CA3AF)
+                              : const Color(0xFF8A7A72),
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.devices_outlined,
+                      label: 'Active sessions',
+                      subtitle: () {
+                        final count = ref
+                            .watch(profileProvider)
+                            .sessions
+                            .length;
+                        return count > 0
+                            ? '$count active ${count == 1 ? 'session' : 'sessions'}'
+                            : null;
+                      }(),
+                      onTap: () => context.push('/profile/sessions'),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.download_outlined,
+                      label: 'Download my data',
+                      subtitle: _dataExportRequested ? 'Request pending' : null,
+                      onTap: () => _showDataExportSheet(context),
+                    ),
+                    _divider(),
+                    // Kinrel Learning profile — moved here from the Governance hub.
+                    // Invisible infra that powers suggestions; needs a transparency/
+                    // reset screen but doesn't belong in governance nav.
+                    _SettingsRow(
+                      icon: Icons.lightbulb_outline,
+                      label: 'Kinrel Learning Profile',
+                      subtitle: 'View what Kinrel has learned + reset',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const TrackcLearningProfileScreen(),
+                        ),
+                      ),
+                    ),
+                    _divider(),
+                    // Silent Alarms — moved here from the Pulse hub.
+                    // Passive background nudge system, not something you "go do."
+                    _SettingsRow(
+                      icon: Icons.notifications_off_outlined,
+                      label: 'Silent Alarms',
+                      subtitle: 'Private nudges when someone goes quiet',
+                      onTap: () => context.push('/pulse/alarms'),
+                    ),
+                    _divider(),
+                    // P12.6 — Pulse Learning Profile (ML engagement transparency)
+                    _SettingsRow(
+                      icon: Icons.insights_outlined,
+                      label: 'Pulse Learning Profile',
+                      subtitle:
+                          'See what Kinrel has learned about your engagement',
+                      onTap: () => context.push('/profile/pulse-learning'),
+                    ),
+                    _divider(),
+                    // P12.6 — Community Discovery
+                    _SettingsRow(
+                      icon: Icons.groups_outlined,
+                      label: 'Communities',
+                      subtitle:
+                          'Browse gotra, village, and surname communities',
+                      onTap: () => context.push('/community'),
+                    ),
+                    _divider(),
+                    // P12.6 — Your Family, Your Data (trust/privacy)
+                    _SettingsRow(
+                      icon: Icons.shield_outlined,
+                      label: 'Your Family, Your Data',
+                      subtitle: 'What we store, export, and delete',
+                      onTap: () => context.push('/your-data'),
+                    ),
+                    _divider(),
+                    // P12.6 — Grandparent Mode (accessibility profile)
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final gpMode = ref.watch(grandparentModeProvider);
+                        return _SettingsRow(
+                          icon: Icons.elderly_outlined,
+                          label: 'Grandparent Mode',
+                          subtitle: gpMode.enabled
+                              ? 'On — larger text, simpler navigation'
+                              : 'Larger text, simpler navigation, fewer options',
+                          onTap: () => ref
+                              .read(grandparentModeProvider.notifier)
+                              .toggle(),
+                        );
+                      },
+                    ),
+                    _divider(),
+                    _SettingsDeleteRow(
+                      label: 'Delete my account',
+                      onTap: () => context.push('/profile/delete-account'),
+                    ),
+                  ]),
+                  const SizedBox(height: 24),
+
+                  // ── Family Management ─────────────────────────────────
+                  _buildSectionHeader('Family Management'),
+                  const SizedBox(height: 8),
+                  _buildSectionCard([
+                    _SettingsRow(
+                      icon: Icons.qr_code_rounded,
+                      label: 'Join Family by ID',
+                      subtitle: 'Enter KIN-XXXXXXXX to join',
+                      iconColor: _orange,
+                      labelColor: _orange,
+                      onTap: () => context.push('/join-family'),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.account_tree_outlined,
+                      label: 'My family trees',
+                      onTap: () => context.push('/profile/my-families'),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.mail_outline,
+                      label: 'Pending invitations',
+                      badge: ref.watch(pendingInvitationCountProvider),
+                      onTap: () => context.push('/profile/invitations'),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.block_outlined,
+                      label: 'Blocked members',
+                      onTap: () => context.push('/profile/blocked'),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.upload_file_outlined,
+                      label: 'Export family tree',
+                      onTap: () => _showExportFamilyTreeSheet(context),
+                    ),
+                  ]),
+                  const SizedBox(height: 24),
+
+                  // ── My Family IDs ─────────────────────────────────────
+                  _buildSectionHeader('My Family IDs'),
+                  const SizedBox(height: 8),
+                  _buildFamilyIdsSection(),
+                  const SizedBox(height: 24),
+
+                  // ── Support ───────────────────────────────────────────
+                  _buildSectionHeader('Support'),
+                  const SizedBox(height: 8),
+                  _buildSectionCard([
+                    _SettingsRow(
+                      icon: Icons.help_outline,
+                      label: 'Help center / FAQ',
+                      onTap: () => context.push('/profile/help'),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.support_agent,
+                      label: 'Contact support',
+                      onTap: () => context.push('/profile/contact-support'),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.bug_report_outlined,
+                      label: 'Report a bug',
+                      onTap: () => context.push('/profile/report-bug'),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.star_outline,
+                      label: 'Rate the app',
+                      onTap: () => _rateApp(),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.share_outlined,
+                      label: 'Share Kinrel with friends',
+                      iconColor: _orange,
+                      labelColor: _orange,
+                      onTap: () => _shareApp(),
+                    ),
+                  ]),
+                  const SizedBox(height: 24),
+
+                  // ── About ─────────────────────────────────────────────
+                  _buildSectionHeader('About'),
+                  const SizedBox(height: 8),
+                  _buildSectionCard([
+                    _SettingsRow(
+                      icon: Icons.info_outline,
+                      label: 'App version',
+                      trailing: Semantics(
+                        button: true,
+                        label: 'App version ${_appVersion ?? '1.0.0'}',
+                        hint: 'Long press for build details',
+                        child: GestureDetector(
+                          onLongPress: () {
+                            if (_buildInfo != null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(_buildInfo!),
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 4),
+                                ),
+                              );
+                            }
+                          },
+                          child: Text(
+                            _appVersion ?? '1.0.0',
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.monoFont,
+                              fontSize: 13,
+                              color: _textDim,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.description_outlined,
+                      label: 'Terms of service',
+                      onTap: () => context.push('/terms'),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.privacy_tip_outlined,
+                      label: 'Privacy policy',
+                      onTap: () => context.push('/privacy'),
+                    ),
+                  ]),
+                  const SizedBox(height: 16),
+
+                  // ── Footer ────────────────────────────────────────────
+                  Center(
+                    child: Text(
+                      'Made with love by Daxelo',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 12,
+                        color: _textDim,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
-                ),
-                ),
-              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.description_outlined,
-                label: 'Terms of service',
-                onTap: () => context.push('/terms'),              ),
-              _divider(),
-              _SettingsRow(
-                icon: Icons.privacy_tip_outlined,
-                label: 'Privacy policy',
-                onTap: () => context.push('/privacy'),
-              ),
-            ]),
-            const SizedBox(height: 16),
+                  const SizedBox(height: 8),
 
-            // ── Footer ────────────────────────────────────────────
-            Center(
-              child: Text(
-                'Made with love by Daxelo',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 12,
-                  color: _textDim,
-                  letterSpacing: 0.5,
-                ),
+                  // ── Sign Out ──────────────────────────────────────────
+                  DKButton(
+                        label: 'Sign Out',
+                        variant: DKButtonVariant.gradient,
+                        gradient: KinrelGradients.signOutGradient,
+                        icon: Icons.logout,
+                        fullWidth: true,
+                        size: DKButtonSize.lg,
+                        onPressed: () => _showSignOutDialog(context),
+                      )
+                      .animate(onPlay: (c) => c.forward())
+                      .fadeIn(duration: 500.ms, delay: 400.ms),
+
+                  const SizedBox(height: 32),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
-
-            // ── Sign Out ──────────────────────────────────────────
-            DKButton(
-                  label: 'Sign Out',
-                  variant: DKButtonVariant.gradient,
-                  gradient: KinrelGradients.signOutGradient,
-                  icon: Icons.logout,
-                  fullWidth: true,
-                  size: DKButtonSize.lg,
-                  onPressed: () => _showSignOutDialog(context),
-                )
-                .animate(onPlay: (c) => c.forward())
-                .fadeIn(duration: 500.ms, delay: 400.ms),
-
-            const SizedBox(height: 32),
-          ],
-        ),
-      ),
     );
   }
 
@@ -698,125 +731,127 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       children: [
         // Avatar with Sparq ring + camera overlay
         Semantics(
-          button: true,
-          label: 'View Sparqs or change profile photo',
-          hint: 'Double tap to view Sparqs. Use camera icon to change photo.',
-          child: SparqRingAvatar(
-            userId: user?.id ?? profile?.id ?? '',
-            avatarUrl: avatarUrl,
-            radius: 47,
-            onTap: () => context.push('/sparq/create'),
-            child: SizedBox(
-              width: 94,
-              height: 94,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // Avatar content (ring drawn by SparqRingAvatar)
-                  ClipOval(
-                    child: Container(
-                      color: KinrelColors.darkElevated,
-                      child: _isUploadingAvatar
-                          ? Center(
-                              child: SizedBox(
-                                width: 32,
-                                height: 32,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 3,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    _orange,
+              button: true,
+              label: 'View Sparqs or change profile photo',
+              hint:
+                  'Double tap to view Sparqs. Use camera icon to change photo.',
+              child: SparqRingAvatar(
+                userId: user?.id ?? profile?.id ?? '',
+                avatarUrl: avatarUrl,
+                radius: 47,
+                onTap: () => context.push('/sparq/create'),
+                child: SizedBox(
+                  width: 94,
+                  height: 94,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // Avatar content (ring drawn by SparqRingAvatar)
+                      ClipOval(
+                        child: Container(
+                          color: KinrelColors.darkElevated,
+                          child: _isUploadingAvatar
+                              ? Center(
+                                  child: SizedBox(
+                                    width: 32,
+                                    height: 32,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 3,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        _orange,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : (avatarUrl != null && avatarUrl.isNotEmpty)
+                              ? CachedNetworkImage(
+                                  cacheManager:
+                                      KinrelImageCacheManager.instance,
+                                  imageUrl: avatarUrl,
+                                  fit: BoxFit.cover,
+                                  imageBuilder: (ctx, img) => Image(
+                                    image: img,
+                                    semanticLabel: '$displayName\'s photo',
+                                  ),
+                                  placeholder: (_, __) => Center(
+                                    child: Text(
+                                      displayName.isNotEmpty
+                                          ? displayName[0].toUpperCase()
+                                          : '?',
+                                      style: TextStyle(
+                                        fontFamily:
+                                            KinrelTypography.displayFont,
+                                        fontSize: 36,
+                                        fontWeight: FontWeight.w700,
+                                        color: _textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                  errorWidget: (_, __, ___) => Center(
+                                    child: Text(
+                                      displayName.isNotEmpty
+                                          ? displayName[0].toUpperCase()
+                                          : '?',
+                                      style: TextStyle(
+                                        fontFamily:
+                                            KinrelTypography.displayFont,
+                                        fontSize: 36,
+                                        fontWeight: FontWeight.w700,
+                                        color: _textPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : Center(
+                                  child: Text(
+                                    displayName.isNotEmpty
+                                        ? displayName[0].toUpperCase()
+                                        : '?',
+                                    style: TextStyle(
+                                      fontFamily: KinrelTypography.displayFont,
+                                      fontSize: 36,
+                                      fontWeight: FontWeight.w700,
+                                      color: _textPrimary,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            )
-                          : (avatarUrl != null && avatarUrl.isNotEmpty)
-                          ? CachedNetworkImage(
-                              cacheManager: KinrelImageCacheManager.instance,
-                              imageUrl: avatarUrl,
-                              fit: BoxFit.cover,
-                              imageBuilder: (ctx, img) => Image(
-                                image: img,
-                                semanticLabel: '$displayName\'s photo',
-                              ),
-                              placeholder: (_, __) => Center(
-                                child: Text(
-                                  displayName.isNotEmpty
-                                      ? displayName[0].toUpperCase()
-                                      : '?',
-                                  style: TextStyle(
-                                    fontFamily:
-                                        KinrelTypography.displayFont,
-                                    fontSize: 36,
-                                    fontWeight: FontWeight.w700,
-                                    color: _textPrimary,
-                                  ),
-                                ),
-                              ),
-                              errorWidget: (_, __, ___) => Center(
-                                child: Text(
-                                  displayName.isNotEmpty
-                                      ? displayName[0].toUpperCase()
-                                      : '?',
-                                  style: TextStyle(
-                                    fontFamily:
-                                        KinrelTypography.displayFont,
-                                    fontSize: 36,
-                                    fontWeight: FontWeight.w700,
-                                    color: _textPrimary,
-                                  ),
-                                ),
-                              ),
-                            )
-                          : Center(
-                              child: Text(
-                                displayName.isNotEmpty
-                                    ? displayName[0].toUpperCase()
-                                    : '?',
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.displayFont,
-                                  fontSize: 36,
-                                  fontWeight: FontWeight.w700,
-                                  color: _textPrimary,
-                                ),
-                              ),
-                            ),
-                    ),
-                  ),
-                  // Camera icon overlay — separate tap for changing photo
-                  Positioned(
-                    right: -2,
-                    bottom: -2,
-                    child: GestureDetector(
-                      onTap: _showAvatarSourceSheet,
-                      child: Container(
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          color: _orange,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: _bg, width: 2),
-                        ),
-                        child: const Icon(
-                          Icons.camera_alt,
-                          size: 16,
-                          color: Colors.white,
                         ),
                       ),
-                    ),
+                      // Camera icon overlay — separate tap for changing photo
+                      Positioned(
+                        right: -2,
+                        bottom: -2,
+                        child: GestureDetector(
+                          onTap: _showAvatarSourceSheet,
+                          child: Container(
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: _orange,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: _bg, width: 2),
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
+            )
+            .animate(onPlay: (c) => c.forward())
+            .fadeIn(duration: 500.ms)
+            .scale(
+              begin: const Offset(0.8, 0.8),
+              end: const Offset(1.0, 1.0),
+              duration: 400.ms,
+              curve: Curves.easeOutBack,
             ),
-          ),
-        )
-        .animate(onPlay: (c) => c.forward())
-        .fadeIn(duration: 500.ms)
-        .scale(
-          begin: const Offset(0.8, 0.8),
-          end: const Offset(1.0, 1.0),
-          duration: 400.ms,
-          curve: Curves.easeOutBack,
-        ),
 
         const SizedBox(height: 12),
 
@@ -895,20 +930,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           label: bio.isEmpty ? 'Add a bio' : 'Edit bio',
           hint: 'Double tap to edit your bio',
           child: GestureDetector(
-          onTap: () => context.push('/profile/edit?focus=bio'),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              bio.isEmpty ? 'Tap to add a bio...' : bio,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 13,
-                color: bio.isEmpty ? _textDim.withValues(alpha: 0.6) : _textDim,
+            onTap: () => context.push('/profile/edit?focus=bio'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                bio.isEmpty ? 'Tap to add a bio...' : bio,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 13,
+                  color: bio.isEmpty
+                      ? _textDim.withValues(alpha: 0.6)
+                      : _textDim,
+                ),
               ),
             ),
           ),
-        ),
         ),
 
         const SizedBox(height: 16),
@@ -1154,7 +1191,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  Icon(Icons.family_restroom_outlined, size: 32, color: _textDim),
+                  Icon(
+                    Icons.family_restroom_outlined,
+                    size: 32,
+                    color: _textDim,
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     'No families yet',
@@ -1181,20 +1222,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   ? () {
                       Clipboard.setData(ClipboardData(text: kinId));
                       context.showSnackBar('Family ID copied');
-                      ref.read(familyInviteProvider.notifier).trackInviteSent(
-                        familyId: family.id,
-                        channel: 'direct',
-                      );
+                      ref
+                          .read(familyInviteProvider.notifier)
+                          .trackInviteSent(
+                            familyId: family.id,
+                            channel: 'direct',
+                          );
                     }
                   : null,
               onQR: (kinId != null && kEnableQrJoin)
-                  ? () => context.push('/family-qr?familyId=${family.id}&familyName=${Uri.encodeComponent(family.name)}&kinFamilyId=$kinId')
+                  ? () => context.push(
+                      '/family-qr?familyId=${family.id}&familyName=${Uri.encodeComponent(family.name)}&kinFamilyId=$kinId',
+                    )
                   : null,
               onShare: kinId != null
-                  ? () => ref.read(familyInviteProvider.notifier).shareInviteLink(
-                        kinId,
-                        familyName: family.name,
-                      )
+                  ? () => ref
+                        .read(familyInviteProvider.notifier)
+                        .shareInviteLink(kinId, familyName: family.name)
                   : null,
             );
           }).toList(),
@@ -1481,8 +1525,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        ref.read(_pushNotifProvider.notifier).state =
-            results[0] != 'false';
+        ref.read(_pushNotifProvider.notifier).state = results[0] != 'false';
         ref.read(_birthdayRemindersProvider.notifier).state =
             results[1] != 'false';
         ref.read(_anniversaryRemindersProvider.notifier).state =
@@ -1524,7 +1567,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         } else if (result == PermissionResult.serviceDisabled) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Please enable location services in your device settings.')),
+              const SnackBar(
+                content: Text(
+                  'Please enable location services in your device settings.',
+                ),
+              ),
             );
           }
         }
@@ -1537,7 +1584,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         ref.read(_locationSharingProvider.notifier).state = false;
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not get your location. Try again.')),
+            const SnackBar(
+              content: Text('Could not get your location. Try again.'),
+            ),
           );
         }
         return;
@@ -1551,7 +1600,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         ref.read(_locationSharingProvider.notifier).state = false;
         return;
       }
-      final myPerson = members.where((p) => p.linkedUserId == userId).firstOrNull;
+      final myPerson = members
+          .where((p) => p.linkedUserId == userId)
+          .firstOrNull;
       if (myPerson == null) {
         ref.read(_locationSharingProvider.notifier).state = false;
         return;
@@ -1559,7 +1610,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
       // Enable sharing in the provider — the map screen will detect
       // isSharing=true and start the broadcast loop automatically.
-      await ref.read(liveLocationProvider.notifier).setSharing(
+      await ref
+          .read(liveLocationProvider.notifier)
+          .setSharing(
             sharing: true,
             familyId: familyId,
             personId: myPerson.id,
@@ -1572,11 +1625,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       final members = ref.read(familyMembersProvider(familyId)).valueOrNull;
       final userId = ref.read(supabaseProvider)?.auth.currentUser?.id;
       if (familyId.isNotEmpty && members != null && userId != null) {
-        final myPerson = members.where((p) => p.linkedUserId == userId).firstOrNull;
+        final myPerson = members
+            .where((p) => p.linkedUserId == userId)
+            .firstOrNull;
         if (myPerson != null) {
           // Use the last known position to set isSharing=false.
           final lastPos = await getCurrentPosition();
-          await ref.read(liveLocationProvider.notifier).setSharing(
+          await ref
+              .read(liveLocationProvider.notifier)
+              .setSharing(
                 sharing: false,
                 familyId: familyId,
                 personId: myPerson.id,
@@ -1677,7 +1734,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   void _showVisibilitySheet(BuildContext context, String current) {
     final options = [
       ('public', 'Public', 'Anyone can see your profile'),
-      ('connections_only', 'Connections Only', 'Only your family connections can see your profile'),
+      (
+        'connections_only',
+        'Connections Only',
+        'Only your family connections can see your profile',
+      ),
       ('private', 'Private', 'No one can see your profile'),
     ];
     showModalBottomSheet(
@@ -1742,14 +1803,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     : null,
                 onTap: () async {
                   Navigator.of(ctx).pop();
-                  final success = await ref.read(profileProvider.notifier).updateProfile({
-                    'profileVisibility': opt.$1,
-                  });
+                  final success = await ref
+                      .read(profileProvider.notifier)
+                      .updateProfile({'profileVisibility': opt.$1});
                   if (mounted) {
                     if (success) {
-                      context.showSnackBar('Profile visibility updated to ${opt.$2}');
+                      context.showSnackBar(
+                        'Profile visibility updated to ${opt.$2}',
+                      );
                     } else {
-                      context.showSnackBar('Failed to update profile visibility', isError: true);
+                      context.showSnackBar(
+                        'Failed to update profile visibility',
+                        isError: true,
+                      );
                     }
                   }
                 },
@@ -1769,7 +1835,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   void _showInvitePermissionSheet(BuildContext context, String current) {
     final options = [
       ('anyone', 'Everyone', 'Anyone can send you family invitations'),
-      ('connections', 'Connections Only', 'Only your family connections can invite you'),
+      (
+        'connections',
+        'Connections Only',
+        'Only your family connections can invite you',
+      ),
       ('nobody', 'Nobody', 'No one can send you invitations'),
     ];
     showModalBottomSheet(
@@ -1834,14 +1904,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     : null,
                 onTap: () async {
                   Navigator.of(ctx).pop();
-                  final success = await ref.read(profileProvider.notifier).updateProfile({
-                    'invitePermission': opt.$1,
-                  });
+                  final success = await ref
+                      .read(profileProvider.notifier)
+                      .updateProfile({'invitePermission': opt.$1});
                   if (mounted) {
                     if (success) {
-                      context.showSnackBar('Invite permission updated to ${opt.$2}');
+                      context.showSnackBar(
+                        'Invite permission updated to ${opt.$2}',
+                      );
                     } else {
-                      context.showSnackBar('Failed to update invite permission', isError: true);
+                      context.showSnackBar(
+                        'Failed to update invite permission',
+                        isError: true,
+                      );
                     }
                   }
                 },
@@ -2386,12 +2461,12 @@ class _SettingsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveIconColor = iconColor ??
+    final effectiveIconColor =
+        iconColor ??
         (DKColors.isLight(context)
             ? const Color(0xFF6B7280)
             : const Color(0xFF8A7A72));
-    final effectiveLabelColor =
-        labelColor ?? DKColors.textPrimary(context);
+    final effectiveLabelColor = labelColor ?? DKColors.textPrimary(context);
 
     return Material(
       color: Colors.transparent,
@@ -2501,7 +2576,13 @@ class _SettingsToggleRow extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          Icon(icon, color: DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72), size: 20),
+          Icon(
+            icon,
+            color: DKColors.isLight(context)
+                ? const Color(0xFF6B7280)
+                : const Color(0xFF8A7A72),
+            size: 20,
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
@@ -2561,7 +2642,13 @@ class _SettingsSegmentedRow<T> extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          Icon(icon, color: DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72), size: 20),
+          Icon(
+            icon,
+            color: DKColors.isLight(context)
+                ? const Color(0xFF6B7280)
+                : const Color(0xFF8A7A72),
+            size: 20,
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -2604,7 +2691,11 @@ class _SettingsSegmentedRow<T> extends StatelessWidget {
                                 fontWeight: isSelected
                                     ? FontWeight.w600
                                     : FontWeight.w400,
-                                color: isSelected ? Colors.white : (DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72)),
+                                color: isSelected
+                                    ? Colors.white
+                                    : (DKColors.isLight(context)
+                                          ? const Color(0xFF6B7280)
+                                          : const Color(0xFF8A7A72)),
                               ),
                             ),
                           ),
@@ -2648,7 +2739,13 @@ class _SettingsFontScaleRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          Icon(icon, color: DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72), size: 20),
+          Icon(
+            icon,
+            color: DKColors.isLight(context)
+                ? const Color(0xFF6B7280)
+                : const Color(0xFF8A7A72),
+            size: 20,
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -2691,7 +2788,11 @@ class _SettingsFontScaleRow extends StatelessWidget {
                                 fontWeight: isSelected
                                     ? FontWeight.w600
                                     : FontWeight.w400,
-                                color: isSelected ? Colors.white : (DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72)),
+                                color: isSelected
+                                    ? Colors.white
+                                    : (DKColors.isLight(context)
+                                          ? const Color(0xFF6B7280)
+                                          : const Color(0xFF8A7A72)),
                               ),
                             ),
                           ),
@@ -2747,7 +2848,13 @@ class _SettingsDeleteRow extends StatelessWidget {
                   ),
                 ),
               ),
-              Icon(Icons.chevron_right, color: DKColors.isLight(context) ? const Color(0xFF9CA3AF) : const Color(0xFF8A7A72), size: 20),
+              Icon(
+                Icons.chevron_right,
+                color: DKColors.isLight(context)
+                    ? const Color(0xFF9CA3AF)
+                    : const Color(0xFF8A7A72),
+                size: 20,
+              ),
             ],
           ),
         ),
@@ -2837,7 +2944,9 @@ class _FamilyIdRow extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 12,
-                        color: DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72),
+                        color: DKColors.isLight(context)
+                            ? const Color(0xFF6B7280)
+                            : const Color(0xFF8A7A72),
                       ),
                     ),
                 ],
@@ -2851,7 +2960,13 @@ class _FamilyIdRow extends StatelessWidget {
                 width: 36,
                 height: 36,
                 child: IconButton(
-                  icon: Icon(Icons.qr_code_rounded, color: DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72), size: 20),
+                  icon: Icon(
+                    Icons.qr_code_rounded,
+                    color: DKColors.isLight(context)
+                        ? const Color(0xFF6B7280)
+                        : const Color(0xFF8A7A72),
+                    size: 20,
+                  ),
                   onPressed: onQR,
                   padding: EdgeInsets.zero,
                   tooltip: 'Show QR code',
@@ -2863,14 +2978,26 @@ class _FamilyIdRow extends StatelessWidget {
                 width: 36,
                 height: 36,
                 child: IconButton(
-                  icon: Icon(Icons.share_outlined, color: DKColors.isLight(context) ? const Color(0xFF6B7280) : const Color(0xFF8A7A72), size: 20),
+                  icon: Icon(
+                    Icons.share_outlined,
+                    color: DKColors.isLight(context)
+                        ? const Color(0xFF6B7280)
+                        : const Color(0xFF8A7A72),
+                    size: 20,
+                  ),
                   onPressed: onShare,
                   padding: EdgeInsets.zero,
                   tooltip: 'Share invite link',
                 ),
               ),
             ] else ...[
-              Icon(Icons.chevron_right, color: DKColors.isLight(context) ? const Color(0xFF9CA3AF) : const Color(0xFF8A7A72), size: 20),
+              Icon(
+                Icons.chevron_right,
+                color: DKColors.isLight(context)
+                    ? const Color(0xFF9CA3AF)
+                    : const Color(0xFF8A7A72),
+                size: 20,
+              ),
             ],
           ],
         ),
@@ -2878,4 +3005,3 @@ class _FamilyIdRow extends StatelessWidget {
     );
   }
 }
-

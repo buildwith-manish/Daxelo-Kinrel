@@ -54,8 +54,10 @@ ResolvedMapLocation? resolvePrimaryMapLocation({
       isCurrentLocationAnchor(linkedPlace.placeType) &&
       linkedPlace.lat != 0.0 &&
       linkedPlace.lng != 0.0 &&
-      linkedPlace.lat >= -90.0 && linkedPlace.lat <= 90.0 &&
-      linkedPlace.lng >= -180.0 && linkedPlace.lng <= 180.0) {
+      linkedPlace.lat >= -90.0 &&
+      linkedPlace.lat <= 90.0 &&
+      linkedPlace.lng >= -180.0 &&
+      linkedPlace.lng <= 180.0) {
     return ResolvedMapLocation(
       lat: linkedPlace.lat,
       lng: linkedPlace.lng,
@@ -64,9 +66,12 @@ ResolvedMapLocation? resolvePrimaryMapLocation({
   }
 
   // Priority 2: City centroid
-  if (cityLat != null && cityLng != null &&
-      cityLat >= -90.0 && cityLat <= 90.0 &&
-      cityLng >= -180.0 && cityLng <= 180.0) {
+  if (cityLat != null &&
+      cityLng != null &&
+      cityLat >= -90.0 &&
+      cityLat <= 90.0 &&
+      cityLng >= -180.0 &&
+      cityLng <= 180.0) {
     return ResolvedMapLocation(
       lat: cityLat,
       lng: cityLng,

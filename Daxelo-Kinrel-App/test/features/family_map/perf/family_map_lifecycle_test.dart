@@ -25,14 +25,17 @@ import 'package:kinrel/features/family_map/data/family_map_lifecycle.dart';
 
 void main() {
   group('FamilyMapLifecycle — state invariants', () {
-    test('showLoadingOverlay is true ONLY during initializing/loadingStyle', () {
-      expect(FamilyMapLifecycle.initializing.showLoadingOverlay, isTrue);
-      expect(FamilyMapLifecycle.loadingStyle.showLoadingOverlay, isTrue);
-      expect(FamilyMapLifecycle.preparingLayers.showLoadingOverlay, isFalse);
-      expect(FamilyMapLifecycle.ready.showLoadingOverlay, isFalse);
-      expect(FamilyMapLifecycle.empty.showLoadingOverlay, isFalse);
-      expect(FamilyMapLifecycle.failed.showLoadingOverlay, isFalse);
-    });
+    test(
+      'showLoadingOverlay is true ONLY during initializing/loadingStyle',
+      () {
+        expect(FamilyMapLifecycle.initializing.showLoadingOverlay, isTrue);
+        expect(FamilyMapLifecycle.loadingStyle.showLoadingOverlay, isTrue);
+        expect(FamilyMapLifecycle.preparingLayers.showLoadingOverlay, isFalse);
+        expect(FamilyMapLifecycle.ready.showLoadingOverlay, isFalse);
+        expect(FamilyMapLifecycle.empty.showLoadingOverlay, isFalse);
+        expect(FamilyMapLifecycle.failed.showLoadingOverlay, isFalse);
+      },
+    );
 
     test('isTerminal is true ONLY for ready/empty/failed', () {
       expect(FamilyMapLifecycle.initializing.isTerminal, isFalse);
@@ -52,14 +55,17 @@ void main() {
       expect(FamilyMapLifecycle.failed.shouldRenderMap, isTrue);
     });
 
-    test('loadingMessage is non-null ONLY during initializing/loadingStyle', () {
-      expect(FamilyMapLifecycle.initializing.loadingMessage, isNotNull);
-      expect(FamilyMapLifecycle.loadingStyle.loadingMessage, isNotNull);
-      expect(FamilyMapLifecycle.preparingLayers.loadingMessage, isNull);
-      expect(FamilyMapLifecycle.ready.loadingMessage, isNull);
-      expect(FamilyMapLifecycle.empty.loadingMessage, isNull);
-      expect(FamilyMapLifecycle.failed.loadingMessage, isNull);
-    });
+    test(
+      'loadingMessage is non-null ONLY during initializing/loadingStyle',
+      () {
+        expect(FamilyMapLifecycle.initializing.loadingMessage, isNotNull);
+        expect(FamilyMapLifecycle.loadingStyle.loadingMessage, isNotNull);
+        expect(FamilyMapLifecycle.preparingLayers.loadingMessage, isNull);
+        expect(FamilyMapLifecycle.ready.loadingMessage, isNull);
+        expect(FamilyMapLifecycle.empty.loadingMessage, isNull);
+        expect(FamilyMapLifecycle.failed.loadingMessage, isNull);
+      },
+    );
   });
 
   group('FamilyMapLifecycleController — transitions', () {
@@ -70,20 +76,23 @@ void main() {
       addTearDown(c.dispose);
     });
 
-    test('valid transition: initializing → loadingStyle → preparingLayers → ready', () {
-      final c = FamilyMapLifecycleController();
-      addTearDown(c.dispose);
-      final attempt = c.currentAttempt;
+    test(
+      'valid transition: initializing → loadingStyle → preparingLayers → ready',
+      () {
+        final c = FamilyMapLifecycleController();
+        addTearDown(c.dispose);
+        final attempt = c.currentAttempt;
 
-      c.transition(FamilyMapLifecycle.loadingStyle, attempt: attempt);
-      expect(c.state, FamilyMapLifecycle.loadingStyle);
+        c.transition(FamilyMapLifecycle.loadingStyle, attempt: attempt);
+        expect(c.state, FamilyMapLifecycle.loadingStyle);
 
-      c.transition(FamilyMapLifecycle.preparingLayers, attempt: attempt);
-      expect(c.state, FamilyMapLifecycle.preparingLayers);
+        c.transition(FamilyMapLifecycle.preparingLayers, attempt: attempt);
+        expect(c.state, FamilyMapLifecycle.preparingLayers);
 
-      c.transition(FamilyMapLifecycle.ready, attempt: attempt);
-      expect(c.state, FamilyMapLifecycle.ready);
-    });
+        c.transition(FamilyMapLifecycle.ready, attempt: attempt);
+        expect(c.state, FamilyMapLifecycle.ready);
+      },
+    );
 
     test('0 located members → empty (NOT loading)', () {
       // This is the EXACT regression test for the bug. 0 members must
@@ -164,8 +173,11 @@ void main() {
 
       // Stale callback from attempt1 tries to transition — must be dropped.
       c.transition(FamilyMapLifecycle.preparingLayers, attempt: attempt1);
-      expect(c.state, FamilyMapLifecycle.ready,
-          reason: 'Stale attempt must not overwrite the current state');
+      expect(
+        c.state,
+        FamilyMapLifecycle.ready,
+        reason: 'Stale attempt must not overwrite the current state',
+      );
     });
 
     test('once terminal, no further transitions allowed without reset', () {
@@ -179,8 +191,11 @@ void main() {
 
       // Try to transition back — must be ignored.
       c.transition(FamilyMapLifecycle.preparingLayers, attempt: attempt);
-      expect(c.state, FamilyMapLifecycle.ready,
-          reason: 'Terminal state cannot be overwritten without reset()');
+      expect(
+        c.state,
+        FamilyMapLifecycle.ready,
+        reason: 'Terminal state cannot be overwritten without reset()',
+      );
 
       // Try to transition to empty — must be ignored.
       c.transition(FamilyMapLifecycle.empty, attempt: attempt);
@@ -199,8 +214,11 @@ void main() {
       final countAfterFirst = notifyCount;
 
       c.transition(FamilyMapLifecycle.loadingStyle, attempt: attempt);
-      expect(notifyCount, countAfterFirst,
-          reason: 'Same-state transition must not notify');
+      expect(
+        notifyCount,
+        countAfterFirst,
+        reason: 'Same-state transition must not notify',
+      );
     });
 
     test('notifyListeners fires on state change', () {
@@ -284,11 +302,12 @@ void main() {
       // when used after dispose (Flutter's standard ChangeNotifier
       // contract — throws FlutterError).
       c.dispose();
-      expect(() => c.transition(
-        FamilyMapLifecycle.preparingLayers,
-        attempt: attempt,
-      ), throwsA(isA<Object>()),
-          reason: 'ChangeNotifier must reject use-after-dispose');
+      expect(
+        () =>
+            c.transition(FamilyMapLifecycle.preparingLayers, attempt: attempt),
+        throwsA(isA<Object>()),
+        reason: 'ChangeNotifier must reject use-after-dispose',
+      );
     });
   });
 
@@ -315,12 +334,21 @@ void main() {
 
       // INVARIANT: loader is hidden, lifecycle is terminal.
       expect(c.state, FamilyMapLifecycle.empty);
-      expect(c.state.isTerminal, isTrue,
-          reason: '0 located members must reach a terminal state');
-      expect(c.state.showLoadingOverlay, isFalse,
-          reason: '0 located members must NOT show the loading overlay');
-      expect(c.state.shouldRenderMap, isTrue,
-          reason: '0 located members must still render the base map');
+      expect(
+        c.state.isTerminal,
+        isTrue,
+        reason: '0 located members must reach a terminal state',
+      );
+      expect(
+        c.state.showLoadingOverlay,
+        isFalse,
+        reason: '0 located members must NOT show the loading overlay',
+      );
+      expect(
+        c.state.shouldRenderMap,
+        isTrue,
+        reason: '0 located members must still render the base map',
+      );
     });
 
     test('locatedMemberCount > 0 → lifecycle == ready, loader hidden', () {
