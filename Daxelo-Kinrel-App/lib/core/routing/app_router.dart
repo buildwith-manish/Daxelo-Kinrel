@@ -194,6 +194,16 @@ import '../../features/trackc/presentation/screens/decision_create_screen.dart';
 import '../../features/trackc/presentation/screens/timeline_screen.dart';
 import '../../features/trackc/presentation/providers/trackc_providers.dart';
 
+// P12.6 — Batch 2: Wire 4 previously-unreachable Category A screens.
+// Audit: docs/audit/batch1-reachability-audit.md
+import '../../features/story_mode/presentation/story_mode_screen.dart';
+import '../../features/community/presentation/community_discovery_screen.dart';
+import '../../features/profile/presentation/pulse_learning_profile_screen.dart';
+import '../../features/family/presentation/family_settings_screen.dart';
+// P12.6 — Batch 3: GEDCOM export + trust/privacy screens
+import '../../features/gedcom/presentation/gedcom_export_screen.dart';
+import '../../features/gedcom/presentation/your_data_screen.dart';
+
 /// Key for accessing the router's navigator state
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -1889,6 +1899,77 @@ final routerProvider = Provider<GoRouter>((ref) {
             child: const MemorialsScreen(familyId: ''),
           );
         },
+      ),
+
+      // ── P12.6 Batch 2: Wire 4 previously-unreachable Category A screens ──
+      // Audit: docs/audit/batch1-reachability-audit.md
+      // Each route was verified via the 13-stage trace (Section 3.1):
+      //   - Screen renders with realistic props ✅
+      //   - Providers exist and are used correctly ✅
+      //   - Backend endpoints exist (NestJS) ✅
+      //   - Auth/RLS via JWT guard ✅
+      //   - Family context passed via path param where required ✅
+      //   - No debug gates, no hardcoded fixtures ✅
+
+      // 1. Story Mode — narrated tour of family history (family-scoped)
+      GoRoute(
+        path: '/family/:id/story-mode',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: StoryModeScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+
+      // 2. Community Discovery — browse communities (global, user-scoped)
+      GoRoute(
+        path: '/community',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const CommunityDiscoveryScreen(),
+        ),
+      ),
+
+      // 3. Pulse Learning Profile — ML engagement transparency (user-scoped)
+      GoRoute(
+        path: '/profile/pulse-learning',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const PulseLearningProfileScreen(),
+        ),
+      ),
+
+      // 4. Family Settings — bridge role opt-in + family admin (family-scoped)
+      GoRoute(
+        path: '/family/:id/settings',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilySettingsScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+
+      // ── P12.6 Batch 3: GEDCOM export + trust/privacy screens ────────
+      // GEDCOM export — family-scoped, strict default-deny allowlist
+      GoRoute(
+        path: '/family/:id/gedcom',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: GedcomExportScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+
+      // "Your Family, Your Data" — what's stored, where, one-tap export
+      GoRoute(
+        path: '/your-data',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const YourDataScreen(),
+        ),
       ),
     ],
   );

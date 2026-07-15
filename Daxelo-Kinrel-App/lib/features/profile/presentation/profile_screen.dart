@@ -470,6 +470,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 onTap: () => context.push('/pulse/alarms'),
               ),
               _divider(),
+              // P12.6 — Pulse Learning Profile (ML engagement transparency)
+              _SettingsRow(
+                icon: Icons.insights_outlined,
+                label: 'Pulse Learning Profile',
+                subtitle: 'See what Kinrel has learned about your engagement',
+                onTap: () => context.push('/profile/pulse-learning'),
+              ),
+              _divider(),
+              // P12.6 — Community Discovery
+              _SettingsRow(
+                icon: Icons.groups_outlined,
+                label: 'Communities',
+                subtitle: 'Browse gotra, village, and surname communities',
+                onTap: () => context.push('/community'),
+              ),
+              _divider(),
+              // P12.6 — Your Family, Your Data (trust/privacy)
+              _SettingsRow(
+                icon: Icons.shield_outlined,
+                label: 'Your Family, Your Data',
+                subtitle: 'What we store, export, and delete',
+                onTap: () => context.push('/your-data'),
+              ),
+              _divider(),
               _SettingsDeleteRow(
                 label: 'Delete my account',
                 onTap: () => context.push('/profile/delete-account'),

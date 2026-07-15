@@ -618,6 +618,24 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
             ),
             Divider(color: KinrelColors.border, height: 1),
 
+            // P12.6 — Story Mode (narrated family history tour)
+            _QuickActionTile(
+              icon: Icons.auto_stories_outlined,
+              label: 'Story Mode',
+              iconColor: KinrelColors.amber,
+              onTap: () { Navigator.pop(ctx); context.push('/family/${widget.familyId}/story-mode'); },
+            ),
+            Divider(color: KinrelColors.border, height: 1),
+
+            // P12.6 — Family Settings (bridge role opt-in)
+            _QuickActionTile(
+              icon: Icons.settings_outlined,
+              label: 'Family Settings',
+              iconColor: KinrelColors.blue,
+              onTap: () { Navigator.pop(ctx); context.push('/family/${widget.familyId}/settings'); },
+            ),
+            Divider(color: KinrelColors.border, height: 1),
+
             // Delete option — moves family to archive (available to all members)
             Divider(color: KinrelColors.border, height: 1),
             _QuickActionTile(
