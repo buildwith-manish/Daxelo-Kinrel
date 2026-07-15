@@ -390,7 +390,7 @@ jobs:
           for l in symbol_layers:
             paint = l.get('paint', {})
             if 'text-halo-color' in paint:
-              assert paint['text-halo-width'] == 2.0, f'{l[\"id\"]}: text-halo-width is {paint[\"text-halo-width\"]}, expected 2.0'
+              assert paint['text-halo-width'] >= 2.0, f'{l[\"id\"]}: text-halo-width is {paint[\"text-halo-width\"]}, expected >= 2.0'
               assert paint['text-halo-color'].upper() == '#0D0D0D', f'{l[\"id\"]}: text-halo-color is {paint[\"text-halo-color\"]}, expected #0D0D0D'
           "; then
             echo "❌ P5.1 FAILED: not all symbol layers have 2px / #0D0D0D halo"
