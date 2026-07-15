@@ -47,7 +47,7 @@ jobs:
       - name: Verify Phase 11 — P11.1 (no CircleStyleLayer in screen)
         working-directory: .
         run: |
-          if rg "addLayer\(CircleStyleLayer" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
+          if grep "addLayer\(CircleStyleLayer" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
             echo "❌ P11.1 FAILED: CircleStyleLayer still used in screen"
             exit 1
           fi
@@ -56,11 +56,11 @@ jobs:
       - name: Verify Phase 11 — P11.2 (family-building layers in style JSON)
         working-directory: .
         run: |
-          if ! rg -q "family-places" Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
+          if ! grep -q "family-places" Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
             echo "❌ P11.2 FAILED: family-places source missing from style JSON"
             exit 1
           fi
-          if ! rg -q "family-buildings" Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
+          if ! grep -q "family-buildings" Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
             echo "❌ P11.2 FAILED: family-buildings layer missing from style JSON"
             exit 1
           fi
@@ -69,7 +69,7 @@ jobs:
       - name: Verify Phase 11 — P11.3 (MapPolishOverlay wired in)
         working-directory: .
         run: |
-          if ! rg -q "MapPolishOverlay" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
+          if ! grep -q "MapPolishOverlay" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
             echo "❌ P11.3 FAILED: MapPolishOverlay not wired into screen"
             exit 1
           fi
@@ -88,7 +88,7 @@ jobs:
         working-directory: .
         run: |
           test -f Daxelo-Kinrel-App/lib/features/family_map/widgets/ambient_motion_controller.dart
-          if ! rg -q "cinematicEntrance" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
+          if ! grep -q "cinematicEntrance" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
             echo "❌ P11.6 FAILED: cinematic entrance not wired"
             exit 1
           fi
@@ -98,7 +98,7 @@ jobs:
         working-directory: .
         run: |
           test -f Daxelo-Kinrel-App/lib/features/family_map/widgets/map_skeleton.dart
-          if rg -q "CircularProgressIndicator" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
+          if grep -q "CircularProgressIndicator" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
             echo "❌ P11.7 FAILED: CircularProgressIndicator still in screen"
             exit 1
           fi
@@ -113,7 +113,7 @@ jobs:
       - name: Verify Phase 11 — Rule 4 (no _v2 files)
         working-directory: .
         run: |
-          if rg -q "_v2" Daxelo-Kinrel-App/lib/features/family_map/; then
+          if grep -q "_v2" Daxelo-Kinrel-App/lib/features/family_map/; then
             echo "❌ Rule 4 FAILED: _v2 files found"
             exit 1
           fi
