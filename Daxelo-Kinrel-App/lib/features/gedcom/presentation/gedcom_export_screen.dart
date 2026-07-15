@@ -41,28 +41,34 @@ class _GedcomExportScreenState extends ConsumerState<GedcomExportScreen> {
     });
 
     try {
-      final familyAsync = ref.read(familyMembersProvider(widget.familyId).future);
-      final detailAsync = ref.read(familyDetailProvider(widget.familyId).future);
+      final familyAsync = ref.read(
+        familyMembersProvider(widget.familyId).future,
+      );
+      final detailAsync = ref.read(
+        familyDetailProvider(widget.familyId).future,
+      );
 
       final members = await familyAsync;
       final detail = await detailAsync;
 
       // Get the current user's person ID (viewer)
-      final viewerPersonId = members
-          .where((p) => p.isLinkedToKinrelUser)
-          .firstOrNull?.id ?? members.first.id;
+      final viewerPersonId =
+          members.where((p) => p.isLinkedToKinrelUser).firstOrNull?.id ??
+          members.first.id;
 
       // Convert relationships to GedcomRelationship
       final gedcomRels = <GedcomRelationship>[];
       if (detail != null) {
         for (final rel in detail.relationships) {
           if (!rel.isActive) continue;
-          gedcomRels.add(GedcomRelationship(
-            fromPersonId: rel.fromPersonId,
-            toPersonId: rel.toPersonId,
-            relationshipKey: rel.relationshipKey,
-            isActive: rel.isActive,
-          ));
+          gedcomRels.add(
+            GedcomRelationship(
+              fromPersonId: rel.fromPersonId,
+              toPersonId: rel.toPersonId,
+              relationshipKey: rel.relationshipKey,
+              isActive: rel.isActive,
+            ),
+          );
         }
       }
 
@@ -99,27 +105,34 @@ class _GedcomExportScreenState extends ConsumerState<GedcomExportScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                        const SizedBox(height: 16),
-                        Text('Export failed', style: Theme.of(context).textTheme.titleLarge),
-                        const SizedBox(height: 8),
-                        Text(_error!, textAlign: TextAlign.center),
-                        const SizedBox(height: 24),
-                        FilledButton(
-                          onPressed: _generateGedcom,
-                          child: const Text('Retry'),
-                        ),
-                      ],
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Colors.red,
                     ),
-                  ),
-                )
-              : _buildContent(),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Export failed',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(_error!, textAlign: TextAlign.center),
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: _generateGedcom,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : _buildContent(),
     );
   }
 
@@ -135,11 +148,15 @@ class _GedcomExportScreenState extends ConsumerState<GedcomExportScreen> {
             decoration: BoxDecoration(
               color: KinrelColors.darkElevated,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: KinrelColors.orange.withOpacity(0.3)),
+              border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
-                Icon(Icons.privacy_tip_outlined, color: KinrelColors.orange, size: 20),
+                Icon(
+                  Icons.privacy_tip_outlined,
+                  color: KinrelColors.orange,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(

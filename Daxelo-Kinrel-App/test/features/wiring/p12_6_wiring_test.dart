@@ -30,21 +30,33 @@ void main() {
       // Verified via constructor signature inspection in audit.
       // Route: /community
       // Entry: profile_screen.dart settings list
-      expect(true, isTrue, reason: 'CommunityDiscoveryScreen wiring verified in audit');
+      expect(
+        true,
+        isTrue,
+        reason: 'CommunityDiscoveryScreen wiring verified in audit',
+      );
     });
 
     test('PulseLearningProfileScreen has no required params', () {
       // Verified via constructor signature inspection in audit.
       // Route: /profile/pulse-learning
       // Entry: profile_screen.dart settings list
-      expect(true, isTrue, reason: 'PulseLearningProfileScreen wiring verified in audit');
+      expect(
+        true,
+        isTrue,
+        reason: 'PulseLearningProfileScreen wiring verified in audit',
+      );
     });
 
     test('FamilySettingsScreen requires familyId', () {
       // Verified via constructor signature inspection in audit.
       // Route: /family/:id/settings
       // Entry: family_detail_screen.dart quick action menu
-      expect(true, isTrue, reason: 'FamilySettingsScreen wiring verified in audit');
+      expect(
+        true,
+        isTrue,
+        reason: 'FamilySettingsScreen wiring verified in audit',
+      );
     });
   });
 

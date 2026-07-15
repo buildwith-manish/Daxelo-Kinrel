@@ -77,7 +77,10 @@ class GedcomExporter {
     buffer.writeln('2 FORM LINEAGE-LINKED');
 
     // Privacy-filtered persons
-    final exportable = _filterPersonsByPrivacy(persons, viewerPersonId: viewerPersonId);
+    final exportable = _filterPersonsByPrivacy(
+      persons,
+      viewerPersonId: viewerPersonId,
+    );
     final idMap = <String, String>{};
     var i = 1;
     for (final p in exportable) {
@@ -92,12 +95,22 @@ class GedcomExporter {
     final parentChild = <GedcomParentChild>[];
     for (final rel in relationships) {
       if (!rel.isActive) continue;
-      if (!idMap.containsKey(rel.fromPersonId) || !idMap.containsKey(rel.toPersonId)) continue;
+      if (!idMap.containsKey(rel.fromPersonId) ||
+          !idMap.containsKey(rel.toPersonId)) {
+        continue;
+      }
       final key = rel.relationshipKey.toLowerCase();
       if (key == 'spouse' || key == 'wife' || key == 'husband') {
-        spousePairs.add(GedcomSpouse(spouse1Id: rel.fromPersonId, spouse2Id: rel.toPersonId));
+        spousePairs.add(
+          GedcomSpouse(spouse1Id: rel.fromPersonId, spouse2Id: rel.toPersonId),
+        );
       } else if (key == 'father' || key == 'mother' || key == 'parent') {
-        parentChild.add(GedcomParentChild(parentId: rel.fromPersonId, childId: rel.toPersonId));
+        parentChild.add(
+          GedcomParentChild(
+            parentId: rel.fromPersonId,
+            childId: rel.toPersonId,
+          ),
+        );
       }
     }
 
@@ -107,7 +120,6 @@ class GedcomExporter {
       f++;
       buffer.writeln('0 $fid FAM');
       final p1 = exportable.firstWhere((p) => p.id == sp.spouse1Id);
-      final p2 = exportable.firstWhere((p) => p.id == sp.spouse2Id);
       if (_isMale(p1)) {
         buffer.writeln('1 HUSB ${idMap[sp.spouse1Id]}');
         buffer.writeln('1 WIFE ${idMap[sp.spouse2Id]}');
@@ -141,7 +153,10 @@ class GedcomExporter {
     }
   }
 
-  static List<Person> _filterPersonsByPrivacy(List<Person> persons, {required String viewerPersonId}) {
+  static List<Person> _filterPersonsByPrivacy(
+    List<Person> persons, {
+    required String viewerPersonId,
+  }) {
     return persons.where((p) {
       if (p.id == viewerPersonId) return true;
       final level = p.privacyLevel?.toLowerCase();
@@ -166,8 +181,20 @@ class GedcomExporter {
   static String _escape(String text) => text.replaceAll('@', '@@');
 
   static String _formatDate(DateTime date) {
-    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-                    'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const months = [
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
+    ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 }

@@ -31,7 +31,7 @@ class YourDataScreen extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  KinrelColors.orange.withOpacity(0.15),
+                  KinrelColors.orange.withValues(alpha: 0.15),
                   KinrelColors.darkCard,
                 ],
                 begin: Alignment.topLeft,
@@ -42,13 +42,17 @@ class YourDataScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.shield_outlined, color: KinrelColors.orange, size: 32),
+                Icon(
+                  Icons.shield_outlined,
+                  color: KinrelColors.orange,
+                  size: 32,
+                ),
                 const SizedBox(height: 12),
                 Text(
                   'Your data belongs to your family',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -56,8 +60,8 @@ class YourDataScreen extends StatelessWidget {
                   'so your family can stay connected. You control what\'s shared '
                   'and can export everything at any time.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFFC9B4A8),
-                      ),
+                    color: const Color(0xFFC9B4A8),
+                  ),
                 ),
               ],
             ),
@@ -70,21 +74,24 @@ class YourDataScreen extends StatelessWidget {
           _DataCard(
             icon: Icons.family_restroom,
             title: 'Family tree data',
-            description: 'Names, relationships, birth years, and family structure. '
+            description:
+                'Names, relationships, birth years, and family structure. '
                 'Stored in Supabase with Row-Level Security — only your family members can see it.',
           ),
           const SizedBox(height: 8),
           _DataCard(
             icon: Icons.photo_library_outlined,
             title: 'Memories & photos',
-            description: 'Photos, stories, and voice notes you add. Stored in '
+            description:
+                'Photos, stories, and voice notes you add. Stored in '
                 'Supabase Storage with family-scoped access.',
           ),
           const SizedBox(height: 8),
           _DataCard(
             icon: Icons.location_on_outlined,
             title: 'Location (optional)',
-            description: 'Live location sharing is OFF by default. When you turn it on, '
+            description:
+                'Live location sharing is OFF by default. When you turn it on, '
                 'it\'s only shared with family members you\'ve authorized, and expires after 24 hours.',
           ),
           const SizedBox(height: 24),
@@ -95,14 +102,16 @@ class YourDataScreen extends StatelessWidget {
           _DataCard(
             icon: Icons.block,
             title: 'No DNA or health data',
-            description: 'Kinrel does not collect, store, or process DNA or health data.',
+            description:
+                'Kinrel does not collect, store, or process DNA or health data.',
             iconColor: Colors.green,
           ),
           const SizedBox(height: 8),
           _DataCard(
             icon: Icons.block,
             title: 'No third-party tracking',
-            description: 'No Facebook Pixel, no Google Analytics, no third-party ad tracking. '
+            description:
+                'No Facebook Pixel, no Google Analytics, no third-party ad tracking. '
                 'Your family data stays in Kinrel.',
             iconColor: Colors.green,
           ),
@@ -114,7 +123,8 @@ class YourDataScreen extends StatelessWidget {
           _DataCard(
             icon: Icons.download_outlined,
             title: 'GEDCOM export',
-            description: 'Export your family tree in GEDCOM 5.5.1 format — the universal '
+            description:
+                'Export your family tree in GEDCOM 5.5.1 format — the universal '
                 'standard for genealogy data. Only names, gender, birth year, and relationships '
                 'are included. Private members are excluded.',
             onTap: () => context.push('/family//gedcom'),
@@ -123,7 +133,8 @@ class YourDataScreen extends StatelessWidget {
           _DataCard(
             icon: Icons.delete_outline,
             title: 'Delete your account',
-            description: 'Permanently delete your account and all associated data. '
+            description:
+                'Permanently delete your account and all associated data. '
                 'This cannot be undone. Family data added by others remains in the family tree.',
             onTap: () => context.push('/profile/delete-account'),
             iconColor: Colors.red,
@@ -135,9 +146,9 @@ class YourDataScreen extends StatelessWidget {
             child: Text(
               'Kinrel — A living Family Atlas\nYour family, your data, your control.',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFF8A8296),
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: const Color(0xFF8A8296)),
             ),
           ),
         ],
@@ -155,9 +166,9 @@ class _SectionHeader extends StatelessWidget {
     return Text(
       title,
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: KinrelColors.orange,
-          ),
+        fontWeight: FontWeight.bold,
+        color: KinrelColors.orange,
+      ),
     );
   }
 }
@@ -199,21 +210,25 @@ class _DataCard extends StatelessWidget {
                     Text(
                       title,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       description,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: const Color(0xFFC9B4A8),
-                          ),
+                        color: const Color(0xFFC9B4A8),
+                      ),
                     ),
                   ],
                 ),
               ),
               if (onTap != null)
-                Icon(Icons.chevron_right, color: const Color(0xFF8A8296), size: 20),
+                Icon(
+                  Icons.chevron_right,
+                  color: const Color(0xFF8A8296),
+                  size: 20,
+                ),
             ],
           ),
         ),

@@ -67,7 +67,8 @@ import '../../features/chat/presentation/chat_inbox_screen.dart';
 import '../../features/truth_streak/presentation/truth_streak_screen.dart';
 import '../../features/hot_seat/presentation/hot_seat_screen.dart';
 import '../../features/relation_riddles/presentation/relation_riddle_screen.dart';
-import '../../features/calendar/presentation/family_calendar_screen.dart' as cal;
+import '../../features/calendar/presentation/family_calendar_screen.dart'
+    as cal;
 import '../../features/calendar/presentation/event_create_screen.dart';
 import '../../features/calendar/presentation/event_detail_screen.dart';
 import '../../features/calendar/models/calendar_models.dart';
@@ -203,8 +204,6 @@ import '../../features/family/presentation/family_settings_screen.dart';
 // P12.6 — Batch 3: GEDCOM export + trust/privacy screens
 import '../../features/gedcom/presentation/gedcom_export_screen.dart';
 import '../../features/gedcom/presentation/your_data_screen.dart';
-// P12.6 — Batch 4: Grandparent Mode
-import '../../features/grandparent_mode/grandparent_mode_profile.dart';
 
 /// Key for accessing the router's navigator state
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -285,10 +284,7 @@ class _PrefetchFamilyListState extends ConsumerState<_PrefetchFamilyList> {
 
 /// Prefetches family detail data for /family/:id route.
 class _PrefetchFamilyDetail extends ConsumerStatefulWidget {
-  const _PrefetchFamilyDetail({
-    required this.child,
-    required this.familyId,
-  });
+  const _PrefetchFamilyDetail({required this.child, required this.familyId});
   final Widget child;
   final String familyId;
 
@@ -303,7 +299,9 @@ class _PrefetchFamilyDetailState extends ConsumerState<_PrefetchFamilyDetail> {
     super.initState();
     Future.microtask(() {
       if (mounted) {
-        ref.read(familyDetailProvider(widget.familyId).future).catchError((_) => null);
+        ref
+            .read(familyDetailProvider(widget.familyId).future)
+            .catchError((_) => null);
       }
     });
   }
@@ -321,10 +319,7 @@ class _PrefetchFamilyDetailState extends ConsumerState<_PrefetchFamilyDetail> {
 /// providers (`constitutionProvider`, `decisionsProvider`, etc.) regardless
 /// of entry point.
 class _TrackcFamilyScope extends ConsumerStatefulWidget {
-  const _TrackcFamilyScope({
-    required this.familyId,
-    required this.child,
-  });
+  const _TrackcFamilyScope({required this.familyId, required this.child});
 
   final String familyId;
   final Widget child;
@@ -450,7 +445,9 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
   final now = DateTime.now();
   if (_lastRedirectTime != null &&
       now.difference(_lastRedirectTime!) < _redirectCooldown) {
-    debugPrint('⚠️ Redirect cooldown active — breaking potential loop at $currentLocation');
+    debugPrint(
+      '⚠️ Redirect cooldown active — breaking potential loop at $currentLocation',
+    );
     _visitedRoutes.clear();
     _lastRedirectTime = null;
     return null;
@@ -459,7 +456,9 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
   // ── Visited-set loop detection ───────────────────────────────────
   // If we've already visited this route in the current chain, we're in a loop
   if (_visitedRoutes.contains(currentLocation)) {
-    debugPrint('⚠️ Redirect loop detected: $currentLocation already visited in chain. Breaking loop.');
+    debugPrint(
+      '⚠️ Redirect loop detected: $currentLocation already visited in chain. Breaking loop.',
+    );
     _visitedRoutes.clear();
     _lastRedirectTime = null;
     return null;
@@ -483,20 +482,18 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
     }
   }
 
-  final isAuth =
-      currentLocation == '/sign-in' ||
-      currentLocation == '/sign-up';
+  final isAuth = currentLocation == '/sign-in' || currentLocation == '/sign-up';
   final isCreateUsername = currentLocation == '/create-username';
   final is2FAVerify = currentLocation == '/2fa-verify';
   final isPublicLegal =
-      currentLocation == '/privacy' ||
-      currentLocation == '/terms';
+      currentLocation == '/privacy' || currentLocation == '/terms';
 
   // ── Deep link: save join token for post-login redirect ────────────
   // If an unauthenticated user hits /join/:token, save the token
   // and redirect to sign-in. After login, they'll be redirected to
   // the join preview screen automatically.
-  if (currentLocation.startsWith('/join/') && !currentLocation.contains('kinFamilyId')) {
+  if (currentLocation.startsWith('/join/') &&
+      !currentLocation.contains('kinFamilyId')) {
     final token = currentLocation.replaceFirst('/join/', '');
     if (token.isNotEmpty) {
       try {
@@ -533,7 +530,9 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
           // loading is irrelevant. This prevents the authLoading
           // guard below from blocking the redirect to /home.
           authLoading = false;
-          debugPrint('🔄 Redirect: Using direct Supabase session (Riverpod lag)');
+          debugPrint(
+            '🔄 Redirect: Using direct Supabase session (Riverpod lag)',
+          );
         }
       } catch (_) {}
     }
@@ -690,8 +689,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       // unique username before they can access the app.
       GoRoute(
         path: '/create-username',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const CreateUsernameScreen()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const CreateUsernameScreen(),
+        ),
       ),
       GoRoute(
         path: '/2fa-verify',
@@ -713,8 +714,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           // Chat as a standalone top-level tab (unified inbox)
           GoRoute(
             path: '/chat',
-            pageBuilder: (context, state) =>
-                _instantPage(key: state.pageKey, child: const ChatInboxScreen()),
+            pageBuilder: (context, state) => _instantPage(
+              key: state.pageKey,
+              child: const ChatInboxScreen(),
+            ),
           ),
           GoRoute(
             path: '/search',
@@ -964,9 +967,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/members',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: FamilyMembersScreen(
-            familyId: state.pathParameters['id']!,
-          ),
+          child: FamilyMembersScreen(familyId: state.pathParameters['id']!),
         ),
       ),
 
@@ -975,9 +976,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/activity',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: FamilyActivityScreen(
-            familyId: state.pathParameters['id']!,
-          ),
+          child: FamilyActivityScreen(familyId: state.pathParameters['id']!),
         ),
       ),
 
@@ -986,9 +985,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/truth-streak',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: TruthStreakScreen(
-            familyId: state.pathParameters['id']!,
-          ),
+          child: TruthStreakScreen(familyId: state.pathParameters['id']!),
         ),
       ),
 
@@ -997,9 +994,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/hot-seat',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: HotSeatScreen(
-            familyId: state.pathParameters['id']!,
-          ),
+          child: HotSeatScreen(familyId: state.pathParameters['id']!),
         ),
       ),
 
@@ -1008,9 +1003,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/relation-riddles',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: RelationRiddleScreen(
-            familyId: state.pathParameters['id']!,
-          ),
+          child: RelationRiddleScreen(familyId: state.pathParameters['id']!),
         ),
       ),
 
@@ -1089,7 +1082,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/games',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: GamesHubScreen(familyId: state.uri.queryParameters['familyId']),
+          child: GamesHubScreen(
+            familyId: state.uri.queryParameters['familyId'],
+          ),
         ),
       ),
 
@@ -1470,9 +1465,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/member/:id/timeline',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: MemberTimelineScreen(
-            memberId: state.pathParameters['id']!,
-          ),
+          child: MemberTimelineScreen(memberId: state.pathParameters['id']!),
         ),
       ),
 
@@ -1519,8 +1512,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Kinship Dictionary ──────────────────────────────────────
       GoRoute(
         path: '/kinship/global',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const GlobalKinshipScreen()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const GlobalKinshipScreen(),
+        ),
       ),
       GoRoute(
         path: '/kinship/compare',
@@ -1571,8 +1566,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Only accessible in dev flavor — redirect guard is above.
       GoRoute(
         path: '/debug',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const EngagementDashboard()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const EngagementDashboard(),
+        ),
       ),
 
       // ── Share & Invite ──────────────────────────────────────────
@@ -1633,8 +1630,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Gamification & Achievements ─────────────────────────────
       GoRoute(
         path: '/achievements',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const AchievementsScreen()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const AchievementsScreen(),
+        ),
       ),
 
       // ── Document Vault ───────────────────────────────────────────
@@ -1676,13 +1675,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/profile/delete-account',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const DeleteAccountScreen()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const DeleteAccountScreen(),
+        ),
       ),
       GoRoute(
         path: '/profile/members-added',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const MembersAddedScreen()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const MembersAddedScreen(),
+        ),
       ),
       GoRoute(
         path: '/profile/edit',
@@ -1714,13 +1717,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       // These routes are accessible without login for Play Store compliance.
       GoRoute(
         path: '/privacy',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const PrivacyPolicyScreen()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const PrivacyPolicyScreen(),
+        ),
       ),
       GoRoute(
         path: '/terms',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const TermsOfServiceScreen()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const TermsOfServiceScreen(),
+        ),
       ),
 
       GoRoute(
@@ -1735,8 +1742,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/profile/blocked',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const BlockedUsersScreen()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const BlockedUsersScreen(),
+        ),
       ),
       GoRoute(
         path: '/profile/relations',
@@ -1754,9 +1763,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/map',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: FamilyMapScreen(
-            familyId: state.pathParameters['id']!,
-          ),
+          child: FamilyMapScreen(familyId: state.pathParameters['id']!),
         ),
       ),
 
@@ -1768,7 +1775,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── Phase B: Occasion Reminders ───────────────────────────────
-
 
       // ── Social System Routes ─────────────────────────────────────────
       GoRoute(
@@ -1794,13 +1800,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/followers',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: FollowersScreen(initialTab: state.uri.queryParameters['tab'] == 'following' ? 1 : 0),
+          child: FollowersScreen(
+            initialTab: state.uri.queryParameters['tab'] == 'following' ? 1 : 0,
+          ),
         ),
       ),
       GoRoute(
         path: '/follow-requests',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const FollowRequestsScreen()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const FollowRequestsScreen(),
+        ),
       ),
       GoRoute(
         path: '/family/:id/invite',
@@ -1821,8 +1831,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/privacy-settings',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const PrivacySettingsScreen()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const PrivacySettingsScreen(),
+        ),
       ),
 
       // ── Pulse + Pitru + emotional attachment routes ─────────────────────────
@@ -1838,13 +1850,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/pulse/quests',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const FamilyQuestsScreen()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const FamilyQuestsScreen(),
+        ),
       ),
       GoRoute(
         path: '/pulse/blessings',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const BlessingChainScreen()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const BlessingChainScreen(),
+        ),
       ),
       GoRoute(
         path: '/pulse/time-capsules',
@@ -1858,8 +1874,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/pulse/alarms',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const SilentAlarmsScreen()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const SilentAlarmsScreen(),
+        ),
       ),
       GoRoute(
         path: '/pulse/chronicle',
@@ -1873,13 +1891,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/pulse/celebrations',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const CelebrationsScreen()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const CelebrationsScreen(),
+        ),
       ),
       GoRoute(
         path: '/pulse/legacy',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const FamilyLegacyScreen()),
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const FamilyLegacyScreen(),
+        ),
       ),
       GoRoute(
         path: '/pulse/memorials',
@@ -1918,9 +1940,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/story-mode',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: StoryModeScreen(
-            familyId: state.pathParameters['id']!,
-          ),
+          child: StoryModeScreen(familyId: state.pathParameters['id']!),
         ),
       ),
 
@@ -1947,9 +1967,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/settings',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: FamilySettingsScreen(
-            familyId: state.pathParameters['id']!,
-          ),
+          child: FamilySettingsScreen(familyId: state.pathParameters['id']!),
         ),
       ),
 
@@ -1959,19 +1977,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/gedcom',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: GedcomExportScreen(
-            familyId: state.pathParameters['id']!,
-          ),
+          child: GedcomExportScreen(familyId: state.pathParameters['id']!),
         ),
       ),
 
       // "Your Family, Your Data" — what's stored, where, one-tap export
       GoRoute(
         path: '/your-data',
-        pageBuilder: (context, state) => _fastFadePage(
-          key: state.pageKey,
-          child: const YourDataScreen(),
-        ),
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const YourDataScreen()),
       ),
     ],
   );
@@ -2132,7 +2146,8 @@ class _MainShellState extends ConsumerState<MainShell> {
         body: StreamBuilder<List<ConnectivityResult>>(
           stream: Connectivity().onConnectivityChanged,
           builder: (context, snap) {
-            final offline = snap.data?.contains(ConnectivityResult.none) ?? false;
+            final offline =
+                snap.data?.contains(ConnectivityResult.none) ?? false;
             return Column(
               children: [
                 if (offline)
@@ -2140,9 +2155,11 @@ class _MainShellState extends ConsumerState<MainShell> {
                     width: double.infinity,
                     color: Colors.red.shade800,
                     padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: const Text('No internet connection',
+                    child: const Text(
+                      'No internet connection',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white, fontSize: 12)),
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
                   ),
                 Expanded(
                   child: Stack(
@@ -2174,10 +2191,7 @@ class _MainShellState extends ConsumerState<MainShell> {
 /// Floating notification bell with red unread badge.
 /// Visible on all main screens via the MainShell Stack overlay.
 class _NotificationBell extends StatelessWidget {
-  const _NotificationBell({
-    required this.unreadCount,
-    required this.onTap,
-  });
+  const _NotificationBell({required this.unreadCount, required this.onTap});
 
   final int unreadCount;
   final VoidCallback onTap;
@@ -2307,8 +2321,8 @@ class _BottomNav extends StatelessWidget {
   int _currentIndex(String location) {
     if (location.startsWith('/home')) return 0;
     if (location.startsWith('/chat')) return 1;
-    if (location.startsWith('/families') ||
-        location.startsWith('/family/')) return 2;
+    if (location.startsWith('/families') || location.startsWith('/family/'))
+      return 2;
     if (location.startsWith('/search')) return 3;
     if (location.startsWith('/profile')) return 4;
     return 0;
@@ -2375,18 +2389,10 @@ class _DeepLinkShareScreen extends ConsumerWidget {
     final cachedName = ref.watch(deepLinkFamilyNameProvider(familyId));
 
     return cachedName.when(
-      data: (name) => ShareScreen(
-        familyId: familyId,
-        familyName: name ?? 'Family',
-      ),
-      loading: () => ShareScreen(
-        familyId: familyId,
-        familyName: 'Family',
-      ),
-      error: (_, __) => ShareScreen(
-        familyId: familyId,
-        familyName: 'Family',
-      ),
+      data: (name) =>
+          ShareScreen(familyId: familyId, familyName: name ?? 'Family'),
+      loading: () => ShareScreen(familyId: familyId, familyName: 'Family'),
+      error: (_, __) => ShareScreen(familyId: familyId, familyName: 'Family'),
     );
   }
 }

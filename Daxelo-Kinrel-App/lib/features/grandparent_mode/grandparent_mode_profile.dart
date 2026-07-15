@@ -38,5 +38,5 @@ class GrandparentModeNotifier extends StateNotifier<GrandparentModeState> {
 
 final grandparentModeProvider =
     StateNotifierProvider<GrandparentModeNotifier, GrandparentModeState>(
-  (ref) => GrandparentModeNotifier(),
-);
+      (ref) => GrandparentModeNotifier(),
+    );
