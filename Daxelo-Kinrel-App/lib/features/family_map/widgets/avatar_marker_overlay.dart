@@ -19,6 +19,7 @@
 
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -312,5 +313,160 @@ class AvatarMarkerLayer {
       bytes.add(int.parse(hex.substring(i, i + 2), radix: 16));
     }
     return Uint8List.fromList(bytes);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// P12.2 — DIRECTIONAL SPOTLIGHT CONE
+// ═══════════════════════════════════════════════════════════════════════
+//
+// A CustomPainter widget that renders a translucent cone of light
+// emanating from the "Me" marker, pointing in the user's heading
+// direction. Creates the "spotlight" effect from the Snap Map
+// reference, in Kinrel's warm gold gradient.
+//
+// Rendered as a Flutter overlay (NOT a map layer) so it can use
+// BlendMode.screen + radial gradients for the cinematic glow that
+// MapLibre's fill-extrusion can't reproduce.
+//
+// Reduced motion: the cone is rendered statically (no pulse).
+// Low-tier devices: the cone is skipped entirely (just the marker).
+
+/// Widget that renders the directional spotlight cone under the "Me"
+/// avatar marker. Place it as a sibling of [AvatarMarkerWidget] in the
+/// overlay stack, at the same screen position.
+///
+/// Pass [headingDegrees] = 0 for north, 90 for east, 180 for south,
+/// 270 for west. When null or when [reducedMotion] is true on a
+/// low-tier device, the cone is not rendered.
+class DirectionalSpotlightCone extends StatelessWidget {
+  const DirectionalSpotlightCone({
+    super.key,
+    this.headingDegrees,
+    this.reducedMotion = false,
+    this.deviceTier,
+    this.size = 44.0,
+  });
+
+  /// Heading in degrees (0 = north, clockwise). Null = no heading
+  /// available → cone not rendered.
+  final double? headingDegrees;
+
+  /// When true, the cone is rendered statically (no pulse animation).
+  final bool reducedMotion;
+
+  /// Device tier — when low, the cone is skipped for performance.
+  final DeviceTier? deviceTier;
+
+  /// The marker size (used to size the cone origin). Should match
+  /// [MapVisualConstants.markerNormalSize] for consistency.
+  final double size;
+
+  DeviceTier get _effectiveTier =>
+      deviceTier ?? DeviceTierCache.instance.tier;
+
+  @override
+  Widget build(BuildContext context) {
+    // Skip when no heading, or on low-tier devices.
+    if (headingDegrees == null) return const SizedBox.shrink();
+    if (_effectiveTier == DeviceTier.low) return const SizedBox.shrink();
+
+    final coneRadius = size * 4.0; // cone extends 4x the marker size
+    return IgnorePointer(
+      child: SizedBox(
+        width: coneRadius * 2,
+        height: coneRadius * 2,
+        child: CustomPaint(
+          painter: _SpotlightConePainter(
+            headingDegrees: headingDegrees!,
+            coneRadius: coneRadius,
+            reducedMotion: reducedMotion,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// CustomPainter that draws the directional spotlight cone.
+///
+/// The cone is a radial gradient pie slice centered on the
+/// marker, spanning ±25° around the heading direction. Colors fade
+/// from Kinrel gold (#E8B941) at the origin to transparent at the
+/// edge, using BlendMode.screen for the cinematic "lit" effect.
+class _SpotlightConePainter extends CustomPainter {
+  const _SpotlightConePainter({
+    required this.headingDegrees,
+    required this.coneRadius,
+    required this.reducedMotion,
+  });
+
+  final double headingDegrees;
+  final double coneRadius;
+  final bool reducedMotion;
+
+  @override
+  void paint(ui.Canvas canvas, ui.Size size) {
+    final center = ui.Offset(size.width / 2, size.height / 2);
+    final headingRad = headingDegrees * math.pi / 180.0;
+
+    // Cone spans ±25° around the heading (50° total aperture).
+    const halfAperture = 25.0 * math.pi / 180.0;
+
+    // Build the cone path: a pie slice from center.
+    final path = ui.Path();
+    path.moveTo(center.dx, center.dy);
+    // Sweep from (heading - halfAperture) to (heading + halfAperture).
+    // In screen coordinates, 0° = east (right), positive = clockwise.
+    // We convert heading (0=north, clockwise) to screen radians:
+    // screenAngle = heading - 90° (so 0° north → -90° = up).
+    final startAngle = headingRad - math.pi / 2 - halfAperture;
+    final endAngle = headingRad - math.pi / 2 + halfAperture;
+    path.arcTo(
+      ui.Rect.fromCircle(center: center, radius: coneRadius),
+      startAngle,
+      endAngle - startAngle,
+      false,
+    );
+    path.close();
+
+    // Radial gradient: gold at origin → transparent at edge.
+    final gradient = ui.RadialGradient(
+      center: ui.Alignment.center,
+      radius: 1.0,
+      colors: [
+        const ui.Color(0xFFE8B941).withOpacity(0.35), // Kinrel gold
+        const ui.Color(0xFFE8612A).withOpacity(0.15), // Kinrel orange
+        const ui.Color(0x00E8612A),                   // transparent
+      ],
+      stops: const [0.0, 0.5, 1.0],
+    );
+
+    final paint = ui.Paint()
+      ..shader = gradient.createShader(
+        ui.Rect.fromCircle(center: center, radius: coneRadius),
+      )
+      ..blendMode = ui.BlendMode.screen;
+
+    canvas.drawPath(path, paint);
+
+    // Draw a thin bright edge along the heading direction (the
+    // "spotlight beam" line).
+    final beamEnd = ui.Offset(
+      center.dx + math.cos(headingRad - math.pi / 2) * coneRadius,
+      center.dy + math.sin(headingRad - math.pi / 2) * coneRadius,
+    );
+    final beamPaint = ui.Paint()
+      ..color = const ui.Color(0xFFE8B941).withOpacity(0.25)
+      ..strokeWidth = 1.5
+      ..blendMode = ui.BlendMode.screen;
+    canvas.drawLine(center, beamEnd, beamPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SpotlightConePainter old) {
+    return old.headingDegrees != headingDegrees ||
+        old.coneRadius != coneRadius ||
+        old.reducedMotion != reducedMotion;
   }
 }

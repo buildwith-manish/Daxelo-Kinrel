@@ -265,6 +265,18 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// the authoritative lifecycle is [_lifecycle].
   bool _familyPlacesLayersAdded = false;
 
+  /// P12.2 — idempotency guard for the live-location ambient glow
+  /// source + layer. True once [live-location-point] source +
+  /// [live-location-ambient-glow] layer have been added.
+  /// Reset to false on family switch.
+  bool _liveLocationGlowAdded = false;
+
+  /// P12.2 — the current user's last captured lat/lng (null until the
+  /// first successful _captureAndBroadcast). Drives the
+  /// [live-location-point] GeoJSON source for the ambient ground glow.
+  double? _liveLocationLat;
+  double? _liveLocationLng;
+
   /// Loads the map style. Strategy:
   ///   • LIGHT MODE (Snapchat-style): use OpenFreeMap liberty style URL.
   ///     Clean, light, social — white base, pastel water, light parks.
@@ -315,6 +327,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       _isLightMap = !_isLightMap;
       _loadedStyleJson = null;
       _familyPlacesLayersAdded = false;
+      _liveLocationGlowAdded = false;
+      _liveLocationLat = null;
+      _liveLocationLng = null;
       _styleLoaded = false;
       _lifecycle.reset();
       // Persist the preference
@@ -467,6 +482,87 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     }
   }
 
+  /// P12.2 — Ensures the [live-location-point] GeoJSON source +
+  /// [live-location-ambient-glow] CircleLayer exist in the current style.
+  ///
+  /// The ambient glow is a large, soft, low-opacity circle painted at
+  /// the current user's location — creates the "lit pool" effect from
+  /// the Snap Map reference, in Kinrel's teal accent (livePulseRingColor)
+  /// so it reads as "you are here, live" against the warm orange family
+  /// beacons.
+  ///
+  /// Idempotent — safe to call multiple times. The source is added
+  /// empty here; [_updateLiveLocationPoint] populates it when the
+  /// first GPS capture arrives.
+  Future<void> _ensureLiveLocationGlow(StyleController style) async {
+    if (_liveLocationGlowAdded) return;
+    try {
+      // 1. Add the live-location-point source (empty — populated by
+      // _updateLiveLocationPoint).
+      try {
+        await style.addSource(GeoJsonSource(
+          id: 'live-location-point',
+          data: '{"type":"FeatureCollection","features":[]}',
+        ));
+        debugPrint('✅ FamilyMap: added live-location-point source');
+      } catch (e) {
+        debugPrint('ℹ️ FamilyMap: live-location-point source already exists: $e');
+      }
+
+      // 2. Add the ambient glow layer. Large, soft, teal-tinted circle
+      // that scales with zoom (40px at zoom 10 → 150px at zoom 16).
+      // Uses MapVisualConstants.livePulseRingColor (#4ED9C7) for the
+      // cool "live presence" contrast against warm family beacons.
+      try {
+        await style.addLayer(CircleStyleLayer(
+          id: 'live-location-ambient-glow',
+          sourceId: 'live-location-point',
+          minZoom: 8,
+          paint: {
+            'circle-color': '#4ED9C7', // MapVisualConstants.livePulseRingColor
+            'circle-radius': [
+              'interpolate', ['linear'], ['zoom'],
+              10, 40,
+              16, 150,
+            ],
+            'circle-blur': 1.2,
+            'circle-opacity': 0.22,
+          },
+        ));
+        debugPrint('✅ FamilyMap: added live-location-ambient-glow layer');
+      } catch (e) {
+        debugPrint('ℹ️ FamilyMap: live-location-ambient-glow layer already exists: $e');
+      }
+
+      _liveLocationGlowAdded = true;
+    } catch (e) {
+      debugPrint('⚠️ FamilyMap: _ensureLiveLocationGlow failed: $e');
+      // Non-fatal — the base map still works without the ambient glow.
+    }
+  }
+
+  /// P12.2 — Updates the [live-location-point] GeoJSON source with the
+  /// current user's lat/lng. Called from [_captureAndBroadcast] after a
+  /// successful GPS capture. No-op if the source hasn't been added yet
+  /// or if the position is null.
+  Future<void> _updateLiveLocationPoint() async {
+    if (!_liveLocationGlowAdded) return;
+    final lat = _liveLocationLat;
+    final lng = _liveLocationLng;
+    if (lat == null || lng == null) return;
+    final style = _mapController?.style;
+    if (style == null) return;
+    try {
+      final geojson = '{"type":"FeatureCollection","features":['
+          '{"type":"Feature","geometry":{"type":"Point","coordinates":[$lng,$lat]},'
+          '"properties":{"kind":"live-location"}}'
+          ']}';
+      await style.updateGeoJsonSource(id: 'live-location-point', data: geojson);
+    } catch (e) {
+      debugPrint('⚠️ FamilyMap: _updateLiveLocationPoint failed: $e');
+    }
+  }
+
   /// Minimal inline dark style — used when the bundled asset fails to
   /// load (e.g., Flutter Web `asset://` resolution issues on Vercel).
   ///
@@ -491,6 +587,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     "family-places": {
       "type": "geojson",
       "data": { "type": "FeatureCollection", "features": [] }
+    },
+    "live-location-point": {
+      "type": "geojson",
+      "data": { "type": "FeatureCollection", "features": [] }
     }
   },
   "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
@@ -501,6 +601,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     {"id":"road-minor","type":"line","source":"openmaptiles","source-layer":"transportation","paint":{"line-color":"#2A2440","line-width":1}},
     {"id":"road-primary","type":"line","source":"openmaptiles","source-layer":"transportation","filter":["==",["get","class"],"primary"],"paint":{"line-color":"#3A3252","line-width":2}},
     {"id":"road-motorway","type":"line","source":"openmaptiles","source-layer":"transportation","filter":["==",["get","class"],"motorway"],"paint":{"line-color":"#4A3F63","line-width":3}},
+    {"id":"live-location-ambient-glow","type":"circle","source":"live-location-point","minzoom":8,"paint":{"circle-color":"#4ED9C7","circle-radius":["interpolate",["linear"],["zoom"],10,40,16,150],"circle-blur":1.2,"circle-opacity":0.22}},
     {"id":"family-buildings-glow","type":"circle","source":"family-places","minzoom":10,"paint":{"circle-color":["match",["get","placeType"],"current_home","#E8612A","childhood_home","#F59240","ancestral_home","#917520","birthplace","#F5B841","wedding","#E8612A","memorial","#F59240","family_business","#C44A18","school","#4E6984","important_place","#E8612A","#E8612A"],"circle-radius":24,"circle-blur":1.0,"circle-opacity":0.65}},
     {"id":"family-buildings","type":"fill-extrusion","source":"family-places","minzoom":13,"paint":{"fill-extrusion-color":["match",["get","placeType"],"current_home","#E8612A","childhood_home","#F59240","ancestral_home","#917520","birthplace","#F5B841","wedding","#E8612A","memorial","#F59240","family_business","#C44A18","school","#4E6984","important_place","#E8612A","#E8612A"],"fill-extrusion-height":["coalesce",["get","height"],12],"fill-extrusion-base":0,"fill-extrusion-opacity":0.95,"fill-extrusion-vertical-gradient":true}},
     {"id":"family-buildings-fallback","type":"circle","source":"family-places","maxzoom":13,"paint":{"circle-color":["match",["get","placeType"],"current_home","#E8612A","childhood_home","#F59240","ancestral_home","#917520","birthplace","#F5B841","wedding","#E8612A","memorial","#F59240","family_business","#C44A18","school","#4E6984","important_place","#E8612A","#E8612A"],"circle-radius":6,"circle-stroke-color":"#FFFFFF","circle-stroke-width":1,"circle-opacity":0.9}}
@@ -600,6 +701,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       _rendezvousStyle = null;
       _layersPrepared = false;
       _familyPlacesLayersAdded = false;
+      _liveLocationGlowAdded = false;
+      _liveLocationLat = null;
+      _liveLocationLng = null;
       _loadedStyleJson = null;
 
       // Start live location + persistence for the new family
@@ -903,6 +1007,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // Reset the family-places-layers flag so _ensureFamilyPlacesLayers
     // re-adds them when the new style loads.
     _familyPlacesLayersAdded = false;
+    // P12.2 — reset live-location glow flag + position too.
+    _liveLocationGlowAdded = false;
+    _liveLocationLat = null;
+    _liveLocationLng = null;
     // Reset the _styleLoaded flag so the new attempt's _onStyleLoaded
     // runs the full initialization.
     _styleLoaded = false;
@@ -1403,6 +1511,18 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     }
     if (_lifecycle.currentAttempt != attempt) return;
 
+    // ── P12.2 — Ensure live-location ambient glow source + layer ────
+    // Adds the [live-location-point] source + [live-location-ambient-glow]
+    // CircleLayer for the "lit pool" effect at the current user's location.
+    // Idempotent — safe to call multiple times.
+    try {
+      await _ensureLiveLocationGlow(style)
+          .timeout(const Duration(seconds: 3));
+    } catch (e) {
+      debugPrint('⚠️ FamilyMap: _ensureLiveLocationGlow timed out: $e');
+    }
+    if (_lifecycle.currentAttempt != attempt) return;
+
     // Advance the secondary progress indicator.
     if (mounted) {
       setState(() => _loadState = _loadState.copyWith(
@@ -1794,6 +1914,13 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       );
       final familyId = widget.familyId;
       if (familyId.isEmpty) return;
+
+      // P12.2 — Store the current user's position for the live-location
+      // ambient glow. Update the GeoJSON source immediately so the
+      // "lit pool" follows the user in real time.
+      _liveLocationLat = pos.latitude;
+      _liveLocationLng = pos.longitude;
+      await _updateLiveLocationPoint();
 
       // We need the current user's personId. Get it from the family
       // members list — the Person whose linkedUserId matches the
