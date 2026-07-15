@@ -40,7 +40,10 @@ import 'engine/node_decoration.dart';
 import 'engine/node_paint_helpers.dart';
 import 'engine/node_role_glyph_badge.dart';
 import 'engine/node_state.dart';
-import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, showOnThisDayEventSheet;
+import 'on_this_day_badge.dart'
+    show OnThisDayBadge, OnThisDayEvent, showOnThisDayEventSheet;
+// P12.7 — Kinrel Cameo fallback avatar
+import '../../features/cameo/cameo.dart';
 
 // Re-export NodeState so existing importers of graph_node.dart (e.g.
 // family_graph_engine_view.dart, tests) keep resolving the symbol after
@@ -325,9 +328,10 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
-    _shimmerAnimation = Tween<double>(begin: -1.0, end: 2.0).animate(
-      _shimmerController,
-    );
+    _shimmerAnimation = Tween<double>(
+      begin: -1.0,
+      end: 2.0,
+    ).animate(_shimmerController);
 
     // Error pulse animation for error state (800ms repeat)
     _errorPulseController = AnimationController(
@@ -407,7 +411,8 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   // ── Relationship Color ─────────────────────────────────────────────
 
   Color get _borderColor {
-    if (widget.isAnonymous) return _highContrast ? Colors.grey : KinrelColors.textDim;
+    if (widget.isAnonymous)
+      return _highContrast ? Colors.grey : KinrelColors.textDim;
     if (widget.isAnchor) return KinshipEdgeColors.self;
     // v69: Prefer the AUTHORITATIVE category — no lossy string round-trip.
     // styleForCategory() is always correct and never falls through to
@@ -416,10 +421,14 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     if (widget.category != null) {
       color = KinshipEdgeStyleResolver.styleForCategory(widget.category!).color;
     } else {
-      color = KinshipEdgeStyleResolver.styleFor(widget.relationshipKey ?? '').color;
+      color = KinshipEdgeStyleResolver.styleFor(
+        widget.relationshipKey ?? '',
+      ).color;
     }
     // High contrast: full opacity colors for WCAG AA 4.5:1 contrast
-    return _highContrast ? Color.fromRGBO(color.red, color.green, color.blue, 1.0) : color;
+    return _highContrast
+        ? Color.fromRGBO(color.red, color.green, color.blue, 1.0)
+        : color;
   }
 
   Color get _tintColor {
@@ -429,10 +438,14 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     if (widget.isAnchor) return KinshipEdgeColors.self.withValues(alpha: 0.12);
     // v69: Derive tint from the authoritative category when available.
     if (widget.category != null) {
-      final color = KinshipEdgeStyleResolver.styleForCategory(widget.category!).color;
+      final color = KinshipEdgeStyleResolver.styleForCategory(
+        widget.category!,
+      ).color;
       return color.withValues(alpha: 0.12);
     }
-    return KinshipEdgeStyleResolver.styleFor(widget.relationshipKey ?? '').color.withValues(alpha: 0.12);
+    return KinshipEdgeStyleResolver.styleFor(
+      widget.relationshipKey ?? '',
+    ).color.withValues(alpha: 0.12);
   }
 
   // ── Build ──────────────────────────────────────────────────────────
@@ -454,8 +467,9 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       _expandRotateController.stop();
     }
 
-    final effectiveOpacity =
-        widget.isDeceased ? 0.6 * widget.opacity : widget.opacity;
+    final effectiveOpacity = widget.isDeceased
+        ? 0.6 * widget.opacity
+        : widget.opacity;
 
     // Accessibility: Expose the node as a single semantic button with a
     // descriptive label. Screen-reader users hear "[Name], [Relation],
@@ -479,18 +493,17 @@ class _GraphNodeState extends ConsumerState<GraphNode>
           gestures: {
             TapGestureRecognizer:
                 GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
-              () => TapGestureRecognizer(),
-              (instance) {
-                instance.onTap = widget.onTap;
-              },
-            ),
+                  () => TapGestureRecognizer(),
+                  (instance) {
+                    instance.onTap = widget.onTap;
+                  },
+                ),
             LongPressGestureRecognizer:
-                GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
-              () => LongPressGestureRecognizer(),
-              (instance) {
-                instance.onLongPress = widget.onLongPress;
-              },
-            ),
+                GestureRecognizerFactoryWithHandlers<
+                  LongPressGestureRecognizer
+                >(() => LongPressGestureRecognizer(), (instance) {
+                  instance.onLongPress = widget.onLongPress;
+                }),
           },
           behavior: HitTestBehavior.translucent,
           child: _buildAnimatedNode(reduceMotion: reduceMotion),
@@ -525,11 +538,15 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     if (widget.isNearBirthday) {
       final days = widget.daysUntilBirthday;
       if (days == 0) {
-        parts.add(widget.isDeceased ? 'Memorial birthday today' : 'Birthday today');
+        parts.add(
+          widget.isDeceased ? 'Memorial birthday today' : 'Birthday today',
+        );
       } else if (days != null && days > 0) {
-        parts.add(widget.isDeceased
-            ? 'Memorial birthday in $days days'
-            : 'Birthday in $days days');
+        parts.add(
+          widget.isDeceased
+              ? 'Memorial birthday in $days days'
+              : 'Birthday in $days days',
+        );
       }
     }
 
@@ -556,10 +573,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
         builder: (context, child) {
           return Transform.translate(
             offset: Offset(0, yOffset),
-            child: Transform.scale(
-              scale: _pulseAnimation.value,
-              child: child,
-            ),
+            child: Transform.scale(scale: _pulseAnimation.value, child: child),
           );
         },
         child: _buildNodeContent(),
@@ -570,10 +584,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     if (widget.nodeState == NodeState.hover) {
       return Transform.translate(
         offset: Offset(0, yOffset),
-        child: Transform.scale(
-          scale: 1.07,
-          child: _buildNodeContent(),
-        ),
+        child: Transform.scale(scale: 1.07, child: _buildNodeContent()),
       );
     }
 
@@ -584,10 +595,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
         builder: (context, child) {
           return Transform.translate(
             offset: Offset(0, yOffset),
-            child: Opacity(
-              opacity: _errorPulseAnimation.value,
-              child: child,
-            ),
+            child: Opacity(opacity: _errorPulseAnimation.value, child: child),
           );
         },
         child: _buildNodeContent(),
@@ -631,7 +639,8 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                 fontWeight: FontWeight.w600,
                 color: KinrelColors.textWhite,
                 letterSpacing: 0.15, // §5: subtle letter-spacing for hierarchy
-                shadows: const [ // §5: text-shadow for legibility over busy bg
+                shadows: const [
+                  // §5: text-shadow for legibility over busy bg
                   Shadow(blurRadius: 4, color: Colors.black54),
                 ],
               ),
@@ -691,10 +700,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: KinrelColors.darkElevated,
-          border: Border.all(
-            color: KinrelColors.textDim,
-            width: 2.0,
-          ),
+          border: Border.all(color: KinrelColors.textDim, width: 2.0),
         ),
         child: Center(
           child: Icon(
@@ -718,7 +724,8 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       isAnchor: widget.isAnchor,
       nodeState: widget.nodeState,
       tintColor: _tintColor,
-      showTint: widget.nodeState == NodeState.selected ||
+      showTint:
+          widget.nodeState == NodeState.selected ||
           widget.nodeState == NodeState.hover,
       isNearBirthday: widget.isNearBirthday,
       birthdayPulseValue: widget.birthdayPulseValue,
@@ -737,9 +744,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
         children: [
           // Layers 1-6: CustomPainter renders the entire pseudo-3D node
           Positioned.fill(
-            child: CustomPaint(
-              painter: Pseudo3DNodePainter(nodeParams),
-            ),
+            child: CustomPaint(painter: Pseudo3DNodePainter(nodeParams)),
           ),
           // Content layer (initials/photo) clipped to the circle
           Positioned(
@@ -751,7 +756,9 @@ class _GraphNodeState extends ConsumerState<GraphNode>
               child: Stack(
                 children: [
                   if (nodeParams.showTint)
-                    Positioned.fill(child: Container(color: nodeParams.tintColor)),
+                    Positioned.fill(
+                      child: Container(color: nodeParams.tintColor),
+                    ),
                   _buildCircleContent(diameter),
                   if (widget.nodeState == NodeState.loading)
                     Positioned.fill(
@@ -772,8 +779,11 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                           shape: BoxShape.circle,
                           color: KinrelColors.error,
                         ),
-                        child: Icon(Icons.error_outline,
-                            size: diameter * 0.25, color: KinrelColors.textWhite),
+                        child: Icon(
+                          Icons.error_outline,
+                          size: diameter * 0.25,
+                          color: KinrelColors.textWhite,
+                        ),
                       ),
                     ),
                 ],
@@ -783,14 +793,20 @@ class _GraphNodeState extends ConsumerState<GraphNode>
           // Private lock
           if (widget.isPrivate)
             Positioned(
-              right: extraPad / 2 - 2, top: extraPad / 2 - 2,
+              right: extraPad / 2 - 2,
+              top: extraPad / 2 - 2,
               child: Container(
                 padding: const EdgeInsets.all(2.0),
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle, color: KinrelColors.darkCard,
+                  shape: BoxShape.circle,
+                  color: KinrelColors.darkCard,
                   border: Border.all(color: KinrelColors.amber, width: 1.0),
                 ),
-                child: Icon(Icons.lock, size: diameter * 0.12, color: KinrelColors.amber),
+                child: Icon(
+                  Icons.lock,
+                  size: diameter * 0.12,
+                  color: KinrelColors.amber,
+                ),
               ),
             ),
           // P3.7: "On this day" badge — top-right corner, 24x24.
@@ -811,21 +827,33 @@ class _GraphNodeState extends ConsumerState<GraphNode>
           // Pending badge
           if (widget.isUnclaimed)
             Positioned(
-              right: extraPad / 2 - 2, bottom: extraPad / 2 - 2,
+              right: extraPad / 2 - 2,
+              bottom: extraPad / 2 - 2,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
-                decoration: BoxDecoration(
-                  color: KinrelColors.amber, borderRadius: BorderRadius.circular(8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 4.0,
+                  vertical: 2.0,
                 ),
-                child: Text('Pending',
-                    style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: KinrelColors.darkCard)),
+                decoration: BoxDecoration(
+                  color: KinrelColors.amber,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Pending',
+                  style: TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.darkCard,
+                  ),
+                ),
               ),
             ),
           // Role glyph — uses _NodeRoleGlyphBadge which handles the
           // provider lookup internally (familyId → role → badge)
           if (widget.familyId != null && kEnableKinrel)
             Positioned(
-              right: extraPad / 2 - 4, bottom: extraPad / 2 - 4,
+              right: extraPad / 2 - 4,
+              bottom: extraPad / 2 - 4,
               child: NodeRoleGlyphBadge(
                 familyId: widget.familyId!,
                 memberId: widget.personId,
@@ -836,22 +864,34 @@ class _GraphNodeState extends ConsumerState<GraphNode>
           if (widget.relationshipKey != null &&
               ExpandIndicators.expandLabelFor(widget.relationshipKey) != null)
             Positioned(
-              right: extraPad / 2 - 4, top: extraPad / 2 - 4,
+              right: extraPad / 2 - 4,
+              top: extraPad / 2 - 4,
               child: GestureDetector(
                 onTap: () {},
                 child: Container(
                   padding: const EdgeInsets.all(2.0),
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle, color: KinrelColors.darkCard,
+                    shape: BoxShape.circle,
+                    color: KinrelColors.darkCard,
                     border: Border.all(color: _borderColor, width: 1.0),
                   ),
                   child: AnimatedBuilder(
                     animation: _expandRotateController,
-                    builder: (context, child) =>
-                        Transform.rotate(angle: _expandRotateController.value * pi, child: child),
+                    builder: (context, child) => Transform.rotate(
+                      angle: _expandRotateController.value * pi,
+                      child: child,
+                    ),
                     child: widget.nodeState == NodeState.expanded
-                        ? Icon(Icons.expand_less, size: diameter * 0.2, color: _borderColor)
-                        : Icon(Icons.expand_more, size: diameter * 0.2, color: _borderColor),
+                        ? Icon(
+                            Icons.expand_less,
+                            size: diameter * 0.2,
+                            color: _borderColor,
+                          )
+                        : Icon(
+                            Icons.expand_more,
+                            size: diameter * 0.2,
+                            color: _borderColor,
+                          ),
                   ),
                 ),
               ),
@@ -860,7 +900,6 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       ),
     );
   }
-
 
   /// Border width varies by state. Doubled in high contrast mode
   /// per V2.1 Blueprint §19 (WCAG AA minimum contrast 4.5:1).
@@ -962,7 +1001,9 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     if (widget.nodeState == NodeState.hover) {
       return [
         BoxShadow(
-          color: Colors.black.withValues(alpha: isAnchor ? 0.50 : (gen < 0 ? 0.40 : 0.30)),
+          color: Colors.black.withValues(
+            alpha: isAnchor ? 0.50 : (gen < 0 ? 0.40 : 0.30),
+          ),
           blurRadius: isAnchor ? 20 : (gen < 0 ? 16 : 10),
           offset: isAnchor
               ? const Offset(0, 8)
@@ -994,6 +1035,14 @@ class _GraphNodeState extends ConsumerState<GraphNode>
           backgroundColor: KinrelColors.darkCard,
           placeholder: _buildInitialsContent(diameter),
           errorWidget: _buildInitialsContent(diameter),
+          cameoFallback: kEnableCameoFallback
+              ? CameoFallbackConfig(
+                  personName: widget.name,
+                  ageBand: CameoAgeBand.adult,
+                  skinToneIndex: 5,
+                  surfaceId: 'graph_node',
+                )
+              : null,
         ),
       );
       // P3.6: Heritage/sepia texture on ancestor nodes.
@@ -1036,4 +1085,3 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     );
   }
 }
-

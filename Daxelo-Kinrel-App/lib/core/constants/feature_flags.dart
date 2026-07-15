@@ -28,6 +28,23 @@ const bool kEnableQrJoin = true;
 /// In-app profile editing and "add relative" flows.
 const bool kEnableProfileEditing = true;
 
+/// Kinrel Cameo — the 3D character system fallback avatar.
+///
+/// When enabled, surfaces that show a user's avatar will render the
+/// deterministic Kinrel Cameo portrait (CameoAvatar) when no photo URL
+/// is available, instead of a plain initial letter.
+///
+/// Gating: The 3D runtime (B1 prototype) is NOT yet shipped. This flag
+/// enables the 2D fallback portrait painter (CameoPortraitPainter) which
+/// renders the SAME Kinrel visual identity (warm ivory key + ember rim,
+/// heirloom vignette, age-band-appropriate silhouette) as a 2D
+/// CustomPainter today. When B1 passes, the 3D renderer will replace the
+/// painter internally without changing any call sites.
+///
+/// Set to `true` to make Cameo visible in the app. Set to `false` to
+/// keep the legacy initial-letter fallback (zero change to existing UI).
+const bool kEnableCameoFallback = true;
+
 /// Language picker for kinship term display (7 Indian languages).
 const bool kEnableLanguagePicker = true;
 

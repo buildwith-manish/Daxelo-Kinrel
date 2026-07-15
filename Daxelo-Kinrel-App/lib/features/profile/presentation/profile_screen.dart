@@ -51,6 +51,8 @@ import '../../family_map/providers/live_location_provider.dart';
 import 'account_switcher_sheet.dart';
 // P12.6 — Grandparent Mode accessibility profile
 import '../../grandparent_mode/grandparent_mode_profile.dart';
+// P12.7 — Kinrel Cameo fallback avatar
+import '../../cameo/cameo.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
 const Color _orange = Color(0xFFE8612A);
@@ -801,6 +803,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                                       ),
                                     ),
                                   ),
+                                )
+                              : kEnableCameoFallback
+                              ? CameoAvatar(
+                                  personName: displayName,
+                                  ageBand: CameoAgeBand.adult,
+                                  skinToneIndex: 5,
+                                  surfaceId: 'profile_hero',
+                                  isDeceased: false,
                                 )
                               : Center(
                                   child: Text(

@@ -31,6 +31,9 @@ import '../data/place_models.dart';
 import '../providers/family_map_provider.dart';
 import 'family_building_layer.dart' show FamilyBuildingBottomSheet;
 import 'map_initials.dart';
+// P12.7 — Kinrel Cameo fallback avatar
+import '../../../core/constants/feature_flags.dart';
+import '../../cameo/cameo.dart';
 
 /// Static helpers that build the bottom sheets shown from the Family
 /// Map screen.
@@ -90,6 +93,16 @@ class MapBottomSheets {
                           border: Border.all(
                             color: KinrelColors.orange,
                             width: 2,
+                          ),
+                        )
+                      : kEnableCameoFallback
+                      ? ClipOval(
+                          child: CameoAvatar(
+                            personName: pin.name,
+                            ageBand: CameoAgeBand.adult,
+                            skinToneIndex: 5,
+                            surfaceId: 'map_marker',
+                            isDeceased: false,
                           ),
                         )
                       : Container(
