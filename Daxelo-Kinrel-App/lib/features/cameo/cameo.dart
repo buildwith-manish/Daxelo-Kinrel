@@ -58,3 +58,25 @@ export 'presentation/widgets/cameo_fallback_config.dart'
     show CameoFallbackConfig;
 export 'presentation/painters/cameo_portrait_painter.dart'
     show CameoPortraitPainter;
+
+// ── Renderer Abstraction ───────────────────────────────────────────
+export 'rendering/cameo_renderer.dart'
+    show CameoRenderer, CameoRendererInitResult, CameoRendererCapabilities;
+
+// ── Data Model ─────────────────────────────────────────────────────
+export 'data/cameo_definition.dart'
+    show
+        CameoDefinition,
+        CameoGender,
+        CameoPersonality,
+        CameoMemorialPreferences;
+
+// ── Runtime Infrastructure ─────────────────────────────────────────
+export 'runtime/cameo_animation_controller.dart'
+    show CameoAnimationController, CameoAnimationFrame;
+export 'runtime/cameo_runtime_scene.dart'
+    show CameoRuntimeScene, CameoSceneState;
+export 'runtime/cameo_render_cache.dart'
+    show CameoRenderCache, CameoPortraitCacheKey;
+export 'runtime/portrait_render_pipeline.dart' show PortraitRenderPipeline;
+export 'runtime/cameo_lod_controller.dart' show CameoLodController, CameoLOD;
