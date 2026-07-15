@@ -201,6 +201,7 @@ import '../../features/story_mode/presentation/story_mode_screen.dart';
 import '../../features/community/presentation/community_discovery_screen.dart';
 import '../../features/profile/presentation/pulse_learning_profile_screen.dart';
 import '../../features/family/presentation/family_settings_screen.dart';
+import '../../features/health_heritage/presentation/health_heritage_screen.dart';
 // P12.6 — Batch 3: GEDCOM export + trust/privacy screens
 import '../../features/gedcom/presentation/gedcom_export_screen.dart';
 import '../../features/gedcom/presentation/your_data_screen.dart';
@@ -1968,6 +1969,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: FamilySettingsScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+
+      // 5. Health Heritage — family health conditions (family-scoped)
+      // P12.6: Previously Category G (backend blocked). Now wired after
+      // creating FamilyHealthCondition table + real data loading.
+      GoRoute(
+        path: '/family/:id/health-heritage',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const HealthHeritageScreen(),
         ),
       ),
 

@@ -658,6 +658,18 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
             ),
             Divider(color: KinrelColors.border, height: 1),
 
+            // P12.6 — Health Heritage (family health conditions)
+            _QuickActionTile(
+              icon: Icons.health_and_safety_outlined,
+              label: 'Health Heritage',
+              iconColor: KinrelColors.coral,
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/family/${widget.familyId}/health-heritage');
+              },
+            ),
+            Divider(color: KinrelColors.border, height: 1),
+
             // Delete option — moves family to archive (available to all members)
             Divider(color: KinrelColors.border, height: 1),
             _QuickActionTile(

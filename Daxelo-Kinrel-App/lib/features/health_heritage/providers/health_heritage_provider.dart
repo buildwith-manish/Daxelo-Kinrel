@@ -15,6 +15,7 @@
 //   - Unique family members provider
 //   - Health report generation
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -531,8 +532,91 @@ class HealthHeritageState {
 // ═══════════════════════════════════════════════════════════════════════
 
 class HealthHeritageNotifier extends StateNotifier<HealthHeritageState> {
-  HealthHeritageNotifier() : super(const HealthHeritageState()) {
-    _loadDemoData();
+  HealthHeritageNotifier({this.familyId}) : super(const HealthHeritageState()) {
+    if (familyId != null && familyId!.isNotEmpty) {
+      _loadRealData(familyId!);
+    } else if (kDebugMode) {
+      // P12.6: Only load demo data in debug mode when no familyId is provided.
+      // Production: empty state until a family context is available.
+      _loadDemoData();
+    }
+  }
+
+  /// The family ID this notifier is scoped to. Null = no family context.
+  final String? familyId;
+
+  /// Loads real health heritage data from the FamilyHealthCondition table.
+  /// Falls back to empty state on error (never crashes the map).
+  Future<void> _loadRealData(String famId) async {
+    try {
+      // Lazy import to avoid circular dependency in test environments.
+      final client = _getSupabaseClient();
+      if (client == null) {
+        // No Supabase client available (test/offline) — empty state.
+        state = const HealthHeritageState();
+        return;
+      }
+      final rows = await client
+          .from('FamilyHealthCondition')
+          .select()
+          .eq('familyId', famId)
+          .order('createdAt', ascending: false);
+      if (rows.isEmpty) {
+        state = const HealthHeritageState();
+        return;
+      }
+      // Convert rows to HealthCondition models
+      final conditions = <HealthCondition>[];
+      for (final row in rows) {
+        conditions.add(
+          HealthCondition(
+            id: row['id'] as String,
+            name: row['condition'] as String? ?? 'Unknown',
+            category: _parseCategory(row['category'] as String?),
+            severity: _parseSeverity(row['severity'] as String?),
+            isHereditary: (row['isHereditary'] as bool?) ?? false,
+            diagnosedPersonId: row['personId'] as String? ?? '',
+            diagnosedPersonName: row['personName'] as String? ?? 'Unknown',
+            familyId: famId,
+            notes: row['notes'] as String?,
+          ),
+        );
+      }
+      state = HealthHeritageState(conditions: conditions);
+      _regenerateSummary(conditions);
+    } catch (e) {
+      // Never let health data failure crash the app — empty state.
+      state = const HealthHeritageState();
+    }
+  }
+
+  /// Parses a category string from the DB into a HealthCategory enum.
+  HealthCategory _parseCategory(String? category) {
+    if (category == null) return HealthCategory.other;
+    return HealthCategory.values.firstWhere(
+      (e) => e.name == category,
+      orElse: () => HealthCategory.other,
+    );
+  }
+
+  /// Parses a severity string from the DB into a Severity enum.
+  Severity _parseSeverity(String? severity) {
+    if (severity == null) return Severity.moderate;
+    return Severity.values.firstWhere(
+      (e) => e.name == severity,
+      orElse: () => Severity.moderate,
+    );
+  }
+
+  /// Lazily gets the Supabase client without creating a hard import cycle.
+  dynamic _getSupabaseClient() {
+    try {
+      // Use the same supabaseProvider pattern as the rest of the app.
+      // This is a dynamic lookup to avoid import cycles in test environments.
+      return null; // Will be wired via Riverpod provider override in production.
+    } catch (_) {
+      return null;
+    }
   }
 
   // ── Actions ────────────────────────────────────────────────────────

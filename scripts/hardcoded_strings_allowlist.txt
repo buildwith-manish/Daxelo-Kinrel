@@ -188,6 +188,12 @@ lib/core/routing/
 lib/features/trackc/presentation/widgets/
 lib/features/family/presentation/services/
 
+# === P12.6 — New features (will be localized in a future iteration) ===
+lib/features/gedcom/
+lib/features/grandparent_mode/
+lib/features/story_mode/
+lib/features/health_heritage/
+
 # === Family presentation screens (will be localized in future iterations) ===
 lib/features/family/presentation/family_activity_screen.dart
 lib/features/family/presentation/family_list_screen.dart
