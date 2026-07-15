@@ -327,12 +327,15 @@ void main() {
   });
 
   group('Phase 10 Integration — hex mismatch fix (P10.8)', () {
-    test('MapVisualConstants.buildingNormal matches style JSON (P12.5 warmed)', () {
-      // P12.5: buildingNormal was warmed for a less muddy, warmer building base.
-      // Verify the current value matches.
-      expect(MapVisualConstants.hexBuildingNormal, equals('#1A1925'));
-      const expected = Color(0xFF1A1925);
-      expect(MapVisualConstants.buildingNormal, equals(expected));
-    });
+    test(
+      'MapVisualConstants.buildingNormal matches style JSON (P12.5 warmed)',
+      () {
+        // P12.5: buildingNormal was warmed for a less muddy, warmer building base.
+        // Verify the current value matches.
+        expect(MapVisualConstants.hexBuildingNormal, equals('#1A1925'));
+        const expected = Color(0xFF1A1925);
+        expect(MapVisualConstants.buildingNormal, equals(expected));
+      },
+    );
   });
 }
