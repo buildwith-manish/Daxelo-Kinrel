@@ -156,7 +156,7 @@ jobs:
           # Previous config had minzoom 14-15 + maxzoom 18, which meant 3D only
           # appeared between zoom 15-18 (Bengaluru test flew to 16.5).
           # Now: minzoom 13 (earliest zoom with tile data), maxzoom 22 (no cap).
-          if ! rg -q '"id":"kinrel-3d-buildings"' Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
+          if ! grep -q '"id":"kinrel-3d-buildings"' Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
             echo "❌ P1.1 FAILED: kinrel-3d-buildings fill-extrusion layer missing"
             exit 1
           fi
@@ -180,7 +180,7 @@ jobs:
             exit 1
           fi
           # Verify family-buildings layer IS present (renders on top of generic 3D).
-          if ! rg -q '"id":"family-buildings"' Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
+          if ! grep -q '"id":"family-buildings"' Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
             echo "❌ P1.1 FAILED: family-buildings layer missing from style JSON"
             exit 1
           fi
@@ -191,12 +191,12 @@ jobs:
         run: |
           # road_trunk_primary and road_motorway must use `interpolate`
           # on line-color (not a static string).
-          if ! rg -q '"line-color":\["interpolate"' Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
+          if ! grep -q '"line-color":\["interpolate"' Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
             echo "❌ P1.2 FAILED: road line-color is not interpolated"
             exit 1
           fi
           # Verify Kinrel orange (#E8612A) appears in the road color ramp.
-          if ! rg -q '"#E8612A"' Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
+          if ! grep -q '"#E8612A"' Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
             echo "❌ P1.2 FAILED: Kinrel orange tint missing from style JSON"
             exit 1
           fi
@@ -206,7 +206,7 @@ jobs:
         working-directory: .
         run: |
           # label_town must have minzoom 9 (was 7)
-          if ! rg -q '"id":"label_town".*"minzoom":9' Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
+          if ! grep -q '"id":"label_town".*"minzoom":9' Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json; then
             # JSON is minified; the minzoom may be on a separate position. Try alternative.
             if ! python3 -c "import json; s=json.load(open('Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json')); assert any(l.get('id')=='label_town' and l.get('minzoom')==9 for l in s['layers'])"; then
               echo "❌ P1.3 FAILED: label_town minzoom is not 9"
@@ -274,16 +274,16 @@ jobs:
           # P12.2: User's style JSON no longer has family-buildings-roof.
           # Instead, verify the live-location ambient glow is wired in
           # the Dart screen code + the fallback style JSON.
-          if ! rg -q "live-location-point" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
+          if ! grep -q "live-location-point" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
             echo "❌ P3.2 FAILED: live-location-point source not wired in screen"
             exit 1
           fi
-          if ! rg -q "live-location-ambient-glow" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
+          if ! grep -q "live-location-ambient-glow" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
             echo "❌ P3.2 FAILED: live-location-ambient-glow layer not wired in screen"
             exit 1
           fi
           # Verify the fallback style JSON also has the live-location layers
-          if ! rg -q "live-location-point" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
+          if ! grep -q "live-location-point" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
             echo "❌ P3.2 FAILED: live-location-point missing from fallback style"
             exit 1
           fi
@@ -292,11 +292,11 @@ jobs:
       - name: Verify P3.2b — DirectionalSpotlightCone CustomPainter exists
         working-directory: .
         run: |
-          if ! rg -q "class DirectionalSpotlightCone" Daxelo-Kinrel-App/lib/features/family_map/widgets/avatar_marker_overlay.dart; then
+          if ! grep -q "class DirectionalSpotlightCone" Daxelo-Kinrel-App/lib/features/family_map/widgets/avatar_marker_overlay.dart; then
             echo "❌ P3.2b FAILED: DirectionalSpotlightCone widget missing"
             exit 1
           fi
-          if ! rg -q "class _SpotlightConePainter" Daxelo-Kinrel-App/lib/features/family_map/widgets/avatar_marker_overlay.dart; then
+          if ! grep -q "class _SpotlightConePainter" Daxelo-Kinrel-App/lib/features/family_map/widgets/avatar_marker_overlay.dart; then
             echo "❌ P3.2b FAILED: _SpotlightConePainter missing"
             exit 1
           fi
@@ -305,16 +305,16 @@ jobs:
       - name: Verify P3.3 — FamilyBuildingAnimationEngine class exists
         working-directory: .
         run: |
-          if ! rg -q "class FamilyBuildingAnimationEngine" Daxelo-Kinrel-App/lib/features/family_map/widgets/family_building_layer.dart; then
+          if ! grep -q "class FamilyBuildingAnimationEngine" Daxelo-Kinrel-App/lib/features/family_map/widgets/family_building_layer.dart; then
             echo "❌ P3.3 FAILED: FamilyBuildingAnimationEngine class missing"
             exit 1
           fi
           # Verify it implements wedding 4s cycle + memorial 2.4s cycle
-          if ! rg -q "weddingGlowCycle" Daxelo-Kinrel-App/lib/features/family_map/widgets/family_building_layer.dart; then
+          if ! grep -q "weddingGlowCycle" Daxelo-Kinrel-App/lib/features/family_map/widgets/family_building_layer.dart; then
             echo "❌ P3.3 FAILED: wedding glow cycle not referenced"
             exit 1
           fi
-          if ! rg -q "memorialFlickerCycle" Daxelo-Kinrel-App/lib/features/family_map/widgets/family_building_layer.dart; then
+          if ! grep -q "memorialFlickerCycle" Daxelo-Kinrel-App/lib/features/family_map/widgets/family_building_layer.dart; then
             echo "❌ P3.3 FAILED: memorial flicker cycle not referenced"
             exit 1
           fi
@@ -323,11 +323,11 @@ jobs:
       - name: Verify P3.4 — Avatar marker has gradient ring + selection halo
         working-directory: .
         run: |
-          if ! rg -q "SweepGradient" Daxelo-Kinrel-App/lib/features/family_map/widgets/avatar_marker_generator.dart; then
+          if ! grep -q "SweepGradient" Daxelo-Kinrel-App/lib/features/family_map/widgets/avatar_marker_generator.dart; then
             echo "❌ P3.4 FAILED: SweepGradient (gradient ring) not in avatar marker generator"
             exit 1
           fi
-          if ! rg -q "selectionHaloStrokeWidth\|selectionHaloRadiusPadding" Daxelo-Kinrel-App/lib/features/family_map/widgets/avatar_marker_generator.dart; then
+          if ! grep -q "selectionHaloStrokeWidth\|selectionHaloRadiusPadding" Daxelo-Kinrel-App/lib/features/family_map/widgets/avatar_marker_generator.dart; then
             echo "❌ P3.4 FAILED: selection halo constants not referenced in avatar marker generator"
             exit 1
           fi
@@ -343,7 +343,7 @@ jobs:
           # debug button (zoom 16.5). Fix: raised to 16.5 so every pin tap
           # worldwide shows premium 3D.
           # REGRESSION GUARD: focusMinZoom must never drop below 16.
-          if ! rg -q "focusMinZoom = 16.5" Daxelo-Kinrel-App/lib/features/family_map/config/map_visual_constants.dart; then
+          if ! grep -q "focusMinZoom = 16.5" Daxelo-Kinrel-App/lib/features/family_map/config/map_visual_constants.dart; then
             echo "❌ P4.0 FAILED: focusMinZoom is not 16.5 (3D buildings invisible on pin tap)"
             echo "   This was the root cause of '3D only visible in Bengaluru' — do not regress."
             exit 1
@@ -353,11 +353,11 @@ jobs:
       - name: Verify P4.1 — Haptic feedback on tap + long-press
         working-directory: .
         run: |
-          if ! rg -q "HapticFeedback.selectionClick" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
+          if ! grep -q "HapticFeedback.selectionClick" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
             echo "❌ P4.1 FAILED: HapticFeedback.selectionClick not on tap"
             exit 1
           fi
-          if ! rg -q "HapticFeedback.heavyImpact" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
+          if ! grep -q "HapticFeedback.heavyImpact" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
             echo "❌ P4.1 FAILED: HapticFeedback.heavyImpact not on long-press"
             exit 1
           fi
@@ -368,16 +368,16 @@ jobs:
         run: |
           # The polish overlay must accept a pitch parameter and use it
           # to gate atmospheric perspective (master prompt: pitch > 10°).
-          if ! rg -q "this.pitch" Daxelo-Kinrel-App/lib/features/family_map/widgets/map_polish_overlay.dart; then
+          if ! grep -q "this.pitch" Daxelo-Kinrel-App/lib/features/family_map/widgets/map_polish_overlay.dart; then
             echo "❌ P4.2 FAILED: MapPolishOverlay does not accept a pitch parameter"
             exit 1
           fi
-          if ! rg -q "atmosphericPerspectivePitchThreshold" Daxelo-Kinrel-App/lib/features/family_map/widgets/map_polish_overlay.dart; then
+          if ! grep -q "atmosphericPerspectivePitchThreshold" Daxelo-Kinrel-App/lib/features/family_map/widgets/map_polish_overlay.dart; then
             echo "❌ P4.2 FAILED: atmospheric perspective pitch threshold not referenced"
             exit 1
           fi
           # The screen must track pitch and pass it to the overlay.
-          if ! rg -q "_currentPitch" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
+          if ! grep -q "_currentPitch" Daxelo-Kinrel-App/lib/features/family_map/presentation/family_map_screen.dart; then
             echo "❌ P4.2 FAILED: _currentPitch not tracked in screen"
             exit 1
           fi
@@ -407,12 +407,12 @@ jobs:
         run: |
           # The polish overlay should use a SINGLE CustomPainter (not a Stack
           # of multiple CustomPaint widgets) per master prompt Phase 5.
-          if ! rg -q "class _KinrelPolishPainter" Daxelo-Kinrel-App/lib/features/family_map/widgets/map_polish_overlay.dart; then
+          if ! grep -q "class _KinrelPolishPainter" Daxelo-Kinrel-App/lib/features/family_map/widgets/map_polish_overlay.dart; then
             echo "❌ P5.2 FAILED: _KinrelPolishPainter (merged single painter) not found"
             exit 1
           fi
           # Verify the old per-effect painters are GONE.
-          if rg -q "class _VignettePainter\|class _FogPainter\|class _AmbientWarmthPainter" Daxelo-Kinrel-App/lib/features/family_map/widgets/map_polish_overlay.dart; then
+          if grep -q "class _VignettePainter\|class _FogPainter\|class _AmbientWarmthPainter" Daxelo-Kinrel-App/lib/features/family_map/widgets/map_polish_overlay.dart; then
             echo "❌ P5.2 FAILED: old per-effect painters still present (not merged)"
             exit 1
           fi
@@ -424,7 +424,7 @@ jobs:
           # P12.1 ULTRA-PREMIUM: Vignette opacity bumped 0.40 → 0.45 for
           # stronger cinematic mood (darker corners focus attention on
           # ultra-premium 3D buildings + family beacons).
-          if ! rg -q "vignetteOpacity = 0.45" Daxelo-Kinrel-App/lib/features/family_map/config/map_visual_constants.dart; then
+          if ! grep -q "vignetteOpacity = 0.45" Daxelo-Kinrel-App/lib/features/family_map/config/map_visual_constants.dart; then
             echo "❌ P5.3 FAILED: vignette opacity is not 0.45"
             exit 1
           fi
@@ -459,28 +459,28 @@ jobs:
       - name: Verify P6.1 — New PlaceType values exist
         working-directory: .
         run: |
-          if ! rg -q "vacationHome" Daxelo-Kinrel-App/lib/features/family_map/data/place_models.dart; then
+          if ! grep -q "vacationHome" Daxelo-Kinrel-App/lib/features/family_map/data/place_models.dart; then
             echo "❌ P6.1 FAILED: vacationHome PlaceType missing"
             exit 1
           fi
-          if ! rg -q "familyTemple" Daxelo-Kinrel-App/lib/features/family_map/data/place_models.dart; then
+          if ! grep -q "familyTemple" Daxelo-Kinrel-App/lib/features/family_map/data/place_models.dart; then
             echo "❌ P6.1 FAILED: familyTemple PlaceType missing"
             exit 1
           fi
-          if ! rg -q "grandparentsHome" Daxelo-Kinrel-App/lib/features/family_map/data/place_models.dart; then
+          if ! grep -q "grandparentsHome" Daxelo-Kinrel-App/lib/features/family_map/data/place_models.dart; then
             echo "❌ P6.1 FAILED: grandparentsHome PlaceType missing"
             exit 1
           fi
           # Verify wire names
-          if ! rg -q "vacation_home" Daxelo-Kinrel-App/lib/features/family_map/data/place_models.dart; then
+          if ! grep -q "vacation_home" Daxelo-Kinrel-App/lib/features/family_map/data/place_models.dart; then
             echo "❌ P6.1 FAILED: vacation_home wireName missing"
             exit 1
           fi
-          if ! rg -q "family_temple" Daxelo-Kinrel-App/lib/features/family_map/data/place_models.dart; then
+          if ! grep -q "family_temple" Daxelo-Kinrel-App/lib/features/family_map/data/place_models.dart; then
             echo "❌ P6.1 FAILED: family_temple wireName missing"
             exit 1
           fi
-          if ! rg -q "grandparents_home" Daxelo-Kinrel-App/lib/features/family_map/data/place_models.dart; then
+          if ! grep -q "grandparents_home" Daxelo-Kinrel-App/lib/features/family_map/data/place_models.dart; then
             echo "❌ P6.1 FAILED: grandparents_home wireName missing"
             exit 1
           fi
@@ -529,7 +529,7 @@ jobs:
           FOUND=""
           for f in "${FILES[@]}"; do
             if [ -f "$f" ]; then
-              MATCH=$(rg -in "snapchat|google maps|apple maps|zenly|mapbox demo" "$f" || true)
+              MATCH=$(grep -in "snapchat|google maps|apple maps|zenly|mapbox demo" "$f" || true)
               if [ -n "$MATCH" ]; then
                 FOUND="$FOUND
           $MATCH"
