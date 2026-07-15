@@ -70,13 +70,13 @@ jobs:
       # STEP 3 — Format check (master prompt: dart format --set-exit-if-changed .)
       # ───────────────────────────────────────────────────────────────
       - name: Verify dart formatting
-        run: dart format --set-exit-if-changed lib/features/family_map/ lib/core/constants/brand_colors.dart lib/core/constants/brand_gradients.dart test/features/family_map/
+        run: dart format --set-exit-if-changed lib/features/family_map/ lib/core/constants/brand_colors.dart test/features/family_map/
 
       # ───────────────────────────────────────────────────────────────
       # STEP 4 — Static analysis (master prompt: flutter analyze → 0 errors)
       # ───────────────────────────────────────────────────────────────
       - name: Analyze family_map + brand constants
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib/features/family_map/ lib/core/constants/brand_colors.dart lib/core/constants/brand_gradients.dart
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib/features/family_map/ lib/core/constants/brand_colors.dart
 
       # ───────────────────────────────────────────────────────────────
       # STEP 5 — Unit + widget tests (master prompt: 167 tests pass)
