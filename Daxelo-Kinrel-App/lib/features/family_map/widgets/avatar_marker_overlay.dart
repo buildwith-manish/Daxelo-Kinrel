@@ -431,8 +431,10 @@ class _SpotlightConePainter extends CustomPainter {
     path.close();
 
     // Radial gradient: gold at origin → transparent at edge.
-    final gradient = ui.RadialGradient(
-      center: ui.Alignment.center,
+    // NOTE: RadialGradient + Alignment are Flutter framework classes
+    // (painting.dart / material.dart), NOT dart:ui — do not prefix with ui.
+    final gradient = RadialGradient(
+      center: Alignment.center,
       radius: 1.0,
       colors: [
         const ui.Color(0xFFE8B941).withOpacity(0.35), // Kinrel gold
