@@ -203,6 +203,8 @@ import '../../features/family/presentation/family_settings_screen.dart';
 // P12.6 — Batch 3: GEDCOM export + trust/privacy screens
 import '../../features/gedcom/presentation/gedcom_export_screen.dart';
 import '../../features/gedcom/presentation/your_data_screen.dart';
+// P12.6 — Batch 4: Grandparent Mode
+import '../../features/grandparent_mode/grandparent_mode_profile.dart';
 
 /// Key for accessing the router's navigator state
 final _rootNavigatorKey = GlobalKey<NavigatorState>();

@@ -48,6 +48,8 @@ import '../../trackc/presentation/screens/learning_profile_screen.dart';
 import '../../family_map/helpers/location_permission_helper.dart';
 import '../../family_map/providers/live_location_provider.dart';
 import 'account_switcher_sheet.dart';
+// P12.6 — Grandparent Mode accessibility profile
+import '../../grandparent_mode/grandparent_mode_profile.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
 const Color _orange = Color(0xFFE8612A);
@@ -493,6 +495,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 subtitle: 'What we store, export, and delete',
                 onTap: () => context.push('/your-data'),
               ),
+              _divider(),
+              // P12.6 — Grandparent Mode (accessibility profile)
+              Consumer(builder: (context, ref, _) {
+                final gpMode = ref.watch(grandparentModeProvider);
+                return _SettingsRow(
+                  icon: Icons.elderly_outlined,
+                  label: 'Grandparent Mode',
+                  subtitle: gpMode.enabled
+                      ? 'On — larger text, simpler navigation'
+                      : 'Larger text, simpler navigation, fewer options',
+                  onTap: () => ref.read(grandparentModeProvider.notifier).toggle(),
+                );
+              }),
               _divider(),
               _SettingsDeleteRow(
                 label: 'Delete my account',
