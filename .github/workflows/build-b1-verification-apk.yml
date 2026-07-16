@@ -65,6 +65,8 @@ jobs:
 
       - name: Install Android SDK platform 33 (thermion_flutter requires it)
         run: |
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
           yes | sdkmanager "platforms;android-33" "build-tools;33.0.0" || true
           sdkmanager --list_installed | grep android-33
 
