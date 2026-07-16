@@ -216,6 +216,26 @@ class StructuralKinshipClassifier {
       );
     }
 
+    // Great-grandparent / Great-grandchild (direct stored key)
+    if (t.startsWith('great_grand')) {
+      if (t.contains('son') || t.contains('daughter') || t.contains('child')) {
+        // Great-grandchild
+        final isFemale = t.contains('daughter');
+        return StructuralClassification(
+          category: KinshipEdgeCategory.grandparent,
+          label: isFemale ? 'Great-granddaughter' : 'Great-grandson',
+          key: t,
+        );
+      }
+      // Great-grandparent
+      final isFemale = t.contains('mother') || t.contains('grandmother');
+      return StructuralClassification(
+        category: KinshipEdgeCategory.grandparent,
+        label: isFemale ? 'Great-grandmother' : 'Great-grandfather',
+        key: t,
+      );
+    }
+
     // Grandparent (direct stored key)
     if (t == 'grandfather' || t == 'grandmother' || t == 'grandparent' ||
         t.startsWith('paternal_grand') || t.startsWith('maternal_grand')) {
@@ -403,6 +423,20 @@ class StructuralKinshipClassifier {
     }
     if (hasInLaw) {
       // Explicit in-law marker in the path.
+      return StructuralClassification(
+        category: KinshipEdgeCategory.inLaw,
+        label: _inLawLabel(path.last, targetGender),
+        key: _composeKey(path),
+      );
+    }
+
+    // ── Spouse-in-middle guard ──────────────────────────────────────
+    // If the path contains a spouse step but didn't match any of the
+    // specific in-law patterns above, the relationship involves a
+    // marriage link in the middle. This is NOT a pure blood relation —
+    // e.g. ['father', 'spouse', 'child', 'sibling'] is a step-sibling
+    // or in-law connection, NOT a cousin. Route to extended/inLaw.
+    if (hasSpouse) {
       return StructuralClassification(
         category: KinshipEdgeCategory.inLaw,
         label: _inLawLabel(path.last, targetGender),
@@ -601,6 +635,13 @@ class StructuralKinshipClassifier {
     }
     if (t.endsWith('_husband') || t.endsWith('_wife') || t.endsWith('_spouse')) {
       return _StepRole.spouse;
+    }
+    // Great-grandparent/aunt/cousin direct keys
+    if (t.startsWith('great_grand')) {
+      if (t == 'great_grandson' || t == 'great_granddaughter' || t == 'great_grandchild') {
+        return _StepRole.child;
+      }
+      return _StepRole.parent; // great_grandfather/great_grandmother = up 2+ generations
     }
     // Grandparent/aunt/cousin direct keys
     if (t.startsWith('grand') || t.startsWith('paternal_grand') || t.startsWith('maternal_grand')) {

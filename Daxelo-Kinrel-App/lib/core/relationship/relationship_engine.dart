@@ -121,16 +121,21 @@ class RelationshipEngine {
     }
 
     // Extract the relationship types from the path steps.
-    // CRITICAL: BFS path types represent the VIEWER's relationship TO each
-    // step — e.g. if the stored edge is (Geetha → Yakshitha, 'mother'),
-    // BFS from Yakshitha to Geetha produces step type 'child' (inverse of
-    // 'mother'), meaning "viewer (Yakshitha) is a child of target (Geetha)".
-    // To classify the TARGET's relationship to the viewer, we must INVERT
-    // each path type so the classifier sees "Geetha is a parent of Yakshitha"
-    // → returns 'Mother' instead of 'Daughter'.
-    final pathTypes = pathResult.path.map((step) {
-      return graphService.inverseType(step.type);
-    }).toList();
+    //
+    // BFS path types already represent the VIEWER's perspective on each
+    // step. The adjacency list is built so that every edge from node A
+    // to node B carries the type that describes B from A's point of view:
+    //   - Forward edge  (from→to, 'father'):  step type = 'father'
+    //     → viewer following this edge sees the target as "father"
+    //   - Reverse edge  (to→from, 'child'):   step type = 'child'
+    //     → viewer following this edge sees the target as "child"
+    //
+    // Since we BFS from the VIEWER, every step type we encounter is
+    // already expressed from the viewer's perspective. No inversion
+    // is needed — inverting would flip the perspective to the target's
+    // point of view, producing the wrong label (e.g. 'son' instead of
+    // 'father').
+    final pathTypes = pathResult.path.map((step) => step.type).toList();
 
     // v66: Try the kinship chain rules first (high accuracy for known
     // compounds), then fall back to the structural classifier which

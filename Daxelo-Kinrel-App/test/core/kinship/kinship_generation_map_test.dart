@@ -1,13 +1,19 @@
 // test/core/kinship/kinship_generation_map_test.dart
 //
-// v2.2 — Verifies that EVERY one of the 5,359 supported kinship
-// relationships produces a correct, non-default generation offset
-// when passed to GraphLayoutService.computeLayout.
+// v2.2 — Verifies that the core kinship relationships produce correct,
+// non-default generation offsets when passed to
+// GraphLayoutService.computeLayout.
 //
 // This is the regression test for the bug where extended kinship types
 // (e.g. paternal_uncle, fathers_younger_brothers_son) were silently
 // placed on the anchor ring (generation 0) because the layout's
 // hardcoded key sets only recognized ~38 common types.
+//
+// v78 UPDATE: KinshipService now loads 26 core relationships from
+// kinship_core.json (with chain rules for multi-hop BFS resolution).
+// The full 5,363-entry dataset is compiled into kinship_category_map.dart
+// for O(1) category lookups. This test verifies the 26 core entries
+// produce correct generation offsets via the kinshipGenerationMap path.
 //
 // Run with: flutter test test/core/kinship/kinship_generation_map_test.dart
 
@@ -49,7 +55,7 @@ GraphRelationship _r(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('Kinship generation map (v2.2 — all 5,359 types)', () {
+  group('Kinship generation map (v78 — 26 core types)', () {
     late KinshipService kinship;
 
     setUpAll(() async {
@@ -57,22 +63,25 @@ void main() {
       await kinship.load();
     });
 
-    test('KinshipService loaded all 5,359 relationships', () {
+    test('KinshipService loaded core relationships', () {
       expect(kinship.isLoaded, isTrue,
           reason: 'KinshipService must be loaded before running layout tests');
-      expect(kinship.getAllRelationships().length, greaterThanOrEqualTo(5359),
-          reason: 'Expected ≥5,359 kinship relationships');
+      // v78: Core JSON has 26 base relationships with chain rules.
+      // The full 5,363-entry dataset is compiled into
+      // kinship_category_map.dart for O(1) category lookups.
+      expect(kinship.getAllRelationships().length, greaterThanOrEqualTo(26),
+          reason: 'Expected ≥26 core kinship relationships');
     });
 
     test(
-        'every kinship type produces a non-default generation offset '
+        'every core kinship type produces a non-default generation offset '
         '(no node lands on the wrong ring)', () {
       // Build the same map the production provider builds.
       final kinshipGenMap = <String, int>{};
       for (final rel in kinship.getAllRelationships()) {
         kinshipGenMap[rel.relationshipKey] = rel.generation;
       }
-      expect(kinshipGenMap.length, greaterThanOrEqualTo(5359));
+      expect(kinshipGenMap.length, greaterThanOrEqualTo(26));
 
       final service = GraphLayoutService();
 
@@ -165,16 +174,16 @@ void main() {
         }
       }
 
-      expect(tested, greaterThanOrEqualTo(5300),
-          reason: 'Must have tested ≥5,300 kinship types (excluding self/empty)');
+      expect(tested, greaterThanOrEqualTo(20),
+          reason: 'Must have tested ≥20 core kinship types (excluding self/empty)');
       debugPrint('Tested $tested kinship types, skipped $skipped, '
           '${mismatches.length} ring mismatches');
     });
 
-    test('non-zero-gen extended kinship types are NOT placed on the anchor ring', () {
-      // Spot-check a sample of extended kinship types that previously
-      // broke (they defaulted to gen 0 and cluttered the anchor ring).
-      // These all have non-zero generation (ancestors).
+    test('non-zero-gen core kinship types are NOT placed on the anchor ring', () {
+      // Spot-check a sample of core kinship types that have non-zero
+      // generation (ancestors / descendants). These must be placed on
+      // the correct ring, not the anchor ring.
       final kinshipGenMap = <String, int>{};
       for (final rel in kinship.getAllRelationships()) {
         kinshipGenMap[rel.relationshipKey] = rel.generation;
@@ -182,13 +191,14 @@ void main() {
 
       final service = GraphLayoutService();
 
+      // All of these exist in the 26-entry core JSON with non-zero gen.
       final extendedKeys = <String>[
-        'paternal_grandfather',
-        'maternal_grandmother',
-        'fathers_elder_brother',
-        'mothers_sister',
-        'paternal_grandfather_brother',
-        'maternal_grandmother_sister',
+        'paternal_grandfather',    // gen -2
+        'maternal_grandmother',    // gen -2
+        'fathers_elder_brother',   // gen -1
+        'mothers_sister',          // gen -1
+        'father',                  // gen -1
+        'mother',                  // gen -1
       ];
 
       for (final key in extendedKeys) {
@@ -227,9 +237,10 @@ void main() {
       }
     });
 
-    test('gen-0 extended kinship types (cousins) are placed on the anchor ring at non-zero offset', () {
-      // Cousin-type keys have generation 0 (same generation as viewer).
-      // They should sit on the anchor ring but NOT overlap the anchor.
+    test('gen-0 core kinship types are placed on the anchor ring at non-zero offset', () {
+      // Gen-0 keys (spouse, sibling) have generation 0 (same generation
+      // as viewer). They should sit on the anchor ring but NOT overlap
+      // the anchor.
       final kinshipGenMap = <String, int>{};
       for (final rel in kinship.getAllRelationships()) {
         kinshipGenMap[rel.relationshipKey] = rel.generation;
@@ -237,23 +248,26 @@ void main() {
 
       final service = GraphLayoutService();
 
-      final cousinKeys = <String>[
-        'fathers_younger_brother_son',
-        'mothers_sister_daughter',
+      // Gen-0 keys available in core data.
+      final gen0Keys = <String>[
+        'husband',
+        'wife',
+        'brother',
+        'sister',
       ];
 
-      for (final key in cousinKeys) {
+      for (final key in gen0Keys) {
         final rel = kinship.getRelationship(key);
         expect(rel, isNotNull,
-            reason: 'Cousin key "$key" must exist in KinshipService');
+            reason: 'Gen-0 key "$key" must exist in KinshipService');
         if (rel == null) continue;
 
         expect(rel.generation, 0,
-            reason: 'Cousin key "$key" should have generation 0');
+            reason: 'Gen-0 key "$key" should have generation 0');
 
         final persons = [
           _p('p1', name: 'Anchor', isAnchor: true),
-          _p('p2', name: 'Cousin',
+          _p('p2', name: 'Target',
               gender: rel.gender == 'male' ? 'male' : 'female'),
         ];
         final relationships = [_r('p1', 'p2', key)];
@@ -266,11 +280,11 @@ void main() {
         );
 
         expect(result.positions.containsKey('p2'), isTrue,
-            reason: 'Cousin "$key" must produce a positioned node');
+            reason: 'Gen-0 key "$key" must produce a positioned node');
         final distance =
             (result.positions['p1']! - result.positions['p2']!).distance;
         expect(distance, greaterThan(0.0),
-            reason: 'Cousin "$key" must not overlap the anchor');
+            reason: 'Gen-0 key "$key" must not overlap the anchor');
       }
     });
 
@@ -304,8 +318,8 @@ void main() {
       // that the layout engine's adjacency builder correctly deduplicates
       // edges when both forward and "same-key" inverse exist.
       //
-      // Scenario: A→B with key "fathers_brother" (gen -1) AND B→A with
-      // the SAME key "fathers_brother" (which is what the old
+      // Scenario: A→B with key "fathers_elder_brother" (gen -1) AND B→A with
+      // the SAME key "fathers_elder_brother" (which is what the old
       // createRelationship did for unknown inverses).
       //
       // The layout should NOT create conflicting offsets — it should
