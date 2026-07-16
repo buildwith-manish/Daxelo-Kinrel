@@ -67,8 +67,11 @@ jobs:
         run: |
           export ANDROID_HOME=/usr/local/lib/android/sdk
           export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
-          yes | sdkmanager "platforms;android-33" "build-tools;33.0.0" || true
-          sdkmanager --list_installed | grep android-33
+          yes | sdkmanager \
+            "platforms;android-33" "build-tools;33.0.0" \
+            "cmake;3.22.1" \
+            "ndk;27.0.12077973" || true
+          sdkmanager --list_installed | grep -E "android-33|cmake|ndk"
 
       - name: Flutter doctor (verify toolchain)
         run: flutter doctor -v
