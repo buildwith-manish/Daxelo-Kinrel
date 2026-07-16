@@ -65,6 +65,12 @@ jobs:
       - name: Enable Flutter native assets
         run: flutter config --enable-native-assets
 
+      - name: Install Android SDK platform 33 + cmake + NDK (thermion_flutter)
+        run: |
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+          yes | sdkmanager "platforms;android-33" "build-tools;33.0.0" "cmake;3.22.1" "ndk;27.0.12077973" || true
+
       - name: Install dependencies
         run: flutter pub get
 
