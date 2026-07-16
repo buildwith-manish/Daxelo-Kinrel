@@ -198,6 +198,12 @@
 @import sqlite3_flutter_libs;
 #endif
 
+#if __has_include(<thermion_flutter/SwiftThermionFlutterPlugin.h>)
+#import <thermion_flutter/SwiftThermionFlutterPlugin.h>
+#else
+@import thermion_flutter;
+#endif
+
 #if __has_include(<url_launcher_ios/URLLauncherPlugin.h>)
 #import <url_launcher_ios/URLLauncherPlugin.h>
 #else
@@ -245,6 +251,7 @@
   [SharedPreferencesPlugin registerWithRegistrar:[registry registrarForPlugin:@"SharedPreferencesPlugin"]];
   [SqflitePlugin registerWithRegistrar:[registry registrarForPlugin:@"SqflitePlugin"]];
   [Sqlite3FlutterLibsPlugin registerWithRegistrar:[registry registrarForPlugin:@"Sqlite3FlutterLibsPlugin"]];
+  [SwiftThermionFlutterPlugin registerWithRegistrar:[registry registrarForPlugin:@"SwiftThermionFlutterPlugin"]];
   [URLLauncherPlugin registerWithRegistrar:[registry registrarForPlugin:@"URLLauncherPlugin"]];
   [WebViewFlutterPlugin registerWithRegistrar:[registry registrarForPlugin:@"WebViewFlutterPlugin"]];
 }

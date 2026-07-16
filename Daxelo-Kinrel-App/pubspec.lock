@@ -401,6 +401,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
+  ffigen_js:
+    dependency: transitive
+    description:
+      name: ffigen_js
+      sha256: f91a2cbb2c99cd42405d4977660774e03a0aa065abe8f577bbcdbd4b370c21b6
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.12-pre"
   file:
     dependency: transitive
     description:
@@ -1445,13 +1453,13 @@ packages:
     source: hosted
     version: "2.0.2"
   objective_c:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       name: objective_c
-      sha256: "100a1c87616ab6ed41ec263b083c0ef3261ee6cd1dc3b0f35f8ddfa4f996fe52"
+      sha256: "02f4ff97ac95fa4abe561242eb033239e08e8903a46eaecf61b047761b89fe1f"
       url: "https://pub.dev"
     source: hosted
-    version: "9.3.0"
+    version: "9.4.0"
   octo_image:
     dependency: transitive
     description:
@@ -2281,6 +2289,24 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.6.18"
+  thermion_dart:
+    dependency: "direct main"
+    description:
+      path: thermion_dart
+      ref: main
+      resolved-ref: "71a329853926e04108ef4b99ada3e68495a185f1"
+      url: "https://github.com/buildwith-manish/thermion-fork"
+    source: git
+    version: "0.4.1"
+  thermion_flutter:
+    dependency: "direct main"
+    description:
+      path: thermion_flutter
+      ref: main
+      resolved-ref: "71a329853926e04108ef4b99ada3e68495a185f1"
+      url: "https://github.com/buildwith-manish/thermion-fork"
+    source: git
+    version: "0.4.1"
   timezone:
     dependency: "direct main"
     description:

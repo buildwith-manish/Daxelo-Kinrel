@@ -148,9 +148,23 @@ dependencies:
   # next occasion, daily brief preview)
   home_widget: ^0.7.0
 
+  # ── Thermion — 3D rendering engine for Kinrel Cameo (B1 gate) ──
+  # Fork of thermion_flutter 0.4.1 with objective_c 9.x compat patches.
+  thermion_flutter:
+    git:
+      url: https://github.com/buildwith-manish/thermion-fork
+      path: thermion_flutter
+      ref: main
+  thermion_dart:
+    git:
+      url: https://github.com/buildwith-manish/thermion-fork
+      path: thermion_dart
+      ref: main
 
-
-
+# path_provider_foundation 2.6.0 requires objective_c ^9.2.1; thermion_flutter
+# (forked) allows >=8.1.0 <10.0.0. Pin to 9.4.0 (last 9.x using hooks ^1.0.0).
+dependency_overrides:
+  objective_c: 9.4.0
 
 dev_dependencies:
   flutter_test:
