@@ -2,7 +2,6 @@
 // KINREL CAMEO — B1 GATE IN-APP VERIFICATION SCREEN (debug-only, /b1-verify route).
 // Runs all 8 B1 criteria, displays results with actual values, has morph sliders,
 // live Thermion viewport, portrait thumbnail, + Copy Report button.
-import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -29,7 +28,7 @@ class _B1VerificationScreenState extends State<B1VerificationScreen> {
   final List<B1CriterionResult> _results = [];
   final Map<String, double> _morphWeights = {'blink_left': 0.0, 'blink_right': 0.0, 'smile': 0.0, 'jaw_open': 0.0};
   Uint8List? _portraitBytes;
-  int _portraitWidth = 256, _portraitHeight = 256;
+  final int _portraitWidth = 256, _portraitHeight = 256;
   bool _isRunning = false;
   String _reportText = '';
 
