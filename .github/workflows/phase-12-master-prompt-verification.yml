@@ -57,6 +57,14 @@ jobs:
       # ───────────────────────────────────────────────────────────────
       # STEP 1 — Install dependencies
       # ───────────────────────────────────────────────────────────────
+      - name: Install native build toolchain (for thermion_dart)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends             clang cmake ninja-build             libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev             libc++-19-dev libc++1-19 libc++abi-19-dev libc++abi1-19 libunwind-19
+
+      - name: Enable Flutter native assets
+        run: flutter config --enable-native-assets
+
       - name: Install dependencies
         run: flutter pub get
 
