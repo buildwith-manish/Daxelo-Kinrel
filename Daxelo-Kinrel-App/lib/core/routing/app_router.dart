@@ -50,6 +50,8 @@ import '../../features/auth/presentation/sign_in_screen.dart';
 import '../../features/auth/presentation/sign_up_screen.dart';
 import '../../features/auth/presentation/create_username_screen.dart';
 import '../../features/auth/presentation/two_factor_login_screen.dart';
+// B1 gate verification screen (debug-only).
+import '../../features/cameo/presentation/b1_verification_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 // KIN-25: ExploreScreen import removed — /explore route deleted.
 import '../../features/family/presentation/family_list_screen.dart';
@@ -699,6 +701,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/2fa-verify',
         pageBuilder: (context, state) =>
             _fastFadePage(key: state.pageKey, child: TwoFactorLoginScreen()),
+      ),
+
+      // ── B1 Gate Verification (debug-only, NOT in normal navigation) ──
+      GoRoute(
+        path: '/b1-verify',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const B1VerificationScreen()),
       ),
 
       // ── Shell routes (show bottom navigation) ─────────────────────
