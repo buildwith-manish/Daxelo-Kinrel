@@ -280,26 +280,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   ]),
                   const SizedBox(height: 24),
 
-                  // ── Kinrel Cameo (3D Character) ──────────────────────
-                  _buildSectionHeader('Kinrel Cameo'),
-                  const SizedBox(height: 8),
-                  _buildSectionCard([
-                    _SettingsRow(
-                      icon: Icons.face_retouching_natural,
-                      label: 'My Cameo',
-                      subtitle: 'View your 3D Kinrel character',
-                      iconColor: _orange,
-                      labelColor: _orange,
-                      onTap: () => context.push('/b1-verify'),
-                    ),
-                    _divider(),
-                    _SettingsRow(
-                      icon: Icons.science_outlined,
-                      label: 'Cameo Diagnostics',
-                      subtitle: 'B1 gate verification + morph target test',
-                      onTap: () => context.push('/b1-verify'),
-                    ),
-                  ]),
+                  // ── My Cameo (3D Character) — Standalone Section ────
+                  _buildCameoSection(context, ref),
                   const SizedBox(height: 24),
 
                   // ── Appearance ────────────────────────────────────────
@@ -1207,6 +1189,131 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Divider(height: 1, thickness: 0.5, color: _borderSubtle),
+    );
+  }
+
+  // ── My Cameo Section (Standalone) ─────────────────────────────────
+
+  Widget _buildCameoSection(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader('My Cameo'),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                _orange.withValues(alpha: 0.12),
+                _orange.withValues(alpha: 0.04),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _orange.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => context.push('/b1-verify'),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    // ── Cameo Avatar Preview ──
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            _orange.withValues(alpha: 0.2),
+                            _orange.withValues(alpha: 0.05),
+                          ],
+                        ),
+                        border: Border.all(
+                          color: _orange.withValues(alpha: 0.4),
+                          width: 2,
+                        ),
+                      ),
+                      child: Center(
+                        child: kEnableCameoFallback
+                            ? SizedBox(
+                                width: 56,
+                                height: 56,
+                                child: CameoAvatar(
+                                  personName: '',
+                                  ageBand: CameoAgeBand.adult,
+                                  skinToneIndex: 5,
+                                  surfaceId: 'profile_cameo_section',
+                                  isDeceased: false,
+                                ),
+                              )
+                            : Icon(
+                                Icons.face_retouching_natural,
+                                color: _orange,
+                                size: 32,
+                              ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // ── Text Content ──
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'My Cameo',
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: _textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Your 3D Kinrel character — customize appearance, outfits & expressions',
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 13,
+                              color: _textSecondary,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // ── Chevron ──
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: _orange,
+                      size: 24,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        // ── Cameo Diagnostics Row ──
+        _buildSectionCard([
+          _SettingsRow(
+            icon: Icons.science_outlined,
+            label: 'Cameo Diagnostics',
+            subtitle: 'B1 gate verification + morph target test',
+            onTap: () => context.push('/b1-verify'),
+          ),
+        ]),
+      ],
     );
   }
 
