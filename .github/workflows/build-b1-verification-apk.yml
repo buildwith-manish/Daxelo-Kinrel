@@ -63,6 +63,11 @@ jobs:
       - name: Enable Flutter native assets
         run: flutter config --enable-native-assets
 
+      - name: Install Android SDK platform 33 (thermion_flutter requires it)
+        run: |
+          yes | sdkmanager "platforms;android-33" "build-tools;33.0.0" || true
+          sdkmanager --list_installed | grep android-33
+
       - name: Flutter doctor (verify toolchain)
         run: flutter doctor -v
 
