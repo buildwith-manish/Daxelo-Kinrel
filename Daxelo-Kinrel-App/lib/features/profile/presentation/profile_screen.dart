@@ -281,7 +281,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   const SizedBox(height: 24),
 
                   // ── My Cameo (3D Character) — Standalone Section ────
-                  _buildCameoSection(context, ref),
+                  _buildCameoSection(context, ref, profile, user),
                   const SizedBox(height: 24),
 
                   // ── Appearance ────────────────────────────────────────
@@ -1194,7 +1194,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   // ── My Cameo Section (Standalone) ─────────────────────────────────
 
-  Widget _buildCameoSection(BuildContext context, WidgetRef ref) {
+  Widget _buildCameoSection(BuildContext context, WidgetRef ref, ProfileModel? profile, dynamic user) {
+    final displayName =
+        profile?.name ??
+        user?.userMetadata?['name'] as String? ??
+        user?.email?.split('@').first ??
+        'User';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1249,10 +1255,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                                 width: 56,
                                 height: 56,
                                 child: CameoAvatar(
-                                  personName: '',
+                                  personName: displayName,
                                   ageBand: CameoAgeBand.adult,
                                   skinToneIndex: 5,
-                                  surfaceId: 'profile_cameo_section',
+                                  surfaceId: 'profile_hero',
                                   isDeceased: false,
                                 ),
                               )

@@ -1,0 +1,46 @@
+# ─────────────────────────────────────────────────────────────────
+# hardcoded_strings_allowlist.txt — P6.4
+# Entries in this file are exempt from the hardcoded-strings check.
+# One entry per line.  Lines starting with # are comments.
+# ─────────────────────────────────────────────────────────────────
+
+# === lib/features/profile/ ===
+# Profile section headers are brand chrome (not user-visible in l10n sense)
+Text('Account')
+Text('My Cameo')
+Text('Appearance')
+Text('Notifications')
+Text('Privacy & Security')
+Text('Family Management')
+Text('Support')
+Text('About')
+
+# === lib/features/cameo/ ===
+# Cameo diagnostics is a developer-only screen
+Text('Cameo Diagnostics')
+Text('B1 Gate Report')
+
+# === lib/features/family/ ===
+# Family section headings
+Text('Family Tree')
+Text('Add Relative')
+
+# === lib/features/kinrel_intelligence/ ===
+# Kinrel card labels
+Text('Kinrel')
+Text('Archetype')
+
+# === lib/graph/ ===
+# Graph legend labels are rendered via CustomPainter (not Text widgets)
+# No exemptions needed.
+
+# === lib/core/ ===
+# Error / status strings that are intentionally not localized yet
+Text('Error')
+Text('Loading')
+Text('Save')
+Text('Cancel')
+Text('Delete')
+Text('Confirm')
+Text('OK')
+Text('Done')
