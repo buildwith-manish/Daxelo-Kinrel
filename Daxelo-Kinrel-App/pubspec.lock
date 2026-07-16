@@ -2294,7 +2294,7 @@ packages:
     description:
       path: thermion_dart
       ref: main
-      resolved-ref: "71a329853926e04108ef4b99ada3e68495a185f1"
+      resolved-ref: "4d26703a31b2e44cfa390eabda83f2ca932b9668"
       url: "https://github.com/buildwith-manish/thermion-fork"
     source: git
     version: "0.4.1"
@@ -2303,7 +2303,7 @@ packages:
     description:
       path: thermion_flutter
       ref: main
-      resolved-ref: "71a329853926e04108ef4b99ada3e68495a185f1"
+      resolved-ref: "4d26703a31b2e44cfa390eabda83f2ca932b9668"
       url: "https://github.com/buildwith-manish/thermion-fork"
     source: git
     version: "0.4.1"
