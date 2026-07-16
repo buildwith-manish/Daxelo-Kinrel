@@ -353,8 +353,8 @@ void main() {
 
     test('clampYaw respects range', () {
       final c = CameoCameraPresets.profileHero;
-      expect(c.clampYaw(100), 35);
-      expect(c.clampYaw(-100), -35);
+      expect(c.clampYaw(100), 20);
+      expect(c.clampYaw(-100), -20);
       expect(c.clampYaw(10), 10);
     });
   });

@@ -12,6 +12,7 @@
 //      does not duplicate the entry.
 //   4. No-op when no cache exists for the family.
 
+import 'dart:ui' show Color;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/constants/brand_colors.dart';
 import 'package:kinrel/core/kinship/kinship_edge_style.dart';
@@ -41,7 +42,7 @@ void main() {
           personName: 'New Person',
           gender: 'male',
           relationshipKey: 'father',
-          anchorPersonId: anchorId,
+          anchorPersonId: 'anchor-person',
         ),
         returnsNormally,
         reason: 'injectOptimisticEdge must not crash when cache is empty',
