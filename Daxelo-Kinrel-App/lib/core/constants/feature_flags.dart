@@ -45,6 +45,20 @@ const bool kEnableProfileEditing = true;
 /// keep the legacy initial-letter fallback (zero change to existing UI).
 const bool kEnableCameoFallback = true;
 
+/// Kinrel Cameo — live 3D rendering on eligible surfaces.
+///
+/// When enabled AND the 3D renderer (Thermion/Filament) initializes
+/// successfully, the CameoLive3DAvatar widget will render real-time
+/// 3D characters on Studio, Profile hero, and Journey surfaces.
+///
+/// When disabled, or when 3D init fails, all surfaces fall back to the
+/// 2D CameoAvatar (CameoPortraitPainter) — zero broken views.
+///
+/// This flag is separate from [kEnableCameoFallback] because the 2D
+/// Cameo system is production-ready, while the 3D system is still in
+/// B1 verification. Set to `true` only when B1 passes on real hardware.
+const bool kEnableLive3DCameo = false;
+
 /// Language picker for kinship term display (7 Indian languages).
 const bool kEnableLanguagePicker = true;
 

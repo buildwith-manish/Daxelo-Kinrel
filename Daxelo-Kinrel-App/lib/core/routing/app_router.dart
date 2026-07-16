@@ -39,6 +39,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:go_router/go_router.dart';
@@ -704,11 +705,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── B1 Gate Verification (debug-only, NOT in normal navigation) ──
-      GoRoute(
-        path: '/b1-verify',
-        pageBuilder: (context, state) =>
-            _fastFadePage(key: state.pageKey, child: const B1VerificationScreen()),
-      ),
+      if (kDebugMode)
+        GoRoute(
+          path: '/b1-verify',
+          pageBuilder: (context, state) =>
+              _fastFadePage(key: state.pageKey, child: const B1VerificationScreen()),
+        ),
 
       // ── Shell routes (show bottom navigation) ─────────────────────
       // Tab switches use 0ms instant transitions — the shell handles

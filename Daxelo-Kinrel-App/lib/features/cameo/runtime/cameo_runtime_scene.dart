@@ -27,6 +27,7 @@ import '../rendering/cameo_renderer.dart';
 import '../style/cameo_animation_curves.dart';
 import '../style/cameo_camera_rules.dart';
 import '../style/cameo_lighting_presets.dart';
+import '../style/cameo_expression_catalog.dart';
 import '../style/cameo_style_system.dart';
 import 'cameo_animation_controller.dart';
 
@@ -247,19 +248,61 @@ class CameoRuntimeScene {
     // Collect all morph target names from the expression catalog.
     // The renderer needs to know which morph targets to enable.
     final names = <String>{};
-    for (final expr in [
-      'neutral',
-      'slight_smile',
-      'gentle_smile',
-      'reverent',
-      'soft_surprise',
-      'tender',
-      'blink',
-    ]) {
-      // The expression catalog defines morph weights; collect the keys.
-      // This is a simplification — the real system would enumerate all
-      // 24 face morphs + 8 age morphs from the GLB.
+
+    // 1. Collect keys from every expression in the catalog.
+    for (final expression in CameoExpressionCatalog.all) {
+      names.addAll(expression.morphWeights.keys);
     }
-    return names.toList();
+
+    // 2. Add the full production morph target list.
+    // Face morphs (24)
+    names.addAll([
+      'brow_inner_up',
+      'brow_outer_up',
+      'brow_furrow',
+      'eye_close',
+      'eye_widen',
+      'eye_crinkle',
+      'upper_lid_lower',
+      'lower_lid_raise',
+      'nose_wrinkle',
+      'mouth_relax',
+      'mouth_corner_up',
+      'mouth_corner_down',
+      'mouth_open',
+      'mouth_pout',
+      'mouth_smile_full',
+      'jaw_open',
+      'jaw_forward',
+      'cheek_raise',
+      'cheek_puff',
+      'chin_raise',
+      'tongue_out',
+      'lip_bite',
+      'lip_funnel',
+      'lip_press',
+    ]);
+
+    // Age morphs (8)
+    names.addAll([
+      'age_brow_sag',
+      'age_eyelid_drop',
+      'age_crow_feet',
+      'age_nasolabial',
+      'age_jowl',
+      'age_neck_sag',
+      'age_ear_lengthen',
+      'age_hair_recede',
+    ]);
+
+    // Expression morphs (4) — for B1 test GLB compatibility
+    names.addAll([
+      'blink_left',
+      'blink_right',
+      'smile',
+      'jaw_open', // already in face morphs; set handles dedup
+    ]);
+
+    return names.toList()..sort();
   }
 }

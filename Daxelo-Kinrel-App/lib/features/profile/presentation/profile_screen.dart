@@ -9,6 +9,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'package:flutter/material.dart';
@@ -809,13 +810,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                                   ),
                                 )
                               : kEnableCameoFallback
-                              ? CameoAvatar(
-                                  personName: displayName,
-                                  ageBand: CameoAgeBand.adult,
-                                  skinToneIndex: 5,
-                                  surfaceId: 'profile_hero',
-                                  isDeceased: false,
-                                )
+                              ? kEnableLive3DCameo
+                                ? CameoLive3DAvatar(
+                                    personName: displayName,
+                                    ageBand: CameoAgeBand.adult,
+                                    skinToneIndex: 5,
+                                    surfaceId: 'profile_hero',
+                                    isDeceased: false,
+                                  )
+                                : CameoAvatar(
+                                    personName: displayName,
+                                    ageBand: CameoAgeBand.adult,
+                                    skinToneIndex: 5,
+                                    surfaceId: 'profile_hero',
+                                    isDeceased: false,
+                                  )
                               : Center(
                                   child: Text(
                                     displayName.isNotEmpty
@@ -1227,7 +1236,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             borderRadius: BorderRadius.circular(16),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
-              onTap: () => context.push('/b1-verify'),
+              onTap: () => _onCameoTap(context, displayName),
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Row(
@@ -1254,13 +1263,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                             ? SizedBox(
                                 width: 56,
                                 height: 56,
-                                child: CameoAvatar(
-                                  personName: displayName,
-                                  ageBand: CameoAgeBand.adult,
-                                  skinToneIndex: 5,
-                                  surfaceId: 'profile_hero',
-                                  isDeceased: false,
-                                ),
+                                child: kEnableLive3DCameo
+                                    ? CameoLive3DAvatar(
+                                        personName: displayName,
+                                        ageBand: CameoAgeBand.adult,
+                                        skinToneIndex: 5,
+                                        surfaceId: 'profile_hero',
+                                        isDeceased: false,
+                                      )
+                                    : CameoAvatar(
+                                        personName: displayName,
+                                        ageBand: CameoAgeBand.adult,
+                                        skinToneIndex: 5,
+                                        surfaceId: 'profile_hero',
+                                        isDeceased: false,
+                                      ),
                               )
                             : Icon(
                                 Icons.face_retouching_natural,
@@ -1310,16 +1327,105 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           ),
         ),
         const SizedBox(height: 8),
-        // ── Cameo Diagnostics Row ──
-        _buildSectionCard([
-          _SettingsRow(
-            icon: Icons.science_outlined,
-            label: 'Cameo Diagnostics',
-            subtitle: 'B1 gate verification + morph target test',
-            onTap: () => context.push('/b1-verify'),
-          ),
-        ]),
+        // ── Cameo Diagnostics Row (debug-only) ──
+        if (kDebugMode)
+          _buildSectionCard([
+            _SettingsRow(
+              icon: Icons.science_outlined,
+              label: 'Cameo Diagnostics',
+              subtitle: 'B1 gate verification + morph target test',
+              onTap: () => context.push('/b1-verify'),
+            ),
+          ]),
       ],
+    );
+  }
+
+  // ── Cameo tap handler ──────────────────────────────────────────────
+
+  void _onCameoTap(BuildContext context, String displayName) {
+    if (kDebugMode) {
+      context.push('/b1-verify');
+      return;
+    }
+    // Release: show "Your Cameo is being created" placeholder dialog
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 2D CameoAvatar visual
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    _orange.withValues(alpha: 0.2),
+                    _orange.withValues(alpha: 0.05),
+                  ],
+                ),
+                border: Border.all(
+                  color: _orange.withValues(alpha: 0.4),
+                  width: 2,
+                ),
+              ),
+              child: Center(
+                child: kEnableCameoFallback
+                    ? SizedBox(
+                        width: 72,
+                        height: 72,
+                        child: CameoAvatar(
+                          personName: displayName,
+                          ageBand: CameoAgeBand.adult,
+                          skinToneIndex: 5,
+                          surfaceId: 'profile_dialog',
+                          isDeceased: false,
+                        ),
+                      )
+                    : Icon(
+                        Icons.face_retouching_natural,
+                        color: _orange,
+                        size: 40,
+                      ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Your Cameo is being created',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: _textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'We\'re crafting your personalized 3D Kinrel character. You\'ll be notified when it\'s ready to customize!',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 14,
+                color: _textSecondary,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            style: TextButton.styleFrom(foregroundColor: _orange),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
     );
   }
 

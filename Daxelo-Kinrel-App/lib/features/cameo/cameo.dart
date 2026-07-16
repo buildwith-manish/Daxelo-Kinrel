@@ -54,6 +54,8 @@ export 'style/cameo_quality_gates.dart'
 
 // ── Presentation ───────────────────────────────────────────────────
 export 'presentation/widgets/cameo_avatar.dart' show CameoAvatar;
+export 'presentation/widgets/cameo_live_3d_avatar.dart'
+    show CameoLive3DAvatar, CameoLive3DState;
 export 'presentation/widgets/cameo_fallback_config.dart'
     show CameoFallbackConfig;
 export 'presentation/painters/cameo_portrait_painter.dart'
