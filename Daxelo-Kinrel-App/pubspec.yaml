@@ -193,6 +193,7 @@ flutter:
     - assets/data/kinship_terms.json
     - assets/map_styles/
     - assets/cameo/kinrel_cameo_b1_test.glb
+    - assets/cameo/placeholder_adult.glb
     - assets/icons/
     - assets/icons/games/ghost-painter.png
     - assets/icons/games/freeze-dash.png

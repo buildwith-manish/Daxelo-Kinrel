@@ -89,7 +89,7 @@ class CameoLive3DAvatar extends StatefulWidget {
     this.relationshipLabel,
     this.isDeceased = false,
     this.enableAnimation = true,
-    this.glbAssetPath = 'assets/cameo/kinrel_cameo_b1_test.glb',
+    this.glbAssetPath = 'assets/cameo/placeholder_adult.glb',
     this.on3DStateChanged,
   });
 
@@ -243,6 +243,25 @@ class _CameoLive3DAvatarState extends State<CameoLive3DAvatar>
         style: resolved,
         glbAssetPath: widget.glbAssetPath,
       );
+
+      // ── Log discovered morph target names + animation clip names ──
+      // This is required by the pipeline validation directive so the
+      // engineer can see what the placeholder GLB actually exposes.
+      if (renderer is ThermionCameoRenderer) {
+        final thermionRenderer = renderer as ThermionCameoRenderer;
+        // ignore: avoid_print
+        print('━━━ CameoLive3DAvatar: GLB loaded ━━━');
+        // ignore: avoid_print
+        print('  asset: ${widget.glbAssetPath}');
+        // ignore: avoid_print
+        print('  morph targets: ${thermionRenderer.discoveredMorphTargetNames}');
+        // ignore: avoid_print
+        print('  animation clips: ${thermionRenderer.discoveredAnimationNames}');
+        // ignore: avoid_print
+        print('  renderer: ${thermionRenderer.engineName}');
+        // ignore: avoid_print
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      }
 
       if (_disposed) {
         await scene.dispose();
@@ -523,6 +542,39 @@ class _CameoLive3DAvatarState extends State<CameoLive3DAvatar>
                         Colors.black.withValues(alpha: 0.08),
                       ],
                       stops: const [0.6, 1.0],
+                    ),
+                  ),
+                ),
+              ),
+
+              // ── Debug banner: PLACEHOLDER CAMEO — NOT FINAL ART ──
+              // Shown whenever the placeholder GLB is active so it's
+              // never mistaken for shipped quality.
+              Positioned(
+                top: 2,
+                left: 2,
+                right: 2,
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: const Text(
+                      'PLACEHOLDER — NOT FINAL ART',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 7,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
