@@ -71,8 +71,8 @@ jobs:
 
       - name: Verify Thermion fork git dependency resolved (FAIL FAST)
         run: |
-          if ! grep -q "thermion_fork" pubspec.lock; then
-            echo "❌ FATAL: pubspec.lock does not reference the thermion_fork git repo."
+          if ! grep -q "thermion-fork" pubspec.lock; then
+            echo "❌ FATAL: pubspec.lock does not reference the thermion-fork git repo."
             echo "   The Thermion dependency did not resolve correctly."
             exit 1
           fi
