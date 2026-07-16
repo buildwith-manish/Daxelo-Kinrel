@@ -704,13 +704,14 @@ final routerProvider = Provider<GoRouter>((ref) {
             _fastFadePage(key: state.pageKey, child: TwoFactorLoginScreen()),
       ),
 
-      // ── B1 Gate Verification (debug-only, NOT in normal navigation) ──
-      if (kDebugMode)
-        GoRoute(
-          path: '/b1-verify',
-          pageBuilder: (context, state) =>
-              _fastFadePage(key: state.pageKey, child: const B1VerificationScreen()),
-        ),
+      // ── B1 Gate Verification / Cameo Viewer ──
+      // Always registered (not just debug) because the Profile screen's
+      // "My Cameo" card navigates here in release builds too.
+      GoRoute(
+        path: '/b1-verify',
+        pageBuilder: (context, state) =>
+            _fastFadePage(key: state.pageKey, child: const B1VerificationScreen()),
+      ),
 
       // ── Shell routes (show bottom navigation) ─────────────────────
       // Tab switches use 0ms instant transitions — the shell handles
