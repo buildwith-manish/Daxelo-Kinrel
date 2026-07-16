@@ -210,7 +210,7 @@ void main() {
         // Must have fallen back to 2D CameoAvatar
         expect(find.byType(CameoAvatar), findsAtLeast(1));
         // Must NOT show a blank/broken view
-        expect(find.byType(SizedBoxShrink), findsNothing);
+        expect(find.byType(SizedBox), findsNothing);
       },
     );
 

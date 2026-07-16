@@ -17,8 +17,7 @@ export 'style/cameo_style_system.dart'
 export 'style/cameo_shape_language.dart'
     show CameoShapeLanguage, CameoAgeBand, CameoAgeBandLabel;
 export 'style/cameo_color_palette.dart' show CameoColorPalette;
-export 'style/cameo_lighting_presets.dart'
-    show CameoLight, CameoLightRole, CameoLightingPreset, CameoLightingPresets;
+export 'style/cameo_lighting_presets.dart';
 export 'style/cameo_material_specs.dart'
     show
         CameoSkinMaterial,

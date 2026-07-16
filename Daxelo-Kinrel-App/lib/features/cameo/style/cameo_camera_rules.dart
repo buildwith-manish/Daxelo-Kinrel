@@ -20,6 +20,16 @@ class CameoCameraRules {
   final double eyeHeightFraction;
   final bool allowOrbit;
   final bool allowZoom;
+
+  /// Clamps a yaw value (in degrees) to the allowed yawRangeDegrees.
+  double clampYaw(double yaw) {
+    return yaw.clamp(yawRangeDegrees.$1, yawRangeDegrees.$2);
+  }
+
+  /// Clamps a pitch value (in degrees) to the allowed pitchRangeDegrees.
+  double clampPitch(double pitch) {
+    return pitch.clamp(pitchRangeDegrees.$1, pitchRangeDegrees.$2);
+  }
 }
 
 /// Plural wrapper with static presets + lookup methods.

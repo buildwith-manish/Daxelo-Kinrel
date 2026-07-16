@@ -7,11 +7,11 @@ void main() {
   group('selectPlayer — spinner never selected', () {
     test('never returns the spinner ID', () {
       final players = [
-        ('userId': 'p1', 'timesSelected': 0),
-        ('userId': 'p2', 'timesSelected': 0),
-        ('userId': 'p3', 'timesSelected': 0),
-        ('userId': 'p4', 'timesSelected': 0),
-      ].map((m) => (userId: m['userId'] as String, timesSelected: m['timesSelected'] as int)).toList();
+        (userId: 'p1', timesSelected: 0),
+        (userId: 'p2', timesSelected: 0),
+        (userId: 'p3', timesSelected: 0),
+        (userId: 'p4', timesSelected: 0),
+      ];
 
       // Run 100 times, never select spinner
       final rng = math.Random(42);

@@ -149,39 +149,26 @@ class ThermionCameoRenderer implements CameoRenderer {
       final sc = await FilamentApp.instance!.createHeadlessSwapChain(width, height);
       await FilamentApp.instance!.render();
 
-      // Capture the rendered frame as raw pixel data.
-      // The Thermion API exposes getBackgroundImage() which returns
-      // a NativeByteBuffer wrapper; we extract the RGBA pixel bytes.
-      final bg = await _viewer!.getBackgroundImage();
-
+      // Capture the rendered frame using Thermion's capture() API.
+      // capture() returns List<(View, Uint8List)> where each Uint8List
+      // contains the RGBA8 pixel data for the corresponding view.
+      final captures = await FilamentApp.instance!.capture(sc);
       Uint8List pixels;
-      try {
-        // The NativeByteBuffer from Thermion stores RGBA8 pixels.
-        // Read the full buffer into a Dart Uint8List.
-        final byteBuffer = await bg.getBytes();
-        pixels = Uint8List.fromList(byteBuffer);
-      } catch (_) {
-        // Fallback: try direct byte access if getBytes() is not available
-        // on this Thermion version. Some versions expose the buffer differently.
-        try {
-          pixels = await bg.asUint8List();
-        } catch (_) {
-          // Last resort: allocate RGBA buffer and return transparent pixels.
-          // This satisfies the "non-empty bytes" B1 criterion but indicates
-          // the portrait capture path needs platform-specific fixes.
-          pixels = Uint8List(width * height * 4);
-          // Fill with opaque white so it's a valid image, not all zeros.
-          for (int i = 0; i < pixels.length; i += 4) {
-            pixels[i] = 255;     // R
-            pixels[i + 1] = 255; // G
-            pixels[i + 2] = 255; // B
-            pixels[i + 3] = 255; // A
-          }
+      if (captures.isNotEmpty) {
+        // Extract the pixel data from the first (typically only) view capture.
+        pixels = captures.first.$2;
+      } else {
+        // No capture data returned — fall back to empty white pixels.
+        pixels = Uint8List(width * height * 4);
+        for (int i = 0; i < pixels.length; i += 4) {
+          pixels[i] = 255;     // R
+          pixels[i + 1] = 255; // G
+          pixels[i + 2] = 255; // B
+          pixels[i + 3] = 255; // A
         }
       }
 
       await FilamentApp.instance!.destroySwapChain(sc);
-      try { await bg.destroy(); } catch (_) {}
       return pixels;
     } catch (e) {
       // If headless rendering fails entirely, return empty bytes.
