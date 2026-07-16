@@ -809,22 +809,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                                     ),
                                   ),
                                 )
-                              : kEnableCameoFallback
-                              ? kEnableLive3DCameo
-                                ? CameoLive3DAvatar(
-                                    personName: displayName,
-                                    ageBand: CameoAgeBand.adult,
-                                    skinToneIndex: 5,
-                                    surfaceId: 'profile_hero',
-                                    isDeceased: false,
-                                  )
-                                : CameoAvatar(
-                                    personName: displayName,
-                                    ageBand: CameoAgeBand.adult,
-                                    skinToneIndex: 5,
-                                    surfaceId: 'profile_hero',
-                                    isDeceased: false,
-                                  )
                               : Center(
                                   child: Text(
                                     displayName.isNotEmpty
@@ -1215,6 +1199,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       children: [
         _buildSectionHeader('My Cameo'),
         const SizedBox(height: 8),
+        // ── Large full-width 3D Cameo viewport ──
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
@@ -1226,102 +1211,95 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 _orange.withValues(alpha: 0.04),
               ],
             ),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: _orange.withValues(alpha: 0.3),
             ),
           ),
           child: Material(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
             child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () => _onCameoTap(context, displayName),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    // ── Cameo Avatar Preview ──
-                    Container(
-                      width: 64,
-                      height: 64,
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => context.push('/b1-verify'),
+              child: Column(
+                children: [
+                  // ── Large 3D viewport (full width, 240px tall) ──
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(19),
+                    ),
+                    child: Container(
+                      width: double.infinity,
+                      height: 240,
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            _orange.withValues(alpha: 0.2),
-                            _orange.withValues(alpha: 0.05),
-                          ],
-                        ),
-                        border: Border.all(
-                          color: _orange.withValues(alpha: 0.4),
-                          width: 2,
-                        ),
+                        color: Colors.black.withValues(alpha: 0.05),
                       ),
-                      child: Center(
-                        child: kEnableCameoFallback
-                            ? SizedBox(
-                                width: 56,
-                                height: 56,
-                                child: kEnableLive3DCameo
-                                    ? CameoLive3DAvatar(
-                                        personName: displayName,
-                                        ageBand: CameoAgeBand.adult,
-                                        skinToneIndex: 5,
-                                        surfaceId: 'profile_hero',
-                                        isDeceased: false,
-                                      )
-                                    : CameoAvatar(
-                                        personName: displayName,
-                                        ageBand: CameoAgeBand.adult,
-                                        skinToneIndex: 5,
-                                        surfaceId: 'profile_hero',
-                                        isDeceased: false,
-                                      ),
-                              )
-                            : Icon(
-                                Icons.face_retouching_natural,
-                                color: _orange,
-                                size: 32,
+                      child: kEnableLive3DCameo
+                          ? CameoLive3DAvatar(
+                              personName: displayName,
+                              ageBand: CameoAgeBand.adult,
+                              skinToneIndex: 5,
+                              surfaceId: 'profile_hero',
+                              isDeceased: false,
+                            )
+                          : kEnableCameoFallback
+                              ? CameoAvatar(
+                                  personName: displayName,
+                                  ageBand: CameoAgeBand.adult,
+                                  skinToneIndex: 5,
+                                  surfaceId: 'profile_hero',
+                                  isDeceased: false,
+                                )
+                              : Center(
+                                  child: Icon(
+                                    Icons.face_retouching_natural,
+                                    color: _orange.withValues(alpha: 0.5),
+                                    size: 64,
+                                  ),
+                                ),
+                    ),
+                  ),
+                  // ── Text + chevron below viewport ──
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'My Cameo',
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.bodyFont,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: _textPrimary,
+                                ),
                               ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    // ── Text Content ──
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'My Cameo',
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: _textPrimary,
-                            ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Tap to view your 3D Kinrel character',
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.bodyFont,
+                                  fontSize: 14,
+                                  color: _textSecondary,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Your 3D Kinrel character — customize appearance, outfits & expressions',
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 13,
-                              color: _textSecondary,
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: _orange,
+                          size: 28,
+                        ),
+                      ],
                     ),
-                    // ── Chevron ──
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      color: _orange,
-                      size: 24,
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
