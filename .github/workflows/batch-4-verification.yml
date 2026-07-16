@@ -257,7 +257,7 @@ jobs:
           cache: true
       - name: Setup Android SDK (NDK + CMake)
         run: |
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.2.13676358" "platforms;android-36" "build-tools;35.0.1" "cmake;3.22.1"
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.2.13676358" "platforms;android-36" "build-tools;35.0.1" "platforms;android-33" "build-tools;33.0.0" "cmake;3.22.1"
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
         working-directory: ${{ github.workspace }}
       - run: flutter pub get

@@ -280,6 +280,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   ]),
                   const SizedBox(height: 24),
 
+                  // ── Kinrel Cameo (3D Character) ──────────────────────
+                  _buildSectionHeader('Kinrel Cameo'),
+                  const SizedBox(height: 8),
+                  _buildSectionCard([
+                    _SettingsRow(
+                      icon: Icons.face_retouching_natural,
+                      label: 'My Cameo',
+                      subtitle: 'View your 3D Kinrel character',
+                      iconColor: _orange,
+                      labelColor: _orange,
+                      onTap: () => context.push('/b1-verify'),
+                    ),
+                    _divider(),
+                    _SettingsRow(
+                      icon: Icons.science_outlined,
+                      label: 'Cameo Diagnostics',
+                      subtitle: 'B1 gate verification + morph target test',
+                      onTap: () => context.push('/b1-verify'),
+                    ),
+                  ]),
+                  const SizedBox(height: 24),
+
                   // ── Appearance ────────────────────────────────────────
                   _buildSectionHeader('Appearance'),
                   const SizedBox(height: 8),
