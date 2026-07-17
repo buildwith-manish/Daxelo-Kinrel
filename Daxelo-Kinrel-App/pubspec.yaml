@@ -194,6 +194,25 @@ flutter:
     - assets/map_styles/
     - assets/cameo/kinrel_cameo_b1_test.glb
     - assets/cameo/placeholder_adult.glb
+    # Modular 2D Cameo asset pack (158 PNGs).
+    # Populated by scripts/setup_cameo_assets.sh from /kinrel-cameo/ at repo root.
+    # The directory itself is gitignored — never commit the PNGs into the app.
+    - assets/kinrel-cameo/
+    - assets/kinrel-cameo/base-faces/
+    - assets/kinrel-cameo/face-shapes/
+    - assets/kinrel-cameo/skin-tones/
+    - assets/kinrel-cameo/parts/eyes/
+    - assets/kinrel-cameo/parts/eyebrows/
+    - assets/kinrel-cameo/parts/eyelids/
+    - assets/kinrel-cameo/parts/pupils/
+    - assets/kinrel-cameo/parts/nose/
+    - assets/kinrel-cameo/parts/mouth/
+    - assets/kinrel-cameo/parts/hair/
+    - assets/kinrel-cameo/parts/hair-front/
+    - assets/kinrel-cameo/parts/hair-middle/
+    - assets/kinrel-cameo/parts/hair-back/
+    - assets/kinrel-cameo/clothing/
+    - assets/kinrel-cameo/accessories/
     - assets/icons/
     - assets/icons/games/ghost-painter.png
     - assets/icons/games/freeze-dash.png

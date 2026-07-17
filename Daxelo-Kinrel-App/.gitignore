@@ -67,3 +67,8 @@ skills/
 worklog.md
 tool-results/
 download/
+
+# Kinrel Cameo assets are copied from /kinrel-cameo/ at repo root into
+# assets/kinrel-cameo/ by scripts/setup_cameo_assets.sh and by CI.
+# The canonical source is /kinrel-cameo/ — never edit the copy directly.
+assets/kinrel-cameo/

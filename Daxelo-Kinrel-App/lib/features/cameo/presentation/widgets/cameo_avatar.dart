@@ -46,11 +46,14 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../../data/cameo_asset_registry.dart';
+import '../../data/cameo_definition.dart';
 import '../../style/cameo_animation_curves.dart';
 import '../../style/cameo_color_palette.dart';
 import '../../style/cameo_responsive_rules.dart';
 import '../../style/cameo_shape_language.dart';
 import '../../style/cameo_style_system.dart';
+import '../painters/cameo_layered_painter.dart';
 import '../painters/cameo_portrait_painter.dart';
 
 /// A production-grade Kinrel Cameo avatar widget.
@@ -71,6 +74,17 @@ class CameoAvatar extends StatefulWidget {
     this.relationshipLabel,
     this.isDeceased = false,
     this.enableAnimation = true,
+    // Modular PNG layer rendering (v2.1+):
+    this.useLayeredAssets = false,
+    this.cameoDefinition,
+    this.faceVariant,
+    this.faceShapeId,
+    this.eyeShapeId,
+    this.noseShapeId,
+    this.mouthShapeId,
+    this.eyebrowShapeId,
+    this.pupilDirection = 'center',
+    this.eyelidState = 'neutral',
   });
 
   /// The display name of the person. Used for the semantic label and
@@ -111,6 +125,43 @@ class CameoAvatar extends StatefulWidget {
   /// Master animation kill-switch. Even when true, reduced-motion
   /// (MediaQuery.disableAnimationsOf) disables all motion.
   final bool enableAnimation;
+
+  // ── Modular PNG layer rendering (v2.1+) ───────────────────────────
+  //
+  // When [useLayeredAssets] is true, the widget renders via
+  // [CameoLayeredPainter] — which stacks pre-generated PNG layers from
+  // assets/kinrel-cameo/ using [CameoAssetRegistry.resolveLayerStack].
+  //
+  // This is the "real" modular avatar renderer. The procedural
+  // [CameoPortraitPainter] remains as the offline / load-failure
+  // fallback (when [useLayeredAssets] is false, OR when the layered
+  // painter fails to load required assets).
+
+  /// If true, render via [CameoLayeredPainter] using the modular PNG
+  /// asset pack. If false (default), render via the procedural
+  /// [CameoPortraitPainter].
+  final bool useLayeredAssets;
+
+  /// The CameoDefinition used by the layered painter. Required when
+  /// [useLayeredAssets] is true. The definition carries hair style,
+  /// clothing, accessories, and other modular feature IDs.
+  final CameoDefinition? cameoDefinition;
+
+  /// Face variant letter (A/B/C/D). Drives which base-face PNG is loaded.
+  /// If null, the layered painter picks a deterministic default.
+  final CameoFaceVariant? faceVariant;
+
+  /// Modular feature shape IDs — passed through to the layered painter.
+  /// Any null field falls back to the base-face's baked-in feature.
+  final String? faceShapeId;
+  final String? eyeShapeId;
+  final String? noseShapeId;
+  final String? mouthShapeId;
+  final String? eyebrowShapeId;
+
+  /// Gaze direction and eyelid state for additive expressions.
+  final String? pupilDirection;
+  final String? eyelidState;
 
   @override
   State<CameoAvatar> createState() => _CameoAvatarState();
@@ -335,15 +386,7 @@ class _CameoAvatarState extends State<CameoAvatar>
                         name: widget.personName,
                         skinTone: resolved.skinTone,
                       )
-                    : CustomPaint(
-                        painter: CameoPortraitPainter(
-                          style: resolved,
-                          animationPhase: _phase,
-                          blinkCloseFactor: _blink,
-                          saccadeOffset: _saccade,
-                        ),
-                        child: const SizedBox.expand(),
-                      ),
+                    : _buildPainter(resolved),
               ),
             ),
           ),
@@ -367,6 +410,42 @@ class _CameoAvatarState extends State<CameoAvatar>
       default:
         return 220;
     }
+  }
+
+  /// Picks the painter based on [widget.useLayeredAssets].
+  ///
+  /// When layered assets are enabled AND a [CameoDefinition] is provided,
+  /// uses [CameoLayeredPainter]. Otherwise falls back to the procedural
+  /// [CameoPortraitPainter] (which is the durable offline fallback).
+  Widget _buildPainter(ResolvedCameoStyle resolved) {
+    if (widget.useLayeredAssets && widget.cameoDefinition != null) {
+      return CustomPaint(
+        painter: CameoLayeredPainter(
+          definition: widget.cameoDefinition!,
+          faceVariant: widget.faceVariant,
+          faceShapeId: widget.faceShapeId,
+          eyeShapeId: widget.eyeShapeId,
+          noseShapeId: widget.noseShapeId,
+          mouthShapeId: widget.mouthShapeId,
+          eyebrowShapeId: widget.eyebrowShapeId,
+          pupilDirection: widget.pupilDirection,
+          eyelidState: widget.eyelidState,
+          backgroundTintColor: widget.isDeceased
+              ? CameoColorPalette.vignetteEdge.withValues(alpha: 0.35)
+              : null,
+        ),
+        child: const SizedBox.expand(),
+      );
+    }
+    return CustomPaint(
+      painter: CameoPortraitPainter(
+        style: resolved,
+        animationPhase: _phase,
+        blinkCloseFactor: _blink,
+        saccadeOffset: _saccade,
+      ),
+      child: const SizedBox.expand(),
+    );
   }
 }
 

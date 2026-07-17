@@ -39,8 +39,14 @@ import 'package:flutter/foundation.dart';
 import '../style/cameo_shape_language.dart';
 import 'cameo_definition.dart';
 
-/// Asset root relative to pubspec.yaml
-const String kCameoAssetRoot = 'game-assets/kinrel-cameo';
+/// Asset root relative to pubspec.yaml.
+///
+/// The modular PNG asset pack lives at `assets/kinrel-cameo/` inside the
+/// Flutter app. It is populated from the canonical `/kinrel-cameo/` directory
+/// at repo root by `scripts/setup_cameo_assets.sh` (run locally before
+/// `flutter run`/`flutter test`, and automatically in CI before the
+/// dart-asset-registry job runs).
+const String kCameoAssetRoot = 'assets/kinrel-cameo';
 
 /// All 9 age stages supported by the modular system (v2 expansion).
 ///
