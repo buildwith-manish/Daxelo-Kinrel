@@ -20,7 +20,7 @@ import 'package:thermion_flutter/thermion_flutter.dart';
 import '../rendering/thermion_cameo_renderer.dart';
 import '../rendering/cameo_renderer.dart';
 import 'widgets/cameo_avatar.dart';
-import '../data/cameo_definition.dart';
+import '../style/cameo_shape_language.dart' show CameoAgeBand;
 
 const _expectedMorphs = ['blink_left', 'blink_right', 'smile', 'jaw_open'];
 const _glbPath = 'assets/cameo/kinrel_cameo_b1_test.glb';
