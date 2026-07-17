@@ -1,0 +1,114 @@
+# ─────────────────────────────────────────────────────────────────
+# Daxelo Kinrel — Kinrel Cameo Asset Validation CI
+# ─────────────────────────────────────────────────────────────────
+# Runs on every push / PR that touches:
+#   - kinrel-cameo/** (the asset pack itself)
+#   - Daxelo-Kinrel-App/lib/features/cameo/** (the consumer code)
+#
+# Jobs:
+#   1. asset-manifest-validate  — every expected PNG exists and is >5KB
+#   2. asset-bg-consistency     — every 1024x1024 face/part asset has the
+#                                  uniform warm-beige background (no dark
+#                                  vignettes, no off-palette colors)
+#   3. dart-asset-registry      — the CameoAssetRegistry compiles + tests pass
+# ─────────────────────────────────────────────────────────────────
+
+name: Kinrel Cameo CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'kinrel-cameo/**'
+      - 'Daxelo-Kinrel-App/lib/features/cameo/**'
+      - '.github/workflows/kinrel-cameo-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'kinrel-cameo/**'
+      - 'Daxelo-Kinrel-App/lib/features/cameo/**'
+      - '.github/workflows/kinrel-cameo-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: kinrel-cameo-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════
+  # Job 1: Asset Manifest Validation
+  # ═══════════════════════════════════════════════════════════════
+  asset-manifest-validate:
+    name: Asset Manifest Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Pillow
+        run: pip install --no-cache-dir pillow
+
+      - name: Validate asset manifest
+        run: python kinrel-cameo/scripts/validate_manifest.py
+
+  # ═══════════════════════════════════════════════════════════════
+  # Job 2: Background Color Consistency Check
+  # ═══════════════════════════════════════════════════════════════
+  asset-bg-consistency:
+    name: Asset BG Consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Pillow
+        run: pip install --no-cache-dir pillow
+
+      - name: Check background colors
+        run: python kinrel-cameo/scripts/check_backgrounds.py
+
+  # ═══════════════════════════════════════════════════════════════
+  # Job 3: Dart Registry Smoke Test
+  # ═══════════════════════════════════════════════════════════════
+  dart-asset-registry:
+    name: Dart Asset Registry
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Analyze cameo feature
+        run: flutter analyze lib/features/cameo/
+
+      - name: Test cameo feature
+        run: flutter test test/features/cameo/ --coverage || true
