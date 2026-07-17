@@ -17,7 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:thermion_flutter/thermion_flutter.dart';
 
-import '../rendering/thermion_cameo_renderer.dart'
+import '../rendering/thermion_cameo_renderer.dart';
 import '../rendering/cameo_renderer.dart';
 import 'widgets/cameo_avatar.dart';
 import '../data/cameo_definition.dart';
