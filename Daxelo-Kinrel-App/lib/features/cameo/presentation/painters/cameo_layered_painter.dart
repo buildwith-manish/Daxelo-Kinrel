@@ -32,7 +32,7 @@
 
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
@@ -161,11 +161,10 @@ class CameoLayeredPainter extends CustomPainter {
       if (img == null) {
         // Kick off the load if not already pending.
         if (!_pendingLoads.containsKey(entry.assetPath)) {
-          _loadImage(entry.assetPath!).then((_) {
-            // Mark for next frame. The painter can't trigger repaint
-            // directly — the owning widget must call setState. We rely
-            // on the CameoAvatar's animation ticker to repaint soon.
-          });
+          // Fire-and-forget — the next animation tick will repaint
+          // once the load completes and populates the cache.
+          // ignore: discarded_futures
+          _loadImage(entry.assetPath!);
         }
         needsRepaint = true;
         continue;

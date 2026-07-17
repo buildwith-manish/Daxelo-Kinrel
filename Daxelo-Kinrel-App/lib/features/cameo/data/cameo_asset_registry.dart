@@ -396,7 +396,8 @@ class CameoAssetRegistry {
       final parts = def.clothingId!.split('/');
       if (parts.length == 2) {
         push(CameoLayer.outfit, outfitPath(parts[0], parts[1]), {
-          'canvasSize': const Size(768, 1344),
+          'canvasWidth': 768,
+          'canvasHeight': 1344,
           'needsScaling': true,
         });
       }
@@ -415,10 +416,11 @@ class CameoAssetRegistry {
   static const double kBackgroundTolerance = 40.0;
 }
 
-/// A simple size record used by [resolveLayerStack] metadata.
-/// (We don't import flutter/material here to keep this pure-dart testable.)
-class Size {
-  const Size(this.width, this.height);
-  final double width;
-  final double height;
-}
+// NOTE: previously this file declared a local `class Size { ... }` to
+// keep the file pure-dart (no flutter/material dependency). That custom
+// Size leaked into files that imported this registry and shadowed
+// Flutter's `ui.Size` — breaking `CustomPainter.paint` overrides.
+//
+// The outfit layer now carries `canvasWidth` / `canvasHeight` ints in
+// its metadata map instead. This keeps the registry pure-dart AND
+// avoids the type shadowing problem.
