@@ -48,6 +48,7 @@ import '../widgets/map_polish_overlay.dart';
 import '../widgets/map_skeleton.dart';
 import '../data/family_map_lifecycle.dart';
 import '../data/map_state_persistence.dart';
+import '../data/place_models.dart';
 import '../data/poi_filter.dart';
 import '../data/progressive_loading.dart';
 import '../../../core/services/supabase_service.dart';
@@ -55,9 +56,13 @@ import '../../../shared/widgets/dk_components.dart';
 import '../../../l10n/app_localizations.dart';
 import '../providers/family_map_provider.dart';
 import '../providers/live_location_provider.dart';
+import '../widgets/home_marker_overlay.dart';
 import '../widgets/household_cluster_overlay.dart';
 import '../widgets/map_bottom_sheets.dart';
+import '../widgets/map_control_stack.dart';
 import '../widgets/map_legend_widget.dart';
+import '../widgets/map_search_bar.dart';
+import '../widgets/place_callout_overlay.dart';
 import '../widgets/relationship_path_overlay.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -189,6 +194,23 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// family-switch so a new family gets its own entrance. Do NOT use
   /// for lifecycle decisions.
   bool _entranceAnimationDone = false;
+
+  /// P13 — Per-layer toggle state for the Layers popover. Drives which
+  /// optional overlays are visible. All layers default to ON. Toggles
+  /// are in-memory only (not persisted) for now — future enhancement
+  /// could persist these per-family like MapSessionState.
+  final Map<MapControlLayer, bool> _layerState = {
+    for (final l in MapControlLayer.values) l: true,
+  };
+
+  /// P13 — The family's current home place (placeType == currentHome).
+  /// Identified from the result.places list on each data refresh.
+  /// Null when the family has no current_home place.
+  FamilyPlace? _homePlace;
+
+  /// P13 — Currently selected place ID (drives callout highlight).
+  /// Distinct from [_selectedPinId] which tracks the selected person.
+  String? _selectedPlaceId;
 
   /// P10.5 — Trigger for relationship path overlay repaint. Bumped by
   /// the AnimatedRelationshipPath on each animation tick.
@@ -1148,6 +1170,19 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // P10.4 — Compute households from the filtered pins.
     final households = computeHouseholds(filteredPins);
 
+    // P13 — Identify the family's current home place (the first
+    // currentHome in the filtered places list). Used by the
+    // HomeMarkerOverlay to render the highlighted pulsing home pin.
+    FamilyPlace? homePlace;
+    for (final p in filteredPlaces) {
+      if (p.placeType == PlaceType.currentHome) {
+        homePlace = p;
+        break;
+      }
+    }
+    // Stash on the instance so other handlers can read it.
+    _homePlace = homePlace;
+
     // P10.6 — Reduced-motion flag from MediaQuery (matches the graph pattern).
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
 
@@ -1258,7 +1293,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             // Rendered as a Flutter CustomPainter overlay because maplibre
             // 0.3.5 does not expose setPaintProperty (Rule 12 fallback).
             // The overlay reads pin screen positions from the controller.
-            if (_styleLoaded && filteredPins.length >= 2)
+            // P13: gated by the [MapControlLayer.relationships] toggle.
+            if (_styleLoaded &&
+                (_layerState[MapControlLayer.relationships] ?? true) &&
+                filteredPins.length >= 2)
               RelationshipPathOverlay(
                 mapController: _mapController,
                 edges: result.edges,
@@ -1325,13 +1363,75 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             if (_lifecycle.state == FamilyMapLifecycle.empty)
               _buildEmptyStateOverlay(),
 
-            // ── Legend overlay — bottom-left ───────────────────────────
-            // The map is ALWAYS fully visible and interactive — no
-            // empty-state card replaces it.
-            Positioned(
-              left: KinrelSpacing.base,
-              bottom: KinrelSpacing.base,
-              child: MapLegendWidget(result: result),
+            // ── P13 — Place callouts (floating icon+text chips) ─────────
+            // Rendered above family places when zoom >= 12. The overlay
+            // self-positions chips via MapController.toScreenLocation and
+            // caps at 8 visible callouts (closest to screen center).
+            if (_styleLoaded &&
+                (_layerState[MapControlLayer.callouts] ?? true) &&
+                filteredPlaces.isNotEmpty)
+              PlaceCalloutOverlay(
+                mapController: _mapController,
+                places: filteredPlaces,
+                reducedMotion: reducedMotion,
+                selectedPlaceId: _selectedPlaceId,
+                onTap: (place) {
+                  // Tap a callout → fly the camera to that place.
+                  _flyToPlace(place);
+                },
+              ),
+
+            // ── P13 — Highlighted home marker (pulsing gold ring) ───────
+            // Rendered above the family's currentHome place. Pulsing ring
+            // animation respects reduced-motion. Tapping flies the camera
+            // to focus-mode zoom + pitch.
+            if (_styleLoaded &&
+                homePlace != null)
+              HomeMarkerOverlay(
+                mapController: _mapController,
+                home: homePlace!,
+                reducedMotion: reducedMotion,
+                onTap: () => _flyToPlace(homePlace!),
+              ),
+
+            // ── P13 — Map search bar (jump-to-location) ─────────────────
+            // Top-of-map search pill. Expands into a TextField with city
+            // + member suggestions. Tapping a city flies there at zoom 11;
+            // tapping a member flies there at focus-mode zoom + enters
+            // focus mode (via the onMemberSelected callback).
+            if (_styleLoaded)
+              MapSearchBar(
+                mapController: _mapController,
+                pins: filteredPins,
+                reducedMotion: reducedMotion,
+                onMemberSelected: (pin) => _handlePinTap(pin),
+              ),
+
+            // ── P13 — Right-side control stack ──────────────────────────
+            // Five vertically-stacked circular buttons: locate, zoom+,
+            // zoom-, layers, mode toggle. The layers button opens a
+            // popover with per-category filter switches driven by
+            // [_layerState].
+            if (_styleLoaded)
+              MapControlStack(
+                mapController: _mapController,
+                isLightMap: _isLightMap,
+                onToggleMapMode: _toggleMapTheme,
+                onToggleLayer: (layer, value) {
+                  setState(() => _layerState[layer] = value);
+                },
+                layerStates: _layerState,
+                reducedMotion: reducedMotion,
+              ),
+
+            // ── P13 — Premium collapsible bottom legend panel ───────────
+            // Replaces the original compact legend chip. Self-positioned
+            // (Positioned inside the widget). Shows quick stats, status
+            // tiers, place categories, and unpinned members list when
+            // expanded.
+            MapLegendWidget(
+              result: result,
+              reducedMotion: reducedMotion,
             ),
 
             // ── P10.7 — Timeline scrubber at the bottom ─────────────────
@@ -1841,6 +1941,22 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       expandedHouseholdId: _expandedHouseholdId,
     );
     saver.schedule(state);
+  }
+
+  /// P13 — Fly the camera to a specific family place. Used by the
+  /// PlaceCalloutOverlay tap handler + the HomeMarkerOverlay tap handler.
+  /// Animates to focus-mode zoom + pitch so 3D buildings are visible.
+  void _flyToPlace(FamilyPlace place) {
+    final controller = _mapController;
+    if (controller == null) return;
+    controller.animateCamera(
+      center: Geographic(lon: place.lng, lat: place.lat),
+      zoom: MapVisualConstants.focusMinZoom,
+      pitch: MapVisualConstants.focusPitch,
+      nativeDuration: const Duration(milliseconds: 720),
+    );
+    setState(() => _selectedPlaceId = place.id);
+    _scheduleStateSave();
   }
 
   /// Dev test: animate the camera to Bengaluru at zoom 16, tilt 45°

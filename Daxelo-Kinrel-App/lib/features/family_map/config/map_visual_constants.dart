@@ -582,4 +582,136 @@ class MapVisualConstants {
 
   /// Text halo blur radius.
   static const double labelHaloBlur = 1.0;
+
+  // ═════════════════════════════════════════════════════════════════════
+  // P13 — RIGHT-SIDE CONTROL STACK
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// Diameter of each circular control button in the right-side stack.
+  static const double controlButtonSize = 44.0;
+
+  /// Spacing between consecutive control buttons.
+  static const double controlButtonGap = 10.0;
+
+  /// Right edge inset for the control stack.
+  static const double controlStackRightInset = 16.0;
+
+  /// Bottom inset for the control stack (above the legend panel).
+  static const double controlStackBottomInset = 168.0;
+
+  /// Tooltip show / hide animation duration.
+  static const Duration controlTooltipDuration = Duration(milliseconds: 180);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // P13 — PLACE CALLOUTS (floating icon+text labels for family places)
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// Max number of callouts shown simultaneously to prevent clutter.
+  static const int maxVisibleCallouts = 8;
+
+  /// Callout chip horizontal padding.
+  static const double calloutChipPaddingH = 8.0;
+
+  /// Callout chip vertical padding.
+  static const double calloutChipPaddingV = 5.0;
+
+  /// Callout icon size (the leading icon inside the chip).
+  static const double calloutIconSize = 12.0;
+
+  /// Callout text font size.
+  static const double calloutFontSize = 11.0;
+
+  /// Vertical offset between the callout chip and the building it labels.
+  /// Positive = chip floats above the building top.
+  static const double calloutVerticalOffset = 28.0;
+
+  /// Callout fade-in stagger delay (per callout).
+  static const Duration calloutStaggerDelay = Duration(milliseconds: 40);
+
+  /// Minimum zoom level at which place callouts become visible.
+  /// Below this zoom the world view is too zoomed-out for chip labels
+  /// to be readable; buildings render as colored dots instead.
+  static const double calloutMinZoom = 12.0;
+
+  // ═════════════════════════════════════════════════════════════════════
+  // P13 — HIGHLIGHTED HOME MARKER
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// Diameter of the home marker outer ring.
+  static const double homeMarkerRingSize = 56.0;
+
+  /// Diameter of the home marker inner dot.
+  static const double homeMarkerDotSize = 22.0;
+
+  /// Pulsing ring expansion factor (1.0 = original size, 2.0 = double).
+  static const double homeMarkerPulseMaxScale = 1.6;
+
+  /// Pulse cycle duration for the home marker.
+  static const Duration homeMarkerPulseCycle = Duration(milliseconds: 2400);
+
+  /// Home marker gold ring color.
+  static const Color homeMarkerRingColor = Color(0xFFE8B941);
+
+  /// Home marker fill color (warm orange — matches buildingCurrentHome).
+  static const Color homeMarkerFillColor = Color(0xFFE8612A);
+
+  // ═════════════════════════════════════════════════════════════════════
+  // P13 — SEARCH BAR (top of map, jump-to-location)
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// Search bar height.
+  static const double searchBarHeight = 44.0;
+
+  /// Search bar horizontal margin from screen edges.
+  static const double searchBarHorizontalMargin = 12.0;
+
+  /// Search bar top padding (clears the AppBar's bottom edge).
+  static const double searchBarTopPadding = 8.0;
+
+  /// Max number of search suggestions shown in the dropdown.
+  static const int searchMaxSuggestions = 6;
+
+  // ═════════════════════════════════════════════════════════════════════
+  // P13 — PREMIUM BOTTOM LEGEND PANEL
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// Collapsed legend panel height.
+  static const double legendCollapsedHeight = 56.0;
+
+  /// Expanded legend panel max height (as a fraction of viewport height).
+  static const double legendExpandedMaxFraction = 0.55;
+
+  /// Legend expand/collapse animation duration.
+  static const Duration legendExpandDuration = Duration(milliseconds: 280);
+
+  /// Legend panel corner radius.
+  static const double legendPanelRadius = 22.0;
+
+  /// Legend panel horizontal margin from screen edges.
+  static const double legendPanelHorizontalMargin = 12.0;
+
+  /// Bottom inset for the legend panel (above the safe-area bottom).
+  static const double legendPanelBottomInset = 12.0;
+
+  /// Number of legend category columns when expanded on tablet/desktop.
+  static const int legendCategoryColumnsWide = 4;
+
+  /// Number of legend category columns when expanded on phone.
+  static const int legendCategoryColumnsNarrow = 2;
+
+  // ═════════════════════════════════════════════════════════════════════
+  // P13 — STATUS TIER COLORS (legend swatches)
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// LIVE location tier color (matches livePulseRingColor).
+  static const Color tierLiveColor = Color(0xFF4ED9C7);
+
+  /// RECENT location tier color (warm amber).
+  static const Color tierRecentColor = Color(0xFFF59240);
+
+  /// STALE location tier color (muted grey).
+  static const Color tierStaleColor = Color(0xFF8A8A8A);
+
+  /// CITY-FALLBACK tier color (dim blue-grey).
+  static const Color tierCityFallbackColor = Color(0xFF4E6984);
 }

@@ -454,4 +454,113 @@ class SMr extends S {
 
   @override
   String get familyMapProgressAlmost => 'Almost there…';
+
+  // ── P13 — Control stack + search + legend (en baseline — translate later)
+  @override
+  String get familyMapControlLocate => 'Locate me';
+
+  @override
+  String get familyMapControlZoomIn => 'Zoom in';
+
+  @override
+  String get familyMapControlZoomOut => 'Zoom out';
+
+  @override
+  String get familyMapControlLayers => 'Layers';
+
+  @override
+  String get familyMapControlDarkMode => 'Dark map';
+
+  @override
+  String get familyMapControlLightMode => 'Light map';
+
+  @override
+  String get familyMapLocateServiceOff => 'Location services are off.';
+
+  @override
+  String get familyMapLocatePermissionDenied => 'Location permission denied.';
+
+  @override
+  String get familyMapLocateFailed => 'Could not get your current location.';
+
+  @override
+  String get familyMapLayersTitle => 'Map layers';
+
+  @override
+  String get familyMapLayersDone => 'Done';
+
+  @override
+  String get familyMapLayerHomes => 'Family homes';
+
+  @override
+  String get familyMapLayerWeddings => 'Wedding venues';
+
+  @override
+  String get familyMapLayerMemorials => 'Memorials';
+
+  @override
+  String get familyMapLayerSchools => 'Schools';
+
+  @override
+  String get familyMapLayerPlaces => 'Important places';
+
+  @override
+  String get familyMapLayerRelationships => 'Relationship paths';
+
+  @override
+  String get familyMapLayerCallouts => 'Place labels';
+
+  @override
+  String get familyMapLayerLivePulses => 'Live pulses';
+
+  @override
+  String get familyMapSearchHint => 'Search city or family member';
+
+  @override
+  String get familyMapSearchCollapsed => 'Search city or family member';
+
+  @override
+  String get familyMapSearchClear => 'Clear';
+
+  @override
+  String get familyMapSearchCityHint => 'City';
+
+  @override
+  String get familyMapLegendPinned => 'located';
+
+  @override
+  String get familyMapLegendCities => 'cities';
+
+  @override
+  String get familyMapLegendStatusTitle => 'Status tiers';
+
+  @override
+  String get familyMapLegendCategoriesTitle => 'Place categories';
+
+  @override
+  String get familyMapLegendUnpinnedTitle => 'Not on map';
+
+  @override
+  String get familyMapLegendTierLive => 'Live';
+
+  @override
+  String get familyMapLegendTierLiveDesc => '< 2 min ago';
+
+  @override
+  String get familyMapLegendTierRecent => 'Recent';
+
+  @override
+  String get familyMapLegendTierRecentDesc => '< 15 min ago';
+
+  @override
+  String get familyMapLegendTierStale => 'Stale';
+
+  @override
+  String get familyMapLegendTierStaleDesc => '< 1 hour ago';
+
+  @override
+  String get familyMapLegendTierCity => 'City';
+
+  @override
+  String get familyMapLegendTierCityDesc => 'city centroid';
 }

@@ -884,6 +884,116 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Almost there…'**
   String get familyMapProgressAlmost;
+
+  // ── P13 — Control stack + search + legend ──────────────────────────
+
+  /// Tooltip for the locate / recenter control button
+  String get familyMapControlLocate;
+
+  /// Tooltip for the zoom in control button
+  String get familyMapControlZoomIn;
+
+  /// Tooltip for the zoom out control button
+  String get familyMapControlZoomOut;
+
+  /// Tooltip for the layers control button
+  String get familyMapControlLayers;
+
+  /// Tooltip for the dark mode toggle (when currently light)
+  String get familyMapControlDarkMode;
+
+  /// Tooltip for the light mode toggle (when currently dark)
+  String get familyMapControlLightMode;
+
+  /// Snack-bar shown when the user taps Locate but location services are off
+  String get familyMapLocateServiceOff;
+
+  /// Snack-bar shown when the user denies location permission
+  String get familyMapLocatePermissionDenied;
+
+  /// Snack-bar shown when the device cannot return a GPS fix
+  String get familyMapLocateFailed;
+
+  /// Title for the Layers popover
+  String get familyMapLayersTitle;
+
+  /// Done button in the Layers popover
+  String get familyMapLayersDone;
+
+  /// Layers popover row label — family homes
+  String get familyMapLayerHomes;
+
+  /// Layers popover row label — wedding venues
+  String get familyMapLayerWeddings;
+
+  /// Layers popover row label — memorials
+  String get familyMapLayerMemorials;
+
+  /// Layers popover row label — schools
+  String get familyMapLayerSchools;
+
+  /// Layers popover row label — important places
+  String get familyMapLayerPlaces;
+
+  /// Layers popover row label — relationship paths
+  String get familyMapLayerRelationships;
+
+  /// Layers popover row label — place callouts
+  String get familyMapLayerCallouts;
+
+  /// Layers popover row label — live location pulses
+  String get familyMapLayerLivePulses;
+
+  /// Search bar hint when expanded
+  String get familyMapSearchHint;
+
+  /// Search bar hint when collapsed
+  String get familyMapSearchCollapsed;
+
+  /// Search bar clear button tooltip
+  String get familyMapSearchClear;
+
+  /// Search suggestion subtitle for a city result
+  String get familyMapSearchCityHint;
+
+  /// Legend quick-stat label for located members count
+  String get familyMapLegendPinned;
+
+  /// Legend quick-stat label for distinct cities count
+  String get familyMapLegendCities;
+
+  /// Legend section title — status tiers
+  String get familyMapLegendStatusTitle;
+
+  /// Legend section title — place categories
+  String get familyMapLegendCategoriesTitle;
+
+  /// Legend section title — unpinned members
+  String get familyMapLegendUnpinnedTitle;
+
+  /// Legend tier label — Live
+  String get familyMapLegendTierLive;
+
+  /// Legend tier description — Live
+  String get familyMapLegendTierLiveDesc;
+
+  /// Legend tier label — Recent
+  String get familyMapLegendTierRecent;
+
+  /// Legend tier description — Recent
+  String get familyMapLegendTierRecentDesc;
+
+  /// Legend tier label — Stale
+  String get familyMapLegendTierStale;
+
+  /// Legend tier description — Stale
+  String get familyMapLegendTierStaleDesc;
+
+  /// Legend tier label — City
+  String get familyMapLegendTierCity;
+
+  /// Legend tier description — City
+  String get familyMapLegendTierCityDesc;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

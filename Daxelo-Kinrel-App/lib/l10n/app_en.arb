@@ -1,488 +1,683 @@
 {
   "@@locale": "en",
-
   "appName": "Kinrel",
-  "@appName": { "description": "The application name" },
-
+  "@appName": {
+    "description": "The application name"
+  },
   "appTagline": "Map your family with AI",
-  "@appTagline": { "description": "Short tagline displayed under the app name" },
-
+  "@appTagline": {
+    "description": "Short tagline displayed under the app name"
+  },
   "homeTitle": "Home",
-  "@homeTitle": { "description": "Bottom navigation tab label for Home" },
-
+  "@homeTitle": {
+    "description": "Bottom navigation tab label for Home"
+  },
   "kinshipTitle": "Kinship",
-  "@kinshipTitle": { "description": "Bottom navigation tab label for Kinship/Explore" },
-
+  "@kinshipTitle": {
+    "description": "Bottom navigation tab label for Kinship/Explore"
+  },
   "graphTitle": "Graph",
-  "@graphTitle": { "description": "Bottom navigation tab label for Family Graph" },
-
+  "@graphTitle": {
+    "description": "Bottom navigation tab label for Family Graph"
+  },
   "alertsTitle": "Alerts",
-  "@alertsTitle": { "description": "Bottom navigation tab label for Alerts/Notifications" },
-
+  "@alertsTitle": {
+    "description": "Bottom navigation tab label for Alerts/Notifications"
+  },
   "profileTitle": "Me",
-  "@profileTitle": { "description": "Bottom navigation tab label for Profile" },
-
+  "@profileTitle": {
+    "description": "Bottom navigation tab label for Profile"
+  },
   "notificationsTitle": "Notifications",
-  "@notificationsTitle": { "description": "Screen title for Notifications" },
-
+  "@notificationsTitle": {
+    "description": "Screen title for Notifications"
+  },
   "eventsTitle": "Events & Celebrations",
-  "@eventsTitle": { "description": "Screen title for Events & Celebrations" },
-
+  "@eventsTitle": {
+    "description": "Screen title for Events & Celebrations"
+  },
   "memoriesTitle": "Memories & Timeline",
-  "@memoriesTitle": { "description": "Screen title for Memories & Timeline" },
-
+  "@memoriesTitle": {
+    "description": "Screen title for Memories & Timeline"
+  },
   "chatTitle": "Family Chat",
-  "@chatTitle": { "description": "Screen title for Family Chat" },
-
+  "@chatTitle": {
+    "description": "Screen title for Family Chat"
+  },
   "documentsTitle": "Document Vault",
-  "@documentsTitle": { "description": "Screen title for Document Vault" },
-
+  "@documentsTitle": {
+    "description": "Screen title for Document Vault"
+  },
   "achievementsTitle": "Achievements",
-  "@achievementsTitle": { "description": "Screen title for Achievements" },
-
+  "@achievementsTitle": {
+    "description": "Screen title for Achievements"
+  },
   "shareTitle": "Share & Invite",
-  "@shareTitle": { "description": "Screen title for Share & Invite" },
-
+  "@shareTitle": {
+    "description": "Screen title for Share & Invite"
+  },
   "settingsTitle": "Settings",
-  "@settingsTitle": { "description": "Screen title for Settings" },
-
+  "@settingsTitle": {
+    "description": "Screen title for Settings"
+  },
   "signInTitle": "Sign In",
-  "@signInTitle": { "description": "Screen title for Sign In" },
-
+  "@signInTitle": {
+    "description": "Screen title for Sign In"
+  },
   "signUpTitle": "Sign Up",
-  "@signUpTitle": { "description": "Screen title for Sign Up" },
-
+  "@signUpTitle": {
+    "description": "Screen title for Sign Up"
+  },
   "onboardingTitle1": "Your Family, Your Story",
-  "@onboardingTitle1": { "description": "Onboarding page 1 title" },
-
+  "@onboardingTitle1": {
+    "description": "Onboarding page 1 title"
+  },
   "onboardingBody1": "Kinrel maps every relationship in your family — from your grandparents to your grandchildren, in the language you grew up with.",
-  "@onboardingBody1": { "description": "Onboarding page 1 body text" },
-
+  "@onboardingBody1": {
+    "description": "Onboarding page 1 body text"
+  },
   "onboardingTitle2": "Names That Feel Like Home",
-  "@onboardingTitle2": { "description": "Onboarding page 2 title" },
-
+  "@onboardingTitle2": {
+    "description": "Onboarding page 2 title"
+  },
   "onboardingBody2": "Not just 'uncle' and 'aunt' — Kinrel knows the difference between your Chacha, Mama, Fufa, and Tauji.",
-  "@onboardingBody2": { "description": "Onboarding page 2 body text" },
-
+  "@onboardingBody2": {
+    "description": "Onboarding page 2 body text"
+  },
   "onboardingTitle3": "See the Big Picture",
-  "@onboardingTitle3": { "description": "Onboarding page 3 title" },
-
+  "@onboardingTitle3": {
+    "description": "Onboarding page 3 title"
+  },
   "onboardingBody3": "Your entire family as a beautiful, interactive graph. Zoom in, explore connections, discover relationships you never knew existed.",
-  "@onboardingBody3": { "description": "Onboarding page 3 body text" },
-
+  "@onboardingBody3": {
+    "description": "Onboarding page 3 body text"
+  },
   "onboardingTitle4": "Find Any Relationship Instantly",
-  "@onboardingTitle4": { "description": "Onboarding page 4 title" },
-
+  "@onboardingTitle4": {
+    "description": "Onboarding page 4 title"
+  },
   "onboardingBody4": "Select any two family members — Kinrel's AI calculates the exact relationship name in your language.",
-  "@onboardingBody4": { "description": "Onboarding page 4 body text" },
-
+  "@onboardingBody4": {
+    "description": "Onboarding page 4 body text"
+  },
   "addMember": "Add Member",
-  "@addMember": { "description": "Button label to add a family member" },
-
+  "@addMember": {
+    "description": "Button label to add a family member"
+  },
   "shareFamily": "Share Family",
-  "@shareFamily": { "description": "Button label to share the family tree" },
-
+  "@shareFamily": {
+    "description": "Button label to share the family tree"
+  },
   "findPath": "Find Path",
-  "@findPath": { "description": "Button label to find relationship path between two people" },
-
+  "@findPath": {
+    "description": "Button label to find relationship path between two people"
+  },
   "viewFullGraph": "View Full Graph",
-  "@viewFullGraph": { "description": "Button label to view the complete family graph" },
-
+  "@viewFullGraph": {
+    "description": "Button label to view the complete family graph"
+  },
   "recentActivity": "Recent Activity",
-  "@recentActivity": { "description": "Section header for recent activity feed" },
-
+  "@recentActivity": {
+    "description": "Section header for recent activity feed"
+  },
   "familyInsights": "Family at a Glance",
-  "@familyInsights": { "description": "Section header for family statistics/insights" },
-
+  "@familyInsights": {
+    "description": "Section header for family statistics/insights"
+  },
   "noNotifications": "All caught up! No new notifications.",
-  "@noNotifications": { "description": "Empty state message for notifications" },
-
+  "@noNotifications": {
+    "description": "Empty state message for notifications"
+  },
   "noEvents": "No events yet. Birthdays and anniversaries from your family will appear here automatically.",
-  "@noEvents": { "description": "Empty state message for events" },
-
+  "@noEvents": {
+    "description": "Empty state message for events"
+  },
   "noMemories": "No memories yet. Add your first family memory to begin.",
-  "@noMemories": { "description": "Empty state message for memories" },
-
+  "@noMemories": {
+    "description": "Empty state message for memories"
+  },
   "noDocuments": "No documents yet. Securely store your family's important documents.",
-  "@noDocuments": { "description": "Empty state message for documents" },
-
+  "@noDocuments": {
+    "description": "Empty state message for documents"
+  },
   "createFamily": "Create Family",
-  "@createFamily": { "description": "Button label to create a new family" },
-
+  "@createFamily": {
+    "description": "Button label to create a new family"
+  },
   "joinFamily": "Join Family",
-  "@joinFamily": { "description": "Button label to join an existing family" },
-
+  "@joinFamily": {
+    "description": "Button label to join an existing family"
+  },
   "searchHint": "Search relationships",
-  "@searchHint": { "description": "Placeholder text in search bar" },
-
+  "@searchHint": {
+    "description": "Placeholder text in search bar"
+  },
   "birthdayTomorrow": "{name}'s birthday is tomorrow!",
   "@birthdayTomorrow": {
     "description": "Notification text for birthday tomorrow",
     "placeholders": {
-      "name": { "type": "String", "example": "Rajesh" }
+      "name": {
+        "type": "String",
+        "example": "Rajesh"
+      }
     }
   },
-
   "anniversarySoon": "{name} & {name2}'s anniversary is in {days} days!",
   "@anniversarySoon": {
     "description": "Notification text for upcoming anniversary",
     "placeholders": {
-      "name": { "type": "String", "example": "Rajesh" },
-      "name2": { "type": "String", "example": "Meera" },
-      "days": { "type": "int", "example": "5" }
+      "name": {
+        "type": "String",
+        "example": "Rajesh"
+      },
+      "name2": {
+        "type": "String",
+        "example": "Meera"
+      },
+      "days": {
+        "type": "int",
+        "example": "5"
+      }
     }
   },
-
   "sendWishes": "Send wishes?",
-  "@sendWishes": { "description": "Prompt to send birthday/anniversary wishes" },
-
+  "@sendWishes": {
+    "description": "Prompt to send birthday/anniversary wishes"
+  },
   "streakDays": "{count} Day Streak",
   "@streakDays": {
     "description": "Label showing consecutive days of activity",
     "placeholders": {
-      "count": { "type": "int", "example": "7" }
+      "count": {
+        "type": "int",
+        "example": "7"
+      }
     }
   },
-
   "profileCompletion": "{percent}% Complete",
   "@profileCompletion": {
     "description": "Label showing profile completion percentage",
     "placeholders": {
-      "percent": { "type": "int", "example": "85" }
+      "percent": {
+        "type": "int",
+        "example": "85"
+      }
     }
   },
-
   "treeCompleteness": "Your tree is {percent}% complete",
   "@treeCompleteness": {
     "description": "Message showing family tree completion percentage",
     "placeholders": {
-      "percent": { "type": "int", "example": "65" }
+      "percent": {
+        "type": "int",
+        "example": "65"
+      }
     }
   },
-
   "encryptNotice": "Encrypted with AES-256",
-  "@encryptNotice": { "description": "Security notice about encryption" },
-
+  "@encryptNotice": {
+    "description": "Security notice about encryption"
+  },
   "generatedByKinrel": "Generated by Kinrel",
-  "@generatedByKinrel": { "description": "Branding text on shared cards" },
-
+  "@generatedByKinrel": {
+    "description": "Branding text on shared cards"
+  },
   "madeByDaxelo": "Made with love by Daxelo",
-  "@madeByDaxelo": { "description": "Footer branding text" },
-
+  "@madeByDaxelo": {
+    "description": "Footer branding text"
+  },
   "welcomeBack": "Welcome back",
-  "@welcomeBack": { "description": "Greeting for returning user" },
-
+  "@welcomeBack": {
+    "description": "Greeting for returning user"
+  },
   "goodMorning": "Good morning",
-  "@goodMorning": { "description": "Time-based greeting for morning" },
-
+  "@goodMorning": {
+    "description": "Time-based greeting for morning"
+  },
   "goodAfternoon": "Good afternoon",
-  "@goodAfternoon": { "description": "Time-based greeting for afternoon" },
-
+  "@goodAfternoon": {
+    "description": "Time-based greeting for afternoon"
+  },
   "goodEvening": "Good evening",
-  "@goodEvening": { "description": "Time-based greeting for evening" },
-
+  "@goodEvening": {
+    "description": "Time-based greeting for evening"
+  },
   "goodNight": "Good night",
-  "@goodNight": { "description": "Time-based greeting for night" },
-
+  "@goodNight": {
+    "description": "Time-based greeting for night"
+  },
   "languageName": "English",
-  "@languageName": { "description": "Name of this language in its own script" },
-
+  "@languageName": {
+    "description": "Name of this language in its own script"
+  },
   "kinrelNavLabel": "Kinrel",
-  "@kinrelNavLabel": { "description": "Nav/drawer label for the Kinrel feature" },
-
+  "@kinrelNavLabel": {
+    "description": "Nav/drawer label for the Kinrel feature"
+  },
   "kinrelScreenTitle": "Kinrel",
-  "@kinrelScreenTitle": { "description": "AppBar title on the Kinrel screen" },
-
+  "@kinrelScreenTitle": {
+    "description": "AppBar title on the Kinrel screen"
+  },
   "kinrelEmptyTitle": "Kinrel has not been computed yet",
-  "@kinrelEmptyTitle": { "description": "Title shown when Kinrel is not yet computed" },
-
+  "@kinrelEmptyTitle": {
+    "description": "Title shown when Kinrel is not yet computed"
+  },
   "kinrelEmptyBody": "Kinrel analyses your family graph to generate a unique symbol and archetype. This usually takes a few seconds.",
-  "@kinrelEmptyBody": { "description": "Body copy for the Kinrel empty state" },
-
+  "@kinrelEmptyBody": {
+    "description": "Body copy for the Kinrel empty state"
+  },
   "kinrelGenerateButton": "Generate Kinrel",
-  "@kinrelGenerateButton": { "description": "Button label to trigger Kinrel computation" },
-
+  "@kinrelGenerateButton": {
+    "description": "Button label to trigger Kinrel computation"
+  },
   "kinrelRecomputeButton": "Recompute",
-  "@kinrelRecomputeButton": { "description": "Button label to recompute Kinrel" },
-
+  "@kinrelRecomputeButton": {
+    "description": "Button label to recompute Kinrel"
+  },
   "kinrelLoadingTitle": "Computing Kinrel…",
-  "@kinrelLoadingTitle": { "description": "Loading message shown during Kinrel computation" },
-
+  "@kinrelLoadingTitle": {
+    "description": "Loading message shown during Kinrel computation"
+  },
   "kinrelCachedBanner": "Showing cached Kinrel — offline mode",
-  "@kinrelCachedBanner": { "description": "Banner shown when the displayed Kinrel is from the offline cache" },
-
+  "@kinrelCachedBanner": {
+    "description": "Banner shown when the displayed Kinrel is from the offline cache"
+  },
   "kinrelErrorTitle": "Could not load Kinrel",
-  "@kinrelErrorTitle": { "description": "Error title when Kinrel fetch fails" },
-
+  "@kinrelErrorTitle": {
+    "description": "Error title when Kinrel fetch fails"
+  },
   "kinrelShareTooltip": "Share Kinrel",
-  "@kinrelShareTooltip": { "description": "Tooltip for the Kinrel share icon" },
-
+  "@kinrelShareTooltip": {
+    "description": "Tooltip for the Kinrel share icon"
+  },
   "kinrelShareText": "Our family's Kinrel — {familyName}",
   "@kinrelShareText": {
     "description": "Share-sheet text attached to the Kinrel PNG",
     "placeholders": {
-      "familyName": { "type": "String", "example": "Sharma Family" }
+      "familyName": {
+        "type": "String",
+        "example": "Sharma Family"
+      }
     }
   },
-
   "kinrelTimelineTitle": "Kinrel Timeline",
-  "@kinrelTimelineTitle": { "description": "Header for the Kinrel timeline widget" },
-
+  "@kinrelTimelineTitle": {
+    "description": "Header for the Kinrel timeline widget"
+  },
   "kinrelTimelineEmptyTitle": "No Kinrel history yet",
-  "@kinrelTimelineEmptyTitle": { "description": "Title for the empty Kinrel timeline state" },
-
+  "@kinrelTimelineEmptyTitle": {
+    "description": "Title for the empty Kinrel timeline state"
+  },
   "kinrelTimelineEmptyBody": "As your family grows, snapshots of how the Kinrel evolved will appear here.",
-  "@kinrelTimelineEmptyBody": { "description": "Body for the empty Kinrel timeline state" },
-
+  "@kinrelTimelineEmptyBody": {
+    "description": "Body for the empty Kinrel timeline state"
+  },
   "kinrelMemberCountCaption": "{count} members",
   "@kinrelMemberCountCaption": {
     "description": "Caption showing the family's member count on the Kinrel card",
     "placeholders": {
-      "count": { "type": "int", "example": "42" }
+      "count": {
+        "type": "int",
+        "example": "42"
+      }
     }
   },
-
   "kinrelConfidenceLabel": "{percent}% match",
   "@kinrelConfidenceLabel": {
     "description": "Confidence meter label on the Kinrel archetype card",
     "placeholders": {
-      "percent": { "type": "int", "example": "87" }
+      "percent": {
+        "type": "int",
+        "example": "87"
+      }
     }
   },
-
   "kinrelFeatureDisabled": "Kinrel is not available.",
-  "@kinrelFeatureDisabled": { "description": "Message shown when Kinrel is feature-flagged off" },
-
+  "@kinrelFeatureDisabled": {
+    "description": "Message shown when Kinrel is feature-flagged off"
+  },
   "familyMapLoading": "Loading family map…",
-  "@familyMapLoading": { "description": "Skeleton message shown while the Family Map style is loading" },
-
+  "@familyMapLoading": {
+    "description": "Skeleton message shown while the Family Map style is loading"
+  },
   "familyMapEmptyTitle": "No family locations yet",
-  "@familyMapEmptyTitle": { "description": "Title shown when 0 family members have a located city on the map" },
-
+  "@familyMapEmptyTitle": {
+    "description": "Title shown when 0 family members have a located city on the map"
+  },
   "familyMapEmptyBody": "Add a location to a family member to see your family across the map.",
-  "@familyMapEmptyBody": { "description": "Body message shown when 0 family members are located" },
-
+  "@familyMapEmptyBody": {
+    "description": "Body message shown when 0 family members are located"
+  },
   "familyMapFailedTitle": "Couldn't load the family map",
-  "@familyMapFailedTitle": { "description": "Title shown when the Family Map fails to initialize" },
-
+  "@familyMapFailedTitle": {
+    "description": "Title shown when the Family Map fails to initialize"
+  },
   "familyMapFailedBody": "Check your connection and try again.",
-  "@familyMapFailedBody": { "description": "Body message shown when the Family Map fails to initialize" },
-
+  "@familyMapFailedBody": {
+    "description": "Body message shown when the Family Map fails to initialize"
+  },
   "familyMapRetry": "Retry",
-  "@familyMapRetry": { "description": "Retry button label for the Family Map failure state" },
-
+  "@familyMapRetry": {
+    "description": "Retry button label for the Family Map failure state"
+  },
   "familyMapLocatedCount": "{count} member{count, plural, =1{} other{s}} located",
   "@familyMapLocatedCount": {
     "description": "Subtitle showing how many family members have a located city",
     "placeholders": {
-      "count": { "type": "int", "example": "3" }
+      "count": {
+        "type": "int",
+        "example": "3"
+      }
     }
   },
-
   "familyMapTitle": "Family Map",
-  "@familyMapTitle": { "description": "AppBar title for the Family Map screen" },
-
+  "@familyMapTitle": {
+    "description": "AppBar title for the Family Map screen"
+  },
   "familyMapNoJourney": "No journey data for this family member yet.",
-  "@familyMapNoJourney": { "description": "SnackBar shown when a member has no journey stops" },
-
+  "@familyMapNoJourney": {
+    "description": "SnackBar shown when a member has no journey stops"
+  },
   "familyMapHouseholdMembers": "Household — {count} members",
   "@familyMapHouseholdMembers": {
     "description": "Bottom sheet title for a household cluster",
     "placeholders": {
-      "count": { "type": "int", "example": "3" }
+      "count": {
+        "type": "int",
+        "example": "3"
+      }
     }
   },
-
   "familyMapViewProfile": "View Profile",
-  "@familyMapViewProfile": { "description": "Button label to view a member's profile" },
-
+  "@familyMapViewProfile": {
+    "description": "Button label to view a member's profile"
+  },
   "familyMapUnpinnedCount": "{count} member{count, plural, =1{} other{s}} without map pin",
   "@familyMapUnpinnedCount": {
     "description": "Title for the unpinned members bottom sheet",
     "placeholders": {
-      "count": { "type": "int", "example": "2" }
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
     }
   },
-
   "familyMapAddCityPrompt": "Add a city to these members to see them on the map.",
-  "@familyMapAddCityPrompt": { "description": "Body text for the unpinned members bottom sheet" },
-
+  "@familyMapAddCityPrompt": {
+    "description": "Body text for the unpinned members bottom sheet"
+  },
   "familyMapNoCitySet": "No city set",
-  "@familyMapNoCitySet": { "description": "Subtitle for a member with no city" },
-
+  "@familyMapNoCitySet": {
+    "description": "Subtitle for a member with no city"
+  },
   "familyMapCityNotFound": "{city} (not found)",
   "@familyMapCityNotFound": {
     "description": "Subtitle for a member whose city couldn't be resolved",
     "placeholders": {
-      "city": { "type": "String", "example": "Mumbai" }
+      "city": {
+        "type": "String",
+        "example": "Mumbai"
+      }
     }
   },
-
   "familyMapPinned": "{count} pinned",
   "@familyMapPinned": {
     "description": "Legend showing count of pinned members",
     "placeholders": {
-      "count": { "type": "int", "example": "5" }
+      "count": {
+        "type": "int",
+        "example": "5"
+      }
     }
   },
-
   "familyMapNotPinned": "{count} not pinned",
   "@familyMapNotPinned": {
     "description": "Legend showing count of unpinned members",
     "placeholders": {
-      "count": { "type": "int", "example": "2" }
+      "count": {
+        "type": "int",
+        "example": "2"
+      }
     }
   },
-
   "familyMapCouldNotLoad": "Could Not Load Map",
-  "@familyMapCouldNotLoad": { "description": "Error state title when map data fails to load" },
-
+  "@familyMapCouldNotLoad": {
+    "description": "Error state title when map data fails to load"
+  },
   "familyMapErrorBody": "Something went wrong while loading the family map. Please try again.",
-  "@familyMapErrorBody": { "description": "Error state body text" },
-
+  "@familyMapErrorBody": {
+    "description": "Error state body text"
+  },
   "familyMapLinkedMember": "Linked family member",
-  "@familyMapLinkedMember": { "description": "Label for the linked family member in building bottom sheet" },
-
+  "@familyMapLinkedMember": {
+    "description": "Label for the linked family member in building bottom sheet"
+  },
   "familyMapMemories": "Memories",
-  "@familyMapMemories": { "description": "Label for memory count in building bottom sheet" },
-
+  "@familyMapMemories": {
+    "description": "Label for memory count in building bottom sheet"
+  },
   "familyMapClose": "Close",
-  "@familyMapClose": { "description": "Close button in building bottom sheet" },
-
+  "@familyMapClose": {
+    "description": "Close button in building bottom sheet"
+  },
   "familyMapBack": "Back",
-  "@familyMapBack": { "description": "Tooltip for the Family Map AppBar back button" },
-
+  "@familyMapBack": {
+    "description": "Tooltip for the Family Map AppBar back button"
+  },
   "familyMapTest3dBengaluru": "Test 3D: Bengaluru",
-  "@familyMapTest3dBengaluru": { "description": "Tooltip for the debug-only AppBar action that flies the camera to Bengaluru to verify 3D building extrusion" },
-
+  "@familyMapTest3dBengaluru": {
+    "description": "Tooltip for the debug-only AppBar action that flies the camera to Bengaluru to verify 3D building extrusion"
+  },
   "familyMapFlyToBengaluruSnackbar": "Flying to Bengaluru — 3D buildings should appear at this zoom level",
-  "@familyMapFlyToBengaluruSnackbar": { "description": "SnackBar message shown after tapping the debug Bengaluru test action" },
-
+  "@familyMapFlyToBengaluruSnackbar": {
+    "description": "SnackBar message shown after tapping the debug Bengaluru test action"
+  },
   "familyMapFamilyMember": "Family Member",
-  "@familyMapFamilyMember": { "description": "Fallback kinship label shown in the relationship bottom sheet when the kinship term cannot be resolved" },
-
+  "@familyMapFamilyMember": {
+    "description": "Fallback kinship label shown in the relationship bottom sheet when the kinship term cannot be resolved"
+  },
   "familyMapViewMember": "View {name}",
   "@familyMapViewMember": {
     "description": "Button label to view a named member's profile (relationship bottom sheet)",
     "placeholders": {
-      "name": { "type": "String", "example": "Aarav" }
+      "name": {
+        "type": "String",
+        "example": "Aarav"
+      }
     }
   },
-
   "familyMapHouseholdClusterLabel": "Household with {count} members. Double-tap to expand.",
   "@familyMapHouseholdClusterLabel": {
     "description": "Semantic label for a household cluster marker",
     "placeholders": {
-      "count": { "type": "int", "example": "3" }
+      "count": {
+        "type": "int",
+        "example": "3"
+      }
     }
   },
-
   "familyMapTimelineLabel": "Family timeline. Currently viewing {year}. Drag to change.",
   "@familyMapTimelineLabel": {
     "description": "Semantic label for the timeline scrubber container",
     "placeholders": {
-      "year": { "type": "int", "example": "2024" }
+      "year": {
+        "type": "int",
+        "example": "2024"
+      }
     }
   },
-
   "familyMapTimelinePreviousYear": "Previous year",
-  "@familyMapTimelinePreviousYear": { "description": "Tooltip for the timeline scrubber's previous-year button" },
-
+  "@familyMapTimelinePreviousYear": {
+    "description": "Tooltip for the timeline scrubber's previous-year button"
+  },
   "familyMapTimelineNextYear": "Next year",
-  "@familyMapTimelineNextYear": { "description": "Tooltip for the timeline scrubber's next-year button" },
-
+  "@familyMapTimelineNextYear": {
+    "description": "Tooltip for the timeline scrubber's next-year button"
+  },
   "familyMapTimelinePlay": "Play timeline",
-  "@familyMapTimelinePlay": { "description": "Tooltip / semantic label for the timeline play button" },
-
+  "@familyMapTimelinePlay": {
+    "description": "Tooltip / semantic label for the timeline play button"
+  },
   "familyMapTimelinePause": "Pause timeline",
-  "@familyMapTimelinePause": { "description": "Tooltip / semantic label for the timeline pause button" },
-
+  "@familyMapTimelinePause": {
+    "description": "Tooltip / semantic label for the timeline pause button"
+  },
   "familyMapTimelineRange": "{min}–{max}",
   "@familyMapTimelineRange": {
     "description": "Range label shown next to the timeline scrubber (e.g. 1900–2024)",
     "placeholders": {
-      "min": { "type": "int", "example": "1900" },
-      "max": { "type": "int", "example": "2024" }
+      "min": {
+        "type": "int",
+        "example": "1900"
+      },
+      "max": {
+        "type": "int",
+        "example": "2024"
+      }
     }
   },
-
   "familyMapJourneyTitle": "Family Journey",
-  "@familyMapJourneyTitle": { "description": "Header text for the Family Journey animation card" },
-
+  "@familyMapJourneyTitle": {
+    "description": "Header text for the Family Journey animation card"
+  },
   "familyMapJourneyBorn": "Born",
-  "@familyMapJourneyBorn": { "description": "Label for the birth stop in the family journey animation" },
-
+  "@familyMapJourneyBorn": {
+    "description": "Label for the birth stop in the family journey animation"
+  },
   "familyMapJourneyPrevious": "Previous stop",
-  "@familyMapJourneyPrevious": { "description": "Tooltip for the journey animation's previous-stop button" },
-
+  "@familyMapJourneyPrevious": {
+    "description": "Tooltip for the journey animation's previous-stop button"
+  },
   "familyMapJourneyNext": "Next stop",
-  "@familyMapJourneyNext": { "description": "Tooltip for the journey animation's next-stop button" },
-
+  "@familyMapJourneyNext": {
+    "description": "Tooltip for the journey animation's next-stop button"
+  },
   "familyMapJourneyPlay": "Play journey",
-  "@familyMapJourneyPlay": { "description": "Tooltip / semantic label for the journey animation play button" },
-
+  "@familyMapJourneyPlay": {
+    "description": "Tooltip / semantic label for the journey animation play button"
+  },
   "familyMapJourneyPause": "Pause journey",
-  "@familyMapJourneyPause": { "description": "Tooltip / semantic label for the journey animation pause button" },
-
+  "@familyMapJourneyPause": {
+    "description": "Tooltip / semantic label for the journey animation pause button"
+  },
   "familyMapJourneyClose": "Close journey",
-  "@familyMapJourneyClose": { "description": "Tooltip for the journey animation close button" },
-
+  "@familyMapJourneyClose": {
+    "description": "Tooltip for the journey animation close button"
+  },
   "familyMapAvatarPinLabel": "{name}{tier}. Double-tap to focus.",
   "@familyMapAvatarPinLabel": {
     "description": "Semantic label for a single family-member avatar marker. {tier} is a pre-localized tier description (e.g. ' (Live • now)') or empty.",
     "placeholders": {
-      "name": { "type": "String", "example": "Aarav" },
-      "tier": { "type": "String", "example": " (Live • now)" }
+      "name": {
+        "type": "String",
+        "example": "Aarav"
+      },
+      "tier": {
+        "type": "String",
+        "example": " (Live • now)"
+      }
     }
   },
-
   "familyMapAvatarSelectedSuffix": "Selected.",
-  "@familyMapAvatarSelectedSuffix": { "description": "Suffix appended to the avatar marker semantic label when the marker is selected" },
-
+  "@familyMapAvatarSelectedSuffix": {
+    "description": "Suffix appended to the avatar marker semantic label when the marker is selected"
+  },
   "familyMapAvatarDoubleTapFocus": "Double-tap to focus.",
-  "@familyMapAvatarDoubleTapFocus": { "description": "Hint appended to the avatar marker semantic label" },
-
+  "@familyMapAvatarDoubleTapFocus": {
+    "description": "Hint appended to the avatar marker semantic label"
+  },
   "familyMapTierLive": "Live • now",
-  "@familyMapTierLive": { "description": "Tier label for a live-updating family member location" },
-
+  "@familyMapTierLive": {
+    "description": "Tier label for a live-updating family member location"
+  },
   "familyMapTierUpdatedRecently": "Updated recently",
-  "@familyMapTierUpdatedRecently": { "description": "Tier label for a recently-updated location when no timestamp is available" },
-
+  "@familyMapTierUpdatedRecently": {
+    "description": "Tier label for a recently-updated location when no timestamp is available"
+  },
   "familyMapTierUpdatedJustNow": "Updated just now",
-  "@familyMapTierUpdatedJustNow": { "description": "Tier label for a location updated within the last minute" },
-
+  "@familyMapTierUpdatedJustNow": {
+    "description": "Tier label for a location updated within the last minute"
+  },
   "familyMapTierUpdatedMinsAgo": "Updated {mins}m ago",
   "@familyMapTierUpdatedMinsAgo": {
     "description": "Tier label for a location updated a number of minutes ago",
     "placeholders": {
-      "mins": { "type": "int", "example": "5" }
+      "mins": {
+        "type": "int",
+        "example": "5"
+      }
     }
   },
-
   "familyMapTierLastKnown": "Last known",
-  "@familyMapTierLastKnown": { "description": "Tier label for a city-fallback location (no precise location known)" },
-
+  "@familyMapTierLastKnown": {
+    "description": "Tier label for a city-fallback location (no precise location known)"
+  },
   "familyMapProgressOffline": "Offline — showing cached data",
-  "@familyMapProgressOffline": { "description": "Progress message shown when the map is offline and showing cached data" },
-
+  "@familyMapProgressOffline": {
+    "description": "Progress message shown when the map is offline and showing cached data"
+  },
   "familyMapProgressRestoring": "Restoring your view…",
-  "@familyMapProgressRestoring": { "description": "Progress message shown while restoring the cached viewport" },
-
+  "@familyMapProgressRestoring": {
+    "description": "Progress message shown while restoring the cached viewport"
+  },
   "familyMapProgressMap": "Loading map…",
-  "@familyMapProgressMap": { "description": "Progress message shown while map tiles are loading" },
-
+  "@familyMapProgressMap": {
+    "description": "Progress message shown while map tiles are loading"
+  },
   "familyMapProgressLandmarks": "Loading landmarks…",
-  "@familyMapProgressLandmarks": { "description": "Progress message shown while roads + buildings are loading" },
-
+  "@familyMapProgressLandmarks": {
+    "description": "Progress message shown while roads + buildings are loading"
+  },
   "familyMapProgressFamilyPlaces": "Loading family places…",
-  "@familyMapProgressFamilyPlaces": { "description": "Progress message shown while family places are loading" },
-
+  "@familyMapProgressFamilyPlaces": {
+    "description": "Progress message shown while family places are loading"
+  },
   "familyMapProgressConnections": "Loading connections…",
-  "@familyMapProgressConnections": { "description": "Progress message shown while relationship paths are loading" },
-
+  "@familyMapProgressConnections": {
+    "description": "Progress message shown while relationship paths are loading"
+  },
   "familyMapProgressMembers": "Loading family members…",
-  "@familyMapProgressMembers": { "description": "Progress message shown while avatar markers are loading" },
-
+  "@familyMapProgressMembers": {
+    "description": "Progress message shown while avatar markers are loading"
+  },
   "familyMapProgressAlmost": "Almost there…",
-  "@familyMapProgressAlmost": { "description": "Progress message shown while the final animation phase is starting" }
+  "@familyMapProgressAlmost": {
+    "description": "Progress message shown while the final animation phase is starting"
+  },
+  "familyMapControlLocate": "Locate me",
+  "familyMapControlZoomIn": "Zoom in",
+  "familyMapControlZoomOut": "Zoom out",
+  "familyMapControlLayers": "Layers",
+  "familyMapControlDarkMode": "Dark map",
+  "familyMapControlLightMode": "Light map",
+  "familyMapLocateServiceOff": "Location services are off.",
+  "familyMapLocatePermissionDenied": "Location permission denied.",
+  "familyMapLocateFailed": "Could not get your current location.",
+  "familyMapLayersTitle": "Map layers",
+  "familyMapLayersDone": "Done",
+  "familyMapLayerHomes": "Family homes",
+  "familyMapLayerWeddings": "Wedding venues",
+  "familyMapLayerMemorials": "Memorials",
+  "familyMapLayerSchools": "Schools",
+  "familyMapLayerPlaces": "Important places",
+  "familyMapLayerRelationships": "Relationship paths",
+  "familyMapLayerCallouts": "Place labels",
+  "familyMapLayerLivePulses": "Live pulses",
+  "familyMapSearchHint": "Search city or family member",
+  "familyMapSearchCollapsed": "Search city or family member",
+  "familyMapSearchClear": "Clear",
+  "familyMapSearchCityHint": "City",
+  "familyMapLegendPinned": "located",
+  "familyMapLegendCities": "cities",
+  "familyMapLegendStatusTitle": "Status tiers",
+  "familyMapLegendCategoriesTitle": "Place categories",
+  "familyMapLegendUnpinnedTitle": "Not on map",
+  "familyMapLegendTierLive": "Live",
+  "familyMapLegendTierLiveDesc": "< 2 min ago",
+  "familyMapLegendTierRecent": "Recent",
+  "familyMapLegendTierRecentDesc": "< 15 min ago",
+  "familyMapLegendTierStale": "Stale",
+  "familyMapLegendTierStaleDesc": "< 1 hour ago",
+  "familyMapLegendTierCity": "City",
+  "familyMapLegendTierCityDesc": "city centroid"
 }
