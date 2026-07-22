@@ -685,6 +685,13 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             if (state.timelineYear != null) {
               ref.read(journeyProvider.notifier).setYear(state.timelineYear!);
             }
+            // P13.1 — Restore per-layer toggle state. Missing keys
+            // default to true (forward-compat with new layers added
+            // in future versions). Unknown keys are dropped.
+            final restoredLayers = deserializeLayerToggles(state.layerToggles);
+            _layerState
+              ..clear()
+              ..addAll(restoredLayers);
             debugPrint('📦 P10.9: restored map session state $state');
           }
         });
@@ -772,6 +779,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
               if (state.timelineYear != null) {
                 ref.read(journeyProvider.notifier).setYear(state.timelineYear!);
               }
+              // P13.1 — Restore layer toggles for the new family.
+              final restoredLayers = deserializeLayerToggles(state.layerToggles);
+              _layerState
+                ..clear()
+                ..addAll(restoredLayers);
             });
           }
         });
@@ -1191,15 +1203,21 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // for the LIVE pulse + STALE dimming visual treatments.
     final liveState = ref.watch(liveLocationProvider);
 
+    // P13.1 — Apply per-category layer filtering to the places list
+    // BEFORE populating the GeoJSON source + passing to the callout
+    // overlay. This makes the Layers popover actually hide buildings
+    // (not just the callout chips) when a category is toggled OFF.
+    final layerFilteredPlaces = filterPlacesByLayers(filteredPlaces, _layerState);
+
     // P11.2 — Update the family-buildings GeoJSON source when the filtered
     // places list changes. The source + layers are in the style JSON; we
     // just populate the data. Wrapped in post-frame callback to avoid
     // calling async style methods during build.
-    if (_styleLoaded && filteredPlaces.isNotEmpty) {
+    if (_styleLoaded && layerFilteredPlaces.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final style = _mapController?.style;
         if (style != null) {
-          _familyBuildings.update(style, filteredPlaces);
+          _familyBuildings.update(style, layerFilteredPlaces);
           // P11.x — Start (or restart) the building animation engine for
           // wedding pulse / memorial flicker / temple pulse / ancestral
           // breathing. Engine self-disables on reduced motion + low-tier.
@@ -1207,12 +1225,22 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             deviceTier: DeviceTierCache.instance.tier,
             reducedMotion: reducedMotion,
           );
-          _buildingAnimEngine!.start(style, filteredPlaces);
+          _buildingAnimEngine!.start(style, layerFilteredPlaces);
         }
       });
-    } else if (filteredPlaces.isEmpty) {
+    } else if (layerFilteredPlaces.isEmpty) {
       // P11.x — Stop the animation engine when there are no places.
       _buildingAnimEngine?.stop();
+      // P13.1 — Also clear the GeoJSON source so toggled-off buildings
+      // disappear immediately (not just on next data refresh).
+      if (_styleLoaded) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final style = _mapController?.style;
+          if (style != null) {
+            _familyBuildings.update(style, const []);
+          }
+        });
+      }
     }
 
     // P10.9 — Initial camera from restored state (if any).
@@ -1364,15 +1392,21 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
               _buildEmptyStateOverlay(),
 
             // ── P13 — Place callouts (floating icon+text chips) ─────────
-            // Rendered above family places when zoom >= 12. The overlay
-            // self-positions chips via MapController.toScreenLocation and
-            // caps at 8 visible callouts (closest to screen center).
+            // Rendered above family places when zoom >= 12 (full chips)
+            // OR between calloutDotMinZoom and calloutMinZoom (compact
+            // category dots with clustering). The overlay self-positions
+            // via MapController.toScreenLocation and caps visible items
+            // to prevent clutter.
+            //
+            // P13.1: uses [layerFilteredPlaces] so callouts stay in sync
+            // with the GeoJSON source — toggling a layer OFF hides both
+            // the building AND its callout/dot.
             if (_styleLoaded &&
                 (_layerState[MapControlLayer.callouts] ?? true) &&
-                filteredPlaces.isNotEmpty)
+                layerFilteredPlaces.isNotEmpty)
               PlaceCalloutOverlay(
                 mapController: _mapController,
-                places: filteredPlaces,
+                places: layerFilteredPlaces,
                 reducedMotion: reducedMotion,
                 selectedPlaceId: _selectedPlaceId,
                 onTap: (place) {
@@ -1385,8 +1419,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             // Rendered above the family's currentHome place. Pulsing ring
             // animation respects reduced-motion. Tapping flies the camera
             // to focus-mode zoom + pitch.
+            // P13.1: gated by the [MapControlLayer.homes] toggle so the
+            // home marker disappears when the user hides family homes.
             if (_styleLoaded &&
-                homePlace != null)
+                homePlace != null &&
+                (_layerState[MapControlLayer.homes] ?? true))
               HomeMarkerOverlay(
                 mapController: _mapController,
                 home: homePlace!,
@@ -1419,6 +1456,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 onToggleMapMode: _toggleMapTheme,
                 onToggleLayer: (layer, value) {
                   setState(() => _layerState[layer] = value);
+                  // P13.1 — Persist the new toggle state immediately
+                  // (debounced via _scheduleStateSave). This ensures
+                  // the user's layer choices survive app restarts even
+                  // if they don't move the camera afterwards.
+                  _scheduleStateSave();
                 },
                 layerStates: _layerState,
                 reducedMotion: reducedMotion,
@@ -1923,6 +1965,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// P10.9 — Schedule a debounced save of the current session state.
   /// Reads the camera position from the MapController + the current
   /// selection / timeline year / focus mode / expanded household.
+  /// P13.1: also persists the per-layer toggle state so the user's
+  /// Layers popover choices survive app restarts.
   void _scheduleStateSave() {
     final saver = _stateSaver;
     final controller = _mapController;
@@ -1939,6 +1983,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       timelineYear: journeyState.selectedYear,
       isFocusMode: _selectedPinId != null,
       expandedHouseholdId: _expandedHouseholdId,
+      // P13.1 — persist layer toggles (serializeLayerToggles converts
+      // the enum-keyed map to a String-keyed map for JSON storage).
+      layerToggles: serializeLayerToggles(_layerState),
     );
     saver.schedule(state);
   }

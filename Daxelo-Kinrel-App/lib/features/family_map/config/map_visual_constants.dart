@@ -633,6 +633,29 @@ class MapVisualConstants {
   /// to be readable; buildings render as colored dots instead.
   static const double calloutMinZoom = 12.0;
 
+  /// P13.1 — Below this zoom, callouts collapse into compact category
+  /// dots (no text label, just a colored pin). This gives the user a
+  /// sense of where family places are even at world/country zoom.
+  /// Set to 0 to disable low-zoom dots entirely (matches P13 behavior
+  /// where callouts simply disappear below [calloutMinZoom]).
+  static const double calloutDotMinZoom = 4.0;
+
+  /// P13.1 — Diameter of the compact category dot shown at low zoom.
+  static const double calloutDotSize = 12.0;
+
+  /// P13.1 — Glow blur for the compact category dot.
+  static const double calloutDotGlowBlur = 6.0;
+
+  /// P13.1 — Maximum number of compact dots shown at low zoom. Higher
+  /// than [maxVisibleCallouts] because dots are smaller + cheaper.
+  static const int maxVisibleCalloutDots = 24;
+
+  /// P13.1 — Grid size (degrees) for callout clustering at low zoom.
+  /// Places within this distance of each other collapse into a single
+  /// dot. 0.5° ≈ 55km at the equator — coarse enough to declutter at
+  /// world view, fine enough to keep distinct cities separate.
+  static const double calloutClusterEpsilon = 0.5;
+
   // ═════════════════════════════════════════════════════════════════════
   // P13 — HIGHLIGHTED HOME MARKER
   // ═════════════════════════════════════════════════════════════════════

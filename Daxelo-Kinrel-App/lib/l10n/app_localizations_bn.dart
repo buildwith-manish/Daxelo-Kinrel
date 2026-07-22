@@ -457,110 +457,110 @@ class SBn extends S {
 
   // ── P13 — Control stack + search + legend (en baseline — translate later)
   @override
-  String get familyMapControlLocate => 'Locate me';
+  String get familyMapControlLocate => 'আমার অবস্থান খুঁজুন';
 
   @override
-  String get familyMapControlZoomIn => 'Zoom in';
+  String get familyMapControlZoomIn => 'জুম ইন';
 
   @override
-  String get familyMapControlZoomOut => 'Zoom out';
+  String get familyMapControlZoomOut => 'জুম আউট';
 
   @override
-  String get familyMapControlLayers => 'Layers';
+  String get familyMapControlLayers => 'স্তর';
 
   @override
-  String get familyMapControlDarkMode => 'Dark map';
+  String get familyMapControlDarkMode => 'ডার্ক ম্যাপ';
 
   @override
-  String get familyMapControlLightMode => 'Light map';
+  String get familyMapControlLightMode => 'লাইট ম্যাপ';
 
   @override
-  String get familyMapLocateServiceOff => 'Location services are off.';
+  String get familyMapLocateServiceOff => 'লোকেশন পরিষেবা বন্ধ আছে।';
 
   @override
-  String get familyMapLocatePermissionDenied => 'Location permission denied.';
+  String get familyMapLocatePermissionDenied => 'লোকেশন অনুমতি অস্বীকৃত।';
 
   @override
-  String get familyMapLocateFailed => 'Could not get your current location.';
+  String get familyMapLocateFailed => 'আপনার বর্তমান অবস্থান পাওয়া যায়নি।';
 
   @override
-  String get familyMapLayersTitle => 'Map layers';
+  String get familyMapLayersTitle => 'ম্যাপ স্তর';
 
   @override
-  String get familyMapLayersDone => 'Done';
+  String get familyMapLayersDone => 'সম্পন্ন';
 
   @override
-  String get familyMapLayerHomes => 'Family homes';
+  String get familyMapLayerHomes => 'পারিবারিক বাড়ি';
 
   @override
-  String get familyMapLayerWeddings => 'Wedding venues';
+  String get familyMapLayerWeddings => 'বিবাহ স্থল';
 
   @override
-  String get familyMapLayerMemorials => 'Memorials';
+  String get familyMapLayerMemorials => 'স্মৃতিস্তম্ভ';
 
   @override
-  String get familyMapLayerSchools => 'Schools';
+  String get familyMapLayerSchools => 'স্কুল';
 
   @override
-  String get familyMapLayerPlaces => 'Important places';
+  String get familyMapLayerPlaces => 'গুরুত্বপূর্ণ স্থান';
 
   @override
-  String get familyMapLayerRelationships => 'Relationship paths';
+  String get familyMapLayerRelationships => 'সম্পর্ক পথ';
 
   @override
-  String get familyMapLayerCallouts => 'Place labels';
+  String get familyMapLayerCallouts => 'স্থান লেবেল';
 
   @override
-  String get familyMapLayerLivePulses => 'Live pulses';
+  String get familyMapLayerLivePulses => 'লাইভ স্পন্দন';
 
   @override
-  String get familyMapSearchHint => 'Search city or family member';
+  String get familyMapSearchHint => 'শহর বা পরিবারের সদস্য খুঁজুন';
 
   @override
-  String get familyMapSearchCollapsed => 'Search city or family member';
+  String get familyMapSearchCollapsed => 'শহর বা পরিবারের সদস্য খুঁজুন';
 
   @override
-  String get familyMapSearchClear => 'Clear';
+  String get familyMapSearchClear => 'মুছুন';
 
   @override
-  String get familyMapSearchCityHint => 'City';
+  String get familyMapSearchCityHint => 'শহর';
 
   @override
-  String get familyMapLegendPinned => 'located';
+  String get familyMapLegendPinned => 'অবস্থিত';
 
   @override
-  String get familyMapLegendCities => 'cities';
+  String get familyMapLegendCities => 'শহর';
 
   @override
-  String get familyMapLegendStatusTitle => 'Status tiers';
+  String get familyMapLegendStatusTitle => 'স্থিতি স্তর';
 
   @override
-  String get familyMapLegendCategoriesTitle => 'Place categories';
+  String get familyMapLegendCategoriesTitle => 'স্থান বিভাগ';
 
   @override
-  String get familyMapLegendUnpinnedTitle => 'Not on map';
+  String get familyMapLegendUnpinnedTitle => 'ম্যাপে নেই';
 
   @override
-  String get familyMapLegendTierLive => 'Live';
+  String get familyMapLegendTierLive => 'লাইভ';
 
   @override
-  String get familyMapLegendTierLiveDesc => '< 2 min ago';
+  String get familyMapLegendTierLiveDesc => '< ২ মিনিট আগে';
 
   @override
-  String get familyMapLegendTierRecent => 'Recent';
+  String get familyMapLegendTierRecent => 'সাম্প্রতিক';
 
   @override
-  String get familyMapLegendTierRecentDesc => '< 15 min ago';
+  String get familyMapLegendTierRecentDesc => '< ১৫ মিনিট আগে';
 
   @override
-  String get familyMapLegendTierStale => 'Stale';
+  String get familyMapLegendTierStale => 'পুরোনো';
 
   @override
-  String get familyMapLegendTierStaleDesc => '< 1 hour ago';
+  String get familyMapLegendTierStaleDesc => '< ১ ঘন্টা আগে';
 
   @override
-  String get familyMapLegendTierCity => 'City';
+  String get familyMapLegendTierCity => 'শহর';
 
   @override
-  String get familyMapLegendTierCityDesc => 'city centroid';
+  String get familyMapLegendTierCityDesc => 'শহর কেন্দ্র';
 }

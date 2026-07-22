@@ -457,110 +457,110 @@ class SMl extends S {
 
   // ── P13 — Control stack + search + legend (en baseline — translate later)
   @override
-  String get familyMapControlLocate => 'Locate me';
+  String get familyMapControlLocate => 'എന്റെ സ്ഥാനം കണ്ടെത്തുക';
 
   @override
-  String get familyMapControlZoomIn => 'Zoom in';
+  String get familyMapControlZoomIn => 'സൂം ഇൻ';
 
   @override
-  String get familyMapControlZoomOut => 'Zoom out';
+  String get familyMapControlZoomOut => 'സൂം ഔട്ട്';
 
   @override
-  String get familyMapControlLayers => 'Layers';
+  String get familyMapControlLayers => 'പാളികൾ';
 
   @override
-  String get familyMapControlDarkMode => 'Dark map';
+  String get familyMapControlDarkMode => 'ഡാർക്ക് മാപ്പ്';
 
   @override
-  String get familyMapControlLightMode => 'Light map';
+  String get familyMapControlLightMode => 'ലൈറ്റ് മാപ്പ്';
 
   @override
-  String get familyMapLocateServiceOff => 'Location services are off.';
+  String get familyMapLocateServiceOff => 'ലൊക്കേഷൻ സേവനങ്ങൾ ഓഫാണ്.';
 
   @override
-  String get familyMapLocatePermissionDenied => 'Location permission denied.';
+  String get familyMapLocatePermissionDenied => 'ലൊക്കേഷൻ അനുമതി നിരസിച്ചു.';
 
   @override
-  String get familyMapLocateFailed => 'Could not get your current location.';
+  String get familyMapLocateFailed => 'നിങ്ങളുടെ നിലവിലെ സ്ഥാനം ലഭിച്ചില്ല.';
 
   @override
-  String get familyMapLayersTitle => 'Map layers';
+  String get familyMapLayersTitle => 'മാപ്പ് പാളികൾ';
 
   @override
-  String get familyMapLayersDone => 'Done';
+  String get familyMapLayersDone => 'പൂർത്തിയായി';
 
   @override
-  String get familyMapLayerHomes => 'Family homes';
+  String get familyMapLayerHomes => 'കുടുംബ വീടുകൾ';
 
   @override
-  String get familyMapLayerWeddings => 'Wedding venues';
+  String get familyMapLayerWeddings => 'വിവാഹ സ്ഥലങ്ങൾ';
 
   @override
-  String get familyMapLayerMemorials => 'Memorials';
+  String get familyMapLayerMemorials => 'സ്മാരകങ്ങൾ';
 
   @override
-  String get familyMapLayerSchools => 'Schools';
+  String get familyMapLayerSchools => 'സ്കൂളുകൾ';
 
   @override
-  String get familyMapLayerPlaces => 'Important places';
+  String get familyMapLayerPlaces => 'പ്രധാന സ്ഥലങ്ങൾ';
 
   @override
-  String get familyMapLayerRelationships => 'Relationship paths';
+  String get familyMapLayerRelationships => 'ബന്ധങ്ങളുടെ പാത';
 
   @override
-  String get familyMapLayerCallouts => 'Place labels';
+  String get familyMapLayerCallouts => 'സ്ഥല ലേബലുകൾ';
 
   @override
-  String get familyMapLayerLivePulses => 'Live pulses';
+  String get familyMapLayerLivePulses => 'തത്സമയ സ്പന്ദനം';
 
   @override
-  String get familyMapSearchHint => 'Search city or family member';
+  String get familyMapSearchHint => 'നഗരം അല്ലെങ്കിൽ കുടുംബാംഗത്തെ തിരയുക';
 
   @override
-  String get familyMapSearchCollapsed => 'Search city or family member';
+  String get familyMapSearchCollapsed => 'നഗരം അല്ലെങ്കിൽ കുടുംബാംഗത്തെ തിരയുക';
 
   @override
-  String get familyMapSearchClear => 'Clear';
+  String get familyMapSearchClear => 'മായ്ക്കുക';
 
   @override
-  String get familyMapSearchCityHint => 'City';
+  String get familyMapSearchCityHint => 'നഗരം';
 
   @override
-  String get familyMapLegendPinned => 'located';
+  String get familyMapLegendPinned => 'സ്ഥിതിചെയ്യുന്നു';
 
   @override
-  String get familyMapLegendCities => 'cities';
+  String get familyMapLegendCities => 'നഗരങ്ങൾ';
 
   @override
-  String get familyMapLegendStatusTitle => 'Status tiers';
+  String get familyMapLegendStatusTitle => 'നില തലങ്ങൾ';
 
   @override
-  String get familyMapLegendCategoriesTitle => 'Place categories';
+  String get familyMapLegendCategoriesTitle => 'സ്ഥല വിഭാഗങ്ങൾ';
 
   @override
-  String get familyMapLegendUnpinnedTitle => 'Not on map';
+  String get familyMapLegendUnpinnedTitle => 'മാപ്പിൽ ഇല്ല';
 
   @override
-  String get familyMapLegendTierLive => 'Live';
+  String get familyMapLegendTierLive => 'തത്സമയം';
 
   @override
-  String get familyMapLegendTierLiveDesc => '< 2 min ago';
+  String get familyMapLegendTierLiveDesc => '< 2 മിനിറ്റ് മുമ്പ്';
 
   @override
-  String get familyMapLegendTierRecent => 'Recent';
+  String get familyMapLegendTierRecent => 'സമീപകാല';
 
   @override
-  String get familyMapLegendTierRecentDesc => '< 15 min ago';
+  String get familyMapLegendTierRecentDesc => '< 15 മിനിറ്റ് മുമ്പ്';
 
   @override
-  String get familyMapLegendTierStale => 'Stale';
+  String get familyMapLegendTierStale => 'പഴയ';
 
   @override
-  String get familyMapLegendTierStaleDesc => '< 1 hour ago';
+  String get familyMapLegendTierStaleDesc => '< 1 മണിക്കൂർ മുമ്പ്';
 
   @override
-  String get familyMapLegendTierCity => 'City';
+  String get familyMapLegendTierCity => 'നഗരം';
 
   @override
-  String get familyMapLegendTierCityDesc => 'city centroid';
+  String get familyMapLegendTierCityDesc => 'നഗര കേന്ദ്രം';
 }

@@ -54,6 +54,7 @@ class MapSessionState {
     this.isFocusMode = false,
     this.expandedHouseholdId,
     this.mapStyleId = 'kinrel_dark',
+    this.layerToggles,
     this.version = 1,
     this.savedAt,
   });
@@ -88,6 +89,14 @@ class MapSessionState {
   /// Map style ID (for future style switching).
   final String mapStyleId;
 
+  /// P13 — Per-layer toggle state. Maps the MapControlLayer.name() to a
+  /// bool (true = visible). Null on first launch (defaults to all-on).
+  /// Stored as a Map<String, bool> rather than Map<MapControlLayer, bool>
+  /// so the enum can evolve without breaking serialized state (forward-
+  /// compat: unknown keys are dropped on load; missing keys default to
+  /// true via the screen's [_layerState] initialization).
+  final Map<String, bool>? layerToggles;
+
   /// Schema version (for forward-compat migrations).
   final int version;
 
@@ -117,6 +126,7 @@ class MapSessionState {
     bool? isFocusMode,
     String? expandedHouseholdId,
     String? mapStyleId,
+    Map<String, bool>? layerToggles,
     int? version,
     String? savedAt,
   }) {
@@ -131,6 +141,7 @@ class MapSessionState {
       isFocusMode: isFocusMode ?? this.isFocusMode,
       expandedHouseholdId: expandedHouseholdId ?? this.expandedHouseholdId,
       mapStyleId: mapStyleId ?? this.mapStyleId,
+      layerToggles: layerToggles ?? this.layerToggles,
       version: version ?? this.version,
       savedAt: savedAt ?? this.savedAt,
     );
@@ -147,6 +158,7 @@ class MapSessionState {
     'isFocusMode': isFocusMode,
     'expandedHouseholdId': expandedHouseholdId,
     'mapStyleId': mapStyleId,
+    if (layerToggles != null) 'layerToggles': layerToggles,
     'version': version,
     'savedAt': savedAt ?? DateTime.now().toUtc().toIso8601String(),
   };
@@ -155,6 +167,22 @@ class MapSessionState {
   /// Returns null only on a JSON parse error (caller treats as "no saved state").
   factory MapSessionState.fromJson(Map<String, dynamic> json) {
     final currentYear = DateTime.now().year;
+    // P13 — Parse layer toggles. Accepts a Map<String, dynamic> from JSON
+    // and casts each value to bool. Unknown keys are kept (forward-compat:
+    // newer clients may add layers; older clients ignore them via the
+    // screen's default-true fallback).
+    Map<String, bool>? parseLayerToggles() {
+      final raw = json['layerToggles'];
+      if (raw is! Map) return null;
+      final out = <String, bool>{};
+      for (final entry in raw.entries) {
+        if (entry.value is bool) {
+          out[entry.key.toString()] = entry.value as bool;
+        }
+      }
+      return out.isEmpty ? null : out;
+    }
+
     return MapSessionState(
       lat: _asDouble(json['lat']) ?? 22.0,
       lng: _asDouble(json['lng']) ?? 79.0,
@@ -173,6 +201,7 @@ class MapSessionState {
       isFocusMode: json['isFocusMode'] as bool? ?? false,
       expandedHouseholdId: json['expandedHouseholdId'] as String?,
       mapStyleId: json['mapStyleId'] as String? ?? 'kinrel_dark',
+      layerToggles: parseLayerToggles(),
       version: json['version'] as int? ?? 1,
       savedAt: json['savedAt'] as String?,
     );
@@ -182,7 +211,8 @@ class MapSessionState {
   String toString() =>
       'MapSessionState(lat: $lat, lng: $lng, zoom: $zoom, pitch: $pitch, '
       'bearing: $bearing, selected: $selectedPersonId, year: $timelineYear, '
-      'focus: $isFocusMode, household: $expandedHouseholdId, v$version)';
+      'focus: $isFocusMode, household: $expandedHouseholdId, '
+      'layers: $layerToggles, v$version)';
 }
 
 double? _asDouble(dynamic v) {

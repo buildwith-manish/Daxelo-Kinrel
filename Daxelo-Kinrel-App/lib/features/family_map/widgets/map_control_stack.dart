@@ -38,6 +38,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../l10n/app_localizations.dart';
 import '../config/map_visual_constants.dart';
+import '../data/place_models.dart';
 
 /// A single circular glass button in the control stack.
 class _ControlButton extends StatefulWidget {
@@ -536,6 +537,103 @@ enum MapControlLayer {
 
   /// Live location pulses (teal rings on live tier pins).
   livePulses,
+}
+
+/// Maps a [MapControlLayer] to the set of [PlaceType]s it controls.
+/// Returns null for non-place layers (relationships, callouts, livePulses)
+/// — those are handled separately by the screen.
+///
+/// Used by [filterPlacesByLayers] to filter the family-places GeoJSON
+/// source based on the user's layer toggles. When a layer is OFF, all
+/// places of its associated types are excluded from the GeoJSON source
+/// (so the 3D building extrusion, glow halo, and fallback circle all
+/// disappear together).
+Set<PlaceType> placeTypesForLayer(MapControlLayer layer) {
+  switch (layer) {
+    case MapControlLayer.homes:
+      return const {
+        PlaceType.currentHome,
+        PlaceType.childhoodHome,
+        PlaceType.ancestralHome,
+        PlaceType.grandparentsHome,
+        PlaceType.birthplace,
+      };
+    case MapControlLayer.weddings:
+      return const {PlaceType.wedding};
+    case MapControlLayer.memorials:
+      return const {PlaceType.memorial};
+    case MapControlLayer.schools:
+      return const {PlaceType.school};
+    case MapControlLayer.places:
+      return const {
+        PlaceType.familyBusiness,
+        PlaceType.familyTemple,
+        PlaceType.vacationHome,
+        PlaceType.importantPlace,
+      };
+    case MapControlLayer.relationships:
+    case MapControlLayer.callouts:
+    case MapControlLayer.livePulses:
+      return const {}; // non-place layers
+  }
+}
+
+/// Filters a list of [FamilyPlace]s by the given layer toggle state.
+///
+/// A place is INCLUDED when at least one of these is true:
+///   • Its PlaceType is not associated with any [MapControlLayer]
+///     (forward-compat: future PlaceTypes not yet mapped always show).
+///   • The [MapControlLayer] associated with its PlaceType is ON
+///     (true in [layerStates], or absent — defaults to true).
+///
+/// A place is EXCLUDED when the layer associated with its PlaceType
+/// is explicitly OFF (false) in [layerStates].
+///
+/// This is used by the screen to filter the places list before calling
+/// [FamilyBuildingLayer.update] so the GeoJSON source reflects the
+/// user's layer toggles. The same filtered list is also passed to
+/// [PlaceCalloutOverlay] so callouts stay in sync with buildings.
+List<FamilyPlace> filterPlacesByLayers(
+  List<FamilyPlace> places,
+  Map<MapControlLayer, bool> layerStates,
+) {
+  // Pre-compute the OFF layers (the only ones that exclude places).
+  final offTypes = <PlaceType>{};
+  for (final layer in MapControlLayer.values) {
+    final isOn = layerStates[layer] ?? true;
+    if (!isOn) {
+      offTypes.addAll(placeTypesForLayer(layer));
+    }
+  }
+  if (offTypes.isEmpty) return List.unmodifiable(places);
+  return places.where((p) => !offTypes.contains(p.placeType)).toList();
+}
+
+/// Serializes the layer toggle state to a JSON-friendly Map<String, bool>.
+/// Used by [MapSessionState.layerToggles] for persistence.
+Map<String, bool> serializeLayerToggles(
+  Map<MapControlLayer, bool> layerStates,
+) {
+  return {
+    for (final entry in layerStates.entries)
+      entry.key.name: entry.value,
+  };
+}
+
+/// Deserializes the layer toggle state from a Map<String, bool>.
+/// Missing keys default to true (forward-compat: new layers added in
+/// future versions default to ON until the user explicitly toggles).
+/// Unknown keys are dropped (forward-compat: removed layers are forgotten).
+Map<MapControlLayer, bool> deserializeLayerToggles(
+  Map<String, bool>? stored,
+) {
+  if (stored == null || stored.isEmpty) {
+    return {for (final l in MapControlLayer.values) l: true};
+  }
+  final out = <MapControlLayer, bool>{
+    for (final l in MapControlLayer.values) l: stored[l.name] ?? true,
+  };
+  return out;
 }
 
 class _LayerMeta {
