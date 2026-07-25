@@ -123,7 +123,19 @@ console.log('Static server on :8099');
 
 const browser = await puppeteer.launch({
   headless: 'new',
-  args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
+  args: [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    // WebGL via SwiftShader (software rendering) — required for MapLibre GL JS
+    // in headless Chromium. Without these flags, the WebGL context is created
+    // but rendering produces a blank canvas (all background color).
+    '--enable-unsafe-swiftshader',
+    '--use-gl=angle',
+    '--use-angle=swiftshader',
+    '--enable-webgl',
+    '--ignore-gpu-blocklist',
+  ],
 });
 
 let successCount = 0;
@@ -144,10 +156,17 @@ for (const region of regions) {
   });
 
   try {
-    await page.goto('http://localhost:8099/index.html', { waitUntil: 'networkidle0', timeout: 30000 });
+    await page.goto('http://localhost:8099/index.html', { waitUntil: 'load', timeout: 30000 });
     await page.waitForFunction('window.__map !== undefined', { timeout: 15000 });
+    console.log(`[${region.id}] map object created`);
 
-    // Fly to region
+    // Wait for the map's `load` event (fires when style has loaded)
+    await page.waitForFunction('window.__map.isStyleLoaded()', { timeout: 20000 }).catch(() => {
+      console.log(`[${region.id}] style not fully loaded after 20s — proceeding anyway`);
+    });
+    console.log(`[${region.id}] style loaded`);
+
+    // Jump to region (jumpTo is instant, no animation)
     await page.evaluate((r) => {
       window.__map.jumpTo({
         center: [r.lng, r.lat],
@@ -156,14 +175,49 @@ for (const region of regions) {
         bearing: r.bearing,
       });
     }, region);
+    console.log(`[${region.id}] jumped to region: ${region.lng}, ${region.lat} z${region.zoom}`);
 
-    // Wait for tiles to load (5s + idle)
-    await new Promise(r => setTimeout(r, 5000));
-    try {
-      await page.waitForFunction('window.__map.areTilesLoaded()', { timeout: 15000 });
-    } catch (e) {
-      console.log(`[${region.id}] tiles not fully loaded after 15s — proceeding anyway`);
+    // Trigger a render and wait for it to complete
+    await page.evaluate(() => window.__map.triggerRepaint());
+
+    // Wait for tiles to load — poll every 500ms up to 20s
+    let tilesLoaded = false;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const loaded = await page.evaluate(() => window.__map.areTilesLoaded());
+      if (loaded) { tilesLoaded = true; break; }
+      await new Promise(r => setTimeout(r, 500));
     }
+    if (!tilesLoaded) {
+      console.log(`[${region.id}] ⚠️  tiles not fully loaded after 20s — proceeding anyway`);
+    } else {
+      console.log(`[${region.id}] tiles loaded`);
+    }
+
+    // Extra render wait — give MapLibre a chance to actually paint to the canvas
+    await new Promise(r => setTimeout(r, 2000));
+
+    // Verify the map actually rendered (not all background color) by sampling
+    // the center pixel of the canvas
+    const canvasInfo = await page.evaluate(() => {
+      const canvas = document.querySelector('#map canvas');
+      if (!canvas) return { error: 'no canvas found' };
+      try {
+        const ctx = canvas.getContext('webgl2') || canvas.getContext('webgl');
+        if (!ctx) return { error: 'no WebGL context' };
+        const w = canvas.width, h = canvas.height;
+        // Read center pixel
+        const pixels = new Uint8Array(4);
+        ctx.readPixels(Math.floor(w/2), Math.floor(h/2), 1, 1, ctx.RGBA, ctx.UNSIGNED_BYTE, pixels);
+        // WebGL Y is bottom-up — note the pixel is from center
+        return {
+          width: w, height: h,
+          centerPixel: [pixels[0], pixels[1], pixels[2], pixels[3]],
+        };
+      } catch (e) {
+        return { error: e.message };
+      }
+    });
+    console.log(`[${region.id}] canvas:`, canvasInfo);
 
     const outPath = join(SCREENSHOTS_DIR, `${region.id}.png`);
     await page.screenshot({ path: outPath });
