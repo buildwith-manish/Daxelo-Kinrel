@@ -6,9 +6,9 @@
 # Purpose: validate that pipeline scales from city (Mumbai) to state (Karnataka)
 # before committing to country-scale (India, Stage 3).
 #
-# Per-layer zoom config (same as Stage 1):
-#   - Base schema: z0-14
-#   - Buildings: z0-16 (overzoom to z17)
+# Zoom strategy (spec v3.0, Option B — single global maxzoom, same as Stage 1):
+#   --maxzoom=16          All layers baked to z16 (OpenMapTiles profile hard cap).
+#   --render_maxzoom=17   MapLibre overzooms z17 from z16 data.
 #
 # Requirements:
 #   - Java 21+
@@ -49,7 +49,7 @@ fi
 echo "=== Planetiler Karnataka Build (Stage 2 — VALIDATION) ==="
 echo "PBF: $PBF ($(du -h "$PBF" | cut -f1))"
 echo "BBox: $BBOX (Karnataka state)"
-echo "Per-layer zoom config: base z0-14, buildings z0-16+overzoom"
+echo "Zoom strategy: --maxzoom=16 (all layers), --render_maxzoom=17 (overzoom)"
 echo "Output: $OUTPUT_DIR/karnataka.pmtiles"
 echo ""
 

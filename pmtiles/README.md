@@ -25,17 +25,26 @@ stages, and only switches to PMTiles once, at Stage 4.
 | 3 | Validation + size estimate | India | scripts ready |
 | 4 | **Production cutover** | Worldwide (planet) | scripts ready, needs 32-64GB RAM VM |
 
-## Per-layer Zoom Config (spec v2.0)
+## Zoom Strategy (single global maxzoom — spec v3.0, Option B)
 
-Per spec: "Do not apply one zoom range to the entire schema."
+**Decision:** All layers use the same zoom range. No per-layer split.
 
-| Layer group | minzoom | maxzoom |
+| Setting | Value | Reason |
 |---|---|---|
-| Base schema (roads, water, landuse, parks, labels, POIs, etc.) | 0 | 14 |
-| Buildings layer only | 0 | 16 (with `--render_maxzoom=17` for overzoom) |
+| `--maxzoom` | 16 | Planetiler's stock OpenMapTiles profile hard-caps at 16. Going higher requires forking the profile, which the spec v3.0 explicitly calls out as a nontrivial scope addition. |
+| `--render_maxzoom` | 17 | Lets MapLibre overzoom z17 by interpolating from z16 data. |
 
-Buildings get 2 extra zoom levels of real detail vs OpenFreeMap's z14 cap.
-MapLibre interpolates z17+ from z16 data.
+| All layers (roads, water, landuse, parks, labels, POIs, buildings, …) | minzoom | maxzoom |
+|---|---|---|
+| | 0 | 16 (overzoom to 17 at display time) |
+
+**Trade-offs vs a hypothetical per-layer split (Option A):**
+- ✅ Simpler: no profile fork, no per-layer YAML overrides, single Planetiler command.
+- ✅ More detail everywhere: roads, POIs, labels all get z15–16 detail (not just buildings).
+- ❌ Larger archive: every layer is baked to z16, not just buildings. Realistic file-size estimates are 1.5–2× what a per-layer split would produce. The planet-wide archive will likely land in the 70–110 GB range rather than 50–80 GB. This is acceptable for Cloudflare R2 hosting ($1–2/month delta at $0.015/GB).
+- ✅ Still 2 zoom levels better than OpenFreeMap's z14 cap for buildings.
+
+**Why not Option A?** Planetiler's OpenMapTiles profile (`planetiler-openmaptiles` submodule) hard-caps `--maxzoom` at 16 globally — there's no flag to override per-layer. A real per-layer split would require forking the profile YAML and maintaining the fork. Spec v3.0 explicitly defers this to a later phase.
 
 ## Quick Start (Stage 1 — Mumbai validation)
 

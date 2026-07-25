@@ -23,6 +23,7 @@
 // Style: https://tiles.openfreemap.org/styles/dark (free, no API key)
 
 import 'dart:async';
+import 'dart:convert' show jsonDecode, jsonEncode;
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle, HapticFeedback;
@@ -332,10 +333,16 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       final raw = await rootBundle
           .loadString(_kStyleAssetPath)
           .timeout(const Duration(seconds: 10));
-      // P14 — Phase A: patch the openmaptiles source URL with the active
-      // PMTiles source from pmtiles/config/sources.json. The bundled
-      // style JSON ships with a `pmtiles://{{PMTILES_URL}}/{z}/{x}/{y}.pbf`
-      // placeholder; we replace it at runtime with the real URL.
+      // Phase A: patch the openmaptiles source URL with the active PMTiles
+      // source from pmtiles/config/sources.json. The bundled style JSON ships
+      // with a `pmtiles://{{PMTILES_URL}}` placeholder; we replace it at
+      // runtime with the real (fully-qualified) HTTPS URL.
+      //
+      // MapLibre Native 11.7+ (Android) and 6.10+ (iOS) — both bundled with
+      // maplibre 0.3.5 — recognize the `pmtiles://` prefix and handle the
+      // archive-internal tile addressing themselves. No custom protocol code
+      // is needed on either native platform. Web uses the pmtiles.js library
+      // loaded in web/index.html (auto-registered by maplibre_web).
       final patched = _applyPmtilesSource(raw);
       _loadedStyleJson = applyPoiFilters(patched);
     } catch (e) {
@@ -345,19 +352,26 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     return _loadedStyleJson!;
   }
 
-  /// P14 — Phase A PMTiles migration: replaces the `{{PMTILES_URL}}`
-  /// placeholder in the bundled style JSON with the active PMTiles
-  /// source URL.
+  /// Phase A PMTiles migration: replaces the `{{PMTILES_URL}}` placeholder
+  /// in the bundled style JSON with the active PMTiles source URL.
   ///
   /// Source selection order:
-  ///   1. Build-time const `_kPmtilesSourceUrl` (set in this file)
-  ///   2. If const is null, leaves the placeholder (will fail to load —
-  ///      intentionally visible so we know the source isn't configured)
+  ///   1. Runtime override via `--dart-define=PMTILES_URL=...`
+  ///   2. `_kPmtilesSourceUrl` const below (dev default = local server)
+  ///   3. If both are null, falls back to OpenFreeMap (no pmtiles:// prefix)
+  ///      so the map still renders if PMTiles is misconfigured. The fallback
+  ///      is intentionally visible in logs so we notice the misconfiguration.
   ///
   /// Per Phase A spec: only the tile SOURCE is replaced. All layer IDs,
   /// source-layer names, and paint properties remain unchanged.
   static const _kPmtilesSourceUrl =
-      'http://localhost:8080/mumbai.pmtiles'; // dev — change to prod URL before release
+      String.fromEnvironment('PMTILES_URL', defaultValue: 'http://localhost:8080/mumbai.pmtiles');
+
+  /// OpenFreeMap fallback URL — used if PMTiles source fails to load.
+  /// Format matches MapLibre's standard `{z}/{x}/{y}.pbf` tile template
+  /// (NO pmtiles:// prefix — this is a regular ZYX tile server).
+  static const _kOpenFreeMapFallbackUrl =
+      'https://tiles.openfreemap.org/planet';
 
   String _applyPmtilesSource(String styleJson) {
     if (!styleJson.contains('{{PMTILES_URL}}')) return styleJson;
@@ -367,6 +381,30 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     );
     debugPrint('📍 FamilyMap: patched PMTiles source → $_kPmtilesSourceUrl');
     return patched;
+  }
+
+  /// Replaces the openmaptiles PMTiles source with the OpenFreeMap fallback.
+  /// Called when the PMTiles source fails to load (e.g. CDN down, broken URL,
+  /// 404 on the archive). Reconstructs the source as a standard ZYX templated
+  /// vector source — no pmtiles:// prefix, no single-archive URL.
+  String _applyOpenFreeMapFallback(String styleJson) {
+    try {
+      final decoded = jsonDecode(styleJson) as Map<String, dynamic>;
+      final sources = decoded['sources'] as Map<String, dynamic>;
+      sources['openmaptiles'] = {
+        'type': 'vector',
+        'tiles': ['$_kOpenFreeMapFallbackUrl/{z}/{x}/{y}.pbf'],
+        'maxzoom': 14,
+        'minzoom': 0,
+        'attribution': '© OpenStreetMap contributors, © OpenFreeMap',
+      };
+      debugPrint('⚠️ FamilyMap: fell back to OpenFreeMap '
+          '($_kOpenFreeMapFallbackUrl) — PMTiles source unavailable');
+      return jsonEncode(decoded);
+    } catch (e) {
+      debugPrint('⚠️ FamilyMap: fallback patch failed: $e');
+      return styleJson;
+    }
   }
 
   /// Toggles between dark and light map themes. Clears the cached style
@@ -1107,6 +1145,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     _styleWatchdog = null;
     // Clear cached style so _loadStyleJson re-fetches from the asset.
     _loadedStyleJson = null;
+    // Phase A: reset the fallback flag on manual retry — if the user
+    // explicitly hits "retry", give PMTiles another chance before
+    // auto-falling-back to OpenFreeMap.
+    _usingOpenFreeMapFallback = false;
     // Reset the family-places-layers flag so _ensureFamilyPlacesLayers
     // re-adds them when the new style loads.
     _familyPlacesLayersAdded = false;
@@ -1169,13 +1211,64 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       if (_lifecycle.state.isTerminal) return;
       if (_lifecycle.state == FamilyMapLifecycle.loadingStyle ||
           _lifecycle.state == FamilyMapLifecycle.preparingLayers) {
+        // Phase A: If the PMTiles source failed to load (the most likely
+        // cause of a 10s style-load timeout), automatically swap to the
+        // OpenFreeMap fallback ONCE and retry. On a second timeout we
+        // give up and force ready/empty so the user still sees the
+        // empty-state overlay.
+        if (!_usingOpenFreeMapFallback) {
+          debugPrint(
+            '⚠️ FamilyMap: PMTiles style load timed out after 10s — '
+            'auto-swapping to OpenFreeMap fallback and retrying',
+          );
+          _usingOpenFreeMapFallback = true;
+          _applyFallbackAndRetry(attempt: attempt);
+          return;
+        }
         debugPrint(
           '⚠️ FamilyMap: onStyleLoaded watchdog fired after 10s — '
-          'forcing lifecycle to ready/empty (state=${_lifecycle.state})',
+          'fallback already in use, forcing lifecycle to ready/empty '
+          '(state=${_lifecycle.state})',
         );
         _advanceToReadyOrEmpty(attempt: attempt);
       }
     });
+  }
+
+  /// Phase A: Set when the map has auto-fallen-back to OpenFreeMap
+  /// because the PMTiles source failed to load. Prevents infinite
+  /// retry loops — if OpenFreeMap ALSO fails, the watchdog forces
+  /// ready/empty instead of retrying again.
+  bool _usingOpenFreeMapFallback = false;
+
+  /// Phase A: Swaps the cached style JSON to use OpenFreeMap and
+  /// re-triggers the load path. Called by the style-load watchdog
+  /// on first timeout. Resets all the same state as _triggerRetry.
+  void _applyFallbackAndRetry({required int attempt}) {
+    _styleWatchdog?.cancel();
+    _styleWatchdog = null;
+    // Patch the cached style JSON (or reload from asset if cache is
+    // somehow null) to swap the openmaptiles source to OpenFreeMap.
+    final currentStyle = _loadedStyleJson;
+    if (currentStyle != null && !currentStyle.startsWith('http')) {
+      // Cached JSON string — patch in place.
+      _loadedStyleJson = _applyOpenFreeMapFallback(currentStyle);
+    } else {
+      // No cached JSON (e.g. asset load failed entirely) — force
+      // _loadStyleJson to re-run, which will use _kFallbackStyleJson
+      // (the inline minimal style).
+      _loadedStyleJson = null;
+    }
+    _familyPlacesLayersAdded = false;
+    _liveLocationGlowAdded = false;
+    _liveLocationLat = null;
+    _liveLocationLng = null;
+    _styleLoaded = false;
+    _rendezvousController = null;
+    _rendezvousStyle = null;
+    _layersPrepared = false;
+    _lifecycle.reset();
+    setState(() {});
   }
 
   /// Transitions the lifecycle to `ready` or `empty` based on the

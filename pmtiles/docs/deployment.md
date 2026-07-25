@@ -25,20 +25,24 @@ Planetiler-generated .pmtiles (OpenMapTiles schema)
 OpenStreetMap (Geofabrik extracts)
 ```
 
-## Per-layer Zoom Config (spec v2.0)
+## Zoom Strategy (spec v3.0, Option B — single global maxzoom)
 
-Per spec: "Do not apply one zoom range to the entire schema."
+**Decision:** All layers use the same zoom range. No per-layer split.
 
-| Layer group | minzoom | maxzoom | Notes |
-|---|---|---|---|
-| Base schema (roads, water, landuse, parks, labels, POIs, boundaries, transportation, bridges, tunnels) | 0 | 14 | Standard OpenMapTiles convention — keeps global file size sane |
-| Buildings layer only | 0 | 16 | Planetiler OpenMapTiles profile hard-caps at 16. `--render_maxzoom=17` lets MapLibre overzoom z17 from z16 data — 2 levels better than OpenFreeMap's z14 cap |
+Per spec v3.0: "Keep `--maxzoom=16` as a global setting, remove any comments/docs claiming a base-vs-buildings split that doesn't exist."
 
-**Implementation note:** Planetiler's OpenMapTiles profile YAML hard-caps
-buildings at z16. To produce buildings at z17+, a custom profile fork is
-required (out of scope for Phase A). The `--render_maxzoom=17` flag tells
-MapLibre to interpolate z17+ display from z16 tile data — same pattern
-OpenFreeMap uses (z14 cap, overzoom to z22).
+| Setting | Value | Reason |
+|---|---|---|
+| `--maxzoom` | 16 | Planetiler's OpenMapTiles profile hard-caps at 16 globally. Going higher requires forking the profile (out of scope per spec v3.0). |
+| `--render_maxzoom` | 17 | Lets MapLibre overzoom z17 by interpolating from z16 data. |
+
+| All layers (roads, water, landuse, parks, labels, POIs, buildings, boundaries, transportation, bridges, tunnels) | minzoom | maxzoom |
+|---|---|---|
+| | 0 | 16 (overzoom to 17 at display time) |
+
+**Trade-off vs a hypothetical per-layer split (Option A):** every layer is baked to z16, not just buildings. The planet-wide archive is therefore larger than a per-layer split would produce — realistic estimate is **70–110 GB** (vs 50–80 GB for a per-layer split). At Cloudflare R2 pricing ($0.015/GB/month) this is $1.05–1.65/month vs $0.75–1.20/month — a negligible delta. The trade-off buys simpler ops (no profile fork to maintain) and more detail at z15–16 for ALL layers, not just buildings.
+
+**Why not Option A?** A real per-layer split would require forking the Planetiler OpenMapTiles profile YAML. Spec v3.0 explicitly calls this out as a nontrivial scope addition and defers it.
 
 ## Staging Strategy (spec v2.0)
 
@@ -107,7 +111,7 @@ estimate, before the production cutover"
 1. Build India-wide PMTiles archive (needs ~16GB RAM)
 2. Measure file size
 3. Extrapolate to planet scale (India is ~2.4% of planet land area;
-   planet archive estimated at ~40-50× India size with per-layer zoom config)
+   planet archive estimated at ~30-45× India size with global z16 maxzoom)
 4. Verify the planet-size estimate fits in the chosen hosting budget
    (Cloudflare R2 free tier: 10GB; paid: $0.015/GB/month)
 
@@ -127,9 +131,9 @@ estimate, before the production cutover"
 # https://planet.openstreetmap.org/
 ./pmtiles/scripts/download_sources.sh planet
 
-# Build planet archive (per-layer zoom config built into build_planet.sh)
+# Build planet archive (zoom strategy built into build_planet.sh)
 ./pmtiles/scripts/build_planet.sh
-# Output: ./pmtiles/output/planet.pmtiles (~50-80GB estimated)
+# Output: ./pmtiles/output/planet.pmtiles (~70-110GB estimated per Option B)
 ```
 
 ### Hosting (Cloudflare R2)

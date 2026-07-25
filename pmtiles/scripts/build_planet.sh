@@ -5,9 +5,9 @@
 #   "Production only cuts over once the full worldwide archive is built
 #    and verified."
 #
-# Per-layer zoom config (same as Stages 1-3):
-#   - Base schema: z0-14
-#   - Buildings layer: z0-16 (overzoom to z17 via --render_maxzoom=17)
+# Zoom strategy (spec v3.0, Option B — single global maxzoom, same as Stages 1-3):
+#   --maxzoom=16          All layers baked to z16 (OpenMapTiles profile hard cap).
+#   --render_maxzoom=17   MapLibre overzooms z17 from z16 data.
 #
 # Requirements:
 #   - Java 21+
@@ -60,10 +60,8 @@ fi
 
 echo "=== Planetiler PLANET Build (Stage 4 — PRODUCTION) ==="
 echo "PBF: $PBF ($(du -h "$PBF" | cut -f1))"
-echo "Per-layer zoom config:"
-echo "  - Base schema: z0-14"
-echo "  - Buildings: z0-16 (overzoom to z17 via --render_maxzoom=17)"
-echo "Output: $OUTPUT_DIR/planet.pmtiles (~50-80GB estimated)"
+echo "Zoom strategy: --maxzoom=16 (all layers), --render_maxzoom=17 (overzoom)"
+echo "Output: $OUTPUT_DIR/planet.pmtiles (~70-110GB estimated per spec v3.0 Option B)"
 echo "Build time: 4-8 hours estimated"
 echo ""
 

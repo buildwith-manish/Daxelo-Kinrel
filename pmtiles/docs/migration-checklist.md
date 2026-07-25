@@ -1,108 +1,114 @@
-# Phase A Migration Checklist (spec v2.0)
+# Phase A Migration Checklist (spec v3.0)
 
-Per spec: "Do not proceed to Phase B until this is verified."
+Per spec v3.0: "Do not proceed to Phase B until this is verified."
 
-## Step 0 — Prerequisites (DONE ✅)
+> **CRITICAL:** A checklist item is only "done" when there is a verification
+> artifact attached (screenshot, log, test output). Code existing is not
+> evidence that the code works.
 
-- [x] Verified `maplibre: 0.3.5` is the pinned version
-- [x] Verified `maplibre_android 0.3.5` wraps `android-sdk-opengl:13.0.+`
-      (MapLibre Native Android 13.x — has `Style.addProtocol()` since 11.7.0)
-- [x] Verified `maplibre_ios 0.3.5` wraps `MapLibre ~> 6.25`
-      (MapLibre Native iOS 6.25 — has `MLNStyle.addProtocol()`)
-- [x] Verified `maplibre_web 0.3.5` auto-registers `pmtiles://` protocol
-      via `interop.addProtocol('pmtiles', pmtilesProtocol.tile)` in
-      `map_state.dart:48-49` — requires pmtiles.js script tag (DONE)
-- [x] No version bump needed. 0.3.5 supports PMTiles on all 3 platforms.
+## Step 0 — Determine whether custom PMTiles protocol code is needed (DONE ✅)
 
-## Step 1 — Tile Generation Pipeline
+**Finding:** MapLibre Native has built-in PMTiles engine support. No custom
+Kotlin/Swift protocol code is required on any platform.
 
-- [x] Download Planetiler JAR v0.10.2 to `pmtiles/bin/planetiler.jar`
-- [x] Write `pmtiles/scripts/download_planetiler.sh` (idempotent)
-- [x] Write `pmtiles/scripts/download_sources.sh` (Geofabrik extracts)
-- [x] Write `pmtiles/scripts/build_mumbai.sh` (Stage 1 validation build)
-      - Per-layer zoom config: base z0-14, buildings z0-16 + overzoom to z17
-      - Uses `--maxzoom=16 --render_maxzoom=17` (Planetiler profile hard cap)
-- [ ] Write `pmtiles/scripts/build_karnataka.sh` (Stage 2 validation)
-- [ ] Write `pmtiles/scripts/build_india.sh` (Stage 3 validation + size estimate)
-- [ ] Write `pmtiles/scripts/build_planet.sh` (Stage 4 production cutover)
-- [ ] Download Western Zone India PBF (218MB) — IN PROGRESS
-- [ ] Download water-polygons auxiliary data (885MB) — IN PROGRESS
-- [ ] Generate `pmtiles/output/mumbai.pmtiles` (~20-50MB est)
-- [ ] Verify archive contains `building` source-layer with render_height
-      field by decoding a z14 Mumbai tile with mapbox-vector-tile
+| Platform | Bundled native version | PMTiles native since | Custom code needed? |
+|---|---|---|---|
+| Android | MapLibre Native **13.0** (via maplibre_android 0.3.5) | 11.7.0 | ❌ None |
+| iOS | MapLibre Native **6.25** (via maplibre_ios 0.3.5) | 6.10.0 | ❌ None |
+| Web | MapLibre GL JS 5.6.0 + pmtiles.js 3.0.0 | (JS lib required) | ✅ Just the `<script>` tag in `web/index.html` (already present) |
 
-### Per-layer Zoom Config (spec v2.0)
+**Sources:**
+- maplibre 0.3.5 changelog (official): "Android: update MapLibre Native to 13.0" and "iOS: update MapLibre Native to 6.25"
+- MapLibre Android docs: "Starting MapLibre Android 11.7.0, PMTiles archives are supported as tile sources"
+- MapLibre iOS docs: "MapLibre iOS 6.10.0, using PMTiles as a data source is supported"
 
-Per spec: "Do not apply one zoom range to the entire schema."
+**Action taken:** Deleted the broken `PmtilesProtocol.kt` — it forwarded a
+`?range=` query param that nothing in the codebase ever set, and would never
+have served a real tile. The native engine handles `pmtiles://https://...`
+URLs directly.
 
-| Layer group | minzoom | maxzoom |
-|---|---|---|
-| Base schema (roads, water, landuse, parks, labels, POIs, etc.) | 0 | 14 |
-| Buildings layer only | 0 | 16 (with `--render_maxzoom=17` for overzoom) |
+## Step 1 — Per-platform code (DONE ✅)
 
-**Implementation:** `--maxzoom=16 --render_maxzoom=17` in build scripts.
-Planetiler's OpenMapTiles profile YAML hard-caps buildings at z16, so
-true z17 building tiles require a profile fork (out of scope for Phase A).
+- [x] **Android:** deleted `PmtilesProtocol.kt`. No custom code. Native engine handles `pmtiles://` URL scheme.
+- [x] **iOS:** no custom code needed (no Swift plugin to write or remove). Native engine handles `pmtiles://` URL scheme.
+- [x] **Web:** `web/index.html` loads `pmtiles@3.0.0` from jsdelivr CDN with unpkg fallback. `maplibre_web` 0.3.5 auto-registers the `pmtiles://` protocol via `interop.addProtocol('pmtiles', pmtilesProtocol.tile)`.
 
-## Step 2 — Flutter Integration
+## Step 1b — Style JSON source declaration (DONE ✅)
 
-- [x] Add `pmtiles@3.0.0` script tag to `web/index.html` (web)
-- [x] Add pmtiles fallback CDN in `web/index.html`
-- [x] Update `kinrel_dark_style.json` openmaptiles source to use
-      `pmtiles://{{PMTILES_URL}}/{z}/{x}/{y}.pbf` placeholder
-- [x] Update `family_map_screen.dart` `_loadStyleJson` to patch
-      `{{PMTILES_URL}}` placeholder with `_kPmtilesSourceUrl` at runtime
-- [x] Write `PmtilesProtocol.kt` for Android (registers pmtiles://
-      protocol via `Style.addProtocol()`)
+- [x] `kinrel_dark_style.json` `openmaptiles` source now declares:
+  ```json
+  {
+    "type": "vector",
+    "url": "pmtiles://{{PMTILES_URL}}",
+    "maxzoom": 16,
+    "minzoom": 0,
+    "attribution": "© OpenStreetMap contributors, © OpenMapTiles, © Planetiler"
+  }
+  ```
+  (Previously used an incorrect `tiles: ["pmtiles://.../{z}/{x}/{y}.pbf"]` template array — PMTiles is a single-archive URL, not a per-tile template.)
+- [x] `{{PMTILES_URL}}` placeholder is replaced at runtime by `_applyPmtilesSource()` in `family_map_screen.dart`, sourced from `--dart-define=PMTILES_URL=...` (default: `http://localhost:8080/mumbai.pmtiles` for dev).
 
-## Step 3 — Staging & Hosting
+## Step 2 — Zoom strategy (DONE ✅ — Option B)
 
-- [x] Write `pmtiles/scripts/serve_local.sh` for dev (range-request
-      HTTP server with CORS)
-- [ ] **Stage 1 (Mumbai validation):** run local server, verify PMTiles
-      loads in browser, take visual diff screenshots vs OpenFreeMap
-- [ ] **Stage 2 (Karnataka validation):** repeat parity check
-- [ ] **Stage 3 (India validation):** measure file size, extrapolate to
-      planet, verify hosting budget fit
-- [ ] **Stage 4 (Planet production build):** spin up 32-64GB RAM VM,
-      build planet.pmtiles, upload to Cloudflare R2
-- [ ] Configure `tiles.daxelo-kinrel.dev` → R2 public URL
+- [x] Decision: **Option B** — single global `--maxzoom=16 --render_maxzoom=17`. All layers baked to z16; MapLibre overzooms z17 from z16 data.
+- [x] Reasoning documented in `pmtiles/README.md`, `pmtiles/docs/deployment.md`, and inline comments in all four `build_*.sh` scripts.
+- [x] Removed all "per-layer split" claims from docs (they were false — Planetiler's stock OpenMapTiles profile doesn't support per-layer zoom overrides).
+- [x] Updated planet-wide size estimate to 70–110 GB (was 50–80 GB) to reflect that every layer goes to z16, not just buildings.
 
-## Step 4 — Visual Parity Verification (Stage 1)
+## Step 3 — Monaco independent verification (PENDING ⏳)
 
-Per spec: "Mumbai-stage visual diff against the current OpenFreeMap map
-to confirm parity"
+Per spec v3.0: "Before touching Mumbai or any larger extract: build Monaco, verify with an independent tool, then point the Flutter app at the Monaco archive and confirm real tiles render."
 
-- [ ] Take screenshots of Mumbai at z4, z8, z11, z13, z14 with OpenFreeMap
+- [ ] Build Monaco test archive via `pmtiles/scripts/build_monaco.sh` (script needs to be written — Planetiler ships with a Monaco test extract)
+- [ ] Verify archive with `pmtiles show monaco.pmtiles` (independent CLI):
+  - [ ] Header parses (magic, version, root directory offset)
+  - [ ] Directory listing returns tile entries
+  - [ ] At least one tile decodes (decompress, MVT-parse, find a named layer)
+- [ ] Point Flutter app (Android emulator + iOS simulator + web) at the Monaco archive
+- [ ] Attach screenshots of the rendered Monaco map from each platform
+
+**Honest note:** This step requires Flutter SDK + a running Android emulator or iOS simulator + a desktop browser. Cannot be verified in a headless Linux CI runner. Must be done on a developer machine or in a CI workflow with device testing capability.
+
+## Step 4 — Mumbai validation (PENDING ⏳)
+
+- [ ] Download Western Zone India PBF (~208 MB) via `pmtiles/scripts/download_sources.sh mumbai`
+- [ ] Build `mumbai.pmtiles` via `pmtiles/scripts/build_mumbai.sh` (or GitHub Actions `Build PMTiles` workflow with `region=mumbai`)
+- [ ] Verify with `pmtiles show mumbai.pmtiles` (independent CLI — header, directory, decoded tile)
+- [ ] Serve locally via `pmtiles/scripts/serve_local.sh 8080`
+- [ ] Point Flutter app at `http://localhost:8080/mumbai.pmtiles`
+- [ ] Take screenshots of Mumbai at z4, z8, z11, z13, z14 with OpenFreeMap (current source)
 - [ ] Take screenshots of Mumbai at same zooms with PMTiles
-- [ ] Diff screenshots — visual parity required at z0-14
-- [ ] At z15-17, verify MORE buildings render (real OSM data, not stretched z14)
-- [ ] Verify all existing layers still render:
-  - [ ] background, water, landuse, parks, roads, bridges, tunnels
-  - [ ] building (2D fill)
-  - [ ] kinrel-buildings-outline (2D outline)
-  - [ ] kinrel-3d-buildings (3D extrusion)
-  - [ ] kinrel-3d-buildings-warm-glow (tall-building accent)
-  - [ ] family-places (GeoJSON source — unchanged)
-  - [ ] family-buildings-glow, family-buildings, family-buildings-fallback
-  - [ ] All label layers (place, poi, water_name, transportation_name)
-  - [ ] All boundary layers
+- [ ] Diff — visual parity required at z0–14
+- [ ] At z15–17, verify MORE buildings render (real OSM data, not stretched z14)
+- [ ] Verify all existing layers still render (background, water, landuse, parks, roads, bridges, tunnels, building 2D, kinrel-buildings-outline, kinrel-3d-buildings, kinrel-3d-buildings-warm-glow, family-places, family-buildings-*, all label/boundary layers)
 
-## Step 5 — File-Size Validation (Stage 3)
+**Honest note:** Same device-testing requirement as Step 3.
 
-Per spec: "India-stage file-size measurement to validate the worldwide
-estimate, before the production cutover"
+## Step 5 — Karnataka + India validation (PENDING ⏳)
 
-- [ ] Build India PMTiles archive (~16GB RAM required)
-- [ ] Measure file size of `india.pmtiles`
-- [ ] Extrapolate to planet scale (India ≈ 2.4% of planet land area)
-- [ ] Verify planet-size estimate fits Cloudflare R2 budget
-      (free tier: 10GB; paid: $0.015/GB/month)
+Same build → independent verify → app-render → screenshot process for:
+- [ ] Karnataka (Stage 2): bbox clip of Southern Zone PBF
+- [ ] India (Stage 3): full India PBF, measure file size, extrapolate to planet
 
-## Step 6 — Functional Regression Tests
+## Step 6 — Production cutover (PENDING ⏳)
 
-Per spec: "No regressions in progressive loading, camera, animation, marker,
-or family-layer behavior"
+**Single worldwide cutover only — no regional archives in production.**
+
+- [ ] Stage 4 planet build complete: `planet.pmtiles` (~70–110 GB estimated per Option B)
+- [ ] Upload `planet.pmtiles` to Cloudflare R2 (or equivalent static host with HTTP Range support)
+- [ ] Update `pmtiles/config/sources.json` `active` field to the worldwide production URL
+- [ ] Build APK + web bundle + iOS IPA
+- [ ] Test on Android device (real, not emulator)
+- [ ] Test on iOS device (real, not simulator)
+- [ ] Test on web (Chrome, Firefox, Safari)
+- [ ] **Test automatic fallback:** deliberately point `_kPmtilesSourceUrl` at a broken URL, confirm the app auto-swaps to OpenFreeMap within 10s and continues rendering
+- [ ] Verify attribution is visible in the shipped app
+- [ ] Commit + push + Vercel auto-deploy
+- [ ] Monitor error logs for 24 hours
+
+## Step 7 — Functional regression tests (PENDING ⏳)
+
+Per spec: "No regressions in progressive loading, camera, animation, marker, or family-layer behavior"
 
 - [ ] Progressive loading (8-phase loader) still works
 - [ ] Camera transitions (zoom, pitch, bearing) smooth
@@ -115,40 +121,21 @@ or family-layer behavior"
 - [ ] Cold start < 2 seconds
 - [ ] Tile loading speed ≥ OpenFreeMap baseline
 
-## Step 7 — Attribution
+## Step 8 — Attribution (DONE ✅ for source declaration; PENDING for visible attribution widget)
 
-Per ODbL license: attribution is required.
-
-- [x] Updated `kinrel_dark_style.json` openmaptiles source attribution:
-      `© OpenStreetMap contributors, © OpenMapTiles, © Planetiler`
+- [x] `kinrel_dark_style.json` openmaptiles source attribution:
+  `© OpenStreetMap contributors, © OpenMapTiles, © Planetiler`
 - [ ] Verify `SourceAttribution` widget renders correctly in bottom-right
 - [ ] Verify attribution is also visible in light mode (OpenFreeMap liberty URL)
 
-## Step 8 — Production Cutover (Stage 4 only)
-
-**Per spec: "Production only cuts over once the full worldwide archive is
-built and verified."**
-
-- [ ] Stage 4 planet build complete: `planet.pmtiles` (~50-80GB est)
-- [ ] Upload `planet.pmtiles` to Cloudflare R2
-- [ ] Update `_kPmtilesSourceUrl` in `family_map_screen.dart` from
-      OpenFreeMap URL → `https://tiles.daxelo-kinrel.dev/planet.pmtiles`
-- [ ] Build APK + web bundle
-- [ ] Test on Android device (real, not emulator)
-- [ ] Test on web (Chrome, Firefox, Safari)
-- [ ] Commit + push + Vercel auto-deploy
-- [ ] Monitor error logs for 24 hours
-
-## Step 9 — Documentation
+## Step 9 — Documentation (DONE ✅)
 
 - [x] `pmtiles/docs/deployment.md` — hosting + update strategy + staging
-- [x] `pmtiles/docs/migration-checklist.md` — this file
-- [x] `pmtiles/README.md` — overview + quickstart
+- [x] `pmtiles/docs/migration-checklist.md` — this file (rewritten per spec v3.0)
+- [x] `pmtiles/README.md` — overview + quickstart (Option A: CI, Option B: local)
+- [x] `.github/workflows/build-pmtiles.yml` — CI workflow for all 4 regions
 
-## Phase A.5 (Out of Scope for Initial Migration)
+## Phase A.5 (Deferred per spec v3.0)
 
-- [ ] iOS Swift plugin to register `pmtiles://` protocol via
-      `MLNStyle.addProtocol()`. Until then, iOS uses OpenFreeMap fallback.
-- [ ] Custom OpenMapTiles profile fork to produce true z17 building tiles
-      (current workaround: --render_maxzoom=17 overzooms from z16)
-- [ ] Scheduled CI job to rebuild PMTiles from fresh OSM extracts monthly
+- [ ] Custom OpenMapTiles profile fork to produce true z17 building tiles (current workaround: `--render_maxzoom=17` overzooms from z16). Spec v3.0 explicitly defers this — nontrivial scope addition.
+- [ ] Scheduled CI job to rebuild PMTiles from fresh OSM extracts weekly (cron already configured in `build-pmtiles.yml` for planet build).

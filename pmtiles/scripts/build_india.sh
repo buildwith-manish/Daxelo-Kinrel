@@ -13,9 +13,9 @@
 #   3. Extrapolate to planet-size estimate for hosting budget verification
 #      BEFORE committing to Stage 4 (planet build)
 #
-# Per-layer zoom config (same as Stage 1):
-#   - Base schema (roads, water, landuse, etc.): z0-14
-#   - Buildings layer: z0-16 (with --render_maxzoom=17 for overzoom)
+# Zoom strategy (spec v3.0, Option B — single global maxzoom, same as Stage 1):
+#   --maxzoom=16          All layers baked to z16 (OpenMapTiles profile hard cap).
+#   --render_maxzoom=17   MapLibre overzooms z17 from z16 data.
 #
 # Requirements:
 #   - Java 21+
@@ -53,9 +53,7 @@ fi
 
 echo "=== Planetiler India Build (Stage 3 — VALIDATION, not for production) ==="
 echo "PBF: $PBF ($(du -h "$PBF" | cut -f1))"
-echo "Per-layer zoom config:"
-echo "  - Base schema: z0-14"
-echo "  - Buildings: z0-16 (overzoom to z17 via --render_maxzoom=17)"
+echo "Zoom strategy: --maxzoom=16 (all layers), --render_maxzoom=17 (overzoom)"
 echo "Output: $OUTPUT_DIR/india.pmtiles"
 echo "RAM: 16GB+ required for India scale"
 echo ""

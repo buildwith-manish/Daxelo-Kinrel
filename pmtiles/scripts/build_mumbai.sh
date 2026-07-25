@@ -12,16 +12,19 @@
 # This script is used to:
 #   1. Verify the Planetiler pipeline works end-to-end
 #   2. Generate a Mumbai-region archive for visual diff against OpenFreeMap
-#   3. Validate that per-layer zoom config works as documented
+#   3. Validate that the global zoom strategy works as documented
 #
 # The app keeps using OpenFreeMap in production until Stage 4 (planet build).
 #
-# Per-layer zoom config (per spec v2.0):
-#   - Base schema (roads, water, landuse, parks, labels, POIs, boundaries,
-#     transportation, bridges, tunnels): minzoom=0, maxzoom=14
-#   - Buildings layer ONLY: maxzoom=17 (Planetiler OpenMapTiles profile
-#     hard-caps at 16; --render_maxzoom=17 lets MapLibre overzoom z17
-#     from z16 data. 2 levels better than OpenFreeMap's z14 cap.)
+# Zoom strategy (per spec v3.0, Option B — single global maxzoom):
+#   --maxzoom=16          All layers baked to z16 (Planetiler's OpenMapTiles
+#                         profile hard-caps at 16; no per-layer override
+#                         is supported without forking the profile).
+#   --render_maxzoom=17   Lets MapLibre overzoom z17 by interpolating z16 data.
+#
+# Trade-off: every layer (roads, water, landuse, labels, POIs, buildings, …)
+# goes to z16, not just buildings. Larger archive than a per-layer split
+# would produce, but 2 zoom levels better than OpenFreeMap's z14 cap.
 #
 # Requirements:
 #   - Java 21+ (verified)
@@ -64,33 +67,15 @@ fi
 echo "=== Planetiler Mumbai Build (VALIDATION — not for production) ==="
 echo "PBF: $PBF ($(du -h "$PBF" | cut -f1))"
 echo "BBox: $BBOX (Mumbai metro)"
-echo "Per-layer zoom config (per spec v2.0):"
-echo "  - Base schema (roads, water, landuse, labels, POIs, etc.): z0-14"
-echo "  - Buildings layer: z0-16 (Planetiler OpenMapTiles profile hard cap;"
-echo "    --render_maxzoom=17 allows MapLibre overzoom to z17 from z16 data)"
+echo "Zoom strategy (spec v3.0, Option B — single global maxzoom):"
+echo "  --maxzoom=16          all layers baked to z16"
+echo "  --render_maxzoom=17   MapLibre overzooms z17 from z16 data"
 echo "Output: $OUTPUT_DIR/mumbai.pmtiles"
 echo ""
 
 # Planetiler OpenMapTiles profile generates all standard OMT layers
-# (building, transportation, water, landuse, place, poi, etc.).
-#
-# Per spec v2.0 "Zoom Levels — per-layer split":
-#   "Configure Planetiler with per-layer zoom overrides instead:
-#    Base schema ... maxzoom = 14, Buildings layer only: extended to maxzoom = 17"
-#
-# Planetiler's openmaptiles profile YAML hard-caps buildings at z16.
-# To get base schema at z14 + buildings at z17+, we use:
-#   --maxzoom=16          (Planetiler's global cap — produces buildings to z16)
-#   --render_maxzoom=17   (allows MapLibre to overzoom z17 from z16 data)
-#
-# This produces a single archive with all OMT layers, buildings through z16,
-# and MapLibre interpolates z17+ display. 2 zoom levels better than OpenFreeMap
-# (which caps at z14).
-#
-# NOTE: Planetiler rejects --maxzoom > 16 for the OpenMapTiles profile
-#       ("Max zoom must be <= 16"). The cap is in the profile schema, not
-#       Planetiler itself. Working around it requires a custom profile fork,
-#       out of scope for Phase A.
+# (building, transportation, water, landuse, place, poi, etc.) and applies
+# ONE global maxzoom to all of them. Spec v3.0 Option B accepts this.
 #
 # --bbox: clip to Mumbai metro
 # --download: fetch auxiliary data (water polygons, natural earth) on first run
