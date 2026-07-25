@@ -132,7 +132,7 @@ class MapQualityTierController {
 
   /// Returns the set of layer IDs this controller manages.
   Set<String> get controlledLayerIds =>
-      const Set<String>.from(_kControlledLayerIds);
+      Set<String>.from(_kControlledLayerIds);
 
   /// Apply the current tier to a style JSON string. Patches
   /// `layout.visibility` on each controlled layer.
