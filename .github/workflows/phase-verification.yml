@@ -109,7 +109,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             clang cmake ninja-build \
             libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev \
-            libc++-19-dev libc++-1-19 libc++abi-19-dev libc++abi1-19 libunwind-19
+            libc++-19-dev libc++1-19 libc++abi-19-dev libc++abi1-19 libunwind-19
 
       - name: Enable Flutter native assets
         run: flutter config --enable-native-assets
@@ -281,7 +281,6 @@ jobs:
           PYEOF
 
       - name: Validate Phase B edit script is idempotent
-        working-directory: /home/z/my-project
         run: |
           # The apply_phase_b_style_edits.py script should be safe to re-run.
           # Verify it produces the same JSON when run on an already-patched file.
@@ -398,159 +397,19 @@ jobs:
 
       - name: Install Chromium + Puppeteer for rendering
         run: |
-          cd ../
           npm install puppeteer
           # Puppeteer bundles Chromium — no separate install needed
           npx puppeteer browsers install chrome
 
       - name: Render 5-region screenshots
-        working-directory: /home/z/my-project
-        run: |
-          mkdir -p screenshots
-          # Generate the screenshot script
-          cat > /tmp/render_screenshots.mjs << 'PUPPETEER_EOF'
-          import puppeteer from 'puppeteer';
-          import { writeFileSync } from 'fs';
-
-          // 5 required test regions per Phase B brief:
-          //   1. Dense high-rise downtown (Manhattan, NYC)
-          //   2. Historic irregular-grid European city (Venice)
-          //   3. Sparse rural/suburban (US Midwest — rural Kansas)
-          //   4. Arid region (Riyadh, Saudi Arabia)
-          //   5. Dense low-rise informal settlement (Mumbai Dharavi)
-          //
-          // Uses OpenFreeMap as the tile source for screenshots (since
-          // Phase A's PMTiles isn't deployed to production yet). This
-          // verifies the STYLE JSON renders correctly across regions —
-          // the tile source swap is a separate Phase A verification item.
-          //
-          // Note: We can't point at the local PMTiles archive from CI
-          // because OpenFreeMap is z14-capped — the screenshots will
-          // show z14-stretched buildings at z15+, but the GOAL here is
-          // to verify the STYLE renders (colors, fonts, glow filters)
-          // not to verify tile detail.
-
-          const regions = [
-            { id: 'manhattan',    name: 'Dense downtown',         lng: -74.0060, lat: 40.7128, zoom: 14, pitch: 45, bearing: 0  },
-            { id: 'venice',       name: 'Historic European',      lng: 12.3389,  lat: 45.4376, zoom: 14, pitch: 45, bearing: 0  },
-            { id: 'rural-kansas', name: 'Sparse rural',           lng: -98.4255, lat: 38.5556, zoom: 14, pitch: 45, bearing: 0  },
-            { id: 'riyadh',       name: 'Arid region',            lng: 46.6753,  lat: 24.7136, zoom: 14, pitch: 45, bearing: 0  },
-            { id: 'dharavi',      name: 'Dense low-rise informal', lng: 72.8530, lat: 19.0368, zoom: 15, pitch: 45, bearing: 0  },
-          ];
-
-          // Style URL: we use the locally-built Flutter web app, which
-          // loads kinrel_dark_style.json with PMTiles patched to the dev
-          // default (OpenFreeMap fallback). For pure style-JSON testing
-          // we use a direct MapLibre GL JS page that loads the style.
-          const HTML_TEMPLATE = (styleJsonUrl) => `<!doctype html>
-          <html><head>
-            <meta charset="utf-8"/>
-            <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-            <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet"/>
-            <script src="https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js"></script>
-            <style>html,body{margin:0;padding:0;}#map{width:1280px;height:720px;}</style>
-          </head><body>
-            <div id="map"></div>
-            <script>
-              // Register pmtiles protocol
-              const pmtilesProtocol = new pmtiles.Protocol();
-              maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile);
-              // Load the style JSON
-              fetch('${styleJsonUrl}')
-                .then(r => r.json())
-                .then(style => {
-                  // Patch PMTiles URL to OpenFreeMap fallback for screenshot testing
-                  if (style.sources && style.sources.openmaptiles) {
-                    delete style.sources.openmaptiles.url;
-                    style.sources.openmaptiles = {
-                      type: 'vector',
-                      tiles: ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf'],
-                      maxzoom: 14,
-                      minzoom: 0,
-                      attribution: '© OpenStreetMap contributors, © OpenFreeMap'
-                    };
-                  }
-                  const map = new maplibregl.Map({
-                    container: 'map',
-                    style: style,
-                    center: [0, 0],
-                    zoom: 13,
-                    pitch: 0,
-                    bearing: 0,
-                    attributionControl: false,
-                  });
-                  window.__map = map;
-                });
-            </script>
-          </body></html>`;
-
-          // We need to serve the style JSON + HTML locally. Use a tiny static server.
-          import { createServer } from 'http';
-          import { readFile } from 'fs/promises';
-          import { join, extname } from 'path';
-
-          const MIME = { '.json':'application/json', '.html':'text/html', '.js':'text/javascript' };
-
-          const server = createServer(async (req, res) => {
-            try {
-              const p = req.url === '/' ? '/index.html' : req.url;
-              const filePath = join('/home/z/my-project/Daxelo-Kinrel-App/assets/map_styles', p === '/index.html' ? '../../screenshot-render/index.html' : p);
-              const data = await readFile(filePath);
-              res.writeHead(200, { 'Content-Type': MIME[extname(filePath)] || 'application/octet-stream' });
-              res.end(data);
-            } catch (e) {
-              res.writeHead(404); res.end('Not found');
-            }
-          });
-
-          await new Promise(r => server.listen(8099, r));
-          console.log('Static server on :8099');
-
-          // Write the HTML page
-          import { mkdirSync, writeFileSync as wf } from 'fs';
-          mkdirSync('/home/z/my-project/Daxelo-Kinrel-App/screenshot-render', { recursive: true });
-          wf('/home/z/my-project/Daxelo-Kinrel-App/screenshot-render/index.html', HTML_TEMPLATE('/kinrel_dark_style.json'));
-
-          // Launch Chromium
-          const browser = await puppeteer.launch({
-            headless: 'new',
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-dev-shm-usage'],
-          });
-
-          for (const region of regions) {
-            const page = await browser.newPage();
-            await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
-            page.on('console', msg => console.log(`[${region.id}] PAGE LOG:`, msg.text()));
-            page.on('pageerror', err => console.log(`[${region.id}] PAGE ERROR:`, err.message));
-
-            await page.goto('http://localhost:8099/index.html', { waitUntil: 'networkidle0' });
-            // Wait for the map to be created
-            await page.waitForFunction('window.__map !== undefined', { timeout: 10000 });
-            // Fly to the region
-            await page.evaluate((r) => {
-              window.__map.flyTo({ center: [r.lng, r.lat], zoom: r.zoom, pitch: r.pitch, bearing: r.bearing, duration: 0 });
-            }, region);
-            // Wait for tiles to load
-            await new Promise(r => setTimeout(r, 5000));
-
-            const outPath = `/home/z/my-project/screenshots/${region.id}.png`;
-            await page.screenshot({ path: outPath });
-            console.log(`✓ Screenshot: ${outPath}`);
-            await page.close();
-          }
-
-          await browser.close();
-          server.close();
-          PUPPETEER_EOF
-
-          node /tmp/render_screenshots.mjs
+        run: node scripts/render_region_screenshots.mjs
 
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: phase-b-region-screenshots
-          path: /home/z/my-project/screenshots/
+          path: screenshots/
           retention-days: 30
           if-no-files-found: warn
 
@@ -647,7 +506,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           disable-animations: true
           script: |
-            cd Daxelo-Kinrel-App
+            cd $GITHUB_WORKSPACE/Daxelo-Kinrel-App
 
             # Build debug APK
             flutter build apk --debug --no-pub
@@ -662,14 +521,14 @@ jobs:
             sleep 30
 
             # Take screenshot
-            mkdir -p /home/z/my-project/screenshots/android
-            adb exec-out screencap -p > /home/z/my-project/screenshots/android/launch.png
+            mkdir -p $GITHUB_WORKSPACE/screenshots/android
+            adb exec-out screencap -p > $GITHUB_WORKSPACE/screenshots/android/launch.png
 
             # Try to grant location permissions and re-screenshot
             adb shell pm grant com.daxelo.kinrel android.permission.ACCESS_FINE_LOCATION || true
             adb shell pm grant com.daxelo.kinrel android.permission.ACCESS_COARSE_LOCATION || true
             sleep 10
-            adb exec-out screencap -p > /home/z/my-project/screenshots/android/after-perms.png
+            adb exec-out screencap -p > $GITHUB_WORKSPACE/screenshots/android/after-perms.png
 
             echo "✓ Android emulator screenshots captured"
 
@@ -678,7 +537,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-emulator-screenshots
-          path: /home/z/my-project/screenshots/android/
+          path: screenshots/android/
           retention-days: 14
           if-no-files-found: warn
 
