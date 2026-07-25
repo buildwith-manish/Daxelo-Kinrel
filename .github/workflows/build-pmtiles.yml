@@ -1,0 +1,241 @@
+# ─────────────────────────────────────────────────────────────────
+# Daxelo Kinrel — PMTiles Build Pipeline (Phase A)
+# ─────────────────────────────────────────────────────────────────
+# Replaces the local `pmtiles/bin/planetiler.jar` workflow.
+# All heavy artifacts (Planetiler JAR, OSM PBF extracts, generated
+# .pmtiles archives) live ONLY inside CI runners — never in the repo.
+#
+# What this workflow does:
+#   1. Sets up Java 21 (Planetiler requirement).
+#   2. Restores cached planetiler.jar (89 MB) — downloaded once per
+#      PLANETILER_VERSION, reused across runs.
+#   3. Restores cached Geofabrik OSM PBF for the requested region
+#      (refreshed weekly via cache key suffix).
+#   4. Runs the appropriate pmtiles/scripts/build_<region>.sh.
+#   5. Uploads the resulting .pmtiles as a GitHub Actions artifact
+#      (90-day retention — download and push to Cloudflare R2 or
+#      any static host for production).
+#   6. Optionally uploads to Cloudflare R2 if R2 secrets are set.
+#
+# Triggers:
+#   - workflow_dispatch (manual, with region picker)
+#   - schedule: weekly cron for the production planet build
+#
+# Phase A spec v2.0 reminder:
+#   Stages 1–3 (Mumbai / Karnataka / India) are VALIDATION ONLY —
+#   do not ship to production. Stage 4 (planet) is the production
+#   cutover. See pmtiles/README.md.
+# ─────────────────────────────────────────────────────────────────
+
+name: Build PMTiles
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: 'Region to build'
+        required: true
+        type: choice
+        default: mumbai
+        options:
+          - mumbai
+          - karnataka
+          - india
+          - planet
+      planetiler_version:
+        description: 'Planetiler release tag (e.g. v0.10.2)'
+        required: false
+        default: 'v0.10.2'
+      deploy_to_r2:
+        description: 'Upload .pmtiles to Cloudflare R2 (requires R2_* secrets)'
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    # Weekly production planet build — every Sunday 02:00 UTC
+    # (low OSM diff churn window; finishes before Monday peak)
+    - cron: '0 2 * * 0'
+
+permissions:
+  contents: read
+
+env:
+  PLANETILER_VERSION: ${{ github.event.inputs.planetiler_version || 'v0.10.2' }}
+  REGION: ${{ github.event.inputs.region || 'planet' }}
+  JAVA_VERSION: '21'
+
+jobs:
+  build:
+    name: Build ${{ github.event.inputs.region || 'planet' }}.pmtiles
+    runs-on: ${{ (github.event.inputs.region || 'planet') == 'planet' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
+    timeout-minutes: ${{ (github.event.inputs.region || 'planet') == 'planet' && 600 || 60 }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Configure runner for large builds (planet only)
+        if: env.REGION == 'planet'
+        run: |
+          echo "Planet build — verifying resources:"
+          echo "  CPU cores: $(nproc)"
+          echo "  RAM:       $(awk '/MemTotal/ {printf "%.1f GB\n", $2/1024/1024}' /proc/meminfo)"
+          echo "  Disk free: $(df -h / | awk 'NR==2 {print $4}')"
+          # Planetiler needs ~150 GB free disk for planet build
+          FREE_GB=$(df --output=avail -BG / | tail -1 | tr -dc '0-9')
+          if [ "$FREE_GB" -lt 150 ]; then
+            echo "::warning::Only ${FREE_GB}GB free on root volume — planet build needs 150GB+. Using /mnt if available."
+            df -h /mnt 2>/dev/null || true
+          fi
+
+      # ─────────────────────────────────────────────────────────────
+      # Cache planetiler.jar — 89 MB, downloaded once per version
+      # ─────────────────────────────────────────────────────────────
+      - name: Cache Planetiler JAR
+        id: cache-jar
+        uses: actions/cache@v4
+        with:
+          path: pmtiles/bin/planetiler.jar
+          key: planetiler-${{ env.PLANETILER_VERSION }}
+
+      - name: Download Planetiler ${{ env.PLANETILER_VERSION }}
+        if: steps.cache-jar.outputs.cache-hit != 'true'
+        working-directory: pmtiles
+        run: |
+          mkdir -p bin
+          ./scripts/download_planetiler.sh "${PLANETILER_VERSION}"
+
+      - name: Verify Planetiler JAR
+        run: |
+          java -jar pmtiles/bin/planetiler.jar --version
+          ls -lh pmtiles/bin/planetiler.jar
+
+      # ─────────────────────────────────────────────────────────────
+      # Cache Geofabrik PBF — refreshed weekly (Geofabrik publishes
+      # new extracts every Wednesday). Cache key includes ISO week
+      # so a scheduled re-run picks up fresh data automatically.
+      # ─────────────────────────────────────────────────────────────
+      - name: Get week key for PBF cache
+        id: week
+        run: |
+          WEEK=$(date -u +%Y-W%V)
+          echo "week=$WEEK" >> "$GITHUB_OUTPUT"
+          echo "Using PBF cache key suffix: $WEEK"
+
+      - name: Cache OSM PBF (${{ env.REGION }})
+        id: cache-pbf
+        uses: actions/cache@v4
+        with:
+          path: pmtiles/cache/sources/
+          key: osm-pbf-${{ env.REGION }}-${{ steps.week.outputs.week }}
+
+      - name: Download OSM PBF (${{ env.REGION }})
+        if: steps.cache-pbf.outputs.cache-hit != 'true' && env.REGION != 'planet'
+        working-directory: pmtiles
+        run: ./scripts/download_sources.sh "${REGION}"
+
+      - name: Planet PBF instructions
+        if: env.REGION == 'planet'
+        run: |
+          echo "::notice::Planet build (~80 GB PBF) requires a pre-populated cache."
+          echo "           Configure a persistent cache (e.g. GitHub Actions large"
+          echo "           cache, or self-hosted runner) and place the planet PBF at"
+          echo "           pmtiles/cache/sources/planet-latest.osm.pbf before running."
+          echo "           See pmtiles/scripts/build_planet.sh for details."
+          if [ ! -f pmtiles/cache/sources/planet-latest.osm.pbf ]; then
+            echo "::error::planet-latest.osm.pbf not found in cache. Aborting."
+            exit 1
+          fi
+
+      # ─────────────────────────────────────────────────────────────
+      # Build — runs the region-specific script.
+      # Each script verifies JAR + PBF presence, then runs Planetiler.
+      # ─────────────────────────────────────────────────────────────
+      - name: Build ${{ env.REGION }}.pmtiles
+        working-directory: pmtiles
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/build_${REGION}.sh
+
+      - name: Verify output
+        run: |
+          ls -lh pmtiles/output/${REGION}.pmtiles
+          echo "---"
+          echo "PMTiles archive metadata:"
+          # pmtiles CLI is optional — only used here for a sanity header dump.
+          # If not installed, the file-size check above is enough.
+          npx -y pmtiles show pmtiles/output/${REGION}.pmtiles 2>/dev/null | head -20 || true
+
+      # ─────────────────────────────────────────────────────────────
+      # Upload as GitHub Actions artifact (90-day retention).
+      # For production: download artifact, push to Cloudflare R2 or
+      # any S3-compatible static host with HTTP Range support.
+      # ─────────────────────────────────────────────────────────────
+      - name: Upload .pmtiles artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.REGION }}-pmtiles
+          path: pmtiles/output/${{ env.REGION }}.pmtiles
+          retention-days: 90
+          compression-level: 0  # .pmtiles is already compressed
+
+      - name: Upload build log
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.REGION }}-build-log
+          path: pmtiles/build/${{ env.REGION }}/build.log
+          retention-days: 30
+          if-no-files-found: warn
+
+      # ─────────────────────────────────────────────────────────────
+      # Optional: deploy to Cloudflare R2.
+      # Requires these secrets in the repo:
+      #   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
+      #   R2_BUCKET (e.g. daxelo-tiles), R2_ENDPOINT
+      # ─────────────────────────────────────────────────────────────
+      - name: Deploy to Cloudflare R2
+        if: ${{ (github.event.inputs.deploy_to_r2 == 'true') && env.R2_ACCOUNT_ID != '' }}
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          echo "Uploading ${REGION}.pmtiles to R2 bucket ${R2_BUCKET}..."
+          # Use AWS CLI with R2's S3-compatible endpoint (no wrangler install needed)
+          aws s3 cp "pmtiles/output/${REGION}.pmtiles" \
+            "s3://${R2_BUCKET}/${REGION}.pmtiles" \
+            --endpoint-url "${R2_ENDPOINT}" \
+            --content-type "application/octet-stream" \
+            --cache-control "public, max-age=31536000, immutable" \
+            --no-progress
+          echo ""
+          echo "=== R2 upload complete ==="
+          echo "Public URL (if bucket is public):"
+          echo "  https://${R2_BUCKET}.${R2_ENDPOINT#https://}/${REGION}.pmtiles"
+          echo ""
+          echo "Next: update _kPmtilesSourceUrl in family_map_screen.dart"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### PMTiles Build Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Region:** \`${REGION}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Planetiler:** \`${PLANETILER_VERSION}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f "pmtiles/output/${REGION}.pmtiles" ]; then
+            SIZE=$(du -h "pmtiles/output/${REGION}.pmtiles" | cut -f1)
+            echo "- **Output:** \`pmtiles/output/${REGION}.pmtiles\` (${SIZE})" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Status:** ✅ Built" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Download the artifact from the workflow run page (90-day retention)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- **Status:** ❌ Failed — see build log above" >> "$GITHUB_STEP_SUMMARY"
+          fi

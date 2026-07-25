@@ -35,6 +35,8 @@ mkdir -p "$OUTPUT_DIR" "$BUILD_DIR" "$CACHE_DIR"
 
 if [[ ! -f "$JAR" ]]; then
   echo "ERROR: planetiler.jar not found at $JAR" >&2
+  echo "  Preferred: run via GitHub Actions (.github/workflows/build-pmtiles.yml)" >&2
+  echo "  Local:     ./scripts/download_planetiler.sh v0.10.2" >&2
   exit 1
 fi
 
