@@ -41,15 +41,38 @@ echo ""
 #
 # --maxzoom=16 + --render_maxzoom=17: same as production builds (spec v3.0 Option B).
 # --download: fetch auxiliary data (water polygons, natural earth) — cached.
-java -Xmx1g -jar "$JAR" \
+# Memory: -Xmx1g + --storage=direct + --mmap_temp=false (see build_mumbai.sh rationale).
+# Log placement: written to /tmp during build (planetiler wipes tmpdir at startup),
+# then copied to $BUILD_DIR/build.log after completion.
+JAVA_MEM_OPTS="-Xmx1g"
+PLANETILER_MEM_OPTS="--storage=direct --mmap_temp=false"
+
+LOG_FILE="/tmp/monaco_build.$$.log"
+java $JAVA_MEM_OPTS -jar "$JAR" \
   --area=monaco \
   --maxzoom=16 \
   --render_maxzoom=17 \
-  --download \
+  --force \
+  $PLANETILER_MEM_OPTS \
   --output="$OUTPUT_DIR/monaco.pmtiles" \
   --tmpdir="$BUILD_DIR" \
   --download_dir="$CACHE_DIR" \
-  2>&1 | tee "$BUILD_DIR/build.log"
+  > "$LOG_FILE" 2>&1 &
+BUILD_PID=$!
+
+tail -f "$LOG_FILE" --pid="$BUILD_PID" 2>/dev/null || true
+wait "$BUILD_PID"
+BUILD_EXIT=$?
+
+mkdir -p "$BUILD_DIR"
+cp "$LOG_FILE" "$BUILD_DIR/build.log"
+
+if [[ $BUILD_EXIT -ne 0 ]]; then
+  echo "ERROR: Planetiler exited with code $BUILD_EXIT" >&2
+  echo "Last 50 lines of build log:" >&2
+  tail -50 "$LOG_FILE" >&2
+  exit 1
+fi
 
 if [[ ! -f "$OUTPUT_DIR/monaco.pmtiles" ]]; then
   echo "ERROR: PMTiles archive not produced" >&2

@@ -1,5 +1,5 @@
 # PMTiles build artifacts — do not commit (regenerated from scripts/)
-bin/planetiler.jar
+bin/
 cache/
 build/
 output/

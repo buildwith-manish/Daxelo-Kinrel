@@ -9,7 +9,7 @@
 #   1. Sets up Java 21 (Planetiler requirement).
 #   2. Restores cached planetiler.jar (89 MB) — downloaded once per
 #      PLANETILER_VERSION, reused across runs.
-#   3. Restores cached Geofabrik OSM PBF for the requested region
+#   3. Restores cached OSM PBF (from osm.fr mirror) for the requested region
 #      (refreshed weekly via cache key suffix).
 #   4. Runs the appropriate pmtiles/scripts/build_<region>.sh.
 #   5. Uploads the resulting .pmtiles as a GitHub Actions artifact
@@ -117,9 +117,10 @@ jobs:
           ls -lh pmtiles/bin/planetiler.jar
 
       # ─────────────────────────────────────────────────────────────
-      # Cache Geofabrik PBF — refreshed weekly (Geofabrik publishes
-      # new extracts every Wednesday). Cache key includes ISO week
-      # so a scheduled re-run picks up fresh data automatically.
+      # Cache OSM PBF (osm.fr mirror) — refreshed weekly. Cache key
+      # includes ISO week so a scheduled re-run picks up fresh data
+      # automatically. osm.fr is used instead of Geofabrik because
+      # Geofabrik rate-limits public downloads to ~40 KB/s.
       # ─────────────────────────────────────────────────────────────
       - name: Get week key for PBF cache
         id: week
@@ -159,6 +160,14 @@ jobs:
       # ─────────────────────────────────────────────────────────────
       - name: Build ${{ env.REGION }}.pmtiles
         working-directory: pmtiles
+        env:
+          # Override default memory opts based on runner size.
+          # ubuntu-latest (7 GB RAM): -Xmx2g for mumbai/karnataka
+          # ubuntu-latest (7 GB RAM): -Xmx4g for india (marginal; use 16-cores runner for india)
+          # ubuntu-latest-16-cores (64 GB RAM): -Xmx48g for planet
+          # --storage=direct --mmap_temp=false avoids cgroup OOM kills on all runners.
+          JAVA_MEM_OPTS: ${{ (env.REGION == 'planet' && '-Xmx48g') || (env.REGION == 'india' && '-Xmx4g') || '-Xmx2g' }}
+          PLANETILER_MEM_OPTS: '--storage=direct --mmap_temp=false'
         run: |
           chmod +x scripts/*.sh
           ./scripts/build_${REGION}.sh
@@ -168,9 +177,12 @@ jobs:
           ls -lh pmtiles/output/${REGION}.pmtiles
           echo "---"
           echo "PMTiles archive metadata:"
-          # pmtiles CLI is optional — only used here for a sanity header dump.
-          # If not installed, the file-size check above is enough.
-          npx -y pmtiles show pmtiles/output/${REGION}.pmtiles 2>/dev/null | head -20 || true
+          # Use the Python pmtiles CLI (matches what we use for local verification).
+          # Falls back to npm pmtiles if Python venv setup fails.
+          python3 -m venv /tmp/pmtiles-venv 2>/dev/null && \
+            /tmp/pmtiles-venv/bin/pip install -q pmtiles 2>/dev/null && \
+            /tmp/pmtiles-venv/bin/pmtiles-show pmtiles/output/${REGION}.pmtiles | head -30 || \
+            npx -y pmtiles show pmtiles/output/${REGION}.pmtiles 2>/dev/null | head -20 || true
 
       # ─────────────────────────────────────────────────────────────
       # Upload as GitHub Actions artifact (90-day retention).
@@ -189,7 +201,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.REGION }}-build-log
-          path: pmtiles/build/${{ env.REGION }}/build.log
+          path: |
+            pmtiles/build/${{ env.REGION }}/build.log
+            pmtiles/build/${{ env.REGION }}/verify/
           retention-days: 30
           if-no-files-found: warn
 

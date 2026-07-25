@@ -68,20 +68,45 @@ echo ""
 # Use 24GB heap on 32GB machine, 48GB on 64GB machine
 HEAP_SIZE=$((TOTAL_RAM_GB < 48 ? 24 : 48))
 
+# Memory tuning — see build_mumbai.sh for full rationale.
+# Even on a 64GB machine, --storage=direct avoids mmap cgroup accounting issues
+# on cloud runners (GitHub Actions, Cloud Build, etc.) that enforce cgroup limits.
+JAVA_MEM_OPTS="-Xmx${HEAP_SIZE}g"
+PLANETILER_MEM_OPTS="--storage=direct --mmap_temp=false"
+
 echo "Using ${HEAP_SIZE}GB JVM heap"
+echo "Memory: $JAVA_MEM_OPTS $PLANETILER_MEM_OPTS"
 echo ""
 
-# No --bbox (planet is the whole world)
-# No --download for planet PBF (we provide --osm_path)
-java -Xmx${HEAP_SIZE}g -jar "$JAR" \
+# No --bounds (planet is the whole world)
+# --download: fetch auxiliary data (water polygons, natural earth) — cached after first run
+# See build_mumbai.sh for rationale on log file placement (outside tmpdir).
+LOG_FILE="/tmp/planet_build.$$.log"
+java $JAVA_MEM_OPTS -jar "$JAR" \
   --osm_path="$PBF" \
   --maxzoom=16 \
   --render_maxzoom=17 \
-  --download \
+  --force \
+  $PLANETILER_MEM_OPTS \
   --output="$OUTPUT_DIR/planet.pmtiles" \
   --tmpdir="$BUILD_DIR" \
   --download_dir="$CACHE_DIR" \
-  2>&1 | tee "$BUILD_DIR/build.log"
+  > "$LOG_FILE" 2>&1 &
+BUILD_PID=$!
+
+tail -f "$LOG_FILE" --pid="$BUILD_PID" 2>/dev/null || true
+wait "$BUILD_PID"
+BUILD_EXIT=$?
+
+mkdir -p "$BUILD_DIR"
+cp "$LOG_FILE" "$BUILD_DIR/build.log"
+
+if [[ $BUILD_EXIT -ne 0 ]]; then
+  echo "ERROR: Planetiler exited with code $BUILD_EXIT" >&2
+  echo "Last 50 lines of build log:" >&2
+  tail -50 "$LOG_FILE" >&2
+  exit 1
+fi
 
 if [[ ! -f "$OUTPUT_DIR/planet.pmtiles" ]]; then
   echo "ERROR: PMTiles archive not produced" >&2

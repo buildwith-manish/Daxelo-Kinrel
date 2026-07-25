@@ -40,14 +40,28 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 JAR="$ROOT/bin/planetiler.jar"
-PBF="$ROOT/cache/sources/western-zone-latest.osm.pbf"
+PBF="$ROOT/cache/sources/maharashtra-latest.osm.pbf"
 OUTPUT_DIR="$ROOT/output"
 BUILD_DIR="$ROOT/build/mumbai"
 CACHE_DIR="$ROOT/cache/planetiler"
 
-# Mumbai metro bounding box: [min_lon, min_lat, max_lon, max_lat]
+# Mumbai metro bounding box: [west, south, east, north]
 # Covers Greater Mumbai + Navi Mumbai + Thane + Mira-Bhayandar + Vasai-Virar
-BBOX="72.65,18.85,73.15,19.35"
+# Used as --bounds (NOT --bbox — Planetiler has no --bbox flag; --bbox is silently ignored).
+# --bounds both sets the archive metadata bounds AND clips the output to that envelope.
+BOUNDS="72.65,18.85,73.15,19.35"
+
+# Memory tuning for 4 GB cgroup-limited containers (GitHub Actions ubuntu-latest,
+# dev containers, CI runners with 4-7 GB RAM). The default --storage=mmap mode
+# causes silent OOM kills during OSM pass1 on PBFs > ~50 MB because mmap'd
+# virtual address space is accounted against cgroup memory.
+#
+# --storage=direct   uses direct ByteBuffer instead of mmap for temp storage
+# --mmap_temp=false  disables mmap for feature.db temp files
+# -Xmx2g             JVM heap; 2g is safe under 4 GB cgroup, 1g is too tight for
+#                    India-state-sized PBFs (peak heap during OSM pass2 ~700 MB).
+JAVA_MEM_OPTS="-Xmx2g"
+PLANETILER_MEM_OPTS="--storage=direct --mmap_temp=false"
 
 mkdir -p "$OUTPUT_DIR" "$BUILD_DIR" "$CACHE_DIR"
 
@@ -59,14 +73,15 @@ if [[ ! -f "$JAR" ]]; then
 fi
 
 if [[ ! -f "$PBF" ]]; then
-  echo "ERROR: Western Zone PBF not found at $PBF" >&2
+  echo "ERROR: Maharashtra PBF not found at $PBF" >&2
   echo "Run: scripts/download_sources.sh mumbai" >&2
   exit 1
 fi
 
 echo "=== Planetiler Mumbai Build (VALIDATION — not for production) ==="
 echo "PBF: $PBF ($(du -h "$PBF" | cut -f1))"
-echo "BBox: $BBOX (Mumbai metro)"
+echo "Bounds: $BOUNDS (Mumbai metro, used as --bounds)"
+echo "Memory: $JAVA_MEM_OPTS $PLANETILER_MEM_OPTS"
 echo "Zoom strategy (spec v3.0, Option B — single global maxzoom):"
 echo "  --maxzoom=16          all layers baked to z16"
 echo "  --render_maxzoom=17   MapLibre overzooms z17 from z16 data"
@@ -77,19 +92,45 @@ echo ""
 # (building, transportation, water, landuse, place, poi, etc.) and applies
 # ONE global maxzoom to all of them. Spec v3.0 Option B accepts this.
 #
-# --bbox: clip to Mumbai metro
+# --bounds:   clips output to Mumbai metro envelope (NOT --bbox; planetiler
+#             has no --bbox flag — that was a prior bug, silently ignored).
 # --download: fetch auxiliary data (water polygons, natural earth) on first run
-# --output: writes .pmtiles directly (planetiler auto-detects by extension)
-java -Xmx3g -jar "$JAR" \
+# --output:   writes .pmtiles directly (planetiler auto-detects by extension)
+# Memory:     $PLANETILER_MEM_OPTS avoids cgroup OOM kills on memory-limited
+#             runners (GitHub Actions, dev containers, 4 GB CI boxes).
+#
+# IMPORTANT: build.log is written to /tmp, NOT $BUILD_DIR — planetiler wipes
+# $BUILD_DIR (the tmpdir) at startup, which silently deletes any log file
+# placed there before java starts.
+LOG_FILE="/tmp/mumbai_build.$$.log"
+java $JAVA_MEM_OPTS -jar "$JAR" \
   --osm_path="$PBF" \
-  --bbox="$BBOX" \
+  --bounds="$BOUNDS" \
   --maxzoom=16 \
   --render_maxzoom=17 \
-  --download \
+  --force \
+  $PLANETILER_MEM_OPTS \
   --output="$OUTPUT_DIR/mumbai.pmtiles" \
   --tmpdir="$BUILD_DIR" \
   --download_dir="$CACHE_DIR" \
-  2>&1 | tee "$BUILD_DIR/build.log"
+  > "$LOG_FILE" 2>&1 &
+BUILD_PID=$!
+
+# Stream the log to stdout while the build runs (so CI sees live progress).
+tail -f "$LOG_FILE" --pid="$BUILD_PID" 2>/dev/null || true
+wait "$BUILD_PID"
+BUILD_EXIT=$?
+
+# Copy log into $BUILD_DIR now that the build is done (tmpdir is no longer wiped).
+mkdir -p "$BUILD_DIR"
+cp "$LOG_FILE" "$BUILD_DIR/build.log"
+
+if [[ $BUILD_EXIT -ne 0 ]]; then
+  echo "ERROR: Planetiler exited with code $BUILD_EXIT" >&2
+  echo "Last 50 lines of build log:" >&2
+  tail -50 "$LOG_FILE" >&2
+  exit 1
+fi
 
 if [[ ! -f "$OUTPUT_DIR/mumbai.pmtiles" ]]; then
   echo "ERROR: PMTiles archive not produced" >&2

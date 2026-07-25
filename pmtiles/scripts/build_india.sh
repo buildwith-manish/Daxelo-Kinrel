@@ -19,12 +19,18 @@
 #
 # Requirements:
 #   - Java 21+
-#   - 16GB+ RAM (India is much bigger than Mumbai)
-#   - ~10GB free disk for build cache
-#   - India PBF at ../cache/sources/india-latest.osm.pbf (~1.5GB)
+#   - 16GB+ RAM (India is much bigger than Mumbai) — uses -Xmx12g
+#   - ~30GB free disk for build cache + temp + output
+#   - India PBF at ../cache/sources/india-latest.osm.pbf (~1.8GB from osm.fr)
 #
 # Output:
-#   ../output/india.pmtiles (~1-3GB estimated)
+#   ../output/india.pmtiles (~5-8GB estimated)
+#
+# NOTE: This build CANNOT run on a 4 GB cgroup-limited container (GitHub Actions
+# ubuntu-latest, dev containers, this headless Linux env). It needs either:
+#   - A 16GB+ GitHub Actions runner (ubuntu-latest-16-cores, ~$0.16/min)
+#   - A dedicated VM (DigitalOcean/GCP/AWS 16GB+ instance)
+#   - Run via .github/workflows/build-pmtiles.yml with region=india
 
 set -euo pipefail
 
@@ -35,6 +41,12 @@ PBF="$ROOT/cache/sources/india-latest.osm.pbf"
 OUTPUT_DIR="$ROOT/output"
 BUILD_DIR="$ROOT/build/india"
 CACHE_DIR="$ROOT/cache/planetiler"
+
+# Memory tuning — same rationale as build_mumbai.sh.
+# For India scale, use 12GB heap (requires 16GB+ RAM machine).
+# On 4 GB containers, this WILL fail — use GitHub Actions or a dedicated VM.
+JAVA_MEM_OPTS="-Xmx12g"
+PLANETILER_MEM_OPTS="--storage=direct --mmap_temp=false"
 
 mkdir -p "$OUTPUT_DIR" "$BUILD_DIR" "$CACHE_DIR"
 
@@ -53,21 +65,39 @@ fi
 
 echo "=== Planetiler India Build (Stage 3 — VALIDATION, not for production) ==="
 echo "PBF: $PBF ($(du -h "$PBF" | cut -f1))"
+echo "Memory: $JAVA_MEM_OPTS $PLANETILER_MEM_OPTS"
 echo "Zoom strategy: --maxzoom=16 (all layers), --render_maxzoom=17 (overzoom)"
 echo "Output: $OUTPUT_DIR/india.pmtiles"
-echo "RAM: 16GB+ required for India scale"
+echo "RAM: 16GB+ required for India scale (this build will fail on 4 GB containers)"
 echo ""
 
-# Use 12GB heap for India build (16GB RAM machine leaves room for OS)
-java -Xmx12g -jar "$JAR" \
+# See build_mumbai.sh for full rationale on memory opts and log file placement.
+LOG_FILE="/tmp/india_build.$$.log"
+java $JAVA_MEM_OPTS -jar "$JAR" \
   --osm_path="$PBF" \
   --maxzoom=16 \
   --render_maxzoom=17 \
-  --download \
+  --force \
+  $PLANETILER_MEM_OPTS \
   --output="$OUTPUT_DIR/india.pmtiles" \
   --tmpdir="$BUILD_DIR" \
   --download_dir="$CACHE_DIR" \
-  2>&1 | tee "$BUILD_DIR/build.log"
+  > "$LOG_FILE" 2>&1 &
+BUILD_PID=$!
+
+tail -f "$LOG_FILE" --pid="$BUILD_PID" 2>/dev/null || true
+wait "$BUILD_PID"
+BUILD_EXIT=$?
+
+mkdir -p "$BUILD_DIR"
+cp "$LOG_FILE" "$BUILD_DIR/build.log"
+
+if [[ $BUILD_EXIT -ne 0 ]]; then
+  echo "ERROR: Planetiler exited with code $BUILD_EXIT" >&2
+  echo "Last 50 lines of build log:" >&2
+  tail -50 "$LOG_FILE" >&2
+  exit 1
+fi
 
 if [[ ! -f "$OUTPUT_DIR/india.pmtiles" ]]; then
   echo "ERROR: PMTiles archive not produced" >&2

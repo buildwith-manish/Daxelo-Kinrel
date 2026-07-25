@@ -23,13 +23,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 JAR="$ROOT/bin/planetiler.jar"
-PBF="$ROOT/cache/sources/southern-zone-latest.osm.pbf"
+PBF="$ROOT/cache/sources/karnataka-latest.osm.pbf"
 OUTPUT_DIR="$ROOT/output"
 BUILD_DIR="$ROOT/build/karnataka"
 CACHE_DIR="$ROOT/cache/planetiler"
 
-# Karnataka bounding box: [min_lon, min_lat, max_lon, max_lat]
-BBOX="73.0,11.5,78.5,18.5"
+# Karnataka bounding box: [west, south, east, north]
+# Used as --bounds (NOT --bbox — Planetiler has no --bbox flag; that was a prior bug, silently ignored).
+BOUNDS="73.0,11.5,78.5,18.5"
+
+# Memory tuning for 4 GB cgroup-limited containers. See build_mumbai.sh for full rationale.
+JAVA_MEM_OPTS="-Xmx2g"
+PLANETILER_MEM_OPTS="--storage=direct --mmap_temp=false"
 
 mkdir -p "$OUTPUT_DIR" "$BUILD_DIR" "$CACHE_DIR"
 
@@ -41,28 +46,47 @@ if [[ ! -f "$JAR" ]]; then
 fi
 
 if [[ ! -f "$PBF" ]]; then
-  echo "ERROR: Southern Zone PBF not found at $PBF" >&2
+  echo "ERROR: Karnataka PBF not found at $PBF" >&2
   echo "Run: scripts/download_sources.sh karnataka" >&2
   exit 1
 fi
 
 echo "=== Planetiler Karnataka Build (Stage 2 — VALIDATION) ==="
 echo "PBF: $PBF ($(du -h "$PBF" | cut -f1))"
-echo "BBox: $BBOX (Karnataka state)"
+echo "Bounds: $BOUNDS (Karnataka state, used as --bounds)"
+echo "Memory: $JAVA_MEM_OPTS $PLANETILER_MEM_OPTS"
 echo "Zoom strategy: --maxzoom=16 (all layers), --render_maxzoom=17 (overzoom)"
 echo "Output: $OUTPUT_DIR/karnataka.pmtiles"
 echo ""
 
-java -Xmx4g -jar "$JAR" \
+# See build_mumbai.sh for full rationale on memory opts and log file placement.
+LOG_FILE="/tmp/karnataka_build.$$.log"
+java $JAVA_MEM_OPTS -jar "$JAR" \
   --osm_path="$PBF" \
-  --bbox="$BBOX" \
+  --bounds="$BOUNDS" \
   --maxzoom=16 \
   --render_maxzoom=17 \
-  --download \
+  --force \
+  $PLANETILER_MEM_OPTS \
   --output="$OUTPUT_DIR/karnataka.pmtiles" \
   --tmpdir="$BUILD_DIR" \
   --download_dir="$CACHE_DIR" \
-  2>&1 | tee "$BUILD_DIR/build.log"
+  > "$LOG_FILE" 2>&1 &
+BUILD_PID=$!
+
+tail -f "$LOG_FILE" --pid="$BUILD_PID" 2>/dev/null || true
+wait "$BUILD_PID"
+BUILD_EXIT=$?
+
+mkdir -p "$BUILD_DIR"
+cp "$LOG_FILE" "$BUILD_DIR/build.log"
+
+if [[ $BUILD_EXIT -ne 0 ]]; then
+  echo "ERROR: Planetiler exited with code $BUILD_EXIT" >&2
+  echo "Last 50 lines of build log:" >&2
+  tail -50 "$LOG_FILE" >&2
+  exit 1
+fi
 
 if [[ ! -f "$OUTPUT_DIR/karnataka.pmtiles" ]]; then
   echo "ERROR: PMTiles archive not produced" >&2

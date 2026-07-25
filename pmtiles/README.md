@@ -81,10 +81,13 @@ is in `.gitignore` — never commit it.
 # 1. Get Planetiler (~89 MB JAR, one-time — NOT committed)
 cd pmtiles && ./scripts/download_planetiler.sh v0.10.2
 
-# 2. Get Mumbai OSM extract (~208 MB, Western Zone India)
+# 2. Get Maharashtra OSM extract (~165 MB, contains Mumbai metro)
+#    Uses osm.fr mirror (Geofabrik rate-limits public downloads to ~40 KB/s).
 ./scripts/download_sources.sh mumbai
 
-# 3. Build PMTiles archive (~5 min on 4-core machine, ~2 GB RAM)
+# 3. Build PMTiles archive (~2 min on 4-core machine, 4 GB RAM)
+#    Memory opts: -Xmx2g --storage=direct --mmap_temp=false
+#    (Required for cgroup-limited containers like GitHub Actions runners.)
 ./scripts/build_mumbai.sh
 
 # 4. Serve locally for dev
@@ -92,11 +95,44 @@ cd pmtiles && ./scripts/download_planetiler.sh v0.10.2
 # → http://localhost:8080/mumbai.pmtiles
 
 # 5. Verify in browser at http://localhost:8080/mumbai.pmtiles
-#    Should download a binary file (~20-50 MB)
+#    Should download a binary file (~40 MB)
 
 # 6. In family_map_screen.dart, set _kPmtilesSourceUrl to
 #    'http://localhost:8080/mumbai.pmtiles' for dev testing
 ```
+
+## Verified Build Results (2026-07-25)
+
+Pipeline verified end-to-end at three scales. Each archive independently
+verified with `pmtiles-show` CLI (header + metadata) and `mapbox-vector-tile`
+(actual tile decode).
+
+| Region | PBF | Archive | Tiles | Build time | z16 buildings? | Notes |
+|---|---|---|---|---|---|---|
+| Monaco | 686 KB (built-in) | 1.13 MB | 3,286 | 7 min* | ✅ 18/tile | First end-to-end pipeline test |
+| Mumbai | 165 MB (Maharashtra) | 40.7 MB | 12,068 | 2:07 | ✅ 32/tile | Mumbai-specific POIs, multilingual (hi) |
+| Karnataka | 122 MB | 434 MB | 1,046,464 | 4:17 | ✅ 16-35/tile | 6 sample tiles verified across state |
+| India | 1.8 GB | ~5-8 GB est. | ~10M est. | ~40 min est. | — | SKIPPED: needs 16GB+ RAM, 30GB+ disk |
+| Planet | ~80 GB | ~70-110 GB est. | ~100M+ est. | 4-8 hr est. | — | Production: needs 32-64GB RAM VM |
+
+*Monaco's 7 min included a one-time 928 MB water-polygons download.
+
+### Key pipeline bugs fixed during verification
+
+1. **`--bbox` was silently ignored.** Planetiler has no `--bbox` flag — the correct flag is `--bounds` (format: `west,south,east,north`). All build scripts updated.
+2. **`-Xmx3g` OOM-killed under 4 GB cgroup limit.** JVM heap + non-heap + mmap of 810 MB natural_earth.sqlite + 928 MB water-polygons exceeded 4 GB cgroup limit on GitHub Actions / dev containers. Fixed with `-Xmx2g --storage=direct --mmap_temp=false`.
+3. **Build log placed in tmpdir was wiped at startup.** Planetiler cleans `--tmpdir` at start, silently deleting any log file placed there before java starts. Fixed by writing log to `/tmp` during build, copying to `build/<region>/` after completion.
+4. **Background `nohup` processes died at bash tool timeout.** Even with `nohup` + `setsid` + `disown`, child processes spawned by a shell that exits get killed. Fixed by using foreground `timeout 540` (within 10-min bash tool limit) and `tail -f --pid` for live progress.
+5. **Geofabrik rate-limits public downloads to ~40 KB/s.** Switched `download_sources.sh` to osm.fr mirror (2 MB/s) which also provides state-level extracts (Maharashtra, Karnataka) — smaller and faster than Geofabrik's Western Zone extract.
+6. **Corrupted Geofabrik PBF (MD5 mismatch).** The 164 MB Western Zone PBF downloaded from Geofabrik had MD5 `2c17e6c1...` instead of the expected `d15e88b9...`. This caused a `java.io.IOException: Channel not open for writing - cannot extend file to required size` error during Planetiler's OSM pass1 mmap. Switched to osm.fr mirror which serves valid PBFs.
+
+### Verification artifacts
+
+- `build/monaco/verify/summary.md` — Monaco header + tile decode details
+- `build/mumbai/verify/summary.md` — Mumbai header + tile decode + bug-fix log
+- `build/karnataka/verify/summary.md` — Karnataka header + 6 sample tile decodes + size extrapolation
+- `build/<region>/build.log` — full Planetiler build log per region
+- `build/<region>/verify/show.log` — `pmtiles-show` output per region
 
 ## Folder Structure
 
@@ -112,11 +148,12 @@ pmtiles/
 │   └── sources.json               ← PMTiles URL registry (dev vs prod)
 ├── scripts/                       ← called by .github/workflows/build-pmtiles.yml
 │   ├── download_planetiler.sh     ← fetch Planetiler JAR (cached by CI per version)
-│   ├── download_sources.sh        ← fetch OSM PBF from Geofabrik (cached weekly)
-│   ├── build_mumbai.sh            ← Stage 1 validation build
-│   ├── build_karnataka.sh         ← Stage 2 validation build
-│   ├── build_india.sh             ← Stage 3 validation + size estimate
-│   ├── build_planet.sh            ← Stage 4 PRODUCTION planet build
+│   ├── download_sources.sh        ← fetch OSM PBF from osm.fr mirror (Maharashtra, Karnataka, India)
+│   ├── build_monaco.sh            ← Step 3: tiny test build (uses built-in Monaco extract)
+│   ├── build_mumbai.sh            ← Stage 1 validation build (Mumbai metro, Maharashtra PBF)
+│   ├── build_karnataka.sh         ← Stage 2 validation build (Karnataka state)
+│   ├── build_india.sh             ← Stage 3 validation + size estimate (16GB+ RAM required)
+│   ├── build_planet.sh            ← Stage 4 PRODUCTION planet build (32-64GB RAM required)
 │   ├── serve_local.sh             ← range-request HTTP server for dev
 │   └── _range_server.py           ← Python HTTP server with Range + CORS
 └── docs/
@@ -125,9 +162,10 @@ pmtiles/
 
 Generated locally / in CI (gitignored):
   bin/planetiler.jar               ← ~89 MB, downloaded by download_planetiler.sh
-  cache/sources/*.osm.pbf          ← OSM extracts from Geofabrik
-  cache/planetiler/                ← auxiliary data (water polygons, natural earth)
-  build/<region>/                  ← Planetiler temp dir + build.log
+  bin/venv/                        ← Python venv with pmtiles CLI for verification
+  cache/sources/*.osm.pbf          ← OSM extracts from osm.fr mirror
+  cache/planetiler/                ← auxiliary data (water polygons 928MB, natural earth 415MB, lake centerlines 78MB)
+  build/<region>/                  ← Planetiler temp dir + build.log + verify/ subdirs
   output/<region>.pmtiles          ← final archive (uploaded as CI artifact)
 ```
 
