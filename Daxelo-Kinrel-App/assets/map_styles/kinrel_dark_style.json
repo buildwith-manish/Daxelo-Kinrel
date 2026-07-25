@@ -14,7 +14,7 @@
       "url": "pmtiles://{{PMTILES_URL}}",
       "maxzoom": 16,
       "minzoom": 0,
-      "attribution": "\u00a9 OpenStreetMap contributors, \u00a9 OpenMapTiles, \u00a9 Planetiler"
+      "attribution": "© OpenStreetMap contributors, © OpenMapTiles, © Planetiler"
     },
     "family-places": {
       "type": "geojson",
@@ -54,7 +54,20 @@
       "paint": {
         "fill-color": "#d8e8c8",
         "fill-opacity": 0.7,
-        "fill-outline-color": "rgba(95, 208, 100, 1)"
+        "fill-outline-color": [
+          "match",
+          [
+            "get",
+            "subclass"
+          ],
+          "public_park",
+          "rgba(95, 208, 100, 1)",
+          "garden",
+          "rgba(120, 180, 90, 1)",
+          "nature_reserve",
+          "rgba(80, 160, 70, 1)",
+          "rgba(95, 208, 100, 1)"
+        ]
       },
       "layout": {}
     },
@@ -424,7 +437,27 @@
         "tunnel"
       ],
       "paint": {
-        "fill-color": "#162335"
+        "fill-color": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          0,
+          "#0E1A2A",
+          4,
+          "#13243A",
+          8,
+          "#162335",
+          12,
+          "#1A2940",
+          15,
+          "#1F3050",
+          18,
+          "#243860"
+        ]
       },
       "layout": {}
     },
@@ -894,7 +927,26 @@
           20,
           22
         ],
-        "line-opacity": 0.5
+        "line-opacity": 0.5,
+        "line-blur": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          5,
+          0.0,
+          10,
+          0.4,
+          14,
+          0.8,
+          17,
+          1.2,
+          22,
+          1.5
+        ]
       }
     },
     {
@@ -956,7 +1008,26 @@
           20,
           22
         ],
-        "line-opacity": 0.5
+        "line-opacity": 0.5,
+        "line-blur": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          5,
+          0.0,
+          10,
+          0.4,
+          14,
+          0.8,
+          17,
+          1.2,
+          22,
+          1.5
+        ]
       }
     },
     {
@@ -2027,6 +2098,25 @@
           1.75,
           20,
           22
+        ],
+        "line-blur": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          5,
+          0.0,
+          10,
+          0.4,
+          14,
+          0.8,
+          17,
+          1.2,
+          22,
+          1.5
         ]
       }
     },
@@ -2091,6 +2181,25 @@
           1.75,
           20,
           22
+        ],
+        "line-blur": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          5,
+          0.0,
+          10,
+          0.4,
+          14,
+          0.8,
+          17,
+          1.2,
+          22,
+          1.5
         ]
       }
     },
@@ -3245,6 +3354,25 @@
           1.75,
           20,
           22
+        ],
+        "line-blur": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          5,
+          0.0,
+          10,
+          0.4,
+          14,
+          0.8,
+          17,
+          1.2,
+          22,
+          1.5
         ]
       }
     },
@@ -3302,6 +3430,25 @@
           1.75,
           20,
           22
+        ],
+        "line-blur": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          5,
+          0.0,
+          10,
+          0.4,
+          14,
+          0.8,
+          17,
+          1.2,
+          22,
+          1.5
         ]
       }
     },
@@ -4207,7 +4354,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-letter-spacing": 0.2,
         "text-max-width": 5,
@@ -4269,7 +4419,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-letter-spacing": 0.2,
         "text-max-width": 5,
@@ -4345,7 +4498,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-letter-spacing": 0.2,
         "text-max-width": 5,
@@ -4439,7 +4595,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 9,
         "text-offset": [
@@ -4544,7 +4703,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 9,
         "text-offset": [
@@ -4649,7 +4811,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 9,
         "text-offset": [
@@ -4725,7 +4890,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 9,
         "text-offset": [
@@ -4788,7 +4956,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-rotation-alignment": "map",
         "text-size": [
@@ -4880,7 +5051,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-rotation-alignment": "map",
         "text-size": [
@@ -4958,7 +5132,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-rotation-alignment": "map",
         "text-size": [
@@ -5054,7 +5231,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-rotation-alignment": "viewport",
         "text-size": 10
@@ -5137,7 +5317,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-rotation-alignment": "viewport",
         "text-size": 10
@@ -5219,7 +5402,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-rotation-alignment": "viewport",
         "text-size": 10
@@ -5274,7 +5460,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 9,
         "text-offset": [
@@ -5347,7 +5536,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-letter-spacing": 0.1,
         "text-max-width": 9,
@@ -5364,7 +5556,11 @@
           12,
           10
         ],
-        "text-transform": "uppercase"
+        "text-transform": "uppercase",
+        "text-writing-mode": [
+          "horizontal",
+          "vertical"
+        ]
       },
       "paint": {
         "text-color": "#8A8296",
@@ -5432,7 +5628,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 8,
         "text-size": [
@@ -5448,6 +5647,10 @@
           10,
           11,
           12
+        ],
+        "text-writing-mode": [
+          "horizontal",
+          "vertical"
         ]
       },
       "paint": {
@@ -5516,7 +5719,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 8,
         "text-size": [
@@ -5532,6 +5738,10 @@
           12,
           11,
           14
+        ],
+        "text-writing-mode": [
+          "horizontal",
+          "vertical"
         ]
       },
       "paint": {
@@ -5588,7 +5798,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-letter-spacing": 0.2,
         "text-max-width": 9,
@@ -5605,7 +5818,11 @@
           8,
           14
         ],
-        "text-transform": "uppercase"
+        "text-transform": "uppercase",
+        "text-writing-mode": [
+          "horizontal",
+          "vertical"
+        ]
       },
       "paint": {
         "text-color": "#C9B4A8",
@@ -5684,7 +5901,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 8,
         "text-offset": [
@@ -5706,6 +5926,10 @@
           13,
           11,
           18
+        ],
+        "text-writing-mode": [
+          "horizontal",
+          "vertical"
         ]
       },
       "paint": {
@@ -5785,7 +6009,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Bold"
+          "Noto Sans Bold",
+          "Noto Sans Devanagari Bold",
+          "Noto Sans Arabic Bold",
+          "Noto Sans SC Bold"
         ],
         "text-max-width": 8,
         "text-offset": [
@@ -5807,6 +6034,10 @@
           14,
           11,
           20
+        ],
+        "text-writing-mode": [
+          "horizontal",
+          "vertical"
         ]
       },
       "paint": {
@@ -5874,7 +6105,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Bold"
+          "Noto Sans Bold",
+          "Noto Sans Devanagari Bold",
+          "Noto Sans Arabic Bold",
+          "Noto Sans SC Bold"
         ],
         "text-max-width": 6.25,
         "text-size": [
@@ -5891,7 +6125,11 @@
           17
         ],
         "text-letter-spacing": 0.15,
-        "text-transform": "uppercase"
+        "text-transform": "uppercase",
+        "text-writing-mode": [
+          "horizontal",
+          "vertical"
+        ]
       },
       "paint": {
         "text-color": "#F5F0EE",
@@ -5957,7 +6195,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Bold"
+          "Noto Sans Bold",
+          "Noto Sans Devanagari Bold",
+          "Noto Sans Arabic Bold",
+          "Noto Sans SC Bold"
         ],
         "text-max-width": 6.25,
         "text-size": [
@@ -5974,7 +6215,11 @@
           17
         ],
         "text-letter-spacing": 0.15,
-        "text-transform": "uppercase"
+        "text-transform": "uppercase",
+        "text-writing-mode": [
+          "horizontal",
+          "vertical"
+        ]
       },
       "paint": {
         "text-color": "#F5F0EE",
@@ -6040,7 +6285,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Bold"
+          "Noto Sans Bold",
+          "Noto Sans Devanagari Bold",
+          "Noto Sans Arabic Bold",
+          "Noto Sans SC Bold"
         ],
         "text-max-width": 6.25,
         "text-size": [
@@ -6057,7 +6305,11 @@
           17
         ],
         "text-letter-spacing": 0.15,
-        "text-transform": "uppercase"
+        "text-transform": "uppercase",
+        "text-writing-mode": [
+          "horizontal",
+          "vertical"
+        ]
       },
       "paint": {
         "text-color": "#F5F0EE",
@@ -6369,10 +6621,53 @@
           ],
           0
         ],
-        12
+        [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          12,
+          60,
+          13,
+          45,
+          14,
+          25,
+          15,
+          18,
+          16,
+          12,
+          22,
+          12
+        ]
       ],
       "paint": {
-        "fill-extrusion-color": "#E8612A",
+        "fill-extrusion-color": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "coalesce",
+            [
+              "get",
+              "render_height"
+            ],
+            0
+          ],
+          12,
+          "#A04515",
+          25,
+          "#E8612A",
+          50,
+          "#F59240",
+          100,
+          "#F5B841",
+          200,
+          "#FFD66B"
+        ],
         "fill-extrusion-height": [
           "interpolate",
           [

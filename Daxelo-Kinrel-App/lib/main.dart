@@ -15,6 +15,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 // Hive removed — using Drift (AppDatabase) via IsarDatabase wrapper
 import 'core/database/isar_database.dart';
+import 'features/family_map/config/map_quality_tier.dart';
 // Conditional import: window_manager doesn't support web, so we use a
 // no-op stub on web platforms. This prevents the app from crashing on
 // startup when the window_manager package's native code is loaded.
@@ -174,6 +175,10 @@ void main() async {
     final pixelRatio = view.devicePixelRatio;
     final screenWidth = physicalSize.width / pixelRatio;
     DeviceTierCache.instance.initialize(screenWidth, pixelRatio);
+    // Phase B v1.0: initialize MapQualityTier from DeviceTier.
+    // Must run AFTER DeviceTierCache.initialize() since it reads the tier.
+    // Safe to call before app runs — controller is a singleton.
+    MapQualityTierController.instance.initialize();
   } catch (e) {
     debugPrint('⚠️ Device tier detection failed: $e');
   }

@@ -139,3 +139,137 @@ Per spec: "No regressions in progressive loading, camera, animation, marker, or 
 
 - [ ] Custom OpenMapTiles profile fork to produce true z17 building tiles (current workaround: `--render_maxzoom=17` overzooms from z16). Spec v3.0 explicitly defers this — nontrivial scope addition.
 - [ ] Scheduled CI job to rebuild PMTiles from fresh OSM extracts weekly (cron already configured in `build-pmtiles.yml` for planet build).
+
+## Phase B v1.0 — Visual Design Enhancement (Implementation done, device verification PENDING)
+
+Phase B prerequisite gate: "Do not start this phase until every item in
+this checklist is checked with attached evidence."
+
+**Gate status: NOT MET.** Steps 3–8 device-side verification items remain
+PENDING (require Flutter SDK + Android emulator + iOS simulator + browser
+— not available in headless Linux env).
+
+**Pragmatic split applied:** The Phase B implementation work that is purely
+style-JSON + Dart edits (paint/layout/filter/text-font only) has been
+executed. All device-verification items are explicitly marked PENDING
+below. This is the same split applied to Phase A (CLI verification done
+in headless env; device verification deferred to developer machine).
+
+When the developer-machine slot opens, Phase A's device checks (Steps 3–8)
+and Phase B's device checks (below) can be done in one pass.
+
+### Implementation (DONE ✅ — awaiting device verification)
+
+- [x] **Buildings — density-aware glow filter.** `kinrel-3d-buildings-warm-glow`
+  filter rewritten: `render_height >= interpolate(zoom, 12→60, 13→45,
+  14→25, 15→18, 16→12, 22→12)`. At z12 only skyscrapers (≥60m) get the
+  duplicate extrusion glow — caps draw calls in dense downtowns from
+  ~1000 buildings to ~50. At z16+ reverts to original 12m threshold
+  (viewport naturally limits visible buildings to ~200–400).
+- [x] **Buildings — data-driven warm color.** 5-stop interpolate by
+  render_height: `#A04515` (12m, dim residential) → `#E8612A` (25m,
+  bright apartment) → `#F59240` (50m, office) → `#F5B841` (100m, tall
+  office) → `#FFD66B` (200m, landmark beacon).
+- [x] **Roads — class-aware glow.** Line-blur added to motorway/trunk/
+  primary CASING layers only (6 layers: road/bridge/tunnel × motorway/
+  trunk_primary). Zoom-scaled 0.0→1.5 blur. Secondary/tertiary/
+  residential/minor/service roads get NO glow — keeps dense old-city
+  street networks legible (brief concern).
+- [x] **Water — zoom-scaled fill-color.** 6-stop interpolate: `#0E1A2A`
+  at z0 (deep navy oceans) → `#162335` at z8 (original mid-zoom) →
+  `#243860` at z18 (reflective close-up).
+- [x] **Parks — class-aware outline + arid palette verified.** Park
+  outline color is now a 4-way match on subclass (public_park / garden
+  / nature_reserve / default). Arid palette verified: existing
+  landcover_sand / landcover_wood / landcover_wetland / landcover_ice
+  layers already route non-green landcover to separate non-green colors
+  via class-based filtering.
+- [x] **Labels — multi-script text-font stack.** All 23 text-bearing
+  symbol layers updated: each `text-font` array now includes Latin →
+  Devanagari → Arabic → CJK (Simplified Chinese) fallback. Italic
+  stacks fall back to Regular for non-Latin scripts.
+- [x] **Labels — RTL/CJK layout.** `text-writing-mode = ['horizontal',
+  'vertical']` added to 9 place label layers. For RTL (Arabic/Hebrew):
+  MapLibre Native handles BiDi automatically once the font stack
+  includes an Arabic-script font (handled by the multi-script stack
+  above). No style-level RTL reordering needed.
+- [x] **Performance — quality tier scaling.** `MapQualityTierController`
+  added at `lib/features/family_map/config/map_quality_tier.dart`.
+  Initialized from `DeviceTierCache` at startup. For low-tier devices,
+  patches `layout.visibility = 'none'` on `kinrel-3d-buildings-warm-glow`
+  at style-load time (eliminates the 2x draw-call cost of the duplicate
+  extrusion). Family-* layers NEVER touched.
+- [x] **Critical Rules respected.** Layer count unchanged (116 → 116).
+  No tile source, schema, lifecycle, camera, family-layer, attribution,
+  or fallback-logic changes.
+
+### Verification (PENDING ⏳ — needs developer machine)
+
+Per Phase B brief: "No new paint technique is claimed working without a
+screenshot from the actual region it was tested in."
+
+- [ ] **5-region screenshot comparison.** Test in:
+  - [ ] One dense high-rise downtown (e.g., Manhattan, Hong Kong, Mumbai Nariman Point)
+  - [ ] One historic irregular-grid European city (e.g., Venice, Marrakesh medina)
+  - [ ] One sparse rural/suburban area (e.g., US Midwest, Scandinavian suburb)
+  - [ ] One very hot/arid region (e.g., Rajasthani old-city, Saudi Riyadh)
+  - [ ] One dense low-rise informal-settlement-style area (e.g., Mumbai Dharavi,
+        São Paulo favela, Cairo informal)
+- [ ] **Density-aware glow profiled against densest test region.** Confirm
+      z12 downtown view doesn't drop below 60 FPS due to glow draw calls.
+- [ ] **Labels render correctly in 4 script regions:**
+  - [ ] Latin-script region (e.g., any US/EU city)
+  - [ ] CJK region (e.g., Tokyo, Shanghai, Seoul)
+  - [ ] Arabic-script RTL region (e.g., Riyadh, Cairo, Dubai)
+  - [ ] Devanagari region (e.g., Mumbai, Delhi, Varanasi)
+- [ ] **60 FPS maintained in densest test region on representative mid-range
+      device** (NOT a high-end test device).
+- [ ] **Automatic quality scaling verified** by simulating a low-end device
+      profile (e.g., Android emulator with restricted CPU/RAM).
+- [ ] **Phase A / production-readiness functionality regression test:**
+      - [ ] Progressive loading (8-phase loader) still works
+      - [ ] Camera transitions (zoom, pitch, bearing) smooth
+      - [ ] Marker rendering (avatar markers, cluster markers) intact
+      - [ ] Family building extrusion (per-place-type colors) intact
+      - [ ] Path rendering (relationship lines) intact
+      - [ ] Selection logic (tap to focus, tap to deselect) intact
+      - [ ] Caching (camera state restoration) intact
+      - [ ] Theme system (dark/light toggle) intact — verify warm-glow
+            layer is dark-theme-only (light mode uses OpenFreeMap liberty
+            URL which has no warm-glow layer)
+      - [ ] Cold start < 2 seconds
+      - [ ] Tile loading speed ≥ OpenFreeMap baseline
+
+### Deferred to Phase B v1.1+
+
+- [ ] **Frame-time runtime downgrade.** `MapQualityTierController` currently
+      uses device-capability only (one-shot at startup). Runtime frame-time
+      monitoring would require a full style reload on downgrade (maplibre
+      0.3.5 has no `setLayoutProperty` API) — this would reset the camera
+      and disrupt the user. Brief allows "device capability OR frame time"
+      — chose device capability only for v1.0. Add runtime downgrade in
+      v1.1 behind a feature flag, with camera-state save/restore around
+      the style reload.
+- [ ] **True post-processing bloom/AO.** MapLibre (JS or Native) doesn't
+      support this without a custom rendering layer outside Phase B scope.
+      Current approach uses the existing duplicate-extrusion-layer
+      technique — extends it with data-driven color and density-aware
+      filtering.
+- [ ] **Custom OpenMapTiles profile fork for true z17 building tiles.**
+      Deferred from Phase A.5 — current workaround: `--render_maxzoom=17`
+      overzooms from z16 data.
+
+### Phase B Implementation Artifacts
+
+- `scripts/apply_phase_b_style_edits.py` — persisted, idempotent script
+  that applies all 43 style JSON edits. Re-runnable. Backup of pre-edit
+  JSON at `/tmp/kinrel_dark_style.json.before-phase-b`.
+- `assets/map_styles/kinrel_dark_style.json` — edited in place (43 changes,
+  layer count unchanged at 116).
+- `lib/features/family_map/config/map_quality_tier.dart` — new file
+  (170 lines, well-documented).
+- `lib/main.dart` — 1 import + 1 initialize call added (after
+  `DeviceTierCache.instance.initialize(...)`).
+- `lib/features/family_map/presentation/family_map_screen.dart` —
+  1 import + 1 patch call added in `_loadStyleJson` (between
+  `_applyPmtilesSource` and `applyPoiFilters`).

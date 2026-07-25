@@ -38,6 +38,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../graph/interaction/graph_focus_state.dart';
 import '../../family_journey/providers/journey_provider.dart';
+import '../config/map_quality_tier.dart';
 import '../config/map_visual_constants.dart';
 import '../widgets/family_building_layer.dart';
 import '../widgets/avatar_marker_overlay.dart';
@@ -343,8 +344,14 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // archive-internal tile addressing themselves. No custom protocol code
       // is needed on either native platform. Web uses the pmtiles.js library
       // loaded in web/index.html (auto-registered by maplibre_web).
-      final patched = _applyPmtilesSource(raw);
-      _loadedStyleJson = applyPoiFilters(patched);
+      final pmtilesPatched = _applyPmtilesSource(raw);
+      // Phase B v1.0: apply MapQualityTier — hides the warm-glow duplicate
+      // extrusion layer on low-tier devices (2x draw-call cost is too high
+      // for low-end hardware to maintain 60 FPS in dense downtowns).
+      // No-op for mid/high tiers (returns input unchanged).
+      final qualityPatched =
+          MapQualityTierController.instance.applyToStyleJson(pmtilesPatched);
+      _loadedStyleJson = applyPoiFilters(qualityPatched);
     } catch (e) {
       debugPrint('⚠️ _loadStyleJson failed, using inline fallback: $e');
       _loadedStyleJson = _kFallbackStyleJson;
