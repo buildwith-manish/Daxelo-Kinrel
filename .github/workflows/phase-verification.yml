@@ -396,12 +396,14 @@ jobs:
         run: flutter build web --release --no-pub
 
       - name: Install Chromium + Puppeteer for rendering
+        working-directory: ${{ github.workspace }}
         run: |
           npm install puppeteer
           # Puppeteer bundles Chromium — no separate install needed
           npx puppeteer browsers install chrome
 
       - name: Render 5-region screenshots
+        working-directory: ${{ github.workspace }}
         run: node scripts/render_region_screenshots.mjs
 
       - name: Upload screenshots
@@ -409,7 +411,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: phase-b-region-screenshots
-          path: screenshots/
+          path: ${{ github.workspace }}/screenshots/
           retention-days: 30
           if-no-files-found: warn
 
