@@ -55,6 +55,21 @@ const regions = [
 // HTML page that loads the style JSON, patches PMTiles source to OpenFreeMap
 // fallback (since we can't serve a real .pmtiles archive in CI), and exposes
 // the map instance on window.__map.
+//
+// IMPORTANT: For the screenshot test only, we also patch the multi-script
+// text-font stacks (which Phase B v1.0 added: Latin → Devanagari → Arabic → CJK)
+// back to single-font stacks. Why:
+//   - OpenFreeMap's font server (https://tiles.openfreemap.org/fonts/) only
+//     serves Latin fonts (Noto Sans Regular/Bold/Italic). It returns HTTP 404
+//     for any combined fontstack that includes Devanagari/Arabic/CJK.
+//   - These 404s prevent MapLibre from rendering any text labels, which
+//     silently breaks the whole style (canvas shows only background color).
+//   - In production, the app will use a self-hosted font server that DOES
+//     support multi-script fontstacks (part of Phase A PMTiles deployment).
+//   - Multi-script fontstack presence is verified separately by the
+//     style-json-validate job in this workflow.
+//   - For the screenshot test, we just want to verify the rest of the style
+//     (colors, glow filters, road widths, water gradients) renders correctly.
 const renderHtml = (styleJsonUrl) => `<!doctype html>
 <html><head>
   <meta charset="utf-8"/>
@@ -81,6 +96,18 @@ const renderHtml = (styleJsonUrl) => `<!doctype html>
             attribution: '© OpenStreetMap contributors, © OpenFreeMap'
           };
         }
+
+        // Patch multi-script fontstacks back to single-font for the screenshot
+        // test only (see comment above). Production uses a self-hosted font
+        // server that supports multi-script fontstacks.
+        for (const layer of (style.layers || [])) {
+          if (layer.type !== 'symbol') continue;
+          const layout = layer.layout || {};
+          if (!Array.isArray(layout['text-font']) || layout['text-font'].length <= 1) continue;
+          // Take only the first font in the stack (the Latin one)
+          layout['text-font'] = [layout['text-font'][0]];
+        }
+
         const map = new maplibregl.Map({
           container: 'map',
           style: style,
@@ -92,16 +119,8 @@ const renderHtml = (styleJsonUrl) => `<!doctype html>
           // Critical for headless Chromium + SwiftShader:
           //   preserveDrawingBuffer: true keeps the WebGL buffer after composite,
           //     so readPixels and screenshot can capture the rendered content.
-          //   Without this, the buffer is swapped/cleared before Puppeteer's
-          //     screenshot can capture it (the "blank 4257-byte PNG" bug).
           preserveDrawingBuffer: true,
-          // Don't fail if WebGL is software-rendered (SwiftShader)
           failIfMajorPerformanceCaveat: false,
-          // Force canvas backend (not WebGL) if available — more reliable
-          // in headless environments. MapLibre falls back to WebGL if canvas
-          // isn't sufficient.
-          // (Note: as of MapLibre GL JS 4.x, 'preferCanvas' only affects
-          // symbol layers — the base map still uses WebGL. But it doesn't hurt.)
           preferCanvas: true,
         });
         window.__map = map;
