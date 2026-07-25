@@ -89,6 +89,20 @@ const renderHtml = (styleJsonUrl) => `<!doctype html>
           pitch: 0,
           bearing: 0,
           attributionControl: false,
+          // Critical for headless Chromium + SwiftShader:
+          //   preserveDrawingBuffer: true keeps the WebGL buffer after composite,
+          //     so readPixels and screenshot can capture the rendered content.
+          //   Without this, the buffer is swapped/cleared before Puppeteer's
+          //     screenshot can capture it (the "blank 4257-byte PNG" bug).
+          preserveDrawingBuffer: true,
+          // Don't fail if WebGL is software-rendered (SwiftShader)
+          failIfMajorPerformanceCaveat: false,
+          // Force canvas backend (not WebGL) if available — more reliable
+          // in headless environments. MapLibre falls back to WebGL if canvas
+          // isn't sufficient.
+          // (Note: as of MapLibre GL JS 4.x, 'preferCanvas' only affects
+          // symbol layers — the base map still uses WebGL. But it doesn't hurt.)
+          preferCanvas: true,
         });
         window.__map = map;
       })
@@ -177,27 +191,31 @@ for (const region of regions) {
     }, region);
     console.log(`[${region.id}] jumped to region: ${region.lng}, ${region.lat} z${region.zoom}`);
 
-    // Trigger a render and wait for it to complete
-    await page.evaluate(() => window.__map.triggerRepaint());
-
-    // Wait for tiles to load — poll every 500ms up to 20s
-    let tilesLoaded = false;
-    for (let attempt = 0; attempt < 40; attempt++) {
-      const loaded = await page.evaluate(() => window.__map.areTilesLoaded());
-      if (loaded) { tilesLoaded = true; break; }
-      await new Promise(r => setTimeout(r, 500));
-    }
-    if (!tilesLoaded) {
-      console.log(`[${region.id}] ⚠️  tiles not fully loaded after 20s — proceeding anyway`);
-    } else {
-      console.log(`[${region.id}] tiles loaded`);
-    }
+    // Wait for the map's 'idle' event, which fires when all tiles have loaded
+    // AND the map has rendered. This is more reliable than polling areTilesLoaded().
+    // Set up the listener BEFORE we wait, with a 25s timeout.
+    await page.evaluate(() => {
+      window.__idlePromise = new Promise((resolve) => {
+        if (window.__map.areTilesLoaded() && window.__map.isStyleLoaded()) {
+          resolve();
+        } else {
+          window.__map.once('idle', () => resolve());
+          // Safety timeout — resolve anyway after 25s
+          setTimeout(resolve, 25000);
+        }
+      });
+    });
+    await page.waitForFunction('window.__idlePromise !== undefined', { timeout: 5000 });
+    await page.evaluate(() => window.__idlePromise);
+    console.log(`[${region.id}] map idle (tiles + style loaded)`);
 
     // Extra render wait — give MapLibre a chance to actually paint to the canvas
+    // With preserveDrawingBuffer: true, the buffer is preserved for screenshot.
     await new Promise(r => setTimeout(r, 2000));
 
     // Verify the map actually rendered (not all background color) by sampling
-    // the center pixel of the canvas
+    // the center pixel of the canvas via WebGL readPixels.
+    // With preserveDrawingBuffer: true, this should return real pixel data.
     const canvasInfo = await page.evaluate(() => {
       const canvas = document.querySelector('#map canvas');
       if (!canvas) return { error: 'no canvas found' };
@@ -205,22 +223,34 @@ for (const region of regions) {
         const ctx = canvas.getContext('webgl2') || canvas.getContext('webgl');
         if (!ctx) return { error: 'no WebGL context' };
         const w = canvas.width, h = canvas.height;
-        // Read center pixel
-        const pixels = new Uint8Array(4);
-        ctx.readPixels(Math.floor(w/2), Math.floor(h/2), 1, 1, ctx.RGBA, ctx.UNSIGNED_BYTE, pixels);
-        // WebGL Y is bottom-up — note the pixel is from center
-        return {
-          width: w, height: h,
-          centerPixel: [pixels[0], pixels[1], pixels[2], pixels[3]],
-        };
+        // Read a 4x4 grid of pixels around the center (in case center is background)
+        const samples = {};
+        const positions = [
+          ['center', Math.floor(w/2), Math.floor(h/2)],
+          ['tl', Math.floor(w*0.25), Math.floor(h*0.75)],
+          ['tr', Math.floor(w*0.75), Math.floor(h*0.75)],
+          ['bl', Math.floor(w*0.25), Math.floor(h*0.25)],
+          ['br', Math.floor(w*0.75), Math.floor(h*0.25)],
+        ];
+        for (const [name, x, y] of positions) {
+          const pixels = new Uint8Array(4);
+          ctx.readPixels(x, y, 1, 1, ctx.RGBA, ctx.UNSIGNED_BYTE, pixels);
+          samples[name] = [pixels[0], pixels[1], pixels[2], pixels[3]];
+        }
+        return { width: w, height: h, samples };
       } catch (e) {
         return { error: e.message };
       }
     });
-    console.log(`[${region.id}] canvas:`, canvasInfo);
+    console.log(`[${region.id}] canvas samples:`, JSON.stringify(canvasInfo));
 
     const outPath = join(SCREENSHOTS_DIR, `${region.id}.png`);
-    await page.screenshot({ path: outPath });
+    await page.screenshot({
+      path: outPath,
+      // Capture the full page, not just viewport — sometimes the canvas
+      // is positioned outside the viewport due to layout quirks.
+      fullPage: false,
+    });
     console.log(`✓ Screenshot: ${outPath} (${region.name})`);
     successCount++;
   } catch (e) {
