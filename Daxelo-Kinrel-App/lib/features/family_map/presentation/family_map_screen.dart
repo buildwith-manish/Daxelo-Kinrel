@@ -1249,7 +1249,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         ? Geographic(lon: restored.lng, lat: restored.lat)
         : Geographic(lon: 78.9629, lat: 20.5937);
     final initZoom = restored?.zoom ?? 4.0;
-    final initPitch = restored?.pitch ?? 0.0;
+    // P14 — default pitch 0° makes 3D building extrusion look flat (top-down
+    // view). Use 25° so even at the initial world view, if the user zooms in,
+    // 3D buildings are obviously extruded without requiring them to enter
+    // Focus Mode. Restored pitch (if any) still wins.
+    final initPitch = restored?.pitch ?? 25.0;
 
     // ── NO FutureBuilder — style is loaded in initState() ────────────
     // The old FutureBuilder created a new Future on every build, causing
