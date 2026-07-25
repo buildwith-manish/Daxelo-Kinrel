@@ -85,14 +85,16 @@ const renderHtml = (styleJsonUrl) => `<!doctype html>
     fetch('${styleJsonUrl}')
       .then(r => r.json())
       .then(style => {
-        // Patch PMTiles source to OpenFreeMap fallback for screenshot testing
+        // Patch PMTiles source to OpenFreeMap's TileJSON URL for screenshot testing.
+        // IMPORTANT: OpenFreeMap's source uses a TileJSON-style URL (just the
+        // endpoint without /{z}/{x}/{y}.pbf) — MapLibre fetches the TileJSON
+        // metadata from that URL to discover the tile template, maxzoom, etc.
+        // Using a 'tiles' array with a /{z}/{x}/{y}.pbf template also works,
+        // but TileJSON is what OpenFreeMap's own style uses and is more reliable.
         if (style.sources && style.sources.openmaptiles) {
-          delete style.sources.openmaptiles.url;
           style.sources.openmaptiles = {
             type: 'vector',
-            tiles: ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf'],
-            maxzoom: 14,
-            minzoom: 0,
+            url: 'https://tiles.openfreemap.org/planet',
             attribution: '© OpenStreetMap contributors, © OpenFreeMap'
           };
         }
@@ -210,31 +212,40 @@ for (const region of regions) {
     }, region);
     console.log(`[${region.id}] jumped to region: ${region.lng}, ${region.lat} z${region.zoom}`);
 
-    // Wait for the map's 'idle' event, which fires when all tiles have loaded
-    // AND the map has rendered. This is more reliable than polling areTilesLoaded().
-    // Set up the listener BEFORE we wait, with a 25s timeout.
+    // Poll for tiles loaded AND a render event has fired after the jump.
+    // We listen for the 'render' event which fires after each frame is painted.
+    // After jumpTo, the map requests new tiles, loads them, and paints —
+    // we wait for that paint cycle to complete.
     await page.evaluate(() => {
-      window.__idlePromise = new Promise((resolve) => {
-        if (window.__map.areTilesLoaded() && window.__map.isStyleLoaded()) {
-          resolve();
-        } else {
-          window.__map.once('idle', () => resolve());
-          // Safety timeout — resolve anyway after 25s
-          setTimeout(resolve, 25000);
-        }
+      window.__renderDone = new Promise((resolve) => {
+        let renderCount = 0;
+        let tilesLoaded = false;
+        const check = () => {
+          if (tilesLoaded && renderCount >= 3) {
+            resolve();
+            return;
+          }
+          // Continue waiting
+        };
+        window.__map.on('render', () => {
+          renderCount++;
+          if (window.__map.areTilesLoaded()) {
+            tilesLoaded = true;
+          }
+          check();
+        });
+        // Safety timeout — resolve anyway after 30s
+        setTimeout(resolve, 30000);
       });
     });
-    await page.waitForFunction('window.__idlePromise !== undefined', { timeout: 5000 });
-    await page.evaluate(() => window.__idlePromise);
-    console.log(`[${region.id}] map idle (tiles + style loaded)`);
+    await page.waitForFunction('window.__renderDone !== undefined', { timeout: 5000 });
+    await page.evaluate(() => window.__renderDone);
+    console.log(`[${region.id}] map rendered + tiles loaded`);
 
-    // Extra render wait — give MapLibre a chance to actually paint to the canvas
-    // With preserveDrawingBuffer: true, the buffer is preserved for screenshot.
-    await new Promise(r => setTimeout(r, 2000));
+    // Final wait — give the canvas a chance to composite
+    await new Promise(r => setTimeout(r, 1500));
 
-    // Verify the map actually rendered (not all background color) by sampling
-    // the center pixel of the canvas via WebGL readPixels.
-    // With preserveDrawingBuffer: true, this should return real pixel data.
+    // Sample canvas pixels to verify rendering
     const canvasInfo = await page.evaluate(() => {
       const canvas = document.querySelector('#map canvas');
       if (!canvas) return { error: 'no canvas found' };
@@ -242,7 +253,6 @@ for (const region of regions) {
         const ctx = canvas.getContext('webgl2') || canvas.getContext('webgl');
         if (!ctx) return { error: 'no WebGL context' };
         const w = canvas.width, h = canvas.height;
-        // Read a 4x4 grid of pixels around the center (in case center is background)
         const samples = {};
         const positions = [
           ['center', Math.floor(w/2), Math.floor(h/2)],
@@ -264,17 +274,11 @@ for (const region of regions) {
     console.log(`[${region.id}] canvas samples:`, JSON.stringify(canvasInfo));
 
     const outPath = join(SCREENSHOTS_DIR, `${region.id}.png`);
-    await page.screenshot({
-      path: outPath,
-      // Capture the full page, not just viewport — sometimes the canvas
-      // is positioned outside the viewport due to layout quirks.
-      fullPage: false,
-    });
+    await page.screenshot({ path: outPath, fullPage: false });
     console.log(`✓ Screenshot: ${outPath} (${region.name})`);
     successCount++;
   } catch (e) {
     console.log(`❌ Failed: ${region.id} — ${e.message}`);
-    // Take a screenshot anyway for debugging
     try {
       const errPath = join(SCREENSHOTS_DIR, `${region.id}-error.png`);
       await page.screenshot({ path: errPath });
