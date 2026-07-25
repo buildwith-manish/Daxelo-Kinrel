@@ -1,0 +1,7 @@
+# PMTiles build artifacts — do not commit (regenerated from scripts/)
+bin/planetiler.jar
+cache/
+build/
+output/
+*.pmtiles
+*.pmtiles.layerstats.tsv.gz

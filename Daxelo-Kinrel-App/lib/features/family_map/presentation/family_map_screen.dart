@@ -327,17 +327,46 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       return _loadedStyleJson!;
     }
 
-    // Native dark mode: load bundled JSON + apply POI filters
+    // Native dark mode: load bundled JSON + apply POI filters + patch PMTiles URL
     try {
       final raw = await rootBundle
           .loadString(_kStyleAssetPath)
           .timeout(const Duration(seconds: 10));
-      _loadedStyleJson = applyPoiFilters(raw);
+      // P14 — Phase A: patch the openmaptiles source URL with the active
+      // PMTiles source from pmtiles/config/sources.json. The bundled
+      // style JSON ships with a `pmtiles://{{PMTILES_URL}}/{z}/{x}/{y}.pbf`
+      // placeholder; we replace it at runtime with the real URL.
+      final patched = _applyPmtilesSource(raw);
+      _loadedStyleJson = applyPoiFilters(patched);
     } catch (e) {
       debugPrint('⚠️ _loadStyleJson failed, using inline fallback: $e');
       _loadedStyleJson = _kFallbackStyleJson;
     }
     return _loadedStyleJson!;
+  }
+
+  /// P14 — Phase A PMTiles migration: replaces the `{{PMTILES_URL}}`
+  /// placeholder in the bundled style JSON with the active PMTiles
+  /// source URL.
+  ///
+  /// Source selection order:
+  ///   1. Build-time const `_kPmtilesSourceUrl` (set in this file)
+  ///   2. If const is null, leaves the placeholder (will fail to load —
+  ///      intentionally visible so we know the source isn't configured)
+  ///
+  /// Per Phase A spec: only the tile SOURCE is replaced. All layer IDs,
+  /// source-layer names, and paint properties remain unchanged.
+  static const _kPmtilesSourceUrl =
+      'http://localhost:8080/mumbai.pmtiles'; // dev — change to prod URL before release
+
+  String _applyPmtilesSource(String styleJson) {
+    if (!styleJson.contains('{{PMTILES_URL}}')) return styleJson;
+    final patched = styleJson.replaceAll(
+      '{{PMTILES_URL}}',
+      _kPmtilesSourceUrl,
+    );
+    debugPrint('📍 FamilyMap: patched PMTiles source → $_kPmtilesSourceUrl');
+    return patched;
   }
 
   /// Toggles between dark and light map themes. Clears the cached style

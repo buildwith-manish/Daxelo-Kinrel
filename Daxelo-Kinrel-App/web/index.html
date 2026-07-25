@@ -25,7 +25,7 @@
   <link rel="manifest" href="manifest.json">
 
   <!-- MapLibre GL JS — required by the maplibre (0.3.5) web plugin.
-       The package's web implementation (maplibre_web) uses @JS('maplibregl')
+       The package's web implementation (maplibre_web) uses @ JS('maplibregl')
        which expects this global object to be available before the map widget
        initializes. Without this script tag, the map renders as a blank
        container on web.
@@ -40,6 +40,24 @@
        initialization — the global must be available immediately. -->
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet" />
+
+  <!-- PMTiles JS library — required by the maplibre (0.3.5) web plugin's
+       pmtiles:// protocol handler.
+
+       maplibre_web 0.3.5 auto-registers the `pmtiles://` protocol via
+       `interop.addProtocol('pmtiles', pmtilesProtocol.tile)` in
+       map_state.dart:48-49. But this code references a GLOBAL `pmtiles`
+       object via @JS('pmtiles') — which means the pmtiles JS library
+       MUST be loaded as a separate script tag here, before the map widget
+       initializes.
+
+       Without this script tag, the PMTiles protocol registration throws
+       silently ("[MapLibre] PMTiles support could not be loaded") and any
+       `pmtiles://` URLs in the map style will fail to load.
+
+       Pinned to ^3.0 (latest stable 3.x at time of writing). 4.x has
+       breaking API changes that maplibre_web 0.3.5 has not yet adopted. -->
+  <script src="https://cdn.jsdelivr.net/npm/pmtiles@3.0.0/dist/pmtiles.js"></script>
 
   <!-- Fallback: if jsdelivr fails (rare), try unpkg after 2 seconds.
        This ensures the map can still load even if one CDN is down. -->
@@ -57,6 +75,15 @@
         link.rel = 'stylesheet';
         link.href = 'https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css';
         document.head.appendChild(link);
+      }
+      // PMTiles fallback — same pattern.
+      if (typeof pmtiles === 'undefined') {
+        console.warn('[Kinrel] pmtiles.js failed to load from jsdelivr — trying unpkg fallback');
+        var pmtilesScript = document.createElement('script');
+        pmtilesScript.src = 'https://unpkg.com/pmtiles@3.0.0/dist/pmtiles.js';
+        pmtilesScript.onload = function() { console.log('[Kinrel] pmtiles.js loaded from unpkg fallback'); };
+        pmtilesScript.onerror = function() { console.error('[Kinrel] pmtiles.js failed to load from both CDNs — pmtiles:// source URLs will not work'); };
+        document.head.appendChild(pmtilesScript);
       }
     });
   </script>

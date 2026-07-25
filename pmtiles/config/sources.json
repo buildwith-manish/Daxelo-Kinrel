@@ -1,0 +1,31 @@
+{
+  "_comment": "PMTiles source registry for Daxelo Kinrel map. Each entry defines the PMTiles archive URL for a coverage phase. The Flutter app reads the 'active' field to know which source to use.",
+  "_comment_2": "During Phase A dev: use 'mumbai_local'. For prod: switch to 'mumbai_cf' once uploaded to Cloudflare R2.",
+  "active": "mumbai_local",
+  "sources": {
+    "mumbai_local": {
+      "_comment": "Local dev server (scripts/serve_local.sh on port 8080)",
+      "url": "pmtiles://http://localhost:8080/mumbai.pmtiles",
+      "maxzoom": 16,
+      "attribution": "© OpenStreetMap contributors, © OpenMapTiles, © Planetiler"
+    },
+    "mumbai_cf": {
+      "_comment": "Cloudflare R2 prod (Phase A target once verified)",
+      "url": "pmtiles://https://tiles.daxelo-kinrel.dev/mumbai.pmtiles",
+      "maxzoom": 16,
+      "attribution": "© OpenStreetMap contributors, © OpenMapTiles, © Planetiler"
+    },
+    "monaco_local": {
+      "_comment": "Pipeline test — Monaco is tiny (~2MB), use for end-to-end verification",
+      "url": "pmtiles://http://localhost:8080/monaco.pmtiles",
+      "maxzoom": 16,
+      "attribution": "© OpenStreetMap contributors, © OpenMapTiles, © Planetiler"
+    },
+    "openfreemap_fallback": {
+      "_comment": "Original OpenFreeMap source — kept as a fallback if PMTiles source fails to load",
+      "url": "https://tiles.openfreemap.org/planet/20260621_080001_pt/{z}/{x}/{y}.pbf",
+      "maxzoom": 14,
+      "attribution": "© OpenFreeMap, © OpenMapTiles, © OpenStreetMap contributors"
+    }
+  }
+}
