@@ -70,9 +70,19 @@ fi
 # We tee the full output to a log file AND to stdout so Vercel captures
 # everything, and we surface the full log on failure.
 echo "=== Running flutter build web --release ==="
+# v5.0 Part 1: support optional PMTILES_URL env var. When set (e.g. to
+# a deliberately bad URL for fallback-chain testing), it's passed to
+# Flutter as --dart-define. When unset, the app uses the OpenFreeMap
+# default baked into kinrel_dark_style.json (no PMTiles).
+BUILD_ARGS=(build web --release --base-href "/")
+if [ -n "$PMTILES_URL" ]; then
+  echo "  PMTILES_URL env var set — passing as --dart-define"
+  BUILD_ARGS+=("--dart-define=PMTILES_URL=$PMTILES_URL")
+else
+  echo "  PMTILES_URL env var NOT set — using OpenFreeMap default (no PMTiles)"
+fi
 set +e
-flutter build web --release \
-  --base-href "/" \
+flutter build web "${BUILD_ARGS[@]}" \
   > /tmp/flutter_build.log 2>&1
 BUILD_EXIT_CODE=$?
 set -e
