@@ -232,15 +232,18 @@ jobs:
 
       - name: Deploy production to Vercel (--prod, no PMTILES_URL)
         id: deploy-prod
-        working-directory: Daxelo-Kinrel-App
+        # NOTE: Do NOT cd into Daxelo-Kinrel-App — the Vercel project's
+        # "Root Directory" is already set to Daxelo-Kinrel-App, so vercel
+        # CLI expects to be run from the repo root.
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_TEAM_ID }}
           VERCEL_PROJECT_ID: ${{ env.VERCEL_PROJECT_ID }}
         run: |
           echo "=== Deploying production to Vercel (--prod) ==="
-          echo "Existing .vercel/project.json:"
-          cat .vercel/project.json
+          echo "Working directory: $(pwd)"
+          echo "Daxelo-Kinrel-App/.vercel/project.json:"
+          cat Daxelo-Kinrel-App/.vercel/project.json
           echo ""
           # Deploy as production deployment (--prod)
           # Vercel will run vercel-install.sh + vercel-build.sh (which detects
@@ -248,7 +251,7 @@ jobs:
           # --yes skips all interactive prompts.
           # We capture all output and grep for the deployment URL.
           set +e
-          vercel deploy --prod --yes --token="$VERCEL_TOKEN" > /tmp/vercel-prod.log 2>&1
+          vercel deploy --prod --yes --token="$VERCEL_TOKEN" --cwd Daxelo-Kinrel-App > /tmp/vercel-prod.log 2>&1
           EXIT=$?
           set -e
           echo "=== vercel deploy exit: $EXIT ==="
@@ -273,7 +276,7 @@ jobs:
 
       - name: Deploy staging to Vercel (preview, with bad PMTILES_URL)
         id: deploy-staging
-        working-directory: Daxelo-Kinrel-App
+        # NOTE: same as above — do NOT cd into Daxelo-Kinrel-App
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_TEAM_ID }}
@@ -281,12 +284,13 @@ jobs:
           PMTILES_BAD_URL: ${{ env.PMTILES_BAD_URL }}
         run: |
           echo "=== Deploying staging to Vercel (preview) ==="
+          echo "Working directory: $(pwd)"
           echo "Passing --build-env PMTILES_URL=$PMTILES_BAD_URL to vercel-build.sh"
           # Preview deployment (no --prod) — gets a unique URL
           # --build-env passes the env var into Vercel's build environment,
           # where vercel-build.sh reads it and passes it as --dart-define.
           set +e
-          vercel deploy --yes --token="$VERCEL_TOKEN" \
+          vercel deploy --yes --token="$VERCEL_TOKEN" --cwd Daxelo-Kinrel-App \
             --build-env PMTILES_URL="$PMTILES_BAD_URL" \
             > /tmp/vercel-staging.log 2>&1
           EXIT=$?
