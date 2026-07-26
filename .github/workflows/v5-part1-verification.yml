@@ -347,10 +347,12 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: Run screenshot script
+        continue-on-error: true
         env:
           PRODUCTION_URL: ${{ needs.deploy-vercel.outputs.production_url }}
           STAGING_URL: ${{ needs.deploy-vercel.outputs.staging_url }}
         run: |
+          set +e  # Don't exit on non-zero — we want artifacts even if verification fails
           mkdir -p screenshots
           echo "Production URL: $PRODUCTION_URL"
           echo "Staging URL: $STAGING_URL"
@@ -362,7 +364,10 @@ jobs:
             echo "=== Verification Result ==="
             cat screenshots/verification-result.json
           fi
-          # Always upload artifacts even on failure (so we can see what happened)
+          # List captured files
+          echo "=== Captured files ==="
+          ls -la screenshots/
+          # Always exit 0 so artifact upload runs
           exit 0
 
       - name: Upload screenshots artifact

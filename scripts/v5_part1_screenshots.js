@@ -177,23 +177,45 @@ async function hasVisibleTiles(page) {
     const canvases = document.querySelectorAll('canvas');
     if (canvases.length === 0) return { hasCanvas: false, hasTiles: false };
     const c = canvases[0];
-    if (c.width === 0 || c.height === 0) return { hasCanvas: true, hasTiles: false };
-    const ctx = c.getContext('2d');
-    if (!ctx) return { hasCanvas: true, hasTiles: false };
+    if (c.width === 0 || c.height === 0) return { hasCanvas: true, hasTiles: false, dims: '0x0' };
+    // MapLibre GL JS uses WebGL, not 2D canvas. Use WebGL readPixels to sample.
+    const gl = c.getContext('webgl2') || c.getContext('webgl') || c.getContext('experimental-webgl');
+    if (!gl) {
+      // Fallback: try 2D context (some layers may use it)
+      const ctx2 = c.getContext('2d');
+      if (!ctx2) return { hasCanvas: true, hasTiles: false, error: 'no ctx', dims: `${c.width}x${c.height}` };
+      try {
+        const samples = [];
+        for (let i = 1; i < 10; i++) {
+          for (let j = 1; j < 10; j++) {
+            const x = Math.floor((c.width * i) / 10);
+            const y = Math.floor((c.height * j) / 10);
+            const p = ctx2.getImageData(x, y, 1, 1).data;
+            samples.push(`${p[0]},${p[1]},${p[2]}`);
+          }
+        }
+        const unique = new Set(samples).size;
+        return { hasCanvas: true, hasTiles: unique > 3, uniqueColors: unique, dims: `${c.width}x${c.height}`, ctx: '2d' };
+      } catch (e) {
+        return { hasCanvas: true, hasTiles: false, error: e.message, dims: `${c.width}x${c.height}` };
+      }
+    }
+    // WebGL context — use readPixels to sample a 10x10 grid
     try {
       const samples = [];
+      const px = new Uint8Array(4);
       for (let i = 1; i < 10; i++) {
         for (let j = 1; j < 10; j++) {
           const x = Math.floor((c.width * i) / 10);
-          const y = Math.floor((c.height * j) / 10);
-          const p = ctx.getImageData(x, y, 1, 1).data;
-          samples.push(`${p[0]},${p[1]},${p[2]}`);
+          const y = Math.floor((c.height * (10 - j)) / 10); // WebGL Y is bottom-up
+          gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+          samples.push(`${px[0]},${px[1]},${px[2]}`);
         }
       }
       const unique = new Set(samples).size;
-      return { hasCanvas: true, hasTiles: unique > 3, uniqueColors: unique };
+      return { hasCanvas: true, hasTiles: unique > 3, uniqueColors: unique, dims: `${c.width}x${c.height}`, ctx: 'webgl' };
     } catch (e) {
-      return { hasCanvas: true, hasTiles: false, error: e.message };
+      return { hasCanvas: true, hasTiles: false, error: e.message, dims: `${c.width}x${c.height}` };
     }
   });
 }
