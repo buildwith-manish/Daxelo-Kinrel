@@ -87,6 +87,7 @@ java $JAVA_MEM_OPTS -jar "$JAR" \
   --maxzoom=16 \
   --render_maxzoom=17 \
   --force \
+  --download \
   $PLANETILER_MEM_OPTS \
   --output="$OUTPUT_DIR/planet.pmtiles" \
   --tmpdir="$BUILD_DIR" \

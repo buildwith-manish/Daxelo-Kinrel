@@ -1,0 +1,78 @@
+{
+  "timestamp": "2026-07-26T05:58:58.585Z",
+  "monacoArchive": "http://localhost:8080/monaco.pmtiles",
+  "brokenUrl": "http://localhost:8080/this-archive-does-not-exist.pmtiles",
+  "successTest": {
+    "pass": true,
+    "screenshots": [
+      "monaco-pmtiles-success.png",
+      "monaco-pmtiles-success-clean.png"
+    ],
+    "monaco206Responses": 7,
+    "monacoFailures": 0,
+    "openfreemapRequestsOnSuccess": 0
+  },
+  "fallbackTest": {
+    "pass": true,
+    "screenshots": [
+      "monaco-fallback-404.png",
+      "monaco-fallback-404-clean.png"
+    ],
+    "openfreemapRequests": 8,
+    "openfreemapResponses": 8
+  },
+  "brokenUrlTest": {
+    "pass": true,
+    "status": 404
+  },
+  "successStatus": "Starting at 2026-07-26T05:58:31.663Z\nMapLibre GL JS loaded: undefined\nMode: PMTiles direct (http://localhost:8080/monaco.pmtiles)\npmtiles:// protocol registered: true\nStyle loaded: pmtiles://http://localhost:8080/monaco.pmtiles\nStyle loaded at 2026-07-26T05:58:32.164Z\nLayers in style: 116\nopenmaptiles source type: vector\n  url: pmtiles://http://localhost:8080/monaco.pmtiles\nAttribution: MapLibre | \nFirst render at 2026-07-26T05:58:32.269Z\nMap idle (initial render complete)\nVisible layers: 116\nCanvas size: 1280x800\nTile zooms: 13\nStats: requests=17 responses=0 errors=0\n=== RENDER COMPLETE — ready for screenshot ===\n",
+  "fallbackStatus": "Starting at 2026-07-26T05:58:45.320Z\nMapLibre GL JS loaded: undefined\nMode: FALLBACK (OpenFreeMap direct)\nStyle loaded: undefined\nStyle loaded at 2026-07-26T05:58:45.566Z\nLayers in style: 116\nopenmaptiles source type: vector\nAttribution: MapLibre | \nFirst render at 2026-07-26T05:58:45.620Z\nMap idle (initial render complete)\nVisible layers: 116\nCanvas size: 1280x800\nTile zooms: 13\nStats: requests=19 responses=0 errors=0\n=== RENDER COMPLETE — ready for screenshot ===\n",
+  "successNetwork": [
+    "→ GET http://localhost:8080/monaco_test.html?pmtiles=http%3A%2F%2Flocalhost%3A8080%2Fmonaco.pmtiles&style=http%3A%2F%2Flocalhost%3A8080%2Fkinrel_dark_style.json",
+    "← 200 http://localhost:8080/monaco_test.html?pmtiles=http%3A%2F%2Flocalhost%3A8080%2Fmonaco.pmtiles&style=http%3A%2F%2Flocalhost%3A8080%2Fkinrel_dark_style.json",
+    "→ GET http://localhost:8080/monaco.pmtiles",
+    "→ GET https://tiles.openfreemap.org/sprites/ofm_f384/ofm.json",
+    "→ GET https://tiles.openfreemap.org/sprites/ofm_f384/ofm.png",
+    "← 206 http://localhost:8080/monaco.pmtiles",
+    "← 200 https://tiles.openfreemap.org/sprites/ofm_f384/ofm.json",
+    "← 200 https://tiles.openfreemap.org/sprites/ofm_f384/ofm.png",
+    "→ GET http://localhost:8080/monaco.pmtiles",
+    "→ GET http://localhost:8080/monaco.pmtiles",
+    "→ GET http://localhost:8080/monaco.pmtiles",
+    "→ GET http://localhost:8080/monaco.pmtiles",
+    "→ GET http://localhost:8080/monaco.pmtiles",
+    "→ GET http://localhost:8080/monaco.pmtiles",
+    "← 206 http://localhost:8080/monaco.pmtiles",
+    "← 206 http://localhost:8080/monaco.pmtiles",
+    "← 206 http://localhost:8080/monaco.pmtiles",
+    "← 206 http://localhost:8080/monaco.pmtiles",
+    "← 206 http://localhost:8080/monaco.pmtiles",
+    "← 206 http://localhost:8080/monaco.pmtiles",
+    "→ GET https://tiles.openfreemap.org/fonts/Noto%20Sans%20Italic,Noto%20Sans%20Devanagari%20Regular,Noto%20Sans%20Arabic%20Regular,Noto%20Sans%20SC%20Regular/0-255.pbf",
+    "→ GET https://tiles.openfreemap.org/fonts/Noto%20Sans%20Regular,Noto%20Sans%20Devanagari%20Regular,Noto%20Sans%20Arabic%20Regular,Noto%20Sans%20SC%20Regular/0-255.pbf",
+    "← 404 https://tiles.openfreemap.org/fonts/Noto%20Sans%20Italic,Noto%20Sans%20Devanagari%20Regular,Noto%20Sans%20Arabic%20Regular,Noto%20Sans%20SC%20Regular/0-255.pbf",
+    "← 404 https://tiles.openfreemap.org/fonts/Noto%20Sans%20Regular,Noto%20Sans%20Devanagari%20Regular,Noto%20Sans%20Arabic%20Regular,Noto%20Sans%20SC%20Regular/0-255.pbf"
+  ],
+  "fallbackNetwork": [
+    "→ GET https://tiles.openfreemap.org/sprites/ofm_f384/ofm.json",
+    "→ GET https://tiles.openfreemap.org/sprites/ofm_f384/ofm.png",
+    "← 200 https://tiles.openfreemap.org/sprites/ofm_f384/ofm.json",
+    "← 200 https://tiles.openfreemap.org/sprites/ofm_f384/ofm.png",
+    "→ GET https://tiles.openfreemap.org/planet/13/4264/2987.pbf",
+    "→ GET https://tiles.openfreemap.org/planet/13/4264/2986.pbf",
+    "→ GET https://tiles.openfreemap.org/planet/13/4265/2987.pbf",
+    "→ GET https://tiles.openfreemap.org/planet/13/4265/2986.pbf",
+    "→ GET https://tiles.openfreemap.org/planet/13/4263/2987.pbf",
+    "→ GET https://tiles.openfreemap.org/planet/13/4263/2986.pbf",
+    "→ GET https://tiles.openfreemap.org/planet/13/4266/2987.pbf",
+    "→ GET https://tiles.openfreemap.org/planet/13/4266/2986.pbf",
+    "← 200 https://tiles.openfreemap.org/planet/13/4265/2986.pbf",
+    "← 200 https://tiles.openfreemap.org/planet/13/4263/2986.pbf",
+    "← 200 https://tiles.openfreemap.org/planet/13/4264/2986.pbf",
+    "← 200 https://tiles.openfreemap.org/planet/13/4266/2987.pbf",
+    "← 200 https://tiles.openfreemap.org/planet/13/4266/2986.pbf",
+    "← 200 https://tiles.openfreemap.org/planet/13/4263/2987.pbf",
+    "← 200 https://tiles.openfreemap.org/planet/13/4264/2987.pbf",
+    "← 200 https://tiles.openfreemap.org/planet/13/4265/2987.pbf"
+  ]
+}

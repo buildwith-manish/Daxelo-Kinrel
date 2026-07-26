@@ -67,8 +67,11 @@ env:
 jobs:
   build:
     name: Build ${{ github.event.inputs.region || 'planet' }}.pmtiles
-    runs-on: ${{ (github.event.inputs.region || 'planet') == 'planet' && 'ubuntu-latest-16-cores' || 'ubuntu-latest' }}
-    timeout-minutes: ${{ (github.event.inputs.region || 'planet') == 'planet' && 600 || 60 }}
+    # India needs 16GB+ RAM (ubuntu-latest has only 7GB). Planet needs 32GB+.
+    # Use ubuntu-latest-16-cores (64GB RAM) for both. Monaco/Mumbai/Karnataka
+    # fit comfortably on ubuntu-latest (7GB).
+    runs-on: ${{ (github.event.inputs.region || 'planet') == 'planet' && 'ubuntu-latest-16-cores' || (github.event.inputs.region == 'india' && 'ubuntu-latest-16-cores' || 'ubuntu-latest') }}
+    timeout-minutes: ${{ (github.event.inputs.region || 'planet') == 'planet' && 600 || (github.event.inputs.region == 'india' && 120 || 60) }}
 
     steps:
       - name: Checkout
@@ -162,11 +165,11 @@ jobs:
         working-directory: pmtiles
         env:
           # Override default memory opts based on runner size.
-          # ubuntu-latest (7 GB RAM): -Xmx2g for mumbai/karnataka
-          # ubuntu-latest (7 GB RAM): -Xmx4g for india (marginal; use 16-cores runner for india)
+          # ubuntu-latest (7 GB RAM): -Xmx2g for monaco/mumbai/karnataka
+          # ubuntu-latest-16-cores (64 GB RAM): -Xmx12g for india (Rule 5 of v4.0 audit)
           # ubuntu-latest-16-cores (64 GB RAM): -Xmx48g for planet
           # --storage=direct --mmap_temp=false avoids cgroup OOM kills on all runners.
-          JAVA_MEM_OPTS: ${{ (env.REGION == 'planet' && '-Xmx48g') || (env.REGION == 'india' && '-Xmx4g') || '-Xmx2g' }}
+          JAVA_MEM_OPTS: ${{ (env.REGION == 'planet' && '-Xmx48g') || (env.REGION == 'india' && '-Xmx12g') || '-Xmx2g' }}
           PLANETILER_MEM_OPTS: '--storage=direct --mmap_temp=false'
         run: |
           chmod +x scripts/*.sh

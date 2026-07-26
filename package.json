@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.1",
+    "maplibre-gl": "^6.0.0",
+    "pmtiles": "^4.4.1",
     "puppeteer": "^25.3.0"
   }
 }

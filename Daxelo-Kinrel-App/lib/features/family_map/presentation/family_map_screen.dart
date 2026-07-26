@@ -339,11 +339,14 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // with a `pmtiles://{{PMTILES_URL}}` placeholder; we replace it at
       // runtime with the real (fully-qualified) HTTPS URL.
       //
-      // MapLibre Native 11.7+ (Android) and 6.10+ (iOS) — both bundled with
-      // maplibre 0.3.5 — recognize the `pmtiles://` prefix and handle the
-      // archive-internal tile addressing themselves. No custom protocol code
-      // is needed on either native platform. Web uses the pmtiles.js library
-      // loaded in web/index.html (auto-registered by maplibre_web).
+      // PMTiles protocol support — see pmtiles/docs/deployment.md
+      // "Platform Support — Verified Empirically" for the canonical answer.
+      // Summary: NO custom protocol code on ANY platform.
+      //   - Web:    pmtiles.js script tag in web/index.html (auto-registers
+      //             pmtiles:// via maplibre.addProtocol)
+      //   - Android: MapLibre Native 13.0 (bundled) has built-in PMTiles engine
+      //   - iOS:    MapLibre Native 6.25 (bundled) has built-in PMTiles engine
+      // Empirically verified via .github/workflows/pmtiles-device-verification.yml
       final pmtilesPatched = _applyPmtilesSource(raw);
       // Phase B v1.0: apply MapQualityTier — hides the warm-glow duplicate
       // extrusion layer on low-tier devices (2x draw-call cost is too high

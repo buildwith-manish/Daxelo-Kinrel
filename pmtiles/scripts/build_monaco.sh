@@ -37,10 +37,11 @@ echo "Output: $OUTPUT_DIR/monaco.pmtiles"
 echo ""
 
 # Planetiler's --area=monaco flag uses a built-in Monaco OSM extract
-# (no download needed). This is the smallest meaningful end-to-end test.
+# (no PBF download needed). This is the smallest meaningful end-to-end test.
 #
 # --maxzoom=16 + --render_maxzoom=17: same as production builds (spec v3.0 Option B).
-# --download: fetch auxiliary data (water polygons, natural earth) — cached.
+# --download: fetch auxiliary data (water polygons, natural earth) on first run.
+#             Idempotent — no-op if aux data is already cached.
 # Memory: -Xmx1g + --storage=direct + --mmap_temp=false (see build_mumbai.sh rationale).
 # Log placement: written to /tmp during build (planetiler wipes tmpdir at startup),
 # then copied to $BUILD_DIR/build.log after completion.
@@ -53,6 +54,7 @@ java $JAVA_MEM_OPTS -jar "$JAR" \
   --maxzoom=16 \
   --render_maxzoom=17 \
   --force \
+  --download \
   $PLANETILER_MEM_OPTS \
   --output="$OUTPUT_DIR/monaco.pmtiles" \
   --tmpdir="$BUILD_DIR" \

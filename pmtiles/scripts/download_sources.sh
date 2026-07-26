@@ -17,9 +17,11 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SRC_DIR="$ROOT/cache/sources"
 mkdir -p "$SRC_DIR"
 
-OSM_FR_BASE="https://download.openstreetmap.fr/extracts/asia/india"
+OSM_FR_BASE_INDIA="https://download.openstreetmap.fr/extracts/asia/india"
+OSM_FR_BASE_ASIA="https://download.openstreetmap.fr/extracts/asia"
 
-# Phase A — regional extracts (osm.fr state-level)
+# Phase A — regional extracts (osm.fr state-level for Indian states,
+# country-level for India as a whole)
 download() {
   local name="$1"
   local url="$2"
@@ -38,13 +40,14 @@ download() {
 case "${1:-mumbai}" in
   mumbai|maharashtra)
     # Mumbai metro is in Maharashtra state. Mumbai bbox clip happens at build time.
-    download "maharashtra-latest.osm.pbf" "$OSM_FR_BASE/maharashtra-latest.osm.pbf"
+    download "maharashtra-latest.osm.pbf" "$OSM_FR_BASE_INDIA/maharashtra-latest.osm.pbf"
     ;;
   karnataka)
-    download "karnataka-latest.osm.pbf" "$OSM_FR_BASE/karnataka-latest.osm.pbf"
+    download "karnataka-latest.osm.pbf" "$OSM_FR_BASE_INDIA/karnataka-latest.osm.pbf"
     ;;
   india)
-    download "india-latest.osm.pbf" "$OSM_FR_BASE/india-latest.osm.pbf"
+    # India country PBF is at the asia/ level, not asia/india/. Verified 2026-07-26.
+    download "india-latest.osm.pbf" "$OSM_FR_BASE_ASIA/india-latest.osm.pbf"
     ;;
   planet)
     echo "Planet extract: ~80GB. Use bittorrent from https://planet.openstreetmap.org/"
@@ -55,7 +58,7 @@ case "${1:-mumbai}" in
     echo "Usage: $0 {mumbai|karnataka|india|planet}"
     echo "  mumbai     — Maharashtra state PBF (~165 MB, Mumbai is bbox-clipped at build)"
     echo "  karnataka  — Karnataka state PBF (~125 MB)"
-    echo "  india      — India country PBF (~1.8 GB, needs 16GB+ RAM to build)"
+    echo "  india      — India country PBF (~1.96 GB, needs 16GB+ RAM to build)"
     echo "  planet     — Planet PBF (~80 GB, bittorrent only)"
     exit 1
     ;;
