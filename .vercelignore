@@ -1,0 +1,23 @@
+# Skip heavy/irrelevant directories when uploading to Vercel.
+# Vercel only builds the Daxelo-Kinrel-App/ subdir (per project rootDirectory
+# setting), so uploading the rest wastes time + bandwidth.
+node_modules
+.git
+Daxelo-Kinrel-App/build
+Daxelo-Kinrel-App/.dart_tool
+Daxelo-Kinrel-App/node_modules
+server
+deploy
+game-assets
+supabase
+examples
+upload
+skills
+screenshots
+download
+docs
+pmtiles
+public
+scripts
+.venv
+.cache

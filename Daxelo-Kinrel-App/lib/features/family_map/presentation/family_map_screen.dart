@@ -306,10 +306,17 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   ///   • DARK MODE (Kinrel premium): use the bundled kinrel_dark_style.json.
   ///     Dark, cinematic, immersive — matches the rest of the Kinrel app.
   ///     Family-buildings layers are already in the JSON.
-  ///   • WEB: both modes pass the style path/URL to the maplibre plugin
-  ///     which resolves it natively (no dart→JS interop).
-  ///   • NATIVE: dark mode loads the bundled JSON via rootBundle;
-  ///     light mode passes the URL directly to MapLibre.
+  ///   • WEB + NATIVE: dark mode loads the bundled JSON via rootBundle
+  ///     and patches it (PMTiles probe, POI filters, quality tier) BEFORE
+  ///     handing it to MapLibre. This is the v6.0 fix — the pre-v6.0 web
+  ///     path passed a bare asset path string to MapLibreMap.initStyle,
+  ///     but Flutter web serves pubspec assets at `assets/assets/...`
+  ///     (double prefix), so MapLibre's fetch returned HTTP 404 and the
+  ///     style never loaded. rootBundle.loadString resolves the asset
+  ///     key correctly on both web and native, and lets the v5.0
+  ///     fallback chain (probe + OpenFreeMap fallback + offline floor)
+  ///     actually run on web (previously bypassed by the early return).
+  ///   • Light mode passes the URL directly to MapLibre on all platforms.
   Future<String> _loadStyleJson() async {
     if (_loadedStyleJson != null) return _loadedStyleJson!;
 
@@ -320,17 +327,16 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       return _loadedStyleJson!;
     }
 
-    // ── DARK MODE: Kinrel premium ─────────────────────────────────
-    if (kIsWeb) {
-      debugPrint(
-        '🌙 FamilyMap: using bundled Kinrel dark style as web asset: '
-        '$_kWebStylePath',
-      );
-      _loadedStyleJson = _kWebStylePath;
-      return _loadedStyleJson!;
-    }
-
-    // Native dark mode: load bundled JSON + apply POI filters + patch PMTiles URL
+    // ── DARK MODE: Kinrel premium (web + native — unified path) ───
+    // v6.0: previously web returned the bare asset path string here,
+    // which 404'd on Vercel because Flutter web serves pubspec assets
+    // at `assets/assets/...`. rootBundle.loadString handles the asset
+    // key correctly on both platforms and returns the actual JSON
+    // contents, which (a) lets MapLibre ingest the style directly and
+    // (b) lets _probeAndPatchPmtilesSource / applyPoiFilters / the
+    // watchdog's _applyOpenFreeMapFallback patch real JSON instead of
+    // a path string (which silently threw FormatException and returned
+    // the same broken path).
     try {
       final raw = await rootBundle
           .loadString(_kStyleAssetPath)
@@ -512,8 +518,17 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
           '($_kOpenFreeMapFallbackUrl) — PMTiles source unavailable');
       return jsonEncode(decoded);
     } catch (e) {
-      debugPrint('⚠️ FamilyMap: fallback patch failed: $e');
-      return styleJson;
+      // v6.0 defensive: if the input is not valid JSON (e.g., a bare
+      // asset path that 404'd, or any non-JSON string), the previous
+      // behavior was to silently return the same broken input — which
+      // meant the watchdog's "fallback" was a no-op and the map stayed
+      // stuck. Now we fall straight to the offline floor style so the
+      // user always sees family markers on a dark background instead
+      // of an infinite black-screen loop.
+      debugPrint('⚠️ FamilyMap: fallback patch failed (input not valid JSON: '
+          '${styleJson.length > 80 ? styleJson.substring(0, 80) + '…' : styleJson}) — '
+          'switching to offline floor style');
+      return _kOfflineFloorStyleJson;
     }
   }
 
