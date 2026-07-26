@@ -11,11 +11,7 @@
     },
     "openmaptiles": {
       "type": "vector",
-      "tiles": [
-        "https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf"
-      ],
-      "maxzoom": 14,
-      "minzoom": 0,
+      "url": "https://tiles.openfreemap.org/planet",
       "attribution": "© OpenStreetMap contributors, © OpenMapTiles, © Planetiler, © OpenFreeMap"
     },
     "family-places": {

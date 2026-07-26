@@ -501,17 +501,27 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
   /// Replaces the openmaptiles PMTiles source with the OpenFreeMap fallback.
   /// Called when the PMTiles source fails to load (e.g. CDN down, broken URL,
-  /// 404 on the archive). Reconstructs the source as a standard ZYX templated
-  /// vector source — no pmtiles:// prefix, no single-archive URL.
+  /// 404 on the archive). Uses the OpenFreeMap TileJSON endpoint
+  /// (`https://tiles.openfreemap.org/planet`) so MapLibre fetches the
+  /// current weekly-versioned tile path itself — this matches the
+  /// official OpenFreeMap `liberty` style's source definition.
+  ///
+  /// v7.0: previously this emitted a direct tile template
+  /// (`tiles: ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf']`),
+  /// but OpenFreeMap serves actual tiles under a weekly-versioned path
+  /// (e.g. `/planet/20260621_080001_pt/{z}/{x}/{y}.pbf`) that is only
+  /// discoverable via the TileJSON endpoint. The direct template
+  /// resolved to 200 + 0 bytes (`x-ofm-debug: empty tile`) for every
+  /// tile request — causing the v7.0 black-screen-at-high-zoom
+  /// incident. See `worklog.md` task v7.0 for the full root-cause
+  /// analysis.
   String _applyOpenFreeMapFallback(String styleJson) {
     try {
       final decoded = jsonDecode(styleJson) as Map<String, dynamic>;
       final sources = decoded['sources'] as Map<String, dynamic>;
       sources['openmaptiles'] = {
         'type': 'vector',
-        'tiles': ['$_kOpenFreeMapFallbackUrl/{z}/{x}/{y}.pbf'],
-        'maxzoom': 14,
-        'minzoom': 0,
+        'url': _kOpenFreeMapFallbackUrl,
         'attribution': '© OpenStreetMap contributors, © OpenFreeMap',
       };
       debugPrint('⚠️ FamilyMap: fell back to OpenFreeMap '

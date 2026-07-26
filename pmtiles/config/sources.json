@@ -1,12 +1,12 @@
 {
   "_comment": "v5.0 Part 1 — PMTiles source registry for Daxelo Kinrel map.",
-  "_comment_2": "ARCHITECTURE CHANGE (v5.0 Part 1): The Flutter app no longer reads this file at runtime. PMTiles is now OPT-IN via `--dart-define=PMTILES_URL=https://.../archive.pmtiles` at build time. When that define is NOT passed (the default), the bundled kinrel_dark_style.json uses OpenFreeMap ZYX tiles directly (no pmtiles:// protocol). When the define IS passed, the runtime HTTP probe verifies reachability before MapLibre fetches tiles — failed probes fall back to OpenFreeMap automatically. This file is kept as a human-readable registry of which PMTiles archives exist and where they live, but the `active` field below is NOT read by the app.",
-  "_comment_3": "Pre-v5.0 history: this file was the source of truth, but the app never actually read it — the constant `_kPmtilesSourceUrl` in family_map_screen.dart was hardcoded to a localhost default. That mismatch caused the v5.0 Part 1 black-screen incident. See worklog.md task v5.0-part1.",
+  "_comment_2": "ARCHITECTURE CHANGE (v5.0 Part 1, updated v7.0): The Flutter app no longer reads this file at runtime. PMTiles is now OPT-IN via `--dart-define=PMTILES_URL=https://.../archive.pmtiles` at build time. When that define is NOT passed (the default), the bundled kinrel_dark_style.json uses OpenFreeMap via its TileJSON endpoint (`https://tiles.openfreemap.org/planet`) — MapLibre follows the TileJSON to discover the current weekly-versioned tile path automatically. When the PMTiles define IS passed, the runtime HTTP probe verifies reachability before MapLibre fetches tiles — failed probes fall back to OpenFreeMap automatically. This file is kept as a human-readable registry of which PMTiles archives exist and where they live, but the `active` field below is NOT read by the app.",
+  "_comment_3": "Pre-v5.0 history: this file was the source of truth, but the app never actually read it — the constant `_kPmtilesSourceUrl` in family_map_screen.dart was hardcoded to a localhost default. That mismatch caused the v5.0 Part 1 black-screen incident. See `worklog.md` at repo root, task v5.0-part1 (and v7.0 for the latest fix).",
   "active": "openfreemap_fallback",
   "sources": {
     "openfreemap_fallback": {
-      "_comment": "v5.0 Part 1 default — baked into kinrel_dark_style.json, works on all platforms with zero custom code. Used when --dart-define=PMTILES_URL is NOT passed.",
-      "url": "https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf",
+      "_comment": "v5.0 Part 1 default (v7.0 corrected) — baked into kinrel_dark_style.json via the OpenFreeMap TileJSON endpoint. MapLibre fetches /planet which returns the current weekly-versioned tile URL pattern. Used when --dart-define=PMTILES_URL is NOT passed.",
+      "url": "https://tiles.openfreemap.org/planet",
       "maxzoom": 14,
       "attribution": "© OpenStreetMap contributors, © OpenMapTiles, © Planetiler, © OpenFreeMap"
     },
