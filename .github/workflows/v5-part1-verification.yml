@@ -86,6 +86,10 @@ jobs:
         working-directory: Daxelo-Kinrel-App
         run: flutter pub get
 
+      - name: Generate code (build_runner)
+        working-directory: Daxelo-Kinrel-App
+        run: dart run build_runner build --delete-conflicting-outputs
+
       - name: Flutter analyze
         id: analyze
         working-directory: Daxelo-Kinrel-App
@@ -128,6 +132,10 @@ jobs:
         working-directory: Daxelo-Kinrel-App
         run: flutter pub get
 
+      - name: Generate code (build_runner)
+        working-directory: Daxelo-Kinrel-App
+        run: dart run build_runner build --delete-conflicting-outputs
+
       - name: Build web (production, no PMTiles)
         working-directory: Daxelo-Kinrel-App
         run: |
@@ -169,6 +177,10 @@ jobs:
       - name: Pub get
         working-directory: Daxelo-Kinrel-App
         run: flutter pub get
+
+      - name: Generate code (build_runner)
+        working-directory: Daxelo-Kinrel-App
+        run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Build web (staging with bad PMTiles URL)
         working-directory: Daxelo-Kinrel-App
