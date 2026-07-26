@@ -1,31 +1,32 @@
 {
-  "_comment": "PMTiles source registry for Daxelo Kinrel map. Each entry defines the PMTiles archive URL for a coverage phase. The Flutter app reads the 'active' field to know which source to use.",
-  "_comment_2": "During Phase A dev: use 'mumbai_local'. For prod: switch to 'mumbai_cf' once uploaded to Cloudflare R2.",
-  "active": "mumbai_local",
+  "_comment": "v5.0 Part 1 — PMTiles source registry for Daxelo Kinrel map.",
+  "_comment_2": "ARCHITECTURE CHANGE (v5.0 Part 1): The Flutter app no longer reads this file at runtime. PMTiles is now OPT-IN via `--dart-define=PMTILES_URL=https://.../archive.pmtiles` at build time. When that define is NOT passed (the default), the bundled kinrel_dark_style.json uses OpenFreeMap ZYX tiles directly (no pmtiles:// protocol). When the define IS passed, the runtime HTTP probe verifies reachability before MapLibre fetches tiles — failed probes fall back to OpenFreeMap automatically. This file is kept as a human-readable registry of which PMTiles archives exist and where they live, but the `active` field below is NOT read by the app.",
+  "_comment_3": "Pre-v5.0 history: this file was the source of truth, but the app never actually read it — the constant `_kPmtilesSourceUrl` in family_map_screen.dart was hardcoded to a localhost default. That mismatch caused the v5.0 Part 1 black-screen incident. See worklog.md task v5.0-part1.",
+  "active": "openfreemap_fallback",
   "sources": {
-    "mumbai_local": {
-      "_comment": "Local dev server (scripts/serve_local.sh on port 8080)",
-      "url": "pmtiles://http://localhost:8080/mumbai.pmtiles",
-      "maxzoom": 16,
-      "attribution": "© OpenStreetMap contributors, © OpenMapTiles, © Planetiler"
+    "openfreemap_fallback": {
+      "_comment": "v5.0 Part 1 default — baked into kinrel_dark_style.json, works on all platforms with zero custom code. Used when --dart-define=PMTILES_URL is NOT passed.",
+      "url": "https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf",
+      "maxzoom": 14,
+      "attribution": "© OpenStreetMap contributors, © OpenMapTiles, © Planetiler, © OpenFreeMap"
     },
     "mumbai_cf": {
-      "_comment": "Cloudflare R2 prod (Phase A target once verified)",
+      "_comment": "Cloudflare R2 PMTiles archive — to enable, build with --dart-define=PMTILES_URL=https://tiles.daxelo-kinrel.dev/mumbai.pmtiles (after uploading the archive + verifying CORS headers)",
       "url": "pmtiles://https://tiles.daxelo-kinrel.dev/mumbai.pmtiles",
       "maxzoom": 16,
       "attribution": "© OpenStreetMap contributors, © OpenMapTiles, © Planetiler"
     },
-    "monaco_local": {
-      "_comment": "Pipeline test — Monaco is tiny (~2MB), use for end-to-end verification",
-      "url": "pmtiles://http://localhost:8080/monaco.pmtiles",
+    "mumbai_local": {
+      "_comment": "DEPRECATED — local dev server only. Never ship to production. Pre-v5.0 this was the default and caused the black-screen incident.",
+      "url": "pmtiles://http://localhost:8080/mumbai.pmtiles",
       "maxzoom": 16,
       "attribution": "© OpenStreetMap contributors, © OpenMapTiles, © Planetiler"
     },
-    "openfreemap_fallback": {
-      "_comment": "Original OpenFreeMap source — kept as a fallback if PMTiles source fails to load",
-      "url": "https://tiles.openfreemap.org/planet/20260621_080001_pt/{z}/{x}/{y}.pbf",
-      "maxzoom": 14,
-      "attribution": "© OpenFreeMap, © OpenMapTiles, © OpenStreetMap contributors"
+    "monaco_local": {
+      "_comment": "DEPRECATED — local dev only. Use for end-to-end pipeline testing.",
+      "url": "pmtiles://http://localhost:8080/monaco.pmtiles",
+      "maxzoom": 16,
+      "attribution": "© OpenStreetMap contributors, © OpenMapTiles, © Planetiler"
     }
   }
 }

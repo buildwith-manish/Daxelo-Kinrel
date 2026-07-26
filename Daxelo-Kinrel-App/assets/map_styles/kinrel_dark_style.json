@@ -11,10 +11,12 @@
     },
     "openmaptiles": {
       "type": "vector",
-      "url": "pmtiles://{{PMTILES_URL}}",
-      "maxzoom": 16,
+      "tiles": [
+        "https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf"
+      ],
+      "maxzoom": 14,
       "minzoom": 0,
-      "attribution": "© OpenStreetMap contributors, © OpenMapTiles, © Planetiler"
+      "attribution": "© OpenStreetMap contributors, © OpenMapTiles, © Planetiler, © OpenFreeMap"
     },
     "family-places": {
       "type": "geojson",
@@ -6993,5 +6995,6 @@
   "name": "kinrel-dark",
   "metadata": {
     "description": "Kinrel dark style based on OpenFreeMap liberty with reduced label clutter"
-  }
+  },
+  "_v5_part1_mitigation": "// v5.0 Part 1 mitigation: was `pmtiles://{{PMTILES_URL}}` — broke production (placeholder never substituted on web; localhost default on native). Switched to OpenFreeMap ZYX tiles. PMTiles can be re-enabled via --dart-define=PMTILES_URL=https://.../archive.pmtiles — see family_map_screen.dart _applyPmtilesSource (opt-in patching)."
 }

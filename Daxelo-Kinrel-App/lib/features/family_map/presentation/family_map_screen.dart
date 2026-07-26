@@ -67,6 +67,7 @@ import '../widgets/map_search_bar.dart';
 import '../widgets/place_callout_overlay.dart';
 import '../widgets/relationship_path_overlay.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dio/dio.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // FAMILY MAP SCREEN
@@ -334,26 +335,25 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       final raw = await rootBundle
           .loadString(_kStyleAssetPath)
           .timeout(const Duration(seconds: 10));
-      // Phase A: patch the openmaptiles source URL with the active PMTiles
-      // source from pmtiles/config/sources.json. The bundled style JSON ships
-      // with a `pmtiles://{{PMTILES_URL}}` placeholder; we replace it at
-      // runtime with the real (fully-qualified) HTTPS URL.
+      // v5.0 Part 1: the bundled style JSON now ships with OpenFreeMap ZYX
+      // tiles as the default `openmaptiles` source (no pmtiles:// protocol,
+      // no placeholder) — so production works out of the box on all platforms.
       //
-      // PMTiles protocol support — see pmtiles/docs/deployment.md
-      // "Platform Support — Verified Empirically" for the canonical answer.
-      // Summary: NO custom protocol code on ANY platform.
-      //   - Web:    pmtiles.js script tag in web/index.html (auto-registers
-      //             pmtiles:// via maplibre.addProtocol)
-      //   - Android: MapLibre Native 13.0 (bundled) has built-in PMTiles engine
-      //   - iOS:    MapLibre Native 6.25 (bundled) has built-in PMTiles engine
-      // Empirically verified via .github/workflows/pmtiles-device-verification.yml
-      final pmtilesPatched = _applyPmtilesSource(raw);
+      // PMTiles is OPT-IN via `--dart-define=PMTILES_URL=https://.../archive.pmtiles`.
+      // When that override is set, the placeholder `{{PMTILES_URL}}` (if present
+      // in the JSON) is replaced AND a real HTTP probe verifies reachability
+      // BEFORE MapLibre ever tries to fetch tiles. If the probe fails, we
+      // immediately swap to OpenFreeMap — no 10s watchdog wait.
+      //
+      // See `worklog.md` task v5.0-part1 for the full root-cause analysis of
+      // the pre-v5.0 black-screen incident.
+      final probed = await _probeAndPatchPmtilesSource(raw);
       // Phase B v1.0: apply MapQualityTier — hides the warm-glow duplicate
       // extrusion layer on low-tier devices (2x draw-call cost is too high
       // for low-end hardware to maintain 60 FPS in dense downtowns).
       // No-op for mid/high tiers (returns input unchanged).
       final qualityPatched =
-          MapQualityTierController.instance.applyToStyleJson(pmtilesPatched);
+          MapQualityTierController.instance.applyToStyleJson(probed);
       _loadedStyleJson = applyPoiFilters(qualityPatched);
     } catch (e) {
       debugPrint('⚠️ _loadStyleJson failed, using inline fallback: $e');
@@ -362,20 +362,64 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     return _loadedStyleJson!;
   }
 
-  /// Phase A PMTiles migration: replaces the `{{PMTILES_URL}}` placeholder
-  /// in the bundled style JSON with the active PMTiles source URL.
+  /// v5.0 Part 1 Step 3b — Hard fallback floor.
   ///
-  /// Source selection order:
-  ///   1. Runtime override via `--dart-define=PMTILES_URL=...`
-  ///   2. `_kPmtilesSourceUrl` const below (dev default = local server)
-  ///   3. If both are null, falls back to OpenFreeMap (no pmtiles:// prefix)
-  ///      so the map still renders if PMTiles is misconfigured. The fallback
-  ///      is intentionally visible in logs so we notice the misconfiguration.
+  /// A minimal style with NO external sources — just a dark background +
+  /// family-places GeoJSON. Used when BOTH the primary PMTiles source AND
+  /// the OpenFreeMap fallback fail (e.g. user is fully offline, or both
+  /// CDNs are down simultaneously). The map will render as a dark
+  /// background with family markers visible — not pretty, but never a
+  /// black screen with an infinite spinner.
   ///
-  /// Per Phase A spec: only the tile SOURCE is replaced. All layer IDs,
-  /// source-layer names, and paint properties remain unchanged.
+  /// This is the absolute floor below which the map cannot go blank.
+  static const _kOfflineFloorStyleJson = '''
+{
+  "version": 8,
+  "sources": {
+    "family-places": {
+      "type": "geojson",
+      "data": { "type": "FeatureCollection", "features": [] }
+    }
+  },
+  "layers": [
+    {"id":"background","type":"background","paint":{"background-color":"#131416"}},
+    {"id":"family-buildings-glow","type":"circle","source":"family-places","minzoom":0,"paint":{"circle-color":["match",["get","placeType"],"current_home","#E8612A","childhood_home","#F59240","ancestral_home","#917520","birthplace","#F5B841","wedding","#E8612A","memorial","#F59240","family_business","#C44A18","school","#4E6984","important_place","#E8612A","#E8612A"],"circle-radius":24,"circle-blur":1.0,"circle-opacity":0.65}},
+    {"id":"family-buildings-fallback","type":"circle","source":"family-places","maxzoom":24,"paint":{"circle-color":["match",["get","placeType"],"current_home","#E8612A","childhood_home","#F59240","ancestral_home","#917520","birthplace","#F5B841","wedding","#E8612A","memorial","#F59240","family_business","#C44A18","school","#4E6984","important_place","#E8612A","#E8612A"],"circle-radius":8,"circle-stroke-color":"#FFFFFF","circle-stroke-width":1.5,"circle-opacity":0.95}}
+  ]
+}
+''';
+
+  /// v5.0 Part 1 Step 3b — True when both PMTiles AND OpenFreeMap have
+  /// failed and the map is rendering on the offline floor style. Set by
+  /// `_applyOfflineFloorAndRetry` and NEVER reset automatically — the
+  /// user must explicitly retry to escape the floor.
+  bool _usingOfflineFloor = false;
+
+  /// v5.0 Part 1 — PMTiles migration source URL.
+  ///
+  /// PMTiles is now OPT-IN. The default empty string means: use the
+  /// OpenFreeMap ZYX source already baked into `kinrel_dark_style.json`
+  /// (see v5.0 Part 1 mitigation in `scripts/v5_part1_mitigate_style_json.py`).
+  ///
+  /// To enable PMTiles for a specific build, pass a real HTTPS URL at
+  /// build time:
+  ///   `flutter build web --dart-define=PMTILES_URL=https://tiles.example.com/india.pmtiles`
+  ///
+  /// The URL MUST be HTTPS (HTTP will fail iOS ATS, Android
+  /// network_security_config, and web mixed-content checks) and MUST
+  /// point to a real, reachable archive (NOT localhost). The
+  /// pre-style HTTP probe (`_probePmtilesSource`) will verify
+  /// reachability before MapLibre ever tries to fetch tiles — so a
+  /// misconfigured PMTiles URL now falls back to OpenFreeMap in ~2s
+  /// instead of waiting 10s for the style-load watchdog.
+  ///
+  /// Pre-v5.0 history: this constant defaulted to
+  /// `http://localhost:8080/mumbai.pmtiles`, which leaked the dev
+  /// default into production builds and caused the v5.0 Part 1
+  /// black-screen incident. See `worklog.md` task v5.0-part1 for the
+  /// full root-cause analysis.
   static const _kPmtilesSourceUrl =
-      String.fromEnvironment('PMTILES_URL', defaultValue: 'http://localhost:8080/mumbai.pmtiles');
+      String.fromEnvironment('PMTILES_URL', defaultValue: '');
 
   /// OpenFreeMap fallback URL — used if PMTiles source fails to load.
   /// Format matches MapLibre's standard `{z}/{x}/{y}.pbf` tile template
@@ -384,6 +428,9 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       'https://tiles.openfreemap.org/planet';
 
   String _applyPmtilesSource(String styleJson) {
+    // v5.0 Part 1: PMTiles is opt-in. If no URL is defined, the bundled
+    // style JSON already has OpenFreeMap ZYX tiles baked in — return as-is.
+    if (_kPmtilesSourceUrl.isEmpty) return styleJson;
     if (!styleJson.contains('{{PMTILES_URL}}')) return styleJson;
     final patched = styleJson.replaceAll(
       '{{PMTILES_URL}}',
@@ -391,6 +438,59 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     );
     debugPrint('📍 FamilyMap: patched PMTiles source → $_kPmtilesSourceUrl');
     return patched;
+  }
+
+  /// v5.0 Part 1 Step 3a — Real error-signal detection.
+  ///
+  /// Probes the PMTiles source URL with an HTTP HEAD request BEFORE
+  /// passing the style to MapLibre. If the probe fails (network error,
+  /// non-2xx response, timeout), the style is patched to use the
+  /// OpenFreeMap fallback immediately — no 10s wait for the watchdog.
+  ///
+  /// Returns the (possibly fallback-patched) style JSON string.
+  ///
+  /// On web, the probe is subject to CORS — the PMTiles CDN MUST send
+  /// `Access-Control-Allow-Origin: *` (or the request origin) for the
+  /// HEAD to succeed. Most major PMTiles CDNs (Cloudflare R2, Backblaze,
+  /// GitHub Pages) do this by default. If CORS fails, we conservatively
+  /// fall back to OpenFreeMap rather than letting MapLibre fail later.
+  Future<String> _probeAndPatchPmtilesSource(String styleJson) async {
+    if (_kPmtilesSourceUrl.isEmpty) return styleJson;
+    if (!styleJson.contains('{{PMTILES_URL}}')) return styleJson;
+
+    try {
+      final dio = Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 3),
+        receiveTimeout: const Duration(seconds: 3),
+        sendTimeout: const Duration(seconds: 3),
+        followRedirects: true,
+        maxRedirects: 3,
+        validateStatus: (s) => s != null && s >= 200 && s < 400,
+      ));
+      // HEAD request — small payload, fast. Some PMTiles CDNs don't
+      // support HEAD on range requests, so fall back to a partial GET
+      // (Range: bytes=0-0) if HEAD returns 405.
+      try {
+        await dio.head<void>(_kPmtilesSourceUrl);
+      } on DioException catch (e) {
+        if (e.response?.statusCode == 405 || e.response?.statusCode == 403) {
+          // HEAD not allowed — try a 1-byte ranged GET (PMTiles archives
+          // always support range requests per the spec).
+          await dio.get<List<int>>(
+            _kPmtilesSourceUrl,
+            options: Options(responseType: ResponseType.bytes, headers: {'Range': 'bytes=0-0'}),
+          );
+        } else {
+          rethrow;
+        }
+      }
+      debugPrint('✅ FamilyMap: PMTiles source probe OK — using PMTiles');
+      return _applyPmtilesSource(styleJson);
+    } catch (e) {
+      debugPrint('⚠️ FamilyMap: PMTiles source probe failed ($e) — '
+          'falling back to OpenFreeMap BEFORE passing style to MapLibre');
+      return _applyOpenFreeMapFallback(styleJson);
+    }
   }
 
   /// Replaces the openmaptiles PMTiles source with the OpenFreeMap fallback.
@@ -1038,11 +1138,28 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     );
   }
 
-  /// Error UI shown when the style JSON fails to load (lifecycle ==
-  /// `failed`). Provides a Retry button that resets the lifecycle and
-  /// re-fetches.
+  /// v5.0 Part 1 Step 3d — Honest error UI shown when the style JSON
+  /// fails to load AND all fallback tiers (PMTiles → OpenFreeMap →
+  /// offline floor) have been exhausted. Replaces the pre-v5.0 infinite
+  /// "Loading family map…" spinner that left users with no explanation.
+  ///
+  /// Shows:
+  ///   1. A clear title + body explaining the situation in plain language
+  ///   2. The current fallback tier (so the user understands what was tried)
+  ///   3. A primary Retry button (re-runs the full chain from PMTiles)
+  ///   4. A secondary "Use Offline Mode" button (forces the offline floor
+  ///      style — family markers on a dark background, no tiles)
+  ///
+  /// The Offline Mode button is the escape hatch for users on flaky
+  /// networks who just want to see their family markers without waiting
+  /// for tiles that may never arrive.
   Widget _buildStyleLoadError() {
     final l10n = S.of(context);
+    final tierLabel = _usingOfflineFloor
+        ? 'All map sources failed — showing offline mode'
+        : _usingOpenFreeMapFallback
+            ? 'Primary map source failed — using fallback'
+            : 'Map style could not be loaded';
     return Stack(
       children: [
         Container(color: KinrelColors.darkBackground),
@@ -1067,13 +1184,32 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 const SizedBox(height: 8),
                 Text(
                   l10n?.familyMapFailedBody ??
-                      'Check your connection and try again.',
+                      'Check your connection and try again, or use offline mode to view family markers without the map.',
                   style: TextStyle(
                     color: KinrelColors.textDim,
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
                   ),
                   textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                // v5.0 Part 1 Step 3d — visible tier label so the user
+                // knows what was tried. Honest about partial failures.
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.darkSurface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    tierLabel,
+                    style: TextStyle(
+                      color: KinrelColors.textDim,
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 11,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
                 const SizedBox(height: 24),
                 FilledButton(
@@ -1082,6 +1218,27 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                     backgroundColor: KinrelColors.orange,
                   ),
                   child: Text(l10n?.familyMapRetry ?? 'Retry'),
+                ),
+                const SizedBox(height: 12),
+                // v5.0 Part 1 Step 3d — secondary escape hatch.
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _usingOfflineFloor = true;
+                      _loadedStyleJson = _kOfflineFloorStyleJson;
+                      _familyPlacesLayersAdded = false;
+                      _styleLoaded = false;
+                      _lifecycle.reset();
+                    });
+                  },
+                  child: Text(
+                    'Use Offline Mode',
+                    style: TextStyle(
+                      color: KinrelColors.textDim,
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 13,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1155,10 +1312,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     _styleWatchdog = null;
     // Clear cached style so _loadStyleJson re-fetches from the asset.
     _loadedStyleJson = null;
-    // Phase A: reset the fallback flag on manual retry — if the user
-    // explicitly hits "retry", give PMTiles another chance before
-    // auto-falling-back to OpenFreeMap.
+    // v5.0 Part 1: reset ALL fallback flags on manual retry so the full
+    // chain (PMTiles → OpenFreeMap → offline floor) runs again from the
+    // top. The user explicitly tapped Retry, so we honor that intent
+    // even if we previously fell all the way to the floor.
     _usingOpenFreeMapFallback = false;
+    _usingOfflineFloor = false;
     // Reset the family-places-layers flag so _ensureFamilyPlacesLayers
     // re-adds them when the new style loads.
     _familyPlacesLayersAdded = false;
@@ -1215,40 +1374,73 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       }
     });
 
-    // Phase 2: 10-second style-loaded check.
-    _styleWatchdog = Timer(const Duration(seconds: 10), () {
+    // v5.0 Part 1: Phase 2 reduced from 10s → 6s. The pre-style HTTP probe
+    // already catches most PMTiles failures in ~2s, so 6s is enough for the
+    // remaining class of failures (style JSON parse, sprite/glyph load, etc).
+    // The shorter timeout means users see the fallback chain kick in faster.
+    _styleWatchdog = Timer(const Duration(seconds: 6), () {
       if (attempt != _lifecycle.currentAttempt) return;
       if (_lifecycle.state.isTerminal) return;
       if (_lifecycle.state == FamilyMapLifecycle.loadingStyle ||
           _lifecycle.state == FamilyMapLifecycle.preparingLayers) {
-        // Phase A: If the PMTiles source failed to load (the most likely
-        // cause of a 10s style-load timeout), automatically swap to the
-        // OpenFreeMap fallback ONCE and retry. On a second timeout we
-        // give up and force ready/empty so the user still sees the
-        // empty-state overlay.
-        if (!_usingOpenFreeMapFallback) {
+        // v5.0 Part 1 Step 3b — chained fallback:
+        //   PMTiles (primary) → OpenFreeMap (1st fallback) → offline floor (hard floor)
+        // Each tier is tried exactly once. After the floor, the lifecycle
+        // is forced to ready/empty so the user sees the family markers on
+        // a dark background instead of an infinite spinner.
+        if (!_usingOpenFreeMapFallback && !_usingOfflineFloor) {
           debugPrint(
-            '⚠️ FamilyMap: PMTiles style load timed out after 10s — '
+            '⚠️ FamilyMap: style load timed out after 6s — '
             'auto-swapping to OpenFreeMap fallback and retrying',
           );
           _usingOpenFreeMapFallback = true;
           _applyFallbackAndRetry(attempt: attempt);
           return;
         }
+        if (!_usingOfflineFloor) {
+          debugPrint(
+            '⚠️ FamilyMap: OpenFreeMap fallback also timed out after 6s — '
+            'switching to offline floor (no external sources)',
+          );
+          _usingOfflineFloor = true;
+          _applyOfflineFloorAndRetry(attempt: attempt);
+          return;
+        }
         debugPrint(
-          '⚠️ FamilyMap: onStyleLoaded watchdog fired after 10s — '
-          'fallback already in use, forcing lifecycle to ready/empty '
-          '(state=${_lifecycle.state})',
+          '⚠️ FamilyMap: offline floor also timed out — forcing ready/empty '
+          '(state=${_lifecycle.state}). User will see family markers on '
+          'a dark background.',
         );
         _advanceToReadyOrEmpty(attempt: attempt);
       }
     });
   }
 
-  /// Phase A: Set when the map has auto-fallen-back to OpenFreeMap
+  /// v5.0 Part 1 Step 3b — Switches the cached style JSON to the offline
+  /// floor style (no external sources) and re-triggers the load path.
+  /// Called by the style-load watchdog on 2nd timeout. After this, the
+  /// map will render as a dark background with family markers visible.
+  /// NEVER resets automatically — the user must explicitly tap Retry.
+  void _applyOfflineFloorAndRetry({required int attempt}) {
+    _styleWatchdog?.cancel();
+    _styleWatchdog = null;
+    _loadedStyleJson = _kOfflineFloorStyleJson;
+    _familyPlacesLayersAdded = false;
+    _liveLocationGlowAdded = false;
+    _liveLocationLat = null;
+    _liveLocationLng = null;
+    _styleLoaded = false;
+    _rendezvousController = null;
+    _rendezvousStyle = null;
+    _layersPrepared = false;
+    _lifecycle.reset();
+    setState(() {});
+  }
+
+  /// v5.0 Part 1: Set when the map has auto-fallen-back to OpenFreeMap
   /// because the PMTiles source failed to load. Prevents infinite
-  /// retry loops — if OpenFreeMap ALSO fails, the watchdog forces
-  /// ready/empty instead of retrying again.
+  /// retry loops — if OpenFreeMap ALSO fails, the watchdog switches to
+  /// the offline floor style (no external sources) instead of retrying.
   bool _usingOpenFreeMapFallback = false;
 
   /// Phase A: Swaps the cached style JSON to use OpenFreeMap and
@@ -1480,7 +1672,16 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             // cityFallback) from the live location provider so markers
             // get the correct visual treatment. Previously this was an
             // empty map, which meant no LIVE pulse / STALE dimming.
-            if (_styleLoaded && filteredPins.isNotEmpty)
+            //
+            // v5.0 Part 1 Step 3c — DECOUPLED from style load. The gate
+            // is now `_mapController != null` (not `_styleLoaded`) so
+            // family markers render EVEN IF the basemap style fails to
+            // load or its tile source 404s. The overlay only needs the
+            // map controller to project lat/lng → screen, which is
+            // available as soon as `onMapCreated` fires — independent
+            // of style/tile load. This eliminates the "0 members located"
+            // symptom from the v5.0 black-screen incident.
+            if (_mapController != null && filteredPins.isNotEmpty)
               AvatarMarkerOverlay(
                 mapController: _mapController,
                 pins: filteredPins,
@@ -1497,7 +1698,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             // ── P10.4 — Household cluster markers ───────────────────────
             // Rendered as Positioned widgets for clusters with >1 member.
             // Single-member households are rendered by the avatar overlay.
-            if (_styleLoaded && households.any((h) => h.isMulti))
+            // v5.0 Part 1 Step 3c — decoupled from style load (see above).
+            if (_mapController != null && households.any((h) => h.isMulti))
               HouseholdClusterOverlay(
                 mapController: _mapController,
                 households: households.where((h) => h.isMulti).toList(),
