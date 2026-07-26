@@ -229,6 +229,14 @@ jobs:
         run: |
           cat Daxelo-Kinrel-App/.vercel/project.json
           test -f Daxelo-Kinrel-App/.vercel/project.json
+          # Copy .vercel/project.json to repo root so vercel CLI can find it
+          # when run from the repo root. The Vercel project's Root Directory
+          # is set to Daxelo-Kinrel-App — vercel CLI will then look for source
+          # files at <cwd>/Daxelo-Kinrel-App/, which exists.
+          mkdir -p .vercel
+          cp Daxelo-Kinrel-App/.vercel/project.json .vercel/project.json
+          echo "Copied .vercel/project.json to repo root:"
+          cat .vercel/project.json
 
       - name: Deploy production to Vercel (--prod, no PMTILES_URL)
         id: deploy-prod
@@ -251,7 +259,7 @@ jobs:
           # --yes skips all interactive prompts.
           # We capture all output and grep for the deployment URL.
           set +e
-          vercel deploy --prod --yes --token="$VERCEL_TOKEN" --cwd Daxelo-Kinrel-App > /tmp/vercel-prod.log 2>&1
+          vercel deploy --prod --yes --token="$VERCEL_TOKEN" > /tmp/vercel-prod.log 2>&1
           EXIT=$?
           set -e
           echo "=== vercel deploy exit: $EXIT ==="
@@ -290,7 +298,7 @@ jobs:
           # --build-env passes the env var into Vercel's build environment,
           # where vercel-build.sh reads it and passes it as --dart-define.
           set +e
-          vercel deploy --yes --token="$VERCEL_TOKEN" --cwd Daxelo-Kinrel-App \
+          vercel deploy --yes --token="$VERCEL_TOKEN" \
             --build-env PMTILES_URL="$PMTILES_BAD_URL" \
             > /tmp/vercel-staging.log 2>&1
           EXIT=$?
