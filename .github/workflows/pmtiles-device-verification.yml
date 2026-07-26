@@ -189,7 +189,7 @@ jobs:
           SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY
           API_BASE_URL=https://daxelo-kinrel-server.onrender.com
           EOF
-          sed -i 's/^[[:space:]]*//' .env
+          sed -i.bak 's/^[[:space:]]*//' .env && rm -f .env.bak
 
       - name: Enable Flutter native assets + install deps
         working-directory: Daxelo-Kinrel-App
@@ -341,7 +341,7 @@ jobs:
           SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY
           API_BASE_URL=https://daxelo-kinrel-server.onrender.com
           EOF
-          sed -i 's/^[[:space:]]*//' .env
+          sed -i.bak 's/^[[:space:]]*//' .env && rm -f .env.bak
 
       - name: Install dependencies + build_runner
         working-directory: Daxelo-Kinrel-App
