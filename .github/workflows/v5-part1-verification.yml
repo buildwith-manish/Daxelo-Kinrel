@@ -203,12 +203,13 @@ jobs:
           retention-days: 7
 
   # ───────────────────────────────────────────────────────────────
-  # Job 4: Deploy both builds to Vercel
+  # Job 4: Deploy both builds to Vercel (from source, letting Vercel
+  # build via vercel-build.sh which already supports optional PMTILES_URL)
   # ───────────────────────────────────────────────────────────────
   deploy-vercel:
     name: Deploy to Vercel
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     needs: [build-production, build-staging]
     outputs:
       production_url: ${{ steps.deploy-prod.outputs.url }}
@@ -224,84 +225,85 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
-      - name: Download production build
-        uses: actions/download-artifact@v4
-        with:
-          name: web-build-production
-          path: ./prod-deploy/build/web
-
-      - name: Download staging build
-        uses: actions/download-artifact@v4
-        with:
-          name: web-build-staging
-          path: ./staging-deploy/build/web
-
-      - name: Copy vercel.json to both deploy dirs
+      - name: Verify .vercel/project.json exists
         run: |
-          cp Daxelo-Kinrel-App/vercel.json prod-deploy/
-          cp Daxelo-Kinrel-App/vercel.json staging-deploy/
-          # Disable build/install commands — we already have build output
-          # Override the framework to null and remove build commands
-          for dir in prod-deploy staging-deploy; do
-            python3 -c "
-            import json
-            with open('$dir/vercel.json') as f:
-              cfg = json.load(f)
-            cfg['buildCommand'] = None
-            cfg['installCommand'] = None
-            cfg['outputDirectory'] = 'build/web'
-            with open('$dir/vercel.json', 'w') as f:
-              json.dump(cfg, f, indent=2)
-            "
-          done
-          echo "=== prod-deploy/vercel.json ==="
-          cat prod-deploy/vercel.json
-          echo ""
-          echo "=== staging-deploy/vercel.json ==="
-          cat staging-deploy/vercel.json
+          cat Daxelo-Kinrel-App/.vercel/project.json
+          test -f Daxelo-Kinrel-App/.vercel/project.json
 
-      - name: Deploy production to Vercel
+      - name: Deploy production to Vercel (--prod, no PMTILES_URL)
         id: deploy-prod
-        working-directory: ./prod-deploy
+        working-directory: Daxelo-Kinrel-App
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_TEAM_ID }}
           VERCEL_PROJECT_ID: ${{ env.VERCEL_PROJECT_ID }}
         run: |
-          echo "=== Deploying production to Vercel ==="
-          # Write .vercel/project.json so vercel CLI knows the project
-          mkdir -p .vercel
-          cat > .vercel/project.json << EOF
-          {"projectId":"$VERCEL_PROJECT_ID","orgId":"$VERCEL_ORG_ID"}
-          EOF
+          echo "=== Deploying production to Vercel (--prod) ==="
+          echo "Existing .vercel/project.json:"
+          cat .vercel/project.json
+          echo ""
           # Deploy as production deployment (--prod)
-          URL=$(vercel deploy --prod --yes --token="$VERCEL_TOKEN" 2>&1 | tee /tmp/vercel-prod.log | grep -oE 'https://[a-z0-9-]+\.vercel\.app' | head -1)
-          if [ -z "$URL" ]; then
+          # Vercel will run vercel-install.sh + vercel-build.sh (which detects
+          # PMTILES_URL is unset and uses OpenFreeMap default).
+          # --yes skips all interactive prompts.
+          # We capture all output and grep for the deployment URL.
+          set +e
+          vercel deploy --prod --yes --token="$VERCEL_TOKEN" > /tmp/vercel-prod.log 2>&1
+          EXIT=$?
+          set -e
+          echo "=== vercel deploy exit: $EXIT ==="
+          echo "=== Full log: ==="
+          cat /tmp/vercel-prod.log
+          if [ $EXIT -ne 0 ]; then
             echo "=== ❌ Vercel production deploy failed ==="
-            cat /tmp/vercel-prod.log
+            exit 1
+          fi
+          # The URL is typically the last non-empty line of output
+          URL=$(grep -oE 'https://[a-z0-9-]+\.vercel\.app' /tmp/vercel-prod.log | head -1)
+          if [ -z "$URL" ]; then
+            # Try alternate URL pattern (custom domain or daxelo-kinrel.vercel.app)
+            URL=$(grep -oE 'https://[a-z0-9.-]+\.(vercel\.app|daxelo-kinrel\.dev)' /tmp/vercel-prod.log | head -1)
+          fi
+          if [ -z "$URL" ]; then
+            echo "=== ❌ Could not extract URL from vercel output ==="
             exit 1
           fi
           echo "✅ Production deployed: $URL"
           echo "url=$URL" >> $GITHUB_OUTPUT
 
-      - name: Deploy staging to Vercel (preview, not promoted)
+      - name: Deploy staging to Vercel (preview, with bad PMTILES_URL)
         id: deploy-staging
-        working-directory: ./staging-deploy
+        working-directory: Daxelo-Kinrel-App
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_TEAM_ID }}
           VERCEL_PROJECT_ID: ${{ env.VERCEL_PROJECT_ID }}
+          PMTILES_BAD_URL: ${{ env.PMTILES_BAD_URL }}
         run: |
           echo "=== Deploying staging to Vercel (preview) ==="
-          mkdir -p .vercel
-          cat > .vercel/project.json << EOF
-          {"projectId":"$VERCEL_PROJECT_ID","orgId":"$VERCEL_ORG_ID"}
-          EOF
+          echo "Passing --build-env PMTILES_URL=$PMTILES_BAD_URL to vercel-build.sh"
           # Preview deployment (no --prod) — gets a unique URL
-          URL=$(vercel deploy --yes --token="$VERCEL_TOKEN" 2>&1 | tee /tmp/vercel-staging.log | grep -oE 'https://[a-z0-9-]+\.vercel\.app' | head -1)
-          if [ -z "$URL" ]; then
+          # --build-env passes the env var into Vercel's build environment,
+          # where vercel-build.sh reads it and passes it as --dart-define.
+          set +e
+          vercel deploy --yes --token="$VERCEL_TOKEN" \
+            --build-env PMTILES_URL="$PMTILES_BAD_URL" \
+            > /tmp/vercel-staging.log 2>&1
+          EXIT=$?
+          set -e
+          echo "=== vercel deploy exit: $EXIT ==="
+          echo "=== Full log: ==="
+          cat /tmp/vercel-staging.log
+          if [ $EXIT -ne 0 ]; then
             echo "=== ❌ Vercel staging deploy failed ==="
-            cat /tmp/vercel-staging.log
+            exit 1
+          fi
+          URL=$(grep -oE 'https://[a-z0-9-]+\.vercel\.app' /tmp/vercel-staging.log | head -1)
+          if [ -z "$URL" ]; then
+            URL=$(grep -oE 'https://[a-z0-9.-]+\.(vercel\.app|daxelo-kinrel\.dev)' /tmp/vercel-staging.log | head -1)
+          fi
+          if [ -z "$URL" ]; then
+            echo "=== ❌ Could not extract URL from vercel output ==="
             exit 1
           fi
           echo "✅ Staging deployed: $URL"
