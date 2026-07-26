@@ -74,18 +74,22 @@ echo "=== Running flutter build web --release ==="
 # a deliberately bad URL for fallback-chain testing), it's passed to
 # Flutter as --dart-define. When unset, the app uses the OpenFreeMap
 # default baked into kinrel_dark_style.json (no PMTiles).
-BUILD_ARGS=(build web --release --base-href "/")
 if [ -n "$PMTILES_URL" ]; then
   echo "  PMTILES_URL env var set — passing as --dart-define"
-  BUILD_ARGS+=("--dart-define=PMTILES_URL=$PMTILES_URL")
+  set +e
+  flutter build web --release --base-href "/" \
+    --dart-define=PMTILES_URL="$PMTILES_URL" \
+    > /tmp/flutter_build.log 2>&1
+  BUILD_EXIT_CODE=$?
+  set -e
 else
   echo "  PMTILES_URL env var NOT set — using OpenFreeMap default (no PMTiles)"
+  set +e
+  flutter build web --release --base-href "/" \
+    > /tmp/flutter_build.log 2>&1
+  BUILD_EXIT_CODE=$?
+  set -e
 fi
-set +e
-flutter build web "${BUILD_ARGS[@]}" \
-  > /tmp/flutter_build.log 2>&1
-BUILD_EXIT_CODE=$?
-set -e
 
 if [ $BUILD_EXIT_CODE -ne 0 ]; then
   echo ""
