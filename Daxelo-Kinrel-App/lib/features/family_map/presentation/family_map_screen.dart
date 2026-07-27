@@ -351,8 +351,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // BEFORE MapLibre ever tries to fetch tiles. If the probe fails, we
       // immediately swap to OpenFreeMap — no 10s watchdog wait.
       //
-      // See `worklog.md` task v5.0-part1 for the full root-cause analysis of
-      // the pre-v5.0 black-screen incident.
+      // See `docs/PRODUCTION_VERIFICATION_v5.0.md` for the full root-cause
+      // analysis of the pre-v5.0 black-screen incident.
       final probed = await _probeAndPatchPmtilesSource(raw);
       // Phase B v1.0: apply MapQualityTier — hides the warm-glow duplicate
       // extrusion layer on low-tier devices (2x draw-call cost is too high
@@ -422,8 +422,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// Pre-v5.0 history: this constant defaulted to
   /// `http://localhost:8080/mumbai.pmtiles`, which leaked the dev
   /// default into production builds and caused the v5.0 Part 1
-  /// black-screen incident. See `worklog.md` task v5.0-part1 for the
-  /// full root-cause analysis.
+  /// black-screen incident. See `docs/PRODUCTION_VERIFICATION_v5.0.md`
+  /// for the full root-cause analysis.
   static const _kPmtilesSourceUrl =
       String.fromEnvironment('PMTILES_URL', defaultValue: '');
 
@@ -513,8 +513,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// discoverable via the TileJSON endpoint. The direct template
   /// resolved to 200 + 0 bytes (`x-ofm-debug: empty tile`) for every
   /// tile request — causing the v7.0 black-screen-at-high-zoom
-  /// incident. See `worklog.md` task v7.0 for the full root-cause
-  /// analysis.
+  /// incident. See `docs/PRODUCTION_VERIFICATION_v7.0.md` for the full
+  /// root-cause analysis.
   String _applyOpenFreeMapFallback(String styleJson) {
     try {
       final decoded = jsonDecode(styleJson) as Map<String, dynamic>;

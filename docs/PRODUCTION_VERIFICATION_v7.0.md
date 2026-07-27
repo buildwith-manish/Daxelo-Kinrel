@@ -137,7 +137,7 @@ Targeted at the confirmed root cause only. No speculative rewrite.
 - [x] Live production URL screenshot captured (auth-gated to /sign-in — see `03-postfix-state.png`)
 - [x] Vector tile path verified: 343 KB real data at Manhattan z=14 (was 0 bytes pre-fix)
 - [x] Console on the live URL shows no uncaught exceptions after the fix
-- [x] `worklog.md` reference resolved (worklog.md at repo root is the target; comment clarified)
+- [x] `worklog.md` reference resolved — `pmtiles/config/sources.json` and `family_map_screen.dart` no longer point at the (gitignored, sandbox-local) `worklog.md`; they now point at the in-repo `docs/PRODUCTION_VERIFICATION_v5.0.md` / `v6.0.md` / `v7.0.md` triple. (The `worklog.md` line in `.gitignore` is preserved because it is the sandbox-local agent worklog per convention, not a repo artifact.)
 
 ## Files changed
 
