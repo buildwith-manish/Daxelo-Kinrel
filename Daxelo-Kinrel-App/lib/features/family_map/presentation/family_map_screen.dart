@@ -276,6 +276,37 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// Family-building layers are added programmatically after style load.
   static const _kLightStyleUrl = 'https://tiles.openfreemap.org/styles/liberty';
 
+  /// v9.1 — OpenFreeMap hosted DARK style URL.
+  ///
+  /// Used as the PRIMARY style on web to bypass all asset-caching issues.
+  /// The bundled `kinrel_dark_style.json` asset is served with
+  /// `Cache-Control: max-age=31536000, immutable` by Vercel — meaning
+  /// browsers cache it for 1 year and won't re-fetch even after a fix
+  /// is deployed. This caused the v9.0 fix (fontstack patch) to not
+  /// reach users whose browsers had already cached the OLD broken style.
+  ///
+  /// By using the remote URL instead, MapLibre fetches the style fresh
+  /// on every app load (the OpenFreeMap CDN sends appropriate
+  /// cache-control headers that allow revalidation). The OpenFreeMap
+  /// hosted dark style already has:
+  ///   - Correct TileJSON source URL (v7.0 fix) ✅
+  ///   - Single-font stacks (v9.0 fix) ✅
+  ///   - Same glyphs endpoint ✅
+  ///   - Same sprite ✅
+  ///
+  /// The Kinrel-specific customizations (warm-glow building extrusion,
+  /// family-places source, family-buildings layers) are added
+  /// programmatically in [_onStyleLoaded] via [_ensureFamilyPlacesLayers]
+  /// — they don't depend on the bundled JSON.
+  ///
+  /// On native (Android/iOS), the bundled style JSON is still used
+  /// because:
+  ///   1. Native apps bundle assets in the APK/IPA — no caching issue
+  ///   2. Native apps may need offline support (bundled style works
+  ///      offline, remote URL doesn't)
+  ///   3. The bundled style is already patched (v9.0) ✅
+  static const _kDarkStyleUrl = 'https://tiles.openfreemap.org/styles/dark';
+
   /// Whether the user has selected light map theme. Loaded from
   /// SharedPreferences in initState. Toggled via the AppBar sun/moon button.
   bool _isLightMap = false;
@@ -303,19 +334,15 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   ///   • LIGHT MODE (Snapchat-style): use OpenFreeMap liberty style URL.
   ///     Clean, light, social — white base, pastel water, light parks.
   ///     Family-buildings layers added programmatically after load.
-  ///   • DARK MODE (Kinrel premium): use the bundled kinrel_dark_style.json.
+  ///   • DARK MODE on WEB (v9.1): use OpenFreeMap hosted dark style URL.
+  ///     This bypasses the Vercel immutable-asset cache that was serving
+  ///     the OLD broken style JSON to users even after the v9.0 fix was
+  ///     deployed. The hosted URL is always fresh and already has correct
+  ///     single-font stacks + TileJSON source.
+  ///   • DARK MODE on NATIVE: use the bundled kinrel_dark_style.json.
   ///     Dark, cinematic, immersive — matches the rest of the Kinrel app.
-  ///     Family-buildings layers are already in the JSON.
-  ///   • WEB + NATIVE: dark mode loads the bundled JSON via rootBundle
-  ///     and patches it (PMTiles probe, POI filters, quality tier) BEFORE
-  ///     handing it to MapLibre. This is the v6.0 fix — the pre-v6.0 web
-  ///     path passed a bare asset path string to MapLibreMap.initStyle,
-  ///     but Flutter web serves pubspec assets at `assets/assets/...`
-  ///     (double prefix), so MapLibre's fetch returned HTTP 404 and the
-  ///     style never loaded. rootBundle.loadString resolves the asset
-  ///     key correctly on both web and native, and lets the v5.0
-  ///     fallback chain (probe + OpenFreeMap fallback + offline floor)
-  ///     actually run on web (previously bypassed by the early return).
+  ///     Family-buildings layers are already in the JSON. The bundled
+  ///     JSON is patched (v9.0) and has no caching issue on native.
   ///   • Light mode passes the URL directly to MapLibre on all platforms.
   Future<String> _loadStyleJson() async {
     if (_loadedStyleJson != null) return _loadedStyleJson!;
@@ -327,7 +354,16 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       return _loadedStyleJson!;
     }
 
-    // ── DARK MODE: Kinrel premium (web + native — unified path) ───
+    // ── DARK MODE on WEB: use hosted URL (v9.1) ───────────────────
+    // Bypasses the Vercel immutable-asset cache. See _kDarkStyleUrl docs.
+    if (kIsWeb) {
+      debugPrint('🌙 FamilyMap v9.1: using hosted dark style URL on web '
+          '(bypasses Vercel immutable asset cache): $_kDarkStyleUrl');
+      _loadedStyleJson = _kDarkStyleUrl;
+      return _loadedStyleJson!;
+    }
+
+    // ── DARK MODE on NATIVE: bundled Kinrel premium JSON ──────────
     // v6.0: previously web returned the bare asset path string here,
     // which 404'd on Vercel because Flutter web serves pubspec assets
     // at `assets/assets/...`. rootBundle.loadString handles the asset
@@ -1554,6 +1590,15 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     if (currentStyle != null && !currentStyle.startsWith('http')) {
       // Cached JSON string — patch in place.
       _loadedStyleJson = _applyOpenFreeMapFallback(currentStyle);
+    } else if (currentStyle != null && currentStyle.startsWith('http')) {
+      // v9.1: Style was a URL (e.g. _kDarkStyleUrl on web). The URL
+      // itself IS the OpenFreeMap fallback — if it timed out, the
+      // network is likely down. Skip directly to the offline floor
+      // style (dark background + family markers, no external sources).
+      debugPrint('⚠️ FamilyMap v9.1: URL style timed out — '
+          'switching directly to offline floor (network likely down)');
+      _usingOfflineFloor = true;
+      _loadedStyleJson = _kOfflineFloorStyleJson;
     } else {
       // No cached JSON (e.g. asset load failed entirely) — force
       // _loadStyleJson to re-run, which will use _kFallbackStyleJson
