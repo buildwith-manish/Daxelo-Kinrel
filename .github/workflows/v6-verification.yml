@@ -279,12 +279,15 @@ jobs:
           # to be set when deploying to a custom project. Read them from the
           # committed .vercel/project.json (so they don't have to be duplicated
           # as GitHub secrets).
-        working-directory: Daxelo-Kinrel-App
+        # NOTE: NOT using working-directory: Daxelo-Kinrel-App here because the
+        # Vercel project is configured with rootDirectory = "Daxelo-Kinrel-App".
+        # Running from repo root lets Vercel CLI apply the project's rootDirectory
+        # setting itself — running from inside Daxelo-Kinrel-App caused
+        # "path Daxelo-Kinrel-App/Daxelo-Kinrel-App does not exist".
         run: |
           set -eo pipefail
           echo "Deploying to Vercel production..."
-          # Read projectId + orgId from the committed .vercel/project.json
-          # (the file is checked into the repo at Daxelo-Kinrel-App/.vercel/project.json)
+          # Read projectId + orgId from the committed .vercel/project.json at repo root
           export VERCEL_PROJECT_ID=$(jq -r .projectId .vercel/project.json)
           export VERCEL_ORG_ID=$(jq -r .orgId .vercel/project.json)
           echo "  VERCEL_PROJECT_ID=$VERCEL_PROJECT_ID"
