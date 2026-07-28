@@ -130,8 +130,10 @@ jobs:
 
           # 2. _applyOpenFreeMapFallback must return _kOfflineFloorStyleJson on jsonDecode failure
           #    (not the original input, which was the pre-v6.0 silent-no-op bug)
-          fallback_catch = r"catch \(e\)\s*\{[^}]*return _kOfflineFloorStyleJson[^}]*\}"
-          if not re.search(fallback_catch, src, re.DOTALL):
+          #    Note: the catch block may contain ${...} string interpolations with `}` chars,
+          #    so we use a greedy dot-all match bounded by `catch (e)` and the next `return _kOfflineFloorStyleJson`.
+          fallback_catch = r"catch \(e\)\s*\{[\s\S]*?return _kOfflineFloorStyleJson[\s\S]*?\}"
+          if not re.search(fallback_catch, src):
               errors.append(
                   "REGRESSION: _applyOpenFreeMapFallback catch block must `return _kOfflineFloorStyleJson` "
                   "on jsonDecode failure (not the original input string)."
@@ -153,6 +155,9 @@ jobs:
               errors.append("REGRESSION: web/index.html must reference pmtiles@3.1.0/dist/pmtiles.js (or higher 3.x)")
 
           # 5. Style JSON must NOT use pmtiles:// protocol (v5.0 Part 1 mitigation)
+          #    v7.0: source must use EITHER a `tiles` array (direct template)
+          #    OR a `url` field (TileJSON endpoint — the v7.0 fix that
+          #    replaced the broken direct-template pattern).
           import json
           with open('Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json') as f:
               style = json.load(f)
@@ -161,13 +166,17 @@ jobs:
               errors.append("REGRESSION: kinrel_dark_style.json openmaptiles source still uses pmtiles:// protocol")
           if '{{PMTILES_URL}}' in str(src_def):
               errors.append("REGRESSION: kinrel_dark_style.json openmaptiles source still has {{PMTILES_URL}} placeholder")
-          if 'tiles' not in src_def:
-              errors.append("REGRESSION: kinrel_dark_style.json openmaptiles source missing 'tiles' array")
+          if 'tiles' not in src_def and 'url' not in src_def:
+              errors.append("REGRESSION: kinrel_dark_style.json openmaptiles source missing both 'tiles' array and 'url' field (need at least one)")
 
-          # 6. worklog.md must exist (referenced by sources.json)
+          # 6. v7.0: worklog.md reference resolved — sources.json now points at
+          #    docs/PRODUCTION_VERIFICATION_v{5,6,7}.0.md (in-repo) instead of
+          #    the sandbox-local worklog.md. Verify those docs exist.
           import os
-          if not os.path.exists('pmtiles/docs/worklog.md'):
-              errors.append("REGRESSION: pmtiles/docs/worklog.md missing (referenced by sources.json)")
+          for ver in ['v5.0', 'v6.0', 'v7.0']:
+              doc_path = f'docs/PRODUCTION_VERIFICATION_{ver}.md'
+              if not os.path.exists(doc_path):
+                  errors.append(f"REGRESSION: {doc_path} missing (referenced by sources.json as the v7.0 incident-history triple)")
 
           if errors:
               print("❌ v6.0 invariant validation FAILED:")

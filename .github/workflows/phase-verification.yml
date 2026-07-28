@@ -163,14 +163,27 @@ jobs:
           else:
               print(f"✓ Layer count = {n_layers} (Phase A/B scope respected)")
 
-          # 2. Sources must include openmaptiles with pmtiles:// URL
+          # 2. Sources must include openmaptiles with a valid tile source URL.
+          #    v7.0: the default bundled style uses the OpenFreeMap TileJSON endpoint
+          #    (https://tiles.openfreemap.org/planet) — NOT pmtiles://. PMTiles is
+          #    opt-in via --dart-define=PMTILES_URL=... and is patched in at runtime.
+          #    Accept either pattern.
           sources = style.get("sources", {})
           omt = sources.get("openmaptiles", {})
           url = omt.get("url", "")
-          if "pmtiles://" not in url:
-              errors.append(f"openmaptiles source URL must use pmtiles:// prefix, got: {url!r}")
+          tiles = omt.get("tiles", [])
+          valid_pmtiles = "pmtiles://" in url
+          valid_openfreemap = "tiles.openfreemap.org/planet" in url
+          valid_tiles_array = any("tiles.openfreemap.org" in t for t in tiles)
+          if not (valid_pmtiles or valid_openfreemap or valid_tiles_array):
+              errors.append(f"openmaptiles source must use pmtiles:// URL, OpenFreeMap TileJSON URL, or OpenFreeMap tiles array. Got url={url!r}, tiles={tiles!r}")
           else:
-              print(f"✓ openmaptiles source uses pmtiles:// prefix")
+              if valid_pmtiles:
+                  print(f"✓ openmaptiles source uses pmtiles:// prefix (PMTiles opt-in mode)")
+              elif valid_openfreemap:
+                  print(f"✓ openmaptiles source uses OpenFreeMap TileJSON endpoint (v7.0 default)")
+              else:
+                  print(f"✓ openmaptiles source uses OpenFreeMap tiles array")
 
           # 3. Attribution must be present
           attr = omt.get("attribution", "")
