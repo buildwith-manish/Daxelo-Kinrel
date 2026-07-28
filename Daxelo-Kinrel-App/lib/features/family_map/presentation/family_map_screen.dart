@@ -360,12 +360,86 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // No-op for mid/high tiers (returns input unchanged).
       final qualityPatched =
           MapQualityTierController.instance.applyToStyleJson(probed);
-      _loadedStyleJson = applyPoiFilters(qualityPatched);
+      // v9.0: patch multi-script fontstacks to single-font stacks.
+      // OpenFreeMap's font server returns 404 for combined fontstacks
+      // (e.g. "Noto Sans Regular,Noto Sans Devanagari Regular,Noto Sans
+      // Arabic Regular,Noto Sans SC Regular"). The single-font PBF
+      // (e.g. "Noto Sans Regular") is itself a composite that already
+      // contains Latin + Devanagari + Arabic + CJK + Bengali + Tamil +
+      // etc. — so the multi-script stacks were redundant AND broken.
+      // Without this patch, MapLibre silently renders a BLANK canvas:
+      // style.load fires, idle fires, but no layers paint. Verified via
+      // A/B test (scripts/v9_fontstack_ab_test_v2.mjs) — production
+      // style renders 8KB blank, patched style renders 575KB basemap.
+      final fontPatched = _patchFontstacks(qualityPatched);
+      _loadedStyleJson = applyPoiFilters(fontPatched);
     } catch (e) {
       debugPrint('⚠️ _loadStyleJson failed, using inline fallback: $e');
       _loadedStyleJson = _kFallbackStyleJson;
     }
     return _loadedStyleJson!;
+  }
+
+  /// v9.0 — Defensive runtime patch for multi-script fontstacks.
+  ///
+  /// Replaces every `layout.text-font` array that has more than one
+  /// entry with just the first entry. This is required because:
+  ///
+  ///   1. OpenFreeMap's font server at `https://tiles.openfreemap.org/fonts/`
+  ///      returns HTTP 404 for combined fontstacks (comma-separated in the
+  ///      URL path). Verified:
+  ///        200: /fonts/Noto%20Sans%20Regular/0-255.pbf (76 KB PBF)
+  ///        404: /fonts/Noto%20Sans%20Regular,Noto%20Sans%20Devanagari%20Regular,.../0-255.pbf
+  ///
+  ///   2. The single-font PBF returned by the server is itself a COMPOSITE
+  ///      fontstack — it already contains Latin, Devanagari, Arabic, CJK
+  ///      (Traditional), Bengali, Gurmukhi, Gujarati, Kannada, Malayalam,
+  ///      Tamil, Telugu, Thai, Lao, Khmer, Myanmar, Hebrew, Georgian,
+  ///      Armenian, Ethiopic, Mongolian, Javanese, Balinese, and more.
+  ///      So the multi-script fontstacks were redundant.
+  ///
+  ///   3. When MapLibre GL JS 5.6.0 encounters a 404 on a fontstack fetch,
+  ///      it does NOT just drop the labels — it silently fails to render
+  ///      the ENTIRE map canvas. The style.load event still fires, the
+  ///      idle event still fires, sourcedata events fire for every source,
+  ///      but no layers actually paint. The result is a blank dark canvas
+  ///      with only the attribution control visible — which the user
+  ///      perceives as "the map is broken/blank".
+  ///
+  /// This patch is applied defensively at runtime so that ANY future
+  /// style JSON with multi-script fontstacks (e.g. a new map theme, or
+  /// an unpatched asset shipped by mistake) is automatically fixed.
+  /// The bundled `kinrel_dark_style.json` asset was also patched in the
+  /// same commit, so this runtime patch is a belt-and-suspenders measure.
+  ///
+  /// Returns the input unchanged on any parse error (Rule 12).
+  String _patchFontstacks(String styleJson) {
+    try {
+      final decoded = jsonDecode(styleJson);
+      if (decoded is! Map<String, dynamic>) return styleJson;
+      final layers = decoded['layers'];
+      if (layers is! List) return styleJson;
+      int patched = 0;
+      for (final layer in layers) {
+        if (layer is! Map<String, dynamic>) continue;
+        final layout = layer['layout'];
+        if (layout is! Map<String, dynamic>) continue;
+        final tf = layout['text-font'];
+        if (tf is! List || tf.length <= 1) continue;
+        layout['text-font'] = [tf[0]];
+        patched++;
+      }
+      if (patched > 0) {
+        debugPrint('🔤 FamilyMap v9.0: patched $patched multi-script '
+            'fontstack(s) to single-font (OpenFreeMap font server returns '
+            '404 for combined fontstacks — see v9.0 root cause analysis)');
+        return jsonEncode(decoded);
+      }
+      return styleJson;
+    } catch (e) {
+      // Rule 12: graceful degradation — return the input unchanged.
+      return styleJson;
+    }
   }
 
   /// v5.0 Part 1 Step 3b — Hard fallback floor.

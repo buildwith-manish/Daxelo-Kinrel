@@ -4352,10 +4352,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Italic"
         ],
         "text-letter-spacing": 0.2,
         "text-max-width": 5,
@@ -4417,10 +4414,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Italic"
         ],
         "text-letter-spacing": 0.2,
         "text-max-width": 5,
@@ -4496,10 +4490,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Italic"
         ],
         "text-letter-spacing": 0.2,
         "text-max-width": 5,
@@ -4593,10 +4584,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Italic"
         ],
         "text-max-width": 9,
         "text-offset": [
@@ -4701,10 +4689,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Italic"
         ],
         "text-max-width": 9,
         "text-offset": [
@@ -4809,10 +4794,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Italic"
         ],
         "text-max-width": 9,
         "text-offset": [
@@ -4888,10 +4870,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Italic"
         ],
         "text-max-width": 9,
         "text-offset": [
@@ -4954,10 +4933,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Regular"
         ],
         "text-rotation-alignment": "map",
         "text-size": [
@@ -5049,10 +5025,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Regular"
         ],
         "text-rotation-alignment": "map",
         "text-size": [
@@ -5130,10 +5103,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Regular"
         ],
         "text-rotation-alignment": "map",
         "text-size": [
@@ -5229,10 +5199,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Regular"
         ],
         "text-rotation-alignment": "viewport",
         "text-size": 10
@@ -5315,10 +5282,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Regular"
         ],
         "text-rotation-alignment": "viewport",
         "text-size": 10
@@ -5400,10 +5364,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Regular"
         ],
         "text-rotation-alignment": "viewport",
         "text-size": 10
@@ -5458,10 +5419,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Regular"
         ],
         "text-max-width": 9,
         "text-offset": [
@@ -5534,10 +5492,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Italic"
         ],
         "text-letter-spacing": 0.1,
         "text-max-width": 9,
@@ -5626,10 +5581,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Regular"
         ],
         "text-max-width": 8,
         "text-size": [
@@ -5717,10 +5669,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Regular"
         ],
         "text-max-width": 8,
         "text-size": [
@@ -5796,10 +5745,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Italic"
         ],
         "text-letter-spacing": 0.2,
         "text-max-width": 9,
@@ -5899,10 +5845,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular",
-          "Noto Sans Devanagari Regular",
-          "Noto Sans Arabic Regular",
-          "Noto Sans SC Regular"
+          "Noto Sans Regular"
         ],
         "text-max-width": 8,
         "text-offset": [
@@ -6007,10 +5950,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Bold",
-          "Noto Sans Devanagari Bold",
-          "Noto Sans Arabic Bold",
-          "Noto Sans SC Bold"
+          "Noto Sans Bold"
         ],
         "text-max-width": 8,
         "text-offset": [
@@ -6103,10 +6043,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Bold",
-          "Noto Sans Devanagari Bold",
-          "Noto Sans Arabic Bold",
-          "Noto Sans SC Bold"
+          "Noto Sans Bold"
         ],
         "text-max-width": 6.25,
         "text-size": [
@@ -6193,10 +6130,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Bold",
-          "Noto Sans Devanagari Bold",
-          "Noto Sans Arabic Bold",
-          "Noto Sans SC Bold"
+          "Noto Sans Bold"
         ],
         "text-max-width": 6.25,
         "text-size": [
@@ -6283,10 +6217,7 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Bold",
-          "Noto Sans Devanagari Bold",
-          "Noto Sans Arabic Bold",
-          "Noto Sans SC Bold"
+          "Noto Sans Bold"
         ],
         "text-max-width": 6.25,
         "text-size": [
