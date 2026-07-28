@@ -146,13 +146,23 @@ jobs:
           # 4. pmtiles CDN URL must be 3.1.0 (3.0.0 404s on dist/pmtiles.js)
           with open('Daxelo-Kinrel-App/web/index.html') as f:
               html = f.read()
-          if 'pmtiles@3.0.0' in html:
+          # Look for pmtiles@3.0.0 ONLY in <script src> or .src = lines (actual
+          # runtime references), not in comments that describe the v6.0 bug
+          # (e.g. "curl https://cdn.jsdelivr.net/npm/pmtiles@3.0.0/dist/pmtiles.js → 404"
+          # is documentation, not a runtime reference).
+          import re as _re
+          runtime_pmtiles_refs = _re.findall(
+              r'(?:src\s*=|\.src\s*=)\s*["\']([^"\']*pmtiles@\d+\.\d+\.\d+[^"\']*)["\']',
+              html
+          )
+          bad_runtime_refs = [r for r in runtime_pmtiles_refs if 'pmtiles@3.0.0' in r]
+          if bad_runtime_refs:
               errors.append(
-                  "REGRESSION: web/index.html still references pmtiles@3.0.0 — "
-                  "that version does NOT ship dist/pmtiles.js (returns HTTP 404). Use 3.1.0+."
+                  f"REGRESSION: web/index.html has runtime <script src>/.src reference(s) to pmtiles@3.0.0 — "
+                  f"that version does NOT ship dist/pmtiles.js (returns HTTP 404). Use 3.1.0+. Refs: {bad_runtime_refs}"
               )
-          if 'pmtiles@3.1.0/dist/pmtiles.js' not in html:
-              errors.append("REGRESSION: web/index.html must reference pmtiles@3.1.0/dist/pmtiles.js (or higher 3.x)")
+          if not any('pmtiles@3.1.0/dist/pmtiles.js' in r for r in runtime_pmtiles_refs):
+              errors.append("REGRESSION: web/index.html must reference pmtiles@3.1.0/dist/pmtiles.js (or higher 3.x) in a <script src> or .src =")
 
           # 5. Style JSON must NOT use pmtiles:// protocol (v5.0 Part 1 mitigation)
           #    v7.0: source must use EITHER a `tiles` array (direct template)
