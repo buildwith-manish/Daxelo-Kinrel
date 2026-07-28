@@ -24,6 +24,7 @@
 
 import 'dart:async';
 import 'dart:convert' show jsonDecode, jsonEncode;
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle, HapticFeedback;
@@ -150,7 +151,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// P11.x — Current camera pitch (degrees), tracked on camera move events.
   /// Drives the atmospheric perspective overlay opacity (linear fade
   /// top-down when pitch > 10° per master prompt).
-  double _currentPitch = 0.0;
+  ///
+  /// v10 — initialized to [MapVisualConstants.defaultPitch] (50°) since
+  /// the map now loads at pitch 50° by default. Previously initialized
+  /// to 0° because the map used to load flat.
+  double _currentPitch = MapVisualConstants.defaultPitch;
 
   /// P10.3 — Premium avatar markers. Owns the SymbolLayer vs Flutter
   /// overlay decision (Rule 12 fallback) and the marker image cache.
@@ -408,7 +413,15 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // A/B test (scripts/v9_fontstack_ab_test_v2.mjs) — production
       // style renders 8KB blank, patched style renders 575KB basemap.
       final fontPatched = _patchFontstacks(qualityPatched);
-      _loadedStyleJson = applyPoiFilters(fontPatched);
+      // v10 — Inject the family-proximity buffer geometry into the new
+      // `kinrel-3d-buildings-family-proximity-glow` layer's `within` filter.
+      // We try to fetch the family-places data NOW (with a short timeout)
+      // so the proximity glow is visible from the first paint. If the data
+      // isn't ready yet (slow network), we fall back to an empty buffer —
+      // the proximity glow won't show until the next style reload, but the
+      // map still loads promptly. See [_injectFamilyProximityBuffer] docs.
+      final proximityPatched = await _injectFamilyProximityBuffer(fontPatched);
+      _loadedStyleJson = applyPoiFilters(proximityPatched);
     } catch (e) {
       debugPrint('⚠️ _loadStyleJson failed, using inline fallback: $e');
       _loadedStyleJson = _kFallbackStyleJson;
@@ -476,6 +489,143 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // Rule 12: graceful degradation — return the input unchanged.
       return styleJson;
     }
+  }
+
+  /// v10 — Injects the family-proximity buffer geometry into the new
+  /// `kinrel-3d-buildings-family-proximity-glow` layer's `within` filter.
+  ///
+  /// The proximity glow layer (added to the bundled style JSON in v10) uses
+  /// a MapLibre `["within", <geometry>]` filter expression to re-color any
+  /// OSM building whose footprint lies entirely inside the given geometry.
+  /// We build that geometry as a MultiPolygon of ~150m buffer circles
+  /// (16-gons) around each family-place coordinate, so the layer visually
+  /// marks "this is my family's street" with a warm amber wash on every
+  /// building within ~150m of a family place.
+  ///
+  /// Implementation notes:
+  ///   - MapLibre GL JS 5.x supports the `within` expression in filter
+  ///     position. The `<geometry>` operand must be a literal GeoJSON
+  ///     geometry (NOT a source reference) — so we MUST bake the buffer
+  ///     polygon into the style JSON at parse time. This is why the
+  ///     injection happens here in `_loadStyleJson`, not at runtime via
+  ///     setFilter (which maplibre 0.3.5 doesn't expose anyway).
+  ///   - The `within` predicate requires features to be ENTIRELY inside
+  ///     the geometry. Buildings straddling the 150m boundary won't
+  ///     match — for typical OSM building footprints (<50m wide) this
+  ///     is fine. If straddling becomes visible in testing, bump
+  ///     [MapVisualConstants.proximityGlowRadiusMeters] slightly.
+  ///   - We use the latitude-corrected meters→degrees conversion:
+  ///       1° latitude  ≈ 111_000 m  (constant)
+  ///       1° longitude ≈ 111_000 * cos(lat) m  (varies with latitude)
+  ///     so the buffer is a true 150m circle on the ground, not an
+  ///     ellipse that stretches at high latitudes.
+  ///   - If the family-places data isn't available yet (familyMapProvider
+  ///     still resolving), we use an empty MultiPolygon — the proximity
+  ///     layer's filter matches nothing, so it's a no-op. The family
+  ///     marker pins still render via the separate `family-buildings-*`
+  ///     layers (which use a runtime-updated GeoJSON source, not a
+  ///     filter) — so the user still sees their family places on the map.
+  ///
+  /// Returns the (possibly patched) style JSON string. On any error,
+  /// returns the input unchanged (Rule 12).
+  Future<String> _injectFamilyProximityBuffer(String styleJson) async {
+    try {
+      // Try to fetch the family-places data with a short timeout. If it
+      // doesn't arrive in time, we proceed with an empty buffer — the
+      // proximity glow won't show on first paint, but the map still loads
+      // promptly. Family marker pins are unaffected (they use a separate
+      // runtime-updated GeoJSON source).
+      List<FamilyPlace> places = const [];
+      try {
+        final result = await ref
+            .read(familyMapProvider(widget.familyId).future)
+            .timeout(const Duration(milliseconds: 1500));
+        places = result.places;
+      } catch (e) {
+        debugPrint('⚠️ FamilyMap v10: family-places data not ready in time '
+            'for proximity buffer injection ($e) — proceeding with empty '
+            'buffer. Proximity glow will not appear until next style reload.');
+      }
+
+      // Build the MultiPolygon geometry. Empty list → empty MultiPolygon
+      // (the filter matches nothing, layer is a no-op).
+      final multiPolygon = _buildFamilyProximityBuffer(places);
+
+      final decoded = jsonDecode(styleJson);
+      if (decoded is! Map<String, dynamic>) return styleJson;
+      final layers = decoded['layers'];
+      if (layers is! List) return styleJson;
+
+      // Find the proximity glow layer and patch its filter.
+      bool patched = false;
+      for (final layer in layers) {
+        if (layer is! Map<String, dynamic>) continue;
+        if (layer['id'] != 'kinrel-3d-buildings-family-proximity-glow') {
+          continue;
+        }
+        // `within` expression: ["within", { "type": "MultiPolygon", "coordinates": [...] }]
+        layer['filter'] = ['within', multiPolygon];
+        patched = true;
+        break;
+      }
+
+      if (patched) {
+        debugPrint('🔆 FamilyMap v10: injected family-proximity buffer '
+            '(${places.length} place(s), '
+            '${(multiPolygon['coordinates'] as List).length} polygon ring(s)) '
+            'into kinrel-3d-buildings-family-proximity-glow filter');
+        return jsonEncode(decoded);
+      }
+      // Layer not found — silently return unpatched (e.g. quality tier
+      // hid it, or a future style swap removed it).
+      return styleJson;
+    } catch (e) {
+      debugPrint('⚠️ FamilyMap v10: _injectFamilyProximityBuffer failed ($e) '
+          '— returning unpatched style');
+      return styleJson;
+    }
+  }
+
+  /// v10 — Builds the GeoJSON MultiPolygon geometry used by the
+  /// `kinrel-3d-buildings-family-proximity-glow` layer's `within` filter.
+  ///
+  /// For each family-place coordinate, generates a 16-gon polygon
+  /// approximating a circle of radius [MapVisualConstants.proximityGlowRadiusMeters]
+  /// (150m by default) using the latitude-corrected meters→degrees
+  /// conversion. Returns a Map ready to be embedded as the second
+  /// operand of a `["within", <geometry>]` filter expression.
+  ///
+  /// Returns `{"type": "MultiPolygon", "coordinates": []}` when [places]
+  /// is empty — the `within` filter then matches no features, so the
+  /// layer is a no-op (does not error).
+  Map<String, Object> _buildFamilyProximityBuffer(
+    Iterable<FamilyPlace> places,
+  ) {
+    const radiusM = MapVisualConstants.proximityGlowRadiusMeters;
+    const sides = 16; // 16-gon ≈ circle at this scale
+    const metersPerDegLat = 111000.0;
+    final coordinates = <List<List<List<double>>>>[];
+
+    for (final place in places) {
+      final lat = place.lat;
+      final lng = place.lng;
+      if (lat == 0 && lng == 0) continue; // skip unpopulated
+      final cosLat = math.max(0.0001, math.cos(lat * math.pi / 180.0));
+      final degLatPerM = 1.0 / metersPerDegLat;
+      final degLngPerM = 1.0 / (metersPerDegLat * cosLat);
+      final ring = <List<double>>[];
+      for (var i = 0; i < sides; i++) {
+        final angle = (2 * math.pi * i) / sides;
+        final dLng = radiusM * math.cos(angle) * degLngPerM;
+        final dLat = radiusM * math.sin(angle) * degLatPerM;
+        ring.add([lng + dLng, lat + dLat]);
+      }
+      // Close the ring (first == last).
+      ring.add([ring.first[0], ring.first[1]]);
+      coordinates.add([ring]);
+    }
+
+    return {'type': 'MultiPolygon', 'coordinates': coordinates};
   }
 
   /// v5.0 Part 1 Step 3b — Hard fallback floor.
@@ -1717,11 +1867,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         ? Geographic(lon: restored.lng, lat: restored.lat)
         : Geographic(lon: 78.9629, lat: 20.5937);
     final initZoom = restored?.zoom ?? 4.0;
-    // P14 — default pitch 0° makes 3D building extrusion look flat (top-down
-    // view). Use 25° so even at the initial world view, if the user zooms in,
-    // 3D buildings are obviously extruded without requiring them to enter
-    // Focus Mode. Restored pitch (if any) still wins.
-    final initPitch = restored?.pitch ?? 25.0;
+    // v10 — default pitch 50° / bearing -17° (per directive). 3D buildings
+    // are now visible immediately on screen load, not only after focusing
+    // on a pin. Restored pitch/bearing (if any) still wins.
+    final initPitch = restored?.pitch ?? MapVisualConstants.defaultPitch;
+    final initBearing = restored?.bearing ?? MapVisualConstants.defaultBearing;
 
     // ── NO FutureBuilder — style is loaded in initState() ────────────
     // The old FutureBuilder created a new Future on every build, causing
@@ -1774,6 +1924,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                   initCenter: initCenter,
                   initZoom: initZoom,
                   initPitch: initPitch,
+                  initBearing: initBearing,
                   minZoom: 2,
                   maxZoom: 18,
                 ),
@@ -2043,6 +2194,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // Cinematic entrance animation — runs ONCE on first open.
     // Returning users get instant restore via _restoredState (handled
     // in _buildMap via initCenter/initZoom).
+    //
+    // v10 — entrance now animates to the new default pitch (50°) + bearing
+    // (-17°) so the cinematic zoom-in ends with 3D buildings visibly
+    // extruded, not flat. The animation runs over [cinematicEntrance] ms
+    // (1500ms) — this IS the smooth animated transition requested in the
+    // v10 directive (no instant snap on pitch change).
     if (!_entranceAnimationDone && _restoredState == null) {
       _entranceAnimationDone = true;
       final reducedMotion = MediaQuery.disableAnimationsOf(context);
@@ -2051,18 +2208,22 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         controller.moveCamera(
           center: Geographic(lon: 78.9629, lat: 20.5937),
           zoom: 5.5,
+          pitch: MapVisualConstants.defaultPitch,
+          bearing: MapVisualConstants.defaultBearing,
         );
       } else {
         // Cinematic entrance: animate from zoom 4 → 5.5 over
         // cinematicEntrance duration (1500ms). Runs ONCE.
+        // v10: pitch + bearing are now the new defaults so the camera
+        // tilts into the 3D buildings during the entrance zoom.
         Future.delayed(const Duration(milliseconds: 500), () {
           if (_mapController == null) return;
           if (!mounted) return;
           _mapController!.animateCamera(
             center: Geographic(lon: 78.9629, lat: 20.5937),
             zoom: 5.5,
-            pitch: 0,
-            bearing: 0,
+            pitch: MapVisualConstants.defaultPitch,
+            bearing: MapVisualConstants.defaultBearing,
             nativeDuration: MapVisualConstants.cinematicEntrance,
           );
         });
@@ -2432,8 +2593,14 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     if (_selectedPinId != null) {
       setState(() {
         _selectedPinId = null;
-        // P11.x — Exiting Focus Mode resets the camera pitch to 0°.
-        _currentPitch = 0.0;
+        // v10 — Exiting Focus Mode resets the tracked pitch to the new
+        // default (50°), NOT 0°. The actual camera pitch is whatever the
+        // user last set via gestures + the default that was applied at
+        // style load. The atmospheric perspective overlay reads this
+        // value to fade in/out — keeping it at the default (rather than
+        // 0°) ensures the overlay correctly reflects that the camera
+        // is still pitched (the default view is now pitch 50°, not flat).
+        _currentPitch = MapVisualConstants.defaultPitch;
       });
       await _focusController.exitFocus(
         mapController: _mapController,

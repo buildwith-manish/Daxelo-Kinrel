@@ -240,6 +240,38 @@ class MapVisualConstants {
   /// Camera pitch (tilt) for Focus Mode and cinematic entrance.
   static const double focusPitch = 45.0;
 
+  /// v10 — Default camera pitch for the INITIAL map load.
+  ///
+  /// Per the v10 visual-system directive: change the map's default initial
+  /// camera load from `pitch: 0` to `pitch: 50, bearing: -17`, so 3D
+  /// buildings are visible immediately on screen load, not only after
+  /// focusing on a pin. The existing pin-focus behavior (`pitch: 45` via
+  /// [focusPitch]) is preserved — tapping a family member still tilts
+  /// the camera to `focusPitch`.
+  ///
+  /// 50° was chosen (rather than the focus-mode 45°) so the default view
+  /// is even MORE 3D-prominent than focus mode — i.e. entering focus mode
+  /// slightly straightens the camera (50 → 45), keeping the focus target
+  /// framed while reducing peripheral distortion.
+  static const double defaultPitch = 50.0;
+
+  /// v10 — Default camera bearing (rotation) for the INITIAL map load.
+  ///
+  /// -17° gives the map a subtle north-west tilt so 3D building extrusion
+  /// reads with stronger depth cues (the long axis of most buildings faces
+  /// roughly N-S, so a ~17° bearing produces visible front-face lighting
+  /// from the [sky] layer's sun direction).
+  static const double defaultBearing = -17.0;
+
+  /// v10 — Proximity glow radius (meters).
+  ///
+  /// Any OSM building within this distance of any family-place coordinate
+  /// gets the warm amber proximity re-color treatment via the
+  /// `kinrel-3d-buildings-family-proximity-glow` fill-extrusion layer.
+  /// 150m is the spec'd radius — recognizable as "this is my family's
+  /// street" without bleeding into neighboring blocks.
+  static const double proximityGlowRadiusMeters = 150.0;
+
   /// P11.x — Pitch (degrees) above which atmospheric perspective fades in.
   /// Per master prompt: linear fade top-down when pitch > 10°, max 0.12.
   static const double atmosphericPerspectivePitchThreshold = 10.0;

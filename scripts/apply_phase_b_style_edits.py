@@ -256,6 +256,33 @@ def apply_park_changes(style: dict) -> int:
 # 6. Labels — multi-script text-font stack on every symbol layer
 # ─────────────────────────────────────────────────────────────────────────────
 def apply_multiscript_fonts(style: dict) -> int:
+    """v9.0 SUPERSESSION — this function is now a no-op.
+
+    Originally (Phase B v1.0), this function added multi-script fontstacks
+    (Latin + Devanagari + Arabic + CJK) to every text-bearing symbol layer.
+    The intent was to ensure glyphs render correctly for non-Latin scripts.
+
+    However, the v9.0 fix (commit f237afd0, "fix(v9.0): patch multi-script
+    fontstacks — root cause of blank map") established that OpenFreeMap's
+    font server returns HTTP 404 for combined fontstacks, and MapLibre GL
+    JS 5.x silently renders a BLANK canvas when it hits that 404. The
+    single-font PBF (e.g. "Noto Sans Regular") is itself a composite that
+    already contains Latin + Devanagari + Arabic + CJK + Bengali + Tamil +
+    etc. — so the multi-script stacks were redundant AND broken.
+
+    The v9.0 fix:
+      1. Patched the bundled kinrel_dark_style.json to use single-font stacks.
+      2. Added a defensive runtime patch (_patchFontstacks in
+         family_map_screen.dart) that collapses any multi-script stack
+         to its first entry.
+
+    Re-adding multi-script stacks here would:
+      - Undo the v9.0 fix → blank map in production
+      - Break the idempotency check in phase-verification.yml CI
+
+    So this function now skips every layer. The single-font stacks left
+    behind by v9.0 are the correct state — leave them alone.
+    """
     changes = 0
     for layer in style["layers"]:
         if layer.get("type") != "symbol":
@@ -264,13 +291,9 @@ def apply_multiscript_fonts(style: dict) -> int:
         existing = layout.get("text-font")
         if not existing:
             continue  # symbol layer without text-font (e.g., icon-only)
-        new_stack = font_stack_for(existing)
-        if existing == new_stack:
-            continue
-        layout["text-font"] = new_stack
-        lid = layer.get("id", "?")
-        print(f"  ✓ {lid}: text-font {existing} → {new_stack}")
-        changes += 1
+        # v9.0: skip — single-font stacks are the correct state. Re-adding
+        # multi-script stacks would re-introduce the blank-map bug.
+        continue
     return changes
 
 

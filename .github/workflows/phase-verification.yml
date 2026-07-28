@@ -156,12 +156,14 @@ jobs:
           errors = []
           warnings = []
 
-          # 1. Layer count must be 116 (Phase A/B preserved layer count)
+          # 1. Layer count must be 117 (Phase A/B = 116, v10 visual pass = +1
+          #    for kinrel-3d-buildings-family-proximity-glow above warm-glow).
+          #    Update this invariant when adding/removing layers in the future.
           n_layers = len(style["layers"])
-          if n_layers != 116:
-              errors.append(f"Layer count changed: expected 116, got {n_layers}")
+          if n_layers != 117:
+              errors.append(f"Layer count changed: expected 117, got {n_layers}")
           else:
-              print(f"✓ Layer count = {n_layers} (Phase A/B scope respected)")
+              print(f"✓ Layer count = {n_layers} (Phase A/B + v10 visual pass scope respected)")
 
           # 2. Sources must include openmaptiles with a valid tile source URL.
           #    v7.0: the default bundled style uses the OpenFreeMap TileJSON endpoint
@@ -644,9 +646,10 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Phase B Implementation (DONE ✅)" >> $GITHUB_STEP_SUMMARY
           echo "- 43 paint/layout/filter/text-font edits applied to kinrel_dark_style.json" >> $GITHUB_STEP_SUMMARY
-          echo "- Layer count unchanged: 116 → 116" >> $GITHUB_STEP_SUMMARY
+          echo "- Layer count: 116 (Phase B v1.0) → 117 (v10 visual pass added kinrel-3d-buildings-family-proximity-glow)" >> $GITHUB_STEP_SUMMARY
           echo "- Family-* layers preserved" >> $GITHUB_STEP_SUMMARY
           echo "- MapQualityTierController added (device-capability-driven)" >> $GITHUB_STEP_SUMMARY
+          echo "- v10 visual pass: pitch 50° default, fog/sky atmosphere, family-proximity glow, road styling refinements" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Still PENDING (requires real device or manual check)" >> $GITHUB_STEP_SUMMARY
           echo "- Real mid-range device FPS profiling (CI runners are not representative)" >> $GITHUB_STEP_SUMMARY

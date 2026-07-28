@@ -631,7 +631,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#3A3252",
@@ -690,7 +691,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#1E1A30",
@@ -742,7 +744,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#1E1A30",
@@ -797,7 +800,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#222428",
@@ -852,7 +856,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#1E1A30",
@@ -903,10 +908,11 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-width": [
           "interpolate",
           [
@@ -980,7 +986,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#3A3252",
@@ -1070,7 +1077,7 @@
         ]
       ],
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-dasharray": [
           1,
           0.75
@@ -1091,7 +1098,9 @@
         ],
         "line-opacity": 0.5
       },
-      "layout": {}
+      "layout": {
+        "line-cap": "round"
+      }
     },
     {
       "id": "tunnel_motorway_link",
@@ -1126,7 +1135,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#4A3F63",
@@ -1181,10 +1191,11 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-width": [
           "interpolate",
           [
@@ -1229,10 +1240,11 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-width": [
           "interpolate",
           [
@@ -1283,10 +1295,11 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-width": [
           "interpolate",
           [
@@ -1336,10 +1349,11 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-width": [
           "interpolate",
           [
@@ -1389,7 +1403,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#3A3252",
@@ -1445,7 +1460,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#4A3F63",
@@ -1516,7 +1532,9 @@
         ],
         "line-opacity": 0.5
       },
-      "layout": {}
+      "layout": {
+        "line-cap": "round"
+      }
     },
     {
       "id": "tunnel_major_rail_hatching",
@@ -1566,7 +1584,9 @@
         ],
         "line-opacity": 0.5
       },
-      "layout": {}
+      "layout": {
+        "line-cap": "round"
+      }
     },
     {
       "id": "tunnel_transit_rail",
@@ -1616,7 +1636,9 @@
         ],
         "line-opacity": 0.5
       },
-      "layout": {}
+      "layout": {
+        "line-cap": "round"
+      }
     },
     {
       "id": "tunnel_transit_rail_hatching",
@@ -1666,7 +1688,9 @@
         ],
         "line-opacity": 0.5
       },
-      "layout": {}
+      "layout": {
+        "line-cap": "round"
+      }
     },
     {
       "id": "road_area_pattern",
@@ -2075,7 +2099,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#12101A",
@@ -2249,10 +2274,11 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-dasharray": [
           1,
           0.7
@@ -2376,7 +2402,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-width": [
           "interpolate",
           [
@@ -2446,7 +2472,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-width": [
           "interpolate",
           [
@@ -2517,7 +2543,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-width": [
           "interpolate",
           [
@@ -2575,7 +2601,7 @@
         "line-join": "round"
       },
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-width": [
           "interpolate",
           [
@@ -2629,7 +2655,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#3A3252",
@@ -2761,7 +2788,9 @@
           2
         ]
       },
-      "layout": {}
+      "layout": {
+        "line-cap": "round"
+      }
     },
     {
       "id": "road_major_rail_hatching",
@@ -2815,7 +2844,9 @@
           8
         ]
       },
-      "layout": {}
+      "layout": {
+        "line-cap": "round"
+      }
     },
     {
       "id": "road_transit_rail",
@@ -2865,7 +2896,9 @@
           2
         ]
       },
-      "layout": {}
+      "layout": {
+        "line-cap": "round"
+      }
     },
     {
       "id": "road_transit_rail_hatching",
@@ -2919,7 +2952,9 @@
           8
         ]
       },
-      "layout": {}
+      "layout": {
+        "line-cap": "round"
+      }
     },
     {
       "id": "road_one_way_arrow",
@@ -2995,7 +3030,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#3A3252",
@@ -3049,7 +3085,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#1E1A30",
@@ -3096,7 +3133,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#1E1A30",
@@ -3150,7 +3188,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#3a3d45",
@@ -3249,7 +3288,9 @@
           18
         ]
       },
-      "layout": {}
+      "layout": {
+        "line-cap": "round"
+      }
     },
     {
       "id": "bridge_secondary_tertiary_casing",
@@ -3281,7 +3322,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#1E1A30",
@@ -3331,10 +3373,11 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-width": [
           "interpolate",
           [
@@ -3407,7 +3450,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#3A3252",
@@ -3492,7 +3536,7 @@
         ]
       ],
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-dasharray": [
           1,
           0.3
@@ -3512,7 +3556,9 @@
           10
         ]
       },
-      "layout": {}
+      "layout": {
+        "line-cap": "round"
+      }
     },
     {
       "id": "bridge_motorway_link",
@@ -3547,7 +3593,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#4A3F63",
@@ -3601,10 +3648,11 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-width": [
           "interpolate",
           [
@@ -3648,10 +3696,11 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-width": [
           "interpolate",
           [
@@ -3701,7 +3750,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#3a3d45",
@@ -3753,10 +3803,11 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
-        "line-color": "#2A2440",
+        "line-color": "#221E36",
         "line-width": [
           "interpolate",
           [
@@ -3805,7 +3856,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#3A3252",
@@ -3860,7 +3912,8 @@
         ]
       ],
       "layout": {
-        "line-join": "round"
+        "line-join": "round",
+        "line-cap": "round"
       },
       "paint": {
         "line-color": "#4A3F63",
@@ -3925,7 +3978,9 @@
           2
         ]
       },
-      "layout": {}
+      "layout": {
+        "line-cap": "round"
+      }
     },
     {
       "id": "bridge_major_rail_hatching",
@@ -3974,7 +4029,9 @@
           8
         ]
       },
-      "layout": {}
+      "layout": {
+        "line-cap": "round"
+      }
     },
     {
       "id": "bridge_transit_rail",
@@ -4019,7 +4076,9 @@
           2
         ]
       },
-      "layout": {}
+      "layout": {
+        "line-cap": "round"
+      }
     },
     {
       "id": "bridge_transit_rail_hatching",
@@ -4068,7 +4127,9 @@
           8
         ]
       },
-      "layout": {}
+      "layout": {
+        "line-cap": "round"
+      }
     },
     {
       "id": "building",
@@ -4352,7 +4413,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-letter-spacing": 0.2,
         "text-max-width": 5,
@@ -4414,7 +4478,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-letter-spacing": 0.2,
         "text-max-width": 5,
@@ -4490,7 +4557,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-letter-spacing": 0.2,
         "text-max-width": 5,
@@ -4584,7 +4654,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 9,
         "text-offset": [
@@ -4689,7 +4762,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 9,
         "text-offset": [
@@ -4794,7 +4870,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 9,
         "text-offset": [
@@ -4870,7 +4949,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 9,
         "text-offset": [
@@ -4933,7 +5015,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-rotation-alignment": "map",
         "text-size": [
@@ -5025,7 +5110,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-rotation-alignment": "map",
         "text-size": [
@@ -5103,7 +5191,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-rotation-alignment": "map",
         "text-size": [
@@ -5199,7 +5290,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-rotation-alignment": "viewport",
         "text-size": 10
@@ -5282,7 +5376,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-rotation-alignment": "viewport",
         "text-size": 10
@@ -5364,7 +5461,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-rotation-alignment": "viewport",
         "text-size": 10
@@ -5419,7 +5519,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 9,
         "text-offset": [
@@ -5492,7 +5595,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-letter-spacing": 0.1,
         "text-max-width": 9,
@@ -5581,7 +5687,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 8,
         "text-size": [
@@ -5669,7 +5778,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 8,
         "text-size": [
@@ -5745,7 +5857,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Italic"
+          "Noto Sans Italic",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-letter-spacing": 0.2,
         "text-max-width": 9,
@@ -5845,7 +5960,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Regular"
+          "Noto Sans Regular",
+          "Noto Sans Devanagari Regular",
+          "Noto Sans Arabic Regular",
+          "Noto Sans SC Regular"
         ],
         "text-max-width": 8,
         "text-offset": [
@@ -5950,7 +6068,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Bold"
+          "Noto Sans Bold",
+          "Noto Sans Devanagari Bold",
+          "Noto Sans Arabic Bold",
+          "Noto Sans SC Bold"
         ],
         "text-max-width": 8,
         "text-offset": [
@@ -6043,7 +6164,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Bold"
+          "Noto Sans Bold",
+          "Noto Sans Devanagari Bold",
+          "Noto Sans Arabic Bold",
+          "Noto Sans SC Bold"
         ],
         "text-max-width": 6.25,
         "text-size": [
@@ -6130,7 +6254,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Bold"
+          "Noto Sans Bold",
+          "Noto Sans Devanagari Bold",
+          "Noto Sans Arabic Bold",
+          "Noto Sans SC Bold"
         ],
         "text-max-width": 6.25,
         "text-size": [
@@ -6217,7 +6344,10 @@
           ]
         ],
         "text-font": [
-          "Noto Sans Bold"
+          "Noto Sans Bold",
+          "Noto Sans Devanagari Bold",
+          "Noto Sans Arabic Bold",
+          "Noto Sans SC Bold"
         ],
         "text-max-width": 6.25,
         "text-size": [
@@ -6290,7 +6420,7 @@
           13,
           0.9,
           17,
-          1.0
+          0.85
         ]
       },
       "layout": {}
@@ -6806,6 +6936,78 @@
       }
     },
     {
+      "id": "kinrel-3d-buildings-family-proximity-glow",
+      "type": "fill-extrusion",
+      "source": "openmaptiles",
+      "source-layer": "building",
+      "minzoom": 13,
+      "maxzoom": 22,
+      "filter": [
+        "==",
+        [
+          "get",
+          "__placeholder_proximity__"
+        ],
+        true
+      ],
+      "paint": {
+        "fill-extrusion-color": "#E8612A",
+        "fill-extrusion-height": [
+          "case",
+          [
+            ">",
+            [
+              "coalesce",
+              [
+                "get",
+                "render_height"
+              ],
+              0
+            ],
+            0
+          ],
+          [
+            "get",
+            "render_height"
+          ],
+          6
+        ],
+        "fill-extrusion-base": [
+          "max",
+          0,
+          [
+            "coalesce",
+            [
+              "get",
+              "render_min_height"
+            ],
+            0
+          ]
+        ],
+        "fill-extrusion-opacity": [
+          "interpolate",
+          [
+            "linear"
+          ],
+          [
+            "zoom"
+          ],
+          13,
+          0.3,
+          15,
+          0.45,
+          17,
+          0.55,
+          22,
+          0.6
+        ],
+        "fill-extrusion-vertical-gradient": true
+      },
+      "layout": {
+        "visibility": "visible"
+      }
+    },
+    {
       "id": "family-buildings-glow",
       "type": "circle",
       "source": "family-places",
@@ -6923,5 +7125,14 @@
   "metadata": {
     "description": "Kinrel dark style based on OpenFreeMap liberty with reduced label clutter"
   },
-  "_v5_part1_mitigation": "// v5.0 Part 1 mitigation: was `pmtiles://{{PMTILES_URL}}` — broke production (placeholder never substituted on web; localhost default on native). Switched to OpenFreeMap ZYX tiles. PMTiles can be re-enabled via --dart-define=PMTILES_URL=https://.../archive.pmtiles — see family_map_screen.dart _applyPmtilesSource (opt-in patching)."
+  "_v5_part1_mitigation": "// v5.0 Part 1 mitigation: was `pmtiles://{{PMTILES_URL}}` — broke production (placeholder never substituted on web; localhost default on native). Switched to OpenFreeMap ZYX tiles. PMTiles can be re-enabled via --dart-define=PMTILES_URL=https://.../archive.pmtiles — see family_map_screen.dart _applyPmtilesSource (opt-in patching).",
+  "sky": {
+    "sky-color": "#0B0F17",
+    "horizon-color": "#2A2030",
+    "fog-color": "#0B0F17",
+    "fog-ground-blend": 0.5,
+    "horizon-fog-blend": 0.5,
+    "sky-horizon-blend": 0.5,
+    "atmosphere-blend": 1.0
+  }
 }

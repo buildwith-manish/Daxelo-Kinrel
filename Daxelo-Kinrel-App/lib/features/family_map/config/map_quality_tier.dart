@@ -61,8 +61,15 @@ enum MapQualityTier {
 ///
 /// ONLY non-family, non-source, non-schema layers may appear here.
 /// Family-* layers are explicitly preserved per Phase B brief.
+///
+/// v10 — `kinrel-3d-buildings-family-proximity-glow` is added here so
+/// MapQualityTier.low hides it exactly like the existing warm-glow layer.
+/// Both are "extra" fill-extrusion passes on top of the base 3D buildings,
+/// so on low-tier devices both are hidden together to halve the draw-call
+/// cost on building geometry. Mid/high tiers show both.
 const _kControlledLayerIds = <String>{
   'kinrel-3d-buildings-warm-glow',
+  'kinrel-3d-buildings-family-proximity-glow',
 };
 
 /// Controller for [MapQualityTier].
