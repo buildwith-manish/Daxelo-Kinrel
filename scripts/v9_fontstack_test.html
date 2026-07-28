@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>v9 Multi-script Fontstack Test</title>
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet" />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #131416; color: #fff; font-family: sans-serif; }
+  #map { position: absolute; top: 0; left: 0; right: 0; bottom: 50%; }
+  #log { position: absolute; top: 50%; left: 0; right: 0; bottom: 0; overflow: auto; padding: 8px; font-family: monospace; font-size: 11px; background: #1a1c1f; }
+  .log-error { color: #ff6b6b; }
+  .log-warn  { color: #f0a830; }
+  .log-info  { color: #8ed1fc; }
+  .log-ok    { color: #95e1a3; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="log"></div>
+<script>
+const logEl = document.getElementById('log');
+function log(level, msg) {
+  const line = document.createElement('div');
+  line.className = 'log-' + level;
+  line.textContent = '[' + new Date().toISOString().substr(11, 12) + '] [' + level + '] ' + msg;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+  console.log(msg);
+}
+
+log('info', 'Fetching production kinrel_dark_style.json…');
+fetch('https://daxelo-kinrel.vercel.app/assets/assets/map_styles/kinrel_dark_style.json')
+  .then(r => {
+    log('ok', 'Style fetched: ' + r.status + ' ' + r.statusText);
+    return r.text();
+  })
+  .then(styleText => {
+    log('info', 'Style size: ' + styleText.length + ' chars');
+
+    // === PHASE 1: Render production style AS-IS (multi-script fontstacks) ===
+    log('info', '=== PHASE 1: Rendering production style with MULTI-SCRIPT fontstacks ===');
+    const style = JSON.parse(styleText);
+    const fontStacksBefore = new Set();
+    for (const layer of style.layers) {
+      const tf = layer.layout?.['text-font'];
+      if (tf) fontStacksBefore.add(tf.join(','));
+    }
+    log('info', 'Font stacks in style: ' + fontStacksBefore.size);
+    for (const fs of fontStacksBefore) {
+      log('info', '  - ' + fs);
+    }
+
+    const map1 = new maplibregl.Map({
+      container: 'map',
+      style: style,
+      center: [72.8777, 19.0760],  // Mumbai
+      zoom: 12,
+      pitch: 0,
+      bearing: 0,
+      hash: false,
+      preserveDrawingBuffer: true,
+    });
+
+    map1.on('style.load', () => {
+      log('ok', '✅ STYLE LOADED — onStyleLoaded would fire here');
+      document.title = 'STYLE LOADED';
+    });
+
+    map1.on('styleimagemissing', (e) => {
+      log('warn', 'styleimagemissing: ' + e.id);
+    });
+
+    map1.on('error', (e) => {
+      log('error', 'MAP ERROR: ' + JSON.stringify({
+        message: e.error?.message,
+        type: e.error?.type,
+        url: e.url,
+        tile: e.tile?.tileID?.canonical?.toString(),
+      }));
+    });
+
+    map1.on('render', () => {
+      // First render = style loaded enough to draw
+    });
+
+    map1.on('idle', () => {
+      log('ok', '✅ MAP IDLE — all tiles loaded');
+    });
+
+    // After 10s, screenshot via puppeteer and compare
+    setTimeout(() => {
+      log('info', 'Phase 1 settle complete after 10s');
+      window.__phase1Done = true;
+    }, 10000);
+  })
+  .catch(e => {
+    log('error', 'FATAL: ' + e.message);
+  });
+</script>
+</body>
+</html>
