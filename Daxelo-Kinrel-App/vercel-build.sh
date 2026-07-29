@@ -77,9 +77,22 @@ echo "=== Running flutter build web --release ==="
 # "build: <hash> · <ts> UTC" label. This makes it unambiguous which
 # commit a given live deployment is running — no more guessing whether
 # a fix actually shipped.
-BUILD_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+#
+# Vercel exposes the commit SHA via the VERCEL_GIT_COMMIT_SHA env var
+# (full 40-char SHA). We try that FIRST because the Vercel build sandbox
+# doesn't always have .git on disk for `git rev-parse` to read.
+# Falls back to git rev-parse (for local builds + non-Vercel CI).
+# Final fallback is the literal string "unknown".
+BUILD_COMMIT=""
+if [ -n "$VERCEL_GIT_COMMIT_SHA" ]; then
+  BUILD_COMMIT="${VERCEL_GIT_COMMIT_SHA:0:7}"
+fi
+if [ -z "$BUILD_COMMIT" ] || [ "$BUILD_COMMIT" = "unknown" ]; then
+  BUILD_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+fi
 BUILD_TIMESTAMP="$(date -u '+%Y-%m-%d %H:%M') UTC"
 echo "  Build identifier: build: ${BUILD_COMMIT} · ${BUILD_TIMESTAMP}"
+echo "  VERCEL_GIT_COMMIT_SHA=${VERCEL_GIT_COMMIT_SHA:-<unset>}"
 
 # v5.0 Part 1: support optional PMTILES_URL env var. When set (e.g. to
 # a deliberately bad URL for fallback-chain testing), it's passed to
