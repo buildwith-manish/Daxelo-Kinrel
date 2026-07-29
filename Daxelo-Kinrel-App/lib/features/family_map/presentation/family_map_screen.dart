@@ -330,6 +330,22 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// Reset to false on family switch.
   bool _liveLocationGlowAdded = false;
 
+  /// v13.0 — idempotency guard for the OSM 3D buildings fill-extrusion
+  /// layer. True once [kinrel-3d-buildings] (and the optional
+  /// [kinrel-3d-buildings-warm-glow] accent layer) have been injected
+  /// into the current style.
+  ///
+  /// This guard exists because the OpenFreeMap hosted dark style
+  /// (`https://tiles.openfreemap.org/styles/dark`) — used as the PRIMARY
+  /// style on web since v9.1 to bypass the Vercel immutable-asset cache —
+  /// does NOT include any fill-extrusion layer. It only has a flat 2D
+  /// `building` fill layer. The `kinrel-3d-buildings` fill-extrusion
+  /// layer that exists in the bundled `kinrel_dark_style.json` is never
+  /// injected at runtime, which is why OSM buildings render as flat
+  /// polygons on web (invisible against the dark background even with
+  /// pitch=50°). See [_ensureOsm3dBuildingsLayer] for the fix.
+  bool _osm3dBuildingsLayerAdded = false;
+
   /// P12.2 — the current user's last captured lat/lng (null until the
   /// first successful _captureAndBroadcast). Drives the
   /// [live-location-point] GeoJSON source for the ambient ground glow.
@@ -812,6 +828,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       _loadedStyleJson = null;
       _familyPlacesLayersAdded = false;
       _liveLocationGlowAdded = false;
+      _osm3dBuildingsLayerAdded = false;
       _liveLocationLat = null;
       _liveLocationLng = null;
       _styleLoaded = false;
@@ -975,6 +992,196 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     } catch (e) {
       debugPrint('⚠️ FamilyMap: _ensureFamilyPlacesLayers failed: $e');
       // Non-fatal — the base map still works without family-buildings.
+    }
+  }
+
+  /// v13.0 — Ensures the OSM 3D buildings fill-extrusion layer
+  /// (`kinrel-3d-buildings`) exists in the current style.
+  ///
+  /// ROOT CAUSE BACKGROUND:
+  /// The bundled `kinrel_dark_style.json` asset includes a
+  /// `kinrel-3d-buildings` fill-extrusion layer that extrudes OSM
+  /// building footprints to their `render_height` from the OpenMapTiles
+  /// schema. This is what gives the Kinrel map its premium 3D skyline
+  /// at street-level zoom.
+  ///
+  /// However, since v9.1 the WEB platform loads the OpenFreeMap hosted
+  /// dark style URL (`https://tiles.openfreemap.org/styles/dark`)
+  /// instead of the bundled JSON — to bypass the Vercel immutable-asset
+  /// cache that was serving stale style JSON to users. The OpenFreeMap
+  /// dark style only has a flat 2D `building` fill layer — it has ZERO
+  /// fill-extrusion layers. The runtime layer injection in
+  /// [_ensureFamilyPlacesLayers] only adds family-places-related layers,
+  /// not OSM building extrusions.
+  ///
+  /// Result: on web, even though `getPitch()` returns 50° (the v10 fix
+  /// applied), there are no extruded OSM buildings to see — they render
+  /// as flat 2D polygons against the dark background. Verified live
+  /// via `map.queryRenderedFeatures({layers: ['kinrel-3d-buildings']})`
+  /// returning 0 at zoom 16 over Mumbai (where the 2D `building` layer
+  /// returned 20 features at the same point).
+  ///
+  /// This method injects the `kinrel-3d-buildings` layer at runtime
+  /// using the SAME paint expressions as the bundled JSON — single
+  /// source of truth, kept in sync. Also injects the
+  /// `kinrel-3d-buildings-warm-glow` accent layer for tall buildings
+  /// (>=12m at zoom 12, scaling down to >=12m at zoom 22) so high-rises
+  /// get the signature Kinrel warm-orange tint.
+  ///
+  /// Idempotent — safe to call multiple times. Both addLayer calls are
+  /// wrapped in try/catch so duplicate-adds (e.g., on style reload) are
+  /// logged + skipped (non-fatal).
+  Future<void> _ensureOsm3dBuildingsLayer(StyleController style) async {
+    if (_osm3dBuildingsLayerAdded) return;
+    try {
+      // ── 1. Main 3D buildings extrusion layer ───────────────────────
+      // Same paint expressions as `kinrel_dark_style.json` — kept in
+      // sync. Uses OpenMapTiles `render_height` / `render_min_height`
+      // properties, with a 6m default for buildings without height tags.
+      //
+      // minZoom=11 (matches bundled JSON) — at lower zooms the
+      // extrusion is invisible anyway (building footprints are too
+      // small to extrude meaningfully).
+      try {
+        await style.addLayer(
+          FillExtrusionStyleLayer(
+            id: 'kinrel-3d-buildings',
+            sourceId: 'openmaptiles',
+            sourceLayerId: 'building',
+            minZoom: 11,
+            maxZoom: 22,
+            paint: {
+              // Color ramps from dark purple-grey at ground level to
+              // brighter warm-grey at 200m+ (matches MapVisualConstants
+              // .buildingNormal / .buildingNormalMid / .buildingNormalTop).
+              'fill-extrusion-color': [
+                'interpolate',
+                ['linear'],
+                ['get', 'render_height'],
+                0, '#1E1D2A',
+                15, '#1E1D2A',
+                35, '#2A2638',
+                70, '#3A3450',
+                200, '#4A4060',
+              ],
+              // Height: use render_height (or 6m default), with a
+              // zoom-dependent multiplier that scales extrusions DOWN
+              // as you zoom in (so buildings don't tower over the
+              // camera at street level). At zoom 17+ the multiplier is
+              // 1.0 (real-world meters).
+              'fill-extrusion-height': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                11, ['*', ['case', ['>', ['coalesce', ['get', 'render_height'], 0], 0], ['get', 'render_height'], 6], 4.0],
+                12, ['*', ['case', ['>', ['coalesce', ['get', 'render_height'], 0], 0], ['get', 'render_height'], 6], 3.5],
+                13, ['*', ['case', ['>', ['coalesce', ['get', 'render_height'], 0], 0], ['get', 'render_height'], 6], 3.0],
+                14, ['*', ['case', ['>', ['coalesce', ['get', 'render_height'], 0], 0], ['get', 'render_height'], 6], 2.0],
+                15, ['*', ['case', ['>', ['coalesce', ['get', 'render_height'], 0], 0], ['get', 'render_height'], 6], 1.5],
+                17, ['case', ['>', ['coalesce', ['get', 'render_height'], 0], 0], ['get', 'render_height'], 6],
+                22, ['case', ['>', ['coalesce', ['get', 'render_height'], 0], 0], ['get', 'render_height'], 6],
+              ],
+              // Base: render_min_height (for buildings with min_height
+              // tags, e.g., elevated structures). Clamped to >=0.
+              'fill-extrusion-base': [
+                'max', 0, ['coalesce', ['get', 'render_min_height'], 0],
+              ],
+              // Opacity: fade in from 0 at zoom 10 to 1.0 at zoom 13+.
+              'fill-extrusion-opacity': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                10, 0.0,
+                11, 0.4,
+                12, 0.7,
+                13, 1.0,
+                17, 1.0,
+              ],
+              'fill-extrusion-vertical-gradient': true,
+            },
+          ),
+        );
+        debugPrint('✅ FamilyMap v13: added kinrel-3d-buildings fill-extrusion layer');
+      } catch (e) {
+        // Layer may already exist (e.g., bundled style on native) — non-fatal.
+        debugPrint('ℹ️ FamilyMap v13: kinrel-3d-buildings layer already exists or add failed: $e');
+      }
+
+      // ── 2. Warm-glow accent layer for tall buildings ───────────────
+      // Re-colors buildings above a height threshold (60m at zoom 12,
+      // scaling down to 12m at zoom 16+) with the signature Kinrel
+      // warm-orange gradient. Same height expression as the main layer.
+      try {
+        await style.addLayer(
+          FillExtrusionStyleLayer(
+            id: 'kinrel-3d-buildings-warm-glow',
+            sourceId: 'openmaptiles',
+            sourceLayerId: 'building',
+            minZoom: 12,
+            maxZoom: 22,
+            // Filter: only render this layer for buildings above the
+            // height threshold (zoom-dependent).
+            filter: [
+              '>=',
+              ['coalesce', ['get', 'render_height'], 0],
+              [
+                'interpolate', ['linear'], ['zoom'],
+                12, 60,
+                13, 45,
+                14, 25,
+                15, 18,
+                16, 12,
+                22, 12,
+              ],
+            ],
+            paint: {
+              'fill-extrusion-color': [
+                'interpolate',
+                ['linear'],
+                ['coalesce', ['get', 'render_height'], 0],
+                12, '#A04515',
+                25, '#E8612A',
+                50, '#F59240',
+                100, '#F5B841',
+                200, '#FFD66B',
+              ],
+              'fill-extrusion-height': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                11, ['*', ['case', ['>', ['coalesce', ['get', 'render_height'], 0], 0], ['get', 'render_height'], 6], 4.0],
+                12, ['*', ['case', ['>', ['coalesce', ['get', 'render_height'], 0], 0], ['get', 'render_height'], 6], 3.5],
+                13, ['*', ['case', ['>', ['coalesce', ['get', 'render_height'], 0], 0], ['get', 'render_height'], 6], 3.0],
+                14, ['*', ['case', ['>', ['coalesce', ['get', 'render_height'], 0], 0], ['get', 'render_height'], 6], 2.0],
+                15, ['*', ['case', ['>', ['coalesce', ['get', 'render_height'], 0], 0], ['get', 'render_height'], 6], 1.5],
+                17, ['case', ['>', ['coalesce', ['get', 'render_height'], 0], 0], ['get', 'render_height'], 6],
+                22, ['case', ['>', ['coalesce', ['get', 'render_height'], 0], 0], ['get', 'render_height'], 6],
+              ],
+              'fill-extrusion-base': [
+                'max', 0, ['coalesce', ['get', 'render_min_height'], 0],
+              ],
+              'fill-extrusion-opacity': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                11, 0.0,
+                12, 0.08,
+                14, 0.18,
+                17, 0.2,
+              ],
+              'fill-extrusion-vertical-gradient': true,
+            },
+          ),
+        );
+        debugPrint('✅ FamilyMap v13: added kinrel-3d-buildings-warm-glow accent layer');
+      } catch (e) {
+        debugPrint('ℹ️ FamilyMap v13: warm-glow layer already exists or add failed: $e');
+      }
+
+      _osm3dBuildingsLayerAdded = true;
+    } catch (e) {
+      debugPrint('⚠️ FamilyMap v13: _ensureOsm3dBuildingsLayer failed: $e');
+      // Non-fatal — the base map still works without 3D buildings.
     }
   }
 
@@ -1221,6 +1428,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       _layersPrepared = false;
       _familyPlacesLayersAdded = false;
       _liveLocationGlowAdded = false;
+      _osm3dBuildingsLayerAdded = false;
       _liveLocationLat = null;
       _liveLocationLng = null;
       _loadedStyleJson = null;
@@ -1513,6 +1721,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                       _usingOfflineFloor = true;
                       _loadedStyleJson = _kOfflineFloorStyleJson;
                       _familyPlacesLayersAdded = false;
+                      _osm3dBuildingsLayerAdded = false;
                       _styleLoaded = false;
                       _lifecycle.reset();
                     });
@@ -2336,6 +2545,22 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       ).timeout(const Duration(seconds: 3));
     } catch (e) {
       debugPrint('⚠️ FamilyMap: _ensureFamilyPlacesLayers timed out: $e');
+    }
+    if (_lifecycle.currentAttempt != attempt) return;
+
+    // ── v13.0 — Ensure OSM 3D buildings fill-extrusion layer ─────────
+    // Injects the `kinrel-3d-buildings` fill-extrusion layer (using the
+    // OpenFreeMap `openmaptiles` source's `building` source-layer) so
+    // OSM buildings extrude vertically at street-level zoom. Without
+    // this, web users see only flat 2D building footprints (the OpenFreeMap
+    // hosted dark style has no fill-extrusion layers) even though pitch
+    // is correctly 50°. Idempotent — see [_ensureOsm3dBuildingsLayer].
+    try {
+      await _ensureOsm3dBuildingsLayer(
+        style,
+      ).timeout(const Duration(seconds: 3));
+    } catch (e) {
+      debugPrint('⚠️ FamilyMap v13: _ensureOsm3dBuildingsLayer timed out: $e');
     }
     if (_lifecycle.currentAttempt != attempt) return;
 

@@ -59,9 +59,13 @@ class BuildIdentifierLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Positioned in the TOP-LEFT corner so it doesn't collide with the
+    // timeline scrubber (bottom: 0, full-width) or the map control stack
+    // (right side). Safe-area aware so it doesn't sit under the notch /
+    // status bar on notched devices.
     return Positioned(
       left: 8,
-      bottom: 8,
+      top: 8,
       child: IgnorePointer(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
