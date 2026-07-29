@@ -117,7 +117,12 @@ class DeviceTierCache extends ChangeNotifier {
   void initializeFromView() {
     if (_initialized) return;
     try {
-      final binding = WidgetsFlutterBinding.instance;
+      // Use WidgetsBinding.instance (not WidgetsFlutterBinding.instance)
+      // — the latter requires the binding to be the explicit
+      // WidgetsFlutterBinding type, which is not always the case in
+      // tests. WidgetsBinding.instance works for any binding that
+      // extends WidgetsBinding.
+      final binding = WidgetsBinding.instance;
       final view = binding.platformDispatcher.views.first;
       final physicalSize = view.physicalSize;
       final pixelRatio = view.devicePixelRatio;
