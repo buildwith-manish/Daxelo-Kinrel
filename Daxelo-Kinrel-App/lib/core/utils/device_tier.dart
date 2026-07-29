@@ -44,25 +44,96 @@ enum DeviceTier {
 /// This is set once at startup and remains constant for the
 /// app's lifecycle. It allows access from anywhere without
 /// needing a Riverpod ref or BuildContext.
-class DeviceTierCache {
+///
+/// Part 1 fix — this is now a [ChangeNotifier] so widgets that depend
+/// on the tier (e.g., MapControlStack reading `supports3DBuildings`)
+/// can rebuild when the tier is finalized. This fixes the timing race
+/// on web where `physicalSize` is `Size.zero` at the time `main()`
+/// calls `initialize()` (before the first frame is laid out), causing
+/// the tier to be wrongly detected as `low` (screenWidth=0 < 360).
+/// The fix: `initialize()` detects the `Size.zero` case, defers to
+/// `initializeFromView()` (called from the first frame's post-frame
+/// callback), and notifies listeners when the tier is finalized.
+class DeviceTierCache extends ChangeNotifier {
   DeviceTierCache._();
-
   static final DeviceTierCache instance = DeviceTierCache._();
 
   DeviceTier _tier = DeviceTier.mid;
   bool _initialized = false;
 
   /// The detected device tier. Defaults to [DeviceTier.mid]
-  /// until [initialize] is called.
+  /// until [initialize] is called and resolves a non-zero screen size.
   DeviceTier get tier => _tier;
 
-  /// Whether the cache has been initialized.
+  /// Whether the cache has been initialized with a non-deferred tier
+  /// detection. Returns false if `initialize()` was called with
+  /// `Size.zero` (web before first frame) and the deferred
+  /// `initializeFromView()` has not yet run.
   bool get isInitialized => _initialized;
 
   /// Detect and cache the device tier from screen metrics.
-  void initialize(double screenWidth, double pixelRatio) {
-    if (_initialized) return; // Only set once
+  ///
+  /// If [screenWidth] is 0 or [pixelRatio] is 0 (which happens on web
+  /// before the first frame is laid out — `view.physicalSize` is
+  /// `Size.zero`), this method does NOT commit a tier. Instead it
+  /// leaves `_initialized = false` and returns `false`. The caller
+  /// (typically `main()`) should then schedule a post-frame callback
+  /// to call [initializeFromView] once the view has a real size.
+  ///
+  /// Returns `true` if the tier was successfully detected and committed,
+  /// `false` if the detection was deferred (caller must retry after the
+  /// first frame).
+  bool initialize(double screenWidth, double pixelRatio) {
+    if (_initialized) return true; // Already set
 
+    // ── Guard against Size.zero (web before first frame) ──────────
+    // On web, `view.physicalSize` is `Size.zero` at the time `main()`
+    // runs (before the first frame is laid out). If we naively computed
+    // `screenWidth = 0 / pixelRatio = 0`, the `screenWidth < 360` check
+    // would wrongly classify the device as `low` — hiding the 3D
+    // Buildings toggle and forcing 2D mode on devices that should
+    // support 3D.
+    //
+    // Fix: detect the zero-size case and defer. The caller schedules a
+    // post-frame callback that calls `initializeFromView()` once the
+    // view has a real size.
+    if (screenWidth <= 0 || pixelRatio <= 0) {
+      debugPrint('🔧 DeviceTier: deferring detection '
+          '(screenWidth=$screenWidth, pixelRatio=$pixelRatio — '
+          'view not yet laid out, likely web before first frame)');
+      return false;
+    }
+
+    _commitTier(screenWidth, pixelRatio);
+    return true;
+  }
+
+  /// Detect and cache the device tier from the current FlutterView.
+  ///
+  /// Intended to be called from a post-frame callback after the first
+  /// frame is laid out (when `view.physicalSize` is no longer
+  /// `Size.zero`). Idempotent — safe to call multiple times; once the
+  /// tier is committed, subsequent calls are no-ops.
+  void initializeFromView() {
+    if (_initialized) return;
+    try {
+      final binding = WidgetsFlutterBinding.instance;
+      final view = binding.platformDispatcher.views.first;
+      final physicalSize = view.physicalSize;
+      final pixelRatio = view.devicePixelRatio;
+      final screenWidth = physicalSize.width / pixelRatio;
+      if (screenWidth <= 0 || pixelRatio <= 0) {
+        // Still no size — schedule another retry on the next frame.
+        debugPrint('🔧 DeviceTier: still no view size, will retry next frame');
+        return;
+      }
+      _commitTier(screenWidth, pixelRatio);
+    } catch (e) {
+      debugPrint('⚠️ DeviceTier: initializeFromView failed: $e');
+    }
+  }
+
+  void _commitTier(double screenWidth, double pixelRatio) {
     if (screenWidth < 360 || pixelRatio < 2.0) {
       _tier = DeviceTier.low;
     } else if (screenWidth > 414 || pixelRatio >= 3.0) {
@@ -75,6 +146,10 @@ class DeviceTierCache {
     debugPrint('🔧 DeviceTier detected: $_tier '
         '(screenWidth: ${screenWidth.toStringAsFixed(1)}, '
         'pixelRatio: ${pixelRatio.toStringAsFixed(2)})');
+    // Notify any widgets that are waiting for the tier to resolve so
+    // they can rebuild with the correct tier-dependent UI (e.g., the
+    // 3D Buildings toggle in MapControlStack).
+    notifyListeners();
   }
 
   // ── Adaptation Helpers ──────────────────────────────────────────

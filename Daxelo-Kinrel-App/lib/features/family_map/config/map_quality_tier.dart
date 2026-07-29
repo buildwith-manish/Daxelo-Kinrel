@@ -40,7 +40,7 @@
 // family paths, and geofences exactly as they function today."
 
 import 'dart:convert' show jsonDecode, jsonEncode;
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, ChangeNotifier;
 import '../../../core/utils/device_tier.dart';
 
 /// Visual-effects complexity tier for the map.
@@ -93,7 +93,15 @@ const _k3DBuildingLayerIds = <String>{
 /// Controller for [MapQualityTier].
 ///
 /// Singleton — initialized once at app startup from [DeviceTierCache].
-class MapQualityTierController {
+///
+/// Part 1 fix — this is now a [ChangeNotifier] so widgets that depend
+/// on `supports3DBuildings` can rebuild when the underlying DeviceTier
+/// resolves (which may happen AFTER the first frame on web, see
+/// [DeviceTierCache.initialize] for the full timing-race explanation).
+/// The FamilyMapScreen listens to this notifier and calls setState when
+/// the tier changes, so MapControlStack rebuilds with the correct
+/// `canToggle3D` value.
+class MapQualityTierController extends ChangeNotifier {
   MapQualityTierController._();
   static final MapQualityTierController instance = MapQualityTierController._();
 
@@ -113,9 +121,54 @@ class MapQualityTierController {
   ///   DeviceTier.low  → MapQualityTier.low
   ///   DeviceTier.mid  → MapQualityTier.mid
   ///   DeviceTier.high → MapQualityTier.high
+  ///
+  /// Part 1 fix — if [DeviceTierCache] has not yet been initialized
+  /// (deferred on web until the first frame is laid out), this method
+  /// listens to [DeviceTierCache] and re-runs the tier mapping once
+  /// the device tier resolves. This ensures `supports3DBuildings`
+  /// returns the correct value even on web where the initial
+  /// `main()` call to `DeviceTierCache.initialize()` deferred.
   void initialize() {
-    if (_initialized) return;
+    if (_initialized) {
+      // Already initialized — but if DeviceTierCache hasn't resolved
+      // yet (e.g., we initialized from the default mid before the
+      // deferred web detection completed), listen for the resolution.
+      _maybeListenToDeviceTier();
+      return;
+    }
 
+    _applyDeviceTier();
+    _initialized = true;
+    debugPrint('🎛️ MapQualityTier initialized: $_tier '
+        '(from DeviceTier.${DeviceTierCache.instance.tier}, '
+        'deviceTierInitialized=${DeviceTierCache.instance.isInitialized})');
+
+    // Listen for late DeviceTier resolution (web timing race).
+    _maybeListenToDeviceTier();
+  }
+
+  void _maybeListenToDeviceTier() {
+    // If DeviceTierCache is already initialized, no need to listen.
+    if (DeviceTierCache.instance.isInitialized) return;
+    // Otherwise, listen for its resolution and re-apply the tier.
+    DeviceTierCache.instance.addListener(_onDeviceTierChanged);
+  }
+
+  void _onDeviceTierChanged() {
+    if (!DeviceTierCache.instance.isInitialized) return;
+    // DeviceTier just resolved — re-apply the tier mapping.
+    final previousTier = _tier;
+    _applyDeviceTier();
+    if (_tier != previousTier) {
+      debugPrint('🎛️ MapQualityTier updated: $_tier '
+          '(was $previousTier — DeviceTier resolved late)');
+      notifyListeners();
+    }
+    // Stop listening — tier only resolves once.
+    DeviceTierCache.instance.removeListener(_onDeviceTierChanged);
+  }
+
+  void _applyDeviceTier() {
     final deviceTier = DeviceTierCache.instance.tier;
     switch (deviceTier) {
       case DeviceTier.low:
@@ -128,16 +181,16 @@ class MapQualityTierController {
         _tier = MapQualityTier.high;
         break;
     }
-
-    _initialized = true;
-    debugPrint('🎛️ MapQualityTier initialized: $_tier '
-        '(from DeviceTier.$deviceTier)');
   }
 
   /// Reset the controller (for testing or hot-reload).
   void reset() {
     _tier = MapQualityTier.mid;
     _initialized = false;
+    try {
+      DeviceTierCache.instance.removeListener(_onDeviceTierChanged);
+    } catch (_) {}
+    notifyListeners();
   }
 
   /// Returns the visibility value to set on a controlled layer, given

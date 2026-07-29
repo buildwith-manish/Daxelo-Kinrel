@@ -174,10 +174,34 @@ void main() async {
     final physicalSize = view.physicalSize;
     final pixelRatio = view.devicePixelRatio;
     final screenWidth = physicalSize.width / pixelRatio;
-    DeviceTierCache.instance.initialize(screenWidth, pixelRatio);
+    // Part 1 fix — initialize() now returns false when screenWidth or
+    // pixelRatio is 0 (which happens on web before the first frame is
+    // laid out, when view.physicalSize is Size.zero). In that case we
+    // schedule a post-frame callback to call initializeFromView() once
+    // the view has a real size. This fixes the timing race where web
+    // devices were wrongly classified as 'low' tier (screenWidth=0 < 360),
+    // which hid the 3D Buildings toggle and forced 2D mode.
+    final detected =
+        DeviceTierCache.instance.initialize(screenWidth, pixelRatio);
+    if (!detected) {
+      debugPrint('🔧 DeviceTier: detection deferred — scheduling post-frame retry');
+      // Schedule the retry on the next frame. Using addPostFrameCallback
+      // ensures the view has been laid out by the time we read its size.
+      // If the view STILL has no size (extremely rare — e.g., the platform
+      // view hasn't attached yet), initializeFromView() will log and
+      // return without committing; we'd need another retry, but in
+      // practice one post-frame retry is always sufficient.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        DeviceTierCache.instance.initializeFromView();
+      });
+    }
     // Phase B v1.0: initialize MapQualityTier from DeviceTier.
     // Must run AFTER DeviceTierCache.initialize() since it reads the tier.
     // Safe to call before app runs — controller is a singleton.
+    // Part 1 fix — MapQualityTierController is now a ChangeNotifier that
+    // listens to DeviceTierCache. If DeviceTierCache is deferred (web),
+    // the controller will pick up the resolved tier via the listener
+    // and notify its own listeners (e.g., FamilyMapScreen) to rebuild.
     MapQualityTierController.instance.initialize();
   } catch (e) {
     debugPrint('⚠️ Device tier detection failed: $e');

@@ -1,0 +1,193 @@
+# ─────────────────────────────────────────────────────────────────
+# Daxelo Kinrel — 3D Buildings Toggle Verification Workflow
+# ─────────────────────────────────────────────────────────────────
+# Triggered manually (workflow_dispatch) or on push to main when the
+# 3D-buildings-toggle feature files change. Runs:
+#   1. flutter analyze (catches Dart compile errors)
+#   2. flutter test (runs the family_map test suite, including the
+#      p10_integration_screen_test that asserts on the new
+#      KinrelColors-aligned building color)
+#   3. flutter build web (catches web-specific compile errors that
+#      flutter analyze alone may miss — important because the 3D-toggle
+#      fix touches the web code path in _loadStyleJson)
+# ─────────────────────────────────────────────────────────────────
+
+name: 3D Buildings Toggle Verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Daxelo-Kinrel-App/lib/features/family_map/**'
+      - 'Daxelo-Kinrel-App/lib/core/utils/device_tier.dart'
+      - 'Daxelo-Kinrel-App/lib/core/constants/brand_colors.dart'
+      - 'Daxelo-Kinrel-App/lib/main.dart'
+      - 'Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json'
+      - '.github/workflows/3d-buildings-toggle-verification.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Daxelo-Kinrel-App/lib/features/family_map/**'
+      - 'Daxelo-Kinrel-App/lib/core/utils/device_tier.dart'
+      - 'Daxelo-Kinrel-App/lib/core/constants/brand_colors.dart'
+      - 'Daxelo-Kinrel-App/lib/main.dart'
+      - 'Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json'
+  workflow_dispatch:
+
+concurrency:
+  group: 3d-toggle-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.44.2'
+  JAVA_VERSION: '17'
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════
+  # Job 1: Flutter Analyze — catch Dart compile errors
+  # ═══════════════════════════════════════════════════════════════
+  analyze:
+    name: Flutter Analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install native build toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build \
+            libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev \
+            libc++-19-dev libc++1-19 libc++abi-19-dev libc++abi1-19 libunwind-19
+
+      - name: Enable Flutter native assets
+        run: flutter config --enable-native-assets
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Flutter analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+  # ═══════════════════════════════════════════════════════════════
+  # Job 2: Flutter Test — run family_map test suite
+  # ═══════════════════════════════════════════════════════════════
+  test:
+    name: Flutter Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install native build toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build \
+            libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev \
+            libc++-19-dev libc++1-19 libc++abi-19-dev libc++abi1-19 libunwind-19
+
+      - name: Enable Flutter native assets
+        run: flutter config --enable-native-assets
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Run all Flutter tests
+        run: flutter test --no-pub
+
+      - name: Run family_map tests (verbose)
+        run: flutter test test/features/family_map/ --no-pub --reporter expanded
+
+  # ═══════════════════════════════════════════════════════════════
+  # Job 3: Flutter Build Web — catch web-specific compile errors
+  # (critical because the 3D-toggle fix touches the web code path
+  # in _loadStyleJson which returns early with the hosted URL)
+  # ═══════════════════════════════════════════════════════════════
+  build-web:
+    name: Flutter Build Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [analyze, test]
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Create .env file (for build-time constants)
+        run: |
+          cat > .env <<'EOF'
+          SUPABASE_URL=https://promxswvsnvilplmrtsj.supabase.co
+          SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY
+          API_BASE_URL=https://daxelo-kinrel-server.onrender.com
+          EOF
+          sed -i 's/^[[:space:]]*//' .env
+
+      - name: Build web (debug, no tree-shaking to catch more errors)
+        run: flutter build web --debug --no-tree-shake-icons
+
+      - name: Verify build output exists
+        run: |
+          ls -la build/web/
+          test -f build/web/index.html || (echo "FAIL: build/web/index.html not found" && exit 1)
+          test -f build/web/main.dart.js || (echo "FAIL: build/web/main.dart.js not found" && exit 1)
+          echo "✓ Web build succeeded"
+
+      - name: Upload web build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build-debug
+          path: Daxelo-Kinrel-App/build/web
+          retention-days: 7
+          if-no-files-found: warn

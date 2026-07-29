@@ -897,18 +897,46 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// extrusion is too expensive for low-end hardware; the toggle is hidden
   /// from the user on those devices, so a stale true value from a previous
   /// higher-tier device must not survive).
+  ///
+  /// v2 migration — the pref key was bumped from `family_map_3d_buildings_enabled`
+  /// (v1) to `family_map_3d_buildings_enabled_v2` (v2) to invalidate stale
+  /// `true` values that leaked in from before this feature shipped correctly.
+  /// On first load with the new code, the v1 key is read for diagnostic
+  /// logging, then cleared. The v2 key starts clean at the false default.
   Future<void> _loadBuildings3DPreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final saved = prefs.getBool(MapVisualConstants.buildings3DPrefKey) ??
-          MapVisualConstants.defaultBuildings3DEnabled;
+
+      // ── v2 migration: read + clear the old v1 key ──────────────────
+      // This is a one-time migration. After the v1 key is cleared, this
+      // block is a no-op on subsequent loads.
+      final v1Value = prefs.getBool(MapVisualConstants.buildings3DPrefKeyV1);
+      if (v1Value != null) {
+        debugPrint('🎛️ FamilyMap: v1 pref found '
+            '(${MapVisualConstants.buildings3DPrefKeyV1}=$v1Value) — '
+            'clearing (migrated to v2 key ${MapVisualConstants.buildings3DPrefKey})');
+        await prefs.remove(MapVisualConstants.buildings3DPrefKeyV1);
+      }
+
+      // ── Read the v2 key (the source of truth from now on) ──────────
+      final saved = prefs.getBool(MapVisualConstants.buildings3DPrefKey);
+      debugPrint('🎛️ FamilyMap: raw saved value for '
+          '${MapVisualConstants.buildings3DPrefKey} = $saved '
+          '(null → using default ${MapVisualConstants.defaultBuildings3DEnabled})');
+
+      final effectiveSaved = saved ?? MapVisualConstants.defaultBuildings3DEnabled;
+      final supports3D = MapQualityTierController.instance.supports3DBuildings;
+      debugPrint('🎛️ FamilyMap: supports3DBuildings=$supports3D '
+          '(tier=${MapQualityTierController.instance.tier}, '
+          'initialized=${MapQualityTierController.instance.isInitialized})');
+
       // Force-disable on low-tier devices.
-      _buildings3DEnabled =
-          saved && MapQualityTierController.instance.supports3DBuildings;
-      if (saved && !MapQualityTierController.instance.supports3DBuildings) {
+      _buildings3DEnabled = effectiveSaved && supports3D;
+      if (effectiveSaved && !supports3D) {
         debugPrint('🎛️ FamilyMap: ignoring saved buildings3DEnabled=true on '
             'low-tier device (forced to false)');
       }
+      debugPrint('🎛️ FamilyMap: final _buildings3DEnabled=$_buildings3DEnabled');
     } catch (e) {
       debugPrint('⚠️ Failed to load 3D buildings preference: $e');
     }
@@ -1061,28 +1089,41 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       }
 
       // Extrusion layer (fill-extrusion, minZoom 13)
-      try {
-        await style.addLayer(
-          FillExtrusionStyleLayer(
-            id: FamilyBuildingLayer.extrusionLayerId,
-            sourceId: FamilyBuildingLayer.sourceId,
-            minZoom: 13,
-            paint: {
-              'fill-extrusion-color': matchExpr,
-              'fill-extrusion-height': [
-                'coalesce',
-                ['get', 'height'],
-                12,
-              ],
-              'fill-extrusion-base': 0,
-              'fill-extrusion-opacity': 0.95,
-              'fill-extrusion-vertical-gradient': true,
-            },
-          ),
-        );
-        debugPrint('✅ FamilyMap: added family-buildings layer (web)');
-      } catch (e) {
-        debugPrint('ℹ️ FamilyMap: extrusion layer already exists: $e');
+      // Part 1 — GATED on _buildings3DEnabled. When 3D is OFF (the new
+      // default), the family-buildings extrusion is NOT injected — only
+      // the glow (circle) + fallback (circle) layers are added, so family
+      // pins still render as 2D circles but don't extrude vertically.
+      // This mirrors the gating on _ensureOsm3dBuildingsLayer above and
+      // the JSON patching in applyBuildings3DToStyleJson (which hides
+      // the family-buildings extrusion on native where the JSON already
+      // contains it).
+      if (_buildings3DEnabled) {
+        try {
+          await style.addLayer(
+            FillExtrusionStyleLayer(
+              id: FamilyBuildingLayer.extrusionLayerId,
+              sourceId: FamilyBuildingLayer.sourceId,
+              minZoom: 13,
+              paint: {
+                'fill-extrusion-color': matchExpr,
+                'fill-extrusion-height': [
+                  'coalesce',
+                  ['get', 'height'],
+                  12,
+                ],
+                'fill-extrusion-base': 0,
+                'fill-extrusion-opacity': 0.95,
+                'fill-extrusion-vertical-gradient': true,
+              },
+            ),
+          );
+          debugPrint('✅ FamilyMap: added family-buildings layer (web)');
+        } catch (e) {
+          debugPrint('ℹ️ FamilyMap: extrusion layer already exists: $e');
+        }
+      } else {
+        debugPrint('🎛️ FamilyMap: skipping family-buildings extrusion layer '
+            '(_buildings3DEnabled=false — 2D mode, only glow+fallback circles added)');
       }
 
       // Fallback circle layer (maxZoom 13)
@@ -1447,6 +1488,22 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   @override
   void initState() {
     super.initState();
+    // Part 1 fix — Listen to MapQualityTierController so the screen
+    // rebuilds when the device tier resolves. On web, the tier is
+    // initially deferred (DeviceTierCache.initialize() returns false
+    // because view.physicalSize is Size.zero before the first frame).
+    // The tier resolves a few milliseconds later via a post-frame
+    // callback in main(). When it does, MapQualityTierController
+    // notifies its listeners — this screen rebuilds so MapControlStack
+    // gets the correct `canToggle3D` value and the 3D-Buildings toggle
+    // appears (or stays hidden on genuinely low-tier devices).
+    //
+    // The listener also handles the case where the user's saved
+    // buildings3DEnabled preference needs to be re-evaluated against
+    // the resolved tier (e.g., a saved `true` value that was force-
+    // disabled because the tier hadn't resolved yet).
+    MapQualityTierController.instance.addListener(_onTierChanged);
+
     // Start the live location provider when the map screen mounts.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final familyId = widget.familyId;
@@ -1588,6 +1645,8 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
 
   @override
   void dispose() {
+    // Part 1 fix — remove the tier-changed listener.
+    MapQualityTierController.instance.removeListener(_onTierChanged);
     _stopBroadcastLoop();
     _styleWatchdog?.cancel();
     _lifecycle.dispose();
@@ -1601,6 +1660,51 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     _stateSaver?.dispose();
     ref.read(liveLocationProvider.notifier).stop();
     super.dispose();
+  }
+
+  /// Part 1 fix — Called when MapQualityTierController notifies its
+  /// listeners (i.e., when the device tier resolves after the deferred
+  /// web detection completes). Re-evaluates `_buildings3DEnabled`
+  /// against the now-correct tier, then triggers a rebuild so
+  /// MapControlStack picks up the updated `canToggle3D` value.
+  ///
+  /// If the tier went from low → mid/high AND the user had previously
+  /// saved buildings3DEnabled=true (but it was force-disabled because
+  /// the tier was wrongly detected as low), this method restores the
+  /// user's preference and triggers a style reload so 3D layers
+  /// become visible.
+  void _onTierChanged() {
+    if (!mounted) return;
+    final supports3D = MapQualityTierController.instance.supports3DBuildings;
+    debugPrint('🎛️ FamilyMap: tier changed → supports3DBuildings=$supports3D '
+        '(tier=${MapQualityTierController.instance.tier})');
+
+    // Re-read the saved preference in case it was suppressed by a stale
+    // low-tier detection. This is async — we trigger a rebuild here for
+    // the immediate visual state, and the async load will trigger
+    // another rebuild if the preference actually changes.
+    _loadBuildings3DPreference().then((_) {
+      if (!mounted) return;
+      // If the user's preference is now true (was force-disabled before)
+      // AND the style hasn't been loaded with 3D yet, invalidate the
+      // cached style so the next _loadStyleJson applies the 3D layers.
+      if (_buildings3DEnabled && _loadedStyleJson != null) {
+        debugPrint('🎛️ FamilyMap: tier resolved + pref is true — '
+            'invalidating style cache to apply 3D layers');
+        setState(() {
+          _loadedStyleJson = null;
+          _familyPlacesLayersAdded = false;
+          _liveLocationGlowAdded = false;
+          _osm3dBuildingsLayerAdded = false;
+          _styleLoaded = false;
+          _layersPrepared = false;
+          _lifecycle.reset();
+        });
+      } else {
+        // Just rebuild to update canToggle3D in MapControlStack.
+        setState(() {});
+      }
+    });
   }
 
   @override
@@ -2711,12 +2815,27 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // this, web users see only flat 2D building footprints (the OpenFreeMap
     // hosted dark style has no fill-extrusion layers) even though pitch
     // is correctly 50°. Idempotent — see [_ensureOsm3dBuildingsLayer].
-    try {
-      await _ensureOsm3dBuildingsLayer(
-        style,
-      ).timeout(const Duration(seconds: 3));
-    } catch (e) {
-      debugPrint('⚠️ FamilyMap v13: _ensureOsm3dBuildingsLayer timed out: $e');
+    //
+    // Part 1 — GATED on _buildings3DEnabled. When 3D is OFF (the new
+    // default), this layer is NOT injected, so the map stays flat 2D.
+    // This is critical on web where _loadStyleJson() returns early with
+    // the hosted URL (no JSON patching), so the only way to control 3D
+    // layer visibility is to skip the runtime addLayer call here.
+    // Native platforms also benefit — even though the bundled JSON is
+    // patched via applyBuildings3DToStyleJson, this addLayer call would
+    // re-add the layer idempotently (catching the duplicate-add error),
+    // so skipping it entirely when 3D is off is the correct behavior.
+    if (_buildings3DEnabled) {
+      try {
+        await _ensureOsm3dBuildingsLayer(
+          style,
+        ).timeout(const Duration(seconds: 3));
+      } catch (e) {
+        debugPrint('⚠️ FamilyMap v13: _ensureOsm3dBuildingsLayer timed out: $e');
+      }
+    } else {
+      debugPrint('🎛️ FamilyMap: skipping _ensureOsm3dBuildingsLayer '
+          '(_buildings3DEnabled=false — 2D mode)');
     }
     if (_lifecycle.currentAttempt != attempt) return;
 

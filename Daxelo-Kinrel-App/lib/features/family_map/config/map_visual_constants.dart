@@ -308,7 +308,20 @@ class MapVisualConstants {
   /// Part 1 — SharedPreferences key for the user's 3D-buildings toggle
   /// preference. Stored as a bool. Defaults to [defaultBuildings3DEnabled]
   /// when the key is missing (first launch).
-  static const String buildings3DPrefKey = 'family_map_3d_buildings_enabled';
+  ///
+  /// v2 — migrated from `family_map_3d_buildings_enabled` to
+  /// `family_map_3d_buildings_enabled_v2` to invalidate stale `true`
+  /// values that leaked in from before this feature shipped correctly
+  /// (the v1 key was set to `true` by an earlier code path that didn't
+  /// respect the device-tier gate). The v2 key starts clean at the false
+  /// default for all existing users. See [_loadBuildings3DPreference]
+  /// in family_map_screen.dart for the migration logic.
+  static const String buildings3DPrefKey = 'family_map_3d_buildings_enabled_v2';
+
+  /// Part 1 — The PREVIOUS (v1) SharedPreferences key. Kept here so the
+  /// migration logic in [_loadBuildings3DPreference] can read + clear it.
+  /// Do NOT use this for new reads/writes — use [buildings3DPrefKey].
+  static const String buildings3DPrefKeyV1 = 'family_map_3d_buildings_enabled';
 
   /// v10 — Default camera bearing (rotation) for the INITIAL map load.
   ///

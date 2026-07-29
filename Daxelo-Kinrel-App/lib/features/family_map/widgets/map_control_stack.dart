@@ -28,6 +28,7 @@
 // Rule 14 — every visual value is sourced from MapVisualConstants.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:geolocator/geolocator.dart';
@@ -216,8 +217,22 @@ class MapControlStack extends StatelessWidget {
   /// Each maps to a family-place category or status tier.
   static const List<MapControlLayer> _allLayers = MapControlLayer.values;
 
+  /// Part 1 fix — diagnostic flag set on the FIRST build of this widget.
+  /// Used to log the initial `canToggle3D` value so we can confirm in
+  /// the deployed-app console whether the tier-detection race is real
+  /// (i.e., the first build sees `supports3DBuildings=false` even on a
+  /// mid/high-tier device because DeviceTierCache hasn't resolved yet).
+  static bool _firstBuildLogged = false;
+
   @override
   Widget build(BuildContext context) {
+    // Part 1 fix — log the tier state on the first build only, so we can
+    // diagnose the timing race without spamming the console on every rebuild.
+    if (!_firstBuildLogged) {
+      _firstBuildLogged = true;
+      debugPrint('🎛️ MapControlStack FIRST build: canToggle3D=$canToggle3D, '
+          'buildings3DEnabled=$buildings3DEnabled');
+    }
     return Positioned(
       right: MapVisualConstants.controlStackRightInset,
       bottom: MapVisualConstants.controlStackBottomInset,
