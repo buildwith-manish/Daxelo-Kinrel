@@ -4160,7 +4160,7 @@
       "minzoom": 11,
       "maxzoom": 22,
       "paint": {
-        "fill-color": "#1A1B2E",
+        "fill-color": "#1E1D2A",
         "fill-outline-color": [
           "interpolate",
           [
@@ -7144,7 +7144,20 @@
   ],
   "name": "kinrel-dark",
   "metadata": {
-    "description": "Kinrel dark style based on OpenFreeMap liberty with reduced label clutter"
+    "description": "Kinrel dark style based on OpenFreeMap liberty with reduced label clutter",
+    "_kinrel_building_palette": {
+      "_doc": "Kinrel Building Style — canonical two-palette system. Every building layer's paint colors MUST come from one of these two ramps. Stray colors (e.g. leftover OpenFreeMap defaults) should be flagged and migrated. This is a pure color-consistency contract; it does NOT govern opacity curves, zoom thresholds, or which buildings render.",
+      "base_fill_ground_level": "#1E1D2A",
+      "extrusion_height_gradient_short_to_tall": ["#1E1D2A", "#2A2638", "#3A3450", "#4A4060"],
+      "building_outline_edge": {
+        "color": "#4A4060",
+        "opacity": "low (matches top of height gradient so tall buildings' outlines blend rather than contrast)"
+      },
+      "warm_accent_height_and_proximity_glow": ["#A04515", "#E8612A", "#F59240", "#F5B841", "#FFD66B"],
+      "layers_governed": ["building", "kinrel-buildings-outline", "kinrel-3d-buildings", "kinrel-3d-buildings-warm-glow", "kinrel-3d-buildings-family-proximity-glow"],
+      "layers_NOT_governed": ["family-buildings", "family-buildings-glow", "family-buildings-fallback (placeType-based accent logic, but accent tones should stay harmonious with warm_accent ramp above)"],
+      "sources_governed": "all OSM building sources (current OpenFreeMap vector tiles, future PMTiles) — fix is at layer-paint level so it auto-applies to any source"
+    }
   },
   "_v5_part1_mitigation": "// v5.0 Part 1 mitigation: was `pmtiles://{{PMTILES_URL}}` — broke production (placeholder never substituted on web; localhost default on native). Switched to OpenFreeMap ZYX tiles. PMTiles can be re-enabled via --dart-define=PMTILES_URL=https://.../archive.pmtiles — see family_map_screen.dart _applyPmtilesSource (opt-in patching).",
   "fog": {
