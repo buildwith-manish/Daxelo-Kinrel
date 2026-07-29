@@ -59,6 +59,8 @@
   "familyMapControlLayers": "പാളികൾ",
   "familyMapControlDarkMode": "ഡാർക്ക് മാപ്പ്",
   "familyMapControlLightMode": "ലൈറ്റ് മാപ്പ്",
+  "familyMapControl3DBuildingsOn": "Turn on 3D buildings",
+  "familyMapControl3DBuildingsOff": "Turn off 3D buildings",
   "familyMapLocateServiceOff": "ലൊക്കേഷൻ സേവനങ്ങൾ ഓഫാണ്.",
   "familyMapLocatePermissionDenied": "ലൊക്കേഷൻ അനുമതി നിരസിച്ചു.",
   "familyMapLocateFailed": "നിങ്ങളുടെ നിലവിലെ സ്ഥാനം ലഭിച്ചില്ല.",

@@ -28,9 +28,14 @@ class MapVisualConstants {
   // between this file and the JSON.
   // ═════════════════════════════════════════════════════════════════════
 
-  /// Base background of the dark map — P12.1 ultra-premium dark warm charcoal.
-  /// Even darker than P12 (#0F1014) for stronger cinematic mood.
-  static const Color background = Color(0xFF0E0F13);
+  /// Base background of the dark map — matches KinrelColors.darkBackground
+  /// (#131416) so the map canvas and the app's Scaffold background are the
+  /// SAME color. The map reads as a native part of the app, not a
+  /// separately-styled component.
+  ///
+  /// (Previous P12.1 value was #0E0F13 — a near-black charcoal. Aligned to
+  /// KinrelColors token as part of the Part 2 theme-token unify task.)
+  static const Color background = Color(0xFF131416);
 
   /// Land color (parks, land-use polygons) — warm dark purple-grey.
   static const Color land = Color(0xFF1B1A24);
@@ -47,9 +52,13 @@ class MapVisualConstants {
   /// Motorways / highways.
   static const Color roadMotorway = Color(0xFF4A3F63);
 
-  /// Generic non-family buildings — ultra-premium dark base for 3D extrusion.
-  /// P12.1: darker base for stronger contrast against the bright warm top.
-  static const Color buildingNormal = Color(0xFF1A1925);
+  /// 2D flat building fill — matches KinrelColors.darkSurface (#13141E).
+  /// Buildings visually sit at the same depth as the app's surface-level UI
+  /// elements (cards, dialogs). NOTE: this is the FLAT fill color used by
+  /// the 2D `building` layer; the 3D extrusion ramp below
+  /// (buildingNormalMid/Top/Tall) is HEIGHT-driven and intentionally does
+  /// NOT mirror an app token.
+  static const Color buildingNormal = Color(0xFF13141E);
 
   /// Generic building mid-tone (vertical gradient middle stop).
   static const Color buildingNormalMid = Color(0xFF2A2638);
@@ -60,8 +69,11 @@ class MapVisualConstants {
   /// Generic building tall accent (high-rises get this bright tint).
   static const Color buildingNormalTall = Color(0xFF4D4060);
 
-  /// Generic building edge highlight (warm purple stroke).
-  static const Color buildingNormalEdge = Color(0xFF5A4D70);
+  /// Building edge / outline — matches KinrelColors.darkElevated (#202338)
+  /// so building edges read as an elevated layer, consistent with how
+  /// elevation works in the rest of the app's Material theme (elevated
+  /// buttons, dropdowns, etc.).
+  static const Color buildingNormalEdge = Color(0xFF202338);
 
   // ═════════════════════════════════════════════════════════════════════
   // FAMILY BUILDING COLORS (by PlaceType — P10.2)
@@ -238,9 +250,18 @@ class MapVisualConstants {
   static const double focusMinZoom = 16.5;
 
   /// Camera pitch (tilt) for Focus Mode and cinematic entrance.
+  ///
+  /// Part 1 of the map-style unify task: this pitch is now ONLY used when
+  /// the user has explicitly enabled 3D buildings (`buildings3DEnabled`).
+  /// When 3D is off (the new default — see [defaultBuildings3DEnabled]),
+  /// Focus Mode does NOT tilt the camera — it just zooms in. The map
+  /// stays flat by default so the experience matches the rest of the app's
+  /// 2D UI paradigm.
   static const double focusPitch = 45.0;
 
-  /// v10 — Default camera pitch for the INITIAL map load.
+  /// v10 — Default camera pitch for the INITIAL map load WHEN 3D BUILDINGS
+  /// ARE ENABLED. Used as the initial pitch when [defaultBuildings3DEnabled]
+  /// is true (user opt-in) OR when a restored session had 3D on.
   ///
   /// Per the v10 visual-system directive: change the map's default initial
   /// camera load from `pitch: 0` to `pitch: 50, bearing: -17`, so 3D
@@ -254,6 +275,40 @@ class MapVisualConstants {
   /// slightly straightens the camera (50 → 45), keeping the focus target
   /// framed while reducing peripheral distortion.
   static const double defaultPitch = 50.0;
+
+  /// Part 1 — Default initial camera pitch WHEN 3D BUILDINGS ARE DISABLED
+  /// (the new default — see [defaultBuildings3DEnabled]). Flat top-down
+  /// view so the map reads as a 2D canvas, matching the rest of the app's
+  /// 2D UI paradigm.
+  ///
+  /// This replaces the previous v10 directive that always set pitch=50° on
+  /// initial load. The map is now flat by default; 3D is an opt-in toggle.
+  static const double defaultPitchFlat = 0.0;
+
+  /// Part 1 — Pitch used when the user toggles 3D buildings ON. Same value
+  /// as [defaultPitch] (50°) — kept as a separate constant so the toggle
+  /// behavior is self-documenting and can be tuned independently of the
+  /// initial-load pitch.
+  static const double pitch3DEnabled = 50.0;
+
+  /// Part 1 — Duration of the animated camera transition when the user
+  /// toggles 3D buildings on/off. Matches the focus-mode fly-to duration
+  /// (720ms) so the toggle feels consistent with other camera animations.
+  static const Duration pitch3DToggleDuration = Duration(milliseconds: 720);
+
+  /// Part 1 — Whether 3D buildings (extrusion + warm-glow + proximity-glow)
+  /// are enabled by default. FALSE — flat 2D colored buildings are now the
+  /// default map experience. The user can opt-in to 3D via a toggle in the
+  /// map control stack (only shown on mid/high-tier devices).
+  ///
+  /// Persisted in SharedPreferences under [buildings3DPrefKey]. The user's
+  /// choice survives app restarts.
+  static const bool defaultBuildings3DEnabled = false;
+
+  /// Part 1 — SharedPreferences key for the user's 3D-buildings toggle
+  /// preference. Stored as a bool. Defaults to [defaultBuildings3DEnabled]
+  /// when the key is missing (first launch).
+  static const String buildings3DPrefKey = 'family_map_3d_buildings_enabled';
 
   /// v10 — Default camera bearing (rotation) for the INITIAL map load.
   ///
@@ -516,13 +571,39 @@ class MapVisualConstants {
   // at the documentation level (the JSON itself is the runtime source).
   // ═════════════════════════════════════════════════════════════════════
 
-  static const String hexBackground = '#0E0F13';
+  // ═════════════════════════════════════════════════════════════════════
+  // THEME TOKEN ALIGNMENT (Part 2 of the map-style unify task)
+  // ═════════════════════════════════════════════════════════════════════
+  // The hex values below are mirrored from KinrelColors in
+  // lib/core/constants/brand_colors.dart so the map's color system stays
+  // in lockstep with the app's Material theme tokens. When KinrelColors
+  // changes, update BOTH this section AND the corresponding paint
+  // properties in assets/map_styles/kinrel_dark_style.json (see the
+  // _kinrel_theme_token_mapping metadata block at the bottom of that JSON
+  // for the authoritative mapping).
+  //
+  // Mapping:
+  //   hexBackground     ← KinrelColors.darkBackground (#131416)
+  //   hexBuildingNormal ← KinrelColors.darkSurface    (#13141E) [2D fill]
+  //   hexBuildingNormalEdge ← KinrelColors.darkElevated (#202338) [outline]
+  // The 3D extrusion ramp (hexBuildingNormalMid/Top/Tall) is HEIGHT-driven
+  // and intentionally does NOT mirror an app token — it encodes building
+  // height, a map-only concept with no Material equivalent.
+  // ═════════════════════════════════════════════════════════════════════
+
+  /// Map canvas background — matches KinrelColors.darkBackground (#131416).
+  static const String hexBackground = '#131416';
   static const String hexLand = '#1B1A24';
   static const String hexWater = '#191D29';
   static const String hexRoadMinor = '#2A2440';
   static const String hexRoadPrimary = '#3A3252';
   static const String hexRoadMotorway = '#4A3F63';
-  static const String hexBuildingNormal = '#1A1925';
+
+  /// 2D flat building fill — matches KinrelColors.darkSurface (#13141E).
+  /// Buildings visually sit at the same depth as the app's surface-level
+  /// UI elements (cards, dialogs) so the map reads as a native part of
+  /// the app rather than a separately-styled component.
+  static const String hexBuildingNormal = '#13141E';
 
   /// P12.1: generic building mid-tone (vertical gradient middle stop).
   static const String hexBuildingNormalMid = '#2A2638';

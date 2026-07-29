@@ -4160,20 +4160,8 @@
       "minzoom": 11,
       "maxzoom": 22,
       "paint": {
-        "fill-color": "#1E1D2A",
-        "fill-outline-color": [
-          "interpolate",
-          [
-            "linear"
-          ],
-          [
-            "zoom"
-          ],
-          13,
-          "hsla(35,6%,79%,0.32)",
-          14,
-          "hsl(35,6%,79%)"
-        ],
+        "fill-color": "#13141E",
+        "fill-outline-color": "#202338",
         "fill-opacity": [
           "interpolate",
           [
@@ -6406,7 +6394,7 @@
       "minzoom": 11,
       "maxzoom": 22,
       "paint": {
-        "line-color": "#4A4060",
+        "line-color": "#202338",
         "line-width": [
           "interpolate",
           [
@@ -7145,13 +7133,34 @@
   "name": "kinrel-dark",
   "metadata": {
     "description": "Kinrel dark style based on OpenFreeMap liberty with reduced label clutter",
+    "_kinrel_theme_token_mapping": {
+      "_doc": "Map style → Kinrel app theme token mapping. Every paint color in this style is sourced from KinrelColors in lib/core/constants/brand_colors.dart (re-exported via lib/core/theme/app_theme.dart). When the app's theme tokens change, update the corresponding hex values here and in MapVisualConstants (lib/features/family_map/config/map_visual_constants.dart) so the map and app UI stay in sync. The two-palette building system (indigo-violet base + warm amber accent) is preserved — see _kinrel_building_palette below for that subsystem.",
+      "tokens": {
+        "KinrelColors.darkBackground": {"hex": "#131416", "used_by": ["background.background-color (canvas)"]},
+        "KinrelColors.darkSurface":    {"hex": "#13141E", "used_by": ["building.fill-color (2D flat fill — buildings sit at the app's surface depth)"]},
+        "KinrelColors.darkElevated":   {"hex": "#202338", "used_by": ["kinrel-buildings-outline.line-color (edges read as elevated layer, matching Material elevation semantics)"]},
+        "KinrelColors.darkCard":       {"hex": "#191B2C", "used_by": ["Flutter UI chrome overlay surfaces in MapControlStack / MapLegendWidget / MapSearchBar / MapTimelineScrubber (NOT used directly in this style JSON — chrome colors live in the Flutter widgets)"]},
+        "KinrelColors.orange":         {"hex": "#E8612A", "used_by": ["family-buildings-glow circle-color (current_home/wedding/important_place)", "family-buildings-fallback circle-color", "kinrel-3d-buildings-family-proximity-glow fill-extrusion-color", "warm-accent ramp mid-tone", "app UI active-state highlights (CTAs, switches, toggled buttons)"]},
+        "KinrelColors.amber":         {"hex": "#F59240", "used_by": ["family-buildings-glow (childhood_home/memorial)", "warm-accent ramp tertiary-tone"]},
+        "KinrelColors.deepPurple":     {"hex": "#C44A18", "used_by": ["family-buildings-glow (family_business)", "warm-accent ramp deep-tone"]},
+        "KinrelColors.brightGold":     {"hex": "#F5B841", "used_by": ["family-buildings-glow (birthplace)", "warm-accent ramp light-tone"]}
+      },
+      "notes": [
+        "Map background (#131416) intentionally matches KinrelColors.darkBackground so the map canvas and the app's Scaffold background are the SAME color — the map reads as a native part of the app, not a separately-styled component.",
+        "Building 2D fill (#13141E) intentionally matches KinrelColors.darkSurface — buildings visually sit at the same depth as the app's surface-level UI elements (cards, dialogs).",
+        "Building outline (#202338) intentionally matches KinrelColors.darkElevated — building edges read as an elevated layer, consistent with how elevation works in the rest of the app's Material theme (e.g., elevated buttons, dropdowns).",
+        "The 3D extrusion height gradient (indigo-violet ramp #1E1D2A → #4A4060) and the warm amber accent ramp (#A04515 → #FFD66B) are kept as canonical subsystems — see _kinrel_building_palette below. They are NOT replaced by app tokens because they encode building-height information (a map-specific concept with no app-theme equivalent).",
+        "Sky/fog color (#0B0F17) is the cinematic atmosphere color (only visible when pitch > 0°). It is intentionally darker than the canvas background to create depth perception when the camera is tilted. Not a KinrelColors token — it's a map-only atmospheric concept.",
+        "Light mode: when the user toggles to the light map (OpenFreeMap liberty URL), this style is NOT used — the light style is loaded directly from https://tiles.openfreemap.org/styles/liberty. The app's light theme tokens (KinrelColors.lightBackground #FFFAF8, lightCard #FFFFFF, lightSurface #E8E8ED) are not currently mirrored in a separate light map style; this is intentional — the map stays visually consistent (dark) by default for cinematic family-graph context, with the light map as an opt-in Snapchat-style alternative."
+      ]
+    },
     "_kinrel_building_palette": {
-      "_doc": "Kinrel Building Style — canonical two-palette system. Every building layer's paint colors MUST come from one of these two ramps. Stray colors (e.g. leftover OpenFreeMap defaults) should be flagged and migrated. This is a pure color-consistency contract; it does NOT govern opacity curves, zoom thresholds, or which buildings render.",
-      "base_fill_ground_level": "#1E1D2A",
+      "_doc": "Kinrel Building Style — canonical two-palette system (HEIGHT-driven, not app-theme-driven). Every building layer's paint colors MUST come from one of these two ramps. Stray colors (e.g. leftover OpenFreeMap defaults) should be flagged and migrated. This is a pure color-consistency contract; it does NOT govern opacity curves, zoom thresholds, or which buildings render.",
+      "base_fill_ground_level": "#13141E",
       "extrusion_height_gradient_short_to_tall": ["#1E1D2A", "#2A2638", "#3A3450", "#4A4060"],
       "building_outline_edge": {
-        "color": "#4A4060",
-        "opacity": "low (matches top of height gradient so tall buildings' outlines blend rather than contrast)"
+        "color": "#202338",
+        "opacity": "low (matches KinrelColors.darkElevated so building edges read as an elevated layer in the app's Material elevation system)"
       },
       "warm_accent_height_and_proximity_glow": ["#A04515", "#E8612A", "#F59240", "#F5B841", "#FFD66B"],
       "layers_governed": ["building", "kinrel-buildings-outline", "kinrel-3d-buildings", "kinrel-3d-buildings-warm-glow", "kinrel-3d-buildings-family-proximity-glow"],

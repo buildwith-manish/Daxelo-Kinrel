@@ -59,6 +59,8 @@
   "familyMapControlLayers": "ಪದರಗಳು",
   "familyMapControlDarkMode": "ಡಾರ್ಕ್ ನಕ್ಷೆ",
   "familyMapControlLightMode": "ಲೈಟ್ ನಕ್ಷೆ",
+  "familyMapControl3DBuildingsOn": "Turn on 3D buildings",
+  "familyMapControl3DBuildingsOff": "Turn off 3D buildings",
   "familyMapLocateServiceOff": "ಸ್ಥಳ ಸೇವೆಗಳು ಆಫ್ ಆಗಿವೆ.",
   "familyMapLocatePermissionDenied": "ಸ್ಥಳ ಅನುಮತಿ ನಿರಾಕರಿಸಲಾಗಿದೆ.",
   "familyMapLocateFailed": "ನಿಮ್ಮ ಪ್ರಸ್ತುತ ಸ್ಥಳ ಪಡೆಯಲಾಗಲಿಲ್ಲ.",

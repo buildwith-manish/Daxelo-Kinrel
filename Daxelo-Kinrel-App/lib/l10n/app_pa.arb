@@ -59,6 +59,8 @@
   "familyMapControlLayers": "ਪਰਤਾਂ",
   "familyMapControlDarkMode": "ਡਾਰਕ ਨਕਸ਼ਾ",
   "familyMapControlLightMode": "ਲਾਈਟ ਨਕਸ਼ਾ",
+  "familyMapControl3DBuildingsOn": "Turn on 3D buildings",
+  "familyMapControl3DBuildingsOff": "Turn off 3D buildings",
   "familyMapLocateServiceOff": "ਲੋਕੇਸ਼ਨ ਸੇਵਾਵਾਂ ਬੰਦ ਹਨ।",
   "familyMapLocatePermissionDenied": "ਲੋਕੇਸ਼ਨ ਇਜਾਜ਼ਤ ਨਕਾਰ ਦਿੱਤੀ।",
   "familyMapLocateFailed": "ਤੁਹਾਡਾ ਮੌਜੂਦਾ ਸਥਾਨ ਨਹੀਂ ਲੱਭ ਸਕਿਆ।",

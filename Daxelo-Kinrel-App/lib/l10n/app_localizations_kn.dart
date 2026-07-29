@@ -475,6 +475,12 @@ class SKn extends S {
   String get familyMapControlLightMode => 'ಲೈಟ್ ನಕ್ಷೆ';
 
   @override
+  String get familyMapControl3DBuildingsOn => 'Turn on 3D buildings';
+
+  @override
+  String get familyMapControl3DBuildingsOff => 'Turn off 3D buildings';
+
+  @override
   String get familyMapLocateServiceOff => 'ಸ್ಥಳ ಸೇವೆಗಳು ಆಫ್ ಆಗಿವೆ.';
 
   @override

@@ -475,6 +475,12 @@ class SMl extends S {
   String get familyMapControlLightMode => 'ലൈറ്റ് മാപ്പ്';
 
   @override
+  String get familyMapControl3DBuildingsOn => 'Turn on 3D buildings';
+
+  @override
+  String get familyMapControl3DBuildingsOff => 'Turn off 3D buildings';
+
+  @override
   String get familyMapLocateServiceOff => 'ലൊക്കേഷൻ സേവനങ്ങൾ ഓഫാണ്.';
 
   @override

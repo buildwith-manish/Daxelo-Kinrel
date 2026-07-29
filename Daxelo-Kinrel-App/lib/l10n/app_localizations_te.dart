@@ -475,6 +475,12 @@ class STe extends S {
   String get familyMapControlLightMode => 'లైట్ మ్యాప్';
 
   @override
+  String get familyMapControl3DBuildingsOn => 'Turn on 3D buildings';
+
+  @override
+  String get familyMapControl3DBuildingsOff => 'Turn off 3D buildings';
+
+  @override
   String get familyMapLocateServiceOff => 'స్థాన సేవలు ఆఫ్‌లో ఉన్నాయి.';
 
   @override

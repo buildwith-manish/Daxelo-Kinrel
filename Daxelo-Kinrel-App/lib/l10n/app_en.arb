@@ -650,6 +650,8 @@
   "familyMapControlLayers": "Layers",
   "familyMapControlDarkMode": "Dark map",
   "familyMapControlLightMode": "Light map",
+  "familyMapControl3DBuildingsOn": "Turn on 3D buildings",
+  "familyMapControl3DBuildingsOff": "Turn off 3D buildings",
   "familyMapLocateServiceOff": "Location services are off.",
   "familyMapLocatePermissionDenied": "Location permission denied.",
   "familyMapLocateFailed": "Could not get your current location.",

@@ -56,17 +56,23 @@ class MapFocusController {
   ///    screen's overlay opacity (handled by the screen via [FocusTier]).
   /// 3. Returns a [MapFocusContext] describing what should be shown in
   ///    the bottom sheet.
+  ///
+  /// Part 1 — [pitch] is now a parameter so the screen can pass
+  /// `defaultPitchFlat` (0°) when 3D buildings are OFF. Defaults to
+  /// [MapVisualConstants.focusPitch] for backward compatibility.
   Future<MapFocusContext> enterFocus({
     required MapController? mapController,
     required StyleController? style,
     required FamilyBuildingLayer? familyBuildings,
     required MapPin pin,
     required GraphFocusState focusState,
+    double? pitch,
   }) async {
     if (mapController == null) {
       return MapFocusContext(pin: pin, tier: FocusTier.focused);
     }
 
+    final effectivePitch = pitch ?? MapVisualConstants.focusPitch;
     final targetZoom = math.max(
       _currentZoom(mapController),
       MapVisualConstants.focusMinZoom,
@@ -79,7 +85,7 @@ class MapFocusController {
         lat: pin.lat,
         lng: pin.lng,
         zoom: targetZoom,
-        pitch: MapVisualConstants.focusPitch,
+        pitch: effectivePitch,
       );
     } else {
       // Spring camera move. maplibre 0.3.5's animateCamera supports a
@@ -93,7 +99,7 @@ class MapFocusController {
         lat: pin.lat,
         lng: pin.lng,
         zoom: targetZoom,
-        pitch: MapVisualConstants.focusPitch,
+        pitch: effectivePitch,
         duration: MapVisualConstants.focusTransition,
       );
     }

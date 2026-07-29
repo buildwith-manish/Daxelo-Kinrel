@@ -59,6 +59,8 @@
   "familyMapControlLayers": "அடுக்குகள்",
   "familyMapControlDarkMode": "இருள் வரைபடம்",
   "familyMapControlLightMode": "ஒளி வரைபடம்",
+  "familyMapControl3DBuildingsOn": "Turn on 3D buildings",
+  "familyMapControl3DBuildingsOff": "Turn off 3D buildings",
   "familyMapLocateServiceOff": "இருப்பிட சேவைகள் அணைக்கப்பட்டுள்ளன.",
   "familyMapLocatePermissionDenied": "இருப்பிட அனுமதி மறுக்கப்பட்டது.",
   "familyMapLocateFailed": "உங்கள் தற்போதைய இடத்தைப் பெற முடியவில்லை.",

@@ -475,6 +475,12 @@ class SBn extends S {
   String get familyMapControlLightMode => 'লাইট ম্যাপ';
 
   @override
+  String get familyMapControl3DBuildingsOn => 'Turn on 3D buildings';
+
+  @override
+  String get familyMapControl3DBuildingsOff => 'Turn off 3D buildings';
+
+  @override
   String get familyMapLocateServiceOff => 'লোকেশন পরিষেবা বন্ধ আছে।';
 
   @override

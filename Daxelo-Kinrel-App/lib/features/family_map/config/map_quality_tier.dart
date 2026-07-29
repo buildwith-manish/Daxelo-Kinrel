@@ -72,6 +72,24 @@ const _kControlledLayerIds = <String>{
   'kinrel-3d-buildings-family-proximity-glow',
 };
 
+/// Part 1 — Layer IDs that are gated on the user's `buildings3DEnabled`
+/// preference. These are the 3D-extrusion layers (OSM buildings + family
+/// buildings extrusion). When the user has 3D OFF (the new default), all
+/// of these are hidden so only the flat 2D `building` fill layer renders.
+///
+/// The flat 2D `building` fill layer is NOT in this set — it stays visible
+/// regardless of the 3D toggle (it's the default 2D experience).
+///
+/// `family-buildings-glow` and `family-buildings-fallback` are ALSO NOT in
+/// this set — they're flat circle layers (not extrusion) and stay visible
+/// regardless of the 3D toggle so family pins always render.
+const _k3DBuildingLayerIds = <String>{
+  'kinrel-3d-buildings',
+  'kinrel-3d-buildings-warm-glow',
+  'kinrel-3d-buildings-family-proximity-glow',
+  'family-buildings', // the 3D fill-extrusion version (not the glow/fallback circles)
+};
+
 /// Controller for [MapQualityTier].
 ///
 /// Singleton — initialized once at app startup from [DeviceTierCache].
@@ -140,6 +158,65 @@ class MapQualityTierController {
   /// Returns the set of layer IDs this controller manages.
   Set<String> get controlledLayerIds =>
       Set<String>.from(_kControlledLayerIds);
+
+  /// Part 1 — Whether the current device tier supports 3D building
+  /// extrusion at all. Low-tier devices do NOT — they should force 2D
+  /// mode (no toggle offered to the user) because fill-extrusion is too
+  /// expensive for low-end hardware to maintain 60 FPS in dense downtowns.
+  ///
+  /// Used by family_map_screen.dart to:
+  ///   1. Force `buildings3DEnabled = false` on low-tier devices (even
+  ///      if the user previously enabled it on a higher-tier device).
+  ///   2. Hide the "3D Buildings" toggle UI on low-tier devices.
+  bool get supports3DBuildings => _tier != MapQualityTier.low;
+
+  /// Part 1 — Apply the user's `buildings3DEnabled` preference to a style
+  /// JSON string. Patches `layout.visibility` on each 3D-building layer
+  /// (see [_k3DBuildingLayerIds]).
+  ///
+  /// This is the ONLY way to apply 3D-buildings visibility in maplibre 0.3.5,
+  /// which does not expose `setLayoutProperty` at runtime. Must be called
+  /// BEFORE the style is handed to MapLibre.
+  ///
+  /// - When [enabled] is true: leaves all 3D layers at their JSON-default
+  ///   visibility (visible), so 3D extrusion renders normally.
+  /// - When [enabled] is false: sets `layout.visibility = 'none'` on every
+  ///   3D-building layer so only the flat 2D `building` fill renders.
+  ///
+  /// Safe to call on a style that doesn't contain the 3D layer IDs
+  /// (no-op for missing layers). Idempotent.
+  ///
+  /// Note: this is independent of [applyToStyleJson] (the quality-tier
+  /// patch). Both can be chained — typical pipeline is:
+  ///   style = tier.applyToStyleJson(style);          // hides warm-glow on low
+  ///   style = tier.applyBuildings3DToStyleJson(style, enabled); // hides 3D when off
+  String applyBuildings3DToStyleJson(String styleJson, bool enabled) {
+    if (enabled) {
+      // No patching needed when 3D is on — JSON defaults are correct.
+      return styleJson;
+    }
+    try {
+      final decoded = jsonDecode(styleJson) as Map<String, dynamic>;
+      final layers = decoded['layers'] as List<dynamic>? ?? [];
+      int patched = 0;
+      for (final layer in layers) {
+        if (layer is! Map<String, dynamic>) continue;
+        final id = layer['id'];
+        if (!_k3DBuildingLayerIds.contains(id)) continue;
+        final layout = (layer['layout'] as Map<String, dynamic>?) ?? {};
+        layout['visibility'] = 'none';
+        layer['layout'] = layout;
+        patched++;
+      }
+      debugPrint('🎛️ MapQualityTier: hid $patched 3D-building layer(s) '
+          '(buildings3DEnabled=false)');
+      return jsonEncode(decoded);
+    } catch (e) {
+      debugPrint('⚠️ MapQualityTier: failed to patch 3D-building visibility '
+          '($e) — returning unpatched');
+      return styleJson;
+    }
+  }
 
   /// Apply the current tier to a style JSON string. Patches
   /// `layout.visibility` on each controlled layer.

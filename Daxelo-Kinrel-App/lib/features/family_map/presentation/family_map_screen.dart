@@ -153,10 +153,13 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// Drives the atmospheric perspective overlay opacity (linear fade
   /// top-down when pitch > 10° per master prompt).
   ///
-  /// v10 — initialized to [MapVisualConstants.defaultPitch] (50°) since
-  /// the map now loads at pitch 50° by default. Previously initialized
-  /// to 0° because the map used to load flat.
-  double _currentPitch = MapVisualConstants.defaultPitch;
+  /// Part 1 — initialized to [MapVisualConstants.defaultPitchFlat] (0°)
+  /// because 3D buildings are OFF by default. When the user enables 3D,
+  /// the toggle handler animates the camera to [MapVisualConstants.pitch3DEnabled]
+  /// (50°) and updates this field. The atmospheric perspective overlay
+  /// only fades in when this value exceeds 10°, so it stays off in the
+  /// default 2D experience.
+  double _currentPitch = MapVisualConstants.defaultPitchFlat;
 
   /// P10.3 — Premium avatar markers. Owns the SymbolLayer vs Flutter
   /// overlay decision (Rule 12 fallback) and the marker image cache.
@@ -317,6 +320,27 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// SharedPreferences in initState. Toggled via the AppBar sun/moon button.
   bool _isLightMap = false;
 
+  /// Part 1 — Whether the user has enabled 3D building extrusion. Default
+  /// false (flat 2D colored buildings are the default experience). Loaded
+  /// from SharedPreferences in initState. Toggled via the "3D Buildings"
+  /// button in the MapControlStack (only shown on mid/high-tier devices).
+  ///
+  /// When false:
+  ///   - The 3D extrusion layers (kinrel-3d-buildings, kinrel-3d-buildings-
+  ///     warm-glow, kinrel-3d-buildings-family-proximity-glow, family-
+  ///     buildings) are hidden at style-load time via
+  ///     MapQualityTierController.applyBuildings3DToStyleJson.
+  ///   - The camera stays at pitch 0° (flat top-down).
+  ///   - Focus Mode / fly-to-place do NOT tilt the camera.
+  /// When true:
+  ///   - All 3D layers render with the existing height-gradient/glow system.
+  ///   - The camera pitches to 50° (MapVisualConstants.pitch3DEnabled).
+  ///   - Focus Mode / fly-to-place tilt to 45° (MapVisualConstants.focusPitch).
+  ///
+  /// On low-tier devices this is FORCED to false (and the toggle is hidden)
+  /// because fill-extrusion is too expensive for low-end hardware.
+  bool _buildings3DEnabled = MapVisualConstants.defaultBuildings3DEnabled;
+
   /// RENDERER CAPABILITY FLAG — idempotency guard for
   /// [_ensureFamilyPlacesLayers]. True once the family-places source +
   /// family-buildings layers have been added to the current style.
@@ -418,6 +442,16 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // No-op for mid/high tiers (returns input unchanged).
       final qualityPatched =
           MapQualityTierController.instance.applyToStyleJson(probed);
+      // Part 1 — Apply the user's buildings3DEnabled preference. When 3D
+      // is OFF (the new default), hides all 3D-extrusion layers so only
+      // the flat 2D `building` fill renders. No-op when 3D is ON.
+      // Also forces 3D OFF on low-tier devices regardless of the user's
+      // saved preference (fill-extrusion is too expensive for low-end
+      // hardware). See MapQualityTierController.supports3DBuildings.
+      final effective3DEnabled = _buildings3DEnabled &&
+          MapQualityTierController.instance.supports3DBuildings;
+      final buildings3DPatched = MapQualityTierController.instance
+          .applyBuildings3DToStyleJson(qualityPatched, effective3DEnabled);
       // v9.0: patch multi-script fontstacks to single-font stacks.
       // OpenFreeMap's font server returns 404 for combined fontstacks
       // (e.g. "Noto Sans Regular,Noto Sans Devanagari Regular,Noto Sans
@@ -429,7 +463,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       // style.load fires, idle fires, but no layers paint. Verified via
       // A/B test (scripts/v9_fontstack_ab_test_v2.mjs) — production
       // style renders 8KB blank, patched style renders 575KB basemap.
-      final fontPatched = _patchFontstacks(qualityPatched);
+      final fontPatched = _patchFontstacks(buildings3DPatched);
       // v10 — Inject the family-proximity buffer geometry into the new
       // `kinrel-3d-buildings-family-proximity-glow` layer's `within` filter.
       // We try to fetch the family-places data NOW (with a short timeout)
@@ -856,6 +890,90 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     } catch (e) {
       debugPrint('⚠️ Failed to load map theme preference: $e');
     }
+  }
+
+  /// Part 1 — Loads the user's 3D-buildings preference from SharedPreferences.
+  /// Forces false on low-tier devices regardless of the saved value (fill-
+  /// extrusion is too expensive for low-end hardware; the toggle is hidden
+  /// from the user on those devices, so a stale true value from a previous
+  /// higher-tier device must not survive).
+  Future<void> _loadBuildings3DPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getBool(MapVisualConstants.buildings3DPrefKey) ??
+          MapVisualConstants.defaultBuildings3DEnabled;
+      // Force-disable on low-tier devices.
+      _buildings3DEnabled =
+          saved && MapQualityTierController.instance.supports3DBuildings;
+      if (saved && !MapQualityTierController.instance.supports3DBuildings) {
+        debugPrint('🎛️ FamilyMap: ignoring saved buildings3DEnabled=true on '
+            'low-tier device (forced to false)');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to load 3D buildings preference: $e');
+    }
+  }
+
+  /// Part 1 — Saves the user's 3D-buildings preference to SharedPreferences.
+  void _saveBuildings3DPreference(bool enabled) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(MapVisualConstants.buildings3DPrefKey, enabled);
+    } catch (e) {
+      debugPrint('⚠️ Failed to save 3D buildings preference: $e');
+    }
+  }
+
+  /// Part 1 — Toggles 3D buildings on/off. Animates the camera pitch
+  /// (0° ↔ 50°) over [MapVisualConstants.pitch3DToggleDuration] and triggers
+  /// a style reload so the 3D-extrusion layer visibility is applied via
+  /// [MapQualityTierController.applyBuildings3DToStyleJson].
+  ///
+  /// On low-tier devices this is a no-op (the toggle UI is hidden, but
+  /// this method is still defensive against accidental invocation).
+  void _toggleBuildings3D() {
+    if (!MapQualityTierController.instance.supports3DBuildings) {
+      debugPrint('🎛️ FamilyMap: 3D buildings toggle ignored on low-tier device');
+      return;
+    }
+    final newValue = !_buildings3DEnabled;
+    setState(() {
+      _buildings3DEnabled = newValue;
+      // Invalidate the cached style so _loadStyleJson re-runs the patch
+      // pipeline (quality tier + buildings3D visibility + fontstack + poi
+      // filters) with the new buildings3DEnabled value.
+      _loadedStyleJson = null;
+      _familyPlacesLayersAdded = false;
+      _liveLocationGlowAdded = false;
+      _osm3dBuildingsLayerAdded = false;
+      _styleLoaded = false;
+      _layersPrepared = false;
+      _lifecycle.reset();
+    });
+
+    // Animate the camera pitch in parallel with the style reload. The
+    // animation runs on the existing map controller; when the new style
+    // finishes loading the camera position is preserved (MapLibre keeps
+    // the camera across style swaps).
+    final controller = _mapController;
+    if (controller != null) {
+      final targetPitch = newValue
+          ? MapVisualConstants.pitch3DEnabled
+          : MapVisualConstants.defaultPitchFlat;
+      final reducedMotion = MediaQuery.disableAnimationsOf(context);
+      if (reducedMotion) {
+        controller.moveCamera(pitch: targetPitch);
+      } else {
+        controller.animateCamera(
+          pitch: targetPitch,
+          nativeDuration: MapVisualConstants.pitch3DToggleDuration,
+        );
+      }
+      _currentPitch = targetPitch;
+    }
+
+    // Persist the preference.
+    _saveBuildings3DPreference(newValue);
   }
 
   /// Ensures the family-places GeoJSON source + family-buildings layers
@@ -1368,17 +1486,21 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       }
     });
 
-    // ── CRITICAL: Load map theme preference BEFORE style ────────────
+    // ── CRITICAL: Load map theme + 3D-buildings preferences BEFORE style ──
     // The theme preference (dark/light) must be loaded before _loadStyleJson
-    // so the correct style is fetched on the first render.
-    _loadMapThemePreference().then((_) {
+    // so the correct style is fetched on the first render. The 3D-buildings
+    // preference must also be loaded before _loadStyleJson because the style
+    // patcher reads _buildings3DEnabled to decide whether to hide the 3D
+    // extrusion layers.
+    _loadMapThemePreference().then((_) => _loadBuildings3DPreference()).then((_) {
       if (!mounted) return;
       _loadStyleJson()
           .then((style) {
             if (mounted) {
               debugPrint(
                 '✅ FamilyMap: style loaded in initState '
-                '(${style.length} chars, web=$kIsWeb, light=$_isLightMap)',
+                '(${style.length} chars, web=$kIsWeb, light=$_isLightMap, '
+                '3D=$_buildings3DEnabled)',
               );
               _lifecycle.transition(
                 FamilyMapLifecycle.loadingStyle,
@@ -2077,10 +2199,25 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         ? Geographic(lon: restored.lng, lat: restored.lat)
         : Geographic(lon: 78.9629, lat: 20.5937);
     final initZoom = restored?.zoom ?? 4.0;
-    // v10 — default pitch 50° / bearing -17° (per directive). 3D buildings
-    // are now visible immediately on screen load, not only after focusing
-    // on a pin. Restored pitch/bearing (if any) still wins.
-    final initPitch = restored?.pitch ?? MapVisualConstants.defaultPitch;
+    // Part 1 — Initial pitch depends on whether 3D buildings are enabled.
+    // When 3D is OFF (the new default), the map loads flat (pitch 0°).
+    // When 3D is ON, the map loads at the v10 default pitch (50°) so 3D
+    // buildings are visible immediately on screen load. Restored pitch
+    // (if any) still wins — the user's last camera position is honored.
+    //
+    // Edge case: if the restored pitch is > 0° but 3D is now OFF (e.g.,
+    // user downgraded device tier or manually turned 3D off since last
+    // session), clamp to 0° so the user doesn't see a tilted camera with
+    // no 3D buildings (which would look broken).
+    final defaultPitchFor3DState = _buildings3DEnabled
+        ? MapVisualConstants.pitch3DEnabled
+        : MapVisualConstants.defaultPitchFlat;
+    final restoredPitch = restored?.pitch;
+    final initPitch = restoredPitch == null
+        ? defaultPitchFor3DState
+        : (_buildings3DEnabled
+            ? restoredPitch
+            : MapVisualConstants.defaultPitchFlat);
     final initBearing = restored?.bearing ?? MapVisualConstants.defaultBearing;
 
     // ── NO FutureBuilder — style is loaded in initState() ────────────
@@ -2294,10 +2431,11 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
               ),
 
             // ── P13 — Right-side control stack ──────────────────────────
-            // Five vertically-stacked circular buttons: locate, zoom+,
-            // zoom-, layers, mode toggle. The layers button opens a
-            // popover with per-category filter switches driven by
-            // [_layerState].
+            // Five (or six, on mid/high-tier devices) vertically-stacked
+            // circular buttons: locate, zoom+, zoom-, layers, mode toggle,
+            // and (when 3D is supported) a "3D Buildings" toggle.
+            // The layers button opens a popover with per-category filter
+            // switches driven by [_layerState].
             if (_styleLoaded)
               MapControlStack(
                 mapController: _mapController,
@@ -2313,6 +2451,14 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 },
                 layerStates: _layerState,
                 reducedMotion: reducedMotion,
+                // Part 1 — 3D-buildings toggle. Only shown when the
+                // device supports 3D (mid/high tier). When toggled,
+                // animates the camera pitch (0° ↔ 50°) and triggers a
+                // style reload to apply layer visibility.
+                buildings3DEnabled: _buildings3DEnabled,
+                canToggle3D:
+                    MapQualityTierController.instance.supports3DBuildings,
+                onToggleBuildings3D: _toggleBuildings3D,
               ),
 
             // ── P13 — Premium collapsible bottom legend panel ───────────
@@ -2416,15 +2562,23 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     // extruded, not flat. The animation runs over [cinematicEntrance] ms
     // (1500ms) — this IS the smooth animated transition requested in the
     // v10 directive (no instant snap on pitch change).
+    //
+    // Part 1 — when 3D buildings are OFF (the new default), the entrance
+    // animation stays flat (pitch 0°) so the map reads as a 2D canvas.
+    // The zoom-in animation still runs, just without the tilt.
     if (!_entranceAnimationDone && _restoredState == null) {
       _entranceAnimationDone = true;
       final reducedMotion = MediaQuery.disableAnimationsOf(context);
+      // Part 1: pitch depends on buildings3DEnabled (0° when off, 50° when on).
+      final entrancePitch = _buildings3DEnabled
+          ? MapVisualConstants.pitch3DEnabled
+          : MapVisualConstants.defaultPitchFlat;
       if (reducedMotion) {
         // Reduced motion: instant camera move (no animation).
         controller.moveCamera(
           center: Geographic(lon: 78.9629, lat: 20.5937),
           zoom: 5.5,
-          pitch: MapVisualConstants.defaultPitch,
+          pitch: entrancePitch,
           bearing: MapVisualConstants.defaultBearing,
         );
       } else {
@@ -2432,18 +2586,20 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
         // cinematicEntrance duration (1500ms). Runs ONCE.
         // v10: pitch + bearing are now the new defaults so the camera
         // tilts into the 3D buildings during the entrance zoom.
+        // Part 1: when 3D is off, pitch stays at 0° (flat).
         Future.delayed(const Duration(milliseconds: 500), () {
           if (_mapController == null) return;
           if (!mounted) return;
           _mapController!.animateCamera(
             center: Geographic(lon: 78.9629, lat: 20.5937),
             zoom: 5.5,
-            pitch: MapVisualConstants.defaultPitch,
+            pitch: entrancePitch,
             bearing: MapVisualConstants.defaultBearing,
             nativeDuration: MapVisualConstants.cinematicEntrance,
           );
         });
       }
+      _currentPitch = entrancePitch;
     } else {
       _entranceAnimationDone = true;
     }
@@ -2692,17 +2848,28 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
       _selectedPinId = pin.personId;
       // P11.x — Focus Mode pitches the camera to 45° per master prompt.
       // Track this so the atmospheric perspective overlay can fade in.
-      _currentPitch = MapVisualConstants.focusPitch;
+      //
+      // Part 1 — when 3D buildings are OFF, Focus Mode does NOT tilt the
+      // camera (stays at 0°). The map stays flat; only the zoom changes.
+      // The atmospheric perspective overlay stays off because pitch=0.
+      _currentPitch = _buildings3DEnabled
+          ? MapVisualConstants.focusPitch
+          : MapVisualConstants.defaultPitchFlat;
     });
 
     // P10.6 — Enter Focus Mode via the MapFocusController.
     final focusState = ref.read(graphFocusProvider);
+    // Part 1 — when 3D buildings are OFF, don't tilt the camera during
+    // Focus Mode. The map stays flat; only the zoom + center change.
     await _focusController.enterFocus(
       mapController: _mapController,
       style: _mapController?.style,
       familyBuildings: _familyBuildings,
       pin: pin,
       focusState: focusState,
+      pitch: _buildings3DEnabled
+          ? MapVisualConstants.focusPitch
+          : MapVisualConstants.defaultPitchFlat,
     );
 
     // P10.9 — Save the new selection immediately.
@@ -2825,14 +2992,15 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
     if (_selectedPinId != null) {
       setState(() {
         _selectedPinId = null;
-        // v10 — Exiting Focus Mode resets the tracked pitch to the new
-        // default (50°), NOT 0°. The actual camera pitch is whatever the
-        // user last set via gestures + the default that was applied at
-        // style load. The atmospheric perspective overlay reads this
-        // value to fade in/out — keeping it at the default (rather than
-        // 0°) ensures the overlay correctly reflects that the camera
-        // is still pitched (the default view is now pitch 50°, not flat).
-        _currentPitch = MapVisualConstants.defaultPitch;
+        // Part 1 — Exiting Focus Mode resets the tracked pitch to the
+        // current 3D-mode default: 0° when 3D is OFF (flat top-down),
+        // or [pitch3DEnabled] (50°) when 3D is ON. The atmospheric
+        // perspective overlay reads this value to fade in/out — keeping
+        // it accurate ensures the overlay correctly reflects the actual
+        // camera state.
+        _currentPitch = _buildings3DEnabled
+            ? MapVisualConstants.pitch3DEnabled
+            : MapVisualConstants.defaultPitchFlat;
       });
       await _focusController.exitFocus(
         mapController: _mapController,
@@ -2874,13 +3042,18 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
   /// P13 — Fly the camera to a specific family place. Used by the
   /// PlaceCalloutOverlay tap handler + the HomeMarkerOverlay tap handler.
   /// Animates to focus-mode zoom + pitch so 3D buildings are visible.
+  ///
+  /// Part 1 — when 3D buildings are OFF, pitch stays at 0° (flat). Only
+  /// the zoom + center change. The map stays flat by default.
   void _flyToPlace(FamilyPlace place) {
     final controller = _mapController;
     if (controller == null) return;
     controller.animateCamera(
       center: Geographic(lon: place.lng, lat: place.lat),
       zoom: MapVisualConstants.focusMinZoom,
-      pitch: MapVisualConstants.focusPitch,
+      pitch: _buildings3DEnabled
+          ? MapVisualConstants.focusPitch
+          : MapVisualConstants.defaultPitchFlat,
       nativeDuration: const Duration(milliseconds: 720),
     );
     setState(() => _selectedPlaceId = place.id);

@@ -59,6 +59,8 @@
   "familyMapControlLayers": "ليئرون",
   "familyMapControlDarkMode": "ڊارڪ نقشو",
   "familyMapControlLightMode": "لائٽ نقشو",
+  "familyMapControl3DBuildingsOn": "Turn on 3D buildings",
+  "familyMapControl3DBuildingsOff": "Turn off 3D buildings",
   "familyMapLocateServiceOff": "مقامي خدمتون بند آهن.",
   "familyMapLocatePermissionDenied": "مقام اجازت رد ٿي.",
   "familyMapLocateFailed": "توهان جي موجوده جاءِ مليل ناهي.",

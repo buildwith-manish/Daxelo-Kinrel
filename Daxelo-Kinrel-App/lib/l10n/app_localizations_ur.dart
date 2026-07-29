@@ -475,6 +475,12 @@ class SUr extends S {
   String get familyMapControlLightMode => 'لائٹ نقشہ';
 
   @override
+  String get familyMapControl3DBuildingsOn => 'Turn on 3D buildings';
+
+  @override
+  String get familyMapControl3DBuildingsOff => 'Turn off 3D buildings';
+
+  @override
   String get familyMapLocateServiceOff => 'مقام کی خدمات بند ہیں۔';
 
   @override

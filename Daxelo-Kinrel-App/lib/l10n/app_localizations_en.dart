@@ -475,6 +475,12 @@ class SEn extends S {
   String get familyMapControlLightMode => 'Light map';
 
   @override
+  String get familyMapControl3DBuildingsOn => 'Turn on 3D buildings';
+
+  @override
+  String get familyMapControl3DBuildingsOff => 'Turn off 3D buildings';
+
+  @override
   String get familyMapLocateServiceOff => 'Location services are off.';
 
   @override

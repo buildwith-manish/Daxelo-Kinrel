@@ -59,6 +59,8 @@
   "familyMapControlLayers": "परतें",
   "familyMapControlDarkMode": "डार्क मैप",
   "familyMapControlLightMode": "लाइट मैप",
+  "familyMapControl3DBuildingsOn": "Turn on 3D buildings",
+  "familyMapControl3DBuildingsOff": "Turn off 3D buildings",
   "familyMapLocateServiceOff": "लोकेशन सेवाएं बंद हैं।",
   "familyMapLocatePermissionDenied": "लोकेशन अनुमति अस्वीकृत।",
   "familyMapLocateFailed": "आपका वर्तमान स्थान नहीं मिल सका।",

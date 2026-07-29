@@ -475,6 +475,12 @@ class SPa extends S {
   String get familyMapControlLightMode => 'ਲਾਈਟ ਨਕਸ਼ਾ';
 
   @override
+  String get familyMapControl3DBuildingsOn => 'Turn on 3D buildings';
+
+  @override
+  String get familyMapControl3DBuildingsOff => 'Turn off 3D buildings';
+
+  @override
   String get familyMapLocateServiceOff => 'ਲੋਕੇਸ਼ਨ ਸੇਵਾਵਾਂ ਬੰਦ ਹਨ।';
 
   @override

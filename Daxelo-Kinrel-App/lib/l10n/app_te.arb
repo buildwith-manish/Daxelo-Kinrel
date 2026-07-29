@@ -59,6 +59,8 @@
   "familyMapControlLayers": "పొరలు",
   "familyMapControlDarkMode": "డార్క్ మ్యాప్",
   "familyMapControlLightMode": "లైట్ మ్యాప్",
+  "familyMapControl3DBuildingsOn": "Turn on 3D buildings",
+  "familyMapControl3DBuildingsOff": "Turn off 3D buildings",
   "familyMapLocateServiceOff": "స్థాన సేవలు ఆఫ్‌లో ఉన్నాయి.",
   "familyMapLocatePermissionDenied": "స్థాన అనుమతి తిరస్కరించబడింది.",
   "familyMapLocateFailed": "మీ ప్రస్తుత స్థానం పొందడం సాధ్యం కాలేదు.",

@@ -475,6 +475,12 @@ class SHi extends S {
   String get familyMapControlLightMode => 'लाइट मैप';
 
   @override
+  String get familyMapControl3DBuildingsOn => 'Turn on 3D buildings';
+
+  @override
+  String get familyMapControl3DBuildingsOff => 'Turn off 3D buildings';
+
+  @override
   String get familyMapLocateServiceOff => 'लोकेशन सेवाएं बंद हैं।';
 
   @override

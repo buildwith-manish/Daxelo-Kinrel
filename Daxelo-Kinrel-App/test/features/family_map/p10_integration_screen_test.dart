@@ -328,12 +328,15 @@ void main() {
 
   group('Phase 10 Integration — hex mismatch fix (P10.8)', () {
     test(
-      'MapVisualConstants.buildingNormal matches style JSON (P12.5 warmed)',
+      'MapVisualConstants.buildingNormal matches style JSON (Part 2: aligned to KinrelColors.darkSurface)',
       () {
-        // P12.5: buildingNormal was warmed for a less muddy, warmer building base.
-        // Verify the current value matches.
-        expect(MapVisualConstants.hexBuildingNormal, equals('#1A1925'));
-        const expected = Color(0xFF1A1925);
+        // Part 2 of the map-style unify task: buildingNormal now mirrors
+        // KinrelColors.darkSurface (#13141E) so buildings visually sit at
+        // the same depth as the app's surface-level UI elements (cards,
+        // dialogs). Previously P12.5 used #1A1925 (a warmer charcoal) —
+        // aligned to the app theme token for visual consistency.
+        expect(MapVisualConstants.hexBuildingNormal, equals('#13141E'));
+        const expected = Color(0xFF13141E);
         expect(MapVisualConstants.buildingNormal, equals(expected));
       },
     );

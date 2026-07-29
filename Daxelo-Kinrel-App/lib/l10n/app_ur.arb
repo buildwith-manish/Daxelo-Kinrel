@@ -59,6 +59,8 @@
   "familyMapControlLayers": "تہیں",
   "familyMapControlDarkMode": "ڈارک نقشہ",
   "familyMapControlLightMode": "لائٹ نقشہ",
+  "familyMapControl3DBuildingsOn": "Turn on 3D buildings",
+  "familyMapControl3DBuildingsOff": "Turn off 3D buildings",
   "familyMapLocateServiceOff": "مقام کی خدمات بند ہیں۔",
   "familyMapLocatePermissionDenied": "مقام کی اجازت مسترد کر دی گئی۔",
   "familyMapLocateFailed": "آپ کا موجودہ مقام حاصل نہیں ہو سکا۔",

@@ -905,6 +905,12 @@ abstract class S {
   /// Tooltip for the light mode toggle (when currently dark)
   String get familyMapControlLightMode;
 
+  /// Part 1 — Tooltip for the "3D Buildings" toggle (when 3D is currently off)
+  String get familyMapControl3DBuildingsOn;
+
+  /// Part 1 — Tooltip for the "3D Buildings" toggle (when 3D is currently on)
+  String get familyMapControl3DBuildingsOff;
+
   /// Snack-bar shown when the user taps Locate but location services are off
   String get familyMapLocateServiceOff;
 

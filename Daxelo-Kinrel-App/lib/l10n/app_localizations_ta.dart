@@ -475,6 +475,12 @@ class STa extends S {
   String get familyMapControlLightMode => 'ஒளி வரைபடம்';
 
   @override
+  String get familyMapControl3DBuildingsOn => 'Turn on 3D buildings';
+
+  @override
+  String get familyMapControl3DBuildingsOff => 'Turn off 3D buildings';
+
+  @override
   String get familyMapLocateServiceOff => 'இருப்பிட சேவைகள் அணைக்கப்பட்டுள்ளன.';
 
   @override

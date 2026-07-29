@@ -475,6 +475,12 @@ class SGu extends S {
   String get familyMapControlLightMode => 'લાઇટ મેપ';
 
   @override
+  String get familyMapControl3DBuildingsOn => 'Turn on 3D buildings';
+
+  @override
+  String get familyMapControl3DBuildingsOff => 'Turn off 3D buildings';
+
+  @override
   String get familyMapLocateServiceOff => 'લોકેશન સેવાઓ બંધ છે.';
 
   @override

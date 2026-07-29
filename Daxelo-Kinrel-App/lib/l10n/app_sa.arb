@@ -59,6 +59,8 @@
   "familyMapControlLayers": "स्तराः",
   "familyMapControlDarkMode": "गभीरः नक्शः",
   "familyMapControlLightMode": "लघुः नक्शः",
+  "familyMapControl3DBuildingsOn": "Turn on 3D buildings",
+  "familyMapControl3DBuildingsOff": "Turn off 3D buildings",
   "familyMapLocateServiceOff": "स्थानसेवाः निष्क्रियाः सन्ति।",
   "familyMapLocatePermissionDenied": "स्थानानुमतिः अस्वीकृता।",
   "familyMapLocateFailed": "भवतः वर्तमानस्थानं न प्राप्तम्।",

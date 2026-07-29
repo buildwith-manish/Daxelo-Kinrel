@@ -475,6 +475,12 @@ class SOr extends S {
   String get familyMapControlLightMode => 'ଲାଇଟ୍ ମ୍ୟାପ୍';
 
   @override
+  String get familyMapControl3DBuildingsOn => 'Turn on 3D buildings';
+
+  @override
+  String get familyMapControl3DBuildingsOff => 'Turn off 3D buildings';
+
+  @override
   String get familyMapLocateServiceOff => 'ଲୋକେସନ୍ ସେବାଗୁଡ଼ିକ ବନ୍ଦ ଅଛି।';
 
   @override

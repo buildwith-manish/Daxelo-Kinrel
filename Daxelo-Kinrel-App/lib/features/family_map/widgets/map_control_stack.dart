@@ -160,9 +160,11 @@ class _ControlButtonState extends State<_ControlButton>
 
 /// P13 — Right-side premium control stack for the family map.
 ///
-/// Renders five vertically-stacked circular buttons above the bottom
-/// legend panel. Buttons: locate, zoom+, zoom−, layers, mode toggle.
-/// The layers button opens a popover with category filter switches.
+/// Renders five (or six, on mid/high-tier devices) vertically-stacked
+/// circular buttons above the bottom legend panel. Buttons: locate,
+/// zoom+, zoom−, layers, mode toggle, and (when 3D is supported) a
+/// "3D Buildings" toggle. The layers button opens a popover with
+/// category filter switches.
 class MapControlStack extends StatelessWidget {
   const MapControlStack({
     super.key,
@@ -172,6 +174,9 @@ class MapControlStack extends StatelessWidget {
     required this.onToggleLayer,
     required this.layerStates,
     required this.reducedMotion,
+    this.buildings3DEnabled = false,
+    this.canToggle3D = false,
+    this.onToggleBuildings3D,
   });
 
   /// The maplibre controller used for camera animations.
@@ -192,6 +197,20 @@ class MapControlStack extends StatelessWidget {
 
   /// True when the user has enabled reduced motion.
   final bool reducedMotion;
+
+  /// Part 1 — Whether 3D building extrusion is currently enabled.
+  /// Drives the "3D Buildings" toggle button's toggled state.
+  final bool buildings3DEnabled;
+
+  /// Part 1 — Whether the device supports 3D building extrusion at all
+  /// (mid/high tier). When false, the "3D Buildings" toggle button is
+  /// NOT rendered — low-tier devices force 2D mode with no opt-in.
+  final bool canToggle3D;
+
+  /// Part 1 — Callback when the "3D Buildings" toggle is tapped.
+  /// Null when [canToggle3D] is false (defensive — the button is not
+  /// rendered in that case).
+  final VoidCallback? onToggleBuildings3D;
 
   /// Categories the user can toggle on/off via the Layers popover.
   /// Each maps to a family-place category or status tier.
@@ -240,8 +259,32 @@ class MapControlStack extends StatelessWidget {
                 : (S.of(context)?.familyMapControlLightMode ?? 'Light map'),
             onPressed: onToggleMapMode,
             toggled: isLightMap,
-            toggledColor: const Color(0xFFF5B841),
+            // Part 2 — use KinrelColors token (was hardcoded #F5B841).
+            // KinrelColors.brightGold happens to be #F5B841 — same value,
+            // now sourced from the shared theme token so it stays in sync
+            // with the rest of the app's gold accents.
+            toggledColor: KinrelColors.brightGold,
           ),
+          // Part 1 — "3D Buildings" toggle. Only rendered when the device
+          // supports 3D (mid/high tier). Low-tier devices force 2D mode
+          // with no opt-in, so the button is hidden entirely.
+          if (canToggle3D && onToggleBuildings3D != null) ...[
+            SizedBox(height: MapVisualConstants.controlButtonGap),
+            _ControlButton(
+              icon: Icons.view_in_ar_rounded,
+              label: buildings3DEnabled
+                  ? (S.of(context)?.familyMapControl3DBuildingsOff ??
+                      'Turn off 3D buildings')
+                  : (S.of(context)?.familyMapControl3DBuildingsOn ??
+                      'Turn on 3D buildings'),
+              onPressed: onToggleBuildings3D!,
+              toggled: buildings3DEnabled,
+              // Part 2 — use KinrelColors.orange (the app's primary CTA
+              // color, = #E8612A) so the 3D toggle's "on" state matches
+              // every other active-state highlight in the app.
+              toggledColor: KinrelColors.orange,
+            ),
+          ],
         ],
       )
           .animate(onPlay: (c) => c.forward())

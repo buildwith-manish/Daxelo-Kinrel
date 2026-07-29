@@ -59,6 +59,8 @@
   "familyMapControlLayers": "સ્તરો",
   "familyMapControlDarkMode": "ડાર્ક મેપ",
   "familyMapControlLightMode": "લાઇટ મેપ",
+  "familyMapControl3DBuildingsOn": "Turn on 3D buildings",
+  "familyMapControl3DBuildingsOff": "Turn off 3D buildings",
   "familyMapLocateServiceOff": "લોકેશન સેવાઓ બંધ છે.",
   "familyMapLocatePermissionDenied": "લોકેશન પરવાનગી નકારાઈ.",
   "familyMapLocateFailed": "તમારું વર્તમાન સ્થાન મળ્યું નહીં.",

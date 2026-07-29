@@ -59,6 +59,8 @@
   "familyMapControlLayers": "স্তর",
   "familyMapControlDarkMode": "ডার্ক ম্যাপ",
   "familyMapControlLightMode": "লাইট ম্যাপ",
+  "familyMapControl3DBuildingsOn": "Turn on 3D buildings",
+  "familyMapControl3DBuildingsOff": "Turn off 3D buildings",
   "familyMapLocateServiceOff": "লোকেশন পরিষেবা বন্ধ আছে।",
   "familyMapLocatePermissionDenied": "লোকেশন অনুমতি অস্বীকৃত।",
   "familyMapLocateFailed": "আপনার বর্তমান অবস্থান পাওয়া যায়নি।",

@@ -476,6 +476,12 @@ class SSa extends S {
   String get familyMapControlLightMode => 'लघुः नक्शः';
 
   @override
+  String get familyMapControl3DBuildingsOn => 'Turn on 3D buildings';
+
+  @override
+  String get familyMapControl3DBuildingsOff => 'Turn off 3D buildings';
+
+  @override
   String get familyMapLocateServiceOff => 'स्थानसेवाः निष्क्रियाः सन्ति।';
 
   @override
