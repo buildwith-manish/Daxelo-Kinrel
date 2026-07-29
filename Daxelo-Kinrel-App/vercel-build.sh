@@ -70,6 +70,17 @@ fi
 # We tee the full output to a log file AND to stdout so Vercel captures
 # everything, and we surface the full log on failure.
 echo "=== Running flutter build web --release ==="
+
+# v13.0 — Build identifier (Step 0 of v13 fix).
+# Embed the git short hash + UTC build timestamp into the bundle via
+# --dart-define so the Family Map screen can display a permanent
+# "build: <hash> · <ts> UTC" label. This makes it unambiguous which
+# commit a given live deployment is running — no more guessing whether
+# a fix actually shipped.
+BUILD_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+BUILD_TIMESTAMP="$(date -u '+%Y-%m-%d %H:%M') UTC"
+echo "  Build identifier: build: ${BUILD_COMMIT} · ${BUILD_TIMESTAMP}"
+
 # v5.0 Part 1: support optional PMTILES_URL env var. When set (e.g. to
 # a deliberately bad URL for fallback-chain testing), it's passed to
 # Flutter as --dart-define. When unset, the app uses the OpenFreeMap
@@ -79,6 +90,8 @@ if [ -n "$PMTILES_URL" ]; then
   set +e
   flutter build web --release --base-href "/" \
     --dart-define=PMTILES_URL="$PMTILES_URL" \
+    --dart-define=KINREL_BUILD_COMMIT="$BUILD_COMMIT" \
+    --dart-define=KINREL_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" \
     > /tmp/flutter_build.log 2>&1
   BUILD_EXIT_CODE=$?
   set -e
@@ -86,6 +99,8 @@ else
   echo "  PMTILES_URL env var NOT set — using OpenFreeMap default (no PMTiles)"
   set +e
   flutter build web --release --base-href "/" \
+    --dart-define=KINREL_BUILD_COMMIT="$BUILD_COMMIT" \
+    --dart-define=KINREL_BUILD_TIMESTAMP="$BUILD_TIMESTAMP" \
     > /tmp/flutter_build.log 2>&1
   BUILD_EXIT_CODE=$?
   set -e

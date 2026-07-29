@@ -41,6 +41,7 @@ import '../../../graph/interaction/graph_focus_state.dart';
 import '../../family_journey/providers/journey_provider.dart';
 import '../config/map_quality_tier.dart';
 import '../config/map_visual_constants.dart';
+import '../widgets/build_identifier_label.dart';
 import '../widgets/family_building_layer.dart';
 import '../widgets/avatar_marker_overlay.dart';
 import '../widgets/animated_relationship_path.dart';
@@ -1939,6 +1940,12 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                 },
               ),
             ),
+
+            // ── v13.0 — Build identifier label (Step 0) ─────────────────
+            // Permanent, visible "build: <hash> · <ts>" chip in the
+            // bottom-left corner. Makes it unambiguous which commit the
+            // running bundle was built from. See widgets/build_identifier_label.dart.
+            const BuildIdentifierLabel(),
 
             // ── P10.5 — Animated relationship paths overlay ─────────────
             // Rendered as a Flutter CustomPainter overlay because maplibre

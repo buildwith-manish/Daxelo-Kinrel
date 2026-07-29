@@ -41,6 +41,61 @@
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.6.0/dist/maplibre-gl.css" rel="stylesheet" />
 
+  <!-- v13.0 — MapLibre map instance capture shim (Step 0 of v13 fix).
+       The Flutter maplibre (0.3.5) web plugin wraps the underlying
+       maplibregl.Map instance inside Dart state and does NOT expose it
+       on window. This makes the v13 debugging protocol (running
+       map.getPitch() / map.getBearing() / map.getZoom() /
+       map.queryRenderedFeatures(...) in the JS console) impossible
+       out of the box.
+
+       This shim monkey-patches maplibregl.Map so that every instance
+       the plugin constructs is recorded to window.__kinrelMaps and
+       also surfaced as window.kinrelMap (the most recent one). The
+       patch MUST load AFTER maplibre-gl.js (which it does — script
+       order is preserved top-to-bottom without async/defer).
+
+       Once captured, devtools can do:
+         let map = window.kinrelMap
+         map.getPitch()
+         map.getBearing()
+         map.getZoom()
+         map.queryRenderedFeatures({layers: ['kinrel-3d-buildings']}).length
+       -->
+  <script>
+    (function () {
+      if (typeof window.maplibregl === 'undefined') {
+        console.warn('[Kinrel v13] maplibregl not yet loaded — map-capture shim skipped');
+        return;
+      }
+      var OriginalMap = window.maplibregl.Map;
+      window.__kinrelMaps = [];
+      window.kinrelMap = null;
+      function PatchedMap(opts) {
+        var inst = new OriginalMap(opts);
+        try {
+          window.__kinrelMaps.push(inst);
+          window.kinrelMap = inst;
+          console.log('[Kinrel v13] Captured maplibregl.Map instance #' +
+                      window.__kinrelMaps.length +
+                      ' → window.kinrelMap');
+        } catch (e) {
+          console.warn('[Kinrel v13] Failed to capture map instance:', e);
+        }
+        return inst;
+      }
+      PatchedMap.prototype = OriginalMap.prototype;
+      // Copy static methods/properties (Style, NavigationControl, etc.)
+      for (var k in OriginalMap) {
+        if (Object.prototype.hasOwnProperty.call(OriginalMap, k)) {
+          try { PatchedMap[k] = OriginalMap[k]; } catch (_) {}
+        }
+      }
+      window.maplibregl.Map = PatchedMap;
+      console.log('[Kinrel v13] maplibregl.Map patched — instances will be captured to window.kinrelMap');
+    })();
+  </script>
+
   <!-- PMTiles JS library — required by the maplibre (0.3.5) web plugin's
        pmtiles:// protocol handler.
 
