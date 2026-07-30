@@ -388,31 +388,19 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     );
   }
 
-  /// v92 (PART 17): Canvas tap dispatcher. Checks edge midpoints FIRST
-  /// (with a 48px invisible hit target), then falls back to node
-  /// hit-testing. This lets the user tap the small midpoint bead/heart
-  /// to open the relationship details sheet without enlarging the
-  /// visual bead to 48px.
+  /// Canvas tap handler. Tapping the canvas selects a node (if the tap
+  /// is within 44px of a node). Tapping the edge midpoint does NOT open
+  /// the Connection screen — that gesture was moved to long-press (see
+  /// [_handleNodeLongPress]). This prevents accidental opens when the
+  /// user is just trying to select a node near a connection.
   ///
-  /// The hit-test order is:
-  ///   1. Edge midpoint (48px radius) — opens RelationshipInfoSheet
-  ///   2. Node (44px radius) — selects node + shows quick-actions sheet
-  ///
-  /// If neither hits, the tap is a no-op (canvas background tap).
+  /// If no node hits, the tap is a no-op (canvas background tap).
   void _handleCanvasTapDown(
     TapDownDetails details,
     GraphLayoutResult layout,
     FlatGraphResult flat,
     String? viewerPersonId,
   ) {
-    // ── 1. Edge midpoint hit-test ──────────────────────────────────
-    final edgeId = _hitTestEdge(details.localPosition);
-    if (edgeId != null) {
-      _handleEdgeTap(edgeId, flat, viewerPersonId);
-      return;
-    }
-
-    // ── 2. Fall back to node hit-test ──────────────────────────────
     _handleNodeTapDown(details, layout, flat, viewerPersonId);
   }
 
@@ -662,14 +650,37 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     );
   }
 
-  /// Handles a long-press on the canvas. If the press hits a node,
-  /// shows the quick-actions sheet.
+  /// Handles a long-press on the canvas.
+  ///
+  /// Hit-test order:
+  ///   1. Edge midpoint (48px radius) — opens the Connection screen
+  ///      (RelationshipInfoSheet). This is the ONLY way to open the
+  ///      Connection screen from the graph canvas. Tapping the midpoint
+  ///      no longer opens it (see [_handleCanvasTapDown]).
+  ///   2. Node (44px radius) — starts the compare-drag gesture.
+  ///
+  /// If neither hits, the long-press is a no-op (canvas background).
   void _handleNodeLongPress(
     LongPressStartDetails details,
     GraphLayoutResult layout,
     FlatGraphResult flat,
     String? viewerPersonId,
   ) {
+    // ── 1. Edge midpoint hit-test (opens Connection screen) ───────
+    // The Connection screen opens ONLY on long-press of the midpoint
+    // indicator (dot/heart). This is deliberate: tapping the midpoint
+    // used to open it, but that caused accidental opens when users
+    // were trying to select a nearby node. Long-press is a more
+    // intentional gesture, and it works consistently on both touch
+    // (press + hold) and desktop (mouse down + hold) — Flutter's
+    // LongPressGestureRecognizer handles both uniformly.
+    final edgeId = _hitTestEdge(details.localPosition);
+    if (edgeId != null) {
+      _handleEdgeTap(edgeId, flat, viewerPersonId);
+      return;
+    }
+
+    // ── 2. Node hit-test (starts compare-drag) ────────────────────
     final nodeId = _hitTestNode(details.localPosition, layout);
     if (nodeId == null) return;
 
