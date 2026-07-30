@@ -60,7 +60,7 @@ class AvatarMarkerWidget extends StatelessWidget {
     final size = selected
         ? MapVisualConstants.markerSelectedSize
         : MapVisualConstants.markerNormalSize;
-    final ringColor = selected ? const Color(0xFFE8B941) : KinrelColors.orange;
+    final ringColor = selected ? MapVisualConstants.markerSelectedRingColor : KinrelColors.orange;
     final ringWidth = selected
         ? MapVisualConstants.markerRingWidthSelected
         : MapVisualConstants.markerRingWidthNormal;
@@ -78,7 +78,10 @@ class AvatarMarkerWidget extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFF1A1A22),
+        // On-brand: use KinrelColors.darkCard (#191B2C) instead of the
+        // previous hardcoded #1A1A22 — keeps the avatar background aligned
+        // with the app's card surface token so pins read as native UI.
+        color: KinrelColors.darkCard,
         border: Border.all(color: ringColor, width: ringWidth),
         boxShadow: [
           // Soft glow halo.
@@ -234,35 +237,70 @@ class _AvatarMarkerOverlayState extends State<AvatarMarkerOverlay>
   @override
   Widget build(BuildContext context) {
     if (widget.pins.isEmpty) return const SizedBox.shrink();
+    // Performance: get the viewport bounds for off-screen culling.
+    // During pan/zoom, pins that are off-screen don't need to be built
+    // or painted — this is the single biggest win for large families
+    // (50+ pins). Without this, every frame rebuilds Positioned +
+    // AvatarMarkerWidget + CachedAvatar for ALL pins, even those far
+    // outside the visible viewport.
+    //
+    // Uses MediaQuery.of(context).size (same pattern as
+    // place_callout_overlay.dart:195) rather than controller.camera.size
+    // — the MediaQuery approach is more reliable across maplibre versions
+    // and matches the existing culling code in the codebase.
+    final viewSize = MediaQuery.maybeOf(context)?.size;
+    final cullMargin = MapVisualConstants.markerSelectedSize; // generous margin so pins fade out smoothly
     return IgnorePointer(
       ignoring: false,
       child: Stack(
         clipBehavior: Clip.none,
-        children: [for (final pin in widget.pins) _buildPositioned(pin)],
+        children: [
+          for (final pin in widget.pins) _buildPositioned(pin, viewSize, cullMargin),
+        ],
       ),
     );
   }
 
-  Widget _buildPositioned(MapPin pin) {
+  Widget _buildPositioned(MapPin pin, Size? viewSize, double cullMargin) {
     final pos = _positions[pin.personId];
     // If we don't have a screen position yet, render offscreen.
     final dx = pos?.dx ?? -1000;
     final dy = pos?.dy ?? -1000;
+
+    // Performance: off-screen culling. If the pin is well outside the
+    // viewport (beyond the cull margin), don't build its widget subtree
+    // at all. This skips the CachedAvatar network-image lookup, the
+    // BoxDecoration construction, and the flutter_animate shimmer for
+    // live pins — all of which are wasted work for off-screen pins.
+    if (viewSize != null && pos != null) {
+      if (dx < -cullMargin || dx > viewSize.width + cullMargin ||
+          dy < -cullMargin || dy > viewSize.height + cullMargin) {
+        return const SizedBox.shrink();
+      }
+    }
+
     final selected = pin.personId == widget.selectedPinId;
     final tier = widget.liveTiers[pin.personId];
     final size = selected
         ? MapVisualConstants.markerSelectedSize
         : MapVisualConstants.markerNormalSize;
+    // Performance: RepaintBoundary isolates each pin's repaint from its
+    // siblings. Without this, a setState in the parent (which fires every
+    // frame during pan/zoom) causes Flutter to repaint the ENTIRE Stack
+    // of pins. With RepaintBoundary, only the pins whose own state changed
+    // repaint — the rest are cached as bitmaps by the Flutter compositor.
     return Positioned(
       left: dx - size / 2,
       top: dy - size / 2,
-      child: AvatarMarkerWidget(
-        pin: pin,
-        selected: selected,
-        liveTier: tier,
-        reducedMotion: widget.reducedMotion,
-        onTap: () => widget.onPinTap?.call(pin),
-        onLongPress: () => widget.onPinLongPress?.call(pin),
+      child: RepaintBoundary(
+        child: AvatarMarkerWidget(
+          pin: pin,
+          selected: selected,
+          liveTier: tier,
+          reducedMotion: widget.reducedMotion,
+          onTap: () => widget.onPinTap?.call(pin),
+          onLongPress: () => widget.onPinLongPress?.call(pin),
+        ),
       ),
     );
   }

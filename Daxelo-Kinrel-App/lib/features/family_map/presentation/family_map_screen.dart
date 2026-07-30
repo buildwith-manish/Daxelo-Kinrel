@@ -2630,7 +2630,10 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
                     child: Text(
                       _loadState.message,
                       style: TextStyle(
-                        color: Colors.white70,
+                        // On-brand: use KinrelColors.textSilver instead of
+                        // Colors.white70 — matches the rest of the app's
+                        // secondary text styling.
+                        color: KinrelColors.textSilver,
                         fontSize: 12,
                         fontFamily: KinrelTypography.bodyFont,
                       ),
