@@ -119,7 +119,13 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       // _kLabelHideZoom (1.0) to reduce clutter. The primary member
       // name is ALWAYS visible.
       showRelationLabel: shouldShowLabel(_camera.zoomLevel),
+      // Tap = select / highlight ONLY. A normal tap must never open
+      // the member information bottom sheet — that is reserved for
+      // long-press (see onLongPress below). This mirrors the parent
+      // canvas gesture handler in interaction_mixin.dart.
       onTap: () => ref.read(selectedNodeProvider.notifier).state = id,
+      // Long-press = open the member information bottom sheet. This is
+      // the ONLY gesture that opens the info panel from a node.
       // v62.2 FIX: Long-press shows the quick-actions sheet (matching
       // the v40 FamilyGraphWidget behavior) instead of toggling the
       // subtree (which was hiding nodes — confusing and unexpected).

@@ -569,9 +569,20 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     );
   }
 
-  /// Handles a tap-down on the canvas. If the tap hits a node, shows
-  /// the quick-actions sheet (same as long-press) — does NOT navigate
-  /// to a separate route, avoiding the "Page Not Found" error.
+  /// Handles a tap-down on the canvas.
+  ///
+  /// A single tap (or the down-stroke of any pointer sequence) ONLY
+  /// selects / highlights the node — it does NOT open the member
+  /// information bottom sheet. The bottom sheet is opened exclusively
+  /// by a long-press on a node (see [_handleNodeLongPress]).
+  ///
+  /// This is the single source of truth for the "tap = select only"
+  /// contract: a normal tap must NEVER open the information panel.
+  ///
+  /// Path-select mode (P2.1) is still handled here because that mode
+  /// explicitly uses taps to pick the from/to nodes for relationship
+  /// tracing — it is a separate, user-activated mode and is not a
+  /// "normal tap".
   void _handleNodeTapDown(
     TapDownDetails details,
     GraphLayoutResult layout,
@@ -612,13 +623,66 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       return;
     }
 
-    // Select the node.
+    // Select / highlight the node. A normal tap does NOT open the
+    // member info bottom sheet — that is reserved for long-press
+    // (see [_handleNodeLongPress]).
     ref.read(selectedNodeProvider.notifier).state = nodeId;
 
     // v91 (PART 12): Cinematic camera focus on node selection.
     _maybeFocusCameraOnNode(nodeId, layout);
 
-    // Show the quick-actions sheet (same as long-press).
+    // Intentionally DO NOT open GraphQuickActions here.
+    // Tap = select / highlight only. Long-press = open info panel.
+  }
+
+  /// Handles a long-press on the canvas.
+  ///
+  /// Hit-test order:
+  ///   1. Edge midpoint (48px radius) — opens the Connection screen
+  ///      (RelationshipInfoSheet). This is the ONLY way to open the
+  ///      Connection screen from the graph canvas. Tapping the midpoint
+  ///      no longer opens it (see [_handleCanvasTapDown]).
+  ///   2. Node (44px radius) — opens the member information bottom
+  ///      sheet (GraphQuickActions). Long-press is the ONLY gesture
+  ///      that opens the member info sheet; a normal tap selects /
+  ///      highlights the node only (see [_handleNodeTapDown]).
+  ///
+  /// If neither hits, the long-press is a no-op (canvas background).
+  void _handleNodeLongPress(
+    LongPressStartDetails details,
+    GraphLayoutResult layout,
+    FlatGraphResult flat,
+    String? viewerPersonId,
+  ) {
+    // ── 1. Edge midpoint hit-test (opens Connection screen) ───────
+    // The Connection screen opens ONLY on long-press of the midpoint
+    // indicator (dot/heart). This is deliberate: tapping the midpoint
+    // used to open it, but that caused accidental opens when users
+    // were trying to select a nearby node. Long-press is a more
+    // intentional gesture, and it works consistently on both touch
+    // (press + hold) and desktop (mouse down + hold) — Flutter's
+    // LongPressGestureRecognizer handles both uniformly.
+    final edgeId = _hitTestEdge(details.localPosition);
+    if (edgeId != null) {
+      _handleEdgeTap(edgeId, flat, viewerPersonId);
+      return;
+    }
+
+    // ── 2. Node hit-test → open the member info bottom sheet ──────
+    // Long-press is the ONLY gesture that opens the member information
+    // bottom sheet. A normal tap selects / highlights the node only
+    // (see [_handleNodeTapDown]) and must never open the info panel.
+    final nodeId = _hitTestNode(details.localPosition, layout);
+    if (nodeId == null) return;
+
+    // P3.2: clear "menu opening" haptic on long-press.
+    GraphHaptics.longPress(context);
+
+    // Select / highlight the node so the visual focus follows the
+    // long-pressed node before the sheet opens.
+    ref.read(selectedNodeProvider.notifier).state = nodeId;
+
+    // Resolve the person data and open the quick-actions sheet.
     final personData = flat.persons
         .where((p) => p['id'] == nodeId)
         .firstOrNull;
@@ -650,61 +714,13 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     );
   }
 
-  /// Handles a long-press on the canvas.
+  /// Legacy P2.4 drag-update handler.
   ///
-  /// Hit-test order:
-  ///   1. Edge midpoint (48px radius) — opens the Connection screen
-  ///      (RelationshipInfoSheet). This is the ONLY way to open the
-  ///      Connection screen from the graph canvas. Tapping the midpoint
-  ///      no longer opens it (see [_handleCanvasTapDown]).
-  ///   2. Node (44px radius) — starts the compare-drag gesture.
-  ///
-  /// If neither hits, the long-press is a no-op (canvas background).
-  void _handleNodeLongPress(
-    LongPressStartDetails details,
-    GraphLayoutResult layout,
-    FlatGraphResult flat,
-    String? viewerPersonId,
-  ) {
-    // ── 1. Edge midpoint hit-test (opens Connection screen) ───────
-    // The Connection screen opens ONLY on long-press of the midpoint
-    // indicator (dot/heart). This is deliberate: tapping the midpoint
-    // used to open it, but that caused accidental opens when users
-    // were trying to select a nearby node. Long-press is a more
-    // intentional gesture, and it works consistently on both touch
-    // (press + hold) and desktop (mouse down + hold) — Flutter's
-    // LongPressGestureRecognizer handles both uniformly.
-    final edgeId = _hitTestEdge(details.localPosition);
-    if (edgeId != null) {
-      _handleEdgeTap(edgeId, flat, viewerPersonId);
-      return;
-    }
-
-    // ── 2. Node hit-test (starts compare-drag) ────────────────────
-    final nodeId = _hitTestNode(details.localPosition, layout);
-    if (nodeId == null) return;
-
-    // P3.2: clear "menu opening" haptic on long-press.
-    GraphHaptics.longPress(context);
-
-    // P2.4: Start the two-node select-and-compare drag gesture.
-    // Instead of immediately showing the quick-actions sheet, the
-    // long-press starts a drag. If the user releases on another node,
-    // the path trace fires (compare gesture). If the user releases on
-    // the same node (no drag), the quick-actions sheet shows (legacy
-    // behavior). This makes long-press-drag a direct "connect two
-    // people" gesture — no FAB needed.
-    _compareDragFromId = nodeId;
-    _compareDragPosition = details.localPosition;
-    setState(() {});
-
-    // Also announce for screen readers.
-    SemanticsService.announce(
-        'Comparing. Drag to another person and release.', TextDirection.ltr);
-  }
-
-  /// P2.4: Handles drag movement during the compare gesture.
-  /// Updates the visual connection line position.
+  /// The compare-drag gesture has been superseded: long-press now opens
+  /// the member info bottom sheet directly (see [_handleNodeLongPress]),
+  /// and `_compareDragFromId` is never set. This handler remains wired
+  /// in `canvas_mixin.dart` for safety but is a guaranteed no-op because
+  /// the early-return on `null` fires immediately.
   void _handleCompareDragUpdate(
     LongPressMoveUpdateDetails details,
     GraphLayoutResult layout,
@@ -714,9 +730,16 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     setState(() {});
   }
 
-  /// P2.4: Handles release of the compare gesture.
-  /// If released over a different node, triggers the path trace.
-  /// If released over the same node (or empty canvas), shows quick actions.
+  /// Legacy P2.4 drag-release handler.
+  ///
+  /// The compare-drag gesture has been superseded: long-press now opens
+  /// the member info bottom sheet directly (see [_handleNodeLongPress]),
+  /// and `_compareDragFromId` is never set. This handler remains wired
+  /// in `canvas_mixin.dart` for safety but is a guaranteed no-op because
+  /// the early-return on `null` fires immediately.
+  ///
+  /// To compare two people, use the path-select mode (activated via the
+  /// graph's compare button), which uses taps to pick from/to nodes.
   void _handleCompareDragEnd(
     LongPressEndDetails details,
     GraphLayoutResult layout,
