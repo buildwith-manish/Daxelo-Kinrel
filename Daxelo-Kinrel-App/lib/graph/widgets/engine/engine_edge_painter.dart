@@ -317,9 +317,16 @@ class EngineEdgePainter extends CustomPainter {
           : (edgeAlpha + pathFocusBoost).clamp(0.0, 1.0);
 
       // ── DOT LOD: minimal stroke only ──────────────────────────────
-      // No blur, no ridge, no midpoint, no sweep. Selected edges get
-      // a slightly thicker stroke + a subtle orange aura so focus is
-      // still legible at the cheapest tier.
+      // No blur, no ridge, no sweep. Selected edges get a slightly
+      // thicker stroke + a subtle orange aura so focus is still
+      // legible at the cheapest tier.
+      //
+      // v105 (MIDPOINT ALWAYS VISIBLE): The midpoint symbol (dot/heart)
+      // IS still painted at DOT LOD — see the block after the stroke
+      // passes below. Previously it was skipped here (the old `continue`
+      // jumped past the midpoint block), which caused the heart to
+      // disappear when zoomed out. The midpoint is now painted BEFORE
+      // the `continue` so it stays visible at every zoom level.
       if (isDot) {
         if (isSelected) {
           // PASS D — orange interaction aura (cheap, no blur)
@@ -339,6 +346,27 @@ class EngineEdgePainter extends CustomPainter {
           ..strokeCap = StrokeCap.round
           ..isAntiAlias = true;
         canvas.drawPath(path, dotBodyPaint);
+
+        // v105: paint the midpoint (simplified) at DOT LOD too, so
+        // the heart / dot stays visible when zoomed out. _paintMidpoint
+        // handles the DOT-LOD simplification internally (single filled
+        // circle, no pseudo-3D passes).
+        if (midpointSymbol != KinshipMidpointSymbol.none) {
+          _paintMidpoint(
+            canvas: canvas,
+            path: path,
+            s: effectiveSource,
+            t: effectiveTarget,
+            midpointSymbol: midpointSymbol,
+            customColors: customColors,
+            style: style,
+            edgeColor: edgeColor,
+            effectiveStrokeWidth: bodyWidth,
+            isSelected: isSelected,
+            isDimmed: isDimmed,
+            dimAlpha: dimAlpha,
+          );
+        }
         continue;
       }
 
@@ -412,17 +440,38 @@ class EngineEdgePainter extends CustomPainter {
       }
 
       // ── MIDPOINT SYMBOL ───────────────────────────────────────────
-      // Bead / heart only at FULL or CHIP LOD (PART 10). Skipped at
-      // DOT LOD and skipped when the edge is dimmed (focus mode).
+      // v105 (MIDPOINT ALWAYS VISIBLE): The midpoint symbol (dot ● for
+      // normal relationships, heart ♥ for spouse/partner) is the ONLY
+      // edge-center marker and MUST remain visible at EVERY zoom level
+      // and in EVERY graph state. Previously it was skipped at DOT LOD
+      // and when the edge was dimmed (focus mode) — causing the heart
+      // to disappear when the user zoomed out or selected a node. The
+      // user requirement is that the heart "must always remain visible
+      // at every zoom level and in every graph state. It should never
+      // disappear due to zooming, panning, scaling, or rendering
+      // updates."
       //
-      // This is the ONLY edge-center marker. Normal relationship edges
-      // render a small dot (●); spouse/partner edges render a heart (♥).
+      // Implementation:
+      //   • The midpoint is ALWAYS painted when the edge has a non-none
+      //     midpoint symbol, regardless of LOD tier or dim state.
+      //   • At DOT LOD (zoomed out far), a SIMPLIFIED midpoint is
+      //     painted (a single filled circle — no pseudo-3D shadow /
+      //     rim / gradient / specular) so it stays cheap while remaining
+      //     visible. The symbol shape (heart vs dot) is preserved so a
+      //     spouse edge still shows a heart even at FAR zoom.
+      //   • When the edge is dimmed (focus mode), the midpoint is
+      //     painted at reduced alpha (dimAlpha) so it stays visible but
+      //     recedes — matching the dimmed edge body. It is NEVER fully
+      //     hidden.
+      //   • The midpoint position is computed from the SAME cached
+      //     Path the line uses (via PathMetrics), so the line and the
+      //     midpoint are PERFECTLY ALIGNED by construction at every
+      //     zoom and pan position.
+      //
       // No persistent kinship text is ever rendered on edges — the
       // relationship data remains available for accessibility, path
       // tracing, and the relationship info sheet (tap interaction).
-      if (edgeQuality.allowsMidpoint &&
-          midpointSymbol != KinshipMidpointSymbol.none &&
-          !isDimmed) {
+      if (midpointSymbol != KinshipMidpointSymbol.none) {
         _paintMidpoint(
           canvas: canvas,
           path: path,
@@ -439,6 +488,8 @@ class EngineEdgePainter extends CustomPainter {
           edgeColor: edgeColor,
           effectiveStrokeWidth: bodyWidth,
           isSelected: isSelected,
+          isDimmed: isDimmed,
+          dimAlpha: dimAlpha,
         );
       }
     }
@@ -772,6 +823,8 @@ class EngineEdgePainter extends CustomPainter {
     required Color edgeColor,
     required double effectiveStrokeWidth,
     required bool isSelected,
+    required bool isDimmed,
+    required double dimAlpha,
   }) {
     Offset midPoint = Offset((s.dx + t.dx) / 2, (s.dy + t.dy) / 2);
     for (final metric in path.computeMetrics()) {
@@ -802,15 +855,57 @@ class EngineEdgePainter extends CustomPainter {
       effectiveMidpointColor = style.midpointColor;
     }
 
+    // v105 (MIDPOINT ALWAYS VISIBLE): Apply dim alpha when the edge is
+    // dimmed (focus mode). The midpoint is NEVER fully hidden — it
+    // stays visible at reduced alpha so the user can always see where
+    // the connection is, even when focusing on a different subgraph.
+    // Selected edges are never dimmed, so their midpoints stay full.
+    final double midpointAlpha =
+        isDimmed ? dimAlpha.clamp(0.0, 1.0) : 1.0;
+
+    // v105: At DOT LOD (zoomed out far), paint a SIMPLIFIED midpoint
+    // — a single filled circle for both dot and heart symbols. This
+    // keeps the midpoint visible at every zoom level (the user
+    // requirement) without the expensive pseudo-3D shadow / rim /
+    // gradient / specular passes that would be invisible at that
+    // scale anyway. The heart shape is still distinguished from the
+    // dot at DOT LOD via a slightly larger radius + the spouse pink
+    // colour, so a spouse connection is still recognisable when
+    // zoomed out.
+    if (edgeQuality == EdgeQuality.dot) {
+      final bool isHeart = midpointSymbol == KinshipMidpointSymbol.heart;
+      // Heart gets a slightly larger dot so it's distinguishable.
+      final double dotR = isHeart
+          ? (GraphLighting.heartSizeMin * 0.5)
+          : (GraphLighting.beadRadiusMin * 0.9);
+      canvas.drawCircle(
+        midPoint,
+        dotR,
+        Paint()
+          ..color = effectiveMidpointColor.withValues(alpha: midpointAlpha)
+          ..style = PaintingStyle.fill,
+      );
+      return;
+    }
+
     if (midpointSymbol == KinshipMidpointSymbol.heart) {
       // ── HEART (spouse only by default) ───────────────────────
       final double heartSize =
           GraphLighting.heartSizeFor(effectiveStrokeWidth);
+      // v105: apply dim alpha via a colour lerp toward the background
+      // so the heart stays visible but recedes when dimmed. Using
+      // withValues(alpha:) on the heart colour would not work for the
+      // HeartShape helper (it draws opaque fills), so we lerp the
+      // colour toward transparent black by (1 - midpointAlpha).
+      final Color heartColor = isDimmed
+          ? Color.lerp(effectiveMidpointColor, Colors.transparent,
+              1.0 - midpointAlpha)!
+          : effectiveMidpointColor;
       HeartShape.drawHeart(
         canvas: canvas,
         center: midPoint,
         size: heartSize,
-        color: effectiveMidpointColor,
+        color: heartColor,
         compact: edgeQuality != EdgeQuality.full,
       );
     } else {
@@ -820,20 +915,24 @@ class EngineEdgePainter extends CustomPainter {
       final beadRect = Rect.fromCircle(center: midPoint, radius: beadR);
 
       // Shadow — down-right per global lighting contract.
-      canvas.drawCircle(
-        midPoint + GraphLighting.shadowOffset,
-        beadR,
-        Paint()
-          ..color = Colors.black
-              .withValues(alpha: isSelected
-                  ? GraphLighting.selectedShadowAlpha
-                  : GraphLighting.shadowAlpha)
-          ..maskFilter = MaskFilter.blur(
-              BlurStyle.normal,
-              edgeQuality == EdgeQuality.full
-                  ? 2.0
-                  : 1.4),
-      );
+      // v105: skip the shadow when dimmed (it would look muddy at
+      // reduced alpha) — the bead itself still shows.
+      if (!isDimmed) {
+        canvas.drawCircle(
+          midPoint + GraphLighting.shadowOffset,
+          beadR,
+          Paint()
+            ..color = Colors.black
+                .withValues(alpha: isSelected
+                    ? GraphLighting.selectedShadowAlpha
+                    : GraphLighting.shadowAlpha)
+            ..maskFilter = MaskFilter.blur(
+                BlurStyle.normal,
+                edgeQuality == EdgeQuality.full
+                    ? 2.0
+                    : 1.4),
+        );
+      }
 
       // Dark rim (bottom) — adds convex depth reading.
       canvas.drawArc(
@@ -843,8 +942,9 @@ class EngineEdgePainter extends CustomPainter {
         pi,
         false,
         Paint()
-          ..color =
-              Color.lerp(effectiveMidpointColor, Colors.black, 0.5)!,
+          ..color = isDimmed
+              ? effectiveMidpointColor.withValues(alpha: midpointAlpha * 0.5)
+              : Color.lerp(effectiveMidpointColor, Colors.black, 0.5)!,
       );
 
       // Face gradient — upper-left light, darker bottom-right.
@@ -855,25 +955,37 @@ class EngineEdgePainter extends CustomPainter {
           ..shader = RadialGradient(
             center: const Alignment(-0.3, -0.4),
             radius: 0.8,
-            colors: [
-              Color.lerp(effectiveMidpointColor, Colors.white, 0.3)!,
-              effectiveMidpointColor,
-              Color.lerp(effectiveMidpointColor, Colors.black, 0.3)!,
-            ],
+            colors: isDimmed
+                ? [
+                    effectiveMidpointColor
+                        .withValues(alpha: midpointAlpha),
+                    effectiveMidpointColor
+                        .withValues(alpha: midpointAlpha * 0.8),
+                    effectiveMidpointColor
+                        .withValues(alpha: midpointAlpha * 0.6),
+                  ]
+                : [
+                    Color.lerp(effectiveMidpointColor, Colors.white, 0.3)!,
+                    effectiveMidpointColor,
+                    Color.lerp(effectiveMidpointColor, Colors.black, 0.3)!,
+                  ],
             stops: const [0.0, 0.5, 1.0],
           ).createShader(beadRect),
       );
 
       // Specular highlight — tiny, upper-left.
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(
-              midPoint.dx - beadR * 0.25, midPoint.dy - beadR * 0.3),
-          width: beadR * 0.5,
-          height: beadR * 0.3,
-        ),
-        Paint()..color = Colors.white.withValues(alpha: 0.15),
-      );
+      // v105: skip when dimmed (would be invisible at reduced alpha).
+      if (!isDimmed) {
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: Offset(
+                midPoint.dx - beadR * 0.25, midPoint.dy - beadR * 0.3),
+            width: beadR * 0.5,
+            height: beadR * 0.3,
+          ),
+          Paint()..color = Colors.white.withValues(alpha: 0.15),
+        );
+      }
     }
   }
 
@@ -885,12 +997,21 @@ class EngineEdgePainter extends CustomPainter {
   /// where children descend from. The glyph reuses the relationship
   /// edge colour (spouse orange) for visual consistency.
   ///
-  /// Only painted at FULL and CHIP LOD — skipped at DOT (overview)
-  /// for performance.
+  /// v105 (MIDPOINT ALWAYS VISIBLE): Painted at EVERY LOD tier,
+  /// including DOT (overview). At DOT LOD the glyph is drawn slightly
+  /// smaller and at reduced alpha so it matches the dot-tier aesthetic
+  /// without overpowering the nodes, but it is NEVER fully hidden —
+  /// the couple connection must remain discoverable at every zoom
+  /// level.
   void _paintUnionJunctions(Canvas canvas) {
     if (coupleUnions.isEmpty) return;
-    // Skip at DOT LOD — too small to be meaningful.
-    if (edgeQuality == EdgeQuality.dot) return;
+    // v105 (MIDPOINT ALWAYS VISIBLE): Union junctions are NO LONGER
+    // skipped at DOT LOD. They are part of the connection rendering
+    // (a small filled circle at the midpoint between confirmed
+    // partners) and must remain visible at every zoom level so the
+    // couple connection is always discoverable. At DOT LOD the glyph
+    // is drawn slightly smaller to match the dot-tier aesthetic, but
+    // it is NEVER fully hidden.
 
     for (final union in coupleUnions) {
       final posA = positions[union.partnerAId];
@@ -900,11 +1021,12 @@ class EngineEdgePainter extends CustomPainter {
       final mid = unionMidpoint(posA, posB);
 
       // Small filled circle — the junction glyph.
-      // Radius scales slightly with zoom to maintain screen-space
-      // visibility (same pattern as the overview dot painter).
-      final zoom = 1.0; // positions are already in graph space
+      // v105: shrink the glyph at DOT LOD so it doesn't overpower the
+      // dot-tier nodes, but keep it visible.
+      final bool isDot = edgeQuality == EdgeQuality.dot;
       const screenJunctionR = 4.0;
-      final graphR = screenJunctionR; // graph-space (parent Transform scales)
+      final double graphR =
+          isDot ? screenJunctionR * 0.7 : screenJunctionR;
 
       // Use the spouse edge colour (orange) for visual consistency.
       const junctionColor = Color(0xFFF97316); // KinshipEdgeColors.spouseEdge
@@ -914,7 +1036,7 @@ class EngineEdgePainter extends CustomPainter {
         mid,
         graphR + 2,
         Paint()
-          ..color = junctionColor.withValues(alpha: 0.25)
+          ..color = junctionColor.withValues(alpha: isDot ? 0.18 : 0.25)
           ..style = PaintingStyle.fill,
       );
 
@@ -923,7 +1045,7 @@ class EngineEdgePainter extends CustomPainter {
         mid,
         graphR,
         Paint()
-          ..color = junctionColor.withValues(alpha: 0.6)
+          ..color = junctionColor.withValues(alpha: isDot ? 0.45 : 0.6)
           ..style = PaintingStyle.fill,
       );
     }

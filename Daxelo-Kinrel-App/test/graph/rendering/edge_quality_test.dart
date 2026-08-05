@@ -3,7 +3,12 @@
 // Focused tests for the EdgeQuality enum (PART 10 of the FINAL 10/10
 // COMPLETION PASS). Verifies the LOD→quality mapping and the
 // per-tier performance guardrails (no blur at DOT, no sweep at DOT,
-// no midpoint at DOT).
+// no FULL premium midpoint at DOT).
+//
+// v105: allowsMidpoint now means "allows the FULL premium midpoint
+// passes (pseudo-3D bead / heart with glow)". The painter ALWAYS
+// paints a midpoint at every tier (simplified at DOT), so this
+// predicate no longer gates visibility — see engine_edge_painter.dart.
 
 import 'package:kinrel/graph/rendering/edge_quality.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -33,14 +38,17 @@ void main() {
     });
   });
 
-  group('EdgeQuality — allowsMidpoint', () {
-    test('full allows midpoint', () {
+  group('EdgeQuality — allowsMidpoint (FULL premium passes only, v105)', () {
+    test('full allows the full premium midpoint', () {
       expect(EdgeQuality.full.allowsMidpoint, isTrue);
     });
-    test('chip allows midpoint (smaller)', () {
+    test('chip allows the full premium midpoint (smaller)', () {
       expect(EdgeQuality.chip.allowsMidpoint, isTrue);
     });
-    test('dot does NOT allow midpoint', () {
+    test('dot does NOT allow the full premium midpoint (simplified only)', () {
+      // v105: The painter still paints a SIMPLIFIED midpoint at DOT
+      // LOD (a single filled circle) — this predicate only reports
+      // whether the FULL pseudo-3D passes are appropriate.
       expect(EdgeQuality.dot.allowsMidpoint, isFalse);
     });
   });

@@ -48,7 +48,17 @@ extension EdgeQualityX on EdgeQuality {
   /// True when this tier allows the premium directional light ridge.
   bool get allowsRidge => this == EdgeQuality.full || this == EdgeQuality.chip;
 
-  /// True when this tier allows midpoint symbols (bead / heart).
+  /// True when this tier allows the FULL premium midpoint symbol
+  /// (pseudo-3D bead with shadow / rim / gradient / specular, or the
+  /// full heart with glow halo).
+  ///
+  /// v105: This NO LONGER gates whether a midpoint is painted at all
+  /// — the painter ALWAYS paints a midpoint (dot or heart) at every
+  /// LOD tier so the connection marker stays visible at every zoom
+  /// level. At DOT LOD a SIMPLIFIED midpoint (single filled circle)
+  /// is painted instead. This predicate is retained for callers that
+  /// want to know whether the FULL premium midpoint passes are
+  /// appropriate at this tier (e.g. for cost budgeting).
   bool get allowsMidpoint =>
       this == EdgeQuality.full || this == EdgeQuality.chip;
 

@@ -38,13 +38,14 @@ void main() {
 
     test(
         'labels do NOT disappear immediately when zooming out from 1.0 — '
-        'they stay fully visible down to kLabelFullyVisibleZoom (0.85)',
+        'they stay fully visible down to kLabelFullyVisibleZoom',
         () {
       // The user starts at zoom 1.0 (the old hard threshold) and
       // zooms out. Under the old behaviour the label vanished the
-      // instant zoom dropped below 1.0. Under v104 the label stays
-      // fully visible all the way down to 0.85.
-      for (double z = 1.0; z >= 0.85; z -= 0.01) {
+      // instant zoom dropped below 1.0. Under v104/v105 the label
+      // stays fully visible all the way down to kLabelFullyVisibleZoom
+      // (0.9 in v105 — tuned per the requested fade band).
+      for (double z = 1.0; z >= kLabelFullyVisibleZoom; z -= 0.01) {
         expect(relationLabelOpacityFor(zoom: z), 1.0,
             reason: 'At zoom $z the label should still be fully visible');
       }
