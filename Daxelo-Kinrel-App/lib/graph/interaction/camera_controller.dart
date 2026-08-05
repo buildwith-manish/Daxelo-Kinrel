@@ -682,6 +682,135 @@ class CameraController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// v107: Resets the view so the [focusNodePosition] is at the EXACT
+  /// center of the viewport, with the whole graph fitting on screen
+  /// with balanced spacing on all sides.
+  ///
+  /// This is the "Reset View" button behavior. Unlike [fitToView]
+  /// (which centers the BOUNDING BOX of all nodes — putting the
+  /// primary focus node off-center for unbalanced graphs), this
+  /// method centers the PRIMARY FOCUS NODE (anchor / selected node)
+  /// and then picks the largest zoom that still fits the entire graph
+  /// with the focus node at center.
+  ///
+  /// [focusNodePosition] — the graph-space position of the node to
+  ///   center (typically the anchor or selected node's position,
+  ///   adjusted by the visual-circle Y offset so the CIRCLE — not
+  ///   the box — is centered).
+  /// [allPositions] — all node positions, used to compute how much
+  ///   zoom fits the whole graph while keeping the focus node centered.
+  /// [viewportSize] — the viewport dimensions.
+  /// [reducedMotion] — when true, snaps instantly (no animation).
+  ///
+  /// The zoom is computed as the largest value where every node is
+  /// within the viewport given the focus node is centered. This
+  /// guarantees balanced spacing: the focus node is at the exact
+  /// center, and the most distant node determines the zoom so nothing
+  /// is clipped.
+  void resetView({
+    required Offset focusNodePosition,
+    required Map<String, Offset> allPositions,
+    required Size viewportSize,
+    bool reducedMotion = false,
+  }) {
+    if (viewportSize == Size.zero || allPositions.isEmpty) {
+      // Defensive fallback: if we can't compute, just reset to origin.
+      reset();
+      return;
+    }
+
+    _cancelAnimation();
+
+    // Node box dimensions (must match fitToView's constants + the
+    // layout's _kNodeSize). Used so the bounding check accounts for
+    // the full node footprint (circle + label), not just the position
+    // point.
+    const nodeWidth = 140.0;
+    const nodeHeight = 176.0;
+    // Padding around the graph so nodes aren't flush against the
+    // viewport edge. 20% matches fitToView's padding.
+    const padding = 0.2;
+
+    // The focus node's visual-circle center. Node positions are
+    // top-left of the box; the visual circle is at the top of the
+    // Column, so its center is offset from the box top-left by
+    // (nodeWidth/2, circleCenterYFromTop). We use the same offset
+    // the edge painter uses (_kCircleCenterYOffset = -28 relative
+    // to the box CENTER, which is nodeHeight/2 = 88 from the top →
+    // circle center is at 88 - 28 = 60 from the box top).
+    // For X, the circle is horizontally centered: nodeWidth/2 = 70.
+    final focusCenter = Offset(
+      focusNodePosition.dx + nodeWidth / 2,
+      focusNodePosition.dy + 60.0, // visual circle center Y from box top
+    );
+
+    // Compute the maximum distance from the focus node's visual
+    // center to any node's visual center, in BOTH X and Y. The zoom
+    // must be small enough that 2× this distance (focus is center,
+    // so the farthest node is at most this far on each side) fits
+    // within the viewport (minus padding).
+    double maxDx = 0.0;
+    double maxDy = 0.0;
+    for (final pos in allPositions.values) {
+      final nodeCenter = Offset(
+        pos.dx + nodeWidth / 2,
+        pos.dy + 60.0,
+      );
+      final dx = (nodeCenter.dx - focusCenter.dx).abs();
+      final dy = (nodeCenter.dy - focusCenter.dy).abs();
+      if (dx > maxDx) maxDx = dx;
+      if (dy > maxDy) maxDy = dy;
+    }
+
+    // Add half a node footprint to each side so the farthest node's
+    // full circle + label fits, not just its center.
+    final halfWidthNeeded = maxDx + nodeWidth / 2;
+    final halfHeightNeeded = maxDy + nodeHeight / 2;
+
+    // The available half-viewport (with padding) on each side of the
+    // centered focus node.
+    final availHalfW = (viewportSize.width / 2) * (1.0 - padding);
+    final availHalfH = (viewportSize.height / 2) * (1.0 - padding);
+
+    // Zoom so the needed half-extent fits in the available half-viewport.
+    double fitZoom;
+    if (halfWidthNeeded <= 0 || halfHeightNeeded <= 0) {
+      // Single-node graph — target 1.0.
+      fitZoom = 1.0;
+    } else {
+      final zoomX = availHalfW / halfWidthNeeded;
+      final zoomY = availHalfH / halfHeightNeeded;
+      fitZoom = math.min(zoomX, zoomY);
+      // For tiny graphs (single node or very compact), target 1.0 so
+      // the node is clearly visible without zooming out too far.
+      if (fitZoom > 1.0) fitZoom = 1.0;
+      fitZoom = fitZoom.clamp(_minZoom, 2.0);
+    }
+
+    // Pan so the focus node's visual center lands at the viewport center.
+    final targetPanX =
+        (viewportSize.width / 2) - (focusCenter.dx * fitZoom);
+    final targetPanY =
+        (viewportSize.height / 2) - (focusCenter.dy * fitZoom);
+
+    if (reducedMotion) {
+      _panX = targetPanX;
+      _panY = targetPanY;
+      _zoomLevel = fitZoom;
+      _scheduleSave();
+      notifyListeners();
+    } else {
+      // Smooth animated transition to the new framing.
+      animateTo(
+        targetPanX,
+        targetPanY,
+        fitZoom,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
   // ── Restoration from Position Memory ─────────────────────────────
 
   /// Restores the camera position from [PositionMemory].

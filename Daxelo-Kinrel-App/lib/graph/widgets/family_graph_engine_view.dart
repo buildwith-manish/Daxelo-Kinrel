@@ -255,6 +255,15 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   Size _viewportSize = Size.zero;
   bool _framed = false; // one-time initial framing per family
 
+  /// v107: Pending Reset View request. Set to true when the user taps
+  /// the "Center on Root" / "Reset View" button (recenterKey changes).
+  /// The build method checks this flag AFTER the layout is available
+  /// and calls _camera.resetView(...) with the focus node's position.
+  /// This deferred execution is necessary because didUpdateWidget
+  /// (where recenterKey is detected) runs BEFORE the build method
+  /// has access to the current layout positions.
+  bool _pendingResetView = false;
+
   // PERF: Cache relation labels/keys/categories so they don't recompute
   // on every pan/zoom frame. Only recompute when the underlying flat
   // data changes.
@@ -398,10 +407,18 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       _lastEdgeFingerprint = 0;
       _lastFocusedPersonId = null;
     }
-    // v62: Re-center when recenterKey changes (Center on Root button).
+    // v62/v107: Re-center when recenterKey changes (Center on Root /
+    // Reset View button). v107 changes this from the old fitToView
+    // (which centered the bounding BOX — putting the focus node
+    // off-center for unbalanced graphs) to resetView (which centers
+    // the primary focus NODE at the exact viewport center).
+    //
+    // We set a flag here and execute the reset in the build method
+    // (via _maybeRunPendingResetView) because didUpdateWidget runs
+    // BEFORE the build method has access to the current layout
+    // positions. The flag is checked after the layout is resolved.
     if (oldWidget.recenterKey != widget.recenterKey) {
-      _framed = false;
-      _camera.resetInitialFit();
+      _pendingResetView = true;
       _culler.invalidate();
       setState(() {});
     }
@@ -571,6 +588,14 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         if (layout.positions.isEmpty || flat == null) {
           return const EmptyGraph();
         }
+        // v107: Execute a pending Reset View request now that the
+        // layout positions are available. This runs the new
+        // resetView() method which centers the focus node (selected →
+        // anchor → first node) at the exact viewport center.
+        if (_pendingResetView) {
+          _pendingResetView = false;
+          _maybeRunPendingResetView(layout, flat, viewerPersonId);
+        }
         // Wrap the graph in a Column so we can show a claim-profile banner
         // above it when the viewer is unlinked. The graph itself expands
         // to fill the remaining space.
@@ -726,6 +751,55 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _camera.initialFitOnce(layout.positions, _viewportSize);
     _culler.invalidate();
     if (mounted) setState(() {});
+  }
+
+  /// v107: Executes a pending Reset View request using the current
+  /// layout positions. Centers the primary focus node (selected →
+  /// anchor → viewer → first node) at the EXACT viewport center with
+  /// the whole graph fitting on screen.
+  ///
+  /// Called from the build method when [_pendingResetView] is true
+  /// and the layout is available. The viewport size must be resolved
+  /// (it's set by the LayoutBuilder in _buildCanvas); if it's still
+  /// zero (first frame), the reset is deferred to the next build by
+  /// re-setting the flag.
+  void _maybeRunPendingResetView(
+    GraphLayoutResult layout,
+    FlatGraphResult flat,
+    String? viewerPersonId,
+  ) {
+    // Viewport not resolved yet — defer to next build.
+    if (_viewportSize.width <= 0 || _viewportSize.height <= 0) {
+      _pendingResetView = true;
+      return;
+    }
+    if (layout.positions.isEmpty) return;
+
+    // Resolve the primary focus node ID: selected → anchor → viewer →
+    // first node. This is the node that lands at the exact viewport
+    // center after reset.
+    final selectedNodeId = ref.read(selectedNodeProvider);
+    String? focusId = selectedNodeId;
+    if (focusId == null || !layout.positions.containsKey(focusId)) {
+      focusId = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
+    }
+    if (focusId == null || !layout.positions.containsKey(focusId)) {
+      // Fall back to the first node in the layout.
+      focusId = layout.positions.keys.first;
+    }
+    if (focusId == null) return;
+
+    final focusPosition = layout.positions[focusId];
+    if (focusPosition == null) return;
+
+    final bool reduced = MediaQuery.disableAnimationsOf(context);
+    _camera.resetView(
+      focusNodePosition: focusPosition,
+      allPositions: layout.positions,
+      viewportSize: _viewportSize,
+      reducedMotion: reduced,
+    );
+    _culler.invalidate();
   }
 
   // ── Expand / collapse ────────────────────────────────────────────────────
