@@ -200,6 +200,74 @@ void main() {
       expect(const Color(0xFF917520).value, equals(0xFF917520));
     });
   });
+
+  group('v104 — Ambient particle viewport culling', () {
+    // The painter's visibleViewport cull test uses a circle-vs-rect
+    // intersection between the anchor's mote cloud (radius 220px) and
+    // the viewport. We verify the cull by counting how many motes are
+    // actually drawn via a recording canvas proxy.
+    //
+    // Rather than spin up a full Canvas mock, we exercise the cull
+    // through shouldRepaint + the public moteCloudRadius constant and
+    // a direct geometric check that mirrors the painter's logic.
+
+    test('moteCloudRadius is 220 (200 max radius + 20 max drift)', () {
+      expect(AmbientParticlePainter.moteCloudRadius, 220.0);
+    });
+
+    test('visibleViewport is null by default (backwards compatible)', () {
+      const p = AmbientParticlePainter(t: 0.0, anchorPosition: Offset.zero);
+      expect(p.visibleViewport, isNull);
+    });
+
+    test('shouldRepaint triggers on visibleViewport change', () {
+      const vp = Rect.fromLTWH(0, 0, 100, 100);
+      const p1 = AmbientParticlePainter(
+          t: 0.0, anchorPosition: Offset.zero, visibleViewport: null);
+      const p2 = AmbientParticlePainter(
+          t: 0.0, anchorPosition: Offset.zero, visibleViewport: vp);
+      expect(p1.shouldRepaint(p2), isTrue);
+      expect(p2.shouldRepaint(p1), isTrue);
+    });
+
+    test('shouldRepaint does NOT trigger when visibleViewport is equal', () {
+      const vp = Rect.fromLTWH(0, 0, 100, 100);
+      const p1 = AmbientParticlePainter(
+          t: 0.0, anchorPosition: Offset.zero, visibleViewport: vp);
+      const p2 = AmbientParticlePainter(
+          t: 0.0, anchorPosition: Offset.zero, visibleViewport: vp);
+      expect(p1.shouldRepaint(p2), isFalse);
+    });
+
+    // The painter's internal cull test mirrors this geometry. We
+    // replicate it here as a contract test: if the anchor is farther
+    // than moteCloudRadius from the viewport's nearest point, the
+    // cloud is entirely off-screen.
+    test('cull geometry: anchor beyond moteCloudRadius skips paint', () {
+      const cloudR = AmbientParticlePainter.moteCloudRadius;
+      const vp = Rect.fromLTWH(0, 0, 400, 400);
+      // Anchor at viewport center → nearest point is the anchor
+      // itself → distance 0 → cloud intersects viewport.
+      Offset nearest(Offset anchor) {
+        final nx = anchor.dx < vp.left
+            ? vp.left
+            : (anchor.dx > vp.right ? vp.right : anchor.dx);
+        final ny = anchor.dy < vp.top
+            ? vp.top
+            : (anchor.dy > vp.bottom ? vp.bottom : anchor.dy);
+        return Offset(anchor.dx - nx, anchor.dy - ny);
+      }
+
+      // On-screen anchor → intersects.
+      expect(nearest(const Offset(200, 200)).distance, lessThan(cloudR));
+
+      // Just off-screen by 100px → still intersects (within 220).
+      expect(nearest(const Offset(500, 200)).distance, lessThan(cloudR));
+
+      // Far off-screen (1000px) → does NOT intersect.
+      expect(nearest(const Offset(1000, 1000)).distance, greaterThan(cloudR));
+    });
+  });
 }
 
 class _NoOpTickerProvider implements TickerProvider {

@@ -48,6 +48,17 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // can pass it to computeSemanticTier. Small families (< 30)
         // are pinned to NEAR (full detail) regardless of zoom.
         _currentMemberCount = flat.persons.length;
+        // LARGE-GRAPH BUFFER TIGHTENING: Scale the culler's buffer zone
+        // down as the member count grows. The fixed 200px default is
+        // generous for small/medium families (smooth entry/exit) but
+        // wasteful for large graphs where on-screen density is already
+        // high. See ViewportCuller.recommendedBufferForMemberCount.
+        final recommendedBuffer = ViewportCuller
+            .recommendedBufferForMemberCount(_currentMemberCount);
+        if (_culler.bufferPixels != recommendedBuffer) {
+          _culler.bufferPixels = recommendedBuffer;
+          _culler.invalidate();
+        }
         // PERF: Only recompute relation labels/keys when the underlying
         // flat data or viewer changes — NOT on every pan/zoom frame.
         if (!identical(_lastFlat, flat) || _lastViewerId != viewerPersonId) {
@@ -702,6 +713,13 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
   /// Transform, so they pan/zoom with the graph automatically. The
   /// painter is wrapped in a RepaintBoundary so only the particle
   /// layer repaints on each animation tick (not the entire canvas).
+  ///
+  /// The painter receives the buffer-expanded graph-space viewport so
+  /// it can short-circuit the paint call (via a single circle-vs-rect
+  /// intersection test) when the anchor's mote cloud is entirely
+  /// off-screen — e.g. when the user has panned far away from the
+  /// anchor or zoomed out far. This saves 25 drawCircle calls per
+  /// frame in those cases.
   List<Widget> _buildAmbientParticleLayer(
       GraphLayoutResult layout, FlatGraphResult flat) {
     // Find the anchor person's ID.
@@ -715,6 +733,11 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
     final anchorPosition = layout.positions[anchorId];
     if (anchorPosition == null) return const [];
 
+    // Buffer-expanded graph-space viewport for the painter's cull test.
+    // Reusing the SAME expanded viewport the edge culler uses keeps the
+    // mote fade-in/out at the viewport edge consistent with edges.
+    final expandedVp = _culler.expandedViewport(_graphSpaceViewport());
+
     final bool reduced = MediaQuery.disableAnimationsOf(context);
     // Reduced motion → don't watch the animation (no ticks). The
     // painter receives reducedMotion: true and draws static motes.
@@ -727,6 +750,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 t: 0.0,
                 anchorPosition: anchorPosition,
                 reducedMotion: true,
+                visibleViewport: expandedVp,
               ),
             ),
           ),
@@ -745,6 +769,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
               painter: AmbientParticlePainter(
                 t: animation.value,
                 anchorPosition: anchorPosition,
+                visibleViewport: expandedVp,
               ),
             ),
           );

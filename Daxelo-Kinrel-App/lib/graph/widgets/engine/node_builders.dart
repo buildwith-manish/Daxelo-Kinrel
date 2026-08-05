@@ -115,9 +115,19 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       // v2.2: "You" label for the viewer's node; otherwise use the
       // computed relation label from the viewer's perspective.
       relationLabel: isViewer ? 'You' : (labels[id] ?? ''),
-      // v93 (ZOOM FIX): Hide the relation label when zoomed out below
-      // _kLabelHideZoom (1.0) to reduce clutter. The primary member
-      // name is ALWAYS visible.
+      // v104 (LABEL FADE FIX): Pass the camera so GraphNode can drive
+      // a SMOOTH zoom-fade for the relation label via an internal
+      // AnimatedBuilder (see GraphNode._buildRelationLabel). The old
+      // hard [showRelationLabel] toggle is now only a fallback used
+      // when [camera] is null. The primary member name is ALWAYS
+      // visible regardless of the relation label fade.
+      camera: _camera,
+      memberCount: _currentMemberCount,
+      focusActive:
+          ref.read(graphFocusProvider).focusedPersonId != null,
+      // v93 (ZOOM FIX) legacy fallback — still computed for the
+      // camera-null case (e.g. tests). When [camera] is non-null this
+      // flag is ignored by GraphNode.
       showRelationLabel: shouldShowLabel(_camera.zoomLevel),
       // Tap = select / highlight ONLY. A normal tap must never open
       // the member information bottom sheet — that is reserved for

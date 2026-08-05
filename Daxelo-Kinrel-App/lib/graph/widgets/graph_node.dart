@@ -44,6 +44,14 @@ import 'on_this_day_badge.dart'
     show OnThisDayBadge, OnThisDayEvent, showOnThisDayEventSheet;
 // P12.7 — Kinrel Cameo fallback avatar
 import '../../features/cameo/cameo.dart';
+// v104: smooth relationship-label zoom fade.
+import '../interaction/camera_controller.dart' show CameraController;
+import '../rendering/relationship_label_opacity.dart'
+    show
+        relationLabelOpacityFor,
+        relationLabelVisibleAt,
+        kLabelFullyVisibleZoom,
+        kLabelFullyHiddenZoom;
 
 // Re-export NodeState so existing importers of graph_node.dart (e.g.
 // family_graph_engine_view.dart, tests) keep resolving the symbol after
@@ -167,6 +175,14 @@ class GraphNode extends ConsumerStatefulWidget {
     this.isRecentlyDeceased = false,
     // P3.7: on-this-day badge.
     this.onThisDayEvent,
+    // v104: smooth relationship-label zoom fade. When non-null, the
+    // label opacity is driven by the camera's zoom level via an
+    // AnimatedBuilder so it fades smoothly without rebuilding the
+    // whole node. When null, falls back to the hard
+    // [showRelationLabel] flag (legacy behaviour).
+    this.camera,
+    this.memberCount,
+    this.focusActive = false,
     required this.onTap,
     required this.onLongPress,
     this.onDoubleTap,
@@ -267,7 +283,37 @@ class GraphNode extends ConsumerStatefulWidget {
   /// (e.g. "Husband", "You") is hidden to reduce clutter at lower
   /// zoom. The primary member name is ALWAYS visible regardless of
   /// this flag.
+  ///
+  /// v104: This flag is now the FALLBACK behaviour used only when
+  /// [camera] is null. When [camera] is non-null, the label opacity
+  /// is driven smoothly by the camera's zoom level via
+  /// [relationLabelOpacityFor] and this flag is ignored.
   final bool showRelationLabel;
+
+  /// v104: Optional camera controller used to drive a smooth zoom-
+  /// fade for the relationship label. When non-null, the label is
+  /// wrapped in an AnimatedBuilder that recomputes its opacity from
+  /// `camera.zoomLevel` on every camera tick — so the label fades
+  /// out smoothly as the user zooms out and fades back in as they
+  /// zoom in, WITHOUT rebuilding the whole node (the outer canvas
+  /// content is built once and reused as a constant child of the
+  /// camera's Transform).
+  ///
+  /// When null, the label uses the legacy hard [showRelationLabel]
+  /// on/off behaviour.
+  final CameraController? camera;
+
+  /// v104: Total member count of the current family. Used by
+  /// [relationLabelOpacityFor] to apply the small-family bypass
+  /// (graphs < 30 members keep labels fully visible at all zoom
+  /// levels, matching computeSemanticTier's NEAR pin). Ignored when
+  /// [camera] is null.
+  final int? memberCount;
+
+  /// v104: Whether focus mode is currently active. When true, the
+  /// label opacity is forced to 1.0 (matching computeSemanticTier's
+  /// MEDIUM floor during focus). Ignored when [camera] is null.
+  final bool focusActive;
 
   /// Callback when the node is tapped.
   final VoidCallback onTap;
@@ -659,30 +705,87 @@ class _GraphNodeState extends ConsumerState<GraphNode>
         // Previously the label used _borderColor which could be a
         // non-teal relationship color when isAnchor==false.
         //
-        // v93 (ZOOM FIX): Hide the relation label when
-        // showRelationLabel is false (low-zoom clutter reduction).
-        // The primary member name above is ALWAYS visible.
-        if (!widget.isAnonymous &&
-            widget.relationLabel.isNotEmpty &&
-            widget.showRelationLabel)
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              widget.relationLabel,
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 11.0,
-                fontWeight: FontWeight.w500,
-                color: widget.relationLabel == 'You'
-                    ? KinshipEdgeColors.self
-                    : _borderColor,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+        // v104 (LABEL FADE FIX): The label now FADES smoothly based on
+        // the camera's zoom level (see relationLabelOpacityFor) instead
+        // of disappearing abruptly at a hard threshold. The fade is
+        // driven by an AnimatedBuilder bound to the camera so it
+        // updates on every camera tick WITHOUT rebuilding the whole
+        // node (the outer canvas content is built once and reused as a
+        // constant child of the camera Transform). Labels stay fully
+        // visible while zooming and only fade out when the zoom
+        // becomes too small for the text to be readable.
+        //
+        // When [widget.camera] is null (e.g. in unit tests or
+        // non-graph contexts), the legacy hard [showRelationLabel]
+        // on/off behaviour is used as a fallback.
+        //
+        // The primary member name above is ALWAYS visible regardless
+        // of the relation label fade.
+        if (!widget.isAnonymous && widget.relationLabel.isNotEmpty)
+          _buildRelationLabel(),
       ],
+    );
+  }
+
+  /// Builds the secondary relationship label ("Husband", "Wife",
+  /// "Father", "You", …) with a smooth zoom-driven opacity.
+  ///
+  /// When [GraphNode.camera] is non-null, the label is wrapped in an
+  /// [AnimatedBuilder] that recomputes its opacity from the camera's
+  /// zoom level on every camera tick. This means the label fades in
+  /// and out SMOOTHLY as the user zooms — no flicker, no sudden
+  /// disappearance at a hard threshold.
+  ///
+  /// When [GraphNode.camera] is null, falls back to the legacy hard
+  /// [GraphNode.showRelationLabel] on/off toggle so existing callers
+  /// (and unit tests that don't have a camera) keep working.
+  Widget _buildRelationLabel() {
+    // The base label widget — identical to the pre-v104 rendering.
+    final labelWidget = FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        widget.relationLabel,
+        style: TextStyle(
+          fontFamily: KinrelTypography.displayFont,
+          fontSize: 11.0,
+          fontWeight: FontWeight.w500,
+          color: widget.relationLabel == 'You'
+              ? KinshipEdgeColors.self
+              : _borderColor,
+        ),
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+
+    final cam = widget.camera;
+    if (cam == null) {
+      // Legacy fallback: hard on/off via showRelationLabel.
+      return widget.showRelationLabel
+          ? labelWidget
+          : const SizedBox.shrink();
+    }
+
+    // v104: smooth zoom-fade. The AnimatedBuilder rebuilds ONLY this
+    // tiny label subtree on each camera tick — the rest of the node
+    // (avatar, name, decorations) is NOT rebuilt. This is cheap
+    // (a handful of visible nodes × one FittedBox+Text each per
+    // camera tick) and keeps the fade perfectly smooth.
+    return AnimatedBuilder(
+      animation: cam,
+      builder: (context, child) {
+        final opacity = relationLabelOpacityFor(
+          zoom: cam.zoomLevel,
+          memberCount: widget.memberCount,
+          focusActive: widget.focusActive,
+        );
+        // Skip building the label subtree entirely when it would be
+        // fully invisible — saves a FittedBox+Text layout per node.
+        if (opacity <= 0.0) return const SizedBox.shrink();
+        return Opacity(opacity: opacity, child: child!);
+      },
+      child: labelWidget,
     );
   }
 

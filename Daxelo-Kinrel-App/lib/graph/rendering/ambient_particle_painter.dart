@@ -17,7 +17,11 @@
 // painter in a CustomPaint inside the camera Transform so the motes
 // pan/zoom with the graph automatically.
 //
-// Performance: 25 circles per frame in a RepaintBoundary. Negligible.
+// Performance: 25 circles per frame in a RepaintBoundary. Negligible
+// when the anchor is on-screen. When the anchor's mote cloud is
+// entirely off-screen (user has panned far away or zoomed out far
+// from the anchor), [visibleViewport] short-circuits the paint call
+// via a single circle-vs-rect intersection test — no mote is drawn.
 
 import 'dart:math' as math;
 
@@ -35,6 +39,7 @@ class AmbientParticlePainter extends CustomPainter {
     required this.anchorPosition,
     this.reducedMotion = false,
     this.moteCount = 25,
+    this.visibleViewport,
   });
 
   /// Animation time, 0..1, looping every 6 seconds.
@@ -51,8 +56,56 @@ class AmbientParticlePainter extends CustomPainter {
   /// Number of motes. Default 25 per spec. Overridable for tests.
   final int moteCount;
 
+  /// Optional graph-space viewport rect. When non-null, the painter
+  /// performs a single circle-vs-rect intersection test between the
+  /// anchor's mote cloud (radius = max mote radius + max drift, i.e.
+  /// 200 + 20 = 220px in graph space) and [visibleViewport]. If the
+  /// cloud does not intersect the viewport, paint() returns
+  /// immediately WITHOUT drawing any mote — saving 25 drawCircle
+  /// calls per frame when the user has panned away from the anchor.
+  ///
+  /// The caller should pass the SAME buffer-expanded graph-space
+  /// viewport used by the edge culler so the motes fade in/out
+  /// smoothly at the viewport edge (matching the edge + node buffer).
+  /// When null (e.g. in unit tests), the painter always paints all
+  /// motes — preserving the original behaviour.
+  final Rect? visibleViewport;
+
+  /// Maximum distance a mote can be from the anchor in graph space.
+  /// Motes are placed at radius 80..200 plus a 20px drift amplitude,
+  /// so the bounding circle radius is 200 + 20 = 220.
+  static const double moteCloudRadius = 220.0;
+
   @override
   void paint(Canvas canvas, Size size) {
+    // Viewport culling: skip the entire paint call when the anchor's
+    // mote cloud is entirely off-screen. This is a single O(1)
+    // circle-vs-rect test — far cheaper than iterating 25 motes and
+    // testing each.
+    //
+    // The cloud is a circle of radius [moteCloudRadius] centred at
+    // [anchorPosition]. It does NOT intersect [visibleViewport] when
+    // the anchor is more than moteCloudRadius away from every edge
+    // of the viewport (in the "outside" direction).
+    final vp = visibleViewport;
+    if (vp != null) {
+      final double cx = anchorPosition.dx;
+      final double cy = anchorPosition.dy;
+      final double r = moteCloudRadius;
+      // Find the closest point on the viewport rect to the anchor
+      // centre, then check whether that point is within r.
+      final double nearestX =
+          cx < vp.left ? vp.left : (cx > vp.right ? vp.right : cx);
+      final double nearestY =
+          cy < vp.top ? vp.top : (cy > vp.bottom ? vp.bottom : cy);
+      final double dx = cx - nearestX;
+      final double dy = cy - nearestY;
+      if (dx * dx + dy * dy > r * r) {
+        // Anchor's mote cloud is entirely outside the viewport — skip.
+        return;
+      }
+    }
+
     // Seeded Random so mote positions are stable across frames.
     // If we used an unseeded Random, the motes would jitter because
     // a new Random is constructed on every paint call.
@@ -96,10 +149,12 @@ class AmbientParticlePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant AmbientParticlePainter old) {
     // Repaint on time change (drift animation) or anchor position
-    // change (pan/zoom). Reduced-motion flag change also triggers.
+    // change (pan/zoom). Reduced-motion flag, mote count, and viewport
+    // changes also trigger.
     return old.t != t ||
         old.anchorPosition != anchorPosition ||
         old.reducedMotion != reducedMotion ||
-        old.moteCount != moteCount;
+        old.moteCount != moteCount ||
+        old.visibleViewport != visibleViewport;
   }
 }

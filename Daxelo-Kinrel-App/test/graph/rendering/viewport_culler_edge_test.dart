@@ -163,5 +163,64 @@ void main() {
       expect(expanded.bottom, equals(viewport.bottom + 200));
       expect(expanded.size, equals(Size(viewport.width + 400, viewport.height + 400)));
     });
+
+    test('respects a smaller buffer for large graphs', () {
+      final bigCuller = ViewportCuller(
+        viewport: viewport,
+        bufferPixels: 60.0, // large-graph buffer
+      );
+      final expanded = bigCuller.expandedViewport(viewport);
+      expect(expanded.left, equals(viewport.left - 60));
+      expect(expanded.right, equals(viewport.right + 60));
+    });
+  });
+
+  group('recommendedBufferForMemberCount', () {
+    test('returns 200px (default) for small graphs under 100 members', () {
+      expect(ViewportCuller.recommendedBufferForMemberCount(0), 200.0);
+      expect(ViewportCuller.recommendedBufferForMemberCount(1), 200.0);
+      expect(ViewportCuller.recommendedBufferForMemberCount(50), 200.0);
+      expect(ViewportCuller.recommendedBufferForMemberCount(99), 200.0);
+    });
+
+    test('returns 140px for medium graphs (100–499 members)', () {
+      expect(ViewportCuller.recommendedBufferForMemberCount(100), 140.0);
+      expect(ViewportCuller.recommendedBufferForMemberCount(250), 140.0);
+      expect(ViewportCuller.recommendedBufferForMemberCount(499), 140.0);
+    });
+
+    test('returns 90px for large graphs (500–1499 members)', () {
+      expect(ViewportCuller.recommendedBufferForMemberCount(500), 90.0);
+      expect(ViewportCuller.recommendedBufferForMemberCount(1000), 90.0);
+      expect(ViewportCuller.recommendedBufferForMemberCount(1499), 90.0);
+    });
+
+    test('returns 60px for very large graphs (1500+ members)', () {
+      expect(ViewportCuller.recommendedBufferForMemberCount(1500), 60.0);
+      expect(ViewportCuller.recommendedBufferForMemberCount(5000), 60.0);
+      expect(ViewportCuller.recommendedBufferForMemberCount(10000), 60.0);
+    });
+
+    test('the minimum buffer (60px) is large enough to cover half a node '
+        'footprint (~72px diameter) so nodes never pop in at the very edge', () {
+      // The minimum should be at least ~half the node diameter (36px)
+      // so a node never appears/disappears exactly at the viewport
+      // edge — it always has some pre-build margin.
+      expect(ViewportCuller.recommendedBufferForMemberCount(100000),
+          greaterThanOrEqualTo(36.0));
+    });
+
+    test('the buffer is monotonically non-increasing as member count grows', () {
+      final sizes = [
+        1, 50, 99, 100, 250, 499, 500, 1000, 1499, 1500, 5000,
+      ];
+      double prev = double.infinity;
+      for (final n in sizes) {
+        final b = ViewportCuller.recommendedBufferForMemberCount(n);
+        expect(b, lessThanOrEqualTo(prev),
+            reason: 'Buffer for $n members ($b) should be <= previous ($prev)');
+        prev = b;
+      }
+    });
   });
 }

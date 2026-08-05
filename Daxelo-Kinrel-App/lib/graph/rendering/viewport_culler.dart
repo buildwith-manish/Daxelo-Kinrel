@@ -101,6 +101,40 @@ class ViewportCuller extends ChangeNotifier {
     _rebuildThreshold = value;
   }
 
+  /// Recommended buffer zone (in graph-space pixels) for a graph with
+  /// [memberCount] members.
+  ///
+  /// The fixed 200px default is generous and works well for small /
+  /// medium families where the on-screen node density is low — the
+  /// extra buffer keeps nodes built slightly before they enter the
+  /// viewport, giving smooth pan/zoom entry/exit animations.
+  ///
+  /// For LARGE graphs (hundreds to thousands of members) the same 200px
+  /// buffer becomes wasteful: it keeps many off-screen nodes built even
+  /// though the on-screen node density is already high enough that
+  /// smooth entry/exit is perceptually unnecessary. This helper scales
+  /// the buffer DOWN as the member count grows:
+  ///
+  ///   • < 100 members   → 200px (default, generous)
+  ///   • 100–499         → 140px
+  ///   • 500–1499        → 90px
+  ///   • 1500+           → 60px
+  ///
+  /// The minimum (60px) is still larger than a single node footprint
+  /// (~72px diameter) so a node never pops in at the very edge — it
+  /// always has at least ~half a node-width of pre-build margin.
+  ///
+  /// Callers should call this whenever the member count changes (e.g.
+  /// when [flat.persons] changes) and assign the result to
+  /// [bufferPixels]. The culler's [invalidate] should also be called
+  /// so the next [cull] uses the new buffer immediately.
+  static double recommendedBufferForMemberCount(int memberCount) {
+    if (memberCount < 100) return 200.0;
+    if (memberCount < 500) return 140.0;
+    if (memberCount < 1500) return 90.0;
+    return 60.0;
+  }
+
   // ── Core API ─────────────────────────────────────────────────────
 
   /// Computes the set of visible node IDs for the given [viewport].
