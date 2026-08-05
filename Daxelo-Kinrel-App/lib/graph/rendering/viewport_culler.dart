@@ -211,6 +211,114 @@ class ViewportCuller extends ChangeNotifier {
         visibleNodeIds.contains(targetId);
   }
 
+  /// Returns whether an edge should be built, using a viewport-aware test
+  /// that keeps edges visible even when BOTH endpoint nodes are off-screen
+  /// (e.g. when zoomed in and the connecting line passes through the
+  /// viewport).
+  ///
+  /// An edge is considered visible when ANY of the following is true:
+  ///   1. At least one endpoint node is in [visibleNodeIds] (preserves
+  ///      the original behaviour for nodes near the viewport edge and
+  ///      gives smooth entry/exit animations).
+  ///   2. The edge's straight bounding segment from [sourcePos] to
+  ///      [targetPos] intersects the (already buffer-expanded) graph-space
+  ///      [viewport]. This catches the common zoomed-in case where both
+  ///      endpoints are off-screen but the line between them crosses the
+  ///      visible area. The bezier curve used by the painter stays close
+  ///      to this segment for our short family-tree edges, so the segment
+  ///      test is a tight-enough approximation and is O(1) per edge.
+  ///
+  /// Pass the SAME buffered viewport that [cull] uses internally — i.e.
+  /// call [cull] first to populate [visibleNodeIds], then call this with
+  /// the buffer-expanded viewport rect. The caller can obtain the
+  /// expanded viewport via [expandedViewport].
+  ///
+  /// [sourceId] / [targetId] — endpoint node IDs.
+  /// [sourcePos] / [targetPos] — endpoint node CENTRES in graph space.
+  /// [visibleNodeIds] — the visible node ID set produced by [cull].
+  /// [viewport] — the BUFFER-EXPANDED graph-space viewport rect.
+  bool isEdgeVisibleWithViewport({
+    required String sourceId,
+    required String targetId,
+    required Offset sourcePos,
+    required Offset targetPos,
+    required Set<String> visibleNodeIds,
+    required Rect viewport,
+  }) {
+    // Fast path: at least one endpoint is visible → keep the edge.
+    if (visibleNodeIds.contains(sourceId) ||
+        visibleNodeIds.contains(targetId)) {
+      return true;
+    }
+
+    // Both endpoints are off-screen. Fall back to a segment-vs-rect
+    // intersection test so the connecting line does not disappear when
+    // the user zooms in on the middle of a long edge.
+    return _segmentIntersectsRect(sourcePos, targetPos, viewport);
+  }
+
+  /// Returns the buffer-expanded version of [viewport].
+  ///
+  /// Exposed so callers can build the same expanded rect that [cull]
+  /// uses internally, for use in [isEdgeVisibleWithViewport].
+  Rect expandedViewport(Rect viewport) => _expandViewport(viewport);
+
+  /// Liang–Barsky segment-vs-rect intersection test.
+  ///
+  /// Returns true if the segment from [a] to [b] intersects (or is
+  /// contained within) [rect]. Used to keep edges visible when both
+  /// endpoint nodes are off-screen but the line crosses the viewport.
+  ///
+  /// The segment is parameterised as P(t) = a + t·(b − a) for t ∈ [0, 1].
+  /// For each of the four rect edges we compute the t-range that lies
+  /// inside that edge's half-plane and intersect it with the running
+  /// [t0, t1] window. If the window stays valid (t0 ≤ t1) after all
+  /// four edges, the segment intersects the rect.
+  ///
+  /// This is O(1) and branch-friendly — important because it runs for
+  /// every edge on every cull rebuild.
+  bool _segmentIntersectsRect(Offset a, Offset b, Rect rect) {
+    final double dx = b.dx - a.dx;
+    final double dy = b.dy - a.dy;
+    double t0 = 0.0;
+    double t1 = 1.0;
+
+    // Helper: clip the running [t0, t1] window against one half-plane.
+    // p is the component of the segment direction along the edge normal
+    // (sign indicates entering vs exiting), q is the signed distance
+    // from the segment start to the edge. Returns false if the segment
+    // is entirely outside this half-plane (early reject).
+    bool clip(double p, double q) {
+      if (p < 0) {
+        // Segment potentially ENTERS the half-plane at t = q / p.
+        final double r = q / p;
+        if (r > t1) return false; // enters after the window ends
+        if (r > t0) t0 = r;
+      } else if (p > 0) {
+        // Segment potentially EXITS the half-plane at t = q / p.
+        final double r = q / p;
+        if (r < t0) return false; // exits before the window starts
+        if (r < t1) t1 = r;
+      } else {
+        // p == 0: segment is parallel to this edge. If q < 0 the whole
+        // segment is outside this half-plane.
+        if (q < 0) return false;
+      }
+      return true;
+    }
+
+    // Left edge:   x >= rect.left   →  p = -dx, q = a.dx - rect.left
+    if (!clip(-dx, a.dx - rect.left)) return false;
+    // Right edge:  x <= rect.right  →  p =  dx, q = rect.right - a.dx
+    if (!clip(dx, rect.right - a.dx)) return false;
+    // Top edge:    y >= rect.top    →  p = -dy, q = a.dy - rect.top
+    if (!clip(-dy, a.dy - rect.top)) return false;
+    // Bottom edge: y <= rect.bottom →  p =  dy, q = rect.bottom - a.dy
+    if (!clip(dy, rect.bottom - a.dy)) return false;
+
+    return t0 <= t1;
+  }
+
   /// Returns whether the viewport has moved beyond the rebuild
   /// threshold since the last [cull] call.
   ///

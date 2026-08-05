@@ -182,7 +182,28 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         _lastCullViewport = vp;
         _lastLod = _lodFor(_camera.zoomLevel);
 
-        // Edges: only when BOTH endpoints are visible.
+        // Edges: kept when at least one endpoint is visible OR the
+        // connecting segment crosses the (buffered) viewport.
+        //
+        // ZOOM-IN FIX: The previous rule was "BOTH endpoints must be
+        // visible". When the user zoomed in, the graph-space viewport
+        // shrank (e.g. at zoom 5× a 400px screen shows only 80 graph
+        // units), so BOTH endpoints of an edge could fall outside the
+        // viewport even though the connecting line (and its midpoint
+        // dot / heart) clearly crossed the visible area. Those edges
+        // — and their midpoint symbols — silently disappeared, which
+        // is the "connection lines and intermediate dots disappear
+        // when zooming in" bug.
+        //
+        // The new rule uses `isEdgeVisibleWithViewport`:
+        //   1. If at least one endpoint is in the visible node set,
+        //      keep the edge (preserves smooth entry/exit + the
+        //      original behaviour for nodes near the viewport edge).
+        //   2. Otherwise, run a Liang–Barsky segment-vs-rect test
+        //      between the endpoint POSITIONS and the buffer-expanded
+        //      graph-space viewport. If the segment intersects, the
+        //      edge is visible — even when both endpoint widgets are
+        //      off-screen.
         //
         // v64 (BUG-2 FIX): We collect ALL edges first (no first-match-wins
         // dedup here), then pass them through EdgeDeduplicator.deduplicate()
@@ -191,12 +212,43 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         //     edge, picking the strongest category.
         //   - Keeps DISTINCT categories (e.g. parent + spouse) as separate
         //     edges with lateral offsets so they don't stack on each other.
+        //
+        // ZOOM-IN FIX note: We use the RAW node positions for the
+        // segment test (not the union-redirected effective endpoints).
+        // The union midpoint always sits between the two partner nodes,
+        // which are themselves connected by a spouse edge that is also
+        // being tested — so if the union midpoint is in the viewport,
+        // at least one partner node is near the viewport and the
+        // spouse edge's fast path keeps it. Using raw positions avoids
+        // a circular dependency (coupleUnions is derived AFTER the
+        // edge filter) and is a tight-enough approximation for the
+        // short edges in a family tree.
+        final expandedVp = _culler.expandedViewport(vp);
         final rawEdges = <GraphEdgeData>[];
         for (final Map<String, dynamic> r in flat.relationships) {
           final s = r['fromPersonId'] as String?;
           final t = r['toPersonId'] as String?;
           if (s == null || t == null) continue;
-          if (!_culler.isEdgeVisible(s, t, visible)) continue;
+          final sPos = layout.positions[s];
+          final tPos = layout.positions[t];
+          if (sPos == null || tPos == null) {
+            // Position unknown — fall back to the conservative
+            // both-endpoints-visible test so we don't crash. This also
+            // preserves the historical behaviour for any edge whose
+            // endpoints haven't been laid out yet.
+            if (!_culler.isEdgeVisible(s, t, visible)) continue;
+          } else {
+            if (!_culler.isEdgeVisibleWithViewport(
+                  sourceId: s,
+                  targetId: t,
+                  sourcePos: sPos,
+                  targetPos: tPos,
+                  visibleNodeIds: visible,
+                  viewport: expandedVp,
+                )) {
+              continue;
+            }
+          }
           rawEdges.add(GraphEdgeData(
             id: (r['id'] ?? '$s-$t').toString(),
             sourceId: s,
