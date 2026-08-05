@@ -872,17 +872,41 @@ class EngineEdgePainter extends CustomPainter {
     // dot at DOT LOD via a slightly larger radius + the spouse pink
     // colour, so a spouse connection is still recognisable when
     // zoomed out.
+    //
+    // v105.1 (TUNING KNOBS): The DOT-tier midpoint size + alpha are
+    // extracted into named constants below so they're easy to find
+    // and tune. Sizes are in GRAPH SPACE (the parent camera Transform
+    // scales them to screen space, so at zoom 0.4 a 7px graph-space
+    // radius renders at ~2.8px on screen — small but visible against
+    // the dot-tier node markers which are themselves ~6px screen).
     if (edgeQuality == EdgeQuality.dot) {
+      // ── DOT-tier midpoint tuning knobs ──────────────────────────
+      // Heart radius (graph space). Slightly larger than the bead so
+      // spouse connections are distinguishable from parent/child at
+      // a glance when zoomed out.
+      const double kDotHeartRadius = 7.0;
+      // Bead radius (graph space) for non-spouse edges.
+      const double kDotBeadRadius = 4.5;
+      // Alpha multiplier for dimmed edges at DOT LOD. Kept a touch
+      // higher than the full-LOD dim factor so the midpoint stays
+      // legible against the dimmed edge body at small scale.
+      const double kDotDimAlphaFloor = 0.5;
+
       final bool isHeart = midpointSymbol == KinshipMidpointSymbol.heart;
-      // Heart gets a slightly larger dot so it's distinguishable.
-      final double dotR = isHeart
-          ? (GraphLighting.heartSizeMin * 0.5)
-          : (GraphLighting.beadRadiusMin * 0.9);
+      final double dotR = isHeart ? kDotHeartRadius : kDotBeadRadius;
+      // v105.1: floor the dim alpha so the DOT-tier midpoint never
+      // drops below kDotDimAlphaFloor — at small scale a very low
+      // alpha would make it invisible.
+      final double dotAlpha = isDimmed
+          ? (midpointAlpha * (1.0 - kDotDimAlphaFloor) + kDotDimAlphaFloor)
+              .clamp(0.0, 1.0)
+          : 1.0;
       canvas.drawCircle(
         midPoint,
         dotR,
         Paint()
-          ..color = effectiveMidpointColor.withValues(alpha: midpointAlpha)
+          ..color =
+              effectiveMidpointColor.withValues(alpha: dotAlpha)
           ..style = PaintingStyle.fill,
       );
       return;

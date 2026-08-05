@@ -47,7 +47,6 @@ import 'providers/family_graph_provider.dart'
         familyGraphProvider,
         graphRealtimeProvider,
         selectedNodeProvider;
-import 'widgets/generation_filter_bar.dart';
 import 'widgets/relationship_legend.dart';
 import 'widgets/stats_panel.dart';
 
@@ -70,9 +69,6 @@ class FamilyGraphScreen extends ConsumerStatefulWidget {
 }
 
 class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
-  /// Highlighted generation index (null = no highlight).
-  int? _highlightedGeneration;
-
   /// External TransformationController to drive FamilyGraphWidget zoom/pan.
   final TransformationController _graphTransformController =
       TransformationController();
@@ -136,7 +132,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   void _centerOnRootUser() {
     setState(() {
       _recenterKey++;
-      _highlightedGeneration = null;
       _hoveredRelationshipKey = null;
     });
   }
@@ -254,7 +249,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     // Trigger re-centering so the graph fits in view.
     setState(() {
       _recenterKey++;
-      _highlightedGeneration = null;
     });
   }
 
@@ -478,16 +472,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     // If no persons at all, show the empty state with add member FAB
     if (persons.isEmpty) return _buildEmptyState();
 
-    // Determine which generations are present
+    // Determine which generations are present (used by the stats panel
+    // for the "totalGenerations" count).
     final presentGenerations = <int>{};
     for (final p in persons) {
       presentGenerations.add(p.generationIndex);
-    }
-
-    // Determine which relationship types are present
-    final presentRelationshipKeys = <String>{};
-    for (final r in graph.relationships) {
-      presentRelationshipKeys.add(r['relationshipKey'] as String? ?? '');
     }
 
     final bottomPadding = MediaQuery.of(context).padding.bottom;
@@ -496,8 +485,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     // an AppBar, which consumes the status bar height. The body coordinate
     // system starts at y=0 below the AppBar. Using topPadding would
     // double-count the safe area.
-    // GenerationFilterBar height = 48px, margin below it = 8px
-    const filterBarTopOffset = 56.0;
 
     // Calculate safe bottom offset for FAB above toolbar
     // Toolbar height = 48px + 8px bottom margin
@@ -506,23 +493,12 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     return Stack(
       children: [
         // Main graph content
+        // v106: The generation filter bar ("All" / "Self" / "Parents" /
+        // ... chips) has been REMOVED per user request — the graph now
+        // starts directly below the AppBar, reclaiming the 56px the
+        // filter bar occupied. The graph expands to fill the space.
         Column(
           children: [
-            // V2.1 Generation filter bar at top
-            // v10 Fix #1B: Wrap in SizedBox with fixed height to constrain
-            // the hit-test region. Without this, the filter bar's
-            // InkWells could absorb touches below their visible area.
-            SizedBox(
-              height: 56,
-              child: GenerationFilterBar(
-                presentGenerations: presentGenerations,
-                highlightedGeneration: _highlightedGeneration,
-                onGenerationTap: (gen) {
-                  setState(() => _highlightedGeneration = gen);
-                },
-              ),
-            ),
-
             if (graph.isTruncated) _buildTruncationBanner(graph),
 
             // P3.7: "On this day" banner — shows when any persons have
@@ -534,9 +510,13 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
               // FamilyGraphWidget with its RelationshipEdge painter
               // is removed — rendering both painters caused a double
               // line bug on the web build.
+              //
+              // v106: highlightedGeneration is no longer passed — the
+              // generation filter bar has been removed, so no
+              // generation is ever highlighted. The parameter defaults
+              // to null (show all generations at full opacity).
               child: FamilyGraphEngineView(
                 familyId: widget.familyId,
-                highlightedGeneration: _highlightedGeneration,
                 recenterKey: _recenterKey,
               ),
             ),
