@@ -1279,14 +1279,21 @@ class _HeroFamilyCard extends ConsumerWidget {
     final storiesAsync = ref.watch(storiesProvider(familyId));
     final hasStories = storiesAsync.valueOrNull?.isNotEmpty ?? false;
 
+    // v108: The hero family card background is split into two interactive
+    // zones — left half opens the Graph, right half opens the Map. Large
+    // faint semi-transparent icons are part of the background design
+    // (no new buttons/tabs/labels). The family name, avatar, stats, and
+    // quick-action chips sit on top and retain their own tap handlers.
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
-      child: semanticButton(
+      // Two semantic buttons (Graph / Map) inside a single container.
+      // The container itself is NOT a button — tapping the family name
+      // no longer opens anything. The two background zones are the
+      // primary Graph/Map entry points.
+      child: Semantics(
+        container: true,
         label: '${family.name} family card',
-        hint: 'Double tap to open ${family.name} family details',
-        child: GestureDetector(
-          onTap: () => context.push('/family/${family.id}'),
-          child: Container(
+        child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
@@ -1305,7 +1312,7 @@ class _HeroFamilyCard extends ConsumerWidget {
             borderRadius: BorderRadius.circular(18),
             child: Stack(
               children: [
-                // Radial gradient background #13141E → #191B2C with orange glow
+                // ── Layer 1: Radial gradient background ───────────────
                 Container(
                   // ✅ FIX (BUG-07): Use minHeight instead of fixed height
                   // to prevent BOTTOM OVERFLOWED BY 18 PIXELS when content
@@ -1322,7 +1329,7 @@ class _HeroFamilyCard extends ConsumerWidget {
                   ),
                 ),
 
-                // Subtle dotted K-graph pattern (low opacity)
+                // ── Layer 2: Subtle dotted K-graph pattern (low opacity) ──
                 Positioned.fill(
                   child: CustomPaint(
                     painter: _DottedKGraphPainter(
@@ -1341,7 +1348,74 @@ class _HeroFamilyCard extends ConsumerWidget {
                     child: _HeroKinrelOverlay(familyId: familyId),
                   ),
 
-                // Content
+                // ── Layer 3 (v108): Two interactive background zones ──
+                // Left half = Graph, right half = Map. Each zone has a
+                // large faint semi-transparent icon as part of the
+                // background design. These sit ABOVE the gradient/
+                // pattern but BELOW the content (avatar, name, chips).
+                // The content layer's own tap handlers (avatar → stories,
+                // chips → their routes) take precedence within their hit
+                // areas; the background zones catch taps everywhere else.
+                Positioned.fill(
+                  child: Row(
+                    children: [
+                      // ── LEFT: Graph zone ─────────────────────────────
+                      Expanded(
+                        child: Semantics(
+                          button: true,
+                          label: 'Open ${family.name} graph',
+                          hint: 'Double tap to open the family graph',
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () =>
+                                context.push('/family/${family.id}/graph'),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 24),
+                                child: Icon(
+                                  Icons.account_tree_outlined,
+                                  size: 96,
+                                  color: _cOrange.withValues(alpha: 0.10),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // ── RIGHT: Map zone ──────────────────────────────
+                      Expanded(
+                        child: Semantics(
+                          button: true,
+                          label: 'Open ${family.name} map',
+                          hint: 'Double tap to open the family map',
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () =>
+                                context.push('/family/${family.id}/map'),
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 24),
+                                child: Icon(
+                                  Icons.map_outlined,
+                                  size: 96,
+                                  color: _cOrange.withValues(alpha: 0.10),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ── Layer 4: Content (avatar, name, stats, chips) ──────
+                // This layer uses HitTestBehavior.translucent so taps on
+                // the avatar / chips are handled by their own GestureDetectors,
+                // while taps on empty areas fall through to the background
+                // zones below.
                 Positioned.fill(
                   child: Padding(
                     padding: const EdgeInsets.all(20),
@@ -1443,6 +1517,11 @@ class _HeroFamilyCard extends ConsumerWidget {
                             ),
                               const SizedBox(height: 12),
                               // Family name (Heading Large, #F5F0EE)
+                              // v108: The family name is NO LONGER tappable
+                              // (it used to open the family detail page).
+                              // Taps on the name fall through to the
+                              // background Graph/Map zones. The name is
+                              // purely a label now.
                               Text(
                                 family.name,
                                 style: TextStyle(
@@ -1534,7 +1613,6 @@ class _HeroFamilyCard extends ConsumerWidget {
             ),
           ),
         ),
-      ),
       ),
     );
   }
