@@ -73,184 +73,224 @@ class HeroSection extends ConsumerWidget {
 
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        onTap: () => context.push(
-          '/family/$familyId/graph?name=${Uri.encodeComponent(familyName)}',
-        ),
-        borderRadius: BorderRadius.circular(0),
-        splashColor: KinrelColors.orange.withValues(alpha: 0.08),
-        highlightColor: KinrelColors.orange.withValues(alpha: 0.04),
-        child: Container(
-          height: heroHeight,
-          width: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                KinrelColors.darkCard,
-                KinrelColors.darkBackground,
-              ],
-              stops: [0.0, 1.0],
-            ),
+      child: Container(
+        height: heroHeight,
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              KinrelColors.darkCard,
+              KinrelColors.darkBackground,
+            ],
+            stops: [0.0, 1.0],
           ),
-          child: Stack(
-            children: [
-              // ── Layer 1: Animated mandala background ────────────────
-              // Faint (6% opacity), breathing slowly behind the avatar.
-              // Derived from the family's Kinrel symbol parameters so every
-              // family's hero is uniquely theirs.
-              if (kinrel != null)
-                Positioned.fill(
-                  child: _BreathingMandala(
-                    parameters: kinrel.symbol,
-                  ),
-                )
-              else
-                // Fallback: static concentric rings when Kinrel not computed.
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: _StaticHeroBackground(),
-                  ),
-                ),
-
-              // ── Layer 2: Centered symbol + name ─────────────────────
+        ),
+        child: Stack(
+          children: [
+            // ── Layer 1: Animated mandala background ────────────────
+            // Faint (6% opacity), breathing slowly behind the avatar.
+            // Derived from the family's Kinrel symbol parameters so every
+            // family's hero is uniquely theirs.
+            if (kinrel != null)
               Positioned.fill(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Kinrel symbol (or family initial fallback) with a
-                    // persistent graph-icon badge on the ring so the
-                    // tap target is obvious without reading caption text.
-                    if (symbolSize > 10)
-                      Opacity(
-                        opacity: nameOpacity,
-                        child: _HeroSymbolWithGraphBadge(
-                          kinrel: kinrel,
-                          familyName: familyName,
-                          size: symbolSize,
-                        ),
-                      )
-                    else
-                      // Collapsed: show a tiny initial circle pinned left.
-                      Padding(
-                        padding: const EdgeInsets.only(left: FamilyHubSpace.md),
+                child: _BreathingMandala(
+                  parameters: kinrel.symbol,
+                ),
+              )
+            else
+              // Fallback: static concentric rings when Kinrel not computed.
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _StaticHeroBackground(),
+                ),
+              ),
+
+            // ── Layer 2 (v108): Graph + Map shortcuts flanking the avatar ──
+            // Two large, faint, semi-transparent icons positioned on the
+            // left and right of the centered profile icon (the family
+            // initial / Kinrel symbol). Left = Graph, right = Map. They
+            // are subtle background design elements (not separate buttons
+            // or labels) that double as tap targets.
+            //
+            // The whole-hero InkWell that previously opened the Graph is
+            // REMOVED — tapping the avatar/name no longer navigates. The
+            // two icons are the ONLY Graph/Map entry points in the hero.
+            //
+            // Icons fade out as the hero collapses (matched to nameOpacity)
+            // so they don't clutter the pinned-bar state.
+            if (symbolSize > 10)
+              Positioned.fill(
+                child: Opacity(
+                  opacity: nameOpacity,
+                  child: Row(
+                    children: [
+                      // ── LEFT: Graph ────────────────────────────────
+                      Expanded(
                         child: Align(
                           alignment: Alignment.centerLeft,
-                          child: _FamilyInitialAvatar(
-                            familyName: familyName,
-                            size: 40,
+                          child: Padding(
+                            padding: const EdgeInsets.only(
+                                left: FamilyHubSpace.lg),
+                            child: Semantics(
+                              button: true,
+                              label: 'Open $familyName graph',
+                              hint: 'Double tap to open the family graph',
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () => context.push(
+                                  '/family/$familyId/graph?name='
+                                  '${Uri.encodeComponent(familyName)}',
+                                ),
+                                child: Icon(
+                                  Icons.account_tree_outlined,
+                                  size: 64,
+                                  color: KinrelColors.orange
+                                      .withValues(alpha: 0.12),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-
-                    if (symbolSize > 10) ...[
-                      const SizedBox(height: FamilyHubSpace.md),
-                      // Family name — Display type
-                      Opacity(
-                        opacity: nameOpacity,
-                        child: Text(
-                          familyName,
-                          style: FamilyHubType.display,
-                          textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(height: FamilyHubSpace.xs),
-                    // Caption: member count + relationship count (folds
-                    // the old "Family Graph" card data into the hero).
-                    Opacity(
-                      opacity: nameOpacity,
-                      child: Text(
-                        '$memberCount ${memberCount == 1 ? "member" : "members"}'
-                        '  ·  '
-                        '$relationshipCount ${relationshipCount == 1 ? "link" : "links"}',
-                        style: FamilyHubType.caption,
-                      ),
-                    ),
-                    // ── Threshold teaser ───────────────────────────────
-                    // Small persistent "next threshold" teaser so the hub
-                    // doesn't feel empty on days nothing's happening.
-                    // Shows the next Truth Streak threshold (daily reason
-                    // to open the app, like the old streak counter).
-                    if (symbolSize > 10)
-                      Opacity(
-                        opacity: nameOpacity * 0.8,
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: _ThresholdTeaser(familyId: familyId),
-                        ),
-                      ),
-                  ] else ...[
-                    // Collapsed: show family name + caption inline.
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        left: FamilyHubSpace.md + 48,
-                        right: FamilyHubSpace.md,
-                      ),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              familyName,
-                              style: FamilyHubType.heading,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                      // ── CENTER spacer (matches the avatar width) ──
+                      SizedBox(width: symbolSize),
+                      // ── RIGHT: Map ────────────────────────────────
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Padding(
+                            padding: const EdgeInsets.only(
+                                right: FamilyHubSpace.lg),
+                            child: Semantics(
+                              button: true,
+                              label: 'Open $familyName map',
+                              hint: 'Double tap to open the family map',
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () => context.push(
+                                  '/family/$familyId/map',
+                                ),
+                                child: Icon(
+                                  Icons.map_outlined,
+                                  size: 64,
+                                  color: KinrelColors.orange
+                                      .withValues(alpha: 0.12),
+                                ),
+                              ),
                             ),
-                            Text(
-                              '$memberCount ${memberCount == 1 ? "member" : "members"}'
-                              '  ·  '
-                              '$relationshipCount ${relationshipCount == 1 ? "link" : "links"}',
-                              style: FamilyHubType.captionMuted,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-
-            // ── Layer 3: "Explore graph" hint with chevron (expanded only) ─
-            // Bug 2 fix: paired with the persistent graph-icon badge on
-            // the avatar ring, this caption confirms the tap target.
-            // The chevron reinforces "this opens something".
-            if (collapse < 0.3)
-              Positioned(
-                bottom: FamilyHubSpace.md,
-                right: FamilyHubSpace.md,
-                child: Opacity(
-                  opacity: (1 - collapse / 0.3) * 0.7,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Explore graph',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: KinrelColors.orange.withValues(alpha: 0.7),
-                        ),
-                      ),
-                      const SizedBox(width: 2),
-                      Icon(
-                        Icons.chevron_right,
-                        size: 16,
-                        color: KinrelColors.orange.withValues(alpha: 0.7),
                       ),
                     ],
                   ),
                 ),
               ),
+
+            // ── Layer 3: Centered symbol + name ─────────────────────
+            Positioned.fill(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Kinrel symbol (or family initial fallback).
+                  // v108: The graph-icon badge on the ring is removed —
+                  // the Graph + Map icons flanking the avatar now serve
+                  // as the tap affordance.
+                  if (symbolSize > 10)
+                    Opacity(
+                      opacity: nameOpacity,
+                      child: _HeroSymbol(
+                        kinrel: kinrel,
+                        familyName: familyName,
+                        size: symbolSize,
+                      ),
+                    )
+                  else
+                    // Collapsed: show a tiny initial circle pinned left.
+                    Padding(
+                      padding: const EdgeInsets.only(left: FamilyHubSpace.md),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: _FamilyInitialAvatar(
+                          familyName: familyName,
+                          size: 40,
+                        ),
+                      ),
+                    ),
+
+                  if (symbolSize > 10) ...[
+                    const SizedBox(height: FamilyHubSpace.md),
+                    // Family name — Display type
+                    Opacity(
+                      opacity: nameOpacity,
+                      child: Text(
+                        familyName,
+                        style: FamilyHubType.display,
+                        textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: FamilyHubSpace.xs),
+                  // Caption: member count + relationship count (folds
+                  // the old "Family Graph" card data into the hero).
+                  Opacity(
+                    opacity: nameOpacity,
+                    child: Text(
+                      '$memberCount ${memberCount == 1 ? "member" : "members"}'
+                      '  ·  '
+                      '$relationshipCount ${relationshipCount == 1 ? "link" : "links"}',
+                      style: FamilyHubType.caption,
+                    ),
+                  ),
+                  // ── Threshold teaser ───────────────────────────────
+                  // Small persistent "next threshold" teaser so the hub
+                  // doesn't feel empty on days nothing's happening.
+                  // Shows the next Truth Streak threshold (daily reason
+                  // to open the app, like the old streak counter).
+                  if (symbolSize > 10)
+                    Opacity(
+                      opacity: nameOpacity * 0.8,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: _ThresholdTeaser(familyId: familyId),
+                      ),
+                    ),
+                ] else ...[
+                  // Collapsed: show family name + caption inline.
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      left: FamilyHubSpace.md + 48,
+                      right: FamilyHubSpace.md,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            familyName,
+                            style: FamilyHubType.heading,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '$memberCount ${memberCount == 1 ? "member" : "members"}'
+                            '  ·  '
+                            '$relationshipCount ${relationshipCount == 1 ? "link" : "links"}',
+                            style: FamilyHubType.captionMuted,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ],
         ),
-      ),
       ),
     );
   }
@@ -396,17 +436,15 @@ class _FamilyInitialAvatar extends StatelessWidget {
   }
 }
 
-/// The Kinrel symbol (or family-initial fallback) wrapped in a Stack with
-/// a persistent graph-icon badge on the bottom-right of the ring.
+/// The Kinrel symbol (or family-initial fallback), WITHOUT the graph-icon
+/// badge that used to sit on the ring.
 ///
-/// Bug 2 fix: "Tap to explore graph" as small caption text doesn't read
-/// as tappable. This badge sits on the avatar ring itself — the same
-/// graph icon used elsewhere in the app — so the tap target is obvious
-/// without reading any caption text. The whole hero is already wrapped
-/// in a Material+InkWell (ripple feedback), so tapping anywhere on the
-/// hero opens the graph.
-class _HeroSymbolWithGraphBadge extends StatelessWidget {
-  const _HeroSymbolWithGraphBadge({
+/// v108: The graph-icon badge was removed because the Graph + Map shortcuts
+/// now flank the avatar as separate semi-transparent icons (see Layer 2
+/// in HeroSection.build). The badge would have been redundant with the
+/// left-side Graph icon.
+class _HeroSymbol extends StatelessWidget {
+  const _HeroSymbol({
     required this.kinrel,
     required this.familyName,
     required this.size,
@@ -418,62 +456,19 @@ class _HeroSymbolWithGraphBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Badge size scales with the symbol: 22% of symbol diameter,
-    // clamped to 28–44px so it's visible but not overwhelming.
-    final badgeSize = (size * 0.28).clamp(28.0, 44.0);
-
     return SizedBox(
       width: size,
       height: size,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // The Kinrel symbol or family-initial avatar.
-          if (kinrel != null)
-            StaticKinrelSymbol(
+      child: kinrel != null
+          ? StaticKinrelSymbol(
               parameters: kinrel!.symbol,
               archetypeKey: kinrel!.archetype.key,
               size: size,
             )
-          else
-            _FamilyInitialAvatar(
+          : _FamilyInitialAvatar(
               familyName: familyName,
               size: size,
             ),
-
-          // Persistent graph-icon badge on the bottom-right of the ring.
-          // This is the visual affordance that says "tap me to see the
-          // graph" — it doesn't rely on users reading caption text.
-          Positioned(
-            right: -badgeSize * 0.15,
-            bottom: -badgeSize * 0.15,
-            child: Container(
-              width: badgeSize,
-              height: badgeSize,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: KinrelColors.darkBackground,
-                border: Border.all(
-                  color: KinrelColors.orange.withValues(alpha: 0.4),
-                  width: 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 4,
-                    spreadRadius: 0,
-                  ),
-                ],
-              ),
-              child: Icon(
-                Icons.account_tree_outlined,
-                size: badgeSize * 0.55,
-                color: KinrelColors.orange,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
