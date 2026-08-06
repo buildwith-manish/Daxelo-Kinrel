@@ -682,129 +682,84 @@ class CameraController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// v107: Resets the view so the [focusNodePosition] is at the EXACT
-  /// center of the viewport, with the whole graph fitting on screen
-  /// with balanced spacing on all sides.
+  /// v107.1: Resets the view so the focus node (the green "You" /
+  /// anchor node) is at the EXACT center of the viewport, at the
+  /// default zoom level (1.0).
   ///
-  /// This is the "Reset View" button behavior. Unlike [fitToView]
-  /// (which centers the BOUNDING BOX of all nodes — putting the
-  /// primary focus node off-center for unbalanced graphs), this
-  /// method centers the PRIMARY FOCUS NODE (anchor / selected node)
-  /// and then picks the largest zoom that still fits the entire graph
-  /// with the focus node at center.
+  /// This is the "Reset View" button behavior. It:
+  ///   1. Restores the default zoom level (1.0).
+  ///   2. Centers the focus node's VISUAL CIRCLE (not the bounding
+  ///      box) at the exact viewport center.
+  ///   3. Works regardless of the current zoom or pan position.
   ///
   /// [focusNodePosition] — the graph-space position of the node to
-  ///   center (typically the anchor or selected node's position,
-  ///   adjusted by the visual-circle Y offset so the CIRCLE — not
-  ///   the box — is centered).
-  /// [allPositions] — all node positions, used to compute how much
-  ///   zoom fits the whole graph while keeping the focus node centered.
+  ///   center. Per the layout system (node_layer.dart), this is the
+  ///   CENTER of the node's Positioned box (NOT the top-left). The
+  ///   visual circle center is offset from this by
+  ///   _kCircleCenterYOffset (-28px Y, 0px X) because the circle
+  ///   sits at the top of the node's Column.
+  /// [circleCenterYOffset] — the Y offset from the box center to the
+  ///   visual circle center. Passed in by the caller (the engine view
+  ///   passes _kCircleCenterYOffset = -28.0) so the camera controller
+  ///   doesn't hardcode layout internals.
   /// [viewportSize] — the viewport dimensions.
   /// [reducedMotion] — when true, snaps instantly (no animation).
   ///
-  /// The zoom is computed as the largest value where every node is
-  /// within the viewport given the focus node is centered. This
-  /// guarantees balanced spacing: the focus node is at the exact
-  /// center, and the most distant node determines the zoom so nothing
-  /// is clipped.
+  /// The centering math is pure viewport geometry:
+  ///   targetPan = viewportCenter - focusCircleCenter * zoom
+  /// This places the focus node's visual circle at the exact viewport
+  /// center (viewportSize/2) at the default zoom (1.0), every time.
   void resetView({
     required Offset focusNodePosition,
-    required Map<String, Offset> allPositions,
+    required double circleCenterYOffset,
     required Size viewportSize,
     bool reducedMotion = false,
   }) {
-    if (viewportSize == Size.zero || allPositions.isEmpty) {
-      // Defensive fallback: if we can't compute, just reset to origin.
+    if (viewportSize == Size.zero) {
+      // Defensive fallback: if viewport isn't resolved, just reset
+      // to origin + default zoom.
       reset();
       return;
     }
 
     _cancelAnimation();
 
-    // Node box dimensions (must match fitToView's constants + the
-    // layout's _kNodeSize). Used so the bounding check accounts for
-    // the full node footprint (circle + label), not just the position
-    // point.
-    const nodeWidth = 140.0;
-    const nodeHeight = 176.0;
-    // Padding around the graph so nodes aren't flush against the
-    // viewport edge. 20% matches fitToView's padding.
-    const padding = 0.2;
-
-    // The focus node's visual-circle center. Node positions are
-    // top-left of the box; the visual circle is at the top of the
-    // Column, so its center is offset from the box top-left by
-    // (nodeWidth/2, circleCenterYFromTop). We use the same offset
-    // the edge painter uses (_kCircleCenterYOffset = -28 relative
-    // to the box CENTER, which is nodeHeight/2 = 88 from the top →
-    // circle center is at 88 - 28 = 60 from the box top).
-    // For X, the circle is horizontally centered: nodeWidth/2 = 70.
-    final focusCenter = Offset(
-      focusNodePosition.dx + nodeWidth / 2,
-      focusNodePosition.dy + 60.0, // visual circle center Y from box top
+    // The focus node's VISUAL CIRCLE center in graph space.
+    // layout.positions gives the box CENTER (node_layer.dart places
+    // the Positioned box centered at pos). The visual circle is at
+    // the top of the Column, so its center is offset by
+    // circleCenterYOffset (negative = above box center) in Y, and
+    // 0 in X (the circle is horizontally centered in the box).
+    final focusCircleCenter = Offset(
+      focusNodePosition.dx,
+      focusNodePosition.dy + circleCenterYOffset,
     );
 
-    // Compute the maximum distance from the focus node's visual
-    // center to any node's visual center, in BOTH X and Y. The zoom
-    // must be small enough that 2× this distance (focus is center,
-    // so the farthest node is at most this far on each side) fits
-    // within the viewport (minus padding).
-    double maxDx = 0.0;
-    double maxDy = 0.0;
-    for (final pos in allPositions.values) {
-      final nodeCenter = Offset(
-        pos.dx + nodeWidth / 2,
-        pos.dy + 60.0,
-      );
-      final dx = (nodeCenter.dx - focusCenter.dx).abs();
-      final dy = (nodeCenter.dy - focusCenter.dy).abs();
-      if (dx > maxDx) maxDx = dx;
-      if (dy > maxDy) maxDy = dy;
-    }
+    // Restore the DEFAULT zoom level (1.0) — not a fit-to-graph
+    // zoom. The user requirement: "Reset should restore the default
+    // zoom level and perfectly center the base node every time."
+    const targetZoom = 1.0;
 
-    // Add half a node footprint to each side so the farthest node's
-    // full circle + label fits, not just its center.
-    final halfWidthNeeded = maxDx + nodeWidth / 2;
-    final halfHeightNeeded = maxDy + nodeHeight / 2;
-
-    // The available half-viewport (with padding) on each side of the
-    // centered focus node.
-    final availHalfW = (viewportSize.width / 2) * (1.0 - padding);
-    final availHalfH = (viewportSize.height / 2) * (1.0 - padding);
-
-    // Zoom so the needed half-extent fits in the available half-viewport.
-    double fitZoom;
-    if (halfWidthNeeded <= 0 || halfHeightNeeded <= 0) {
-      // Single-node graph — target 1.0.
-      fitZoom = 1.0;
-    } else {
-      final zoomX = availHalfW / halfWidthNeeded;
-      final zoomY = availHalfH / halfHeightNeeded;
-      fitZoom = math.min(zoomX, zoomY);
-      // For tiny graphs (single node or very compact), target 1.0 so
-      // the node is clearly visible without zooming out too far.
-      if (fitZoom > 1.0) fitZoom = 1.0;
-      fitZoom = fitZoom.clamp(_minZoom, 2.0);
-    }
-
-    // Pan so the focus node's visual center lands at the viewport center.
+    // Pan so the focus node's visual circle center lands at the
+    // exact viewport center.
     final targetPanX =
-        (viewportSize.width / 2) - (focusCenter.dx * fitZoom);
+        (viewportSize.width / 2) - (focusCircleCenter.dx * targetZoom);
     final targetPanY =
-        (viewportSize.height / 2) - (focusCenter.dy * fitZoom);
+        (viewportSize.height / 2) - (focusCircleCenter.dy * targetZoom);
 
     if (reducedMotion) {
       _panX = targetPanX;
       _panY = targetPanY;
-      _zoomLevel = fitZoom;
+      _zoomLevel = targetZoom;
       _scheduleSave();
       notifyListeners();
     } else {
-      // Smooth animated transition to the new framing.
+      // Smooth animated transition to the default zoom + centered
+      // focus node.
       animateTo(
         targetPanX,
         targetPanY,
-        fitZoom,
+        targetZoom,
         duration: const Duration(milliseconds: 500),
         curve: Curves.easeInOut,
       );

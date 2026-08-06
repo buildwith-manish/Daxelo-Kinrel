@@ -775,17 +775,31 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     }
     if (layout.positions.isEmpty) return;
 
-    // Resolve the primary focus node ID: selected → anchor → viewer →
-    // first node. This is the node that lands at the exact viewport
-    // center after reset.
-    final selectedNodeId = ref.read(selectedNodeProvider);
-    String? focusId = selectedNodeId;
+    // v107.1: Resolve the primary focus node ID. The user requirement
+    // is that the green "You" (anchor) node is centered. Priority:
+    //   1. The anchor node (isAnchor == true) — this is the green
+    //      "You" node the user expects to be centered on reset.
+    //   2. The viewer's own person node (if different from anchor).
+    //   3. The currently selected node (as a courtesy — but the user
+    //      explicitly wants the BASE/YOU node centered, not the
+    //      selected node, so this is a low-priority fallback).
+    //   4. The first node in the layout (last resort).
+    //
+    // The previous version prioritized the SELECTED node, which meant
+    // tapping any node and hitting Reset centered THAT node instead of
+    // the You node. The user said "center the base person (the green
+    // 'You' node)", so anchor is now top priority.
+    String? focusId = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
     if (focusId == null || !layout.positions.containsKey(focusId)) {
-      focusId = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
-    }
-    if (focusId == null || !layout.positions.containsKey(focusId)) {
-      // Fall back to the first node in the layout.
-      focusId = layout.positions.keys.first;
+      // No anchor — fall back to the selected node.
+      final selectedNodeId = ref.read(selectedNodeProvider);
+      if (selectedNodeId != null &&
+          layout.positions.containsKey(selectedNodeId)) {
+        focusId = selectedNodeId;
+      } else {
+        // Last resort: first node.
+        focusId = layout.positions.keys.first;
+      }
     }
     if (focusId == null) return;
 
@@ -795,7 +809,11 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     final bool reduced = MediaQuery.disableAnimationsOf(context);
     _camera.resetView(
       focusNodePosition: focusPosition,
-      allPositions: layout.positions,
+      // Pass the visual-circle Y offset so the camera centers the
+      // CIRCLE (what the user sees), not the bounding box. The
+      // offset is negative because the circle sits at the top of
+      // the node's Column, above the box center.
+      circleCenterYOffset: _kCircleCenterYOffset,
       viewportSize: _viewportSize,
       reducedMotion: reduced,
     );
