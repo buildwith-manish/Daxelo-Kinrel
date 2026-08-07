@@ -153,11 +153,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               );
             },
           ),
-          IconButton(
-            icon: Icon(Icons.share_outlined),
-            tooltip: 'Share Family',
-            onPressed: () => _shareFamily(context),
-          ),
+          // v109: Share icon REMOVED — the same functionality is
+          // available in the Settings menu (via _showFamilySettings),
+          // making this toolbar entry redundant.
           IconButton(
             icon: Icon(Icons.settings_outlined),
             tooltip: 'Settings',
