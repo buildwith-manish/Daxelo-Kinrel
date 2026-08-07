@@ -3,8 +3,14 @@
 // "Who are you thinking of?" — horizontal ring of family member faces.
 // Tap any face to send a silent "Thinking of You" signal.
 //
-// Only shows real Kinrel users (isLinkedToKinrelUser == true, not deleted)
-// — same filter as _MembersPreviewRow in family_detail_screen.dart.
+// v109: ONLY shows real, verified Kinrel users — manually-created
+// custom profiles (people added just to build the family graph) are
+// excluded. The filter is defense-in-depth:
+//   1. deletedAt == null (not deleted)
+//   2. isLinkedToKinrelUser (linkedUserId is non-null + non-empty)
+//   3. linkedUserId is a valid UUID (rejects placeholder / non-UUID
+//      values that might have been set incorrectly)
+//   4. The current user is excluded (you can't "think of" yourself)
 //
 // Placed BELOW the Truth Streak card, BEFORE the quick-jump dock,
 // as an additional engagement layer. Does NOT replace Truth Streak.
@@ -17,7 +23,24 @@ import 'package:dio/dio.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/services/supabase_service.dart';
 import '../data/thinking_service.dart';
+
+/// Regex for a valid UUID v4. Used to validate that linkedUserId is a
+/// real Kinrel auth user ID, not a placeholder or incorrectly-set value.
+/// Manually-created custom profiles have linkedUserId = null, but if a
+/// bug or data-migration issue ever set it to a non-UUID value, this
+/// check rejects it so the person doesn't appear in the "thinking of"
+/// list.
+final _uuidRegex = RegExp(
+  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+);
+
+/// Returns true if [id] is a valid UUID v4 string.
+bool _isValidUuid(String? id) {
+  if (id == null || id.isEmpty) return false;
+  return _uuidRegex.hasMatch(id);
+}
 
 class FamilyRingWidget extends ConsumerStatefulWidget {
   const FamilyRingWidget({
@@ -41,7 +64,12 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
   }
 
   Future<void> _onTap(BuildContext context, Person member) async {
-    if (member.linkedUserId == null || member.linkedUserId!.isEmpty) return;
+    // v109: Guard — only send to real Kinrel users with a valid UUID.
+    // This is a belt-and-suspenders check; the build method already
+    // filters the list, but this prevents any edge case (e.g., a race
+    // where the member list changed between build and tap) from
+    // sending a tap to an invalid recipient.
+    if (!_isValidUuid(member.linkedUserId)) return;
     final userId = member.linkedUserId!;
 
     if (_cooldown.contains(userId)) {
@@ -104,9 +132,24 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
 
     if (detail == null) return const SizedBox.shrink();
 
-    // Same filter as _MembersPreviewRow: only real linked Kinrel users
+    // v109: Defense-in-depth filter — only real, verified Kinrel users.
+    // Manually-created custom profiles (people added just to build the
+    // family graph) are excluded by ALL of these checks:
+    //   1. deletedAt == null — exclude soft-deleted persons
+    //   2. isLinkedToKinrelUser — linkedUserId is non-null + non-empty
+    //   3. _isValidUuid(linkedUserId) — the linkedUserId is a valid UUID
+    //      v4 (rejects placeholder / non-UUID values that might have been
+    //      set incorrectly by a bug or data migration)
+    //   4. linkedUserId != currentUserId — exclude the current user (you
+    //      can't "think of" yourself)
+    final currentUserId = ref.read(currentUserProvider)?.id;
+
     final members = detail.members
-        .where((p) => p.deletedAt == null && p.isLinkedToKinrelUser)
+        .where((p) =>
+            p.deletedAt == null &&
+            p.isLinkedToKinrelUser &&
+            _isValidUuid(p.linkedUserId) &&
+            p.linkedUserId != currentUserId)
         .take(10)
         .toList();
 
