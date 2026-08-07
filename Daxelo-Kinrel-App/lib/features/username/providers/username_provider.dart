@@ -413,10 +413,16 @@ class UsernameNotifier extends StateNotifier<UsernameCheckState> {
           history: state.history,
         );
       } else {
-        // For user usernames, query Supabase directly (bypasses NestJS
-        // which rejects Supabase JWTs due to ES256/HS256 mismatch).
-        // This is fast (~100-200ms) compared to the NestJS API which
-        // would 401 and timeout.
+        // v109: For user usernames, use the fn_check_username_available
+        // SECURITY DEFINER RPC. The previous code queried the "User"
+        // table directly (from('User').select('id').eq('username', ...)),
+        // but the User table's RLS only lets you read YOUR OWN row — so
+        // the query always returned empty, making every username appear
+        // "available" even if it was taken by another user.
+        //
+        // The RPC bypasses RLS via SECURITY DEFINER and checks the
+        // username against ALL registered Kinrel users (case-insensitive).
+        // It returns true if available, false if taken.
         final client = _ref.read(supabaseProvider);
         if (client == null) {
           state = UsernameCheckState(
@@ -425,16 +431,26 @@ class UsernameNotifier extends StateNotifier<UsernameCheckState> {
           );
           return;
         }
-        final response = await client
-            .from('User')
-            .select('id')
-            .eq('username', username)
-            .limit(1)
-            .timeout(const Duration(seconds: 3));
-        final isTaken = (response as List).isNotEmpty;
+
+        // Get the current user's ID so the RPC can exclude it (for the
+        // profile-edit flow where the user's OWN username shouldn't count
+        // as "taken"). During signup the user IS authenticated, so we pass
+        // their ID to exclude it.
+        final currentUserId = client.auth.currentUser?.id;
+
+        final response = await client.rpc(
+          'fn_check_username_available',
+          params: {
+            'p_username': username,
+            'p_exclude_user_id': currentUserId,
+          },
+        ).timeout(const Duration(seconds: 3));
+
+        final isAvailable = response as bool? ?? false;
+        final isTaken = !isAvailable;
 
         // ── Cache the result ─────────────────────────────────────
-        await _cacheAvailability(username, !isTaken);
+        await _cacheAvailability(username, isAvailable);
 
         // ── Typo detection if taken ──────────────────────────────
         String? didYouMean;
@@ -443,7 +459,7 @@ class UsernameNotifier extends StateNotifier<UsernameCheckState> {
         }
 
         state = UsernameCheckState(
-          availability: !isTaken
+          availability: isAvailable
               ? UsernameAvailability.available
               : UsernameAvailability.taken,
           username: username,
