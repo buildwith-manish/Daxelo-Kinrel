@@ -17,6 +17,7 @@ import '../../../core/networking/dio_client.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/database/isar_database.dart';
 import '../../../core/database/repositories/offline_profile_repository.dart';
+import '../../../core/routing/app_router.dart' show markSignInSuccess;
 
 // ════════════════════════════════════════════════════════════════════
 // DATA MODELS
@@ -1789,22 +1790,19 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       userId = client?.auth.currentUser?.id;
     } catch (_) {}
 
+    // v109: Sign out from Supabase FIRST (before the backend call) so the
+    // local session is cleared immediately. This makes the auth state change
+    // propagate to the router right away, so the user sees the redirect to
+    // /sign-in without waiting for the (possibly slow/hanging) backend
+    // logout endpoint.
     try {
-      // Notify backend to invalidate session
-      await _dio.post('/api/auth/logout');
-    } catch (_) {
-      // Continue with local sign-out even if backend call fails
-    }
-
-    try {
-      // Sign out from Supabase (clears local session)
       final authService = _ref.read(authServiceProvider);
       await authService.signOut();
     } catch (_) {
-      // Ignore sign-out errors
+      // Ignore sign-out errors — still proceed to clear local state
     }
 
-    // Clear Isar cache on logout
+    // Clear Isar cache on logout (best-effort, non-blocking)
     if (IsarDatabase.isInitialized) {
       try {
         // Clear only THIS user's cached families (not all users on device)
@@ -1816,8 +1814,36 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       } catch (_) {}
     }
 
-    // Clear all profile state
+    // Clear all profile state immediately
     state = const ProfileState();
+
+    // Notify backend to invalidate the session — this is fire-and-forget
+    // with a SHORT timeout (3s) so it never blocks the user's sign-out.
+    // If the backend is unreachable, the local session is already cleared
+    // above, so the user is effectively signed out regardless.
+    try {
+      await _dio.post('/api/auth/logout').timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          // Backend didn't respond in 3s — the local sign-out already
+          // completed, so this is fine. The backend session will expire
+          // on its own (JWT TTL).
+          throw Exception('Backend logout timed out — local sign-out already complete');
+        },
+      );
+    } catch (_) {
+      // Backend call failed — local sign-out already completed, so this
+      // is non-blocking. The user is signed out locally.
+    }
+
+    // v109: Explicitly notify the router to re-evaluate redirects.
+    // The Supabase auth state change should have already triggered the
+    // authStateProvider → _authChangeNotifier, but this is a belt-and-
+    // suspenders call to guarantee the redirect fires even if the
+    // auth stream event hasn't propagated yet.
+    try {
+      markSignInSuccess(); // reuses the same notifier (works for sign-in AND sign-out)
+    } catch (_) {}
   }
 }
 

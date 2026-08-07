@@ -2537,16 +2537,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             size: DKButtonSize.sm,
             onPressed: () async {
               Navigator.of(ctx).pop();
-              // Sign out from Supabase and clear local session state.
+              // v109: Sign out from Supabase and clear local session state.
+              // The redirect to /sign-in happens INSIDE logout() (via
+              // markSignInSuccess → router redirect), so even if the
+              // backend call is slow, the user sees the redirect immediately.
               try {
                 // P5-F1: Track logout event
                 AnalyticsService.instance.logLogout();
                 await ref.read(profileProvider.notifier).logout();
-                if (context.mounted) context.go('/sign-in');
               } catch (e) {
-                if (context.mounted) {
-                  context.showSnackBar('Error signing out', isError: true);
-                }
+                // Even on error, attempt the redirect — the local session
+                // is cleared regardless, so the user should be on /sign-in.
+                debugPrint('⚠️ Sign out error (non-blocking): $e');
+              }
+              // v109: Always navigate to /sign-in after logout, even if
+              // logout() threw. The router redirect will also fire (via
+              // markSignInSuccess in logout), but this explicit go() ensures
+              // the user lands on /sign-in immediately.
+              if (context.mounted) {
+                context.go('/sign-in');
               }
             },
           ),
