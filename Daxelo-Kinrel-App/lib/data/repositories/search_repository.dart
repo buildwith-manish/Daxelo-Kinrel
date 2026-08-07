@@ -333,6 +333,15 @@ class SearchRepository {
 
   // ── Global Kinrel User Search ────────────────────────────────────
 
+  /// Regex for a valid UUID v4. A real Kinrel auth user ID is always a
+  /// UUID v4. Used to defensively filter out any non-UUID rows that
+  /// might slip through (e.g., from a data-migration issue or a stale
+  /// cache entry) so manually-created custom profiles NEVER appear in
+  /// the invite search results.
+  static final _uuidRegex = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
   /// Search ALL Kinrel users (not just family members) via the
   /// `fn_search_kinrel_users` Supabase RPC function.
   ///
@@ -340,7 +349,16 @@ class SearchRepository {
   /// own row) by calling a SECURITY DEFINER function that returns all
   /// users with public profiles matching the query.
   ///
-  /// Used by the "Find on Kinrel" add-member flow.
+  /// v109: ONLY real, registered Kinrel users are returned. The RPC
+  /// queries the "User" table (which mirrors auth.users), NOT the
+  /// "Person" table (which includes manually-created graph-only
+  /// profiles). As defense-in-depth, the client also validates that
+  /// each result's `id` is a valid UUID v4 — a real Kinrel auth user
+  /// ID is always a UUID. Any row without a valid UUID ID is filtered
+  /// out so it can never appear in the invite search results.
+  ///
+  /// Used by the "Find on Kinrel" add-member flow and the "Invite
+  /// Members" direct-invite flow.
   Future<List<KinrelUser>> searchKinrelUsers(
     String query, {
     int limit = 20,
@@ -366,9 +384,15 @@ class SearchRepository {
       ).timeout(const Duration(seconds: 10));
 
       final list = response as List? ?? [];
+      // v109: Defense-in-depth — filter to only valid UUID IDs.
+      // The RPC already queries the "User" table (auth users only),
+      // but this client-side check guarantees that even if a stale
+      // cache row or data-migration issue ever produced a non-UUID ID,
+      // it will NOT appear in the invite search results.
       return list
-          .map((row) =>
-              KinrelUser.fromJson(row as Map<String, dynamic>))
+          .map((row) => KinrelUser.fromJson(row as Map<String, dynamic>))
+          .where((user) =>
+              user.id.isNotEmpty && _uuidRegex.hasMatch(user.id))
           .toList();
     } catch (e) {
       debugPrint('⚠️ searchKinrelUsers error: $e');
