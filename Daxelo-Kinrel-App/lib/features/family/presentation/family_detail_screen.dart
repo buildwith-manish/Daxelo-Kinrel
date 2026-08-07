@@ -608,29 +608,12 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               ),
             ],
 
-            // Family Map option
-            _QuickActionTile(
-              icon: Icons.public,
-              label: 'Family Map',
-              iconColor: KinrelColors.orange,
-              onTap: () {
-                Navigator.pop(ctx);
-                context.push('/family/${widget.familyId}/map');
-              },
-            ),
-            Divider(color: KinrelColors.border, height: 1),
-
-            // Memory Vault option
-            _QuickActionTile(
-              icon: Icons.photo_library_outlined,
-              label: 'Memory Vault',
-              iconColor: KinrelColors.gold,
-              onTap: () {
-                Navigator.pop(ctx);
-                context.push('/memory-vault');
-              },
-            ),
-            Divider(color: KinrelColors.border, height: 1),
+            // v109: Family Map + Memory Vault options REMOVED from the
+            // Family Settings menu. These features are accessed from their
+            // own dedicated sections elsewhere in the app (Family Map via
+            // the hero header's right-side icon; Memory Vault via the
+            // profile/home screen), not from Family Settings. The settings
+            // menu should only contain family-management actions.
 
             // P12.6 — Story Mode (narrated family history tour)
             _QuickActionTile(
