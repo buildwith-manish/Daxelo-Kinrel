@@ -24,7 +24,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
-import '../../../../core/family/family_provider.dart';
 import '../../../kinrel_intelligence/data/kinrel_model.dart';
 import '../../../kinrel_intelligence/providers/kinrel_provider.dart';
 import '../../../kinrel_intelligence/widgets/kinrel_symbol_widget.dart';
@@ -228,66 +227,64 @@ class HeroSection extends ConsumerWidget {
                         familyName,
                         style: FamilyHubType.display,
                         textAlign: TextAlign.center,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: FamilyHubSpace.xs),
-                  // Caption: member count + relationship count (folds
-                  // the old "Family Graph" card data into the hero).
-                  Opacity(
-                    opacity: nameOpacity,
-                    child: Text(
-                      '$memberCount ${memberCount == 1 ? "member" : "members"}'
-                      '  ·  '
-                      '$relationshipCount ${relationshipCount == 1 ? "link" : "links"}',
-                      style: FamilyHubType.caption,
-                    ),
-                  ),
-                  // ── Threshold teaser ───────────────────────────────
-                  // Small persistent "next threshold" teaser so the hub
-                  // doesn't feel empty on days nothing's happening.
-                  // Shows the next Truth Streak threshold (daily reason
-                  // to open the app, like the old streak counter).
-                  if (symbolSize > 10)
+                    const SizedBox(height: FamilyHubSpace.xs),
+                    // Caption: member count + relationship count.
                     Opacity(
-                      opacity: nameOpacity * 0.8,
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: _ThresholdTeaser(familyId: familyId),
+                      opacity: nameOpacity,
+                      child: Text(
+                        '$memberCount ${memberCount == 1 ? "member" : "members"}'
+                        '  ·  '
+                        '$relationshipCount ${relationshipCount == 1 ? "link" : "links"}',
+                        style: FamilyHubType.caption,
                       ),
                     ),
-                ] else ...[
-                  // Collapsed: show family name + caption inline.
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      left: FamilyHubSpace.md + 48,
-                      right: FamilyHubSpace.md,
-                    ),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            familyName,
-                            style: FamilyHubType.heading,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            '$memberCount ${memberCount == 1 ? "member" : "members"}'
-                            '  ·  '
-                            '$relationshipCount ${relationshipCount == 1 ? "link" : "links"}',
-                            style: FamilyHubType.captionMuted,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                    // ── Threshold teaser ───────────────────────────────
+                    // Small persistent "next threshold" teaser so the hub
+                    // doesn't feel empty on days nothing's happening.
+                    if (symbolSize > 10)
+                      Opacity(
+                        opacity: nameOpacity * 0.8,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: _ThresholdTeaser(familyId: familyId),
+                        ),
+                      ),
+                  ] else ...[
+                    // Collapsed: show family name + caption inline.
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: FamilyHubSpace.md + 48,
+                        right: FamilyHubSpace.md,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              familyName,
+                              style: FamilyHubType.heading,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              '$memberCount ${memberCount == 1 ? "member" : "members"}'
+                              '  ·  '
+                              '$relationshipCount ${relationshipCount == 1 ? "link" : "links"}',
+                              style: FamilyHubType.captionMuted,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ],
         ),
