@@ -18,6 +18,7 @@ import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,6 +50,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late final AnimationController _emptyAnimController;
   Timer? _refreshTimer;
+  StreamSubscription? _realtimeSub;
 
   @override
   bool get wantKeepAlive => true;
@@ -64,20 +66,72 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     // Load notifications on init
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(notificationsProvider.notifier).loadNotifications();
+      _setupRealtimeSubscription();
     });
 
     // v109: Refresh every 10 seconds for real-time timestamp updates.
-    // The old 30-second interval was too slow — "Just now" stayed for
-    // 30s before updating to "Xs ago". At 10s, timestamps update
-    // naturally as the user watches.
     _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       ref.read(notificationsProvider.notifier).loadNotifications();
     });
   }
 
+  /// v109.1: Subscribe to Supabase Realtime for the Notification table.
+  /// When a new notification is INSERTED (e.g., a new invite is received,
+  /// or an invite acceptance/rejection notification is created), the
+  /// subscription fires and the notification list refreshes immediately —
+  /// no polling delay, no page reload required.
+  void _setupRealtimeSubscription() {
+    try {
+      final client = ref.read(supabaseProvider);
+      if (client == null) return;
+      final userId = client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      _realtimeSub = client
+          .channel('notifications_realtime')
+          .onPostgresChangeEvent(
+            PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'Notification',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'userId',
+              value: userId,
+            ),
+            callback: (payload) {
+              // New notification inserted — refresh immediately
+              if (mounted) {
+                ref.read(notificationsProvider.notifier).loadNotifications();
+              }
+            },
+          )
+          .onPostgresChangeEvent(
+            PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'Notification',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'userId',
+              value: userId,
+            ),
+            callback: (payload) {
+              // Notification updated (e.g., marked as read) — refresh
+              if (mounted) {
+                ref.read(notificationsProvider.notifier).loadNotifications();
+              }
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      // Best-effort — polling timer still works as fallback
+      debugPrint('⚠️ Realtime subscription failed: $e');
+    }
+  }
+
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _realtimeSub?.cancel();
     _emptyAnimController.dispose();
     super.dispose();
   }
@@ -815,7 +869,11 @@ class _NotificationItem extends ConsumerWidget {
                     ),
                   ],
 
-                  // v109: Show status badge if the invite was already acted on
+                  // v109.1: Show status badge if the invite was already acted on.
+                  // The RPC updates the notification's body to "You joined X"
+                  // (accept) or "You declined the invitation" (reject), so the
+                  // body itself shows the post-action status. This badge is a
+                  // compact visual indicator.
                   if (notification.notificationType ==
                           NotificationType.familyInvite &&
                       notification.isInviteActedUpon) ...[
@@ -829,17 +887,32 @@ class _NotificationItem extends ConsumerWidget {
                             : KinrelColors.orange.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(
-                        notification.isInviteRejected
-                            ? 'Invitation rejected'
-                            : 'Invitation accepted',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: notification.isInviteRejected
-                              ? Colors.red.shade400
-                              : KinrelColors.orange,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            notification.isInviteRejected
+                                ? Icons.close_rounded
+                                : Icons.check_circle_rounded,
+                            size: 12,
+                            color: notification.isInviteRejected
+                                ? Colors.red.shade400
+                                : KinrelColors.orange,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            notification.isInviteRejected
+                                ? 'Invitation declined'
+                                : 'Invitation accepted',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: notification.isInviteRejected
+                                  ? Colors.red.shade400
+                                  : KinrelColors.orange,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
