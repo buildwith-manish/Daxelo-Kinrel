@@ -28,6 +28,8 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
+import '../../family/presentation/providers/family_graph_provider.dart'
+    show familyGraphProvider;
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/notifications_provider.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
@@ -543,12 +545,18 @@ class _NotificationItem extends ConsumerWidget {
       if (success) {
         // Refresh notifications + family data
         ref.read(notificationsProvider.notifier).loadNotifications();
-        // v109: Invalidate family providers so the member count updates
-        // immediately on the family detail screen + family list.
+        // v109.3: Invalidate ALL family providers so every screen updates:
+        //   • familyListProvider → Home screen family card member count
+        //   • familyDetailProvider → Family Space (members tab, stats)
+        //   • familyMembersProvider → "Who are you thinking of?" + Members list
+        //   • familyGraphProvider → Family Graph (new Person node appears)
         try {
           ref.invalidate(familyListProvider);
           ref.invalidate(familyDetailProvider(familyId));
           ref.invalidate(familyMembersProvider(familyId));
+          // Also invalidate the graph provider so the new Person node
+          // appears in the Family Graph immediately.
+          ref.invalidate(familyGraphProvider(familyId));
         } catch (_) {}
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
