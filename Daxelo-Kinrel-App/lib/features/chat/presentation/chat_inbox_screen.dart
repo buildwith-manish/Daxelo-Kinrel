@@ -171,7 +171,7 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
           .from('ChatMessage')
           .select()
           .eq('familyId', widget.family.id)
-          .eq('isDeleted', false)
+          .eq('isDeletedForEveryone', false)
           .order('createdAt', ascending: false)
           .limit(1);
 
@@ -191,7 +191,7 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
             .from('ChatMessage')
             .select('id')
             .eq('familyId', widget.family.id)
-            .eq('isDeleted', false)
+            .eq('isDeletedForEveryone', false)
             .eq('isRead', false)
             .neq('senderId', myUserId)
             .count();
@@ -268,9 +268,7 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
               children: [
                 Expanded(
                   child: Text(
-                    _lastMessage!.messageType == MessageType.photo
-                        ? '📷 Photo'
-                        : _lastMessage!.content,
+                    _lastMessagePreview(_lastMessage!),
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
@@ -335,5 +333,24 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
     if (diff.inDays < 2) return 'Yesterday';
     if (diff.inDays < 7) return '${diff.inDays}d';
     return '${dt.month}/${dt.day}';
+  }
+
+  /// Phase 13: build a short preview string for the latest message in
+  /// a chat row. Handles photo, voice, family-event, and text messages.
+  String _lastMessagePreview(ChatMessage msg) {
+    switch (msg.messageType) {
+      case MessageType.photo:
+        return 'Photo';
+      case MessageType.voiceNote:
+        final secs = msg.durationSeconds ?? 0;
+        final m = (secs ~/ 60).toString();
+        final s = (secs % 60).toString().padLeft(2, '0');
+        return 'Voice message ($m:$s)';
+      case MessageType.familyEvent:
+        return msg.eventTitle ?? 'Family Event';
+      case MessageType.text:
+      default:
+        return msg.content;
+    }
   }
 }

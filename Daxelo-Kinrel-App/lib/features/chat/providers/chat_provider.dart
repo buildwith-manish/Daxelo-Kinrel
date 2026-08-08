@@ -207,7 +207,8 @@ class ChatMessage {
       replyToContent: json['replyToContent'] as String?,
       replyToSenderName: json['replyToSenderName'] as String?,
       senderInitials: json['senderInitials'] as String?,
-      durationSeconds: json['durationSeconds'] as int?,
+      durationSeconds: (json['durationSeconds'] as int?) ??
+          (json['voiceMessageDuration'] as int?),
       eventTitle: json['eventTitle'] as String?,
       eventDate: json['eventDate'] as String?,
       mediaUrl: json['mediaUrl'] as String?,
@@ -244,6 +245,7 @@ class ChatMessage {
       'replyToContent': replyToContent,
       'replyToSenderName': replyToSenderName,
       'durationSeconds': durationSeconds,
+      'voiceMessageDuration': durationSeconds,
       'eventTitle': eventTitle,
       'eventDate': eventDate,
       if (mediaUrl != null) 'mediaUrl': mediaUrl,
@@ -973,6 +975,94 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
+  /// Send a voice message (Phase 13).
+  ///
+  /// Uploads the recorded audio bytes to the `voice-messages` storage
+  /// bucket, gets the public URL, and inserts a ChatMessage with
+  /// `messageType = voiceNote`, `messageSubType = voice`,
+  /// `mediaUrl` set to the public URL, and `voiceMessageDuration`
+  /// set to the recording length in seconds.
+  ///
+  /// The audio format depends on the platform:
+  ///   - Android/iOS: typically audio/m4a (AAC-LC inside MP4 container)
+  ///   - Web:          typically audio/webm;codecs=opus
+  ///   - Windows:      typically audio/wav
+  /// The `voice-messages` bucket accepts all common audio MIME types.
+  Future<void> sendVoiceMessage({
+    required Uint8List bytes,
+    required int durationSeconds,
+    required String mimeType,
+    required String fileName,
+    String? caption,
+  }) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) {
+      if (mounted) state = state.copyWith(error: 'Not signed in');
+      return;
+    }
+
+    final senderName = _currentUserName;
+    final msgId = _generateId();
+    final now = DateTime.now();
+
+    // Upload to storage
+    final storagePath = '$familyId/$msgId-$fileName';
+    try {
+      await client.storage
+          .from('voice-messages')
+          .uploadBinary(
+            storagePath,
+            bytes,
+            fileOptions: FileOptions(contentType: mimeType),
+          );
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendVoiceMessage upload failed: $e');
+      if (mounted) state = state.copyWith(error: 'Failed to upload voice message');
+      return;
+    }
+
+    final mediaUrl = client.storage
+        .from('voice-messages')
+        .getPublicUrl(storagePath);
+
+    final optimistic = ChatMessage(
+      id: msgId,
+      senderId: myUserId,
+      senderName: senderName,
+      content: caption ?? '',
+      messageType: MessageType.voiceNote,
+      timestamp: now,
+      isRead: false,
+      senderInitials: _initialsFromName(senderName),
+    );
+
+    _pendingOptimisticIds.add(msgId);
+    final updated = [optimistic, ...state.messages];
+    if (mounted) state = state.copyWith(messages: updated);
+
+    try {
+      await client.from('ChatMessage').insert({
+        ...optimistic.toJson(familyId: familyId),
+        'mediaUrl': mediaUrl,
+        'voiceMessageDuration': durationSeconds,
+        'messageSubType': 'voice',
+        'mediaType': mimeType,
+        'mediaFileName': fileName,
+      });
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendVoiceMessage insert failed: $e');
+      _pendingOptimisticIds.remove(msgId);
+      if (mounted) {
+        final withoutFailed = state.messages.where((m) => m.id != msgId).toList();
+        state = state.copyWith(
+          messages: withoutFailed,
+          error: 'Failed to send voice message',
+        );
+      }
+    }
+  }
+
   /// Toggle an emoji reaction on a message. Optimistic update + Supabase
   /// upsert. Idempotent — if the user already has that reaction, we
   /// DELETE it; otherwise we INSERT it.
@@ -1071,6 +1161,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
     } catch (e) {
       debugPrint('⚠️ ChatNotifier._markSingleAsRead error: $e');
     }
+  }
+
+  /// Manually refresh messages from Supabase (Phase 13).
+  ///
+  /// Called after edit / delete / star / pin operations so the local
+  /// state reflects the server-side changes. The realtime UPDATE event
+  /// should fire and update state automatically, but this is a safety
+  /// net for cases where the realtime payload doesn't include all
+  /// updated fields.
+  Future<void> refreshMessages() async {
+    await _loadMessages();
   }
 
   /// Mark all messages as read. Called when the chat screen is opened.

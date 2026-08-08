@@ -22,11 +22,16 @@ import 'package:kinrel/core/widgets/global_error_widget.dart';
 //   - Date separators: "Today", "Yesterday", formatted date
 //   - Scroll-to-bottom FAB when scrolled up
 
+import 'dart:async';
 import 'dart:typed_data';
+import 'package:cross_file/cross_file.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
@@ -34,6 +39,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/chat_enhancement_service.dart';
 import '../providers/chat_provider.dart';
+import 'voice_message_player.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Chat Screen
@@ -68,6 +74,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // Typing indicator animation
   late final AnimationController _typingController;
   late final List<Animation<double>> _dotAnimations;
+
+  // Phase 13: Voice recorder state
+  final AudioRecorder _recorder = AudioRecorder();
+  bool _isRecording = false;
+  bool _isSendingVoice = false;
+  Duration _recordingDuration = Duration.zero;
+  String? _recordingPath;
+  Timer? _recordingTimer;
 
   // Quick reaction emojis
   static const _reactionEmojis = ['❤️', '😂', '👍', '😮', '😢', '🙏'];
@@ -122,6 +136,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _textController.dispose();
     _focusNode.dispose();
     _typingController.dispose();
+    // Phase 13: stop the recording timer + dispose the recorder
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+    // If we're mid-recording when the screen closes, stop it
+    // (best-effort; ignore errors since the recorder may already be gone).
+    if (_isRecording) {
+      try { _recorder.stop(); } catch (_) {}
+    }
+    _recorder.dispose();
     super.dispose();
   }
 
@@ -893,6 +916,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // ── Input Bar ────────────────────────────────────────────────────
 
   Widget _buildInputBar() {
+    // Phase 13: when recording, replace the entire input bar with the
+    // recording UI (cancel + timer + send). Otherwise, show the normal
+    // text field + a mic button that toggles to a send button when
+    // the user types.
+    if (_isRecording) {
+      return _buildRecordingBar();
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
@@ -958,12 +989,309 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
             ),
             const SizedBox(width: 6),
-            // Send button
-            _SendButton(isActive: _isComposing, onTap: _sendMessage),
+            // Phase 13: Mic button when empty, Send button when typing.
+            // If voice sending is in-flight, show a spinner.
+            if (_isSendingVoice)
+              const SizedBox(
+                width: 44, height: 44,
+                child: Center(
+                  child: SizedBox(
+                    width: 22, height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: KinrelColors.orange,
+                    ),
+                  ),
+                ),
+              )
+            else if (_isComposing)
+              _SendButton(isActive: true, onTap: _sendMessage)
+            else
+              _MicButton(onTap: _startRecording),
           ],
         ),
       ),
     );
+  }
+
+  // ── Phase 13: Voice recording bar ──────────────────────────────────
+
+  Widget _buildRecordingBar() {
+    final minutes = _recordingDuration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = _recordingDuration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF13141E),
+        border: Border(
+          top: BorderSide(color: const Color(0xFF2A2A3D), width: 0.5),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // Pulsing red recording dot
+            const _RecordingDot(),
+            const SizedBox(width: 12),
+            // Timer
+            Text(
+              '$minutes:$seconds',
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.textWhite,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Recording…',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: KinrelColors.textDim,
+              ),
+            ),
+            const Spacer(),
+            // Cancel button
+            GestureDetector(
+              onTap: _cancelRecording,
+              child: Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF202338),
+                ),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 20,
+                  color: KinrelColors.textSilver,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Send button
+            GestureDetector(
+              onTap: _sendRecording,
+              child: Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: KinrelGradients.igniteGradient,
+                  boxShadow: [
+                    BoxShadow(
+                      color: KinrelColors.orange.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.send_rounded,
+                  size: 20,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Phase 13: Voice recorder methods ────────────────────────────────
+
+  Future<void> _startRecording() async {
+    try {
+      final hasPermission = await _recorder.hasPermission();
+      if (!hasPermission) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Microphone permission denied.'),
+              backgroundColor: KinrelColors.darkCard,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Build a unique temp path for the recording
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final ext = _audioFileExtension();
+      final fileName = 'voice_$timestamp.$ext';
+      final path = await _resolveRecordingPath(fileName);
+
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          autoGain: true,
+          echoCancel: true,
+          noiseSuppress: true,
+        ),
+        path: path,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _isRecording = true;
+        _recordingPath = path;
+        _recordingDuration = Duration.zero;
+      });
+
+      // Tick every second
+      _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) {
+          _recordingTimer?.cancel();
+          return;
+        }
+        setState(() {
+          _recordingDuration = _recordingDuration + const Duration(seconds: 1);
+        });
+        // Safety: cap recording at 5 minutes
+        if (_recordingDuration.inSeconds >= 300) {
+          _sendRecording();
+        }
+      });
+    } catch (e) {
+      debugPrint('⚠️ _startRecording failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not start recording: $e'),
+            backgroundColor: KinrelColors.darkCard,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    try {
+      _recordingTimer?.cancel();
+      _recordingTimer = null;
+      final path = await _recorder.stop();
+      // Try to delete the file on native (ignore on web)
+      _tryDeleteFile(path);
+      if (!mounted) return;
+      setState(() {
+        _isRecording = false;
+        _recordingDuration = Duration.zero;
+        _recordingPath = null;
+      });
+    } catch (e) {
+      debugPrint('⚠️ _cancelRecording failed: $e');
+      if (mounted) {
+        setState(() {
+          _isRecording = false;
+          _recordingDuration = Duration.zero;
+          _recordingPath = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _sendRecording() async {
+    if (_isSendingVoice) return; // guard double-tap
+    final durationSeconds = _recordingDuration.inSeconds;
+
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+
+    try {
+      final path = await _recorder.stop();
+      if (path == null || path.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _isRecording = false;
+            _isSendingVoice = false;
+            _recordingDuration = Duration.zero;
+            _recordingPath = null;
+          });
+        }
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _isRecording = false;
+          _isSendingVoice = true;
+        });
+      }
+
+      // Read bytes cross-platform via XFile (works on web blob URLs and native file paths)
+      final xfile = XFile(path);
+      final bytes = await xfile.readAsBytes();
+      final mimeType = _audioMimeType();
+      final fileName = 'voice_${DateTime.now().millisecondsSinceEpoch}.${_audioFileExtension()}';
+
+      await ref.read(chatProvider(widget.familyId).notifier).sendVoiceMessage(
+        bytes: Uint8List.fromList(bytes),
+        durationSeconds: durationSeconds,
+        mimeType: mimeType,
+        fileName: fileName,
+      );
+
+      // Clean up temp file on native (ignore on web)
+      _tryDeleteFile(path);
+
+      if (mounted) {
+        setState(() {
+          _isSendingVoice = false;
+          _recordingDuration = Duration.zero;
+          _recordingPath = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('⚠️ _sendRecording failed: $e');
+      if (mounted) {
+        setState(() {
+          _isRecording = false;
+          _isSendingVoice = false;
+          _recordingDuration = Duration.zero;
+          _recordingPath = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send voice message: $e'),
+            backgroundColor: KinrelColors.darkCard,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Resolve a writable temp file path for the recording.
+  /// On Web, `record` ignores the path and uses a Blob URL — so any
+  /// placeholder works. On native, we use the OS temp dir.
+  Future<String> _resolveRecordingPath(String fileName) async {
+    if (kIsWeb) return fileName; // ignored by record on web
+    try {
+      final tempDir = await getTemporaryDirectory();
+      return '${tempDir.path}/$fileName';
+    } catch (_) {
+      return fileName;
+    }
+  }
+
+  /// File extension to use for the recorded audio file.
+  /// AAC-LC encoder produces .m4a on all platforms (iOS, Android, web).
+  String _audioFileExtension() => 'm4a';
+
+  /// MIME type matching the encoder chosen in [_startRecording].
+  /// AAC-LC inside an MP4 container → audio/mp4 (widely supported).
+  String _audioMimeType() => 'audio/mp4';
+
+  /// Best-effort cleanup of the temp recording file. On Web, [path] is
+  /// a Blob URL — nothing to delete. On native, we leave the temp file
+  /// in place and let the OS clean it up (this is safe; temp dir is
+  /// periodically cleared by the OS).
+  Future<void> _tryDeleteFile(String? path) async {
+    // No-op on all platforms — temp files are managed by the OS.
+    // Kept as a method so future versions can hook into actual deletion.
+    debugPrint('🎤 recording temp file: $path');
   }
 
   // ── Attachment Picker (v91) ──────────────────────────────────────
@@ -1045,58 +1373,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   /// Show a bottom sheet with the user's families. Tapping one
   /// forwards the [message] to that family's chat.
-  void _showForwardFamilyPicker(ChatMessage message) {
-
-  // v109.10: Edit message dialog
-  void _showEditDialog(ChatMessage message) {
-    final editController = TextEditingController(text: message.content);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: KinrelColors.darkCard,
-        title: Text('Edit Message',
-            style: TextStyle(color: KinrelColors.textWhite)),
-        content: TextField(
-          controller: editController,
-          maxLines: null,
-          autofocus: true,
-          style: TextStyle(color: KinrelColors.textWhite),
-          decoration: InputDecoration(
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: KinrelColors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: KinrelColors.orange),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              final newContent = editController.text.trim();
-              if (newContent.isEmpty || newContent == message.content) {
-                Navigator.pop(ctx);
-                return;
-              }
-              Navigator.pop(ctx);
-              final service = ref.read(chatEnhancementServiceProvider);
-              final success = await service.editMessage(message.id, newContent);
-              if (success) {
-                ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
-              }
-            },
-            child: Text('Save', style: TextStyle(color: KinrelColors.orange)),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showForwardFamilyPicker(ChatMessage message) {
     final familiesAsync = ref.read(familyListProvider);
 
@@ -1220,6 +1496,57 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           SnackBar(content: Text('Could not load families: $e')),
         );
       },
+    );
+  }
+
+  // ── Edit Message Dialog (v109.10) ──────────────────────────────────
+
+  void _showEditDialog(ChatMessage message) {
+    final editController = TextEditingController(text: message.content);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: KinrelColors.darkCard,
+        title: Text('Edit Message',
+            style: TextStyle(color: KinrelColors.textWhite)),
+        content: TextField(
+          controller: editController,
+          maxLines: null,
+          autofocus: true,
+          style: TextStyle(color: KinrelColors.textWhite),
+          decoration: InputDecoration(
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: KinrelColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: KinrelColors.orange),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              final newContent = editController.text.trim();
+              if (newContent.isEmpty || newContent == message.content) {
+                Navigator.pop(ctx);
+                return;
+              }
+              Navigator.pop(ctx);
+              final service = ref.read(chatEnhancementServiceProvider);
+              final success = await service.editMessage(message.id, newContent);
+              if (success) {
+                ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+              }
+            },
+            child: Text('Save', style: TextStyle(color: KinrelColors.orange)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1760,6 +2087,16 @@ class _MessageBubble extends ConsumerWidget {
         );
 
       case MessageType.voiceNote:
+        // Phase 13: real voice message player
+        if (message.mediaUrl != null && message.mediaUrl!.isNotEmpty) {
+          return VoiceMessagePlayer(
+            messageId: message.id,
+            mediaUrl: message.mediaUrl!,
+            durationSeconds: message.durationSeconds,
+            isMe: isMe,
+          );
+        }
+        // Fallback: placeholder if no media URL (e.g. legacy message)
         return Container(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
@@ -1776,12 +2113,10 @@ class _MessageBubble extends ConsumerWidget {
                 child: Icon(Icons.play_arrow, size: 18, color: Colors.white),
               ),
               const SizedBox(width: 8),
-              // Waveform placeholder
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Waveform bars
                     Row(
                       children: List.generate(
                         28,
@@ -2154,6 +2489,95 @@ class _AttachmentButton extends StatelessWidget {
           color: KinrelColors.textSilver,
         ),
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Mic Button (Phase 13 — voice message trigger)
+// ═══════════════════════════════════════════════════════════════════════
+
+class _MicButton extends StatelessWidget {
+  const _MicButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0xFF202338),
+        ),
+        child: Icon(
+          Icons.mic_rounded,
+          size: 22,
+          color: KinrelColors.textSilver,
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Recording Dot (pulsing red dot shown while recording)
+// ═══════════════════════════════════════════════════════════════════════
+
+class _RecordingDot extends StatefulWidget {
+  const _RecordingDot();
+
+  @override
+  State<_RecordingDot> createState() => _RecordingDotState();
+}
+
+class _RecordingDotState extends State<_RecordingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.4, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, _) {
+        return Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: KinrelColors.error.withValues(alpha: _animation.value),
+            boxShadow: [
+              BoxShadow(
+                color: KinrelColors.error.withValues(alpha: _animation.value * 0.5),
+                blurRadius: 8,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
