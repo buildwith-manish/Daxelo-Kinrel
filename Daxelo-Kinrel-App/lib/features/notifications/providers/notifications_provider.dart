@@ -482,8 +482,11 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         return NotificationType.memberJoined;
       case 'family_id_generated':
         return NotificationType.familyIdGenerated;
+      // v109.7: 'thinking_of_you' is no longer created as a notification.
+      // If old rows exist in the DB, map them to a non-actionable type
+      // (newMember) so they DON'T show Accept/Reject buttons.
       case 'thinking_of_you':
-        return NotificationType.familyInvite; // reuse family category for now
+        return NotificationType.newMember;
       case 'invitation_rejected':
         return NotificationType.rejectedInvite;
       default:
