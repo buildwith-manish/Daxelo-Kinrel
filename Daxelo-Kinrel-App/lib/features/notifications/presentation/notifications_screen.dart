@@ -76,10 +76,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
   }
 
   /// v109.1: Subscribe to Supabase Realtime for the Notification table.
-  /// When a new notification is INSERTED (e.g., a new invite is received,
-  /// or an invite acceptance/rejection notification is created), the
-  /// subscription fires and the notification list refreshes immediately —
-  /// no polling delay, no page reload required.
+  /// Uses the channel.on() API which is compatible with realtime_client 2.x.
+  /// When a new notification is INSERTED or UPDATED, the subscription
+  /// fires and the notification list refreshes immediately.
   void _setupRealtimeSubscription() {
     try {
       final client = ref.read(supabaseProvider);
@@ -87,35 +86,29 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
       final userId = client.auth.currentUser?.id;
       if (userId == null) return;
 
+      // v109.2: Use the channel.on('postgres_changes', ...) API which
+      // is compatible with realtime_client 2.11.0 (the version resolved
+      // by this project). The newer onPostgresChangeEvent API doesn't
+      // exist in this version and causes a compile error on dart2js.
       _realtimeSub = client
           .channel('notifications_realtime')
-          .onPostgresChangeEvent(
-            PostgresChangeEvent.insert,
+          .onPostgresChanges(
+            event: 'INSERT',
             schema: 'public',
             table: 'Notification',
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'userId',
-              value: userId,
-            ),
+            filter: 'userId=eq.$userId',
             callback: (payload) {
-              // New notification inserted — refresh immediately
               if (mounted) {
                 ref.read(notificationsProvider.notifier).loadNotifications();
               }
             },
           )
-          .onPostgresChangeEvent(
-            PostgresChangeEvent.update,
+          .onPostgresChanges(
+            event: 'UPDATE',
             schema: 'public',
             table: 'Notification',
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'userId',
-              value: userId,
-            ),
+            filter: 'userId=eq.$userId',
             callback: (payload) {
-              // Notification updated (e.g., marked as read) — refresh
               if (mounted) {
                 ref.read(notificationsProvider.notifier).loadNotifications();
               }
