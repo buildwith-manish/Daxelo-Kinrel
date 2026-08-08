@@ -140,12 +140,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   void _onTextChanged() {
     final composing = _textController.text.trim().isNotEmpty;
     if (composing != _isComposing) {
-      // CRITICAL ANR FIX: Added mounted check before setState.
-      // Text listener callbacks can fire after widget is disposed,
-      // causing error or excessive rebuilds.
+      // CRITICAL ANN FIX: Added mounted check before setState.
       if (mounted) {
         setState(() => _isComposing = composing);
       }
+      // v109.11: Send typing status to Supabase
+      final service = ref.read(chatEnhancementServiceProvider);
+      service.setTypingStatus(widget.familyId, composing);
     }
   }
 
@@ -415,7 +416,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ],
           ),
           actions: [
-            // Video call placeholder
+            // Video call
             IconButton(
               icon: Icon(
                 Icons.videocam_outlined,
@@ -432,7 +433,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 );
               },
             ),
-            // Voice call placeholder
+            // Voice call
             IconButton(
               icon: Icon(
                 Icons.call_outlined,
@@ -449,7 +450,208 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 );
               },
             ),
+            // v109.11: Chat settings (wallpaper, mute)
+            PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert, color: KinrelColors.textSilver, size: 22),
+              color: KinrelColors.darkCard,
+              onSelected: (value) {
+                switch (value) {
+                  case 'wallpaper':
+                    _showWallpaperPicker();
+                    break;
+                  case 'mute':
+                    _toggleMute();
+                    break;
+                  case 'starred':
+                    _showStarredMessages();
+                    break;
+                }
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(value: 'wallpaper', child: Text('Wallpaper')),
+                const PopupMenuItem(value: 'mute', child: Text('Mute notifications')),
+                const PopupMenuItem(value: 'starred', child: Text('Starred messages')),
+              ],
+            ),
             const SizedBox(width: 4),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // v109.11: Wallpaper picker
+  void _showWallpaperPicker() {
+    final colors = [
+      {'name': 'Default', 'color': '#131416'},
+      {'name': 'Midnight', 'color': '#0D1117'},
+      {'name': 'Deep Ocean', 'color': '#0A1929'},
+      {'name': 'Forest', 'color': '#0D1F17'},
+      {'name': 'Plum', 'color': '#1A0D1F'},
+      {'name': 'Ember', 'color': '#1F1208'},
+      {'name': 'Slate', 'color': '#1E1E2E'},
+      {'name': 'Rose', 'color': '#1F0D15'},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Chat Wallpaper',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                )),
+            const SizedBox(height: 16),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1,
+              ),
+              itemCount: colors.length,
+              itemBuilder: (ctx, index) {
+                final c = colors[index];
+                final colorValue = int.parse(c['color']!.substring(1, 7), radix: 16);
+                return GestureDetector(
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    final service = ref.read(chatEnhancementServiceProvider);
+                    await service.saveChatSettings(
+                      familyId: widget.familyId,
+                      wallpaperColor: c['color'],
+                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Wallpaper changed to ${c['name']}'),
+                          backgroundColor: KinrelColors.darkCard,
+                        ),
+                      );
+                    }
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Color(colorValue),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: KinrelColors.border, width: 1),
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _toggleMute() async {
+    final service = ref.read(chatEnhancementServiceProvider);
+    final settings = await service.getChatSettings(widget.familyId);
+    final isMuted = settings?['isMuted'] as bool? ?? false;
+    await service.saveChatSettings(familyId: widget.familyId, isMuted: !isMuted);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(!isMuted ? 'Chat muted' : 'Chat unmuted'),
+          backgroundColor: KinrelColors.darkCard,
+        ),
+      );
+    }
+  }
+
+  void _showStarredMessages() {
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final starred = chatState.messages.where((m) => m.isStarred).toList();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (ctx, controller) => Column(
+          children: [
+            Container(
+              width: 40, height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 16),
+              decoration: BoxDecoration(
+                color: KinrelColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Text('Starred Messages',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                )),
+            const SizedBox(height: 16),
+            Expanded(
+              child: starred.isEmpty
+                  ? Center(
+                      child: Text('No starred messages',
+                          style: TextStyle(color: KinrelColors.textDim)))
+                  : ListView.builder(
+                      controller: controller,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: starred.length,
+                      itemBuilder: (ctx, index) {
+                        final msg = starred[index];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: KinrelColors.darkCard,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: KinrelColors.border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(msg.senderName,
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: KinrelColors.orange)),
+                              const SizedBox(height: 4),
+                              Text(msg.content,
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      color: KinrelColors.textWhite)),
+                              const SizedBox(height: 4),
+                              Text(msg.formattedTime,
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      color: KinrelColors.textDim)),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
           ],
         ),
       ),
@@ -1730,7 +1932,10 @@ class _MessageBubble extends ConsumerWidget {
           // Read receipts (only for sent messages)
           if (isMe) ...[
             const SizedBox(width: 4),
-            _ReadReceipt(isRead: message.isRead),
+            _ReadReceipt(
+              isRead: message.isRead,
+              messageStatus: message.messageStatus,
+            ),
           ],
         ],
       ),
@@ -1792,31 +1997,53 @@ class _MessageBubble extends ConsumerWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Read Receipt (Double Tick)
+// Read Receipt (WhatsApp-style ticks)
+// v109.11: single tick (sent) → double tick (delivered) → blue tick (read)
 // ═══════════════════════════════════════════════════════════════════════
 
 class _ReadReceipt extends StatelessWidget {
-  const _ReadReceipt({required this.isRead});
+  const _ReadReceipt({required this.isRead, this.messageStatus});
 
   final bool isRead;
+  final String? messageStatus;
 
   @override
   Widget build(BuildContext context) {
-    final color = isRead ? KinrelColors.orange : KinrelColors.textDim;
+    // Determine tick style based on message status
+    // 'sent' → single tick (dim grey)
+    // 'delivered' → double tick (dim grey)
+    // 'read' or isRead=true → double tick (blue)
+    final status = messageStatus ?? (isRead ? 'read' : 'sent');
+
+    final Color color;
+    final bool showDouble;
+
+    if (status == 'read' || isRead) {
+      color = const Color(0xFF4FC3F7); // WhatsApp blue
+      showDouble = true;
+    } else if (status == 'delivered') {
+      color = KinrelColors.textDim;
+      showDouble = true;
+    } else {
+      // 'sent' → single tick
+      color = KinrelColors.textDim;
+      showDouble = false;
+    }
 
     return SizedBox(
-      width: 16,
+      width: showDouble ? 16 : 10,
       height: 10,
-      child: CustomPaint(painter: _DoubleTickPainter(color: color)),
+      child: CustomPaint(painter: _DoubleTickPainter(color: color, showDouble: showDouble)),
     );
   }
 }
 
-/// Paints a WhatsApp-style double tick.
+/// Paints a WhatsApp-style tick (single or double).
 class _DoubleTickPainter extends CustomPainter {
-  _DoubleTickPainter({required this.color});
+  _DoubleTickPainter({required this.color, this.showDouble = true});
 
   final Color color;
+  final bool showDouble;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1827,22 +2054,33 @@ class _DoubleTickPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    final path1 = Path();
-    path1.moveTo(0, size.height * 0.55);
-    path1.lineTo(size.width * 0.2, size.height * 0.85);
-    path1.lineTo(size.width * 0.42, size.height * 0.15);
+    if (showDouble) {
+      // Double tick
+      final path1 = Path();
+      path1.moveTo(0, size.height * 0.55);
+      path1.lineTo(size.width * 0.2, size.height * 0.85);
+      path1.lineTo(size.width * 0.42, size.height * 0.15);
 
-    final path2 = Path();
-    path2.moveTo(size.width * 0.35, size.height * 0.55);
-    path2.lineTo(size.width * 0.55, size.height * 0.85);
-    path2.lineTo(size.width * 0.95, size.height * 0.15);
+      final path2 = Path();
+      path2.moveTo(size.width * 0.35, size.height * 0.55);
+      path2.lineTo(size.width * 0.55, size.height * 0.85);
+      path2.lineTo(size.width * 0.95, size.height * 0.15);
 
-    canvas.drawPath(path1, paint);
-    canvas.drawPath(path2, paint);
+      canvas.drawPath(path1, paint);
+      canvas.drawPath(path2, paint);
+    } else {
+      // Single tick
+      final path = Path();
+      path.moveTo(0, size.height * 0.55);
+      path.lineTo(size.width * 0.25, size.height * 0.85);
+      path.lineTo(size.width * 0.95, size.height * 0.15);
+      canvas.drawPath(path, paint);
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DoubleTickPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.showDouble != showDouble;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
