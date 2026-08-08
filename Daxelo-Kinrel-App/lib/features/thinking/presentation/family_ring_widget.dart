@@ -66,67 +66,53 @@ class FamilyKinrelMember {
 }
 
 /// Provider that fetches ONLY real Kinrel users who are members of the
-/// given family. Joins FamilyMember + User directly — bypasses the
-/// Person table entirely so custom graph nodes never appear.
+/// given family. Uses a SECURITY DEFINER RPC (fn_get_family_kinrel_members)
+/// that bypasses User table RLS — the old direct JOIN query returned null
+/// for other users' User data because RLS only lets you read YOUR OWN row.
+///
+/// This is the CORRECT data source:
+///   ✅ Queries FamilyMember (real family members only)
+///   ✅ JOINs User (real registered Kinrel accounts)
+///   ✅ Bypasses User table RLS via SECURITY DEFINER
+///   ✅ Excludes deleted users + the current user
+///   ❌ NEVER queries the Person table (custom graph nodes)
 final familyKinrelMembersProvider =
     FutureProvider.family<List<FamilyKinrelMember>, String>((ref, familyId) async {
   final client = ref.read(supabaseProvider);
   if (client == null) return [];
   if (client.auth.currentUser == null) return [];
 
-  final currentUserId = client.auth.currentUser!.id;
-
   try {
-    // Query FamilyMember JOIN User — only real registered Kinrel users.
-    // This is the correct data source (NOT the Person table which has
-    // custom graph nodes, placeholder people, etc.).
-    final response = await client
-        .from('FamilyMember')
-        .select('''
-          "userId",
-          "User"(
-            id,
-            name,
-            username,
-            "avatarUrl",
-            "photoThumb",
-            "deletedAt"
-          )
-        ''')
-        .eq('familyId', familyId)
-        .order('joinedAt', ascending: true)
-        .timeout(const Duration(seconds: 8));
+    // v109.6: Use the SECURITY DEFINER RPC to bypass User table RLS.
+    // The old direct JOIN (FamilyMember.select('User(...)')) returned
+    // null for other users' User data because the User table's RLS
+    // policy only lets you read YOUR OWN row. The RPC runs as the
+    // function owner (postgres) so it can see ALL users' data.
+    final response = await client.rpc(
+      'fn_get_family_kinrel_members',
+      params: {'p_family_id': familyId},
+    ).timeout(const Duration(seconds: 8));
 
     final members = <FamilyKinrelMember>[];
     final seenUserIds = <String>{};
 
     for (final row in response as List) {
-      final userId = row['userId'] as String?;
+      final userId = row['user_id'] as String?;
       if (userId == null || userId.isEmpty) continue;
-
-      // Exclude the current user
-      if (userId == currentUserId) continue;
 
       // Deduplicate — a user should appear only once
       if (seenUserIds.contains(userId)) continue;
       seenUserIds.add(userId);
 
-      final user = row['User'] as Map<String, dynamic>?;
-      if (user == null) continue;
-
-      // Exclude deleted users
-      final deletedAt = user['deletedAt'];
-      if (deletedAt != null) continue;
-
-      final name = user['name'] as String? ?? 'Unknown';
-      if (name.isEmpty || name == 'null') continue;
+      final name = row['name'] as String?;
+      if (name == null || name.isEmpty || name == 'null') continue;
 
       members.add(FamilyKinrelMember(
         userId: userId,
         name: name,
-        username: user['username'] as String?,
-        avatarUrl: user['avatarUrl'] as String?,
-        photoThumb: user['photoThumb'] as String?,
+        username: row['username'] as String?,
+        avatarUrl: row['avatar_url'] as String?,
+        photoThumb: row['photo_thumb'] as String?,
       ));
     }
 
