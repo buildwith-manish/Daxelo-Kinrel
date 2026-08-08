@@ -18,7 +18,6 @@ import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,7 +49,6 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late final AnimationController _emptyAnimController;
   Timer? _refreshTimer;
-  StreamSubscription? _realtimeSub;
 
   @override
   bool get wantKeepAlive => true;
@@ -66,65 +64,21 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
     // Load notifications on init
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(notificationsProvider.notifier).loadNotifications();
-      _setupRealtimeSubscription();
     });
 
-    // v109: Refresh every 10 seconds for real-time timestamp updates.
+    // v109: Refresh every 10 seconds for real-time timestamp updates +
+    // near-real-time notification delivery. The realtime subscription
+    // API had compatibility issues with realtime_client 2.11.0, so we
+    // rely on the 10-second polling timer which provides a reliable
+    // ~10 second delay for new notifications + status changes.
     _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       ref.read(notificationsProvider.notifier).loadNotifications();
     });
   }
 
-  /// v109.1: Subscribe to Supabase Realtime for the Notification table.
-  /// Uses the channel.on() API which is compatible with realtime_client 2.x.
-  /// When a new notification is INSERTED or UPDATED, the subscription
-  /// fires and the notification list refreshes immediately.
-  void _setupRealtimeSubscription() {
-    try {
-      final client = ref.read(supabaseProvider);
-      if (client == null) return;
-      final userId = client.auth.currentUser?.id;
-      if (userId == null) return;
-
-      // v109.2: Use the channel.on('postgres_changes', ...) API which
-      // is compatible with realtime_client 2.11.0 (the version resolved
-      // by this project). The newer onPostgresChangeEvent API doesn't
-      // exist in this version and causes a compile error on dart2js.
-      _realtimeSub = client
-          .channel('notifications_realtime')
-          .onPostgresChanges(
-            event: 'INSERT',
-            schema: 'public',
-            table: 'Notification',
-            filter: 'userId=eq.$userId',
-            callback: (payload) {
-              if (mounted) {
-                ref.read(notificationsProvider.notifier).loadNotifications();
-              }
-            },
-          )
-          .onPostgresChanges(
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'Notification',
-            filter: 'userId=eq.$userId',
-            callback: (payload) {
-              if (mounted) {
-                ref.read(notificationsProvider.notifier).loadNotifications();
-              }
-            },
-          )
-          .subscribe();
-    } catch (e) {
-      // Best-effort — polling timer still works as fallback
-      debugPrint('⚠️ Realtime subscription failed: $e');
-    }
-  }
-
   @override
   void dispose() {
     _refreshTimer?.cancel();
-    _realtimeSub?.cancel();
     _emptyAnimController.dispose();
     super.dispose();
   }
