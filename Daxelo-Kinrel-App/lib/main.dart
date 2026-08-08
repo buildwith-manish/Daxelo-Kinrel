@@ -918,6 +918,11 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
             data: MediaQuery.of(context).copyWith(
               textScaler: TextScaler.linear(ref.watch(fontScaleProvider)),
             ),
+            // v109.8: Use Expanded+Column pattern inside a SafeArea-like
+            // structure. The Column + Expanded ensures the child fills
+            // the available space WITHOUT overflow when the viewport
+            // changes (keyboard, split-screen, resize). The ColoredBox
+            // behind it guarantees no white gaps.
             child: Column(
               children: [
                 const OfflineBanner(),

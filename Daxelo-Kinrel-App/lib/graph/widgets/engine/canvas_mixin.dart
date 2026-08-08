@@ -11,27 +11,34 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
       GraphLayoutResult layout, FlatGraphResult flat, String? viewerPersonId) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        // FIX (keyboard-resize): Don't update _viewportSize if the height
-        // shrank by more than 25% — that's a keyboard push, not a real
-        // resize. The camera was fitted to the original viewport; using
-        // a keyboard-shrunken viewport would cause the camera viewport
-        // rect to be recalculated incorrectly, making nodes/edges
-        // disappear and the background turn white.
+        // v109.8: Fix keyboard/half-screen layout break.
+        //
+        // ROOT CAUSE: The previous code used a 25% height-shrink heuristic
+        // to detect "keyboard push" and skipped updating _viewportSize.
+        // This was WRONG for two reasons:
+        //   1. On Flutter Web in half-screen/split-screen mode, the viewport
+        //      genuinely shrinks by >25% — but this is a REAL resize, not a
+        //      keyboard push. Skipping it meant the graph kept using stale
+        //      (larger) viewport dimensions, causing overflow + white gaps.
+        //   2. On Flutter Web, the on-screen keyboard doesn't resize the
+        //      browser viewport — it overlays on top. So `viewInsets.bottom`
+        //      is the correct signal, not a height-shrink heuristic.
+        //
+        // FIX: Always update _viewportSize to the actual constraints.
+        // The graph's Scaffold has `resizeToAvoidBottomInset: false`
+        // (line 208 of family_graph_screen.dart), so the body constraints
+        // don't shrink when the keyboard opens on mobile. On web, the
+        // keyboard doesn't resize the viewport at all. So we can safely
+        // always use the real constraints.
         final newHeight = constraints.biggest.height;
         final newWidth = constraints.biggest.width;
-        final isKeyboardPush = _viewportSize.height > 0 &&
-            newHeight < _viewportSize.height * 0.75;
-        if (!isKeyboardPush) {
-          final sizeChanged = _viewportSize.width != newWidth ||
-              _viewportSize.height != newHeight;
-          _viewportSize = constraints.biggest;
-          // FIX (culler-invalidation): After a REAL viewport size change
-          // (orientation change, window resize — NOT keyboard), invalidate
-          // the culler so the next build recalculates visibility with the
-          // correct new viewport.
-          if (sizeChanged) {
-            _culler.invalidate();
-          }
+        final sizeChanged = _viewportSize.width != newWidth ||
+            _viewportSize.height != newHeight;
+        _viewportSize = constraints.biggest;
+        // Invalidate the culler on any size change so the visible node
+        // set is recomputed for the new viewport dimensions.
+        if (sizeChanged) {
+          _culler.invalidate();
         }
 
         // One-time framing AFTER the first frame — never during build, which
