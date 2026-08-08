@@ -7,19 +7,24 @@ import 'package:kinrel/core/widgets/global_error_widget.dart';
 // Dark theme: #13141E background, #191B2C received bubbles, subtle orange
 // tint (#E8612A15) sent bubbles, Ignite gradient send button.
 //
-// Features:
-//   - Message types: Text, photo placeholder, voice note placeholder, family event sharing
-//   - Read receipts (double tick — orange for read, dim for sent)
-//   - Online status indicator (green dot)
-//   - Typing indicator (3 bouncing dots animation)
-//   - Reply to specific messages
-//   - React to messages with emoji
+// Features (v109.10 — full chat enhancement):
+//   - Long-press message menu: Delete for Me, Delete for Everyone, Copy,
+//     Forward, Reply, React, Edit, Star, Pin
+//   - Read receipts: single tick (sent) → double tick (delivered) →
+//     double blue tick (read)
+//   - Message reactions (emoji reaction bar)
+//   - Reply-to-message threading (quote block above message)
+//   - Typing indicator + online status
+//   - Message editing
+//   - Starred messages
+//   - Pinned messages (admin/creator)
+//   - Forward to other families
 //   - Date separators: "Today", "Yesterday", formatted date
 //   - Scroll-to-bottom FAB when scrolled up
-//   - Sender name in received group messages (orange)
 
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/brand_colors.dart';
@@ -27,6 +32,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../data/chat_enhancement_service.dart';
 import '../providers/chat_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -838,6 +844,58 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// Show a bottom sheet with the user's families. Tapping one
   /// forwards the [message] to that family's chat.
   void _showForwardFamilyPicker(ChatMessage message) {
+
+  // v109.10: Edit message dialog
+  void _showEditDialog(ChatMessage message) {
+    final editController = TextEditingController(text: message.content);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: KinrelColors.darkCard,
+        title: Text('Edit Message',
+            style: TextStyle(color: KinrelColors.textWhite)),
+        content: TextField(
+          controller: editController,
+          maxLines: null,
+          autofocus: true,
+          style: TextStyle(color: KinrelColors.textWhite),
+          decoration: InputDecoration(
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: KinrelColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: KinrelColors.orange),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              final newContent = editController.text.trim();
+              if (newContent.isEmpty || newContent == message.content) {
+                Navigator.pop(ctx);
+                return;
+              }
+              Navigator.pop(ctx);
+              final service = ref.read(chatEnhancementServiceProvider);
+              final success = await service.editMessage(message.id, newContent);
+              if (success) {
+                ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+              }
+            },
+            child: Text('Save', style: TextStyle(color: KinrelColors.orange)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showForwardFamilyPicker(ChatMessage message) {
     final familiesAsync = ref.read(familyListProvider);
 
     familiesAsync.when(
@@ -1068,10 +1126,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  // Copy to clipboard placeholder
+                  Clipboard.setData(ClipboardData(text: message.content));
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Message copied!'),
+                    const SnackBar(
+                      content: Text('Message copied'),
                       backgroundColor: KinrelColors.darkCard,
                       behavior: SnackBarBehavior.floating,
                     ),
@@ -1098,25 +1156,127 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   _showForwardFamilyPicker(message);
                 },
               ),
-              // Delete (only for own messages)
+              // Star action
+              ListTile(
+                leading: Icon(
+                  message.isStarred
+                      ? Icons.star_rounded
+                      : Icons.star_border_rounded,
+                  color: message.isStarred
+                      ? const Color(0xFFFFD700)
+                      : KinrelColors.textSilver,
+                  size: 22,
+                ),
+                title: Text(
+                  message.isStarred ? 'Unstar' : 'Star',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 15,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final service = ref.read(chatEnhancementServiceProvider);
+                  await service.starMessage(message.id, !message.isStarred);
+                  ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+                },
+              ),
+              // Edit (only for own text messages)
+              if (isMe && message.messageType == 'text')
+                ListTile(
+                  leading: Icon(
+                    Icons.edit_outlined,
+                    color: KinrelColors.textSilver,
+                    size: 22,
+                  ),
+                  title: Text(
+                    'Edit',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 15,
+                      color: KinrelColors.textWhite,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showEditDialog(message);
+                  },
+                ),
+              // Delete for Me
+              ListTile(
+                leading: Icon(
+                  Icons.delete_outline,
+                  color: KinrelColors.textSilver,
+                  size: 22,
+                ),
+                title: Text(
+                  'Delete for Me',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 15,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final service = ref.read(chatEnhancementServiceProvider);
+                  final success = await service.deleteForMe(message.id);
+                  if (success) {
+                    ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+                  }
+                },
+              ),
+              // Delete for Everyone (only for own messages)
               if (isMe)
                 ListTile(
                   leading: Icon(
-                    Icons.delete_outline,
+                    Icons.delete_forever,
                     color: KinrelColors.error,
                     size: 22,
                   ),
                   title: Text(
-                    'Delete',
+                    'Delete for Everyone',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 15,
                       color: KinrelColors.error,
                     ),
                   ),
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(context);
-                    // Delete placeholder
+                    // Confirm
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: KinrelColors.darkCard,
+                        title: Text('Delete for Everyone?',
+                            style: TextStyle(color: KinrelColors.textWhite)),
+                        content: Text(
+                            'This message will be deleted for everyone in the chat.',
+                            style: TextStyle(color: KinrelColors.textSilver)),
+                        actions: [
+                          TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Cancel')),
+                          TextButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: Text('Delete',
+                                  style: TextStyle(color: KinrelColors.error))),
+                        ],
+                      ),
+                    );
+                    if (confirmed == true) {
+                      final service =
+                          ref.read(chatEnhancementServiceProvider);
+                      final success =
+                          await service.deleteForEveryone(message.id);
+                      if (success) {
+                        ref
+                            .read(chatProvider(widget.familyId).notifier)
+                            .refreshMessages();
+                      }
+                    }
                   },
                 ),
             ],
