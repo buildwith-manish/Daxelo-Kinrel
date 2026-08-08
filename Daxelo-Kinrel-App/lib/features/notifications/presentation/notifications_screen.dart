@@ -30,6 +30,8 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../family/presentation/providers/family_graph_provider.dart'
     show familyGraphProvider;
+import '../../thinking/presentation/family_ring_widget.dart'
+    show familyKinrelMembersProvider;
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/notifications_provider.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
@@ -554,9 +556,11 @@ class _NotificationItem extends ConsumerWidget {
           ref.invalidate(familyListProvider);
           ref.invalidate(familyDetailProvider(familyId));
           ref.invalidate(familyMembersProvider(familyId));
-          // Also invalidate the graph provider so the new Person node
-          // appears in the Family Graph immediately.
           ref.invalidate(familyGraphProvider(familyId));
+          // v109.4: Also invalidate the familyKinrelMembersProvider used
+          // by the "Who are you thinking of?" section so newly accepted
+          // members appear instantly.
+          ref.invalidate(familyKinrelMembersProvider(familyId));
         } catch (_) {}
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

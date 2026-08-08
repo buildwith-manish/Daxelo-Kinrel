@@ -3,14 +3,19 @@
 // "Who are you thinking of?" — horizontal ring of family member faces.
 // Tap any face to send a silent "Thinking of You" signal.
 //
-// v109: ONLY shows real, verified Kinrel users — manually-created
-// custom profiles (people added just to build the family graph) are
-// excluded. The filter is defense-in-depth:
-//   1. deletedAt == null (not deleted)
-//   2. isLinkedToKinrelUser (linkedUserId is non-null + non-empty)
-//   3. linkedUserId is a valid UUID (rejects placeholder / non-UUID
-//      values that might have been set incorrectly)
-//   4. The current user is excluded (you can't "think of" yourself)
+// v109.4: Data source changed from the Person table (which includes
+// custom graph-only nodes, manually-created relationship entries, and
+// placeholder people) to a JOIN of FamilyMember + User. This ensures
+// ONLY real, registered Kinrel users who are actual members of the
+// family appear in the ring.
+//
+// Excludes:
+//   ❌ Custom graph people (linkedUserId = null in Person table)
+//   ❌ Placeholder people (no FamilyMember record)
+//   ❌ Non-Kinrel persons (not in the User table)
+//   ❌ Deleted users (deletedAt IS NOT NULL in User table)
+//   ❌ The current user (you can't "think of" yourself)
+//   ❌ Duplicates (deduplicated by userId)
 //
 // Placed BELOW the Truth Streak card, BEFORE the quick-jump dock,
 // as an additional engagement layer. Does NOT replace Truth Streak.
@@ -20,27 +25,121 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:dio/dio.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../data/thinking_service.dart';
 
-/// Regex for a valid UUID v4. Used to validate that linkedUserId is a
-/// real Kinrel auth user ID, not a placeholder or incorrectly-set value.
-/// Manually-created custom profiles have linkedUserId = null, but if a
-/// bug or data-migration issue ever set it to a non-UUID value, this
-/// check rejects it so the person doesn't appear in the "thinking of"
-/// list.
-final _uuidRegex = RegExp(
-  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
-);
+// ═══════════════════════════════════════════════════════════════════════
+// v109.4: Family Kinrel Members Provider
+// ═══════════════════════════════════════════════════════════════════════
+// Queries FamilyMember JOIN User directly (NOT the Person table) so
+// only real registered Kinrel users who are actual family members
+// appear. This is the correct data source for "Who are you thinking
+// of?" — the Person table contains custom graph-only nodes that should
+// NEVER appear in this section.
 
-/// Returns true if [id] is a valid UUID v4 string.
-bool _isValidUuid(String? id) {
-  if (id == null || id.isEmpty) return false;
-  return _uuidRegex.hasMatch(id);
+/// A real Kinrel user who is a member of a family.
+class FamilyKinrelMember {
+  const FamilyKinrelMember({
+    required this.userId,
+    required this.name,
+    this.username,
+    this.avatarUrl,
+    this.photoThumb,
+  });
+
+  final String userId;
+  final String name;
+  final String? username;
+  final String? avatarUrl;
+  final String? photoThumb;
+
+  /// Get initials for avatar fallback.
+  String get initials {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return '?';
+    if (parts.length == 1) return parts.first[0].toUpperCase();
+    return (parts.first[0] + parts[1][0]).toUpperCase();
+  }
 }
+
+/// Provider that fetches ONLY real Kinrel users who are members of the
+/// given family. Joins FamilyMember + User directly — bypasses the
+/// Person table entirely so custom graph nodes never appear.
+final familyKinrelMembersProvider =
+    FutureProvider.family<List<FamilyKinrelMember>, String>((ref, familyId) async {
+  final client = ref.read(supabaseProvider);
+  if (client == null) return [];
+  if (client.auth.currentUser == null) return [];
+
+  final currentUserId = client.auth.currentUser!.id;
+
+  try {
+    // Query FamilyMember JOIN User — only real registered Kinrel users.
+    // This is the correct data source (NOT the Person table which has
+    // custom graph nodes, placeholder people, etc.).
+    final response = await client
+        .from('FamilyMember')
+        .select('''
+          "userId",
+          "User"(
+            id,
+            name,
+            username,
+            "avatarUrl",
+            "photoThumb",
+            "deletedAt"
+          )
+        ''')
+        .eq('familyId', familyId)
+        .order('joinedAt', ascending: true)
+        .timeout(const Duration(seconds: 8));
+
+    final members = <FamilyKinrelMember>[];
+    final seenUserIds = <String>{};
+
+    for (final row in response as List) {
+      final userId = row['userId'] as String?;
+      if (userId == null || userId.isEmpty) continue;
+
+      // Exclude the current user
+      if (userId == currentUserId) continue;
+
+      // Deduplicate — a user should appear only once
+      if (seenUserIds.contains(userId)) continue;
+      seenUserIds.add(userId);
+
+      final user = row['User'] as Map<String, dynamic>?;
+      if (user == null) continue;
+
+      // Exclude deleted users
+      final deletedAt = user['deletedAt'];
+      if (deletedAt != null) continue;
+
+      final name = user['name'] as String? ?? 'Unknown';
+      if (name.isEmpty || name == 'null') continue;
+
+      members.add(FamilyKinrelMember(
+        userId: userId,
+        name: name,
+        username: user['username'] as String?,
+        avatarUrl: user['avatarUrl'] as String?,
+        photoThumb: user['photoThumb'] as String?,
+      ));
+    }
+
+    // Sort by name for consistent display
+    members.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+    return members;
+  } catch (e) {
+    debugPrint('⚠️ familyKinrelMembersProvider error: $e');
+    return [];
+  }
+});
 
 class FamilyRingWidget extends ConsumerStatefulWidget {
   const FamilyRingWidget({
@@ -63,14 +162,8 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
     return expiry != null && DateTime.now().isBefore(expiry);
   }
 
-  Future<void> _onTap(BuildContext context, Person member) async {
-    // v109: Guard — only send to real Kinrel users with a valid UUID.
-    // This is a belt-and-suspenders check; the build method already
-    // filters the list, but this prevents any edge case (e.g., a race
-    // where the member list changed between build and tap) from
-    // sending a tap to an invalid recipient.
-    if (!_isValidUuid(member.linkedUserId)) return;
-    final userId = member.linkedUserId!;
+  Future<void> _onTap(BuildContext context, FamilyKinrelMember member) async {
+    final userId = member.userId;
 
     if (_cooldown.contains(userId)) {
       _showSnack(context, 'Already sent — try again later');
@@ -127,33 +220,25 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final detailAsync = ref.watch(familyDetailProvider(widget.familyId));
-    final detail = detailAsync.valueOrNull;
+    // v109.4: Use the NEW familyKinrelMembersProvider which queries
+    // FamilyMember JOIN User — NOT the Person table. This ensures
+    // only real registered Kinrel users who are actual family members
+    // appear. Custom graph nodes, placeholder people, and manually-
+    // created relationship entries are NEVER shown.
+    final membersAsync = ref.watch(familyKinrelMembersProvider(widget.familyId));
 
-    if (detail == null) return const SizedBox.shrink();
+    return membersAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (members) {
+        if (members.isEmpty) return const SizedBox.shrink();
+        return _buildRing(context, members);
+      },
+    );
+  }
 
-    // v109: Defense-in-depth filter — only real, verified Kinrel users.
-    // Manually-created custom profiles (people added just to build the
-    // family graph) are excluded by ALL of these checks:
-    //   1. deletedAt == null — exclude soft-deleted persons
-    //   2. isLinkedToKinrelUser — linkedUserId is non-null + non-empty
-    //   3. _isValidUuid(linkedUserId) — the linkedUserId is a valid UUID
-    //      v4 (rejects placeholder / non-UUID values that might have been
-    //      set incorrectly by a bug or data migration)
-    //   4. linkedUserId != currentUserId — exclude the current user (you
-    //      can't "think of" yourself)
-    final currentUserId = ref.read(currentUserProvider)?.id;
-
-    final members = detail.members
-        .where((p) =>
-            p.deletedAt == null &&
-            p.isLinkedToKinrelUser &&
-            _isValidUuid(p.linkedUserId) &&
-            p.linkedUserId != currentUserId)
-        .take(10)
-        .toList();
-
-    if (members.isEmpty) return const SizedBox.shrink();
+  Widget _buildRing(BuildContext context, List<FamilyKinrelMember> members) {
+    final displayMembers = members.take(10).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -175,11 +260,11 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: members.length,
+            itemCount: displayMembers.length,
             separatorBuilder: (_, __) => const SizedBox(width: 14),
             itemBuilder: (context, index) {
-              final member = members[index];
-              final userId = member.linkedUserId ?? '';
+              final member = displayMembers[index];
+              final userId = member.userId;
               final tapped = _isTapped(userId);
               final onCooldown = _cooldown.contains(userId);
 
@@ -227,10 +312,10 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
                                     : const ColorFilter.mode(
                                         Colors.transparent,
                                         BlendMode.saturation),
-                                child: member.photoUrl != null &&
-                                        member.photoUrl!.isNotEmpty
+                                child: (member.avatarUrl != null &&
+                                        member.avatarUrl!.isNotEmpty)
                                     ? Image.network(
-                                        member.photoUrl!,
+                                        member.avatarUrl!,
                                         width: 52,
                                         height: 52,
                                         fit: BoxFit.cover,
