@@ -246,8 +246,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                       _SettingsRow(
                         icon: Icons.person_outline,
                         label: 'Profile details',
-                        subtitle: 'Name, email, phone, DOB',
+                        subtitle: 'Name, username, DOB, bio, gender',
                         onTap: () => context.push('/profile/edit'),
+                      ),
+                      _divider(),
+                      // v109: Account Information — private details separated
+                      // from the public Edit Profile screen. Contains email,
+                      // phone, and security settings.
+                      _SettingsRow(
+                        icon: Icons.shield_outlined,
+                        label: 'Account Information',
+                        subtitle: 'Email, phone, security',
+                        onTap: () => context.push('/profile/account'),
                       ),
                       _divider(),
                     ],

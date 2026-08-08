@@ -47,19 +47,16 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   bool _isSaving = false;
   bool _hasChanges = false;
   String _initialDisplayName = '';
-  String _initialPhone = '';
   String _initialBio = '';
   String _initialGender = '';
   DateTime? _initialDob;
 
   // Controllers
   late TextEditingController _displayNameController;
-  late TextEditingController _phoneController;
   late TextEditingController _bioController;
   late TextEditingController _usernameController;
   late FocusNode _bioFocusNode;
   late FocusNode _displayNameFocusNode;
-  late FocusNode _phoneFocusNode;
   late FocusNode _usernameFocusNode;
   String _initialUsername = '';
 
@@ -79,12 +76,12 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   void initState() {
     super.initState();
     _displayNameController = TextEditingController();
-    _phoneController = TextEditingController();
+    // v109: phone controller removed — phone is no longer on this screen.
     _bioController = TextEditingController();
     _usernameController = TextEditingController();
     _bioFocusNode = FocusNode();
     _displayNameFocusNode = FocusNode();
-    _phoneFocusNode = FocusNode();
+    // v109: phone focus node removed.
     _usernameFocusNode = FocusNode();
 
     // Load current profile data
@@ -99,7 +96,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
 
     final displayName =
         profile?.name ?? user?.userMetadata?['name'] as String? ?? '';
-    final phone = profile?.phone ?? '';
+    // v109: phone loading removed — phone is no longer on this screen.
     final bio = profile?.bio ?? '';
     final gender = profile?.gender ?? '';
     final dob = profile?.dateOfBirth;
@@ -107,7 +104,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
 
     setState(() {
       _displayNameController.text = displayName;
-      _phoneController.text = phone;
+      // v109: phone controller init removed.
       _bioController.text = bio;
       _usernameController.text = username;
       _initialUsername = username;
@@ -115,7 +112,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
       _selectedDob = dob;
 
       _initialDisplayName = displayName;
-      _initialPhone = phone;
+      // v109: initialPhone removed.
       _initialBio = bio;
       _initialGender = gender;
       _initialDob = dob;
@@ -132,12 +129,10 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
   @override
   void dispose() {
     _displayNameController.dispose();
-    _phoneController.dispose();
     _bioController.dispose();
     _usernameController.dispose();
     _bioFocusNode.dispose();
     _displayNameFocusNode.dispose();
-    _phoneFocusNode.dispose();
     _usernameFocusNode.dispose();
     super.dispose();
   }
@@ -274,9 +269,6 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                   textCapitalization: TextCapitalization.words,
                   textInputAction: TextInputAction.next,
                   validator: (v) => nameValidator(v),
-                  onFieldSubmitted: (_) {
-                    _phoneFocusNode.requestFocus();
-                  },
                 ),
 
                 const SizedBox(height: 20),
@@ -288,19 +280,12 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
 
                 const SizedBox(height: 20),
 
-                // ── Email (display only) ─────────────────────────────
-                _buildFieldLabel('Email'),
-                const SizedBox(height: 6),
-                _buildReadOnlyField(email),
-
-                const SizedBox(height: 20),
-
-                // ── Phone ────────────────────────────────────────────
-                _buildFieldLabel('Phone'),
-                const SizedBox(height: 6),
-                _buildPhoneField(),
-
-                const SizedBox(height: 20),
+                // v109: Email and Phone REMOVED from the Edit Profile screen.
+                // These are private account details — they've been moved to a
+                // dedicated "Account Information" screen accessible from the
+                // Profile page's Account Settings section.
+                // The Edit Profile screen now shows ONLY public profile fields:
+                // Display Name, Username, Date of Birth, Bio, Gender, Photo.
 
                 // ── Date of Birth ────────────────────────────────────
                 _buildFieldLabel('Date of Birth'),

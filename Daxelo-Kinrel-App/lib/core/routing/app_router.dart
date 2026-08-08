@@ -117,6 +117,7 @@ import '../../features/games/dotsboxes/dotsboxes_board_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
+import '../../features/profile/presentation/account_information_screen.dart';
 import '../../features/profile/presentation/quiet_hours_screen.dart';
 import '../../features/profile/presentation/sessions_screen.dart';
 import '../../features/profile/presentation/delete_account_screen.dart';
@@ -1707,6 +1708,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: ProfileEditScreen(
             focusField: state.uri.queryParameters['focus'],
           ),
+        ),
+      ),
+      // v109: Account Information — private account details (email, phone,
+      // security) separated from the public Edit Profile screen.
+      GoRoute(
+        path: '/profile/account',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const AccountInformationScreen(),
         ),
       ),
       GoRoute(
