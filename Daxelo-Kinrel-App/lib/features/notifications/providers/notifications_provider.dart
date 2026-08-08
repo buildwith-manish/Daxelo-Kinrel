@@ -482,6 +482,10 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         return NotificationType.memberJoined;
       case 'family_id_generated':
         return NotificationType.familyIdGenerated;
+      case 'thinking_of_you':
+        return NotificationType.familyInvite; // reuse family category for now
+      case 'invitation_rejected':
+        return NotificationType.rejectedInvite;
       default:
         return NotificationType.newMember;
     }

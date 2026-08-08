@@ -24,7 +24,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:dio/dio.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -166,7 +165,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
     final userId = member.userId;
 
     if (_cooldown.contains(userId)) {
-      _showSnack(context, 'Already sent — try again later');
+      _showSnack(context, 'You recently sent a Thinking of You. Try again later.');
       return;
     }
 
@@ -179,27 +178,33 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
 
     try {
       final service = ref.read(thinkingServiceProvider);
-      await service.sendTap(
+      final result = await service.sendTap(
         receiverId: userId,
         familyId: widget.familyId,
       );
 
       if (!mounted) return;
-      _showSnack(context, '${member.name} knows you\'re thinking of them');
-    } on DioException catch (e) {
-      final status = e.response?.statusCode;
-      setState(() {
-        _tappedUntil.remove(userId);
-        if (status == 400) _cooldown.add(userId);
-      });
-      if (status == 400) {
-        // Rate limited — show on cooldown for 10s (UI only)
-        Future.delayed(const Duration(seconds: 10), () {
+
+      if (result.success) {
+        // Show the personalized message returned by the RPC
+        _showSnack(context, result.message ?? '${member.name} knows you\'re thinking of them');
+      } else if (result.error == 'cooldown') {
+        // Cooldown active — add to local cooldown set + show message
+        setState(() {
+          _tappedUntil.remove(userId);
+          _cooldown.add(userId);
+        });
+        // Remove from cooldown after 60s (UI-only, the real cooldown
+        // is 12 hours on the server, but we don't want to block the UI
+        // for that long — the server will reject if they try again)
+        Future.delayed(const Duration(seconds: 60), () {
           if (mounted) setState(() => _cooldown.remove(userId));
         });
-        if (mounted) _showSnack(context, 'Already sent — try again later');
+        _showSnack(context, result.message ?? 'Already sent — try again later.');
       } else {
-        if (mounted) _showSnack(context, 'Something went wrong. Try again.');
+        // Other error — revert the tap animation
+        setState(() => _tappedUntil.remove(userId));
+        _showSnack(context, 'Something went wrong. Try again.');
       }
     } catch (e) {
       setState(() => _tappedUntil.remove(userId));
