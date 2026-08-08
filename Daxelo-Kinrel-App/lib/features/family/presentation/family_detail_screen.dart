@@ -608,6 +608,18 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               ),
             ],
 
+            // v109.9: Family Management — admin & creator controls
+            _QuickActionTile(
+              icon: Icons.admin_panel_settings_outlined,
+              label: 'Family Management',
+              iconColor: KinrelColors.orange,
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/family/${widget.familyId}/management');
+              },
+            ),
+            Divider(color: KinrelColors.border, height: 1),
+
             // v109: Family Map + Memory Vault options REMOVED from the
             // Family Settings menu. These features are accessed from their
             // own dedicated sections elsewhere in the app (Family Map via

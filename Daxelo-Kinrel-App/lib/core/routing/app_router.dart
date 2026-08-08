@@ -118,6 +118,7 @@ import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
 import '../../features/profile/presentation/account_information_screen.dart';
+import '../../features/family/presentation/family_management_screen.dart';
 import '../../features/profile/presentation/quiet_hours_screen.dart';
 import '../../features/profile/presentation/sessions_screen.dart';
 import '../../features/profile/presentation/delete_account_screen.dart';
@@ -1717,6 +1718,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: const AccountInformationScreen(),
+        ),
+      ),
+      // v109.9: Family Management — admin & creator controls
+      GoRoute(
+        path: '/family/:id/management',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyManagementScreen(
+            familyId: state.pathParameters['id']!,
+          ),
         ),
       ),
       GoRoute(
