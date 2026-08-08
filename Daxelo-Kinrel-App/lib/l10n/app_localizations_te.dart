@@ -455,7 +455,6 @@ class STe extends S {
   @override
   String get familyMapProgressAlmost => 'Almost there…';
 
-  // ── P13 — Control stack + search + legend (en baseline — translate later)
   @override
   String get familyMapControlLocate => 'నా స్థానాన్ని కనుగొను';
 
@@ -484,10 +483,12 @@ class STe extends S {
   String get familyMapLocateServiceOff => 'స్థాన సేవలు ఆఫ్‌లో ఉన్నాయి.';
 
   @override
-  String get familyMapLocatePermissionDenied => 'స్థాన అనుమతి తిరస్కరించబడింది.';
+  String get familyMapLocatePermissionDenied =>
+      'స్థాన అనుమతి తిరస్కరించబడింది.';
 
   @override
-  String get familyMapLocateFailed => 'మీ ప్రస్తుత స్థానం పొందడం సాధ్యం కాలేదు.';
+  String get familyMapLocateFailed =>
+      'మీ ప్రస్తుత స్థానం పొందడం సాధ్యం కాలేదు.';
 
   @override
   String get familyMapLayersTitle => 'మ్యాప్ పొరలు';

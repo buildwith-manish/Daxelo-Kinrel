@@ -455,7 +455,6 @@ class SUr extends S {
   @override
   String get familyMapProgressAlmost => 'Almost there…';
 
-  // ── P13 — Control stack + search + legend (en baseline — translate later)
   @override
   String get familyMapControlLocate => 'میری جگہ تلاش کریں';
 
@@ -484,7 +483,8 @@ class SUr extends S {
   String get familyMapLocateServiceOff => 'مقام کی خدمات بند ہیں۔';
 
   @override
-  String get familyMapLocatePermissionDenied => 'مقام کی اجازت مسترد کر دی گئی۔';
+  String get familyMapLocatePermissionDenied =>
+      'مقام کی اجازت مسترد کر دی گئی۔';
 
   @override
   String get familyMapLocateFailed => 'آپ کا موجودہ مقام حاصل نہیں ہو سکا۔';

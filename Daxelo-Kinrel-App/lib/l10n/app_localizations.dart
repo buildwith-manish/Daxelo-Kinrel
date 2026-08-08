@@ -885,120 +885,232 @@ abstract class S {
   /// **'Almost there…'**
   String get familyMapProgressAlmost;
 
-  // ── P13 — Control stack + search + legend ──────────────────────────
-
-  /// Tooltip for the locate / recenter control button
+  /// No description provided for @familyMapControlLocate.
+  ///
+  /// In en, this message translates to:
+  /// **'Locate me'**
   String get familyMapControlLocate;
 
-  /// Tooltip for the zoom in control button
+  /// No description provided for @familyMapControlZoomIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom in'**
   String get familyMapControlZoomIn;
 
-  /// Tooltip for the zoom out control button
+  /// No description provided for @familyMapControlZoomOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom out'**
   String get familyMapControlZoomOut;
 
-  /// Tooltip for the layers control button
+  /// No description provided for @familyMapControlLayers.
+  ///
+  /// In en, this message translates to:
+  /// **'Layers'**
   String get familyMapControlLayers;
 
-  /// Tooltip for the dark mode toggle (when currently light)
+  /// No description provided for @familyMapControlDarkMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark map'**
   String get familyMapControlDarkMode;
 
-  /// Tooltip for the light mode toggle (when currently dark)
+  /// No description provided for @familyMapControlLightMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Light map'**
   String get familyMapControlLightMode;
 
-  /// Part 1 — Tooltip for the "3D Buildings" toggle (when 3D is currently off)
+  /// No description provided for @familyMapControl3DBuildingsOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on 3D buildings'**
   String get familyMapControl3DBuildingsOn;
 
-  /// Part 1 — Tooltip for the "3D Buildings" toggle (when 3D is currently on)
+  /// No description provided for @familyMapControl3DBuildingsOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off 3D buildings'**
   String get familyMapControl3DBuildingsOff;
 
-  /// Snack-bar shown when the user taps Locate but location services are off
+  /// No description provided for @familyMapLocateServiceOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Location services are off.'**
   String get familyMapLocateServiceOff;
 
-  /// Snack-bar shown when the user denies location permission
+  /// No description provided for @familyMapLocatePermissionDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Location permission denied.'**
   String get familyMapLocatePermissionDenied;
 
-  /// Snack-bar shown when the device cannot return a GPS fix
+  /// No description provided for @familyMapLocateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not get your current location.'**
   String get familyMapLocateFailed;
 
-  /// Title for the Layers popover
+  /// No description provided for @familyMapLayersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Map layers'**
   String get familyMapLayersTitle;
 
-  /// Done button in the Layers popover
+  /// No description provided for @familyMapLayersDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
   String get familyMapLayersDone;
 
-  /// Layers popover row label — family homes
+  /// No description provided for @familyMapLayerHomes.
+  ///
+  /// In en, this message translates to:
+  /// **'Family homes'**
   String get familyMapLayerHomes;
 
-  /// Layers popover row label — wedding venues
+  /// No description provided for @familyMapLayerWeddings.
+  ///
+  /// In en, this message translates to:
+  /// **'Wedding venues'**
   String get familyMapLayerWeddings;
 
-  /// Layers popover row label — memorials
+  /// No description provided for @familyMapLayerMemorials.
+  ///
+  /// In en, this message translates to:
+  /// **'Memorials'**
   String get familyMapLayerMemorials;
 
-  /// Layers popover row label — schools
+  /// No description provided for @familyMapLayerSchools.
+  ///
+  /// In en, this message translates to:
+  /// **'Schools'**
   String get familyMapLayerSchools;
 
-  /// Layers popover row label — important places
+  /// No description provided for @familyMapLayerPlaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Important places'**
   String get familyMapLayerPlaces;
 
-  /// Layers popover row label — relationship paths
+  /// No description provided for @familyMapLayerRelationships.
+  ///
+  /// In en, this message translates to:
+  /// **'Relationship paths'**
   String get familyMapLayerRelationships;
 
-  /// Layers popover row label — place callouts
+  /// No description provided for @familyMapLayerCallouts.
+  ///
+  /// In en, this message translates to:
+  /// **'Place labels'**
   String get familyMapLayerCallouts;
 
-  /// Layers popover row label — live location pulses
+  /// No description provided for @familyMapLayerLivePulses.
+  ///
+  /// In en, this message translates to:
+  /// **'Live pulses'**
   String get familyMapLayerLivePulses;
 
-  /// Search bar hint when expanded
+  /// No description provided for @familyMapSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search city or family member'**
   String get familyMapSearchHint;
 
-  /// Search bar hint when collapsed
+  /// No description provided for @familyMapSearchCollapsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Search city or family member'**
   String get familyMapSearchCollapsed;
 
-  /// Search bar clear button tooltip
+  /// No description provided for @familyMapSearchClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
   String get familyMapSearchClear;
 
-  /// Search suggestion subtitle for a city result
+  /// No description provided for @familyMapSearchCityHint.
+  ///
+  /// In en, this message translates to:
+  /// **'City'**
   String get familyMapSearchCityHint;
 
-  /// Legend quick-stat label for located members count
+  /// No description provided for @familyMapLegendPinned.
+  ///
+  /// In en, this message translates to:
+  /// **'located'**
   String get familyMapLegendPinned;
 
-  /// Legend quick-stat label for distinct cities count
+  /// No description provided for @familyMapLegendCities.
+  ///
+  /// In en, this message translates to:
+  /// **'cities'**
   String get familyMapLegendCities;
 
-  /// Legend section title — status tiers
+  /// No description provided for @familyMapLegendStatusTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Status tiers'**
   String get familyMapLegendStatusTitle;
 
-  /// Legend section title — place categories
+  /// No description provided for @familyMapLegendCategoriesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Place categories'**
   String get familyMapLegendCategoriesTitle;
 
-  /// Legend section title — unpinned members
+  /// No description provided for @familyMapLegendUnpinnedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Not on map'**
   String get familyMapLegendUnpinnedTitle;
 
-  /// Legend tier label — Live
+  /// No description provided for @familyMapLegendTierLive.
+  ///
+  /// In en, this message translates to:
+  /// **'Live'**
   String get familyMapLegendTierLive;
 
-  /// Legend tier description — Live
+  /// No description provided for @familyMapLegendTierLiveDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'< 2 min ago'**
   String get familyMapLegendTierLiveDesc;
 
-  /// Legend tier label — Recent
+  /// No description provided for @familyMapLegendTierRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent'**
   String get familyMapLegendTierRecent;
 
-  /// Legend tier description — Recent
+  /// No description provided for @familyMapLegendTierRecentDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'< 15 min ago'**
   String get familyMapLegendTierRecentDesc;
 
-  /// Legend tier label — Stale
+  /// No description provided for @familyMapLegendTierStale.
+  ///
+  /// In en, this message translates to:
+  /// **'Stale'**
   String get familyMapLegendTierStale;
 
-  /// Legend tier description — Stale
+  /// No description provided for @familyMapLegendTierStaleDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'< 1 hour ago'**
   String get familyMapLegendTierStaleDesc;
 
-  /// Legend tier label — City
+  /// No description provided for @familyMapLegendTierCity.
+  ///
+  /// In en, this message translates to:
+  /// **'City'**
   String get familyMapLegendTierCity;
 
-  /// Legend tier description — City
+  /// No description provided for @familyMapLegendTierCityDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'city centroid'**
   String get familyMapLegendTierCityDesc;
 }
 

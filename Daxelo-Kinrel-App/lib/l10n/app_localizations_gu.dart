@@ -455,7 +455,6 @@ class SGu extends S {
   @override
   String get familyMapProgressAlmost => 'Almost there…';
 
-  // ── P13 — Control stack + search + legend (en baseline — translate later)
   @override
   String get familyMapControlLocate => 'મારું સ્થાન શોધો';
 

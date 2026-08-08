@@ -455,7 +455,6 @@ class SMl extends S {
   @override
   String get familyMapProgressAlmost => 'Almost there…';
 
-  // ── P13 — Control stack + search + legend (en baseline — translate later)
   @override
   String get familyMapControlLocate => 'എന്റെ സ്ഥാനം കണ്ടെത്തുക';
 

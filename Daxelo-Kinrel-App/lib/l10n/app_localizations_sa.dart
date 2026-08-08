@@ -456,7 +456,6 @@ class SSa extends S {
   @override
   String get familyMapProgressAlmost => 'Almost there…';
 
-  // ── P13 — Control stack + search + legend (en baseline — translate later)
   @override
   String get familyMapControlLocate => 'मम स्थानं अन्विष्यताम्';
 

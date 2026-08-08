@@ -455,7 +455,6 @@ class STa extends S {
   @override
   String get familyMapProgressAlmost => 'Almost there…';
 
-  // ── P13 — Control stack + search + legend (en baseline — translate later)
   @override
   String get familyMapControlLocate => 'என் இடத்தைக் கண்டுபிடி';
 
@@ -484,10 +483,12 @@ class STa extends S {
   String get familyMapLocateServiceOff => 'இருப்பிட சேவைகள் அணைக்கப்பட்டுள்ளன.';
 
   @override
-  String get familyMapLocatePermissionDenied => 'இருப்பிட அனுமதி மறுக்கப்பட்டது.';
+  String get familyMapLocatePermissionDenied =>
+      'இருப்பிட அனுமதி மறுக்கப்பட்டது.';
 
   @override
-  String get familyMapLocateFailed => 'உங்கள் தற்போதைய இடத்தைப் பெற முடியவில்லை.';
+  String get familyMapLocateFailed =>
+      'உங்கள் தற்போதைய இடத்தைப் பெற முடியவில்லை.';
 
   @override
   String get familyMapLayersTitle => 'வரைபட அடுக்குகள்';
@@ -523,7 +524,8 @@ class STa extends S {
   String get familyMapSearchHint => 'நகரம் அல்லது குடும்ப உறுப்பினரைத் தேடு';
 
   @override
-  String get familyMapSearchCollapsed => 'நகரம் அல்லது குடும்ப உறுப்பினரைத் தேடு';
+  String get familyMapSearchCollapsed =>
+      'நகரம் அல்லது குடும்ப உறுப்பினரைத் தேடு';
 
   @override
   String get familyMapSearchClear => 'அழி';

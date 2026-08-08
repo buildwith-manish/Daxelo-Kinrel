@@ -120,13 +120,13 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
           currentUser?.email?.split('@').first ??
           'Someone';
 
-      // Insert a notification for the target user via the RPC.
-      // This uses fn_send_family_invite_notification (SECURITY DEFINER)
-      // to avoid the "column reference 'id' is ambiguous" error that
-      // occurs when inserting into Notification via PostgREST.
+      // v109: Call the updated fn_send_family_invite_notification RPC.
+      // The RPC now returns a json with {success, error/message} so we
+      // can check for duplicates + already-member without showing the
+      // user any database/PostgreSQL errors.
       final client = ref.read(supabaseProvider);
       if (client != null) {
-        await client.rpc(
+        final response = await client.rpc(
           'fn_send_family_invite_notification',
           params: {
             'p_target_user_id': _selectedUser!.id,
@@ -136,6 +136,34 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
             'p_inviter_name': inviterName,
           },
         );
+
+        // Parse the response — it's a Map with success/error/message
+        final result = response as Map<String, dynamic>?;
+        final success = result?['success'] as bool? ?? false;
+        final error = result?['error'] as String? ?? '';
+
+        if (!success) {
+          setState(() => _isSendingDirect = false);
+          if (mounted) {
+            // v109: Show ONLY user-friendly messages — NEVER database errors.
+            String userMessage;
+            if (error == 'already_member') {
+              userMessage = '${_selectedUser!.name} is already a member of this family';
+            } else if (error == 'duplicate_invite') {
+              userMessage = '${_selectedUser!.name} already has a pending invitation';
+            } else {
+              userMessage = 'Could not send invite. Please try again.';
+            }
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(userMessage),
+                backgroundColor: KinrelColors.error,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+          return;
+        }
       }
 
       setState(() => _isSendingDirect = false);
@@ -158,22 +186,13 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
     } catch (e) {
       setState(() => _isSendingDirect = false);
       if (mounted) {
-        // Surface a user-friendly error, not the raw PostgresException dump
-        // which can be very long and cause layout issues (white screen).
-        String errorMsg = e.toString();
-        if (errorMsg.contains('PostgresException')) {
-          // Extract just the message field from PostgresException
-          final match = RegExp(r'message:\s*([^,]+)').firstMatch(errorMsg);
-          errorMsg = match?.group(1) ?? 'Could not send invite. Please try again.';
-        } else {
-          errorMsg = errorMsg.replaceFirst('Exception: ', '');
-        }
-        if (errorMsg.length > 100) errorMsg = '${errorMsg.substring(0, 100)}...';
+        // v109: NEVER show database/PostgreSQL/API errors to users.
+        // Show only a generic user-friendly message.
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMsg),
+          const SnackBar(
+            content: Text('Could not send invite. Please try again.'),
             backgroundColor: KinrelColors.error,
-            duration: const Duration(seconds: 4),
+            duration: Duration(seconds: 3),
           ),
         );
       }

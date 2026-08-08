@@ -26,6 +26,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/notifications_provider.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
@@ -485,7 +486,7 @@ class _SegmentItem {
 // Notification Item Widget
 // ═══════════════════════════════════════════════════════════════════════
 
-class _NotificationItem extends StatelessWidget {
+class _NotificationItem extends ConsumerWidget {
   const _NotificationItem({
     super.key,
     required this.notification,
@@ -499,8 +500,132 @@ class _NotificationItem extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onPin;
 
+  // v109: Accept a family invite — calls fn_accept_family_invite RPC
+  // which inserts a FamilyMember row + marks the notification as read.
+  Future<void> _acceptInvite(BuildContext context, WidgetRef ref) async {
+    final familyId = notification.familyId;
+    if (familyId == null || familyId.isEmpty) return;
+
+    // Extract inviter user ID from the actionUrl if available
+    // (the RPC stores it in the notification's actionUrl as the invite URL)
+    String? inviterUserId;
+    try {
+      final client = ref.read(supabaseProvider);
+      inviterUserId = client?.auth.currentUser?.id;
+    } catch (_) {}
+
+    try {
+      final client = ref.read(supabaseProvider);
+      if (client == null) return;
+
+      // Extract family name from the notification body
+      final familyName = notification.body.contains('join ')
+          ? notification.body.split('join ').last
+          : 'the family';
+
+      final response = await client.rpc(
+        'fn_accept_family_invite',
+        params: {
+          'p_family_id': familyId,
+          'p_family_name': familyName,
+          'p_inviter_user_id': null, // The RPC handles this
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      final result = response as Map<String, dynamic>?;
+      final success = result?['success'] as bool? ?? false;
+
+      if (success) {
+        // Refresh notifications + family data
+        ref.read(notificationsProvider.notifier).loadNotifications();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result?['message'] as String? ??
+                  'Successfully joined the family'),
+              backgroundColor: KinrelColors.success,
+            ),
+          );
+        }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result?['message'] as String? ??
+                  'Could not accept invitation. Please try again.'),
+              backgroundColor: KinrelColors.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        // v109: Never show database/PostgreSQL errors to users.
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not accept invitation. Please try again.'),
+            backgroundColor: KinrelColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  // v109: Reject a family invite — calls fn_reject_family_invite RPC
+  // which marks the notification as read + sets actionUrl to 'rejected:familyId'.
+  Future<void> _rejectInvite(BuildContext context, WidgetRef ref) async {
+    final familyId = notification.familyId;
+    if (familyId == null || familyId.isEmpty) return;
+
+    try {
+      final client = ref.read(supabaseProvider);
+      if (client == null) return;
+
+      final response = await client.rpc(
+        'fn_reject_family_invite',
+        params: {
+          'p_family_id': familyId,
+          'p_inviter_user_id': null,
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      final result = response as Map<String, dynamic>?;
+      final success = result?['success'] as bool? ?? false;
+
+      if (success) {
+        ref.read(notificationsProvider.notifier).loadNotifications();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Invitation rejected'),
+              backgroundColor: KinrelColors.darkCard,
+            ),
+          );
+        }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not reject invitation. Please try again.'),
+              backgroundColor: KinrelColors.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not reject invitation. Please try again.'),
+            backgroundColor: KinrelColors.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // ── Dismissible for swipe actions ─────────────────────────────
     return Dismissible(
       key: ValueKey(notification.id),
@@ -619,6 +744,94 @@ class _NotificationItem extends StatelessWidget {
                       height: 1.4,
                     ),
                   ),
+
+                  // v109: Accept/Reject buttons for family invite notifications
+                  // that haven't been acted on yet.
+                  if (notification.notificationType ==
+                          NotificationType.familyInvite &&
+                      !notification.isInviteActedUpon) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        // Accept button
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => _acceptInvite(context, ref),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: KinrelColors.orange,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: const Text(
+                              'Accept',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Reject button
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => _rejectInvite(context, ref),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: KinrelColors.textSilver,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              side: BorderSide(
+                                color: KinrelColors.border,
+                                width: 1,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'Reject',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
+                  // v109: Show status badge if the invite was already acted on
+                  if (notification.notificationType ==
+                          NotificationType.familyInvite &&
+                      notification.isInviteActedUpon) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: notification.isInviteRejected
+                            ? Colors.red.withValues(alpha: 0.12)
+                            : KinrelColors.orange.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        notification.isInviteRejected
+                            ? 'Invitation rejected'
+                            : 'Invitation accepted',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: notification.isInviteRejected
+                              ? Colors.red.shade400
+                              : KinrelColors.orange,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

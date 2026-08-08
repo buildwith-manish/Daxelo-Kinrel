@@ -172,6 +172,7 @@ class NotificationModel {
     this.iconData,
     this.notificationType,
     this.familyId,
+    this.actionUrl,
   });
 
   /// Unique identifier.
@@ -212,6 +213,26 @@ class NotificationModel {
   /// The family ID this notification relates to (for grouping).
   final String? familyId;
 
+  /// v109: The action URL from the Notification table. For family_invite
+  /// notifications, this stores the invite URL. When the invite is
+  /// rejected, it's set to 'rejected:familyId' so the UI can detect
+  /// that the invite has already been acted on.
+  final String? actionUrl;
+
+  /// v109: Whether this family invite has been acted on (accepted or rejected).
+  /// True if the notification is read AND the actionUrl indicates rejection,
+  /// OR if the notification is read (accepted invites are marked read by
+  /// fn_accept_family_invite).
+  bool get isInviteActedUpon {
+    if (notificationType != NotificationType.familyInvite) return false;
+    return isRead;
+  }
+
+  /// v109: Whether this family invite was specifically rejected.
+  bool get isInviteRejected {
+    return actionUrl != null && actionUrl!.startsWith('rejected:');
+  }
+
   NotificationModel copyWith({bool? isRead, bool? isPinned}) {
     return NotificationModel(
       id: id,
@@ -226,6 +247,7 @@ class NotificationModel {
       iconData: iconData,
       notificationType: notificationType,
       familyId: familyId,
+      actionUrl: actionUrl,
     );
   }
 }
@@ -380,7 +402,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
               .from('Notification')
               .select('''
                 id, eventType, title, body, createdAt, read,
-                familyId, data, actorId
+                familyId, actionUrl
               ''')
               .eq('userId', retryUserId)
               .order('createdAt', ascending: false)
@@ -428,6 +450,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
       avatarColor: _colorForType(notificationType),
       notificationType: notificationType,
       familyId: familyId,
+      actionUrl: json['actionUrl'] as String?,
     );
   }
 
@@ -435,6 +458,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
   NotificationType _mapEventType(String eventType) {
     switch (eventType) {
       case 'invitation_received':
+      case 'family_invite': // v109: used by fn_send_family_invite_notification RPC
         return NotificationType.familyInvite;
       case 'invitation_accepted':
         return NotificationType.acceptedInvite;

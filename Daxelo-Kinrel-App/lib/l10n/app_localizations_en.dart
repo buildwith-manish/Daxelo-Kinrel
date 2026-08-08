@@ -455,7 +455,6 @@ class SEn extends S {
   @override
   String get familyMapProgressAlmost => 'Almost there…';
 
-  // ── P13 — Control stack + search + legend ──────────────────────────
   @override
   String get familyMapControlLocate => 'Locate me';
 
@@ -487,8 +486,7 @@ class SEn extends S {
   String get familyMapLocatePermissionDenied => 'Location permission denied.';
 
   @override
-  String get familyMapLocateFailed =>
-      'Could not get your current location.';
+  String get familyMapLocateFailed => 'Could not get your current location.';
 
   @override
   String get familyMapLayersTitle => 'Map layers';
