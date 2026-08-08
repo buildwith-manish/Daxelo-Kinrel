@@ -24,12 +24,18 @@ class ThinkingResult {
     this.message,
     this.error,
     this.cooldownHours,
+    this.dmId,
+    this.senderName,
+    this.familyName,
   });
 
   final bool success;
   final String? message;
   final String? error;
   final int? cooldownHours;
+  final String? dmId;
+  final String? senderName;
+  final String? familyName;
 }
 
 class ThinkingService {
@@ -69,6 +75,9 @@ class ThinkingService {
         return ThinkingResult(
           success: true,
           message: result?['message'] as String?,
+          dmId: result?['dmId'] as String?,
+          senderName: result?['senderName'] as String?,
+          familyName: result?['familyName'] as String?,
         );
       } else {
         return ThinkingResult(
