@@ -730,7 +730,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         user?.userMetadata?['name'] as String? ??
         user?.email?.split('@').first ??
         'Not signed in';
-    final email = profile?.email ?? user?.email ?? '';
+    // v109: email variable removed — email is no longer displayed on the
+    // public profile page. It's only accessible via secure account settings.
     final avatarUrl = profile?.avatarUrl;
     final bio = profile?.bio ?? '';
 
@@ -918,16 +919,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
         const SizedBox(height: 4),
 
-        // Email — display only, not tappable
-        if (email.isNotEmpty)
-          Text(
-            email,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 12,
-              color: _textSecondary,
-            ),
-          ),
+        // v109: Email REMOVED from the profile header. Email is private
+        // and sensitive information — it should only be visible to the
+        // account owner within secure account settings, not on the public
+        // profile page. The profile now displays only public information:
+        // photo, name, @username, and bio.
 
         const SizedBox(height: 10),
 

@@ -816,8 +816,11 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
             SizedBox(height: 10),
 
           // Contact & Occupation Card
+          // v109: Email REMOVED from the public person detail screen.
+          // Email is private — it should only be visible to the account
+          // owner within secure account settings, not when viewing another
+          // person's profile.
           if (detail.phone != null ||
-              detail.email != null ||
               detail.occupation != null)
             _InfoCard(
               title: 'Contact & Work',
@@ -829,12 +832,6 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
                     label: 'Phone',
                     value: detail.phone!,
                   ),
-                if (detail.email != null && detail.email!.isNotEmpty)
-                  _InfoRow(
-                    icon: Icons.email_outlined,
-                    label: 'Email',
-                    value: detail.email!,
-                  ),
                 if (detail.occupation != null && detail.occupation!.isNotEmpty)
                   _InfoRow(
                     icon: Icons.work_outline,
@@ -845,7 +842,6 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
             ),
 
           if (detail.phone != null ||
-              detail.email != null ||
               detail.occupation != null)
             SizedBox(height: 10),
 
