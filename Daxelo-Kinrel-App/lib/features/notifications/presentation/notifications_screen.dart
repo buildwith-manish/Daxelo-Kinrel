@@ -27,6 +27,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/notifications_provider.dart';
 import '../../occasions/providers/occasion_reminders_provider.dart';
@@ -65,8 +66,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
       ref.read(notificationsProvider.notifier).loadNotifications();
     });
 
-    // Refresh every 30 seconds for real-time feel
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    // v109: Refresh every 10 seconds for real-time timestamp updates.
+    // The old 30-second interval was too slow — "Just now" stayed for
+    // 30s before updating to "Xs ago". At 10s, timestamps update
+    // naturally as the user watches.
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       ref.read(notificationsProvider.notifier).loadNotifications();
     });
   }
@@ -538,6 +542,13 @@ class _NotificationItem extends ConsumerWidget {
       if (success) {
         // Refresh notifications + family data
         ref.read(notificationsProvider.notifier).loadNotifications();
+        // v109: Invalidate family providers so the member count updates
+        // immediately on the family detail screen + family list.
+        try {
+          ref.invalidate(familyListProvider);
+          ref.invalidate(familyDetailProvider(familyId));
+          ref.invalidate(familyMembersProvider(familyId));
+        } catch (_) {}
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

@@ -490,13 +490,36 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
   /// Format ISO timestamp to relative time — shows precise relative
   /// time like "10s ago", "1m ago", "5h ago", "2d ago" so the user
   /// can see exactly when the invite was sent.
+  ///
+  /// v109: Handles the case where Supabase returns naive timestamps
+  /// WITHOUT timezone suffix (e.g. "2026-08-08 07:54:43.22"). These
+  /// are UTC timestamps — without a 'Z' suffix, DateTime.parse treats
+  /// them as LOCAL time, causing a timezone offset that makes newly-
+  /// sent notifications appear as "5h ago" instead of "Just now".
+  /// We detect the missing timezone suffix and append 'Z' to force
+  /// UTC parsing.
   String _formatTime(String isoTimestamp) {
     if (isoTimestamp.isEmpty) return '';
     try {
-      final dt = DateTime.tryParse(isoTimestamp);
+      var parsed = isoTimestamp.trim();
+
+      // v109: Supabase returns naive timestamps like "2026-08-08 07:54:43.22"
+      // without a 'Z' or '+00:00' suffix. DateTime.parse treats these as
+      // LOCAL time, causing the wrong relative time. If the timestamp
+      // doesn't end with a timezone indicator, append 'Z' to treat it as UTC.
+      if (!parsed.endsWith('Z') &&
+          !parsed.contains('+') &&
+          !parsed.contains('-', 10)) {
+        parsed = '${parsed}Z';
+      }
+
+      final dt = DateTime.tryParse(parsed);
       if (dt == null) return '';
+
+      // Convert to local time for correct relative difference calculation.
+      final localDt = dt.toLocal();
       final now = DateTime.now();
-      final diff = now.difference(dt);
+      final diff = now.difference(localDt);
 
       if (diff.inSeconds < 5) return 'Just now';
       if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
@@ -504,7 +527,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
       if (diff.inHours < 24) return '${diff.inHours}h ago';
       if (diff.inDays == 1) return 'Yesterday';
       if (diff.inDays < 7) return '${diff.inDays}d ago';
-      return '${dt.day}/${dt.month}/${dt.year}';
+      return '${localDt.day}/${localDt.month}/${localDt.year}';
     } catch (_) {
       return '';
     }
