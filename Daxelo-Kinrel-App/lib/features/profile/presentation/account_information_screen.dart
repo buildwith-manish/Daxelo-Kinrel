@@ -21,7 +21,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
-import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/profile_provider.dart';
 
@@ -46,7 +45,6 @@ class _AccountInformationScreenState
     _phoneController = TextEditingController();
 
     final profile = ref.read(profileProvider).profile;
-    final user = Supabase.instance.client.auth.currentUser;
     final phone = profile?.phone ?? '';
     _phoneController.text = phone;
     _initialPhone = phone;
@@ -85,17 +83,30 @@ class _AccountInformationScreenState
           }
         });
         if (success) {
-          context.showSnackBar('Phone number updated');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Phone number updated'),
+              backgroundColor: KinrelColors.orange,
+            ),
+          );
         } else {
-          context.showSnackBar('Could not update. Please try again.',
-              isError: true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not update. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        context.showSnackBar('Could not update. Please try again.',
-            isError: true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not update. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -104,8 +115,6 @@ class _AccountInformationScreenState
   Widget build(BuildContext context) {
     final user = Supabase.instance.client.auth.currentUser;
     final email = user?.email ?? 'No email';
-    final profile = ref.watch(profileProvider).profile;
-    final phone = profile?.phone ?? '';
 
     return Scaffold(
       backgroundColor: KinrelColors.darkBackground,

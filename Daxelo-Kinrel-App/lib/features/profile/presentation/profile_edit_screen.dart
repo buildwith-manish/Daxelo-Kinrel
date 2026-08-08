@@ -141,7 +141,6 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     final hasChanges =
         _usernameController.text != _initialUsername ||
         _displayNameController.text != _initialDisplayName ||
-        _phoneController.text != _initialPhone ||
         _bioController.text != _initialBio ||
         _selectedGender != _initialGender ||
         _selectedDob != _initialDob;
@@ -194,9 +193,8 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final profile = ref.watch(profileProvider).profile;
-    final user = ref.watch(currentUserProvider);
-    final email = profile?.email ?? user?.email ?? '';
+    // v109: profile/email variables removed — email is no longer displayed
+    // on this screen. It's on the Account Information screen (/profile/account).
 
     return PopScope(
       canPop: !_hasChanges,
@@ -415,25 +413,8 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     );
   }
 
-  Widget _buildReadOnlyField(String value) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: _cardBg.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(KinrelRadius.input),
-        border: Border.all(color: _borderSubtle),
-      ),
-      child: Text(
-        value.isEmpty ? 'No email' : value,
-        style: TextStyle(
-          fontFamily: KinrelTypography.bodyFont,
-          fontSize: 15,
-          color: value.isEmpty ? _textDim : _textSecondary,
-        ),
-      ),
-    );
-  }
+  // v109: _buildReadOnlyField REMOVED — was used for the email display
+  // which is no longer on this screen.
 
   Widget _buildUsernameField() {
     final usernameState = ref.watch(usernameProvider);
@@ -542,90 +523,9 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     );
   }
 
-  Widget _buildPhoneField() {
-    return Row(
-      children: [
-        // Country code selector
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          decoration: BoxDecoration(
-            color: _cardBg,
-            borderRadius: BorderRadius.circular(KinrelRadius.input),
-            border: Border.all(color: _borderSubtle),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('🇮🇳', style: const TextStyle(fontSize: 18)),
-              const SizedBox(width: 4),
-              Text(
-                '+91',
-                style: const TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 15,
-                  color: _textPrimary,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Icon(Icons.arrow_drop_down, color: _textDim, size: 18),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        // Phone number input
-        Expanded(
-          child: TextFormField(
-            controller: _phoneController,
-            onChanged: (_) => _checkForChanges(),
-            focusNode: _phoneFocusNode,
-            keyboardType: TextInputType.phone,
-            textInputAction: TextInputAction.next,
-            textCapitalization: TextCapitalization.none,
-            style: const TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 15,
-              color: _textPrimary,
-            ),
-            decoration: InputDecoration(
-              hintText: 'Phone number',
-              hintStyle: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 15,
-                color: _textDim.withValues(alpha: 0.6),
-              ),
-              filled: true,
-              fillColor: _cardBg,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(KinrelRadius.input),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(KinrelRadius.input),
-                borderSide: const BorderSide(color: _orange, width: 1.5),
-              ),
-              errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(KinrelRadius.input),
-                borderSide: const BorderSide(color: _errorColor, width: 1),
-              ),
-              focusedErrorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(KinrelRadius.input),
-                borderSide: const BorderSide(color: _errorColor, width: 1.5),
-              ),
-              errorStyle: const TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 12,
-                color: _errorColor,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+  // v109: _buildPhoneField + _buildReadOnlyField REMOVED — phone and email
+  // are no longer on the Edit Profile screen. They've been moved to the
+  // dedicated Account Information screen (/profile/account).
 
   Widget _buildDobField() {
     final dobText = _selectedDob != null
@@ -818,9 +718,6 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     if (_displayNameController.text.trim() != _initialDisplayName) {
       changedFields['name'] = _displayNameController.text.trim();
     }
-    if (_phoneController.text.trim() != _initialPhone) {
-      changedFields['phone'] = _phoneController.text.trim();
-    }
     if (_bioController.text.trim() != _initialBio) {
       changedFields['bio'] = _bioController.text.trim();
     }
@@ -846,7 +743,6 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
         // Update initial values to reflect saved state
         setState(() {
           _initialDisplayName = _displayNameController.text.trim();
-          _initialPhone = _phoneController.text.trim();
           _initialBio = _bioController.text.trim();
           _initialUsername = _usernameController.text.trim();
           _initialGender = _selectedGender;
