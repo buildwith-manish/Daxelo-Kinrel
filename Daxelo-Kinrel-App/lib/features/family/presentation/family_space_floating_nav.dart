@@ -1,26 +1,36 @@
 // lib/features/family/presentation/family_space_floating_nav.dart
 //
-// DAXELO KINREL — Family Space Floating Navigation Dock (Phase 29)
+// DAXELO KINREL — Family Space Floating Navigation Dock (Phase 30)
 //
 // A SEPARATE, self-contained floating bottom navigation bar for the
 // Family Space screens ONLY. This does NOT use the global DKBottomNav
 // component — it has its own premium styling so there's zero risk of
 // affecting the Home page navigation.
 //
-// Design (matching reference image — taller, more premium floating card):
-//   - Height: 96 px (significantly taller — no longer a "thin strip")
-//   - Side margins: 24 px (narrower — doesn't stretch edge-to-edge)
-//   - Bottom margin: 20 px above bottom safe-area inset
-//   - Corner radius: 30 px (premium rounded card)
-//   - Internal vertical padding: 16 px (generous top + bottom breathing room)
-//   - Icon size: 30 px (prominent — ~31% of bar height)
-//   - Icon → label spacing: 8 px (clear separation)
-//   - Label font: 14 px (readable, prominent)
-//   - Active tab: orange icon + label + pill indicator beneath label +
-//     subtle orange-tinted background behind the entire tab (clearer
-//     highlight than just color change)
+// Design (matching reference image — tall, premium floating card):
+//   - Height: 96 px (tall — no longer a "thin strip")
+//   - Side margins: 28 px (narrower than full-width — floats as a card)
+//   - Bottom margin: 24 px above bottom safe-area inset (clearly floating)
+//   - Corner radius: 32 px (premium rounded card)
+//   - Internal vertical padding: 12 px top / 10 px bottom (generous
+//     breathing room WITHOUT crushing the content — content area ~74 px)
+//   - Icon size: 28 px (prominent — ~29% of bar height)
+//   - Icon → label spacing: 6 px (clear separation)
+//   - Label font: 13 px (readable, prominent, semibold when active)
+//   - Active indicator: 32 × 4 px orange pill, 6 px below the label
+//   - Active tab: orange icon + label + pill indicator + subtle
+//     orange-tinted rounded background (stronger highlight than color alone)
 //   - Blur: 25 sigma (strong frosted glass — pops off the dark bg)
-//   - Shadows: dual-layer for depth + subtle orange glow on active
+//   - Shadows: triple-layer (deep float + tight edge + orange glow on active)
+//
+// CRITICAL FIX (vs. previous attempts):
+//   The previous version forced a redundant `SizedBox(height: 96)` INSIDE
+//   each tab button and THEN added 16 px vertical padding — leaving only
+//   ~64 px for the actual icon+label+indicator content. That made the bar
+//   VISUALLY feel thin even though the outer container was 96 px. This
+//   version lets each tab fill the parent height via the Row/Column layout
+//   (no inner SizedBox), so the full 96 px is used and the content has
+//   real visual mass.
 //
 // Tabs (all family-scoped):
 //   0. Members   → /family/<id>/members
@@ -67,13 +77,19 @@ class FamilySpaceFloatingNav extends StatelessWidget {
   // ── Design constants ──
   // Centralised so they're easy to tune.
   static const _height = 96.0;
-  static const _sideMargin = 24.0;
-  static const _bottomMargin = 20.0;
-  static const _cornerRadius = 30.0;
-  static const _verticalPadding = 16.0;
-  static const _iconSize = 30.0;
-  static const _iconLabelGap = 8.0;
-  static const _labelFontSize = 14.0;
+  static const _sideMargin = 28.0;
+  static const _bottomMargin = 24.0;
+  static const _cornerRadius = 32.0;
+  static const _topPadding = 12.0;
+  static const _bottomPadding = 10.0;
+  static const _iconSize = 28.0;
+  static const _iconLabelGap = 6.0;
+  static const _labelFontSize = 13.0;
+  static const _indicatorWidth = 32.0;
+  static const _indicatorHeight = 4.0;
+  static const _indicatorLabelGap = 6.0;
+  static const _tabHorizontalPadding = 6.0;
+  static const _activeTabRadius = 18.0;
 
   static const _tabs = [
     _NavTab(
@@ -137,31 +153,46 @@ class FamilySpaceFloatingNav extends StatelessWidget {
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
+            // Subtle orange glow — gives the bar a premium warmth and
+            // makes the active state feel intentional.
+            if (currentIndex >= 0)
+              BoxShadow(
+                color: KinrelColors.orange.withValues(alpha: 0.18),
+                blurRadius: 24,
+                offset: const Offset(0, 6),
+              ),
           ],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(_cornerRadius),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: List.generate(_tabs.length, (index) {
-                final tab = _tabs[index];
-                final isSelected = index == currentIndex;
-                return Expanded(
-                  child: semanticTab(
-                    label: tab.label,
-                    index: index,
-                    isSelected: isSelected,
-                    totalTabs: _tabs.length,
-                    child: _NavTabButton(
-                      tab: tab,
+            child: Padding(
+              padding: const EdgeInsets.only(
+                top: _topPadding,
+                bottom: _bottomPadding,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: List.generate(_tabs.length, (index) {
+                  final tab = _tabs[index];
+                  final isSelected = index == currentIndex;
+                  return Expanded(
+                    child: semanticTab(
+                      label: tab.label,
+                      index: index,
                       isSelected: isSelected,
-                      onTap: () => _onTap(context, index),
+                      totalTabs: _tabs.length,
+                      child: _NavTabButton(
+                        tab: tab,
+                        isSelected: isSelected,
+                        onTap: () => _onTap(context, index),
+                      ),
                     ),
-                  ),
-                );
-              }),
+                  );
+                }),
+              ),
             ),
           ),
         ),
@@ -209,11 +240,17 @@ class FamilySpaceFloatingNav extends StatelessWidget {
 ///
 /// The active tab gets:
 ///   - Orange icon + label color
-///   - A pill indicator beneath the label
+///   - A 32 × 4 px pill indicator beneath the label
 ///   - A subtle orange-tinted rounded background behind the entire tab
 ///     (this is the "stronger highlight" the user asked for — it makes
 ///     the active tab clearly stand out from the inactive ones, matching
 ///     the reference image's visual hierarchy)
+///
+/// NOTE: This button does NOT set its own height — it fills the height
+/// of its parent (the dock's Row, which is constrained to [_height] by
+/// the outer Container). The previous version forced a redundant
+/// `SizedBox(height: _height)` here AND added 16 px vertical padding,
+/// which crushed the content into ~64 px and made the bar look thin.
 class _NavTabButton extends StatelessWidget {
   const _NavTabButton({
     required this.tab,
@@ -233,60 +270,61 @@ class _NavTabButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        height: FamilySpaceFloatingNav._height,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            vertical: FamilySpaceFloatingNav._verticalPadding,
-            horizontal: 4,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: FamilySpaceFloatingNav._tabHorizontalPadding,
+        ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          decoration: BoxDecoration(
+            color: isSelected
+                ? KinrelColors.orange.withValues(alpha: 0.16)
+                : Colors.transparent,
+            borderRadius:
+                BorderRadius.circular(FamilySpaceFloatingNav._activeTabRadius),
           ),
-          // Active tab gets a subtle orange-tinted rounded background
-          // that fills the tab's area — this is the key visual change
-          // that makes the active tab "pop" and look premium.
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? KinrelColors.orange.withValues(alpha: 0.12)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // ── Icon ──
-                Icon(
-                  isSelected ? tab.activeIcon : tab.icon,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Icon ──
+              Icon(
+                isSelected ? tab.activeIcon : tab.icon,
+                color: isSelected ? activeColor : inactiveColor,
+                size: FamilySpaceFloatingNav._iconSize,
+              ),
+              SizedBox(height: FamilySpaceFloatingNav._iconLabelGap),
+              // ── Label ──
+              Text(
+                tab.label,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: FamilySpaceFloatingNav._labelFontSize,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   color: isSelected ? activeColor : inactiveColor,
-                  size: FamilySpaceFloatingNav._iconSize,
+                  height: 1.2,
+                  letterSpacing: 0.1,
                 ),
-                SizedBox(height: FamilySpaceFloatingNav._iconLabelGap),
-                // ── Label ──
-                Text(
-                  tab.label,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: FamilySpaceFloatingNav._labelFontSize,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? activeColor : inactiveColor,
-                    height: 1.2,
-                  ),
+              ),
+              // ── Active indicator pill (below the label) ──
+              SizedBox(height: FamilySpaceFloatingNav._indicatorLabelGap),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                width: isSelected
+                    ? FamilySpaceFloatingNav._indicatorWidth
+                    : FamilySpaceFloatingNav._indicatorWidth,
+                height: FamilySpaceFloatingNav._indicatorHeight,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? KinrelColors.orange
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(
+                      FamilySpaceFloatingNav._indicatorHeight / 2),
                 ),
-                // ── Active indicator pill (below the label) ──
-                SizedBox(height: isSelected ? 5 : 9),
-                Container(
-                  width: isSelected ? 28 : 0,
-                  height: isSelected ? 3.5 : 0,
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? KinrelColors.orange
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(1.75),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
