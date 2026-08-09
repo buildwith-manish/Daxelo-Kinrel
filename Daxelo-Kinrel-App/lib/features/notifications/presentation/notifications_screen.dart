@@ -20,6 +20,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -572,6 +573,14 @@ class _NotificationItem extends ConsumerWidget {
           );
         }
       } else {
+        // v109.6: Log the actual error from the RPC so we can diagnose
+        // failures without silent swallowing. The user still sees a
+        // generic message, but the error is in the debug console.
+        final rpcError = result?['error'] as String?;
+        debugPrint(
+          '⚠️ fn_accept_family_invite failed: '
+          'familyId=$familyId, error=${rpcError ?? "(no error field)"}',
+        );
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -583,6 +592,8 @@ class _NotificationItem extends ConsumerWidget {
         }
       }
     } catch (e) {
+      // v109.6: Log the exception so we can diagnose network / RPC errors.
+      debugPrint('⚠️ fn_accept_family_invite exception: $e');
       if (context.mounted) {
         // v109: Never show database/PostgreSQL errors to users.
         ScaffoldMessenger.of(context).showSnackBar(
