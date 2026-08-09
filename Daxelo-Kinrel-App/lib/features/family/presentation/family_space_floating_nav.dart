@@ -1,27 +1,26 @@
 // lib/features/family/presentation/family_space_floating_nav.dart
 //
-// DAXELO KINREL — Family Space Floating Navigation Dock (Phase 28)
+// DAXELO KINREL — Family Space Floating Navigation Dock (Phase 29)
 //
 // A SEPARATE, self-contained floating bottom navigation bar for the
 // Family Space screens ONLY. This does NOT use the global DKBottomNav
 // component — it has its own premium styling so there's zero risk of
 // affecting the Home page navigation.
 //
-// Design (matching reference proportions):
-//   - Height: 88 px (taller, more substantial)
-//   - Side margins: 20 px (doesn't stretch edge-to-edge but stays wide
-//     enough for 5 tabs with comfortable spacing)
-//   - Bottom margin: 18 px above bottom safe-area inset (raised from
-//     bottom edge — floating card effect)
-//   - Corner radius: 28 px (premium rounded card)
-//   - Internal vertical padding: 14 px (generous breathing room)
-//   - Icon size: 27 px (prominent, easy to tap)
+// Design (matching reference image — taller, more premium floating card):
+//   - Height: 96 px (significantly taller — no longer a "thin strip")
+//   - Side margins: 24 px (narrower — doesn't stretch edge-to-edge)
+//   - Bottom margin: 20 px above bottom safe-area inset
+//   - Corner radius: 30 px (premium rounded card)
+//   - Internal vertical padding: 16 px (generous top + bottom breathing room)
+//   - Icon size: 30 px (prominent — ~31% of bar height)
 //   - Icon → label spacing: 8 px (clear separation)
-//   - Label font: 13 px (readable)
-//   - Active tab: rounded highlight pill behind icon + label (orange
-//     tint background, not just an underline — matches reference)
-//   - Blur: 20 sigma (frosted glass)
-//   - Shadows: dual-layer for depth
+//   - Label font: 14 px (readable, prominent)
+//   - Active tab: orange icon + label + pill indicator beneath label +
+//     subtle orange-tinted background behind the entire tab (clearer
+//     highlight than just color change)
+//   - Blur: 25 sigma (strong frosted glass — pops off the dark bg)
+//   - Shadows: dual-layer for depth + subtle orange glow on active
 //
 // Tabs (all family-scoped):
 //   0. Members   → /family/<id>/members
@@ -56,9 +55,7 @@ class _NavTab {
 /// Floating bottom navigation dock for Family Space screens.
 ///
 /// This is a SELF-CONTAINED widget — it does NOT use [DKBottomNav].
-/// All styling (height, margins, corners, shadows, blur, icon size,
-/// spacing) is defined here and only here. Changing the Home page's
-/// nav will NOT affect this widget, and vice versa.
+/// All styling is defined here and only here.
 class FamilySpaceFloatingNav extends StatelessWidget {
   const FamilySpaceFloatingNav({
     super.key,
@@ -68,16 +65,15 @@ class FamilySpaceFloatingNav extends StatelessWidget {
   final String familyId;
 
   // ── Design constants ──
-  // Centralised so they're easy to tune. All values match the reference
-  // image proportions analysed via VLM.
-  static const _height = 88.0;        // ~12-14% of screen height
-  static const _sideMargin = 20.0;     // ~5% of screen width
-  static const _bottomMargin = 18.0;  // ~2.5-3% of screen height
-  static const _cornerRadius = 24.0;   // ~27% of bar height (premium squircle)
-  static const _verticalPadding = 12.0; // generous internal padding
-  static const _iconSize = 32.0;       // ~36% of bar height — prominent
-  static const _iconLabelGap = 6.0;     // ~7% of bar height — tight, grouped
-  static const _labelFontSize = 14.0;  // readable, prominent
+  // Centralised so they're easy to tune.
+  static const _height = 96.0;
+  static const _sideMargin = 24.0;
+  static const _bottomMargin = 20.0;
+  static const _cornerRadius = 30.0;
+  static const _verticalPadding = 16.0;
+  static const _iconSize = 30.0;
+  static const _iconLabelGap = 8.0;
+  static const _labelFontSize = 14.0;
 
   static const _tabs = [
     _NavTab(
@@ -122,7 +118,6 @@ class FamilySpaceFloatingNav extends StatelessWidget {
       child: Container(
         height: _height,
         decoration: BoxDecoration(
-          // Semi-transparent dark card with frosted glass blur
           color: KinrelColors.darkCard.withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(_cornerRadius),
           border: Border.all(
@@ -130,24 +125,24 @@ class FamilySpaceFloatingNav extends StatelessWidget {
             width: 0.5,
           ),
           boxShadow: [
-            // Primary drop shadow — gives the float effect
+            // Primary drop shadow — deep float effect
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.45),
-              blurRadius: 28,
-              offset: const Offset(0, 10),
+              color: Colors.black.withValues(alpha: 0.50),
+              blurRadius: 30,
+              offset: const Offset(0, 12),
             ),
             // Secondary tight shadow — defines the card edge
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.22),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(_cornerRadius),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: List.generate(_tabs.length, (index) {
@@ -212,9 +207,13 @@ class FamilySpaceFloatingNav extends StatelessWidget {
 
 /// A single tappable tab button inside the floating dock.
 ///
-/// The active tab gets a rounded highlight pill behind the icon + label
-/// (orange-tinted background), not just an underline — matching the
-/// reference image's style.
+/// The active tab gets:
+///   - Orange icon + label color
+///   - A pill indicator beneath the label
+///   - A subtle orange-tinted rounded background behind the entire tab
+///     (this is the "stronger highlight" the user asked for — it makes
+///     the active tab clearly stand out from the inactive ones, matching
+///     the reference image's visual hierarchy)
 class _NavTabButton extends StatelessWidget {
   const _NavTabButton({
     required this.tab,
@@ -239,43 +238,55 @@ class _NavTabButton extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(
             vertical: FamilySpaceFloatingNav._verticalPadding,
+            horizontal: 4,
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // ── Icon ──
-              Icon(
-                isSelected ? tab.activeIcon : tab.icon,
-                color: isSelected ? activeColor : inactiveColor,
-                size: FamilySpaceFloatingNav._iconSize,
-              ),
-              SizedBox(height: FamilySpaceFloatingNav._iconLabelGap),
-              // ── Label ──
-              Text(
-                tab.label,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: FamilySpaceFloatingNav._labelFontSize,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+          // Active tab gets a subtle orange-tinted rounded background
+          // that fills the tab's area — this is the key visual change
+          // that makes the active tab "pop" and look premium.
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? KinrelColors.orange.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // ── Icon ──
+                Icon(
+                  isSelected ? tab.activeIcon : tab.icon,
                   color: isSelected ? activeColor : inactiveColor,
-                  height: 1.2,
+                  size: FamilySpaceFloatingNav._iconSize,
                 ),
-              ),
-              // ── Active indicator pill (below the label) ──
-              // A small rounded capsule in the active color, matching the
-              // reference image's underline-style indicator.
-              SizedBox(height: isSelected ? 4 : 8),
-              Container(
-                width: isSelected ? 26 : 0,
-                height: isSelected ? 3 : 0,
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? KinrelColors.orange
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(1.5),
+                SizedBox(height: FamilySpaceFloatingNav._iconLabelGap),
+                // ── Label ──
+                Text(
+                  tab.label,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: FamilySpaceFloatingNav._labelFontSize,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected ? activeColor : inactiveColor,
+                    height: 1.2,
+                  ),
                 ),
-              ),
-            ],
+                // ── Active indicator pill (below the label) ──
+                SizedBox(height: isSelected ? 5 : 9),
+                Container(
+                  width: isSelected ? 28 : 0,
+                  height: isSelected ? 3.5 : 0,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? KinrelColors.orange
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(1.75),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
