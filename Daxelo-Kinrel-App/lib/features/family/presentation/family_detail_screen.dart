@@ -22,6 +22,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/member_list_skeleton.dart';
 import '../../../graph/widgets/family_graph_engine_view.dart';
 import '../../../features/family_map/widgets/build_identifier_label.dart';
+import 'family_space_floating_nav.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
 import 'relationship_builder_screen.dart';
@@ -164,6 +165,13 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           ),
         ],
       ),
+      // Family Space floating nav — the SAME widget used on Members,
+      // Games, Calendar, Lists, and Chat screens. Wired in here as a
+      // `bottomNavigationBar` so the Scaffold reserves space for it and
+      // the body content lays out above it. This replaces the legacy
+      // QuickJumpNavRow fixed dock that was previously rendered inside
+      // the body's Stack.
+      bottomNavigationBar: FamilySpaceFloatingNav(familyId: widget.familyId),
       body: detailAsync.when(
         loading: () => const _FamilyDetailLoadingWidget(),
         error: (error, _) => DKErrorState(
@@ -253,9 +261,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
                   const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-                  // 3. [REMOVED FROM SCROLL — now a fixed bottom dock]
-                  // The QuickJumpNavRow is positioned in the Stack below,
-                  // not in the scroll content.
+                  // 3. [NAV — now wired as Scaffold bottomNavigationBar]
+                  // The Family Space floating nav (FamilySpaceFloatingNav)
+                  // is set on the DKScaffold above, NOT in this Stack.
 
                   // 4. Family Pulse — nudges + activity merged.
                   SliverToBoxAdapter(
@@ -294,42 +302,25 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     ),
                   ),
 
-                  // Bottom padding: must be >= dock height + dock's
-                  // bottom offset + a small visible gap so the last
-                  // content row is never hidden behind the dock.
+                  // Bottom padding: small breathing gap so the last
+                  // content row isn't flush against the Family Space
+                  // floating nav below it.
                   //
-                  // Dock height breakdown:
-                  //   3px container padding (top) + 16px icon + 2px gap
-                  //   + 9px label + 3px container padding (bottom)
-                  //   + 2px border = ~35px. Round up to 36px for safety.
-                  // Dock bottom offset: safe_area + 12px
-                  // Dock height: ~36px
-                  // Gap between content and dock: 12px
-                  // Total: 12 + 36 + 12 = 60px above safe_area.
+                  // The nav itself is now wired in as the Scaffold's
+                  // `bottomNavigationBar` (FamilySpaceFloatingNav), which
+                  // the Scaffold reserves space for automatically — so the
+                  // scroll content no longer needs a dock-height-sized
+                  // spacer. A modest fixed gap is enough; the nav's own
+                  // internal `_bottomMargin` (24px) + safe-area inset
+                  // handles the float distance from the screen edge.
                   SliverToBoxAdapter(
                     child: SizedBox(
-                      height: MediaQuery.of(context).padding.bottom + 60,
+                      height: MediaQuery.of(context).padding.bottom + 24,
                     ),
                   ),
                 ],
               ),
 
-              // ── Fixed bottom dock: Quick-jump navigation row ────────
-              // Pinned to the bottom of the viewport, above the safe
-              // area. Always visible regardless of scroll position.
-              // The rounded pill container styling is unchanged — only
-              // the position changed from in-flow to fixed.
-              Positioned(
-                left: 0,
-                right: 0,
-                // Slightly higher gap above the global bottom nav for
-                // breathing room — raised from 12px to 16px.
-                bottom: MediaQuery.of(context).padding.bottom + 16,
-                child: staggerFade(
-                  QuickJumpNavRow(familyId: widget.familyId),
-                  4,
-                ),
-              ),
               // ── Build identifier chip (top-left overlay) ─────────────
               // Reuses the same BuildIdentifierLabel widget that the
               // Family Map screen uses, so the build hash/timestamp is

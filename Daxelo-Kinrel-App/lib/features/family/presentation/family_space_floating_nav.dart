@@ -196,6 +196,15 @@ class FamilySpaceFloatingNav extends StatelessWidget {
   }
 
   int _currentIndex(String location) {
+    // Family Overview screen (route: /family/<id> with no suffix) is NOT
+    // one of the 5 tabs — it's the landing screen that shows the hero,
+    // Truth Streak, and Pulse sections. Return -1 so NO tab is
+    // highlighted. This is safe: the widget already guards the active-
+    // state rendering with `if (currentIndex >= 0)` for the orange glow
+    // BoxShadow, and `_NavTabButton` computes `isSelected = index ==
+    // currentIndex` (which is `index == -1` → false for all 5 tabs), so
+    // no indicator pill renders either.
+    if (location == '/family/$familyId') return -1;
     if (location.contains('/members')) return 0;
     if (location.contains('/games') ||
         location.contains('/ghost-painter') ||
