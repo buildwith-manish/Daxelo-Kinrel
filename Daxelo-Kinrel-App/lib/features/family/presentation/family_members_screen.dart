@@ -15,6 +15,7 @@ import '../../../core/family/optimistic_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import 'add_member_options_sheet.dart';
+import 'family_space_floating_nav.dart';
 
 class FamilyMembersScreen extends ConsumerStatefulWidget {
   const FamilyMembersScreen({super.key, required this.familyId});
@@ -59,6 +60,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
       ),
+      bottomNavigationBar: FamilySpaceFloatingNav(familyId: widget.familyId),
       body: detailAsync.when(
         loading: () => Center(
           child: CircularProgressIndicator(color: KinrelColors.orange),
@@ -172,7 +174,9 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                         padding: const EdgeInsets.only(
                           left: KinrelSpacing.base,
                           right: KinrelSpacing.base,
-                          bottom: 88,
+                          // Account for the floating dock (92px height +
+                          // 22px float gap + breathing room).
+                          bottom: 140,
                         ),
                         itemCount: filtered.length,
                         itemBuilder: (context, index) {

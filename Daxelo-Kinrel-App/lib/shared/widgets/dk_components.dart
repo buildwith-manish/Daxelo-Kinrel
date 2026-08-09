@@ -225,7 +225,7 @@ class DKScaffold extends StatelessWidget {
       bottomNavigationBar: bottomNavigationBar,
       floatingActionButton: floatingActionButton,
       floatingActionButtonLocation: floatingActionButtonLocation,
-      extendBody: floatingActionButton != null,
+      extendBody: bottomNavigationBar != null || floatingActionButton != null,
       extendBodyBehindAppBar: appBar != null,
     );
   }

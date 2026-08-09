@@ -41,6 +41,7 @@ import '../data/chat_enhancement_service.dart';
 import '../providers/chat_provider.dart';
 import 'voice_message_player.dart';
 import 'sticker_panel.dart';
+import '../../family/presentation/family_space_floating_nav.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Chat Screen
@@ -291,6 +292,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     return DKScaffold(
       backgroundColor: const Color(0xFF13141E),
       appBar: _buildAppBar(chatState),
+      bottomNavigationBar: FamilySpaceFloatingNav(familyId: widget.familyId),
       body: Column(
         children: [
           // Messages list

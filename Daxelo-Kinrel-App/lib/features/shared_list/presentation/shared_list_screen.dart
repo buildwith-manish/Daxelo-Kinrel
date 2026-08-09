@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared_list_provider.dart';
+import '../../family/presentation/family_space_floating_nav.dart';
 
 class SharedListScreen extends ConsumerStatefulWidget {
   const SharedListScreen({super.key, required this.familyId});
@@ -35,6 +36,9 @@ class _SharedListScreenState extends ConsumerState<SharedListScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Lists & Errands')),
+      // Phase 27: extend body behind the floating dock so it floats.
+      extendBody: true,
+      bottomNavigationBar: FamilySpaceFloatingNav(familyId: widget.familyId),
       // Bug fix (FAB overlap): the global FAB theme previously forced
       // `shape: CircleBorder()` which clipped the extended FAB's icon +
       // label into a circle, causing overlap. That's fixed in the theme

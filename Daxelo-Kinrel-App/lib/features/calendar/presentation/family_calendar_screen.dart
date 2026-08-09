@@ -12,6 +12,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../../features/family/presentation/family_space_floating_nav.dart';
 import '../models/calendar_models.dart';
 import '../providers/calendar_provider.dart';
 import '../../../features/occasions/providers/occasion_reminders_provider.dart';
@@ -108,6 +109,7 @@ class _FamilyCalendarScreenState extends ConsumerState<FamilyCalendarScreen>
           tabs: const [Tab(text: 'Month'), Tab(text: 'Week'), Tab(text: 'Agenda')],
         ),
       ),
+      bottomNavigationBar: FamilySpaceFloatingNav(familyId: widget.familyId),
       body: calState.isLoading && allEvents.isEmpty
           ? Center(child: CircularProgressIndicator(color: KinrelColors.orange))
           : TabBarView(
