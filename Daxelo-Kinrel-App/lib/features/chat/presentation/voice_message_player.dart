@@ -133,9 +133,12 @@ class _VoiceMessagePlayerState extends State<VoiceMessagePlayer> {
       switch (state.processingState) {
         case ProcessingState.idle:
         case ProcessingState.loading:
+          setState(() => _isLoading = true);
+          break;
         case ProcessingState.buffering:
-          setState(() => _isLoading = state.buffering ||
-              state.processingState == ProcessingState.loading);
+          // Keep the play/pause button tappable during buffering, but
+          // also show a loading indicator alongside the play icon.
+          setState(() => _isLoading = false);
           break;
         case ProcessingState.ready:
           setState(() {

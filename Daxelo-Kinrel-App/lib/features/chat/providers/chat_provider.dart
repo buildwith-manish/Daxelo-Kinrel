@@ -90,6 +90,15 @@ class ChatMessage {
     this.eventTitle, // for family event sharing
     this.eventDate, // for family event sharing
     this.mediaUrl, // v91: for photo/voice attachments
+    // Phase 13 enhancement fields
+    this.isStarred = false,
+    this.isPinned = false,
+    this.isEdited = false,
+    this.isDeletedForEveryone = false,
+    this.messageStatus = 'sent',
+    this.messageSubType,
+    this.forwardedFrom,
+    this.deletedForMe = const [],
   });
 
   /// URL of the attached media (photo or voice note) in Supabase storage.
@@ -143,6 +152,31 @@ class ChatMessage {
   /// Event date string (for family event sharing).
   final String? eventDate;
 
+  /// Phase 13: Whether the message is starred (bookmarked) by current user.
+  final bool isStarred;
+
+  /// Phase 13: Whether the message is pinned by an admin/creator.
+  final bool isPinned;
+
+  /// Phase 13: Whether the message was edited after sending.
+  final bool isEdited;
+
+  /// Phase 13: Whether the message was deleted for everyone (sender or admin).
+  final bool isDeletedForEveryone;
+
+  /// Phase 13: Message delivery status: 'sent' | 'delivered' | 'read'.
+  final String messageStatus;
+
+  /// Phase 13: Message subtype: 'text' | 'image' | 'video' | 'audio' |
+  /// 'voice' | 'document' | 'sticker' | 'gif' | 'contact' | 'location' | 'system'.
+  final String? messageSubType;
+
+  /// Phase 13: Original sender name if message was forwarded.
+  final String? forwardedFrom;
+
+  /// Phase 13: List of user IDs who deleted this message for themselves only.
+  final List<dynamic> deletedForMe;
+
   /// Convenience: grouped reactions (emoji → count).
   Map<String, int> get groupedReactions {
     final map = <String, int>{};
@@ -150,6 +184,14 @@ class ChatMessage {
       map[r.emoji] = (map[r.emoji] ?? 0) + 1;
     }
     return map;
+  }
+
+  /// Convenience: whether this message is hidden for the current user
+  /// (either soft-deleted-for-me or deleted-for-everyone).
+  bool isHiddenFor(String userId) {
+    if (isDeletedForEveryone) return true;
+    if (deletedForMe.any((u) => u == userId)) return true;
+    return false;
   }
 
   /// Convenience: formatted time string (e.g., "10:30 AM").
@@ -169,12 +211,19 @@ class ChatMessage {
     String? replyToSenderName,
     bool? isOnline,
     String? mediaUrl,
+    bool? isStarred,
+    bool? isPinned,
+    bool? isEdited,
+    bool? isDeletedForEveryone,
+    String? messageStatus,
+    String? content,
+    List<dynamic>? deletedForMe,
   }) {
     return ChatMessage(
       id: id,
       senderId: senderId,
       senderName: senderName,
-      content: content,
+      content: content ?? this.content,
       messageType: messageType,
       timestamp: timestamp,
       isRead: isRead ?? this.isRead,
@@ -188,6 +237,14 @@ class ChatMessage {
       eventTitle: eventTitle,
       eventDate: eventDate,
       mediaUrl: mediaUrl ?? this.mediaUrl,
+      isStarred: isStarred ?? this.isStarred,
+      isPinned: isPinned ?? this.isPinned,
+      isEdited: isEdited ?? this.isEdited,
+      isDeletedForEveryone: isDeletedForEveryone ?? this.isDeletedForEveryone,
+      messageStatus: messageStatus ?? this.messageStatus,
+      messageSubType: messageSubType,
+      forwardedFrom: forwardedFrom,
+      deletedForMe: deletedForMe ?? this.deletedForMe,
     );
   }
 
@@ -212,6 +269,14 @@ class ChatMessage {
       eventTitle: json['eventTitle'] as String?,
       eventDate: json['eventDate'] as String?,
       mediaUrl: json['mediaUrl'] as String?,
+      isStarred: json['isStarred'] as bool? ?? false,
+      isPinned: json['isPinned'] as bool? ?? false,
+      isEdited: json['isEdited'] as bool? ?? false,
+      isDeletedForEveryone: json['isDeletedForEveryone'] as bool? ?? false,
+      messageStatus: json['messageStatus'] as String? ?? 'sent',
+      messageSubType: json['messageSubType'] as String?,
+      forwardedFrom: json['forwardedFrom'] as String?,
+      deletedForMe: json['deletedForMe'] as List<dynamic>? ?? const [],
     );
   }
 
@@ -249,6 +314,13 @@ class ChatMessage {
       'eventTitle': eventTitle,
       'eventDate': eventDate,
       if (mediaUrl != null) 'mediaUrl': mediaUrl,
+      'isStarred': isStarred,
+      'isPinned': isPinned,
+      'isEdited': isEdited,
+      'isDeletedForEveryone': isDeletedForEveryone,
+      'messageStatus': messageStatus,
+      if (messageSubType != null) 'messageSubType': messageSubType,
+      if (forwardedFrom != null) 'forwardedFrom': forwardedFrom,
     };
   }
 
