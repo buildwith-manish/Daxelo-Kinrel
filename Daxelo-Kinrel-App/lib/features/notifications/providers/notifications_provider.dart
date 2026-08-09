@@ -578,6 +578,10 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         return 0xFF4CAF7A; // green
       case NotificationType.memberJoined:
         return 0xFF4CAF7A; // green
+      case NotificationType.thinkingOfYou:
+        return 0xFFE91E63; // pink (heart)
+      case NotificationType.invitationAccepted:
+        return 0xFF4CAF7A; // green
     }
   }
 
@@ -781,6 +785,10 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         return 'family:member_joined';
       case NotificationType.memberJoined:
         return 'member_joined';
+      case NotificationType.thinkingOfYou:
+        return 'thinking_of_you';
+      case NotificationType.invitationAccepted:
+        return 'invitation_accepted';
     }
   }
 }

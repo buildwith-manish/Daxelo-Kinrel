@@ -386,12 +386,12 @@ class _DirectMessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     // Special heart-themed card for Thinking of You messages
     if (message.isThinkingOfYou) {
-      return _buildThinkingOfYouBubble();
+      return _buildThinkingOfYouBubble(context);
     }
-    return _buildTextBubble();
+    return _buildTextBubble(context);
   }
 
-  Widget _buildTextBubble() {
+  Widget _buildTextBubble(BuildContext context) {
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -462,7 +462,7 @@ class _DirectMessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildThinkingOfYouBubble() {
+  Widget _buildThinkingOfYouBubble(BuildContext context) {
     // Pink-coral themed card with a heart icon. Renders the message as
     // "<sender> <message>" (e.g. "Manish is thinking of you.").
     const accent = Color(0xFFE91E63); // pink
@@ -521,12 +521,6 @@ class _DirectMessageBubble extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  // The content stored by the RPC is the warm message
-                  // body (e.g. "is thinking of you."). We don't have
-                  // the sender's name here, but the content already
-                  // includes it from the RPC (e.g. "Manish is thinking of you.").
-                  // For received messages, the content is just the body
-                  // (without sender name) — so we prefix with the label.
                   Text(
                     isMe
                         ? 'You ${message.content}'
