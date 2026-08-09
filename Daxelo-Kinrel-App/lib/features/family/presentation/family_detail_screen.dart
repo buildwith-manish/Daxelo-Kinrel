@@ -608,9 +608,13 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               ),
             ],
 
-            // v109.9: Family Management — admin & creator controls
+            // v109.9: Family Management — UNIFIED entry point for ALL
+            // family-scoped admin controls (permissions, privacy, member
+            // management, family preferences, activity log). The old
+            // separate "Family Settings" screen has been merged into
+            // Family Management.
             _QuickActionTile(
-              icon: Icons.admin_panel_settings_outlined,
+              icon: Icons.settings_outlined,
               label: 'Family Management',
               iconColor: KinrelColors.orange,
               onTap: () {
@@ -635,18 +639,6 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
               onTap: () {
                 Navigator.pop(ctx);
                 context.push('/family/${widget.familyId}/story-mode');
-              },
-            ),
-            Divider(color: KinrelColors.border, height: 1),
-
-            // P12.6 — Family Settings (bridge role opt-in)
-            _QuickActionTile(
-              icon: Icons.settings_outlined,
-              label: 'Family Settings',
-              iconColor: KinrelColors.blue,
-              onTap: () {
-                Navigator.pop(ctx);
-                context.push('/family/${widget.familyId}/settings');
               },
             ),
             Divider(color: KinrelColors.border, height: 1),

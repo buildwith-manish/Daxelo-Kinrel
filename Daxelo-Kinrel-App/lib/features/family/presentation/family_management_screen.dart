@@ -1,11 +1,22 @@
 // lib/features/family/presentation/family_management_screen.dart
 //
-// DAXELO KINREL — Family Management Screen (Full Implementation)
+// DAXELO KINREL — Family Management Screen (Unified)
 //
-// A complete family management system with REAL enforcement.
-// Every permission setting controls actual app behavior.
-// UI uses Kinrel's design language (KinrelColors, KinrelTypography)
-// with custom role badges — no emojis.
+// Single entry point for ALL family-scoped admin controls:
+//   - Permissions (who can invite / post / chat / etc.)
+//   - Safety controls (member removal)
+//   - Join approval
+//   - Family privacy (visibility)
+//   - Family preferences (silent check-in alerts, etc.)
+//   - Member management (promote / demote / remove)
+//   - Activity log
+//   - Role reference
+//
+// The old "Family Settings" screen has been merged into this one.
+// 3-tier permission enforcement:
+//   Creator — full control
+//   Admin   — can edit approved settings, Creator-only controls locked
+//   Member  — view-only
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +25,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/networking/dio_client.dart' show dioProvider;
 import '../../../core/services/supabase_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -149,10 +161,18 @@ class _FamilyManagementScreenState
   bool _isLoading = true;
   bool _isUpdating = false;
 
+  // ── Family Preferences (merged from old FamilySettingsScreen) ──
+  // bridgeRoleOptIn: when ON, designated family admins receive a private
+  // alert if a family member hasn't opened Kinrel in 7+ days. The inactive
+  // member is never notified. Default OFF.
+  bool _bridgeOptIn = false;
+  bool _loadingBridge = true;
+
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    _loadBridgeOptIn();
   }
 
   Future<void> _loadSettings() async {
@@ -218,6 +238,73 @@ class _FamilyManagementScreenState
     if (_isMember) return false;
     if (_isAdmin && _creatorOnlySettings.contains(key)) return false;
     return true;
+  }
+
+  // ── Family Preferences: Silent check-in alerts (bridge role opt-in) ──
+  //
+  // Merged from the old FamilySettingsScreen. The backend endpoint is
+  // PATCH /api/families/:id with { bridgeRoleOptIn: bool }. The toggle
+  // is admin/creator-only — members see it read-only.
+
+  Future<void> _loadBridgeOptIn() async {
+    try {
+      final dio = ref.read(dioProvider);
+      final r = await dio.get('/api/families/${widget.familyId}');
+      if (mounted) {
+        setState(() {
+          _bridgeOptIn = (r.data['bridgeRoleOptIn'] as bool?) ?? false;
+          _loadingBridge = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingBridge = false);
+    }
+  }
+
+  Future<void> _toggleBridgeOptIn(bool value) async {
+    // Confirm before opting in (irreversible-feeling action)
+    if (value) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: KinrelColors.darkCard,
+          title: const Text('Silent check-in alerts',
+              style: TextStyle(color: KinrelColors.textWhite)),
+          content: const Text(
+            'Admins will receive a private alert if a family member '
+            'hasn\'t opened Kinrel in 7+ days. The inactive member is '
+            'never notified. Only enable if your family has explicitly '
+            'agreed to this.',
+            style: TextStyle(color: KinrelColors.textSilver, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel',
+                  style: TextStyle(color: KinrelColors.textDim)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Enable',
+                  style: TextStyle(color: KinrelColors.gold)),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
+    setState(() => _bridgeOptIn = value);
+    try {
+      final dio = ref.read(dioProvider);
+      await dio.patch(
+        '/api/families/${widget.familyId}',
+        data: {'bridgeRoleOptIn': value},
+      );
+    } catch (_) {
+      // Revert on failure
+      if (mounted) setState(() => _bridgeOptIn = !value);
+    }
   }
 
   Future<void> _updateSetting(String settingName, String value) async {
@@ -327,6 +414,11 @@ class _FamilyManagementScreenState
               const SizedBox(height: 24),
               _buildSection('Family Privacy'),
               _buildPrivacyTile(),
+
+              // ── Family Preferences (merged from old FamilySettingsScreen) ──
+              const SizedBox(height: 24),
+              _buildSection('Family Preferences'),
+              _buildBridgeOptInTile(),
 
               // Member Management is only shown to Creator + Admin
               if (_canEdit) ...[
@@ -602,6 +694,116 @@ class _FamilyManagementScreenState
               'Invite Only', currentValue, canEdit),
           _buildRadioOption('familyVisibility', 'public',
               'Public Discovery', currentValue, canEdit),
+        ],
+      ),
+    );
+  }
+
+  /// Silent check-in alerts (bridge role opt-in) — merged from the old
+  /// FamilySettingsScreen. When ON, designated family admins receive a
+  /// private alert if a family member hasn't opened Kinrel in 7+ days.
+  /// The inactive member is never notified. Default OFF.
+  Widget _buildBridgeOptInTile() {
+    final canEdit = _canEdit; // admins + creator can toggle; members read-only
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: canEdit ? KinrelColors.darkCard : KinrelColors.darkCard.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: canEdit ? KinrelColors.border : KinrelColors.border.withValues(alpha: 0.5),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: KinrelColors.gold.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.notifications_active_outlined,
+                  color: KinrelColors.gold,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text('Silent check-in alerts',
+                              style: TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w600,
+                                  color: canEdit ? KinrelColors.textWhite : KinrelColors.textSilver)),
+                        ),
+                        if (!canEdit) ...[
+                          Icon(Icons.lock_outline, size: 14, color: KinrelColors.textDim),
+                          const SizedBox(width: 6),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Admins get a private alert if a member is inactive for 7+ days. '
+                      'The inactive member is never notified.',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: KinrelColors.textDim,
+                          height: 1.4),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              _loadingBridge
+                  ? const SizedBox(
+                      width: 24, height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: KinrelColors.gold,
+                      ),
+                    )
+                  : Switch(
+                      value: _bridgeOptIn,
+                      onChanged: canEdit ? _toggleBridgeOptIn : null,
+                      activeColor: KinrelColors.gold,
+                      activeTrackColor: KinrelColors.gold.withValues(alpha: 0.4),
+                      inactiveThumbColor: KinrelColors.textSilver,
+                      inactiveTrackColor: KinrelColors.border,
+                      trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+                    ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.shield_outlined,
+                  color: KinrelColors.textDim.withValues(alpha: 0.7), size: 12),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Uses absolute inactivity thresholds (7, 14, 21 days). '
+                  'No behavioral baseline tracking.',
+                  style: TextStyle(
+                    color: KinrelColors.textDim.withValues(alpha: 0.8),
+                    fontSize: 10,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

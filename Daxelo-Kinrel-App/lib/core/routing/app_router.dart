@@ -205,7 +205,6 @@ import '../../features/trackc/presentation/providers/trackc_providers.dart';
 import '../../features/story_mode/presentation/story_mode_screen.dart';
 import '../../features/community/presentation/community_discovery_screen.dart';
 import '../../features/profile/presentation/pulse_learning_profile_screen.dart';
-import '../../features/family/presentation/family_settings_screen.dart';
 import '../../features/health_heritage/presentation/health_heritage_screen.dart';
 // P12.6 — Batch 3: GEDCOM export + trust/privacy screens
 import '../../features/gedcom/presentation/gedcom_export_screen.dart';
@@ -1996,13 +1995,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // 4. Family Settings — bridge role opt-in + family admin (family-scoped)
+      // 4. Family Management — UNIFIED entry point for ALL family-scoped
+      //    admin controls (permissions, privacy, member management,
+      //    family preferences, activity log). The old separate
+      //    "Family Settings" screen has been merged into Family Management.
+      //    Route kept as an alias for backwards-compatible deep links.
       GoRoute(
         path: '/family/:id/settings',
-        pageBuilder: (context, state) => _fastFadePage(
-          key: state.pageKey,
-          child: FamilySettingsScreen(familyId: state.pathParameters['id']!),
-        ),
+        redirect: (context, state) =>
+            '/family/${state.pathParameters['id']}/management',
       ),
 
       // 5. Health Heritage — family health conditions (family-scoped)
