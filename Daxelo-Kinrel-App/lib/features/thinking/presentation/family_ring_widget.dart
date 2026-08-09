@@ -28,6 +28,8 @@
 // the section shows a "No other family members available" message
 // instead of hiding entirely, so the user understands why it's empty.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
