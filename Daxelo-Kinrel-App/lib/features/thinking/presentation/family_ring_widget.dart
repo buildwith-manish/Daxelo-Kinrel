@@ -163,27 +163,91 @@ class FamilyRingWidget extends ConsumerStatefulWidget {
 }
 
 class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
+  // ── Per-member UI state ──
+  // _tappedUntil: brief 3s animation played after a successful send
   final Map<String, DateTime> _tappedUntil = {};
-  final Set<String> _cooldown = {};
+  // _cooldownUntil: 6-hour cooldown per receiver, populated from the RPC
+  // response (cooldownExpiresAt). The button is disabled while this is
+  // in the future. A 1-second timer refreshes the countdown display.
+  final Map<String, DateTime> _cooldownUntil = {};
+  // _pendingMember: the member we're currently sending to (shows a spinner)
+  String? _pendingMember;
+
+  /// Ticker that fires every 1 second to refresh the countdown labels.
+  /// Started when there's at least one active cooldown, stopped when all
+  /// cooldowns have expired.
+  Timer? _countdownTimer;
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    super.dispose();
+  }
+
+  void _ensureCountdownTimer() {
+    if (_countdownTimer?.isActive ?? false) return;
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) {
+        _countdownTimer?.cancel();
+        return;
+      }
+      // If all cooldowns have expired, stop the timer to save battery.
+      final now = DateTime.now();
+      final anyActive = _cooldownUntil.values.any((exp) => now.isBefore(exp));
+      if (!anyActive) {
+        _cooldownUntil.clear();
+        _countdownTimer?.cancel();
+      }
+      setState(() {});
+    });
+  }
 
   bool _isTapped(String userId) {
     final expiry = _tappedUntil[userId];
     return expiry != null && DateTime.now().isBefore(expiry);
   }
 
+  bool _isOnCooldown(String userId) {
+    final expiry = _cooldownUntil[userId];
+    if (expiry == null) return false;
+    if (DateTime.now().isBefore(expiry)) return true;
+    // Cooldown expired — clean up
+    _cooldownUntil.remove(userId);
+    return false;
+  }
+
+  /// Format the remaining cooldown as "5h 23m" or "23m" or "<1m".
+  String _cooldownLabel(String userId) {
+    final expiry = _cooldownUntil[userId];
+    if (expiry == null) return '';
+    final remaining = expiry.difference(DateTime.now());
+    if (remaining.isNegative) return '';
+    final hours = remaining.inHours;
+    final minutes = remaining.inMinutes.remainder(60);
+    if (hours > 0) return '${hours}h ${minutes}m';
+    if (minutes > 0) return '${minutes}m';
+    return '<1m';
+  }
+
   Future<void> _onTap(BuildContext context, FamilyKinrelMember member) async {
     final userId = member.userId;
 
-    if (_cooldown.contains(userId)) {
-      _showSnack(context, 'You recently sent a Thinking of You. Try again later.');
+    // Client-side cooldown gate — prevents the RPC call entirely if the
+    // user is still on cooldown. The server also enforces this.
+    if (_isOnCooldown(userId)) {
+      _showSnack(context, 'Available again in ${_cooldownLabel(userId)}.');
       return;
     }
+
+    // Don't allow a second concurrent send to the same member
+    if (_pendingMember == userId) return;
 
     HapticFeedback.lightImpact();
 
     // Optimistic UI: show tapped state immediately
     setState(() {
       _tappedUntil[userId] = DateTime.now().add(const Duration(seconds: 3));
+      _pendingMember = userId;
     });
 
     try {
@@ -198,27 +262,59 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
       if (result.success) {
         // Show the personalized message returned by the RPC
         _showSnack(context, result.message ?? '${member.name} knows you\'re thinking of them');
+
+        // Store the cooldown expiry so the button stays disabled + shows
+        // a live countdown.
+        final expiresAt = result.cooldownExpiresAtUtc;
+        if (expiresAt != null) {
+          setState(() {
+            _cooldownUntil[userId] = expiresAt.toLocal();
+          });
+          _ensureCountdownTimer();
+        }
       } else if (result.error == 'cooldown') {
-        // Cooldown active — add to local cooldown set + show message
+        // Server says we're on cooldown — sync the local state with the
+        // server's cooldownExpiresAt so the countdown is accurate.
+        final expiresAt = result.cooldownExpiresAtUtc;
         setState(() {
           _tappedUntil.remove(userId);
-          _cooldown.add(userId);
+          if (expiresAt != null) {
+            _cooldownUntil[userId] = expiresAt.toLocal();
+          }
         });
-        // Remove from cooldown after 60s (UI-only, the real cooldown
-        // is 12 hours on the server, but we don't want to block the UI
-        // for that long — the server will reject if they try again)
-        Future.delayed(const Duration(seconds: 60), () {
-          if (mounted) setState(() => _cooldown.remove(userId));
-        });
+        if (expiresAt != null) _ensureCountdownTimer();
         _showSnack(context, result.message ?? 'Already sent — try again later.');
       } else {
-        // Other error — revert the tap animation
+        // Other errors — show the meaningful message from the RPC.
+        // The RPC now returns specific error codes with human-readable
+        // messages, so we prefer those over a generic "Something went wrong".
         setState(() => _tappedUntil.remove(userId));
-        _showSnack(context, 'Something went wrong. Try again.');
+        _showSnack(context, result.message ?? _fallbackMessage(result.error));
       }
     } catch (e) {
       setState(() => _tappedUntil.remove(userId));
-      if (mounted) _showSnack(context, 'Something went wrong. Try again.');
+      if (mounted) {
+        _showSnack(context, 'Network error. Please check your connection and try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _pendingMember = null);
+    }
+  }
+
+  /// Map RPC error codes to user-friendly messages (used when the RPC
+  /// doesn't include a 'message' field).
+  String _fallbackMessage(String? errorCode) {
+    switch (errorCode) {
+      case 'cannot_send_to_self':
+        return 'You cannot send a Thinking of You moment to yourself.';
+      case 'receiver_not_in_family':
+        return 'Recipient not found in this family.';
+      case 'not_authenticated':
+        return 'You must be signed in to send a Thinking of You moment.';
+      case 'network_error':
+        return 'Network error. Please check your connection and try again.';
+      default:
+        return 'Something went wrong. Please try again.';
     }
   }
 
@@ -226,7 +322,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        duration: const Duration(seconds: 2),
+        duration: const Duration(seconds: 3),
         behavior: SnackBarBehavior.floating,
         backgroundColor: KinrelColors.darkCard,
       ),
@@ -335,7 +431,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
           ),
         ),
         SizedBox(
-          height: 84,
+          height: 96,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -345,10 +441,14 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
               final member = displayMembers[index];
               final userId = member.userId;
               final tapped = _isTapped(userId);
-              final onCooldown = _cooldown.contains(userId);
+              final onCooldown = _isOnCooldown(userId);
+              final isPending = _pendingMember == userId;
+              final cooldownLabel = onCooldown ? _cooldownLabel(userId) : '';
 
               return GestureDetector(
-                onTap: () => _onTap(context, member),
+                onTap: (onCooldown || isPending)
+                    ? null
+                    : () => _onTap(context, member),
                 child: AnimatedScale(
                   scale: tapped ? 1.12 : 1.0,
                   duration: const Duration(milliseconds: 200),
@@ -378,30 +478,71 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
                                 color: tapped
                                     ? KinrelColors.orange
                                     : onCooldown
-                                        ? Colors.white24
+                                        ? KinrelColors.textDim.withValues(alpha: 0.4)
                                         : Colors.white12,
                                 width: tapped ? 2 : 1.5,
                               ),
                             ),
                             child: ClipOval(
-                              child: ColorFiltered(
-                                colorFilter: onCooldown
-                                    ? const ColorFilter.mode(
-                                        Colors.grey, BlendMode.saturation)
-                                    : const ColorFilter.mode(
-                                        Colors.transparent,
-                                        BlendMode.saturation),
-                                child: (member.avatarUrl != null &&
-                                        member.avatarUrl!.isNotEmpty)
-                                    ? Image.network(
-                                        member.avatarUrl!,
-                                        width: 52,
-                                        height: 52,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) =>
-                                            _Placeholder(name: member.name),
-                                      )
-                                    : _Placeholder(name: member.name),
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  // Avatar or placeholder
+                                  ColorFiltered(
+                                    colorFilter: onCooldown
+                                        ? const ColorFilter.mode(
+                                            Colors.grey, BlendMode.saturation)
+                                        : const ColorFilter.mode(
+                                            Colors.transparent,
+                                            BlendMode.saturation),
+                                    child: (member.avatarUrl != null &&
+                                            member.avatarUrl!.isNotEmpty)
+                                        ? Image.network(
+                                            member.avatarUrl!,
+                                            width: 52,
+                                            height: 52,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) =>
+                                                _Placeholder(name: member.name),
+                                          )
+                                        : _Placeholder(name: member.name),
+                                  ),
+                                  // Pending spinner (while the RPC is in flight)
+                                  if (isPending)
+                                    Container(
+                                      color: Colors.black54,
+                                      child: const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: KinrelColors.orange,
+                                        ),
+                                      ),
+                                    ),
+                                  // Cooldown lock badge
+                                  if (onCooldown)
+                                    Positioned(
+                                      right: 0,
+                                      bottom: 0,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(3),
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: KinrelColors.darkCard,
+                                          border: Border.all(
+                                            color: KinrelColors.textDim,
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          Icons.lock_rounded,
+                                          size: 10,
+                                          color: KinrelColors.textDim,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           ),
@@ -409,7 +550,7 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
                       ),
                       const SizedBox(height: 4),
                       SizedBox(
-                        width: 56,
+                        width: 64,
                         child: Text(
                           member.name.split(' ').first,
                           textAlign: TextAlign.center,
@@ -417,10 +558,27 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 10,
-                            color: KinrelColors.textDim,
+                            color: onCooldown
+                                ? KinrelColors.textDim
+                                : KinrelColors.textSilver,
                           ),
                         ),
                       ),
+                      // Cooldown countdown label
+                      if (onCooldown && cooldownLabel.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            cooldownLabel,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w500,
+                              color: KinrelColors.orange,
+                            ),
+                          ),
+                        )
+                      else
+                        const SizedBox(height: 12), // keep consistent height
                     ],
                   ),
                 ),
