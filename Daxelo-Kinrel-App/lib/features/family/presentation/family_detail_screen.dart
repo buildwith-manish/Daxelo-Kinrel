@@ -21,7 +21,6 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/member_list_skeleton.dart';
 import '../../../graph/widgets/family_graph_engine_view.dart';
-import '../../../features/family_map/widgets/build_identifier_label.dart';
 import 'family_space_floating_nav.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
@@ -321,15 +320,6 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                 ],
               ),
 
-              // ── Build identifier chip (top-left overlay) ─────────────
-              // Reuses the same BuildIdentifierLabel widget that the
-              // Family Map screen uses, so the build hash/timestamp is
-              // visible on the Family Space home screen too WITHOUT
-              // needing to navigate to the map. The widget is self-
-              // contained: it returns a Positioned(left: 8, top: 8) with
-              // an IgnorePointer wrapper, so it overlays the content
-              // without intercepting any taps.
-              const BuildIdentifierLabel(),
             ],
           );
         },
