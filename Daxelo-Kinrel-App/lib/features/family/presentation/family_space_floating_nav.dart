@@ -68,16 +68,16 @@ class FamilySpaceFloatingNav extends StatelessWidget {
   final String familyId;
 
   // ── Design constants ──
-  // Centralised so they're easy to tune. All values match the user's
-  // target spec from the reference image.
-  static const _height = 88.0;
-  static const _sideMargin = 20.0;
-  static const _bottomMargin = 18.0;
-  static const _cornerRadius = 28.0;
-  static const _verticalPadding = 14.0;
-  static const _iconSize = 27.0;
-  static const _iconLabelGap = 8.0;
-  static const _labelFontSize = 13.0;
+  // Centralised so they're easy to tune. All values match the reference
+  // image proportions analysed via VLM.
+  static const _height = 88.0;        // ~12-14% of screen height
+  static const _sideMargin = 20.0;     // ~5% of screen width
+  static const _bottomMargin = 18.0;  // ~2.5-3% of screen height
+  static const _cornerRadius = 24.0;   // ~27% of bar height (premium squircle)
+  static const _verticalPadding = 12.0; // generous internal padding
+  static const _iconSize = 32.0;       // ~36% of bar height — prominent
+  static const _iconLabelGap = 6.0;     // ~7% of bar height — tight, grouped
+  static const _labelFontSize = 14.0;  // readable, prominent
 
   static const _tabs = [
     _NavTab(
@@ -262,18 +262,17 @@ class _NavTabButton extends StatelessWidget {
                 ),
               ),
               // ── Active indicator pill (below the label) ──
-              // A small rounded pill that appears under the active tab.
-              // This gives a clear visual highlight even without a
-              // background tint, matching the reference's clean style.
-              SizedBox(height: isSelected ? 5 : 8),
+              // A small rounded capsule in the active color, matching the
+              // reference image's underline-style indicator.
+              SizedBox(height: isSelected ? 4 : 8),
               Container(
-                width: isSelected ? 24 : 0,
-                height: isSelected ? 3.5 : 0,
+                width: isSelected ? 26 : 0,
+                height: isSelected ? 3 : 0,
                 decoration: BoxDecoration(
                   color: isSelected
                       ? KinrelColors.orange
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(1.75),
+                  borderRadius: BorderRadius.circular(1.5),
                 ),
               ),
             ],
