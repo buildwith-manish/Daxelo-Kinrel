@@ -6,6 +6,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../shared_list_provider.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 
@@ -35,7 +36,19 @@ class _SharedListScreenState extends ConsumerState<SharedListScreen> {
     final notifier = SharedListNotifier(ref);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Lists & Errands')),
+      appBar: AppBar(
+        title: const Text('Lists & Errands'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/family/${widget.familyId}');
+            }
+          },
+        ),
+      ),
       // Phase 27: extend body behind the floating dock so it floats.
       extendBody: true,
       bottomNavigationBar: FamilySpaceFloatingNav(familyId: widget.familyId),

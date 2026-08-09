@@ -107,13 +107,61 @@ final pendingMembersProvider = StateNotifierProvider<PendingMembersNotifier,
 ///
 /// Pending members are appended at the end of the list.
 /// The UI can differentiate them via `is OptimisticPerson`.
+///
+/// ── Deduplication (v110 — fixes duplicate "Manish" bug) ─────────────
+/// Two dedup passes are applied to guard against the known duplicate-
+/// member scenarios:
+///
+/// 1. **By `id`** — if a pending (optimistic) member has the same `id`
+///    as a real member that just arrived from the server (e.g. the
+///    optimistic insert succeeded but `pendingMembersProvider` wasn't
+///    cleared yet), the duplicate is dropped. Real members win.
+///
+/// 2. **By `linkedUserId`** — if two Person rows in the same family
+///    are linked to the SAME Kinrel user account (e.g. one created via
+///    "Find on Kinrel" and a second created server-side by
+///    `fn_accept_family_invite` when an older version of the RPC
+///    lacked the dedup check), only the first (oldest by list order)
+///    is kept. This directly addresses the "2 Manish / male" report
+///    where both rows had `linkedUserId != null` pointing at the same
+///    auth user. Rows with a null/empty `linkedUserId` (pure
+///    placeholders) are never collapsed by this pass.
 final combinedMembersProvider =
     Provider.family<List<Person>, String>((ref, familyId) {
   final asyncMembers = ref.watch(familyMembersProvider(familyId));
   final pendingMembers = ref.watch(pendingMembersProvider)[familyId] ?? [];
 
   final realMembers = asyncMembers.valueOrNull ?? [];
-  return [...realMembers, ...pendingMembers];
+  final raw = [...realMembers, ...pendingMembers];
+
+  // Pass 1: dedupe by Person `id` (real wins over pending).
+  final seenIds = <String>{};
+  var dedupedById = <Person>[];
+  for (final p in raw) {
+    if (seenIds.add(p.id)) {
+      dedupedById.add(p);
+    }
+  }
+
+  // Pass 2: dedupe by `linkedUserId` within this family. Keeps the
+  // first occurrence (real members come before pending in `raw`, and
+  // `familyMembersProvider` orders by createdAt ascending, so the
+  // oldest Person node for a given user is preserved).
+  final seenLinkedUserIds = <String>{};
+  final deduped = <Person>[];
+  for (final p in dedupedById) {
+    final linkedId = p.linkedUserId;
+    if (linkedId == null || linkedId.isEmpty) {
+      // Pure placeholder — never collapse.
+      deduped.add(p);
+      continue;
+    }
+    if (seenLinkedUserIds.add(linkedId)) {
+      deduped.add(p);
+    }
+  }
+
+  return deduped;
 });
 
 /// Combined member count (real + pending).

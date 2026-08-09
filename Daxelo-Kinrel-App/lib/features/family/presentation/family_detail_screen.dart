@@ -87,7 +87,13 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
         leading: IconButton(
           icon: Icon(Icons.arrow_back),
           tooltip: 'Go back',
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/family/${widget.familyId}');
+            }
+          },
         ),
         title: detailAsync.when(
           loading: () => Text(
