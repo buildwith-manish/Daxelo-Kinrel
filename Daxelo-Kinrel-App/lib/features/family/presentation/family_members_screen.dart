@@ -174,9 +174,9 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                         padding: const EdgeInsets.only(
                           left: KinrelSpacing.base,
                           right: KinrelSpacing.base,
-                          // Account for the floating dock (92px height +
-                          // 22px float gap + breathing room).
-                          bottom: 140,
+                          // Account for the floating dock (88px height +
+                          // 18px bottom margin + safe-area inset).
+                          bottom: 130,
                         ),
                         itemCount: filtered.length,
                         itemBuilder: (context, index) {
