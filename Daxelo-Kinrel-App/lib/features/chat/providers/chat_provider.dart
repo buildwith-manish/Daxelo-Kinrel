@@ -38,7 +38,7 @@ import '../../../core/services/supabase_service.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Message type — drives the bubble content and layout.
-enum MessageType { text, photo, voiceNote, familyEvent }
+enum MessageType { text, photo, voiceNote, familyEvent, sticker }
 
 /// A single emoji reaction on a message.
 class MessageReaction {
@@ -288,6 +288,8 @@ class ChatMessage {
         return MessageType.voiceNote;
       case 'familyEvent':
         return MessageType.familyEvent;
+      case 'sticker':
+        return MessageType.sticker;
       case 'text':
       default:
         return MessageType.text;
@@ -332,6 +334,8 @@ class ChatMessage {
         return 'voiceNote';
       case MessageType.familyEvent:
         return 'familyEvent';
+      case MessageType.sticker:
+        return 'sticker';
       case MessageType.text:
       default:
         return 'text';
@@ -1130,6 +1134,79 @@ class ChatNotifier extends StateNotifier<ChatState> {
         state = state.copyWith(
           messages: withoutFailed,
           error: 'Failed to send voice message',
+        );
+      }
+    }
+  }
+
+  /// Send a sticker message (Phase 14).
+  ///
+  /// A "sticker" in Kinrel is a single large emoji rendered at 4x size
+  /// (e.g. 😀, ❤️, 👍). Stored as messageType='sticker', content=emoji
+  /// character, messageSubType='sticker'. No mediaUrl — the emoji IS
+  /// the message. This keeps storage cheap and rendering trivial.
+  ///
+  /// Stickers differ from text messages:
+  ///   - No bubble background (just the emoji on chat bg)
+  ///   - Centered alignment
+  ///   - Much larger font (64px vs 14.5px)
+  ///   - No "edited" tag, no copy menu (just star / reply / forward)
+  Future<void> sendSticker(String emoji, {String? replyToId}) async {
+    if (emoji.isEmpty) return;
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) {
+      if (mounted) state = state.copyWith(error: 'Not signed in');
+      return;
+    }
+
+    final now = DateTime.now();
+    final msgId = _generateId();
+    final senderName = _currentUserName;
+
+    // Resolve reply-to (if any)
+    String? replyContent;
+    String? replySender;
+    if (replyToId != null) {
+      final replyTo = state.messages.firstWhere(
+        (m) => m.id == replyToId,
+        orElse: () => state.messages.first,
+      );
+      replyContent = replyTo.content;
+      replySender = replyTo.senderName;
+    }
+
+    final optimistic = ChatMessage(
+      id: msgId,
+      senderId: myUserId,
+      senderName: senderName,
+      content: emoji,
+      messageType: MessageType.sticker,
+      timestamp: now,
+      isRead: false,
+      replyToId: replyToId,
+      replyToContent: replyContent,
+      replyToSenderName: replySender,
+      senderInitials: _initialsFromName(senderName),
+      messageSubType: 'sticker',
+    );
+
+    _pendingOptimisticIds.add(msgId);
+    final updated = [optimistic, ...state.messages];
+    if (mounted) state = state.copyWith(messages: updated, clearReplyTo: true);
+
+    try {
+      await client.from('ChatMessage').insert(optimistic.toJson(
+        familyId: familyId,
+      ));
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendSticker insert failed: $e');
+      _pendingOptimisticIds.remove(msgId);
+      if (mounted) {
+        final withoutFailed = state.messages.where((m) => m.id != msgId).toList();
+        state = state.copyWith(
+          messages: withoutFailed,
+          error: 'Failed to send sticker',
         );
       }
     }

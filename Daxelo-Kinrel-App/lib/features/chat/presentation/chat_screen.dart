@@ -40,6 +40,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../data/chat_enhancement_service.dart';
 import '../providers/chat_provider.dart';
 import 'voice_message_player.dart';
+import 'sticker_panel.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Chat Screen
@@ -82,6 +83,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Duration _recordingDuration = Duration.zero;
   String? _recordingPath;
   Timer? _recordingTimer;
+
+  // Phase 14: Sticker panel toggle
+  bool _showStickerPanel = false;
 
   // Quick reaction emojis
   static const _reactionEmojis = ['❤️', '😂', '👍', '😮', '😢', '🙏'];
@@ -201,6 +205,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     _textController.clear();
     _focusNode.requestFocus();
+    // Phase 14: hide sticker panel when sending a text message
+    if (_showStickerPanel && mounted) {
+      setState(() => _showStickerPanel = false);
+    }
+  }
+
+  // ── Phase 14: Sticker send ──────────────────────────────────────────
+
+  void _sendSticker(String emoji) {
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final replyToId = chatState.replyToMessage?.id;
+    Future.microtask(() {
+      ref
+          .read(chatProvider(widget.familyId).notifier)
+          .sendSticker(emoji, replyToId: replyToId);
+    });
+    if (mounted) {
+      setState(() => _showStickerPanel = false);
+    }
+  }
+
+  void _toggleStickerPanel() {
+    // Hide keyboard when opening sticker panel
+    if (!_showStickerPanel) {
+      _focusNode.unfocus();
+    }
+    setState(() => _showStickerPanel = !_showStickerPanel);
   }
 
   void _showReactionPicker(String messageId) {
@@ -269,6 +300,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           // Reply preview bar
           if (chatState.replyToMessage != null)
             _buildReplyPreview(chatState.replyToMessage!),
+          // Phase 14: Sticker panel (slides up when toggled)
+          if (_showStickerPanel && !_isRecording)
+            StickerPanel(
+              onStickerSelected: _sendSticker,
+              onClose: _toggleStickerPanel,
+            ),
           // Input bar
           _buildInputBar(),
         ],
@@ -939,6 +976,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             // Attachment button
             _AttachmentButton(
               onTap: () => _pickAndSendAttachment(),
+            ),
+            const SizedBox(width: 6),
+            // Phase 14: Sticker toggle button
+            _StickerButton(
+              isActive: _showStickerPanel,
+              onTap: _toggleStickerPanel,
             ),
             const SizedBox(width: 6),
             // Text field
@@ -1712,7 +1755,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 },
               ),
               // Edit (only for own text messages)
-              if (isMe && message.messageType == 'text')
+              if (isMe && message.messageType == MessageType.text)
                 ListTile(
                   leading: Icon(
                     Icons.edit_outlined,
@@ -1892,6 +1935,12 @@ class _MessageBubble extends ConsumerWidget {
     // _MessageBubble is a separate widget (not _ChatScreenState), so it
     // can't use the _currentUserId getter — it reads the provider directly.
     final currentUserId = ref.watch(chatCurrentUserIdProvider);
+
+    // Phase 14: Sticker messages render WITHOUT the bubble background —
+    // just the emoji + a small timestamp underneath. They are centered
+    // for solo emoji impact, like WhatsApp stickers.
+    final isSticker = message.messageType == MessageType.sticker;
+
     return GestureDetector(
       onLongPress: onLongPress,
       child: Align(
@@ -1910,38 +1959,53 @@ class _MessageBubble extends ConsumerWidget {
               if (message.replyToId != null) _buildReplyPreview(),
               // Bubble
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
+                padding: isSticker
+                    ? const EdgeInsets.symmetric(horizontal: 4, vertical: 2)
+                    : const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                 decoration: BoxDecoration(
-                  color: isMe
-                      ? const Color(0xFFE8612A).withValues(alpha: 0.08)
-                      : const Color(0xFF191B2C),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(KinrelRadius.lg),
-                    topRight: Radius.circular(KinrelRadius.lg),
-                    bottomLeft: Radius.circular(isMe ? KinrelRadius.lg : 4),
-                    bottomRight: Radius.circular(isMe ? 4 : KinrelRadius.lg),
-                  ),
-                  border: isMe
-                      ? Border.all(
-                          color: KinrelColors.orange.withValues(alpha: 0.12),
-                          width: 0.5,
-                        )
-                      : Border.all(color: const Color(0xFF2A2A3D), width: 0.5),
+                  // Stickers: transparent background (just the emoji on chat bg)
+                  color: isSticker
+                      ? Colors.transparent
+                      : (isMe
+                          ? const Color(0xFFE8612A).withValues(alpha: 0.08)
+                          : const Color(0xFF191B2C)),
+                  borderRadius: isSticker
+                      ? BorderRadius.zero
+                      : BorderRadius.only(
+                          topLeft: Radius.circular(KinrelRadius.lg),
+                          topRight: Radius.circular(KinrelRadius.lg),
+                          bottomLeft:
+                              Radius.circular(isMe ? KinrelRadius.lg : 4),
+                          bottomRight:
+                              Radius.circular(isMe ? 4 : KinrelRadius.lg),
+                        ),
+                  border: isSticker
+                      ? Border.all(color: Colors.transparent)
+                      : (isMe
+                          ? Border.all(
+                              color:
+                                  KinrelColors.orange.withValues(alpha: 0.12),
+                              width: 0.5,
+                            )
+                          : Border.all(
+                              color: const Color(0xFF2A2A3D), width: 0.5)),
                 ),
                 child: Column(
                   crossAxisAlignment: isMe
                       ? CrossAxisAlignment.end
                       : CrossAxisAlignment.start,
                   children: [
-                    // Sender name (for received messages)
-                    if (!isMe) _buildSenderName(),
+                    // Sender name (for received messages, skip for stickers)
+                    if (!isMe && !isSticker) _buildSenderName(),
                     // Message content
                     _buildMessageContent(),
-                    // Time and read receipt row
-                    _buildTimeRow(),
+                    // Time and read receipt row (skip for stickers —
+                    // stickers show time inline below)
+                    if (!isSticker) _buildTimeRow(),
+                    if (isSticker) _buildStickerTimeRow(),
                   ],
                 ),
               ),
@@ -2151,6 +2215,20 @@ class _MessageBubble extends ConsumerWidget {
           ),
         );
 
+      case MessageType.sticker:
+        // Phase 14: render the emoji at 4x size with no bubble background.
+        // The emoji IS the message — no text wrapping needed.
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Text(
+            message.content,
+            style: const TextStyle(
+              fontSize: 64,
+              height: 1.0,
+            ),
+          ),
+        );
+
       case MessageType.familyEvent:
         return Container(
           padding: const EdgeInsets.all(10),
@@ -2273,6 +2351,25 @@ class _MessageBubble extends ConsumerWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// Phase 14: A minimal time row for stickers — right-aligned below the
+  /// emoji, no read receipts (stickers don't need delivery confirmation).
+  Widget _buildStickerTimeRow() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 0),
+      child: Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: Text(
+          message.formattedTime,
+          style: TextStyle(
+            fontFamily: KinrelTypography.monoFont,
+            fontSize: 10,
+            color: KinrelColors.textDim,
+          ),
+        ),
       ),
     );
   }
@@ -2509,14 +2606,53 @@ class _MicButton extends StatelessWidget {
       child: Container(
         width: 44,
         height: 44,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           shape: BoxShape.circle,
-          color: const Color(0xFF202338),
+          color: Color(0xFF202338),
         ),
         child: Icon(
           Icons.mic_rounded,
           size: 22,
           color: KinrelColors.textSilver,
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Sticker Button (Phase 14 — toggles the sticker panel)
+// ═══════════════════════════════════════════════════════════════════════
+
+class _StickerButton extends StatelessWidget {
+  const _StickerButton({required this.isActive, required this.onTap});
+
+  final bool isActive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isActive
+              ? KinrelColors.orange.withValues(alpha: 0.15)
+              : const Color(0xFF202338),
+          border: isActive
+              ? Border.all(color: KinrelColors.orange.withValues(alpha: 0.4), width: 1)
+              : null,
+        ),
+        child: Icon(
+          Icons.emoji_emotions_rounded,
+          size: 22,
+          color: isActive
+              ? KinrelColors.orange
+              : KinrelColors.textSilver,
         ),
       ),
     );

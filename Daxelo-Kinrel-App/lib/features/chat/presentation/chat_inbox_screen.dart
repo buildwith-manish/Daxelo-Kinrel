@@ -336,7 +336,7 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
   }
 
   /// Phase 13: build a short preview string for the latest message in
-  /// a chat row. Handles photo, voice, family-event, and text messages.
+  /// a chat row. Handles photo, voice, family-event, sticker, and text messages.
   String _lastMessagePreview(ChatMessage msg) {
     switch (msg.messageType) {
       case MessageType.photo:
@@ -348,6 +348,9 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
         return 'Voice message ($m:$s)';
       case MessageType.familyEvent:
         return msg.eventTitle ?? 'Family Event';
+      case MessageType.sticker:
+        // Show the emoji directly — it's instantly recognizable
+        return msg.content;
       case MessageType.text:
       default:
         return msg.content;
