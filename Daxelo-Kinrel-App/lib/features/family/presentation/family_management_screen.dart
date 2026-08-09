@@ -31,8 +31,6 @@ class FamilySettings {
     this.whoCanCreateTruthStreak = 'everyone',
     this.whoCanAddEvents = 'everyone',
     this.allowMemberRemoval = true,
-    this.allowMembersToLeave = true,
-    this.confirmBeforeDeleteRelationship = true,
     this.requireJoinApproval = false,
     this.familyVisibility = 'invite_only',
   });
@@ -48,9 +46,6 @@ class FamilySettings {
       whoCanCreateTruthStreak: json['whoCanCreateTruthStreak'] ?? 'everyone',
       whoCanAddEvents: json['whoCanAddEvents'] ?? 'everyone',
       allowMemberRemoval: json['allowMemberRemoval'] ?? true,
-      allowMembersToLeave: json['allowMembersToLeave'] ?? true,
-      confirmBeforeDeleteRelationship:
-          json['confirmBeforeDeleteRelationship'] ?? true,
       requireJoinApproval: json['requireJoinApproval'] ?? false,
       familyVisibility: json['familyVisibility'] ?? 'invite_only',
     );
@@ -65,8 +60,6 @@ class FamilySettings {
   final String whoCanCreateTruthStreak;
   final String whoCanAddEvents;
   final bool allowMemberRemoval;
-  final bool allowMembersToLeave;
-  final bool confirmBeforeDeleteRelationship;
   final bool requireJoinApproval;
   final String familyVisibility;
 }
@@ -149,6 +142,10 @@ class FamilyManagementScreen extends ConsumerStatefulWidget {
 class _FamilyManagementScreenState
     extends ConsumerState<FamilyManagementScreen> {
   FamilySettings? _settings;
+  /// Role of the current user in this family: 'creator', 'admin', 'member', or null.
+  /// Returned by fn_get_family_settings so the UI knows whether to render
+  /// editable controls or read-only views.
+  String? _currentUserRole;
   bool _isLoading = true;
   bool _isUpdating = false;
 
@@ -176,6 +173,9 @@ class _FamilyManagementScreenState
           _settings = FamilySettings.fromJson(
             (result!['settings'] as Map<String, dynamic>?) ?? {},
           );
+          // fn_get_family_settings returns the caller's role so we can
+          // enforce UI-level permissions (creator / admin / member).
+          _currentUserRole = result['role'] as String?;
           _isLoading = false;
         });
       } else {
@@ -184,6 +184,40 @@ class _FamilyManagementScreenState
     } catch (e) {
       setState(() => _isLoading = false);
     }
+  }
+
+  // ── Permission helpers ──
+  //
+  // Three tiers:
+  //   creator — full control over everything
+  //   admin   — can edit most settings, but cannot touch Creator-only ones
+  //   member  — read-only; cannot modify any settings
+  //
+  // The backend RPC also enforces these rules, so even if a member
+  // somehow triggers an update, the server will reject it.
+
+  bool get _isCreator => _currentUserRole == 'creator';
+  bool get _isAdmin   => _currentUserRole == 'admin';
+  bool get _isMember  => _currentUserRole == 'member' || _currentUserRole == null;
+
+  /// Whether the current user can edit ANY setting at all.
+  /// Members get read-only access.
+  bool get _canEdit => _isCreator || _isAdmin;
+
+  /// Creator-only settings — admins can view but cannot change these.
+  /// Matches the v_creator_only_settings list in the SQL migration.
+  static const _creatorOnlySettings = {
+    'whoCanEditInfo',
+    'familyVisibility',
+    'allowMemberRemoval',
+    'requireJoinApproval',
+  };
+
+  /// Whether the current user can edit a specific setting.
+  bool _canEditSetting(String key) {
+    if (_isMember) return false;
+    if (_isAdmin && _creatorOnlySettings.contains(key)) return false;
+    return true;
   }
 
   Future<void> _updateSetting(String settingName, String value) async {
@@ -258,6 +292,9 @@ class _FamilyManagementScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── Role banner (shows the user's tier + whether they can edit) ──
+              _buildRoleBanner(),
+
               // ── Permissions ──
               _buildSection('Permissions'),
               _buildPermissionTile('Who can invite members', 'whoCanInvite',
@@ -281,10 +318,6 @@ class _FamilyManagementScreenState
               _buildSection('Safety Controls'),
               _buildSwitchTile('Allow member removal', 'allowMemberRemoval',
                   Icons.person_remove_outlined),
-              _buildSwitchTile('Allow members to leave', 'allowMembersToLeave',
-                  Icons.logout),
-              _buildSwitchTile('Confirm before deleting relationships',
-                  'confirmBeforeDeleteRelationship', Icons.warning_amber_outlined),
 
               const SizedBox(height: 24),
               _buildSection('Join Approval'),
@@ -295,16 +328,21 @@ class _FamilyManagementScreenState
               _buildSection('Family Privacy'),
               _buildPrivacyTile(),
 
-              const SizedBox(height: 24),
-              _buildSection('Member Management'),
-              _buildActionTile(
-                icon: Icons.people_outline,
-                title: 'Manage Members',
-                subtitle:
-                    'Promote, demote, remove, transfer ownership',
-                onTap: () => _showMemberManagement(),
-              ),
+              // Member Management is only shown to Creator + Admin
+              if (_canEdit) ...[
+                const SizedBox(height: 24),
+                _buildSection('Member Management'),
+                _buildActionTile(
+                  icon: Icons.people_outline,
+                  title: 'Manage Members',
+                  subtitle: _isCreator
+                      ? 'Promote, demote, remove, transfer ownership'
+                      : 'Promote, demote, remove members',
+                  onTap: () => _showMemberManagement(),
+                ),
+              ],
 
+              // Activity Log is visible to everyone (read-only)
               const SizedBox(height: 24),
               _buildSection('Activity Log'),
               _buildActionTile(
@@ -319,9 +357,9 @@ class _FamilyManagementScreenState
               _buildRoleInfo('Creator',
                   'Full control over the family', KinrelColors.orange),
               _buildRoleInfo('Admin',
-                  'Can manage settings and members', KinrelColors.amber),
+                  'Can manage approved settings but cannot access Creator-only controls', KinrelColors.amber),
               _buildRoleInfo('Member',
-                  'Standard family member', KinrelColors.textSilver),
+                  'View-only access; cannot modify any settings', KinrelColors.textSilver),
 
               const SizedBox(height: 40),
             ],
@@ -335,6 +373,58 @@ class _FamilyManagementScreenState
             ),
           ),
       ],
+    );
+  }
+
+  /// A banner showing the user's role in this family.
+  /// Members get a "read-only" hint so they understand why controls are disabled.
+  Widget _buildRoleBanner() {
+    final (role, color, icon) = switch (_currentUserRole) {
+      'creator' => ('Creator', KinrelColors.orange, Icons.diamond_outlined),
+      'admin'   => ('Admin',   KinrelColors.amber,  Icons.shield_outlined),
+      'member'  => ('Member',  KinrelColors.textSilver, Icons.person_outline),
+      _         => ('Guest',   KinrelColors.textDim,   Icons.help_outline),
+    };
+    final canEdit = _canEdit;
+    return Container(
+      margin: const EdgeInsets.only(top: 12, bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 22, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('You are: $role',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 14, fontWeight: FontWeight.w700,
+                      color: color,
+                    )),
+                const SizedBox(height: 2),
+                Text(
+                  canEdit
+                      ? (_isCreator
+                          ? 'You have full control over all settings.'
+                          : 'You can manage approved settings. Creator-only controls are locked.')
+                      : 'You have view-only access. Only Admins and the Creator can modify settings.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: canEdit ? KinrelColors.textSilver : KinrelColors.textDim,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -356,42 +446,66 @@ class _FamilyManagementScreenState
   Widget _buildPermissionTile(
       String title, String settingKey, IconData icon) {
     final currentValue = _getValue(settingKey);
+    final canEdit = _canEditSetting(settingKey);
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
+        color: canEdit ? KinrelColors.darkCard : KinrelColors.darkCard.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: KinrelColors.border, width: 1),
+        border: Border.all(
+          color: canEdit ? KinrelColors.border : KinrelColors.border.withValues(alpha: 0.5),
+          width: 1,
+        ),
       ),
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 14),
-        leading: Icon(icon, size: 20, color: KinrelColors.orange),
-        title: Text(title,
-            style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w500,
-                color: KinrelColors.textWhite)),
+        leading: Icon(icon, size: 20,
+            color: canEdit ? KinrelColors.orange : KinrelColors.textDim),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(title,
+                  style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500,
+                      color: canEdit ? KinrelColors.textWhite : KinrelColors.textSilver)),
+            ),
+            if (!canEdit) ...[
+              Icon(Icons.lock_outline, size: 14, color: KinrelColors.textDim),
+              const SizedBox(width: 6),
+            ],
+          ],
+        ),
         subtitle: Text(_permissionLabel(currentValue),
             style: TextStyle(fontSize: 11, color: KinrelColors.textDim)),
         childrenPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
         children: [
-          _buildRadioOption(settingKey, 'everyone', 'Everyone', currentValue),
-          _buildRadioOption(settingKey, 'admins', 'Admins only', currentValue),
-          _buildRadioOption(settingKey, 'creator', 'Creator only', currentValue),
+          _buildRadioOption(settingKey, 'everyone', 'Everyone', currentValue, canEdit),
+          _buildRadioOption(settingKey, 'admins', 'Admins only', currentValue, canEdit),
+          _buildRadioOption(settingKey, 'creator', 'Creator only', currentValue, canEdit),
         ],
       ),
     );
   }
 
   Widget _buildRadioOption(
-      String key, String value, String label, String current) {
+      String key, String value, String label, String current, bool canEdit) {
     return RadioListTile<String>(
       value: value,
       groupValue: current,
-      onChanged: _isUpdating ? null : (v) => _updateSetting(key, v!),
+      // Pass null to onChanged to render as disabled (greyed out, not tappable)
+      onChanged: (_isUpdating || !canEdit)
+          ? null
+          : (v) => _updateSetting(key, v!),
       title: Text(label,
-          style: TextStyle(fontSize: 13, color: KinrelColors.textSilver)),
+          style: TextStyle(
+              fontSize: 13,
+              color: canEdit ? KinrelColors.textSilver : KinrelColors.textDim)),
       activeColor: KinrelColors.orange,
+      fillColor: WidgetStateProperty.resolveWith<Color?>((states) {
+        if (states.contains(WidgetState.disabled)) return KinrelColors.textDim;
+        return KinrelColors.orange;
+      }),
       dense: true,
       contentPadding: EdgeInsets.zero,
     );
@@ -400,55 +514,94 @@ class _FamilyManagementScreenState
   Widget _buildSwitchTile(
       String title, String key, IconData icon) {
     final value = _getBoolValue(key);
+    final canEdit = _canEditSetting(key);
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
+        color: canEdit ? KinrelColors.darkCard : KinrelColors.darkCard.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: KinrelColors.border, width: 1),
+        border: Border.all(
+          color: canEdit ? KinrelColors.border : KinrelColors.border.withValues(alpha: 0.5),
+          width: 1,
+        ),
       ),
       child: SwitchListTile(
-        secondary: Icon(icon, size: 20, color: KinrelColors.orange),
-        title: Text(title,
-            style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w500,
-                color: KinrelColors.textWhite)),
+        secondary: Icon(icon, size: 20,
+            color: canEdit ? KinrelColors.orange : KinrelColors.textDim),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(title,
+                  style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500,
+                      color: canEdit ? KinrelColors.textWhite : KinrelColors.textSilver)),
+            ),
+            if (!canEdit) ...[
+              Icon(Icons.lock_outline, size: 14, color: KinrelColors.textDim),
+              const SizedBox(width: 6),
+            ],
+          ],
+        ),
         value: value,
-        onChanged: _isUpdating
+        // Null disables the toggle AND visually greys it out.
+        onChanged: (_isUpdating || !canEdit)
             ? null
             : (v) => _updateSetting(key, v.toString()),
+        // Proper Material 3 switch design: orange track + white thumb
+        // when ON; grey track + grey thumb when OFF. The previous
+        // implementation only set `activeColor` which on Material 3
+        // collapses to a fully-orange block with no thumb distinction.
         activeColor: KinrelColors.orange,
+        activeTrackColor: KinrelColors.orange.withValues(alpha: 0.4),
+        inactiveThumbColor: KinrelColors.textSilver,
+        inactiveTrackColor: KinrelColors.border,
+        trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
       ),
     );
   }
 
   Widget _buildPrivacyTile() {
     final currentValue = _getValue('familyVisibility');
+    final canEdit = _canEditSetting('familyVisibility');
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
+        color: canEdit ? KinrelColors.darkCard : KinrelColors.darkCard.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: KinrelColors.border, width: 1),
+        border: Border.all(
+          color: canEdit ? KinrelColors.border : KinrelColors.border.withValues(alpha: 0.5),
+          width: 1,
+        ),
       ),
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 14),
-        leading: const Icon(Icons.lock_outline, size: 20, color: KinrelColors.orange),
-        title: const Text('Family Visibility',
-            style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w500,
-                color: KinrelColors.textWhite)),
+        leading: Icon(Icons.lock_outline, size: 20,
+            color: canEdit ? KinrelColors.orange : KinrelColors.textDim),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text('Family Visibility',
+                  style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500,
+                      color: canEdit ? KinrelColors.textWhite : KinrelColors.textSilver)),
+            ),
+            if (!canEdit) ...[
+              Icon(Icons.lock_outline, size: 14, color: KinrelColors.textDim),
+              const SizedBox(width: 6),
+            ],
+          ],
+        ),
         subtitle: Text(_visibilityLabel(currentValue),
             style: TextStyle(fontSize: 11, color: KinrelColors.textDim)),
         childrenPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
         children: [
           _buildRadioOption('familyVisibility', 'private',
-              'Private (hidden)', currentValue),
+              'Private (hidden)', currentValue, canEdit),
           _buildRadioOption('familyVisibility', 'invite_only',
-              'Invite Only', currentValue),
+              'Invite Only', currentValue, canEdit),
           _buildRadioOption('familyVisibility', 'public',
-              'Public Discovery', currentValue),
+              'Public Discovery', currentValue, canEdit),
         ],
       ),
     );
@@ -656,17 +809,22 @@ class _FamilyManagementScreenState
               ],
             ),
           ),
-          // Actions
-          if (!m.isCreator)
+          // Actions — only show for non-creator members.
+          // Admins can promote/demote/remove but cannot transfer ownership.
+          // (Transfer ownership is a Creator-only action.)
+          if (!m.isCreator && _canEdit)
             PopupMenuButton<String>(
               icon: Icon(Icons.more_vert, color: KinrelColors.textDim, size: 20),
               color: KinrelColors.darkCard,
               onSelected: (action) => _handleMemberAction(m, action),
               itemBuilder: (ctx) => [
+                // Admins can promote other members
                 if (m.role == 'member')
                   const PopupMenuItem(value: 'promote', child: Text('Promote to Admin')),
+                // Admins can demote other admins
                 if (m.role == 'admin')
                   const PopupMenuItem(value: 'demote', child: Text('Remove Admin')),
+                // Admins can remove members
                 const PopupMenuItem(value: 'remove', child: Text('Remove Member')),
               ],
             ),
@@ -920,9 +1078,8 @@ class _FamilyManagementScreenState
   bool _getBoolValue(String key) {
     switch (key) {
       case 'allowMemberRemoval': return _settings!.allowMemberRemoval;
-      case 'allowMembersToLeave': return _settings!.allowMembersToLeave;
-      case 'confirmBeforeDeleteRelationship': return _settings!.confirmBeforeDeleteRelationship;
       case 'requireJoinApproval': return _settings!.requireJoinApproval;
+      // Deprecated settings — return defaults (UI no longer renders them)
       default: return true;
     }
   }
