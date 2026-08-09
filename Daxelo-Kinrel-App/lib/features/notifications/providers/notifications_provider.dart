@@ -37,6 +37,8 @@ enum NotificationType {
   familyCreated,
   inviteLinkReady,
   memberJoinedViaInvite,
+  thinkingOfYou, // Phase 21: private Thinking of You moment
+  invitationAccepted, // Phase 21: sender notification when receiver accepts
 }
 
 /// Map from NotificationType to display-friendly label.
@@ -54,6 +56,8 @@ const Map<NotificationType, String> notificationTypeLabels = {
   NotificationType.familyCreated: 'Family',
   NotificationType.inviteLinkReady: 'Family',
   NotificationType.memberJoinedViaInvite: 'Family',
+  NotificationType.thinkingOfYou: 'Thinking of You',
+  NotificationType.invitationAccepted: 'Invitation Accepted',
 };
 
 /// Map from NotificationType to NotificationCategory.
@@ -71,6 +75,8 @@ const Map<NotificationType, NotificationCategory> notificationTypeCategory = {
   NotificationType.familyCreated: NotificationCategory.family,
   NotificationType.inviteLinkReady: NotificationCategory.family,
   NotificationType.memberJoinedViaInvite: NotificationCategory.family,
+  NotificationType.thinkingOfYou: NotificationCategory.family,
+  NotificationType.invitationAccepted: NotificationCategory.family,
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -482,11 +488,14 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         return NotificationType.memberJoined;
       case 'family_id_generated':
         return NotificationType.familyIdGenerated;
-      // v109.7: 'thinking_of_you' is no longer created as a notification.
-      // If old rows exist in the DB, map them to a non-actionable type
-      // (newMember) so they DON'T show Accept/Reject buttons.
+      // Phase 21: Thinking of You is now a proper notification type.
+      // actionUrl is 'dm:<senderId>' so tapping it opens the DM.
       case 'thinking_of_you':
-        return NotificationType.newMember;
+        return NotificationType.thinkingOfYou;
+      // Phase 21: invitation_accepted is the notification sent to the
+      // INVITER when their invite is accepted.
+      case 'invitation_accepted':
+        return NotificationType.invitationAccepted;
       case 'invitation_rejected':
         return NotificationType.rejectedInvite;
       default:

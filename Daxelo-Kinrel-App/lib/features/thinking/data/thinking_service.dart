@@ -33,6 +33,7 @@ class ThinkingResult {
     this.dmId,
     this.chatMessageId,
     this.senderName,
+    this.receiverName,
     this.familyName,
   });
 
@@ -48,6 +49,9 @@ class ThinkingResult {
   final String? dmId;
   final String? chatMessageId;
   final String? senderName;
+  /// Recipient's display name (used for the success message:
+  /// "Your Thinking of You moment was sent to Yakshitha").
+  final String? receiverName;
   final String? familyName;
 
   /// Parse the cooldownExpiresAt string into a DateTime (or null if
@@ -117,6 +121,7 @@ class ThinkingService {
           dmId: result?['dmId'] as String?,
           chatMessageId: result?['chatMessageId'] as String?,
           senderName: result?['senderName'] as String?,
+          receiverName: result?['receiverName'] as String?,
           familyName: result?['familyName'] as String?,
           cooldownHours: result?['cooldownHours'] as int?,
           cooldownExpiresAt: result?['cooldownExpiresAt'] as String?,

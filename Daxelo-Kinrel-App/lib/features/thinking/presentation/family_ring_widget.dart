@@ -33,6 +33,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/brand_colors.dart';
@@ -262,8 +263,17 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
       if (!mounted) return;
 
       if (result.success) {
-        // Show the personalized message returned by the RPC
-        _showSnack(context, result.message ?? '${member.name} knows you\'re thinking of them');
+        // Phase 21: Show a personal success message with the recipient's
+        // name. The RPC returns receiverName for this purpose.
+        final receiverName = result.receiverName ?? member.name.split(' ').first;
+        _showSnack(context, 'Your Thinking of You moment was sent to $receiverName');
+
+        // Open the private 1:1 chat with the recipient so the sender can
+        // see their message in context. This makes the feature feel
+        // personal and confirms delivery.
+        if (context.mounted) {
+          context.push('/dm/${member.userId}');
+        }
 
         // Store the cooldown expiry so the button stays disabled + shows
         // a live countdown.

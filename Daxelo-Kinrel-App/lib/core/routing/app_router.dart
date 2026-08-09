@@ -163,6 +163,7 @@ import '../../features/memory_vault/presentation/memory_vault_screen.dart';
 import '../../features/memory_vault/presentation/memory_detail_screen.dart';
 import '../../features/memory_vault/data/memory_model.dart';
 import '../../features/chat/presentation/chat_screen.dart';
+import '../../features/chat/presentation/direct_chat_screen.dart';
 import '../../features/share/presentation/share_screen.dart';
 import '../../features/oral_history/presentation/oral_history_screen.dart';
 import '../../features/gamification/presentation/achievements_screen.dart';
@@ -1491,6 +1492,19 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: ChatScreen(
             familyId: state.pathParameters['id']!,
             familyName: state.uri.queryParameters['name'] ?? 'Family',
+          ),
+        ),
+      ),
+
+      // ── Direct (1:1) Chat — private conversation between two users ──
+      // Used by the Thinking of You feature (notification tap opens this)
+      // and will be used by a future DM inbox section.
+      GoRoute(
+        path: '/dm/:otherUserId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: DirectChatScreen(
+            otherUserId: state.pathParameters['otherUserId']!,
           ),
         ),
       ),

@@ -691,94 +691,97 @@ class _NotificationItem extends ConsumerWidget {
       },
       onDismissed: (_) => onDelete(),
 
-      child: Container(
-        margin: EdgeInsets.only(bottom: KinrelSpacing.sm),
-        padding: EdgeInsets.all(KinrelSpacing.md),
-        decoration: BoxDecoration(
-          // Unread items get subtle orange tint: #E8612A05
-          color: notification.isRead
-              ? KinrelColors.darkCard
-              : const Color(0x05E8612A),
-          borderRadius: BorderRadius.circular(KinrelRadius.lg),
-          border: Border.all(
-            color: notification.isPinned
-                ? KinrelColors.orange.withValues(alpha: 0.3)
-                : const Color(0xFF3A3A4A),
-            width: notification.isPinned ? 1.5 : 1,
+      child: GestureDetector(
+        onTap: () => _handleTap(context, ref),
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          margin: EdgeInsets.only(bottom: KinrelSpacing.sm),
+          padding: const EdgeInsets.all(KinrelSpacing.md),
+          decoration: BoxDecoration(
+            // Unread items get subtle orange tint: #E8612A05
+            color: notification.isRead
+                ? KinrelColors.darkCard
+                : const Color(0x05E8612A),
+            borderRadius: BorderRadius.circular(KinrelRadius.lg),
+            border: Border.all(
+              color: notification.isPinned
+                  ? KinrelColors.orange.withValues(alpha: 0.3)
+                  : const Color(0xFF3A3A4A),
+              width: notification.isPinned ? 1.5 : 1,
+            ),
           ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Left: Avatar or Icon ────────────────────────────
-            _buildLeading(),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Left: Avatar or Icon ────────────────────────────
+              _buildLeading(),
 
-            const SizedBox(width: KinrelSpacing.md),
+              const SizedBox(width: KinrelSpacing.md),
 
-            // ── Center: Title + Body + Time ─────────────────────
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Category tag + pin indicator
-                  Row(
-                    children: [
-                      _CategoryTag(category: notification.category),
-                      if (notification.isPinned) ...[
-                        const SizedBox(width: 6),
-                        Icon(
-                          Icons.push_pin,
-                          size: 12,
-                          color: KinrelColors.orange.withValues(alpha: 0.7),
-                        ),
+              // ── Center: Title + Body + Time ─────────────────────
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Category tag + pin indicator
+                    Row(
+                      children: [
+                        _CategoryTag(category: notification.category),
+                        if (notification.isPinned) ...[
+                          const SizedBox(width: 6),
+                          Icon(
+                            Icons.push_pin,
+                            size: 12,
+                            color: KinrelColors.orange.withValues(alpha: 0.7),
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-
-                  // Title — Bold, white, 14px
-                  Text(
-                    notification.title,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 14,
-                      fontWeight: notification.isRead
-                          ? FontWeight.w500
-                          : FontWeight.w700,
-                      color: KinrelColors.textWhite,
-                      height: 1.35,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 3),
+                    const SizedBox(height: 4),
 
-                  // Body — Regular, #C9B4A8, 12px
-                  Text(
-                    notification.body,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: KinrelColors.textSilver,
-                      height: 1.45,
+                    // Title — Bold, white, 14px
+                    Text(
+                      notification.title,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 14,
+                        fontWeight: notification.isRead
+                            ? FontWeight.w500
+                            : FontWeight.w700,
+                        color: KinrelColors.textWhite,
+                        height: 1.35,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
+                    const SizedBox(height: 3),
 
-                  // Time — #8A7A72, 11px
-                  Text(
-                    notification.time,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w400,
-                      color: KinrelColors.textDim,
-                      height: 1.4,
+                    // Body — Regular, #C9B4A8, 12px
+                    Text(
+                      notification.body,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        color: KinrelColors.textSilver,
+                        height: 1.45,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
+                    const SizedBox(height: 4),
+
+                    // Time — #8A7A72, 11px
+                    Text(
+                      notification.time,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w400,
+                        color: KinrelColors.textDim,
+                        height: 1.4,
+                      ),
+                    ),
 
                   // v109: Accept/Reject buttons for family invite notifications
                   // that haven't been acted on yet.
@@ -906,7 +909,62 @@ class _NotificationItem extends ConsumerWidget {
           ],
         ),
       ),
+      ),
     );
+  }
+
+  // ── Notification tap handler ──────────────────────────────────────
+  //
+  // Routes the user to the relevant screen based on the notification's
+  // eventType + actionUrl:
+  //   - thinking_of_you → open the DM with the sender
+  //   - family_invite (already accepted) → open the family space
+  //   - invitation_accepted → open the family space
+  //   - everything else → mark as read only
+
+  void _handleTap(BuildContext context, WidgetRef ref) {
+    // Mark as read on tap (best-effort)
+    if (!notification.isRead) {
+      onMarkRead();
+    }
+
+    final eventType = notification.notificationType;
+    final actionUrl = notification.actionUrl ?? '';
+    final familyId = notification.familyId;
+
+    // Thinking of You → open the private DM with the sender
+    // actionUrl is 'dm:<senderId>' (set by fn_send_thinking_of_you)
+    if (eventType == NotificationType.thinkingOfYou) {
+      if (actionUrl.startsWith('dm:')) {
+        final senderId = actionUrl.substring(3);
+        if (senderId.isNotEmpty) {
+          context.push('/dm/$senderId');
+          return;
+        }
+      }
+      // Fallback: no actionUrl → just mark as read
+      return;
+    }
+
+    // Family invite (already accepted) → open the family space
+    if (eventType == NotificationType.familyInvite &&
+        notification.isInviteActedUpon &&
+        !notification.isInviteRejected &&
+        familyId != null &&
+        familyId.isNotEmpty) {
+      context.push('/family/$familyId');
+      return;
+    }
+
+    // Invitation accepted (sender notification) → open the family space
+    if (eventType == NotificationType.invitationAccepted &&
+        familyId != null &&
+        familyId.isNotEmpty) {
+      context.push('/family/$familyId');
+      return;
+    }
+
+    // Default: no navigation, just marked as read above
   }
 
   // ── Leading: Avatar or Icon ─────────────────────────────────────
