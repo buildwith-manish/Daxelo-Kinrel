@@ -2230,6 +2230,13 @@ class _MessageBubble extends ConsumerWidget {
         );
 
       case MessageType.familyEvent:
+        // Phase 18: Thinking of You messages are stored as familyEvent
+        // with messageSubType='thinking_of_you'. Render them with a
+        // special heart-themed bubble instead of the generic celebration
+        // card, so recipients immediately recognize the message type.
+        if (message.messageSubType == 'thinking_of_you') {
+          return _buildThinkingOfYouBubble();
+        }
         return Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
@@ -2323,6 +2330,84 @@ class _MessageBubble extends ConsumerWidget {
           ),
         );
     }
+  }
+
+  /// Phase 18: Thinking of You bubble — a warm, heart-themed card that
+  /// stands out from regular text messages. Renders the sender's name
+  /// and the warm message in a soft pink/orange card.
+  Widget _buildThinkingOfYouBubble() {
+    // Use a warm pink-coral accent for Thinking of You (distinct from
+    // the orange used for regular family events).
+    const accent = Color(0xFFE91E63); // pink
+    const accentDim = Color(0x1FE91E63); // 12% alpha
+    const accentBorder = Color(0x33E91E63); // 20% alpha
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: accentDim,
+        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        border: Border.all(
+          color: accentBorder,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Heart icon in a pink circle
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: accent.withValues(alpha: 0.18),
+              border: Border.all(
+                color: accent.withValues(alpha: 0.4),
+                width: 1,
+              ),
+            ),
+            child: const Icon(
+              Icons.favorite,
+              size: 16,
+              color: accent,
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Message text
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Thinking of You',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.monoFont,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: accent,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  // content is the warm message (e.g. "is thinking of you.")
+                  // Prefix with the sender's first name so it reads naturally:
+                  //   "Manish is thinking of you."
+                  '${message.senderName.split(' ').first} ${message.content}',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    color: KinrelColors.textWhite,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildTimeRow() {

@@ -347,6 +347,13 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
         final s = (secs % 60).toString().padLeft(2, '0');
         return 'Voice message ($m:$s)';
       case MessageType.familyEvent:
+        // Phase 18: Thinking of You messages are familyEvent with
+        // messageSubType='thinking_of_you'. Show a heart-themed preview
+        // so the inbox row is immediately recognizable.
+        if (msg.messageSubType == 'thinking_of_you') {
+          final senderFirst = msg.senderName.split(' ').first;
+          return 'Thinking of You from $senderFirst';
+        }
         return msg.eventTitle ?? 'Family Event';
       case MessageType.sticker:
         // Show the emoji directly — it's instantly recognizable
