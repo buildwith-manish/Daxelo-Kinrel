@@ -9,16 +9,24 @@
 // ONLY real, registered Kinrel users who are actual members of the
 // family appear in the ring.
 //
-// Excludes:
+// v109.6 (fix): The server RPC already excludes the current user via
+// `u.id <> auth.uid()`, but we ALSO filter client-side as a safety net.
+// If the RPC ever returns the current user (e.g., due to a stale JWT or
+// an auth.uid() edge case), the UI will still hide them. Duplicates are
+// also deduped client-side by userId.
+//
+// Excludes (enforced BOTH server-side and client-side):
+//   ❌ The current user (you can't "think of" yourself)
+//   ❌ Duplicate members (deduplicated by userId)
 //   ❌ Custom graph people (linkedUserId = null in Person table)
 //   ❌ Placeholder people (no FamilyMember record)
 //   ❌ Non-Kinrel persons (not in the User table)
 //   ❌ Deleted users (deletedAt IS NOT NULL in User table)
-//   ❌ The current user (you can't "think of" yourself)
-//   ❌ Duplicates (deduplicated by userId)
+//   ❌ Users with no name
 //
-// Placed BELOW the Truth Streak card, BEFORE the quick-jump dock,
-// as an additional engagement layer. Does NOT replace Truth Streak.
+// Empty state: if the family has only one member (the current user),
+// the section shows a "No other family members available" message
+// instead of hiding entirely, so the user understands why it's empty.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -74,13 +82,19 @@ class FamilyKinrelMember {
 ///   ✅ Queries FamilyMember (real family members only)
 ///   ✅ JOINs User (real registered Kinrel accounts)
 ///   ✅ Bypasses User table RLS via SECURITY DEFINER
-///   ✅ Excludes deleted users + the current user
+///   ✅ Excludes deleted users + the current user (server-side AND client-side)
+///   ✅ Deduplicates by userId (server-side DISTINCT ON + client-side set)
 ///   ❌ NEVER queries the Person table (custom graph nodes)
 final familyKinrelMembersProvider =
     FutureProvider.family<List<FamilyKinrelMember>, String>((ref, familyId) async {
   final client = ref.read(supabaseProvider);
   if (client == null) return [];
   if (client.auth.currentUser == null) return [];
+
+  // The current user's ID — used as a CLIENT-SIDE safety net to filter
+  // them out even if the server RPC somehow returns them (e.g., stale
+  // JWT, auth.uid() edge case, or a race condition during sign-in).
+  final currentUserId = client.auth.currentUser!.id;
 
   try {
     // v109.6: Use the SECURITY DEFINER RPC to bypass User table RLS.
@@ -100,7 +114,17 @@ final familyKinrelMembersProvider =
       final userId = row['user_id'] as String?;
       if (userId == null || userId.isEmpty) continue;
 
-      // Deduplicate — a user should appear only once
+      // ── Client-side safety net #1: exclude the current user ──
+      // The server RPC already does `u.id <> auth.uid()::text`, but
+      // if there's ANY mismatch (stale JWT, auth.uid() returning NULL
+      // inside SECURITY DEFINER, case sensitivity, etc.), this catches
+      // it. You should NEVER be able to "think of" yourself.
+      if (userId == currentUserId) continue;
+
+      // ── Client-side safety net #2: deduplicate by userId ──
+      // The server RPC uses DISTINCT ON, but we also dedupe here in
+      // case the RPC returns duplicates due to a JOIN fan-out or a
+      // schema change.
       if (seenUserIds.contains(userId)) continue;
       seenUserIds.add(userId);
 
@@ -222,9 +246,73 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
       data: (members) {
-        if (members.isEmpty) return const SizedBox.shrink();
+        // v109.6: If there are no OTHER family members (e.g., the user
+        // is the only member, or all other members are deleted), show
+        // a friendly empty-state message instead of hiding the section
+        // entirely. This helps the user understand WHY it's empty rather
+        // than wondering if the feature is broken.
+        if (members.isEmpty) return _buildEmptyState(context);
         return _buildRing(context, members);
       },
+    );
+  }
+
+  /// Empty-state message shown when the family has no other members to
+  /// send "Thinking of You" signals to. This is NOT an error — it just
+  /// means the user is the only Kinrel member in this family.
+  Widget _buildEmptyState(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 16, bottom: 8),
+          child: Text(
+            'Who are you thinking of?',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: KinrelColors.textDim,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: KinrelColors.darkCard,
+                  border: Border.all(
+                    color: KinrelColors.border,
+                    width: 1,
+                  ),
+                ),
+                child: Icon(
+                  Icons.person_outline,
+                  size: 20,
+                  color: KinrelColors.textDim,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'No other family members available.\nInvite members to send them a Thinking of You.',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    color: KinrelColors.textDim,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
