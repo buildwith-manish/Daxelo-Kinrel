@@ -44,6 +44,7 @@ import '../providers/chat_provider.dart';
 import 'voice_message_player.dart';
 import 'sticker_panel.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
+import '../../profile/presentation/member_profile_sheet.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Chat Screen
@@ -538,6 +539,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ],
           ),
           actions: [
+            // v113: Members list — opens a bottom sheet listing all
+            // family members. Tapping a member opens their profile sheet.
+            IconButton(
+              icon: Icon(
+                Icons.people_outline_rounded,
+                size: 24,
+                color: KinrelColors.textSilver,
+              ),
+              onPressed: () => _showMembersList(),
+            ),
             // Video call
             IconButton(
               icon: Icon(
@@ -596,6 +607,103 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ],
             ),
             const SizedBox(width: 4),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// v113: Opens a bottom sheet listing all family members (from the
+  /// chat presence/online members list). Tapping a member opens their
+  /// MemberProfileSheet.
+  void _showMembersList() {
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final members = chatState.members;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Family Members',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+              ),
+            ),
+            if (members.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'No members online',
+                  style: TextStyle(color: KinrelColors.textDim),
+                ),
+              )
+            else
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.5,
+                ),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: members.length,
+                  itemBuilder: (ctx, index) {
+                    final m = members[index];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor:
+                            KinrelColors.orange.withValues(alpha: 0.15),
+                        child: Text(
+                          m.initials,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontWeight: FontWeight.w700,
+                            color: KinrelColors.orange,
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        m.name,
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          color: KinrelColors.textWhite,
+                        ),
+                      ),
+                      trailing: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: m.isOnline
+                              ? KinrelColors.success
+                              : KinrelColors.textDim,
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        MemberProfileSheet.show(context, m.id);
+                      },
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -2178,75 +2286,119 @@ class _MessageBubble extends ConsumerWidget {
       onLongPress: onLongPress,
       child: Align(
         alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.78,
-          ),
-          margin: EdgeInsets.only(left: isMe ? 48 : 0, right: isMe ? 0 : 48),
-          child: Column(
-            crossAxisAlignment: isMe
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
-            children: [
-              // Reply preview (if replying to a message)
-              if (message.replyToId != null) _buildReplyPreview(),
-              // Bubble
-              Container(
-                padding: isSticker
-                    ? const EdgeInsets.symmetric(horizontal: 4, vertical: 2)
-                    : const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                decoration: BoxDecoration(
-                  // Stickers: transparent background (just the emoji on chat bg)
-                  color: isSticker
-                      ? Colors.transparent
-                      : (isMe
-                          ? const Color(0xFFE8612A).withValues(alpha: 0.08)
-                          : const Color(0xFF191B2C)),
-                  borderRadius: isSticker
-                      ? BorderRadius.zero
-                      : BorderRadius.only(
-                          topLeft: Radius.circular(KinrelRadius.lg),
-                          topRight: Radius.circular(KinrelRadius.lg),
-                          bottomLeft:
-                              Radius.circular(isMe ? KinrelRadius.lg : 4),
-                          bottomRight:
-                              Radius.circular(isMe ? 4 : KinrelRadius.lg),
-                        ),
-                  border: isSticker
-                      ? Border.all(color: Colors.transparent)
-                      : (isMe
-                          ? Border.all(
-                              color:
-                                  KinrelColors.orange.withValues(alpha: 0.12),
-                              width: 0.5,
-                            )
-                          : Border.all(
-                              color: const Color(0xFF2A2A3D), width: 0.5)),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // v113: Tappable sender avatar for incoming (non-self) messages.
+            // Tapping opens the MemberProfileSheet for the sender.
+            // Hidden for self-messages and stickers.
+            if (!isMe && !isSticker)
+              GestureDetector(
+                onTap: () => MemberProfileSheet.show(
+                  context,
+                  message.senderId,
                 ),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  margin: const EdgeInsets.only(right: 8, bottom: 2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: KinrelColors.orange.withValues(alpha: 0.15),
+                  ),
+                  child: Center(
+                    child: Text(
+                      (message.senderName.isNotEmpty
+                              ? message.senderName[0].toUpperCase()
+                              : '?'),
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: KinrelColors.orange,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            Flexible(
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.78,
+                ),
+                margin: EdgeInsets.only(
+                    left: isMe ? 48 : 0, right: isMe ? 0 : 48),
                 child: Column(
                   crossAxisAlignment: isMe
                       ? CrossAxisAlignment.end
                       : CrossAxisAlignment.start,
                   children: [
-                    // Sender name (for received messages, skip for stickers)
-                    if (!isMe && !isSticker) _buildSenderName(),
-                    // Message content
-                    _buildMessageContent(),
-                    // Time and read receipt row (skip for stickers —
-                    // stickers show time inline below)
-                    if (!isSticker) _buildTimeRow(),
-                    if (isSticker) _buildStickerTimeRow(),
+                    // Reply preview (if replying to a message)
+                    if (message.replyToId != null) _buildReplyPreview(),
+                    // Bubble
+                    Container(
+                      padding: isSticker
+                          ? const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 2)
+                          : const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                      decoration: BoxDecoration(
+                        // Stickers: transparent background (just the emoji on chat bg)
+                        color: isSticker
+                            ? Colors.transparent
+                            : (isMe
+                                ? const Color(0xFFE8612A)
+                                    .withValues(alpha: 0.08)
+                                : const Color(0xFF191B2C)),
+                        borderRadius: isSticker
+                            ? BorderRadius.zero
+                            : BorderRadius.only(
+                                topLeft: Radius.circular(KinrelRadius.lg),
+                                topRight: Radius.circular(KinrelRadius.lg),
+                                bottomLeft: Radius.circular(
+                                    isMe ? KinrelRadius.lg : 4),
+                                bottomRight: Radius.circular(
+                                    isMe ? 4 : KinrelRadius.lg),
+                              ),
+                        border: isSticker
+                            ? Border.all(color: Colors.transparent)
+                            : (isMe
+                                ? Border.all(
+                                    color: KinrelColors.orange
+                                        .withValues(alpha: 0.12),
+                                    width: 0.5,
+                                  )
+                                : Border.all(
+                                    color: const Color(0xFF2A2A3D),
+                                    width: 0.5)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: isMe
+                            ? CrossAxisAlignment.end
+                            : CrossAxisAlignment.start,
+                        children: [
+                          // Sender name (for received messages, skip for stickers)
+                          if (!isMe && !isSticker) _buildSenderName(),
+                          // Message content
+                          _buildMessageContent(),
+                          // Time and read receipt row (skip for stickers —
+                          // stickers show time inline below)
+                          if (!isSticker) _buildTimeRow(),
+                          if (isSticker) _buildStickerTimeRow(),
+                        ],
+                      ),
+                    ),
+                    // Reactions row
+                    if (message.reactions.isNotEmpty)
+                      _buildReactions(currentUserId),
                   ],
                 ),
               ),
-              // Reactions row
-              if (message.reactions.isNotEmpty)
-                _buildReactions(currentUserId),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

@@ -2006,3 +2006,32 @@ class DKSuccessToast {
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// DKUnreadBadge — orange unread-count badge (v113)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A filled orange circle with white text, shown only when [count] > 0.
+///
+/// Convenience wrapper around [DKBadge] pre-themed to the Kinrel orange
+/// brand color. Used in chat inbox rows for unread message counts.
+class DKUnreadBadge extends StatelessWidget {
+  const DKUnreadBadge({
+    super.key,
+    required this.count,
+    this.size = 20,
+  });
+
+  final int count;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    if (count <= 0) return const SizedBox.shrink();
+    return DKBadge(
+      count: count,
+      size: size,
+      color: KinrelColors.orange,
+    );
+  }
+}

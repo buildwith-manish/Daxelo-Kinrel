@@ -18,6 +18,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
@@ -318,3 +319,172 @@ final directChatProvider = StateNotifierProvider.family<
     DirectChatNotifier, DirectChatState, String>((ref, otherUserId) {
   return DirectChatNotifier(otherUserId: otherUserId, ref: ref);
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// v113 — DM Inbox Provider
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A single DM conversation row in the chat inbox.
+///
+/// Represents the most recent message in a 1:1 conversation between the
+/// current user and [otherUserId], plus an unread count and archive state.
+class DmInboxItem {
+  const DmInboxItem({
+    required this.otherUserId,
+    required this.otherUserName,
+    this.otherUserAvatar,
+    required this.lastMessage,
+    required this.lastMessageTime,
+    required this.unreadCount,
+    required this.isArchived,
+  });
+
+  final String otherUserId;
+  final String otherUserName;
+  final String? otherUserAvatar;
+  final String lastMessage;
+  final DateTime lastMessageTime;
+  final int unreadCount;
+  final bool isArchived;
+}
+
+/// Loads the current user's DM inbox — one row per conversation partner,
+/// ordered by most-recent-message-first.
+///
+/// Tries the `fn_get_dm_inbox` RPC first. If that function does not exist
+/// (hasn't been migrated yet), falls back to querying the DirectMessage
+/// table directly: fetches all rows where the user is sender or receiver,
+/// groups by the other party, takes the most recent message per
+/// conversation, and computes unread counts.
+///
+/// Archive state is read from `shared_preferences` (key
+/// `dm_archived_$otherUserId`) since the DirectMessage table does not have
+/// an `isArchived` column.
+final dmInboxProvider =
+    FutureProvider<List<DmInboxItem>>((ref) async {
+  final client = Supabase.instance.client;
+  final myUserId = client.auth.currentUser?.id;
+  if (myUserId == null) return [];
+
+  final prefs = await SharedPreferences.getInstance();
+
+  // ── Try the RPC first ──
+  try {
+    final response = await client
+        .rpc('fn_get_dm_inbox')
+        .timeout(const Duration(seconds: 8));
+
+    if (response is List && response.isNotEmpty) {
+      final items = <DmInboxItem>[];
+      for (final row in response) {
+        final map = row as Map<String, dynamic>;
+        final otherId = map['otherUserId'] as String? ?? '';
+        if (otherId.isEmpty) continue;
+        items.add(DmInboxItem(
+          otherUserId: otherId,
+          otherUserName: map['otherUserName'] as String? ?? 'Member',
+          otherUserAvatar: map['otherUserAvatar'] as String?,
+          lastMessage: (map['lastMessage'] as String? ?? '').truncateTo(40),
+          lastMessageTime:
+              DateTime.tryParse(map['lastMessageTime'] as String? ?? '') ??
+                  DateTime.now(),
+          unreadCount: (map['unreadCount'] as num?)?.toInt() ?? 0,
+          isArchived: prefs.getBool('dm_archived_$otherId') ?? false,
+        ));
+      }
+      return items;
+    }
+  } catch (_) {
+    // RPC doesn't exist or errored — fall through to direct query.
+  }
+
+  // ── Fallback: query DirectMessage table directly ──
+  try {
+    final response = await client
+        .from('DirectMessage')
+        .select()
+        .or('senderId.eq.$myUserId,receiverId.eq.$myUserId')
+        .order('createdAt', ascending: false)
+        .limit(200)
+        .timeout(const Duration(seconds: 10));
+
+    // Group by the other party's user ID.
+    final byOtherUser = <String, Map<String, dynamic>>{};
+    for (final row in response as List) {
+      final senderId = row['senderId'] as String? ?? '';
+      final receiverId = row['receiverId'] as String? ?? '';
+      final otherId = senderId == myUserId ? receiverId : senderId;
+      if (otherId.isEmpty) continue;
+
+      // First occurrence is the most recent (we ordered desc).
+      if (!byOtherUser.containsKey(otherId)) {
+        byOtherUser[otherId] = {
+          'otherUserId': otherId,
+          'lastMessage': row['content'] as String? ?? '',
+          'lastMessageTime':
+              DateTime.tryParse(row['createdAt'] as String? ?? '') ??
+                  DateTime.now(),
+          'isRead': row['isRead'] as bool? ?? false,
+          'senderId': senderId,
+        };
+      }
+    }
+
+    // Fetch names + avatars + compute unread counts.
+    final items = <DmInboxItem>[];
+    for (final entry in byOtherUser.entries) {
+      final otherId = entry.key;
+      final data = entry.value;
+
+      // Load the other user's name/avatar via the public-profile RPC.
+      String name = 'Member';
+      String? avatarUrl;
+      try {
+        final profile = await client
+            .rpc('fn_get_user_public_profile', params: {'p_user_id': otherId})
+            .timeout(const Duration(seconds: 5));
+        if (profile is Map<String, dynamic>) {
+          name = profile['name'] as String? ?? 'Member';
+          avatarUrl = profile['avatarUrl'] as String?;
+        }
+      } catch (_) {}
+
+      // Count unread messages from this other user.
+      int unreadCount = 0;
+      try {
+        final unreadResp = await client
+            .from('DirectMessage')
+            .select('id')
+            .eq('senderId', otherId)
+            .eq('receiverId', myUserId)
+            .eq('isRead', false)
+            .timeout(const Duration(seconds: 5));
+        unreadCount = (unreadResp as List).length;
+      } catch (_) {}
+
+      final isArchived = prefs.getBool('dm_archived_$otherId') ?? false;
+
+      items.add(DmInboxItem(
+        otherUserId: otherId,
+        otherUserName: name,
+        otherUserAvatar: avatarUrl,
+        lastMessage: (data['lastMessage'] as String).truncateTo(40),
+        lastMessageTime: data['lastMessageTime'] as DateTime,
+        unreadCount: unreadCount,
+        isArchived: isArchived,
+      ));
+    }
+
+    // Sort by most-recent-first.
+    items.sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+    return items;
+  } catch (_) {
+    return [];
+  }
+});
+
+/// Extension for truncating strings for preview display.
+extension _StringTruncate on String {
+  String truncateTo(int maxLen) =>
+      length <= maxLen ? this : '${substring(0, maxLen)}…';
+}
