@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -43,7 +45,7 @@ import '../../pulse/providers/cross_feature_moments_provider.dart';
 import '../../shared_list/presentation/shared_list_screen.dart';
 import 'premium/family_hub_sections.dart';
 import 'premium/hero_section.dart';
-import 'services/photo_picker_service.dart';
+import 'package:image_picker/image_picker.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
   FamilyDetailScreen({super.key, required this.familyId});
@@ -504,8 +506,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
   /// and updates the Family row's avatarUrl. Shows loading/success/
   /// error states via a SnackBar.
   Future<void> _uploadAvatar() async {
-    // Pick image
-    final xFile = await PhotoPickerService.pickWithSheet(context);
+    // Pick image from gallery (web-compatible — no camera option).
+    final picker = ImagePicker();
+    final xFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 85,
+    );
     if (xFile == null) return; // user cancelled
 
     // Show loading indicator
@@ -532,23 +540,30 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
     );
 
     try {
-      // Upload to Supabase Storage
-      final url = await PhotoPickerService.uploadAvatar(
-        xFile,
-        pathPrefix: 'family-avatars',
-      );
+      // Upload to Supabase Storage (avatars bucket, family-avatars path).
+      final client = ref.read(supabaseProvider);
+      if (client == null) throw Exception('Not connected to server');
 
-      if (url == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Upload failed. Please try again.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
+      final bytes = await xFile.readAsBytes();
+      final ext = xFile.path.contains('.')
+          ? xFile.path.split('.').last.toLowerCase()
+          : 'jpg';
+      final safeExt =
+          const <String>['jpg', 'jpeg', 'png', 'webp'].contains(ext)
+              ? ext
+              : 'jpg';
+      final path =
+          'family-avatars/${DateTime.now().millisecondsSinceEpoch}.$safeExt';
+
+      await client.storage.from('avatars').uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(
+              contentType: 'image/$safeExt',
+              upsert: true,
+            ),
+          );
+      final url = client.storage.from('avatars').getPublicUrl(path);
 
       // Update the Family row
       await updateFamily(
