@@ -442,7 +442,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       preferredSize: const Size.fromHeight(64),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF13141E),
+          // v113: Apply the saved wallpaper color to the AppBar background
+          // too (previously hardcoded to 0xFF13141E), so the whole screen
+          // reflects the wallpaper choice consistently and the change is
+          // obviously visible immediately after picking.
+          color: _wallpaperColor ?? const Color(0xFF13141E),
           border: Border(
             bottom: BorderSide(color: const Color(0xFF2A2A3D), width: 0.5),
           ),
@@ -599,16 +603,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   // v109.11: Wallpaper picker
+  // v113: Widened the palette so swatches are clearly distinguishable
+  // at a glance. The previous 8 options were all near-black with
+  // <10% hue variance — impossible to tell apart on a phone screen.
+  // The new palette keeps the default dark base but adds noticeably
+  // different hues AND brightness levels (deep teal, warm cocoa,
+  // indigo, burgundy, slate, forest, plum) so each swatch reads as a
+  // distinct color. All remain dark-mode appropriate (none are bright
+  // enough to hurt message-bubble contrast).
   void _showWallpaperPicker() {
     final colors = [
-      {'name': 'Default', 'color': '#131416'},
-      {'name': 'Midnight', 'color': '#0D1117'},
-      {'name': 'Deep Ocean', 'color': '#0A1929'},
-      {'name': 'Forest', 'color': '#0D1F17'},
-      {'name': 'Plum', 'color': '#1A0D1F'},
-      {'name': 'Ember', 'color': '#1F1208'},
-      {'name': 'Slate', 'color': '#1E1E2E'},
-      {'name': 'Rose', 'color': '#1F0D15'},
+      {'name': 'Default', 'color': '#13141E'},
+      {'name': 'Deep Teal', 'color': '#0B3D3D'},
+      {'name': 'Cocoa', 'color': '#3D2B1F'},
+      {'name': 'Indigo', 'color': '#1E1B4B'},
+      {'name': 'Burgundy', 'color': '#3B0A1A'},
+      {'name': 'Slate Blue', 'color': '#1E2A4A'},
+      {'name': 'Forest', 'color': '#1B3320'},
+      {'name': 'Plum', 'color': '#2D1B3D'},
+      {'name': 'Charcoal', 'color': '#2A2A2A'},
+      {'name': 'Midnight', 'color': '#0A0A1A'},
+      {'name': 'Rosewood', 'color': '#4A1A2E'},
+      {'name': 'Steel', 'color': '#1A2332'},
     ];
 
     showModalBottomSheet(
@@ -630,6 +646,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   fontWeight: FontWeight.w700,
                   color: KinrelColors.textWhite,
                 )),
+            const SizedBox(height: 4),
+            Text(
+              'Pick a color — changes instantly',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: KinrelColors.textDim,
+              ),
+            ),
             const SizedBox(height: 16),
             GridView.builder(
               shrinkWrap: true,
@@ -644,6 +669,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               itemBuilder: (ctx, index) {
                 final c = colors[index];
                 final colorValue = int.parse(c['color']!.substring(1, 7), radix: 16);
+                // v113: Checkmark overlay on the active swatch so users
+                // get visual confirmation of which wallpaper is applied.
+                final isActive = _wallpaperColor != null &&
+                    _wallpaperColor!.value == 0xFF000000 + colorValue;
                 return GestureDetector(
                   onTap: () async {
                     Navigator.pop(ctx);
@@ -669,8 +698,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     decoration: BoxDecoration(
                       color: Color(colorValue),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: KinrelColors.border, width: 1),
+                      border: Border.all(
+                        color: isActive
+                            ? KinrelColors.orange
+                            : KinrelColors.border,
+                        width: isActive ? 2.5 : 1,
+                      ),
                     ),
+                    child: isActive
+                        ? Center(
+                            child: Icon(
+                              Icons.check_rounded,
+                              color: KinrelColors.orange,
+                              size: 26,
+                            ),
+                          )
+                        : null,
                   ),
                 );
               },
