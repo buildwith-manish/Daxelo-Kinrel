@@ -10,6 +10,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../family/presentation/family_space_floating_nav.dart';
 import '../services/game_asset_manager.dart';
 import '../shared/icons/game_icons.dart';
 
@@ -48,11 +49,18 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } }),
         title: Text('Games', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
-      body: ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
+      // v117: Show the Family Space floating nav when this screen is
+      // opened from a Family Space (familyId is set). This makes Games
+      // behave like the other Family Space tabs (Members, Calendar,
+      // Lists, Chat) — the bottom nav stays visible and fixed.
+      bottomNavigationBar: widget.familyId != null
+          ? FamilySpaceFloatingNav(familyId: widget.familyId!)
+          : null,
+      body: ListView(padding: const EdgeInsets.fromLTRB(KinrelSpacing.base, KinrelSpacing.base, KinrelSpacing.base, 120), children: [
         Text('Family Games', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
         const SizedBox(height: 8),
         Text('Download games to play with your family', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)),
