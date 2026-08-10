@@ -11,6 +11,7 @@
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -73,11 +74,8 @@ class WallpaperSettingsScreen extends ConsumerWidget {
                 width: double.infinity,
                 height: 200,
                 child: defaultPath != null
-                    ? Image.file(
-                        File(defaultPath),
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _buildPlaceholderGradient(),
-                      )
+                    ? _buildWallpaperImage(defaultPath,
+                        fallback: _buildPlaceholderGradient())
                     : _buildPlaceholderGradient(),
               ),
             ),
@@ -187,12 +185,11 @@ class WallpaperSettingsScreen extends ConsumerWidget {
                 return ListTile(
                   leading: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: Image.file(
-                      File(entry.value!),
+                    child: _buildWallpaperImage(
+                      entry.value!,
                       width: 48,
                       height: 48,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      fallback: Container(
                         width: 48,
                         height: 48,
                         color: KinrelColors.darkElevated,
@@ -238,6 +235,37 @@ class WallpaperSettingsScreen extends ConsumerWidget {
           const SizedBox(height: KinrelSpacing.xxl),
         ],
       ),
+    );
+  }
+
+  /// Renders a wallpaper image from either a data URI (web) or a file
+  /// path (native). Falls back to [fallback] if the image cannot be
+  /// loaded.
+  Widget _buildWallpaperImage(
+    String path, {
+    double? width,
+    double? height,
+    required Widget fallback,
+  }) {
+    // Web: data URI → Image.network
+    if (kIsWeb || path.startsWith('data:')) {
+      return Image.network(
+        path,
+        fit: BoxFit.cover,
+        width: width,
+        height: height,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    }
+    // Native: file path → Image.file (validate existence first)
+    final file = File(path);
+    if (!file.existsSync()) return fallback;
+    return Image.file(
+      file,
+      fit: BoxFit.cover,
+      width: width,
+      height: height,
+      errorBuilder: (_, __, ___) => fallback,
     );
   }
 

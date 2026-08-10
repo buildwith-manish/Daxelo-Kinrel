@@ -9,11 +9,23 @@
 // it returns [child] directly (the parent Scaffold's backgroundColor
 // shows through).
 //
+// ── Platform behaviour ──────────────────────────────────────────────
+//
+// - **Web:** the stored "path" is a "data:image/...;base64,..." URI.
+//   Rendered via Image.network (which Flutter web resolves to an
+//   in-memory image). No filesystem access needed.
+//
+// - **Native:** the stored path is an absolute file path. Rendered via
+//   Image.file. The file's existence is validated before rendering —
+//   if the file was deleted (e.g. app data cleared), the wallpaper
+//   silently falls back to transparent (parent's backgroundColor).
+//
 // Used by both the group chat screen and the DM screen to wrap just the
 // messages list area — the AppBar and input bar stay clean.
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -41,24 +53,57 @@ class ChatWallpaperBuilder extends ConsumerWidget {
     // backgroundColor shows through.
     if (path == null || path.isEmpty) return child;
 
+    // ── Web: data URI → Image.network ────────────────────────────
+    if (kIsWeb || path.startsWith('data:')) {
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: Image.network(
+              path,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              errorBuilder: (_, error, ___) {
+                debugPrint(
+                    '[ChatWallpaperBuilder] Web: failed to render data URI '
+                    'for chatId="$chatId": $error');
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+          child,
+        ],
+      );
+    }
+
+    // ── Native: file path → Image.file ───────────────────────────
+    // Validate the file exists before attempting to render. If it was
+    // deleted (app data cleared, user wiped cache, etc.), silently fall
+    // back to transparent rather than showing a broken-image icon.
+    final file = File(path);
+    if (!file.existsSync()) {
+      debugPrint(
+          '[ChatWallpaperBuilder] Native: wallpaper file does not exist at '
+          '$path — falling back to transparent for chatId="$chatId".');
+      return child;
+    }
+
     return Stack(
       children: [
-        // Bottom layer: the wallpaper image, covering the full area.
         Positioned.fill(
           child: Image.file(
-            File(path),
+            file,
             fit: BoxFit.cover,
             width: double.infinity,
             height: double.infinity,
-            errorBuilder: (_, __, ___) {
-              // If the file is missing/corrupt, render nothing — the
-              // parent's backgroundColor shows through. This prevents
-              // a crash if the wallpaper file was deleted.
+            errorBuilder: (_, error, ___) {
+              debugPrint(
+                  '[ChatWallpaperBuilder] Native: Image.file failed to render '
+                  '$path for chatId="$chatId": $error');
               return const SizedBox.shrink();
             },
           ),
         ),
-        // Top layer: the actual content.
         child,
       ],
     );
