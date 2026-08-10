@@ -13,6 +13,11 @@ dependencies:
   # Icons
   cupertino_icons: ^1.0.8
 
+  # Emoji picker — full emoji picker for chat message reactions
+  # (beyond the fixed 6 quick-react emojis). v4.4.0 is the latest
+  # stable that doesn't require Flutter 3.41+.
+  emoji_picker_flutter: ^4.4.0
+
   # State Management
   flutter_riverpod: ^2.6.1
   # Navigation

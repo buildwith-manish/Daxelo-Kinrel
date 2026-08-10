@@ -25,6 +25,7 @@ import 'package:kinrel/core/widgets/global_error_widget.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:cross_file/cross_file.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -277,6 +278,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           entry.remove();
         },
         onDismiss: () => entry.remove(),
+        // v113: "+" button → remove the overlay and open the full
+        // emoji picker bottom sheet for access to ALL emojis.
+        onMoreTap: () {
+          entry.remove();
+          _showFullEmojiPicker(messageId);
+        },
       ),
     );
 
@@ -1672,40 +1679,69 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: _reactionEmojis.map((emoji) {
-                    final hasReacted = message.reactions.any(
-                      (r) => r.emoji == emoji && r.userId == _currentUserId,
-                    );
-                    return GestureDetector(
+                  children: [
+                    ..._reactionEmojis.map((emoji) {
+                      final hasReacted = message.reactions.any(
+                        (r) => r.emoji == emoji && r.userId == _currentUserId,
+                      );
+                      return GestureDetector(
+                        onTap: () {
+                          ref
+                              .read(chatProvider(widget.familyId).notifier)
+                              .toggleReaction(message.id, emoji);
+                          Navigator.pop(context);
+                        },
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: hasReacted
+                                ? KinrelColors.orange.withValues(alpha: 0.15)
+                                : Colors.transparent,
+                            border: hasReacted
+                                ? Border.all(
+                                    color: KinrelColors.orange.withValues(
+                                      alpha: 0.4,
+                                    ),
+                                    width: 1.5,
+                                  )
+                                : null,
+                          ),
+                          child: Center(
+                            child: Text(emoji, style: TextStyle(fontSize: 22)),
+                          ),
+                        ),
+                      );
+                    }),
+                    // v113: "+" button — opens the full emoji picker so
+                    // users can react with ANY emoji, not just the 6
+                    // quick-react defaults. Styled identically to the
+                    // emoji buttons (44x44, circular) for consistency.
+                    GestureDetector(
                       onTap: () {
-                        ref
-                            .read(chatProvider(widget.familyId).notifier)
-                            .toggleReaction(message.id, emoji);
+                        // Pop the message-actions sheet first, then
+                        // open the full emoji picker as a new sheet.
                         Navigator.pop(context);
+                        _showFullEmojiPicker(message.id);
                       },
                       child: Container(
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: hasReacted
-                              ? KinrelColors.orange.withValues(alpha: 0.15)
-                              : Colors.transparent,
-                          border: hasReacted
-                              ? Border.all(
-                                  color: KinrelColors.orange.withValues(
-                                    alpha: 0.4,
-                                  ),
-                                  width: 1.5,
-                                )
-                              : null,
+                          color: KinrelColors.darkElevated,
                         ),
                         child: Center(
-                          child: Text(emoji, style: TextStyle(fontSize: 22)),
+                          child: Icon(
+                            Icons.add,
+                            color: KinrelColors.textSilver,
+                            size: 22,
+                          ),
                         ),
                       ),
-                    );
-                  }).toList(),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 8),
@@ -1908,6 +1944,83 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// v113: Opens a full emoji picker (emoji_picker_flutter) as a bottom
+  /// sheet, themed to match the app's dark palette. When an emoji is
+  /// selected, calls the SAME toggleReaction(messageId, emoji) used by
+  /// the quick-react buttons, then pops the sheet. This gives users
+  /// access to ALL emojis for reactions, not just the 6 quick-react
+  /// defaults.
+  void _showFullEmojiPicker(String messageId) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.xxl),
+        ),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'React with an emoji',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.45,
+              child: EmojiPicker(
+                onEmojiSelected: (category, emoji) {
+                  ref
+                      .read(chatProvider(widget.familyId).notifier)
+                      .toggleReaction(messageId, emoji.emoji);
+                  Navigator.pop(context);
+                },
+                config: Config(
+                  height: MediaQuery.of(context).size.height * 0.45,
+                  checkPlatformCompatibility: true,
+                  emojiViewConfig: EmojiViewConfig(
+                    backgroundColor: KinrelColors.darkCard,
+                    emojiSizeMax: 28,
+                  ),
+                  categoryViewConfig: CategoryViewConfig(
+                    backgroundColor: KinrelColors.darkCard,
+                    iconColor: KinrelColors.textSilver,
+                    iconColorSelected: KinrelColors.orange,
+                    indicatorColor: KinrelColors.orange,
+                    backspaceColor: KinrelColors.textSilver,
+                  ),
+                  searchViewConfig: SearchViewConfig(
+                    backgroundColor: KinrelColors.darkCard,
+                    buttonIconColor: KinrelColors.textSilver,
+                    hintText: 'Search emoji',
+                    hintColor: KinrelColors.textDim,
+                    textColor: KinrelColors.textWhite,
+                  ),
+                  skinToneConfig: const SkinToneConfig(
+                    dialogBackgroundColor: Color(0xFF202338),
+                    indicatorColor: KinrelColors.orange,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -2952,10 +3065,16 @@ class _ReactionOverlay extends StatelessWidget {
   const _ReactionOverlay({
     required this.onEmojiSelected,
     required this.onDismiss,
+    this.onMoreTap,
   });
 
   final ValueChanged<String> onEmojiSelected;
   final VoidCallback onDismiss;
+
+  /// v113: Called when the "+" button is tapped — opens the full emoji
+  /// picker. Null-safe so the overlay still works without it, but the
+  /// chat screen always wires it.
+  final VoidCallback? onMoreTap;
 
   static const _emojis = ['❤️', '😂', '👍', '😮', '😢', '🙏'];
 
@@ -2998,20 +3117,45 @@ class _ReactionOverlay extends StatelessWidget {
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    children: _emojis.map((emoji) {
-                      return GestureDetector(
-                        onTap: () => onEmojiSelected(emoji),
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          margin: const EdgeInsets.symmetric(horizontal: 2),
-                          decoration: BoxDecoration(shape: BoxShape.circle),
-                          child: Center(
-                            child: Text(emoji, style: TextStyle(fontSize: 24)),
+                    children: [
+                      ..._emojis.map((emoji) {
+                        return GestureDetector(
+                          onTap: () => onEmojiSelected(emoji),
+                          child: Container(
+                            width: 42,
+                            height: 42,
+                            margin: const EdgeInsets.symmetric(horizontal: 2),
+                            decoration: BoxDecoration(shape: BoxShape.circle),
+                            child: Center(
+                              child: Text(emoji, style: TextStyle(fontSize: 24)),
+                            ),
+                          ),
+                        );
+                      }),
+                      // v113: "+" button — opens the full emoji picker
+                      // so users can react with ANY emoji. Styled the
+                      // same as the emoji buttons (42x42, circular).
+                      if (onMoreTap != null)
+                        GestureDetector(
+                          onTap: onMoreTap,
+                          child: Container(
+                            width: 42,
+                            height: 42,
+                            margin: const EdgeInsets.symmetric(horizontal: 2),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: KinrelColors.darkElevated,
+                            ),
+                            child: Center(
+                              child: Icon(
+                                Icons.add,
+                                color: KinrelColors.textSilver,
+                                size: 22,
+                              ),
+                            ),
                           ),
                         ),
-                      );
-                    }).toList(),
+                    ],
                   ),
                 ),
               ),
