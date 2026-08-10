@@ -82,16 +82,35 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(familyDetailProvider(widget.familyId));
 
-    return DKScaffold(
+    // v116: PopScope ensures the Android device back button uses the
+    // same logic as the top-left back arrow — pop if there's history,
+    // otherwise go to Home. Without this, the system back gesture
+    // would do nothing (or exit the app) when canPop() is false.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/home');
+        }
+      },
+      child: DKScaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: Icon(Icons.arrow_back),
           tooltip: 'Go back',
           onPressed: () {
+            // v116: Fix dead-end back button. Previously the fallback
+            // was context.go('/family/${widget.familyId}') — which
+            // navigated to the SAME screen the user was already on,
+            // trapping them. Now the fallback goes to Home so the back
+            // button always performs a valid navigation action.
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/family/${widget.familyId}');
+              context.go('/home');
             }
           },
         ),
@@ -330,6 +349,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           );
         },
       ),
+    ),
     );
   }
 
