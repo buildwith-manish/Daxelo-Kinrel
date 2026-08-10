@@ -178,7 +178,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
                       fontSize: 14)),
               const SizedBox(height: 24),
               ElevatedButton.icon(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
                 icon: const Icon(Icons.arrow_back, size: 18),
                 label: const Text('Go back'),
                 style: ElevatedButton.styleFrom(

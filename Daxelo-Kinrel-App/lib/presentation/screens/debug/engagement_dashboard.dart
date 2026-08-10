@@ -102,7 +102,7 @@ class _EngagementDashboardState extends ConsumerState<EngagementDashboard> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: KinrelColors.textWhite),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
         title: Row(
           children: [

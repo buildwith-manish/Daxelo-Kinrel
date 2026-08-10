@@ -237,7 +237,7 @@ class _BlessingRecordSheetState extends ConsumerState<BlessingRecordSheet> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.close, color: Colors.white54),
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
                 ),
               ],
             ),
@@ -552,7 +552,7 @@ class _BlessingRecordSheetState extends ConsumerState<BlessingRecordSheet> {
           ),
           const SizedBox(height: 24),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
             child: const Text('Done',
                 style: TextStyle(color: KinrelColors.gold, fontSize: 15)),
           ),

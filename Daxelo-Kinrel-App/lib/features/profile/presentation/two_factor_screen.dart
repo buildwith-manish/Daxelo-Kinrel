@@ -71,7 +71,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
             color: _textPrimary,
             size: 20,
           ),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
         title: const Text(
           'Two-Factor Authentication',
@@ -1002,7 +1002,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
           gradient: KinrelGradients.igniteGradient,
           size: DKButtonSize.lg,
           fullWidth: true,
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
       ],
     );

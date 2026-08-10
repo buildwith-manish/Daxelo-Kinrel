@@ -149,7 +149,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
             color: _textPrimary,
             size: 20,
           ),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
         title: const Text(
           'Change Password',

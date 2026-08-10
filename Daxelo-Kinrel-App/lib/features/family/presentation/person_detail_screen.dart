@@ -124,7 +124,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen>
             color: KinrelColors.textWhite,
           ),
         ),
-        onPressed: () => context.pop(),
+        onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
       ),
       actions: [
         _ActionIconButton(

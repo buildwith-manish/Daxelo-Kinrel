@@ -6,6 +6,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/hot_seat_provider.dart';
+import 'package:go_router/go_router.dart';
 
 class HotSeatScreen extends ConsumerStatefulWidget {
   const HotSeatScreen({super.key, required this.familyId});
@@ -28,7 +29,7 @@ class _HotSeatScreenState extends ConsumerState<HotSeatScreen> {
     final state = ref.watch(hotSeatProvider(widget.familyId));
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
-      appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.of(context).pop()),
+      appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
         title: Text('Hot Seat', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0),
       body: state.isLoading ? Center(child: CircularProgressIndicator(color: const Color(0xFF06B6D4)))

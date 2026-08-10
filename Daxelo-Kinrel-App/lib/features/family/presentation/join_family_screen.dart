@@ -311,7 +311,7 @@ class _JoinFamilyScreenState extends ConsumerState<JoinFamilyScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: _textPrimary),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
         title: Text(
           'Join Family',

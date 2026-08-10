@@ -67,7 +67,7 @@ class _NameplaceLobbyScreenState extends ConsumerState<NameplaceLobbyScreen> {
           Text('Up to 19 family members can join. Categories: Name, Place, Animal, Thing, Movie.', textAlign: TextAlign.center,
             style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
           const SizedBox(height: KinrelSpacing.lg),
-          DKButton(label: 'Done', variant: DKButtonVariant.primary, fullWidth: true, onPressed: () => Navigator.of(context).pop()),
+          DKButton(label: 'Done', variant: DKButtonVariant.primary, fullWidth: true, onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
         ]),
       ),
     );
@@ -90,7 +90,7 @@ class _NameplaceLobbyScreenState extends ConsumerState<NameplaceLobbyScreen> {
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { if (state.game != null) notifier.leaveGame(); Navigator.of(context).pop(); }),
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { if (state.game != null) notifier.leaveGame(); if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
         title: Text('Name, Place, Animal, Thing', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [

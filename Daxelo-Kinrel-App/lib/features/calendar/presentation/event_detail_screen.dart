@@ -25,7 +25,7 @@ class EventDetailScreen extends ConsumerWidget {
         // Hero header
         SliverAppBar(expandedHeight: 200, pinned: true,
           backgroundColor: color.withValues(alpha: 0.3),
-          leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.of(context).pop()),
+          leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } }),
           actions: [IconButton(icon: const Icon(Icons.edit_outlined, color: Colors.white), onPressed: () => context.push('/family/$familyId/calendar/new', extra: event))],
           flexibleSpace: FlexibleSpaceBar(
             title: Text(event.title, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w700, color: Colors.white, fontSize: 16)),

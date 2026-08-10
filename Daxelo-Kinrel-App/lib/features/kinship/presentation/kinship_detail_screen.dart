@@ -27,7 +27,7 @@ class KinshipDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
         actions: [
           IconButton(

@@ -81,7 +81,7 @@ class _ReferralScreenState extends ConsumerState<ReferralScreen>
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_rounded, color: KinrelColors.textWhite),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
         title: Text(
           'Refer & Earn',

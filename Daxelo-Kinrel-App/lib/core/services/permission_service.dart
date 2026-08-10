@@ -282,7 +282,7 @@ class PermissionService {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
             child: const Text(
               'Cancel',
               style: TextStyle(

@@ -116,7 +116,7 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
               label: 'Done',
               variant: DKButtonVariant.primary,
               fullWidth: true,
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
             ),
           ],
         ),
@@ -155,7 +155,7 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (state.game != null) notifier.leaveGame();
-            Navigator.of(context).pop();
+            if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); }
           },
         ),
         title: Text(

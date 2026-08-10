@@ -119,7 +119,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
               label: 'Done',
               variant: DKButtonVariant.primary,
               fullWidth: true,
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
             ),
           ],
         ),
@@ -169,7 +169,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
             if (state.round != null) {
               notifier.leaveRound();
             }
-            Navigator.of(context).pop();
+            if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); }
           },
         ),
         title: Text(

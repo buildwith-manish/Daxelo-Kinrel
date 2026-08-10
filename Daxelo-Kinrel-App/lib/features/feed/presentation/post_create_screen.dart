@@ -145,7 +145,7 @@ class _PostCreateScreenState extends ConsumerState<PostCreateScreen>
       elevation: 0,
       leading: IconButton(
         icon: Icon(Icons.close, color: _cTextSecondary, size: 24),
-        onPressed: () => context.pop(),
+        onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
       ),
       title: Text(
         'New Post',

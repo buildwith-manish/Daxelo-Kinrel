@@ -68,7 +68,7 @@ class _MemberTimelineScreenState extends ConsumerState<MemberTimelineScreen>
               color: _cTextPrimary,
             ),
           ),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
         title: detailAsync.when(
           loading: () => Text(

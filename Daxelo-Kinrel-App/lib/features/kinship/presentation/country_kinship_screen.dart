@@ -88,7 +88,7 @@ class _CountryKinshipDetailScreenState
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
         title: Row(
           mainAxisSize: MainAxisSize.min,

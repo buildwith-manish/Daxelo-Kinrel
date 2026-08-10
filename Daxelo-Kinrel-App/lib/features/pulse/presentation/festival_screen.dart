@@ -27,7 +27,7 @@ class FestivalScreen extends ConsumerWidget {
         title: const Text('Festivals', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
       ),
       body: ListView(

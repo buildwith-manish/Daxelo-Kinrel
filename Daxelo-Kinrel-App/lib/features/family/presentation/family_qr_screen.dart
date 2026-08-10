@@ -155,7 +155,7 @@ class _FamilyQRScreenState extends ConsumerState<FamilyQRScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: _textPrimary),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
         title: Text(
           'Family QR Code',

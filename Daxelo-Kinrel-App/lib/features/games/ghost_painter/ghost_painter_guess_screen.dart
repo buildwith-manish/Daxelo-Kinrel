@@ -11,6 +11,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../game_motion_tokens.dart';
 import 'ghost_painter_models.dart';
 import 'ghost_painter_provider.dart';
+import 'package:go_router/go_router.dart';
 
 class GhostPainterGuessScreen extends ConsumerStatefulWidget {
   const GhostPainterGuessScreen({super.key, required this.familyId});
@@ -40,7 +41,7 @@ class _GhostPainterGuessScreenState extends ConsumerState<GhostPainterGuessScree
     return Scaffold(
       backgroundColor: const Color(0xFF1A1A2E),
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.of(context).pop()),
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
         title: Text('Ghost Painter', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600)),
         backgroundColor: const Color(0xFF1A1A2E), foregroundColor: Colors.white, elevation: 0,
       ),

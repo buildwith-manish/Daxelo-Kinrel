@@ -106,7 +106,7 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
               label: 'Done',
               variant: DKButtonVariant.primary,
               fullWidth: true,
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
             ),
           ],
         ),
@@ -147,7 +147,7 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
             if (state.game != null) {
               notifier.leaveGame();
             }
-            Navigator.of(context).pop();
+            if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); }
           },
         ),
         title: Text(

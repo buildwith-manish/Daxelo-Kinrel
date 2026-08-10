@@ -43,7 +43,7 @@ class _TtLobbyScreenState extends ConsumerState<TtLobbyScreen> {
         const SizedBox(height: KinrelSpacing.md),
         Text(code, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 40, fontWeight: FontWeight.w700, color: KinrelColors.orange, letterSpacing: 6)),
         const SizedBox(height: KinrelSpacing.lg),
-        DKButton(label: 'Done', variant: DKButtonVariant.primary, fullWidth: true, onPressed: () => Navigator.of(context).pop()),
+        DKButton(label: 'Done', variant: DKButtonVariant.primary, fullWidth: true, onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
       ])));
   }
 
@@ -59,7 +59,7 @@ class _TtLobbyScreenState extends ConsumerState<TtLobbyScreen> {
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { if (state.game != null) notifier.leaveGame(); Navigator.of(context).pop(); }),
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { if (state.game != null) notifier.leaveGame(); if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
         title: Text('Two Truths and a Lie', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [

@@ -517,7 +517,7 @@ class _B1VerificationScreenState extends State<B1VerificationScreen> {
               ),
               const SizedBox(height: 32),
               OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
                 icon: const Icon(Icons.arrow_back),
                 label: const Text('Back to Profile'),
               ),

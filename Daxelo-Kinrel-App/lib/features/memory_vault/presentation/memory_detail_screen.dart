@@ -91,7 +91,7 @@ class MemoryDetailScreen extends ConsumerWidget {
         child: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded,
               color: Colors.white, size: 18),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
       ),
       actions: [

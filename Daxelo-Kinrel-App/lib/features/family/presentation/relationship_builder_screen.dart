@@ -87,7 +87,7 @@ class _RelationshipBuilderScreenState
         ),
         leading: IconButton(
           icon: Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
         actions: [
           if (_selectedPerson1Id != null || _selectedPerson2Id != null)

@@ -68,7 +68,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen>
             Icons.close_rounded,
             color: KinrelColors.textWhite,
           ),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
         title: const Text(
           'Go Premium',

@@ -491,7 +491,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
           backgroundColor: KinrelColors.darkElevated,
         ),
       );
-      Navigator.of(context).pop();
+      if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); }
     }
   }
 
@@ -680,7 +680,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
           ),
           IconButton(
             icon: const Icon(Icons.close, color: KinrelColors.textDim, size: 20),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
           ),
         ]),
       ]),

@@ -1731,7 +1731,7 @@ class _FamilyMapScreenState extends ConsumerState<FamilyMapScreen>
             color: KinrelColors.textWhite,
             size: 20,
           ),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
           tooltip: S.of(context)?.familyMapBack ?? 'Back',
         ),
         title: Column(

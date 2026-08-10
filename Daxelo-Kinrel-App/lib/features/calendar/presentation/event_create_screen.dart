@@ -9,6 +9,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../models/calendar_models.dart';
 import '../providers/calendar_provider.dart';
+import 'package:go_router/go_router.dart';
 
 class EventCreateScreen extends ConsumerStatefulWidget {
   const EventCreateScreen({super.key, required this.familyId, this.existingEvent});
@@ -88,7 +89,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     }
     if (mounted) {
       setState(() => _isSaving = false);
-      if (success) Navigator.of(context).pop();
+      if (success) if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); }
     }
   }
 
@@ -98,7 +99,7 @@ class _EventCreateScreenState extends ConsumerState<EventCreateScreen> {
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
+        leading: IconButton(icon: const Icon(Icons.close), onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
         title: Text(isEditing ? 'Edit Event' : 'New Event', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [TextButton(onPressed: _isSaving ? null : _save, child: Text('Save', style: TextStyle(color: KinrelColors.orange, fontWeight: FontWeight.w700)))],

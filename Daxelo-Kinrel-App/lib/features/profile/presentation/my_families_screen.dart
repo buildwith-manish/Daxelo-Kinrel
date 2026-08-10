@@ -159,7 +159,7 @@ class _MyFamiliesScreenState extends ConsumerState<MyFamiliesScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: _textPrimary),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
         title: Text(
           'My Families',

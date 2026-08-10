@@ -69,7 +69,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
               color: KinrelColors.textWhite,
               size: 20,
             ),
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
           ),
         ),
         title: Row(

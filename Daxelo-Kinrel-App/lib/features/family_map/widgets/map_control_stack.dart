@@ -496,7 +496,7 @@ class _LayersPopover extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
                 child: Text(
                   l10n?.familyMapLayersDone ?? 'Done',
                   style: TextStyle(

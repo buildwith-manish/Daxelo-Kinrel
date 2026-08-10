@@ -396,7 +396,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                   // Close button
                   IconButton(
                     icon: Icon(Icons.close, color: Colors.white70, size: 22),
-                    onPressed: () => context.pop(),
+                    onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
                   ),
                 ],
               ),
@@ -721,7 +721,7 @@ class _SparqViewerScreenState extends ConsumerState<SparqViewerScreen>
                 const SizedBox(height: 40),
                 IconButton(
                   icon: Icon(Icons.close, color: KinrelColors.textSilver, size: 24),
-                  onPressed: () => context.pop(),
+                  onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
                 ),
               ],
             ),

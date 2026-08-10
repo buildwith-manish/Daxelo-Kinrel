@@ -103,7 +103,7 @@ class _LinkedAccountsScreenState extends ConsumerState<LinkedAccountsScreen> {
             color: _textPrimary,
             size: 20,
           ),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
         title: const Text(
           'Linked Accounts',

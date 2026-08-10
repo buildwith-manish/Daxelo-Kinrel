@@ -321,7 +321,7 @@ class _SparqCreateScreenState extends ConsumerState<SparqCreateScreen>
         ),
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new, color: KinrelColors.textSilver, size: 20),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
       ),
       body: Column(

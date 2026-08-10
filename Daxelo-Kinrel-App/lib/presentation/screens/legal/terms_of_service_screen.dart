@@ -22,7 +22,7 @@ class TermsOfServiceScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: KinrelColors.textPrimary),
-          onPressed: () => context.pop(),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
         title: Text(
           'Terms of Service',
