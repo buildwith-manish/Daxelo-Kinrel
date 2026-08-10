@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -627,10 +626,12 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
     );
 
     try {
-      // Set avatarUrl to empty string (null in Dart → handled by
-      // updateFamily which only sends the field if non-null, so we
-      // pass an empty string to explicitly clear it).
-      await Supabase.instance.client
+      // Set avatarUrl to null via a direct Supabase update (the
+      // updateFamily helper only sends fields that are non-null, so
+      // we can't use it to clear a field — we need a direct update).
+      final client = ref.read(supabaseProvider);
+      if (client == null) throw Exception('Not connected to server');
+      await client
           .from('Family')
           .update({
             'avatarUrl': null,
