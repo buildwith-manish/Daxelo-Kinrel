@@ -235,7 +235,11 @@ class FamilySpaceFloatingNav extends StatelessWidget {
       case 3:
         context.go('/family/$familyId/lists');
       case 4:
-        context.go('/family/$familyId/chat');
+        // v115: Chat tab now opens the Chat LIST screen (which shows
+        // group chat + DMs) instead of the group chat directly.
+        // The group chat conversation is opened by tapping the Family
+        // Group Chat row inside the list.
+        context.go('/family/$familyId/chats');
     }
   }
 }

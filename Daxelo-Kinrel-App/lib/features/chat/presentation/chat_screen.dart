@@ -58,6 +58,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     super.key,
     required this.familyId,
     required this.familyName,
+    this.showFamilyNav = true,
   });
 
   /// The family ID for this chat.
@@ -65,6 +66,17 @@ class ChatScreen extends ConsumerStatefulWidget {
 
   /// Display name for the AppBar.
   final String familyName;
+
+  /// v115: Whether to show the FamilySpaceFloatingNav at the bottom.
+  ///
+  /// When `true` (default, backward-compatible), the chat screen shows
+  /// the Family Space bottom nav — this is the old behaviour where the
+  /// Chat tab opened the group chat directly.
+  ///
+  /// When `false`, the chat screen is full-screen (no bottom nav) —
+  /// used when the chat is opened from the Family Chat List screen as
+  /// a pushed conversation, matching WhatsApp/Telegram UX.
+  final bool showFamilyNav;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -346,7 +358,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // dark background when no wallpaper has been set.
       backgroundColor: _wallpaperColor ?? const Color(0xFF13141E),
       appBar: _buildAppBar(chatState),
-      bottomNavigationBar: FamilySpaceFloatingNav(familyId: widget.familyId),
+      // v115: Only show the Family Space bottom nav when this screen
+      // is the tab destination (showFamilyNav=true). When opened as a
+      // pushed conversation from the chat list, the bottom nav is
+      // hidden so the chat is full-screen (WhatsApp/Telegram style).
+      bottomNavigationBar: widget.showFamilyNav
+          ? FamilySpaceFloatingNav(familyId: widget.familyId)
+          : null,
       body: Column(
         children: [
           // Messages list — wrapped with ChatWallpaperBuilder so the

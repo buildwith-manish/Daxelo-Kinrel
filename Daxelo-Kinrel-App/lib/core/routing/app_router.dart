@@ -66,6 +66,7 @@ import '../../features/family/presentation/relationship_builder_screen.dart';
 import '../../features/family/presentation/family_graph_screen.dart';
 import '../../features/family/presentation/family_members_screen.dart';
 import '../../features/family/presentation/family_activity_screen.dart';
+import '../../features/family/presentation/family_chat_list_screen.dart';
 import '../../features/shared_list/presentation/shared_list_screen.dart';
 import '../../features/chat/presentation/chat_inbox_screen.dart';
 import '../../features/chat/presentation/archived_chats_screen.dart';
@@ -1487,7 +1488,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // ── Family Chat ─────────────────────────────────────────────
+      // ── Family Chat (group conversation) ────────────────────────
+      // v115: This route opens the group chat CONVERSATION (full-screen,
+      // no Family bottom nav). The Chat TAB now goes to /family/:id/chats
+      // (the chat list) instead of here. Tapping the Family Group Chat
+      // row in the list pushes this route with showFamilyNav=false so
+      // the conversation is full-screen like WhatsApp/Telegram.
       GoRoute(
         path: '/family/:id/chat',
         pageBuilder: (context, state) => _fastFadePage(
@@ -1495,6 +1501,22 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: ChatScreen(
             familyId: state.pathParameters['id']!,
             familyName: state.uri.queryParameters['name'] ?? 'Family',
+            showFamilyNav: false,
+          ),
+        ),
+      ),
+
+      // ── Family Chat List (Chat tab destination) ─────────────────
+      // v115: The Chat tab now opens this list screen (showing group
+      // chat + DMs with All/Family/Direct filter tabs) instead of the
+      // group chat directly. Tapping a conversation pushes /family/:id/chat
+      // or /dm/:otherUserId (both full-screen, no Family bottom nav).
+      GoRoute(
+        path: '/family/:id/chats',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyChatListScreen(
+            familyId: state.pathParameters['id']!,
           ),
         ),
       ),
