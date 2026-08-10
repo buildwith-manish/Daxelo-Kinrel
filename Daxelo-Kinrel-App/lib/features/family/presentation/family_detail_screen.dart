@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -43,6 +44,7 @@ import '../../pulse/providers/cross_feature_moments_provider.dart';
 import '../../shared_list/presentation/shared_list_screen.dart';
 import 'premium/family_hub_sections.dart';
 import 'premium/hero_section.dart';
+import 'services/photo_picker_service.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
   FamilyDetailScreen({super.key, required this.familyId});
@@ -250,6 +252,10 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                         memberCount: detail.members.length,
                         relationshipCount: detail.relationships.length,
                         scrollOffset: _heroScrollOffset,
+                        // v118: Pass the family avatar URL + tap callbacks.
+                        avatarUrl: detail.family.avatarUrl,
+                        onAvatarTap: () => _onAvatarInteraction(),
+                        onAvatarLongPress: () => _onAvatarInteraction(),
                       ),
                       0,
                     ),
@@ -357,6 +363,303 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
     final detailAsync = ref.read(familyDetailProvider(widget.familyId));
     final familyName = detailAsync.valueOrNull?.family.name ?? 'Family';
     ShareHelper.shareFamily(familyId: widget.familyId, familyName: familyName);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // v118 — Family Avatar Interaction (role-based)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Called when the user taps or long-presses the family avatar.
+  /// Determines the user's role and shows the appropriate UI:
+  /// - Creator/Admin → bottom sheet menu with View / Change / Remove
+  /// - Regular member → full-screen avatar viewer (no edit controls)
+  void _onAvatarInteraction() {
+    final detailAsync = ref.read(familyDetailProvider(widget.familyId));
+    final family = detailAsync.valueOrNull?.family;
+    if (family == null) return;
+
+    final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+    final isCreator = family.createdBy != null &&
+        family.createdBy == currentUserId;
+
+    final membershipsAsync =
+        ref.read(familyMembershipsProvider(widget.familyId));
+    final memberships = membershipsAsync.valueOrNull ?? [];
+    final currentUserMembership = memberships
+        .where((m) => m.userId == currentUserId)
+        .firstOrNull;
+    final isAdminOrOwner = isCreator ||
+        currentUserMembership?.isAdmin == true;
+
+    if (isAdminOrOwner) {
+      _showAvatarMenu(family);
+    } else {
+      _showFullScreenAvatar(family.avatarUrl, family.name);
+    }
+  }
+
+  /// Shows the role-based bottom sheet menu for creators/admins:
+  /// - View Family Profile Picture (full-screen)
+  /// - Change Family Profile Picture (gallery picker → upload)
+  /// - Remove Family Profile Picture (only if one exists)
+  void _showAvatarMenu(Family family) {
+    final hasAvatar =
+        family.avatarUrl != null && family.avatarUrl!.isNotEmpty;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Family Profile Picture',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+              ),
+            ),
+            // View (only if an avatar exists)
+            if (hasAvatar)
+              ListTile(
+                leading: Icon(Icons.visibility_outlined,
+                    color: KinrelColors.textSilver),
+                title: Text('View Profile Picture',
+                    style: TextStyle(color: KinrelColors.textWhite)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showFullScreenAvatar(family.avatarUrl, family.name);
+                },
+              ),
+            // Change
+            ListTile(
+              leading: Icon(Icons.photo_library_rounded,
+                  color: KinrelColors.orange),
+              title: Text('Change Profile Picture',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _uploadAvatar();
+              },
+            ),
+            // Remove (only if one exists)
+            if (hasAvatar)
+              ListTile(
+                leading: Icon(Icons.delete_outline_rounded,
+                    color: Colors.redAccent),
+                title: Text('Remove Profile Picture',
+                    style: TextStyle(color: KinrelColors.textWhite)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _removeAvatar();
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Opens a full-screen avatar viewer with pinch-to-zoom support.
+  /// Shown to ALL users (admin + regular) when they want to view the
+  /// current avatar.
+  void _showFullScreenAvatar(String? avatarUrl, String familyName) {
+    if (avatarUrl == null || avatarUrl.isEmpty) {
+      // No avatar to view — show a snackbar
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No profile picture set for $familyName'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _FullScreenAvatarViewer(
+          imageUrl: avatarUrl,
+          familyName: familyName,
+        ),
+        fullscreenDialog: true,
+      ),
+    );
+  }
+
+  /// Picks an image from the gallery, uploads it to Supabase Storage,
+  /// and updates the Family row's avatarUrl. Shows loading/success/
+  /// error states via a SnackBar.
+  Future<void> _uploadAvatar() async {
+    // Pick image
+    final xFile = await PhotoPickerService.pickWithSheet(context);
+    if (xFile == null) return; // user cancelled
+
+    // Show loading indicator
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            ),
+            SizedBox(width: 16),
+            Text('Uploading…'),
+          ],
+        ),
+        duration: Duration(seconds: 30),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    try {
+      // Upload to Supabase Storage
+      final url = await PhotoPickerService.uploadAvatar(
+        xFile,
+        pathPrefix: 'family-avatars',
+      );
+
+      if (url == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Upload failed. Please try again.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      // Update the Family row
+      await updateFamily(
+        ref: ref,
+        familyId: widget.familyId,
+        avatarUrl: url,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile picture updated!'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  /// Removes the family avatar by setting avatarUrl to null.
+  Future<void> _removeAvatar() async {
+    // Confirm
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: KinrelColors.darkCard,
+        title: Text('Remove Profile Picture?',
+            style: TextStyle(color: KinrelColors.textWhite)),
+        content: Text(
+            'The family profile picture will be removed for all members.',
+            style: TextStyle(color: KinrelColors.textSilver)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text('Remove',
+                  style: TextStyle(color: Colors.redAccent))),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            ),
+            SizedBox(width: 16),
+            Text('Removing…'),
+          ],
+        ),
+        duration: Duration(seconds: 15),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    try {
+      // Set avatarUrl to empty string (null in Dart → handled by
+      // updateFamily which only sends the field if non-null, so we
+      // pass an empty string to explicitly clear it).
+      await Supabase.instance.client
+          .from('Family')
+          .update({
+            'avatarUrl': null,
+            'updatedAt': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', widget.familyId);
+
+      // Invalidate providers so the UI refreshes
+      ref.invalidate(familyDetailProvider(widget.familyId));
+      ref.invalidate(familyListProvider);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile picture removed.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   /// Leave family dialog — confirms with the user before removing their
@@ -4374,6 +4677,82 @@ class _DiscoveryTile extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v118 — Full-Screen Avatar Viewer with pinch-to-zoom
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A full-screen viewer for the family profile picture with pinch-to-zoom
+/// support. Shown to ALL users (admin + regular) when they want to view
+/// the avatar. Has NO edit controls — regular members see this directly
+/// on tap; admins see it via the "View Profile Picture" menu option.
+class _FullScreenAvatarViewer extends StatelessWidget {
+  const _FullScreenAvatarViewer({
+    required this.imageUrl,
+    required this.familyName,
+  });
+
+  final String imageUrl;
+  final String familyName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: Text(
+          familyName,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 4.0,
+          boundaryMargin: const EdgeInsets.all(double.infinity),
+          child: Image.network(
+            imageUrl,
+            fit: BoxFit.contain,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Center(
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded /
+                          loadingProgress.expectedTotalBytes!
+                      : null,
+                ),
+              );
+            },
+            errorBuilder: (_, __, ___) => const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.broken_image_outlined,
+                    size: 64,
+                    color: Colors.white54,
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Could not load image',
+                    style: TextStyle(color: Colors.white54),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

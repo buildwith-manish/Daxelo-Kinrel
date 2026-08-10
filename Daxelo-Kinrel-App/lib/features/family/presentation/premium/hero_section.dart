@@ -42,6 +42,9 @@ class HeroSection extends ConsumerWidget {
     required this.memberCount,
     required this.relationshipCount,
     this.scrollOffset = 0,
+    this.avatarUrl,
+    this.onAvatarTap,
+    this.onAvatarLongPress,
   });
 
   final String familyId;
@@ -52,6 +55,20 @@ class HeroSection extends ConsumerWidget {
   /// Current scroll offset (0–200) for the parallax collapse effect.
   /// 0 = fully expanded hero. 200 = fully collapsed into a pinned bar.
   final double scrollOffset;
+
+  /// v118: The family's profile picture URL (from Family.avatarUrl).
+  /// When non-null, the hero avatar renders the image instead of the
+  /// Kinrel symbol / initial fallback.
+  final String? avatarUrl;
+
+  /// v118: Called when the user taps the family avatar. If null, the
+  /// avatar is not tappable. Wired by family_detail_screen to open a
+  /// role-based menu (admin/edit) or full-screen viewer (regular).
+  final VoidCallback? onAvatarTap;
+
+  /// v118: Called when the user long-presses the family avatar.
+  /// Same role-based behaviour as onAvatarTap.
+  final VoidCallback? onAvatarLongPress;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -199,10 +216,15 @@ class HeroSection extends ConsumerWidget {
                   if (symbolSize > 10)
                     Opacity(
                       opacity: nameOpacity,
-                      child: _HeroSymbol(
-                        kinrel: kinrel,
-                        familyName: familyName,
-                        size: symbolSize,
+                      child: GestureDetector(
+                        onTap: onAvatarTap,
+                        onLongPress: onAvatarLongPress,
+                        child: _HeroSymbol(
+                          kinrel: kinrel,
+                          familyName: familyName,
+                          size: symbolSize,
+                          avatarUrl: avatarUrl,
+                        ),
                       ),
                     )
                   else
@@ -211,9 +233,14 @@ class HeroSection extends ConsumerWidget {
                       padding: const EdgeInsets.only(left: FamilyHubSpace.md),
                       child: Align(
                         alignment: Alignment.centerLeft,
-                        child: _FamilyInitialAvatar(
-                          familyName: familyName,
-                          size: 40,
+                        child: GestureDetector(
+                          onTap: onAvatarTap,
+                          onLongPress: onAvatarLongPress,
+                          child: _FamilyInitialAvatar(
+                            familyName: familyName,
+                            size: 40,
+                            avatarUrl: avatarUrl,
+                          ),
                         ),
                       ),
                     ),
@@ -393,13 +420,43 @@ class _FamilyInitialAvatar extends StatelessWidget {
   const _FamilyInitialAvatar({
     required this.familyName,
     required this.size,
+    this.avatarUrl,
   });
 
   final String familyName;
   final double size;
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
+    // v118: If a family avatar URL is set, render the image in a
+    // circular clip instead of the initial-letter fallback.
+    if (avatarUrl != null && avatarUrl!.isNotEmpty) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: KinrelColors.orange.withValues(alpha: 0.3),
+            width: 1.5,
+          ),
+        ),
+        child: ClipOval(
+          child: Image.network(
+            avatarUrl!,
+            fit: BoxFit.cover,
+            width: size,
+            height: size,
+            errorBuilder: (_, __, ___) => _buildInitialFallback(),
+          ),
+        ),
+      );
+    }
+    return _buildInitialFallback();
+  }
+
+  Widget _buildInitialFallback() {
     return Container(
       width: size,
       height: size,
@@ -445,14 +502,26 @@ class _HeroSymbol extends StatelessWidget {
     required this.kinrel,
     required this.familyName,
     required this.size,
+    this.avatarUrl,
   });
 
   final KinrelModel? kinrel;
   final String familyName;
   final double size;
+  final String? avatarUrl;
 
   @override
   Widget build(BuildContext context) {
+    // v118: If a family avatar URL is set, render the image instead
+    // of the Kinrel symbol / initial fallback. The image takes
+    // priority so a custom family photo always shows when set.
+    if (avatarUrl != null && avatarUrl!.isNotEmpty) {
+      return _FamilyInitialAvatar(
+        familyName: familyName,
+        size: size,
+        avatarUrl: avatarUrl,
+      );
+    }
     return SizedBox(
       width: size,
       height: size,
