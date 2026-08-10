@@ -9,27 +9,19 @@
 // it returns [child] directly (the parent Scaffold's backgroundColor
 // shows through).
 //
-// ── Platform behaviour ──────────────────────────────────────────────
-//
-// - **Web:** the stored "path" is a "data:image/...;base64,..." URI.
-//   Rendered via Image.network (which Flutter web resolves to an
-//   in-memory image). No filesystem access needed.
-//
-// - **Native:** the stored path is an absolute file path. Rendered via
-//   Image.file. The file's existence is validated before rendering —
-//   if the file was deleted (e.g. app data cleared), the wallpaper
-//   silently falls back to transparent (parent's backgroundColor).
+// Uses a conditional import to avoid compiling dart:io on web —
+// wallpaper_image_native.dart uses Image.file, wallpaper_image_web.dart
+// uses Image.network (for data: URIs).
 //
 // Used by both the group chat screen and the DM screen to wrap just the
 // messages list area — the AppBar and input bar stay clean.
 
-import 'dart:io';
-
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/chat_wallpaper_provider.dart';
+import 'wallpaper_image_web.dart' if (dart.library.io) 'wallpaper_image_native.dart'
+    as platform;
 
 class ChatWallpaperBuilder extends ConsumerWidget {
   const ChatWallpaperBuilder({
@@ -38,23 +30,21 @@ class ChatWallpaperBuilder extends ConsumerWidget {
     required this.child,
   });
 
-  /// The chat ID to look up the wallpaper for. Family ID for group chats,
-  /// "dm_<otherUserId>" for DMs, or "default" for the global fallback.
   final String chatId;
-
-  /// The content to render on top of the wallpaper.
   final Widget child;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final path = ref.watch(wallpaperPathProvider(chatId));
 
-    // No wallpaper set — return child directly so the parent's
-    // backgroundColor shows through.
+    // No wallpaper set — return child directly.
     if (path == null || path.isEmpty) return child;
 
-    // ── Web: data URI → Image.network ────────────────────────────
-    if (kIsWeb || path.startsWith('data:')) {
+    // Data URIs (web) are always valid. File paths (native) are validated
+    // inside buildWallpaperImageFromFile.
+    // On web, path is always a data: URI → Image.network.
+    // On native, path is a file path → Image.file (with existsSync check).
+    if (path.startsWith('data:')) {
       return Stack(
         children: [
           Positioned.fill(
@@ -63,12 +53,7 @@ class ChatWallpaperBuilder extends ConsumerWidget {
               fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,
-              errorBuilder: (_, error, ___) {
-                debugPrint(
-                    '[ChatWallpaperBuilder] Web: failed to render data URI '
-                    'for chatId="$chatId": $error');
-                return const SizedBox.shrink();
-              },
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
             ),
           ),
           child,
@@ -76,34 +61,18 @@ class ChatWallpaperBuilder extends ConsumerWidget {
       );
     }
 
-    // ── Native: file path → Image.file ───────────────────────────
-    // Validate the file exists before attempting to render. If it was
-    // deleted (app data cleared, user wiped cache, etc.), silently fall
-    // back to transparent rather than showing a broken-image icon.
-    final file = File(path);
-    if (!file.existsSync()) {
-      debugPrint(
-          '[ChatWallpaperBuilder] Native: wallpaper file does not exist at '
-          '$path — falling back to transparent for chatId="$chatId".');
-      return child;
-    }
+    // Native file path — delegate to the platform-specific helper.
+    final image = platform.buildWallpaperImageFromFile(
+      path,
+      width: double.infinity,
+      height: double.infinity,
+      fallback: const SizedBox.shrink(),
+    );
+    if (image == null) return child;
 
     return Stack(
       children: [
-        Positioned.fill(
-          child: Image.file(
-            file,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            errorBuilder: (_, error, ___) {
-              debugPrint(
-                  '[ChatWallpaperBuilder] Native: Image.file failed to render '
-                  '$path for chatId="$chatId": $error');
-              return const SizedBox.shrink();
-            },
-          ),
-        ),
+        Positioned.fill(child: image),
         child,
       ],
     );

@@ -9,9 +9,6 @@
 //
 // Route: /settings/wallpaper
 
-import 'dart:io';
-
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,6 +19,8 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/chat_wallpaper_provider.dart';
 import '../data/wallpaper_picker.dart';
+import 'widgets/wallpaper_image_web.dart' if (dart.library.io) 'widgets/wallpaper_image_native.dart'
+    as platform;
 
 class WallpaperSettingsScreen extends ConsumerWidget {
   const WallpaperSettingsScreen({super.key});
@@ -240,15 +239,16 @@ class WallpaperSettingsScreen extends ConsumerWidget {
 
   /// Renders a wallpaper image from either a data URI (web) or a file
   /// path (native). Falls back to [fallback] if the image cannot be
-  /// loaded.
+  /// loaded. Uses the conditional-import platform helper to avoid
+  /// compiling dart:io on web.
   Widget _buildWallpaperImage(
     String path, {
     double? width,
     double? height,
     required Widget fallback,
   }) {
-    // Web: data URI → Image.network
-    if (kIsWeb || path.startsWith('data:')) {
+    // Data URIs (web) → Image.network
+    if (path.startsWith('data:')) {
       return Image.network(
         path,
         fit: BoxFit.cover,
@@ -257,16 +257,15 @@ class WallpaperSettingsScreen extends ConsumerWidget {
         errorBuilder: (_, __, ___) => fallback,
       );
     }
-    // Native: file path → Image.file (validate existence first)
-    final file = File(path);
-    if (!file.existsSync()) return fallback;
-    return Image.file(
-      file,
-      fit: BoxFit.cover,
+    // Native file path → delegate to platform helper (uses Image.file
+    // with existsSync validation, but only compiled on native).
+    final image = platform.buildWallpaperImageFromFile(
+      path,
       width: width,
       height: height,
-      errorBuilder: (_, __, ___) => fallback,
+      fallback: fallback,
     );
+    return image ?? fallback;
   }
 
   /// Placeholder gradient shown when no default wallpaper is set.
