@@ -89,6 +89,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // Phase 14: Sticker panel toggle
   bool _showStickerPanel = false;
 
+  // v112: Chat wallpaper color — loaded from ChatSettings in initState
+  // and applied as the messages-list background. Updated immediately
+  // in _showWallpaperPicker's onTap so the change is visible without
+  // needing to leave and re-enter the chat.
+  Color? _wallpaperColor;
+
   // Quick reaction emojis
   static const _reactionEmojis = ['❤️', '😂', '👍', '😮', '😢', '🙏'];
 
@@ -133,7 +139,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Mark all as read on enter
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(chatProvider(widget.familyId).notifier).markAllRead();
+      // v112: Load saved wallpaper color so it's applied on first render.
+      _loadWallpaperColor();
     });
+  }
+
+  /// v112: Fetch the saved wallpaperColor from ChatSettings and store
+  /// it in _wallpaperColor so the body background picks it up. Called
+  /// once from initState (via addPostFrameCallback so ref is ready).
+  void _loadWallpaperColor() async {
+    final service = ref.read(chatEnhancementServiceProvider);
+    final settings = await service.getChatSettings(widget.familyId);
+    if (mounted && settings != null) {
+      final hex = settings['wallpaperColor'] as String?;
+      if (hex != null && hex.isNotEmpty) {
+        try {
+          final colorValue =
+              int.parse(hex.substring(1, 7), radix: 16) + 0xFF000000;
+          setState(() => _wallpaperColor = Color(colorValue));
+        } catch (_) {
+          // Ignore malformed hex — keep null (default background).
+        }
+      }
+    }
   }
 
   @override
@@ -260,7 +288,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatProvider(widget.familyId));
-    final messages = chatState.messages;
+    final rawMessages = chatState.messages;
+
+    // v112: Filter out messages that were deleted-for-me or
+    // deleted-for-everyone. The ChatMessage model already has an
+    // isHiddenFor(userId) helper, but it was never called — so even
+    // after the fn_delete_message_for_me / fn_delete_for_everyone RPCs
+    // succeeded (they set deletedForMe / isDeletedForEveryone columns),
+    // refreshMessages() re-fetched ALL rows including the hidden ones
+    // and they stayed visible. This filter fixes that.
+    final uid = _currentUserId;
+    final messages = uid != null
+        ? rawMessages.where((m) => !m.isHiddenFor(uid)).toList()
+        : rawMessages;
 
     // Loading state — show a centered spinner while the initial fetch
     // is in flight. Once _initialLoadDone is true (set by the notifier
@@ -291,7 +331,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
 
     return DKScaffold(
-      backgroundColor: const Color(0xFF13141E),
+      // v112: Apply saved wallpaper color, falling back to the default
+      // dark background when no wallpaper has been set.
+      backgroundColor: _wallpaperColor ?? const Color(0xFF13141E),
       appBar: _buildAppBar(chatState),
       bottomNavigationBar: FamilySpaceFloatingNav(familyId: widget.familyId),
       body: Column(
@@ -604,6 +646,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       wallpaperColor: c['color'],
                     );
                     if (mounted) {
+                      // v112: Apply the new wallpaper immediately so the
+                      // change is visible without leaving and re-entering
+                      // the chat.
+                      setState(() => _wallpaperColor = Color(colorValue));
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('Wallpaper changed to ${c['name']}'),
@@ -1915,6 +1961,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       }
     }
 
+    // v112: Within each date group, sort messages ascending (oldest
+    // first, newest last) so they render top-to-bottom correctly inside
+    // that day's Column. The day-GROUPS themselves remain in descending
+    // order (newest day first) for correct placement in the reversed
+    // ListView — only the intra-day order is fixed here.
+    //
+    // ROOT CAUSE: chat_provider sorts the master list newest-first
+    // (descending). _groupByDate iterated that list and appended to
+    // each group in the same descending order, so within a single day
+    // the newest message ended up at group.messages[0] and rendered at
+    // the TOP of that day's block — backwards. This sort fixes that
+    // without affecting the between-day ordering.
+    for (final g in groups) {
+      g.messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    }
+
     return groups;
   }
 }
@@ -2115,34 +2177,104 @@ class _MessageBubble extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Photo placeholder
-            Container(
-              width: double.infinity,
-              height: 180,
-              decoration: BoxDecoration(
-                color: const Color(0xFF202338),
+            // Photo — render the actual image if mediaUrl is present,
+            // otherwise fall back to the placeholder. Mirrors the
+            // voiceNote case below which correctly branches on
+            // mediaUrl. Previously this ALWAYS showed the placeholder
+            // and never checked message.mediaUrl.
+            if (message.mediaUrl != null &&
+                message.mediaUrl!.isNotEmpty)
+              ClipRRect(
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.image_outlined,
-                    size: 36,
-                    color: KinrelColors.textSilver.withValues(alpha: 0.5),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Photo',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 12,
-                      color: KinrelColors.textSilver.withValues(alpha: 0.5),
+                child: Image.network(
+                  message.mediaUrl!,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: 180,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      width: double.infinity,
+                      height: 180,
+                      color: const Color(0xFF202338),
+                      child: Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            value: loadingProgress.expectedTotalBytes !=
+                                    null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                            color: KinrelColors.orange,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (_, __, ___) => Container(
+                    width: double.infinity,
+                    height: 180,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF202338),
+                      borderRadius:
+                          BorderRadius.circular(KinrelRadius.md),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.broken_image_outlined,
+                          size: 36,
+                          color: KinrelColors.textSilver
+                              .withValues(alpha: 0.5),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Failed to load',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 12,
+                            color: KinrelColors.textSilver
+                                .withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
+              )
+            else
+              // Legacy message with no mediaUrl — keep the placeholder.
+              Container(
+                width: double.infinity,
+                height: 180,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF202338),
+                  borderRadius: BorderRadius.circular(KinrelRadius.md),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.image_outlined,
+                      size: 36,
+                      color: KinrelColors.textSilver.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Photo',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 12,
+                        color: KinrelColors.textSilver.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
             if (message.content.isNotEmpty &&
                 message.content != 'Photo placeholder') ...[
               const SizedBox(height: 6),
