@@ -69,6 +69,7 @@ import '../../features/family/presentation/family_activity_screen.dart';
 import '../../features/shared_list/presentation/shared_list_screen.dart';
 import '../../features/chat/presentation/chat_inbox_screen.dart';
 import '../../features/chat/presentation/archived_chats_screen.dart';
+import '../../features/chat/presentation/wallpaper_settings_screen.dart';
 import '../../features/truth_streak/presentation/truth_streak_screen.dart';
 import '../../features/hot_seat/presentation/hot_seat_screen.dart';
 import '../../features/relation_riddles/presentation/relation_riddle_screen.dart';
@@ -1536,6 +1537,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: const ArchivedChatsScreen(),
+        ),
+      ),
+
+      // ── Wallpaper Settings — manage chat wallpapers ──────────────
+      // v114: Reached from Profile → Chat Wallpaper.
+      GoRoute(
+        path: '/settings/wallpaper',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: const WallpaperSettingsScreen(),
         ),
       ),
 

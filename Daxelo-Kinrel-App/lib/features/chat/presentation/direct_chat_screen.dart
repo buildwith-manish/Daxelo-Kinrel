@@ -29,7 +29,10 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../data/chat_wallpaper_provider.dart';
+import '../data/wallpaper_picker.dart';
 import '../data/direct_message_provider.dart';
+import 'widgets/chat_wallpaper_builder.dart';
 
 class DirectChatScreen extends ConsumerStatefulWidget {
   const DirectChatScreen({super.key, required this.otherUserId});
@@ -98,6 +101,134 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
       ref.read(supabaseProvider)?.auth.currentUser?.id;
 
   bool _isMine(DirectMessage msg) => msg.senderId == _currentUserId;
+
+  /// v114: Shows the image-based wallpaper picker bottom sheet with
+  /// three options: Choose from Gallery, Remove Wallpaper (only if one
+  /// is set), and Set as Default Wallpaper.
+  void _showImageWallpaperPicker(BuildContext context, String chatId) {
+    final currentPath = ref.read(wallpaperPathProvider(chatId));
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(KinrelRadius.bottomSheet),
+        ),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Chat Wallpaper',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.photo_library_rounded,
+                color: KinrelColors.orange,
+              ),
+              title: Text(
+                'Choose from Gallery',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final path = await WallpaperPicker.pickFromGallery(context);
+                if (path != null) {
+                  await ref
+                      .read(chatWallpaperProvider.notifier)
+                      .setWallpaper(chatId, path);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Wallpaper set!'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+            if (currentPath != null)
+              ListTile(
+                leading: Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.redAccent,
+                ),
+                title: Text(
+                  'Remove Wallpaper',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await ref
+                      .read(chatWallpaperProvider.notifier)
+                      .clearWallpaper(chatId);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Wallpaper removed'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                },
+              ),
+            ListTile(
+              leading: Icon(
+                Icons.photo_library_outlined,
+                color: KinrelColors.textSilver,
+              ),
+              title: Text(
+                'Set as Default Wallpaper',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final path = await WallpaperPicker.pickFromGallery(context);
+                if (path != null) {
+                  await ref
+                      .read(chatWallpaperProvider.notifier)
+                      .setWallpaper('default', path);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Default wallpaper set!'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -218,10 +349,36 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
             ),
           ],
         ),
+        // v114: Wallpaper menu for DM — uses chatId 'dm_<otherUserId>'.
+        actions: [
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert,
+                color: KinrelColors.textSilver, size: 22),
+            color: KinrelColors.darkCard,
+            onSelected: (value) {
+              if (value == 'wallpaper') {
+                _showImageWallpaperPicker(
+                    context, 'dm_${widget.otherUserId}');
+              }
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                  value: 'wallpaper', child: Text('Chat Wallpaper')),
+            ],
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: Column(
         children: [
-          Expanded(child: bodyContent),
+          // v114: Wrap messages with ChatWallpaperBuilder so the custom
+          // wallpaper (if set) renders only behind the messages.
+          Expanded(
+            child: ChatWallpaperBuilder(
+              chatId: 'dm_${widget.otherUserId}',
+              child: bodyContent,
+            ),
+          ),
           if (chatState.error != null && messages.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

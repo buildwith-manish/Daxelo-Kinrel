@@ -332,6 +332,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                       onChanged: (v) =>
                           ref.read(fontScaleProvider.notifier).state = v,
                     ),
+                    _divider(),
+                    // v114: Chat Wallpaper — opens the wallpaper settings screen
+                    _SettingsRow(
+                      icon: Icons.wallpaper_rounded,
+                      label: 'Chat Wallpaper',
+                      onTap: () => context.push('/settings/wallpaper'),
+                    ),
                   ]),
                   const SizedBox(height: 24),
 
