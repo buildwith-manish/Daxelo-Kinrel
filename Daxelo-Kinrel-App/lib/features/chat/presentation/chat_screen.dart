@@ -2010,8 +2010,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     backgroundColor: KinrelColors.darkCard,
                     buttonIconColor: KinrelColors.textSilver,
                     hintText: 'Search emoji',
-                    hintColor: KinrelColors.textDim,
-                    textColor: KinrelColors.textWhite,
+                    hintTextStyle: TextStyle(
+                      color: KinrelColors.textDim,
+                      fontSize: 14,
+                    ),
+                    inputTextStyle: TextStyle(
+                      color: KinrelColors.textWhite,
+                      fontSize: 14,
+                    ),
                   ),
                   skinToneConfig: const SkinToneConfig(
                     dialogBackgroundColor: Color(0xFF202338),
