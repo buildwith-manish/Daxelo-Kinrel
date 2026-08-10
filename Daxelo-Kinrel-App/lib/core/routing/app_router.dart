@@ -66,6 +66,7 @@ import '../../features/family/presentation/relationship_builder_screen.dart';
 import '../../features/family/presentation/family_graph_screen.dart';
 import '../../features/family/presentation/family_members_screen.dart';
 import '../../features/family/presentation/family_activity_screen.dart';
+import '../../features/shared_list/presentation/shared_list_screen.dart';
 import '../../features/chat/presentation/chat_inbox_screen.dart';
 import '../../features/truth_streak/presentation/truth_streak_screen.dart';
 import '../../features/hot_seat/presentation/hot_seat_screen.dart';
@@ -1492,6 +1493,23 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: ChatScreen(
             familyId: state.pathParameters['id']!,
             familyName: state.uri.queryParameters['name'] ?? 'Family',
+          ),
+        ),
+      ),
+
+      // ── Family Lists (Shared List / Errand Board) ───────────────
+      // Registered for /family/:id/lists — the path the Family Space
+      // floating nav taps via context.go('/family/$familyId/lists').
+      // Previously missing, causing GoException: no routes for location
+      // when the Lists tab was tapped. SharedListScreen is the existing
+      // widget (lib/features/shared_list/presentation/shared_list_screen.dart)
+      // — already wired with FamilySpaceFloatingNav + safe back button.
+      GoRoute(
+        path: '/family/:id/lists',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SharedListScreen(
+            familyId: state.pathParameters['id']!,
           ),
         ),
       ),
