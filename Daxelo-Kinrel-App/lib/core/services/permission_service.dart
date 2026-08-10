@@ -13,6 +13,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../constants/brand_colors.dart';
 import '../constants/brand_typography.dart';
+import 'package:go_router/go_router.dart';
 
 /// Result of a permission request.
 enum PermissionResult {

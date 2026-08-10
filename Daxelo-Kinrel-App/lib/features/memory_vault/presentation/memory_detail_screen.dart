@@ -20,6 +20,7 @@ import '../../../core/utils/share_helper.dart';
 import '../../../core/widgets/cached_avatar.dart';
 import '../../../core/family/family_provider.dart';
 import '../data/memory_model.dart';
+import 'package:go_router/go_router.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Memory Detail Screen

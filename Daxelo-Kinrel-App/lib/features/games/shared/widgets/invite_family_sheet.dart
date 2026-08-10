@@ -40,6 +40,7 @@ import '../models/game_invite_status.dart';
 import '../providers/game_invite_status_provider.dart';
 import 'invite_status_badge.dart';
 import 'recent_players_section.dart';
+import 'package:go_router/go_router.dart';
 
 /// Invite scope selected by the host at the top of the sheet.
 enum _InviteMode { specific, entire }

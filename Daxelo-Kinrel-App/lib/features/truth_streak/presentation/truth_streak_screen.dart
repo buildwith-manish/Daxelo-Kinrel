@@ -15,6 +15,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/truth_streak_provider.dart';
+import 'package:go_router/go_router.dart';
 
 class TruthStreakScreen extends ConsumerStatefulWidget {
   const TruthStreakScreen({super.key, required this.familyId});

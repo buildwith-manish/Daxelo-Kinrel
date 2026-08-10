@@ -19,6 +19,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../data/repositories/search_repository.dart';
 import 'add_member_source.dart';
+import 'package:go_router/go_router.dart';
 
 /// A full-screen search screen that queries ALL Kinrel users.
 ///

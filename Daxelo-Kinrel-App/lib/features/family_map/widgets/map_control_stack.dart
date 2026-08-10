@@ -40,6 +40,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../l10n/app_localizations.dart';
 import '../config/map_visual_constants.dart';
 import '../data/place_models.dart';
+import 'package:go_router/go_router.dart';
 
 /// A single circular glass button in the control stack.
 class _ControlButton extends StatefulWidget {

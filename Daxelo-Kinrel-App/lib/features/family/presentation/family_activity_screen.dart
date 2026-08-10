@@ -11,6 +11,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
+import 'package:go_router/go_router.dart';
 
 class FamilyActivityScreen extends ConsumerWidget {
   const FamilyActivityScreen({super.key, required this.familyId});

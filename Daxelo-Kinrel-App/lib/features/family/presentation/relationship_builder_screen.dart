@@ -12,6 +12,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
 import 'add_person_sheet.dart';
 import 'relationship_picker_sheet.dart';
+import 'package:go_router/go_router.dart';
 
 /// Screen for graph-based relationship building.
 ///

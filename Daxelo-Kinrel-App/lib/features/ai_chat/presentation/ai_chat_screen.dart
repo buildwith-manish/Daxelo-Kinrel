@@ -8,6 +8,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/kinrel_icon.dart';
 import '../../../core/utils/error_boundary.dart';
 import '../providers/ai_chat_provider.dart';
+import 'package:go_router/go_router.dart';
 
 class AiChatScreen extends ConsumerStatefulWidget {
   AiChatScreen({super.key});

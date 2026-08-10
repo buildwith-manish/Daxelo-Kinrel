@@ -2085,7 +2085,7 @@ class _AddPersonScreen extends ConsumerWidget {
         ),
         leading: IconButton(
           icon: Icon(Icons.arrow_back),
-          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/$familyId'); } },
         ),
       ),
       body: SingleChildScrollView(
@@ -2217,7 +2217,7 @@ class _MainShellState extends ConsumerState<MainShell> {
         if (didPop) return;
         final shouldExit = await _onWillPop();
         if (shouldExit && context.mounted) {
-          if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); }
+          if (context.canPop()) { context.pop(); } else { context.go('/home'); }
         }
       },
       child: Scaffold(

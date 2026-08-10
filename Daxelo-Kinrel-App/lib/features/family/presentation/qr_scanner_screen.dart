@@ -15,6 +15,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import 'join_family_screen.dart';
+import 'package:go_router/go_router.dart';
 
 class QrScannerScreen extends StatefulWidget {
   const QrScannerScreen({super.key});
