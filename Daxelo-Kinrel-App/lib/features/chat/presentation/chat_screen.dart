@@ -36,6 +36,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
@@ -50,6 +51,7 @@ import '../../profile/presentation/member_profile_sheet.dart';
 import '../data/chat_wallpaper_provider.dart';
 import '../data/wallpaper_picker.dart';
 import 'widgets/chat_wallpaper_builder.dart';
+import 'widgets/full_screen_image_viewer.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Chat Screen
@@ -2302,6 +2304,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   _showForwardFamilyPicker(message);
                 },
               ),
+              // v125: Share (native share sheet)
+              ListTile(
+                leading: Icon(
+                  Icons.share_outlined,
+                  color: KinrelColors.textSilver,
+                  size: 22,
+                ),
+                title: Text(
+                  'Share',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 15,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  // Share text content or image URL via native share sheet.
+                  if (message.messageType == MessageType.photo &&
+                      message.mediaUrl != null &&
+                      message.mediaUrl!.isNotEmpty) {
+                    Share.share(
+                      message.mediaUrl!,
+                      subject: message.content.isNotEmpty
+                          ? message.content
+                          : 'Photo from ${message.senderName}',
+                    );
+                  } else if (message.content.isNotEmpty) {
+                    Share.share(
+                      message.content,
+                      subject: 'Message from ${message.senderName}',
+                    );
+                  }
+                },
+              ),
               // Star action
               ListTile(
                 leading: Icon(
@@ -2894,7 +2931,14 @@ class _MessageBubble extends ConsumerWidget {
             // and never checked message.mediaUrl.
             if (message.mediaUrl != null &&
                 message.mediaUrl!.isNotEmpty)
-              ClipRRect(
+              GestureDetector(
+                onTap: () => FullScreenImageViewer.show(
+                  context,
+                  imageUrl: message.mediaUrl!,
+                  senderName: message.senderName,
+                  timestamp: message.timestamp,
+                ),
+                child: ClipRRect(
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
                 child: Image.network(
                   message.mediaUrl!,
@@ -2955,6 +2999,7 @@ class _MessageBubble extends ConsumerWidget {
                     ),
                   ),
                 ),
+              ),
               )
             else
               // Legacy message with no mediaUrl — keep the placeholder.

@@ -977,6 +977,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
         .from('chat-attachments')
         .getPublicUrl(storagePath);
 
+    // v125: Include mediaUrl in the optimistic message so the sender
+    // sees the image immediately (not a gray placeholder). Previously
+    // mediaUrl was only set on the server INSERT, not the local copy.
     final optimistic = ChatMessage(
       id: msgId,
       senderId: myUserId,
@@ -986,6 +989,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
       timestamp: now,
       isRead: false,
       senderInitials: _initialsFromName(senderName),
+      mediaUrl: mediaUrl,
+      messageStatus: 'sent',
     );
 
     _pendingOptimisticIds.add(msgId);
