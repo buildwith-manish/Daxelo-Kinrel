@@ -2805,7 +2805,7 @@ class FamilyAvatarNotifier extends StateNotifier<String?> {
 
   final Ref _ref;
   final String _familyId;
-  late final ProviderSubscription<AsyncValue<FamilyDetail?>> _detailSub;
+  ProviderSubscription<AsyncValue<FamilyDetail?>>? _detailSub;
   bool _hasOptimistic = false;
 
   /// Shows the new avatar URL instantly (before upload completes).
@@ -2830,7 +2830,8 @@ class FamilyAvatarNotifier extends StateNotifier<String?> {
 
   @override
   void dispose() {
-    _detailSub.dispose();
+    // ProviderSubscription in Riverpod 2.6 is auto-disposed with the
+    // provider — no explicit dispose() call needed.
     super.dispose();
   }
 }
