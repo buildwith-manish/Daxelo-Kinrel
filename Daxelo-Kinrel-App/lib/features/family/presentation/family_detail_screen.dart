@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -249,12 +251,16 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   SliverToBoxAdapter(
                     child: staggerFade(
                       HeroSection(
+                        // v120: Key on avatarUrl so Flutter destroys +
+                        // recreates the widget when the avatar changes,
+                        // forcing CachedNetworkImage to re-fetch the
+                        // new URL instead of showing the cached old one.
+                        key: ValueKey('hero_${detail.family.avatarUrl}'),
                         familyId: widget.familyId,
                         familyName: detail.family.name,
                         memberCount: detail.members.length,
                         relationshipCount: detail.relationships.length,
                         scrollOffset: _heroScrollOffset,
-                        // v118: Pass the family avatar URL + tap callbacks.
                         avatarUrl: detail.family.avatarUrl,
                         onAvatarTap: () => _onAvatarInteraction(),
                         onAvatarLongPress: () => _onAvatarInteraction(),
@@ -506,9 +512,16 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
   /// Picks an image from the gallery, opens a crop editor, uploads the
   /// cropped image to Supabase Storage, and updates the Family row's
   /// avatarUrl. Shows loading/success/error states via a SnackBar.
+  ///
+  /// v120: Fixes the "old image still showing after upload" bug by:
+  /// 1. Capturing the old avatar URL before upload.
+  /// 2. Evicting the old image from Flutter's ImageCache +
+  ///    CachedNetworkImage's disk cache after upload.
+  /// 3. Deleting the old storage file to prevent accumulation.
+  /// 4. Forcing familyDetailProvider to re-fetch from Supabase (not
+  ///    from the stale familyListProvider fast path).
   Future<void> _uploadAvatar() async {
     // 1. Pick image from gallery (web-compatible — no camera option).
-    //    Use a larger max dimension so the crop editor has room to work.
     final picker = ImagePicker();
     final xFile = await picker.pickImage(
       source: ImageSource.gallery,
@@ -520,7 +533,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
     if (!mounted) return;
 
-    // 2. Open the crop editor — user can pan/zoom and crop to a circle.
+    // 2. Open the crop editor.
     final rawBytes = await xFile.readAsBytes();
     if (!mounted) return;
     final croppedBytes = await ImageCropEditor.show(
@@ -531,7 +544,15 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
     if (!mounted) return;
 
-    // 3. Show loading indicator during upload.
+    // 3. Capture the OLD avatar URL (to evict its cache + delete the
+    //    storage file after the new upload succeeds).
+    final oldAvatarUrl = ref
+        .read(familyDetailProvider(widget.familyId))
+        .valueOrNull
+        ?.family
+        .avatarUrl;
+
+    // 4. Show loading indicator.
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Row(
@@ -554,16 +575,14 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
     );
 
     try {
-      // 4. Upload to Supabase Storage (avatars bucket, family-avatars path).
+      // 5. Upload to Supabase Storage.
       final client = ref.read(supabaseProvider);
       if (client == null) throw Exception('Not connected to server');
 
-      // Verify the user is authenticated.
       if (client.auth.currentSession == null) {
         throw Exception('Not signed in. Please sign in and try again.');
       }
 
-      // Use PNG for the cropped image (the crop editor outputs PNG).
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final path = 'family-avatars/$timestamp.png';
 
@@ -576,17 +595,31 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
             ),
           );
 
-      // Build the public URL with a cache-busting query param so
-      // CachedNetworkImage doesn't serve a stale cached image.
+      // Build the public URL with a cache-busting query param.
       final url =
           '${client.storage.from('avatars').getPublicUrl(path)}?t=$timestamp';
 
-      // 5. Update the Family row with the new avatar URL.
+      // 6. Update the Family row with the new avatar URL.
       await updateFamily(
         ref: ref,
         familyId: widget.familyId,
         avatarUrl: url,
       );
+
+      // 7. Evict the OLD image from all caches so it doesn't linger.
+      _evictOldAvatarCache(oldAvatarUrl);
+
+      // 8. Delete the old storage file (best-effort, don't block on it).
+      _deleteOldStorageFile(client, oldAvatarUrl);
+
+      // 9. Force-refresh the providers so the UI rebuilds with the
+      //    new URL immediately. updateFamily already invalidated
+      //    familyDetailProvider + familyListProvider, but the detail
+      //    provider's fast path reads from familyListProvider which
+      //    may still be re-fetching. Invalidating again after the
+      //    DB update ensures the next read goes to Supabase.
+      ref.invalidate(familyDetailProvider(widget.familyId));
+      ref.invalidate(familyListProvider);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -618,6 +651,61 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
+    }
+  }
+
+  /// Evicts the old avatar image from Flutter's in-memory ImageCache
+  /// and CachedNetworkImage's disk cache (native only). This ensures
+  /// the old image doesn't linger after a new upload.
+  void _evictOldAvatarCache(String? oldAvatarUrl) {
+    if (oldAvatarUrl == null || oldAvatarUrl.isEmpty) return;
+
+    // Evict from Flutter's in-memory image cache (works on all platforms).
+    // PaintingBinding.instance.imageCache caches decoded images by URL.
+    try {
+      final imageCache = PaintingBinding.instance.imageCache;
+      // The ImageCache stores by the ImageProvider's key, which for
+      // CachedNetworkImage is the URL. We need to evict both the
+      // raw URL and any cached resized variants.
+      imageCache.clear();
+      imageCache.clearLiveImages();
+    } catch (_) {}
+
+    // On native, also evict from CachedNetworkImage's disk cache.
+    // On web, CachedNetworkImage uses network-only mode (no disk cache),
+    // so this is skipped.
+    if (!kIsWeb) {
+      try {
+        CachedNetworkImage.evictFromCache(oldAvatarUrl);
+      } catch (_) {}
+    }
+  }
+
+  /// Deletes the old avatar file from Supabase Storage (best-effort).
+  /// Extracts the storage path from the public URL and removes the file.
+  /// Failures are silently ignored — old files are cosmetic clutter, not
+  /// a correctness issue.
+  Future<void> _deleteOldStorageFile(
+    dynamic client,
+    String? oldAvatarUrl,
+  ) async {
+    if (oldAvatarUrl == null || oldAvatarUrl.isEmpty) return;
+    try {
+      // The public URL looks like:
+      // https://<project>.supabase.co/storage/v1/object/public/avatars/family-avatars/123.png?t=456
+      // We need to extract: family-avatars/123.png
+      final uri = Uri.parse(oldAvatarUrl);
+      // Remove the query string (cache-busting param).
+      final pathPart = uri.path;
+      // Extract everything after '/avatars/' in the path.
+      final avatarsIdx = pathPart.indexOf('/avatars/');
+      if (avatarsIdx == -1) return;
+      final storagePath = pathPart.substring(avatarsIdx + '/avatars/'.length);
+      if (storagePath.isEmpty) return;
+
+      await client.storage.from('avatars').remove([storagePath]);
+    } catch (_) {
+      // Best-effort — don't fail the upload if old file deletion fails.
     }
   }
 
