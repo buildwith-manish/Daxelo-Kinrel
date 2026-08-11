@@ -2092,7 +2092,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final isMe = _isMine(message);
 
     // v122: Check if current user is admin/creator (for Pin permission).
-    final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+    final currentUserId = _currentUserId;
     final detailAsync = ref.read(familyDetailProvider(widget.familyId));
     final family = detailAsync.valueOrNull?.family;
     final isCreator = family?.createdBy != null &&
