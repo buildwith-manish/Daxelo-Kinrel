@@ -2783,7 +2783,30 @@ Future<Family> updateFamily({
 /// State notifier for [familyAvatarProvider].
 class FamilyAvatarNotifier extends StateNotifier<String?> {
   FamilyAvatarNotifier(this._ref, this._familyId) : super(null) {
-    // Watch the detail provider's avatarUrl as the fallback.
+    // v123: Initialize state from the CURRENT value of
+    // familyDetailProvider. ref.listen only fires on CHANGES, not for
+    // the initial value — so if the detail provider already has cached
+    // data (e.g. the user already visited Family Space before), the
+    // avatar notifier would stay at null until the next change. This
+    // sync read ensures the avatar shows immediately on first render.
+    final currentDetail = _ref.read(familyDetailProvider(_familyId));
+    final currentUrl = currentDetail.valueOrNull?.family.avatarUrl;
+    if (currentUrl != null) {
+      state = currentUrl;
+    }
+
+    // Also try familyListProvider as a fallback (the Family Card screen
+    // reads from this, so it may have fresher data).
+    if (state == null) {
+      final familiesAsync = _ref.read(familyListProvider);
+      final family = familiesAsync.valueOrNull
+          ?.firstWhere((f) => f.id == _familyId);
+      if (family?.avatarUrl != null) {
+        state = family!.avatarUrl;
+      }
+    }
+
+    // Listen for FUTURE changes to the detail provider.
     _detailSub = _ref.listen(
       familyDetailProvider(_familyId),
       (_, detailAsync) {
@@ -2792,11 +2815,9 @@ class FamilyAvatarNotifier extends StateNotifier<String?> {
         // setFromServer once the upload completes).
         if (!_hasOptimistic) {
           final url = detailAsync.valueOrNull?.family.avatarUrl;
-          if (url != null && url != state) {
+          if (url != state) {
+            // Update whether it's a new URL or null (avatar removed).
             state = url;
-          } else if (url == null && state != null && !_hasOptimistic) {
-            // Avatar was removed.
-            state = null;
           }
         }
       },
@@ -2843,9 +2864,12 @@ class FamilyAvatarNotifier extends StateNotifier<String?> {
 /// final avatarUrl = ref.watch(familyAvatarProvider(familyId));
 /// ```
 ///
-/// This ensures instant updates across all screens when the avatar
-/// changes — optimistic during upload, authoritative after.
-final familyAvatarProvider = StateNotifierProvider.family<FamilyAvatarNotifier, String?, String>((
+/// v123: Initializes from familyDetailProvider + familyListProvider on
+/// construction so the avatar shows immediately (even if the detail
+/// provider was already cached from a previous visit). Listens for
+/// future changes so realtime updates propagate instantly.
+final familyAvatarProvider =
+    StateNotifierProvider.family<FamilyAvatarNotifier, String?, String>((
   ref,
   familyId,
 ) {
