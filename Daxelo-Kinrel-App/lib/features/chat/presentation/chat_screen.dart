@@ -718,6 +718,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     showModalBottomSheet(
       context: context,
       backgroundColor: KinrelColors.darkCard,
+      isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(KinrelRadius.bottomSheet),
