@@ -589,21 +589,60 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
         onTap: () => context.push(
           '/family/${family.id}/chat?name=${Uri.encodeComponent(family.name)}',
         ),
-        leading: CircleAvatar(
-          radius: 26,
-          backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
-          child: Text(
-            family.name.isNotEmpty
-                ? family.name[0].toUpperCase()
-                : 'F',
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: KinrelColors.orange,
-            ),
-          ),
-        ),
+        leading: family.avatarUrl != null && family.avatarUrl!.isNotEmpty
+            ? CircleAvatar(
+                radius: 26,
+                backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
+                child: ClipOval(
+                  child: CachedNetworkImage(
+                    imageUrl: family.avatarUrl!,
+                    fit: BoxFit.cover,
+                    width: 52,
+                    height: 52,
+                    placeholder: (_, __) => Center(
+                      child: Text(
+                        family.name.isNotEmpty
+                            ? family.name[0].toUpperCase()
+                            : 'F',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: KinrelColors.orange,
+                        ),
+                      ),
+                    ),
+                    errorWidget: (_, __, ___) => Center(
+                      child: Text(
+                        family.name.isNotEmpty
+                            ? family.name[0].toUpperCase()
+                            : 'F',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: KinrelColors.orange,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : CircleAvatar(
+                radius: 26,
+                backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
+                child: Text(
+                  family.name.isNotEmpty
+                      ? family.name[0].toUpperCase()
+                      : 'F',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.orange,
+                  ),
+                ),
+              ),
         title: Row(
           children: [
             Expanded(

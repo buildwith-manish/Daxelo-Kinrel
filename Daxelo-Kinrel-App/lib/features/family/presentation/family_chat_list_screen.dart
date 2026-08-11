@@ -51,6 +51,7 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
     final dmInboxAsync = ref.watch(dmInboxProvider);
 
     final familyName = familyAsync.valueOrNull?.family.name ?? 'Family';
+    final familyAvatarUrl = familyAsync.valueOrNull?.family.avatarUrl;
 
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
@@ -109,6 +110,7 @@ class _FamilyChatListScreenState extends ConsumerState<FamilyChatListScreen> {
                       _GroupChatRow(
                         familyId: widget.familyId,
                         familyName: familyName,
+                        familyAvatarUrl: familyAvatarUrl,
                       ),
 
                     // ── Direct Messages ────────────────────────────
@@ -243,10 +245,12 @@ class _GroupChatRow extends ConsumerStatefulWidget {
   const _GroupChatRow({
     required this.familyId,
     required this.familyName,
+    this.familyAvatarUrl,
   });
 
   final String familyId;
   final String familyName;
+  final String? familyAvatarUrl;
 
   @override
   ConsumerState<_GroupChatRow> createState() => _GroupChatRowState();
@@ -318,21 +322,61 @@ class _GroupChatRowState extends ConsumerState<_GroupChatRow> {
       onTap: () => context.push(
         '/family/${widget.familyId}/chat?name=${Uri.encodeComponent(widget.familyName)}',
       ),
-      leading: CircleAvatar(
-        radius: 26,
-        backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
-        child: Text(
-          widget.familyName.isNotEmpty
-              ? widget.familyName[0].toUpperCase()
-              : 'F',
-          style: TextStyle(
-            fontFamily: KinrelTypography.displayFont,
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: KinrelColors.orange,
-          ),
-        ),
-      ),
+      leading: widget.familyAvatarUrl != null &&
+              widget.familyAvatarUrl!.isNotEmpty
+          ? CircleAvatar(
+              radius: 26,
+              backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
+              child: ClipOval(
+                child: CachedNetworkImage(
+                  imageUrl: widget.familyAvatarUrl!,
+                  fit: BoxFit.cover,
+                  width: 52,
+                  height: 52,
+                  placeholder: (_, __) => Center(
+                    child: Text(
+                      widget.familyName.isNotEmpty
+                          ? widget.familyName[0].toUpperCase()
+                          : 'F',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: KinrelColors.orange,
+                      ),
+                    ),
+                  ),
+                  errorWidget: (_, __, ___) => Center(
+                    child: Text(
+                      widget.familyName.isNotEmpty
+                          ? widget.familyName[0].toUpperCase()
+                          : 'F',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: KinrelColors.orange,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : CircleAvatar(
+              radius: 26,
+              backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
+              child: Text(
+                widget.familyName.isNotEmpty
+                    ? widget.familyName[0].toUpperCase()
+                    : 'F',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.orange,
+                ),
+              ),
+            ),
       title: Row(
         children: [
           Icon(Icons.group_rounded,

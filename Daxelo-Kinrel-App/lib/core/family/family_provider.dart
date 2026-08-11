@@ -2726,17 +2726,31 @@ Future<Family> updateFamily({
     throw Exception('Failed to update family — no data returned from server.');
   }
 
-  ref.invalidate(familyListProvider);
-  ref.invalidate(familyDetailProvider(familyId));
+  final updatedFamily = Family.fromJson(response);
 
-  // Invalidate the Isar cache for this family
+  // v120: Invalidate the Isar cache FIRST, before invalidating the
+  // providers. This ensures familyListProvider's re-fetch goes to
+  // Supabase (not the stale Isar cache), which in turn ensures
+  // familyDetailProvider's fast path returns the updated avatarUrl.
   if (IsarDatabase.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
     } catch (_) {}
   }
 
-  return Family.fromJson(response);
+  ref.invalidate(familyListProvider);
+  // Wait for the list to re-fetch from Supabase so the detail
+  // provider's fast path gets the fresh data.
+  try {
+    await ref.read(familyListProvider.future);
+  } catch (_) {
+    // If the list re-fetch fails, the invalidation below will still
+    // cause the detail provider to re-run and hit Supabase directly.
+  }
+
+  ref.invalidate(familyDetailProvider(familyId));
+
+  return updatedFamily;
 }
 
 /// Delete (deactivate) a relationship in Supabase.
