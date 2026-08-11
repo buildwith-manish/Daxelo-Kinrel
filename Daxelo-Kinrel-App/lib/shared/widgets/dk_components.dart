@@ -175,6 +175,7 @@ class DKScaffold extends StatelessWidget {
     this.floatingActionButton,
     this.floatingActionButtonLocation,
     this.useSafeArea = true,
+    this.resizeToAvoidBottomInset = true,
   });
 
   /// Optional gradient to paint behind the body.
@@ -202,6 +203,11 @@ class DKScaffold extends StatelessWidget {
   /// Whether to wrap the body in a [SafeArea]. Default true.
   final bool useSafeArea;
 
+  /// v126: Whether to resize the body when the keyboard appears.
+  /// Passed through to Scaffold.resizeToAvoidBottomInset.
+  /// Defaults to true (WhatsApp-style keyboard handling).
+  final bool resizeToAvoidBottomInset;
+
   @override
   Widget build(BuildContext context) {
     final bgColor = backgroundColor ?? DKColors.background(context);
@@ -225,8 +231,13 @@ class DKScaffold extends StatelessWidget {
       bottomNavigationBar: bottomNavigationBar,
       floatingActionButton: floatingActionButton,
       floatingActionButtonLocation: floatingActionButtonLocation,
-      extendBody: bottomNavigationBar != null || floatingActionButton != null,
+      // v126: Only extend body when NOT resizing for keyboard —
+      // extendBody + resizeToAvoidBottomInset can conflict, causing
+      // the input bar to be hidden behind the keyboard.
+      extendBody: bottomNavigationBar != null &&
+          !resizeToAvoidBottomInset,
       extendBodyBehindAppBar: appBar != null,
+      resizeToAvoidBottomInset: resizeToAvoidBottomInset,
     );
   }
 }

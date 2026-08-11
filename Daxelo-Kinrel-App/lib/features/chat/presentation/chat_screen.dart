@@ -138,6 +138,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _scrollController.addListener(_onScroll);
     _textController.addListener(_onTextChanged);
 
+    // v126: When the text field gains focus (keyboard opens), scroll
+    // to the latest message so it's not hidden behind the keyboard.
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
+      }
+    });
+
     // Typing indicator — 3 bouncing dots
     _typingController = AnimationController(
       vsync: this,
@@ -256,6 +266,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     _textController.clear();
     _focusNode.requestFocus();
+    // v126: Scroll to bottom after sending so the new message is visible.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom();
+    });
     // Phase 14: hide sticker panel when sending a text message
     if (_showStickerPanel && mounted) {
       setState(() => _showStickerPanel = false);
@@ -361,6 +375,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // v112: Apply saved wallpaper color, falling back to the default
       // dark background when no wallpaper has been set.
       backgroundColor: _wallpaperColor ?? const Color(0xFF13141E),
+      // v126: Explicitly enable keyboard resizing so the input bar
+      // moves above the keyboard (WhatsApp-style).
+      resizeToAvoidBottomInset: true,
       appBar: _buildAppBar(chatState),
       // v115: Only show the Family Space bottom nav when this screen
       // is the tab destination (showFamilyNav=true). When opened as a
