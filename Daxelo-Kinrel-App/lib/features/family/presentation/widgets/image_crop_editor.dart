@@ -188,7 +188,7 @@ class _ImageCropEditorState extends State<ImageCropEditor> {
                               child: RepaintBoundary(
                                 key: _cropKey,
                                 child: InteractiveViewer(
-                                  controller: _controller,
+                                  transformationController: _controller,
                                   minScale: 0.5,
                                   maxScale: 4.0,
                                   boundaryMargin:
