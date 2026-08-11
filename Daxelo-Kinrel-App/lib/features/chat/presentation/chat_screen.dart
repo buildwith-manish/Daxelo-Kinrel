@@ -2852,7 +2852,8 @@ class _MessageBubble extends ConsumerWidget {
                   children: [
                     // Reply preview (if replying to a message)
                     if (message.replyToId != null) _buildReplyPreview(),
-                    // Bubble — v127: asymmetric radius for tail effect
+                    // Bubble — v128: gradient fill for own messages,
+                    // solid elevated surface + shadow for received.
                     Container(
                       padding: isSticker
                           ? const EdgeInsets.symmetric(
@@ -2862,11 +2863,25 @@ class _MessageBubble extends ConsumerWidget {
                               vertical: 8,
                             ),
                       decoration: BoxDecoration(
+                        // v128: Own messages → orange gradient (full → 85%).
+                        // Received messages → solid darkElevated surface.
+                        // Stickers → transparent (no bubble).
                         color: isSticker
                             ? Colors.transparent
+                            : (isMe ? null : KinrelColors.darkElevated),
+                        gradient: isSticker
+                            ? null
                             : (isMe
-                                ? KinrelColors.orange.withValues(alpha: 0.12)
-                                : const Color(0xFF191B2C)),
+                                ? LinearGradient(
+                                    colors: [
+                                      KinrelColors.orange,
+                                      KinrelColors.orange
+                                          .withValues(alpha: 0.85),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  )
+                                : null),
                         // v127: Tail effect — the corner nearest the
                         // "tail" (bottom-right for isMe, bottom-left for
                         // others) drops to 4px only on isLastInGroup.
@@ -2880,18 +2895,13 @@ class _MessageBubble extends ConsumerWidget {
                                 bottomRight: Radius.circular(
                                     isMe ? (isLastInGroup ? 4 : 18) : 18),
                               ),
+                        // v128: No borders — the gradient + shadow
+                        // provide enough visual separation.
                         border: isSticker
                             ? Border.all(color: Colors.transparent)
-                            : (isMe
-                                ? Border.all(
-                                    color: KinrelColors.orange
-                                        .withValues(alpha: 0.12),
-                                    width: 0.5,
-                                  )
-                                : Border.all(
-                                    color: const Color(0xFF2A2A3D),
-                                    width: 0.5)),
-                        // v127: Subtle shadow on received bubbles.
+                            : null,
+                        // v127: Subtle shadow on received bubbles only.
+                        // Own messages use the gradient for depth.
                         boxShadow: isSticker || isMe
                             ? null
                             : [
@@ -3011,7 +3021,9 @@ class _MessageBubble extends ConsumerWidget {
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 14.5,
-            color: isMe ? KinrelColors.textWhite : KinrelColors.textWhite,
+            // v128: White text on orange gradient for own messages,
+            // white text on dark elevated for received messages.
+            color: Colors.white,
             height: 1.45,
           ),
         );
@@ -3418,7 +3430,11 @@ class _MessageBubble extends ConsumerWidget {
             style: TextStyle(
               fontFamily: KinrelTypography.monoFont,
               fontSize: 10,
-              color: KinrelColors.textDim,
+              // v128: Semi-transparent white on orange gradient for own
+              // messages, dim silver on dark elevated for received.
+              color: isMe
+                  ? Colors.white.withValues(alpha: 0.7)
+                  : KinrelColors.textDim,
             ),
           ),
           // Read receipts (only for sent messages)
