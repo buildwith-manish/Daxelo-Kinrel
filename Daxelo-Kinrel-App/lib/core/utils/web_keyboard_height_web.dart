@@ -13,9 +13,9 @@ void attachVisualViewportListener(
 
   void onResize(html.Event _) {
     callback(
-      visualViewport.height,
-      visualViewport.offsetTop,
-      html.window.innerHeight.toDouble(),
+      (visualViewport.height ?? 0).toDouble(),
+      (visualViewport.offsetTop ?? 0).toDouble(),
+      (html.window.innerHeight ?? 0).toDouble(),
     );
   }
 
