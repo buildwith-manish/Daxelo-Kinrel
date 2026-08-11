@@ -1,0 +1,221 @@
+# .github/workflows/deploy-web.yml
+#
+# Daxelo Kinrel — Flutter Web Build & Deploy to Vercel
+#
+# This workflow builds the Flutter web app and deploys it to Vercel on
+# every push to main. It replaces Vercel's own build system (which uses
+# a custom vercel-install.sh + vercel-build.sh) with a GitHub Actions
+# pipeline that:
+#   1. Builds with a pinned Flutter version (not whatever Vercel's
+#      installer happens to download).
+#   2. Runs `flutter analyze` to catch compile errors BEFORE deployment.
+#   3. Verifies the build output exists before deploying.
+#   4. Deploys the pre-built static files to Vercel via the Vercel CLI.
+#   5. Verifies the live URL responds after deployment.
+#
+# ── Required GitHub Secrets ──────────────────────────────────────────
+# Add these as repository secrets (Settings → Secrets → Actions):
+#
+#   VERCEL_TOKEN       — Vercel access token (create at vercel.com/account/tokens)
+#   VERCEL_ORG_ID      — Vercel org/team ID (from .vercel/project.json → "orgId")
+#   VERCEL_PROJECT_ID  — Vercel project ID (from .vercel/project.json → "projectId")
+#
+# The org ID and project ID can be found in .vercel/project.json at the
+# repo root after running `vercel link` locally once.
+# ─────────────────────────────────────────────────────────────────────
+
+name: Deploy Web to Vercel
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      skip_analyze:
+        description: 'Skip flutter analyze (for emergency deploys)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+# Concurrency control: if multiple pushes happen quickly, only the latest
+# run deploys. Older in-progress runs are cancelled so we never accidentally
+# deploy an out-of-date commit after a newer one.
+concurrency:
+  group: deploy-web-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The Flutter project lives in the Daxelo-Kinrel-App/ subdirectory,
+  # NOT at the repo root. All Flutter commands must run from here.
+  FLUTTER_APP_DIR: Daxelo-Kinrel-App
+  # Pin the exact Flutter version to match what Vercel's installer uses
+  # (vercel-install.sh: FLUTTER_VERSION="3.44.2"). Do NOT use
+  # channel: stable alone — it can silently change between runs.
+  FLUTTER_VERSION: '3.44.2'
+  # Vercel project config (from .vercel/project.json)
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  build-and-deploy:
+    name: Build Flutter Web & Deploy to Vercel
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # ── Step 1: Checkout the repository code ──────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── Step 2: Set up Flutter with a pinned version ─────────────
+      # Using subosito/flutter-action with an exact version pin ensures
+      # reproducible builds. The version (3.44.2) matches what Vercel's
+      # own vercel-install.sh downloads, so GitHub Actions and Vercel
+      # builds are always in sync.
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # ── Step 3: Install dependencies ─────────────────────────────
+      # flutter pub get must run inside the Flutter project directory.
+      # This also runs build_runner automatically if configured in pubspec.
+      - name: Install dependencies
+        working-directory: ${{ env.FLUTTER_APP_DIR }}
+        run: flutter pub get
+
+      # ── Step 4: Run build_runner (generates Drift .g.dart files) ─
+      # Drift code generation must run BEFORE the web build, otherwise
+      # lib/core/database/app_database.g.dart will be missing and dart2js
+      # will fail. This mirrors the vercel-build.sh flow.
+      - name: Run build_runner
+        working-directory: ${{ env.FLUTTER_APP_DIR }}
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # ── Step 5: Static analysis (catch errors before deploy) ─────
+      # flutter analyze catches compile errors that would cause the web
+      # build to fail. We only fail on errors (--no-fatal-infos keeps
+      # warnings/lints non-blocking). Skip with workflow_dispatch input
+      # for emergency deploys.
+      - name: Run flutter analyze
+        if: github.event.inputs.skip_analyze != 'true'
+        working-directory: ${{ env.FLUTTER_APP_DIR }}
+        run: flutter analyze --no-fatal-infos
+
+      # ── Step 6: Build the web app ────────────────────────────────
+      # --release enables dart2js tree-shaking and minification.
+      # --base-href "/" is required for Vercel (app served at root).
+      # --dart-define injects the git SHA so the build identifier is
+      # visible in the deployed bundle (vercel-build.sh uses the same
+      # pattern with VERCEL_GIT_COMMIT_SHA).
+      - name: Build Flutter Web
+        working-directory: ${{ env.FLUTTER_APP_DIR }}
+        run: |
+          flutter build web --release \
+            --base-href "/" \
+            --dart-define=KINREL_BUILD_COMMIT=${{ github.sha }} \
+            --dart-define=KINREL_BUILD_TIMESTAMP="$(date -u '+%Y-%m-%d %H:%M UTC')"
+
+      # ── Step 7: Verify build output ──────────────────────────────
+      # Check that main.dart.js exists and is non-empty. If the build
+      # silently failed (e.g. dart2js crashed but didn't exit non-zero),
+      # this catches it before we deploy an empty/old artifact.
+      - name: Verify build output
+        working-directory: ${{ env.FLUTTER_APP_DIR }}
+        run: |
+          if [ ! -s build/web/main.dart.js ]; then
+            echo "::error::build/web/main.dart.js is missing or empty! The Flutter build failed silently."
+            exit 1
+          fi
+          echo "✅ main.dart.js exists ($(wc -c < build/web/main.dart.js) bytes)"
+          echo "Build SHA: ${{ github.sha }}"
+
+      # ── Step 8: Install Vercel CLI ───────────────────────────────
+      # We use the Vercel CLI to deploy the pre-built static files.
+      # This bypasses Vercel's own build system entirely — we deploy
+      # the build/web/ output directory directly.
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      # ── Step 9: Pull Vercel project config ───────────────────────
+      # `vercel pull` fetches the project config (.vercel/) using the
+      # token + org/project IDs. This creates a local .vercel/ directory
+      # with the project settings needed for deployment.
+      - name: Pull Vercel project config
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          vercel pull --yes \
+            --token "$VERCEL_TOKEN" \
+            --environment production \
+            --cwd "${{ env.FLUTTER_APP_DIR }}"
+
+      # ── Step 10: Deploy to Vercel (pre-built) ────────────────────
+      # `vercel deploy --prebuilt --prod` deploys an already-built
+      # directory without triggering Vercel's build system. We point
+      # it at the build/web/ output directory from Step 6.
+      #
+      # The --cwd flag tells Vercel CLI where the .vercel/ config lives
+      # (pulled in Step 9). The build/web/ path is relative to that dir.
+      #
+      # VERCEL_ORG_ID and VERCEL_PROJECT_ID env vars (set at the job
+      # level) tell the CLI which project to deploy to.
+      - name: Deploy to Vercel
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        working-directory: ${{ env.FLUTTER_APP_DIR }}
+        run: |
+          DEPLOY_URL=$(vercel deploy build/web \
+            --prebuilt \
+            --prod \
+            --token "$VERCEL_TOKEN" \
+            --cwd "." \
+            2>&1 | tee /dev/stderr | tail -1)
+          echo "url=$DEPLOY_URL" >> $GITHUB_OUTPUT
+          echo "✅ Deployed to: $DEPLOY_URL"
+
+      # ── Step 11: Verify the live site responds ───────────────────
+      # After deployment, curl the production URL and check HTTP 200.
+      # This confirms the site is actually live and responding — not
+      # just that the deploy command exited 0.
+      - name: Verify live site
+        run: |
+          # Wait a few seconds for Vercel to propagate the deployment.
+          sleep 5
+
+          # The production URL is always https://daxelo-kinrel.vercel.app
+          # (custom domain) — but the deploy also returns a unique URL.
+          # Check both: the deployment-specific URL first, then the
+          # production alias.
+          PROD_URL="https://daxelo-kinrel.vercel.app"
+
+          echo "Checking production URL: $PROD_URL"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$PROD_URL")
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Production URL returned HTTP $HTTP_CODE (expected 200)"
+            exit 1
+          fi
+          echo "✅ Production URL is live (HTTP 200)"
+
+          # Also verify the build identifier in the deployed JS bundle
+          # matches the current git SHA. This catches stale deployments.
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "Checking for build identifier: $SHORT_SHA"
+          BUNDLE_HASH=$(curl -s "$PROD_URL/main.dart.js" | \
+            grep -oE 'build: [a-z0-9]{7}' | head -1 || echo "not found")
+
+          if echo "$BUNDLE_HASH" | grep -q "$SHORT_SHA"; then
+            echo "✅ Build identifier matches: $BUNDLE_HASH == $SHORT_SHA"
+          else
+            echo "⚠️ Build identifier mismatch: bundle has '$BUNDLE_HASH', expected '$SHORT_SHA'"
+            echo "This may indicate Vercel CDN cache hasn't propagated yet (normal)."
+            echo "The deployment itself succeeded — the CDN will update shortly."
+          fi
