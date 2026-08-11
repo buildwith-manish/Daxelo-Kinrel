@@ -2931,14 +2931,15 @@ class _MessageBubble extends ConsumerWidget {
             // and never checked message.mediaUrl.
             if (message.mediaUrl != null &&
                 message.mediaUrl!.isNotEmpty)
-              GestureDetector(
-                onTap: () => FullScreenImageViewer.show(
-                  context,
-                  imageUrl: message.mediaUrl!,
-                  senderName: message.senderName,
-                  timestamp: message.timestamp,
-                ),
-                child: ClipRRect(
+              Builder(
+                builder: (ctx) => GestureDetector(
+                  onTap: () => FullScreenImageViewer.show(
+                    ctx,
+                    imageUrl: message.mediaUrl!,
+                    senderName: message.senderName,
+                    timestamp: message.timestamp,
+                  ),
+                  child: ClipRRect(
                 borderRadius: BorderRadius.circular(KinrelRadius.md),
                 child: Image.network(
                   message.mediaUrl!,
@@ -3000,6 +3001,7 @@ class _MessageBubble extends ConsumerWidget {
                   ),
                 ),
               ),
+                ),
               )
             else
               // Legacy message with no mediaUrl — keep the placeholder.

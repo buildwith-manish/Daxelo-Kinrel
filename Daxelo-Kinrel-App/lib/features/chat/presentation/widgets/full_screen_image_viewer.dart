@@ -256,8 +256,8 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer>
     final minute = dt.minute.toString().padLeft(2, '0');
     final period = hour >= 12 ? 'PM' : 'AM';
     final displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
-    final month = dt.month.toString().padStart(2, '0');
-    final day = dt.day.toString().padStart(2, '0');
+    final month = dt.month.toString().padLeft(2, '0');
+    final day = dt.day.toString().padLeft(2, '0');
     return '$displayHour:$minute $period · $month/$day/${dt.year}';
   }
 }
