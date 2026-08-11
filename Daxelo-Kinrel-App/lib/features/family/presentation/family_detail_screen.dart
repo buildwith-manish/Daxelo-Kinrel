@@ -541,8 +541,17 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
     try {
       // Upload to Supabase Storage (avatars bucket, family-avatars path).
+      // The path uses a unique timestamp so each upload is a fresh INSERT
+      // (not an UPDATE/upsert) — this avoids 403 errors from the UPDATE
+      // RLS policy which requires owner = auth.uid().
       final client = ref.read(supabaseProvider);
       if (client == null) throw Exception('Not connected to server');
+
+      // Verify the user is authenticated (the storage INSERT policy
+      // requires TO authenticated — anon uploads are rejected).
+      if (client.auth.currentSession == null) {
+        throw Exception('Not signed in. Please sign in and try again.');
+      }
 
       final bytes = await xFile.readAsBytes();
       final ext = xFile.path.contains('.')
@@ -555,12 +564,15 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
       final path =
           'family-avatars/${DateTime.now().millisecondsSinceEpoch}.$safeExt';
 
+      // Use upsert: false — each upload is a new file (unique timestamp
+      // path), so we don't need to replace an existing file. This avoids
+      // hitting the UPDATE RLS policy.
       await client.storage.from('avatars').uploadBinary(
             path,
             bytes,
             fileOptions: FileOptions(
               contentType: 'image/$safeExt',
-              upsert: true,
+              upsert: false,
             ),
           );
       final url = client.storage.from('avatars').getPublicUrl(path);
@@ -578,6 +590,19 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
         const SnackBar(
           content: Text('Profile picture updated!'),
           behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } on StorageException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Storage error: ${e.message}. '
+            'Make sure you are signed in and have permission to upload.',
+          ),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 8),
         ),
       );
     } catch (e) {
