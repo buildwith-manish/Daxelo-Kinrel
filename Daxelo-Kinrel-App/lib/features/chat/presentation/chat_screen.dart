@@ -629,6 +629,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   case 'starred':
                     _showStarredMessages();
                     break;
+                  case 'pinned':
+                    _showPinnedMessages();
+                    break;
                 }
               },
               itemBuilder: (ctx) => [
@@ -638,6 +641,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     value: 'wallpaper_color', child: Text('Wallpaper Color')),
                 const PopupMenuItem(value: 'mute', child: Text('Mute notifications')),
                 const PopupMenuItem(value: 'starred', child: Text('Starred messages')),
+                // v122: Pinned messages view
+                const PopupMenuItem(value: 'pinned', child: Text('Pinned messages')),
               ],
             ),
             const SizedBox(width: 4),
@@ -1084,6 +1089,116 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                   style: TextStyle(
                                       fontSize: 10,
                                       color: KinrelColors.textDim)),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// v122: Shows all pinned messages in a bottom sheet.
+  /// Modelled on _showStarredMessages, filtering by isPinned.
+  void _showPinnedMessages() {
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final pinned = chatState.messages.where((m) => m.isPinned).toList();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (ctx, controller) => Column(
+          children: [
+            Container(
+              width: 40, height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 16),
+              decoration: BoxDecoration(
+                color: KinrelColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.push_pin, size: 18, color: KinrelColors.orange),
+                const SizedBox(width: 6),
+                Text('Pinned Messages',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: KinrelColors.textWhite,
+                    )),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: pinned.isEmpty
+                  ? Center(
+                      child: Text('No pinned messages',
+                          style: TextStyle(color: KinrelColors.textDim)))
+                  : ListView.builder(
+                      controller: controller,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: pinned.length,
+                      itemBuilder: (ctx, index) {
+                        final msg = pinned[index];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: KinrelColors.darkCard,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: KinrelColors.border),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.push_pin,
+                                      size: 14, color: KinrelColors.orange),
+                                  const SizedBox(width: 4),
+                                  Text(msg.senderName,
+                                      style: TextStyle(
+                                        fontFamily: KinrelTypography.bodyFont,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: KinrelColors.orange,
+                                      )),
+                                  const Spacer(),
+                                  Text(msg.formattedTime,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: KinrelColors.textDim,
+                                      )),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                msg.content.isNotEmpty
+                                    ? msg.content
+                                    : '[${msg.messageType.name}]',
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.bodyFont,
+                                  fontSize: 14,
+                                  color: KinrelColors.textWhite,
+                                ),
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ],
                           ),
                         );
@@ -1976,6 +2091,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   void _showMessageActions(ChatMessage message) {
     final isMe = _isMine(message);
 
+    // v122: Check if current user is admin/creator (for Pin permission).
+    final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+    final detailAsync = ref.read(familyDetailProvider(widget.familyId));
+    final family = detailAsync.valueOrNull?.family;
+    final isCreator = family?.createdBy != null &&
+        family?.createdBy == currentUserId;
+    final membershipsAsync =
+        ref.read(familyMembershipsProvider(widget.familyId));
+    final memberships = membershipsAsync.valueOrNull ?? [];
+    final currentUserMembership = memberships
+        .where((m) => m.userId == currentUserId)
+        .firstOrNull;
+    final isAdminOrCreator = isCreator ||
+        currentUserMembership?.isAdmin == true;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: KinrelColors.darkCard,
@@ -2161,6 +2291,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
                 },
               ),
+              // v122: Pin / Unpin (admin/creator only — RPC enforces too)
+              if (isAdminOrCreator)
+                ListTile(
+                  leading: Icon(
+                    message.isPinned
+                        ? Icons.push_pin
+                        : Icons.push_pin_outlined,
+                    color: message.isPinned
+                        ? KinrelColors.orange
+                        : KinrelColors.textSilver,
+                    size: 22,
+                  ),
+                  title: Text(
+                    message.isPinned ? 'Unpin' : 'Pin',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 15,
+                      color: KinrelColors.textWhite,
+                    ),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final service = ref.read(chatEnhancementServiceProvider);
+                    await service.pinMessage(message.id, !message.isPinned);
+                    ref.read(chatProvider(widget.familyId).notifier).refreshMessages();
+                  },
+                ),
               // Edit (only for own text messages)
               if (isMe && message.messageType == MessageType.text)
                 ListTile(
@@ -2447,15 +2604,50 @@ class _MessageBubble extends ConsumerWidget {
     // for solo emoji impact, like WhatsApp stickers.
     final isSticker = message.messageType == MessageType.sticker;
 
-    return GestureDetector(
-      onLongPress: onLongPress,
-      child: Align(
-        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // v113: Tappable sender avatar for incoming (non-self) messages.
+    // v122: Swipe-to-reply — user can swipe right on any message to
+    // quote-reply to it. Uses a horizontal drag gesture with a
+    // threshold. When the swipe exceeds the threshold, onReply is
+    // called (which calls setReplyTo in the provider). A visual
+    // reply icon appears during the drag for feedback.
+    double _dragX = 0;
+    bool _replyTriggered = false;
+
+    return StatefulBuilder(
+      builder: (context, setLocalState) {
+        return GestureDetector(
+          onLongPress: onLongPress,
+          onHorizontalDragUpdate: (details) {
+            if (details.delta.dx > 0 && !_replyTriggered) {
+              _dragX += details.delta.dx;
+              if (_dragX > 40) {
+                _replyTriggered = true;
+                onReply();
+                HapticFeedback.selectionClick();
+              }
+            }
+          },
+          onHorizontalDragEnd: (_) {
+            _dragX = 0;
+            _replyTriggered = false;
+          },
+          child: Align(
+            alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // v122: Reply icon shown during swipe (left side).
+                if (_dragX > 5 && !isSticker)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Icon(
+                      Icons.reply_rounded,
+                      size: 20,
+                      color: KinrelColors.orange
+                          .withValues(alpha: (_dragX / 40).clamp(0.0, 1.0)),
+                    ),
+                  ),
+                // v113: Tappable sender avatar for incoming (non-self) messages.
             // Tapping opens the MemberProfileSheet for the sender.
             // Hidden for self-messages and stickers.
             if (!isMe && !isSticker)
@@ -2566,7 +2758,9 @@ class _MessageBubble extends ConsumerWidget {
           ],
         ),
       ),
-    );
+        ); // close GestureDetector
+      }, // close StatefulBuilder builder
+    ); // close StatefulBuilder
   }
 
   Widget _buildReplyPreview() {
