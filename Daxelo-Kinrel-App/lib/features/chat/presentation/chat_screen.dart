@@ -1282,17 +1282,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         final group = grouped[index];
         return Column(
           children: [
-            // Date separator
+            // v127: Date separator pill
             _buildDateSeparator(group.dateLabel),
             const SizedBox(height: 8),
-            // Messages for this date
-            ...group.messages.map((msg) {
+            // Messages for this date — v127: with sender grouping
+            ...group.messages.asMap().entries.map((entry) {
+              final i = entry.key;
+              final msg = entry.value;
               final isMe = _isMine(msg);
+
+              // v127: Compute isFirstInGroup + isLastInGroup.
+              // First in group if: first message OR previous message
+              // is from a different sender OR >60s gap.
+              final isFirstInGroup = i == 0 ||
+                  group.messages[i - 1].senderId != msg.senderId ||
+                  msg.timestamp.difference(group.messages[i - 1].timestamp).inSeconds.abs() > 60;
+
+              // Last in group if: last message OR next message
+              // is from a different sender OR >60s gap.
+              final isLastInGroup = i == group.messages.length - 1 ||
+                  group.messages[i + 1].senderId != msg.senderId ||
+                  group.messages[i + 1].timestamp.difference(msg.timestamp).inSeconds.abs() > 60;
+
+              // v127: Tighter spacing within groups (2px) vs between
+              // groups (8px).
+              final bottomPadding = isLastInGroup ? 8.0 : 2.0;
+
               return Padding(
-                padding: EdgeInsets.only(bottom: 4),
+                padding: EdgeInsets.only(bottom: bottomPadding),
                 child: _MessageBubble(
                   message: msg,
                   isMe: isMe,
+                  isFirstInGroup: isFirstInGroup,
+                  isLastInGroup: isLastInGroup,
                   onReply: () {
                     ref
                         .read(chatProvider(widget.familyId).notifier)
@@ -2675,6 +2697,9 @@ class _MessageBubble extends ConsumerWidget {
     required this.onReply,
     required this.onReact,
     required this.onLongPress,
+    this.isFirstInGroup = true,
+    this.isLastInGroup = true,
+    this.animateIn = false,
   });
 
   final ChatMessage message;
@@ -2682,6 +2707,17 @@ class _MessageBubble extends ConsumerWidget {
   final VoidCallback onReply;
   final VoidCallback onReact;
   final VoidCallback onLongPress;
+
+  /// v127: Whether this is the first message in a consecutive group
+  /// from the same sender. Controls avatar + sender name visibility.
+  final bool isFirstInGroup;
+
+  /// v127: Whether this is the last message in a consecutive group.
+  /// Controls bubble tail (asymmetric radius) + inline timestamp.
+  final bool isLastInGroup;
+
+  /// v127: Whether to play the send-in animation (scale + fade).
+  final bool animateIn;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2738,38 +2774,39 @@ class _MessageBubble extends ConsumerWidget {
                           .withValues(alpha: (_dragX / 40).clamp(0.0, 1.0)),
                     ),
                   ),
-                // v113: Tappable sender avatar for incoming (non-self) messages.
-            // Tapping opens the MemberProfileSheet for the sender.
-            // Hidden for self-messages and stickers.
-            if (!isMe && !isSticker)
-              GestureDetector(
-                onTap: () => MemberProfileSheet.show(
-                  context,
-                  message.senderId,
-                ),
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  margin: const EdgeInsets.only(right: 8, bottom: 2),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: KinrelColors.orange.withValues(alpha: 0.15),
-                  ),
-                  child: Center(
-                    child: Text(
-                      (message.senderName.isNotEmpty
+                // v127: Avatar only on first message in group.
+                // Non-first messages get an invisible spacer for alignment.
+                if (!isMe && !isSticker && isFirstInGroup)
+                  GestureDetector(
+                    onTap: () => MemberProfileSheet.show(
+                      context,
+                      message.senderId,
+                    ),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      margin: const EdgeInsets.only(right: 8, bottom: 2),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: KinrelColors.orange.withValues(alpha: 0.15),
+                      ),
+                      child: Center(
+                        child: Text(
+                          (message.senderName.isNotEmpty
                               ? message.senderName[0].toUpperCase()
                               : '?'),
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.displayFont,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: KinrelColors.orange,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: KinrelColors.orange,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ),
+                  )
+                else if (!isMe && !isSticker && !isFirstInGroup)
+                  const SizedBox(width: 40), // invisible spacer for alignment
             Flexible(
               child: Container(
                 constraints: BoxConstraints(
@@ -2784,7 +2821,7 @@ class _MessageBubble extends ConsumerWidget {
                   children: [
                     // Reply preview (if replying to a message)
                     if (message.replyToId != null) _buildReplyPreview(),
-                    // Bubble
+                    // Bubble — v127: asymmetric radius for tail effect
                     Container(
                       padding: isSticker
                           ? const EdgeInsets.symmetric(
@@ -2794,22 +2831,23 @@ class _MessageBubble extends ConsumerWidget {
                               vertical: 8,
                             ),
                       decoration: BoxDecoration(
-                        // Stickers: transparent background (just the emoji on chat bg)
                         color: isSticker
                             ? Colors.transparent
                             : (isMe
-                                ? const Color(0xFFE8612A)
-                                    .withValues(alpha: 0.08)
+                                ? KinrelColors.orange.withValues(alpha: 0.12)
                                 : const Color(0xFF191B2C)),
+                        // v127: Tail effect — the corner nearest the
+                        // "tail" (bottom-right for isMe, bottom-left for
+                        // others) drops to 4px only on isLastInGroup.
                         borderRadius: isSticker
                             ? BorderRadius.zero
                             : BorderRadius.only(
-                                topLeft: Radius.circular(KinrelRadius.lg),
-                                topRight: Radius.circular(KinrelRadius.lg),
+                                topLeft: const Radius.circular(18),
+                                topRight: const Radius.circular(18),
                                 bottomLeft: Radius.circular(
-                                    isMe ? KinrelRadius.lg : 4),
+                                    isMe ? 18 : (isLastInGroup ? 4 : 18)),
                                 bottomRight: Radius.circular(
-                                    isMe ? 4 : KinrelRadius.lg),
+                                    isMe ? (isLastInGroup ? 4 : 18) : 18),
                               ),
                         border: isSticker
                             ? Border.all(color: Colors.transparent)
@@ -2822,26 +2860,36 @@ class _MessageBubble extends ConsumerWidget {
                                 : Border.all(
                                     color: const Color(0xFF2A2A3D),
                                     width: 0.5)),
+                        // v127: Subtle shadow on received bubbles.
+                        boxShadow: isSticker || isMe
+                            ? null
+                            : [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.15),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                       ),
                       child: Column(
                         crossAxisAlignment: isMe
                             ? CrossAxisAlignment.end
                             : CrossAxisAlignment.start,
                         children: [
-                          // Sender name (for received messages, skip for stickers)
-                          if (!isMe && !isSticker) _buildSenderName(),
+                          // v127: Sender name only on first message in group
+                          if (!isMe && !isSticker && isFirstInGroup)
+                            _buildSenderName(),
                           // Message content
                           _buildMessageContent(),
-                          // Time and read receipt row (skip for stickers —
-                          // stickers show time inline below)
-                          if (!isSticker) _buildTimeRow(),
+                          // v127: Inline timestamp only on last-in-group
+                          if (!isSticker && isLastInGroup) _buildTimeRow(),
                           if (isSticker) _buildStickerTimeRow(),
                         ],
                       ),
                     ),
-                    // Reactions row
+                    // v127: Reaction chips positioned overlapping bubble bottom
                     if (message.reactions.isNotEmpty)
-                      _buildReactions(currentUserId),
+                      _buildReactionChips(currentUserId),
                   ],
                 ),
               ),
@@ -3423,6 +3471,65 @@ class _MessageBubble extends ConsumerWidget {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  /// v127: Reaction chips positioned overlapping the bubble's bottom edge.
+  /// Uses a Transform.translate to shift the chips down so they overlap.
+  Widget _buildReactionChips(String? currentUserId) {
+    final grouped = message.groupedReactions;
+    return Transform.translate(
+      offset: const Offset(0, 10),
+      child: Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: Wrap(
+          spacing: 4,
+          runSpacing: 2,
+          children: grouped.entries.map((entry) {
+            final hasMyReaction = message.reactions.any(
+              (r) => r.emoji == entry.key && r.userId == currentUserId,
+            );
+            return GestureDetector(
+              onTap: onReact,
+              child: Container(
+                height: 22,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                decoration: BoxDecoration(
+                  color: hasMyReaction
+                      ? KinrelColors.orange.withValues(alpha: 0.15)
+                      : const Color(0xFF202338),
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(
+                    color: hasMyReaction
+                        ? KinrelColors.orange.withValues(alpha: 0.3)
+                        : const Color(0xFF3A3A4A),
+                    width: 0.5,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(entry.key, style: const TextStyle(fontSize: 12)),
+                    if (entry.value > 1) ...[
+                      const SizedBox(width: 2),
+                      Text(
+                        '${entry.value}',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.monoFont,
+                          fontSize: 10,
+                          color: hasMyReaction
+                              ? KinrelColors.orange
+                              : KinrelColors.textDim,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
