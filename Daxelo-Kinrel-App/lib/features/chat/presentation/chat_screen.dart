@@ -41,6 +41,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/utils/web_keyboard_height.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/chat_enhancement_service.dart';
 import '../providers/chat_provider.dart';
@@ -116,6 +117,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   // needing to leave and re-enter the chat.
   Color? _wallpaperColor;
 
+  // v128: Web keyboard height — on Flutter Web, resizeToAvoidBottomInset
+  // doesn't work because the browser doesn't resize the layout viewport
+  // when the keyboard opens. We use the visualViewport API instead to
+  // detect the actual keyboard height and add explicit bottom padding.
+  double _webKeyboardHeight = 0;
+
   // Quick reaction emojis
   static const _reactionEmojis = ['❤️', '😂', '👍', '😮', '😢', '🙏'];
 
@@ -148,6 +155,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       }
     });
 
+    // v128: Start web keyboard height detection. On native, this is
+    // a no-op (Scaffold's resizeToAvoidBottomInset handles it).
+    WebKeyboardHeight.instance.start();
+    WebKeyboardHeight.instance.addListener(_onWebKeyboardHeight);
+
     // Typing indicator — 3 bouncing dots
     _typingController = AnimationController(
       vsync: this,
@@ -175,6 +187,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     });
   }
 
+  /// v128: Called when the web keyboard height changes (visualViewport API).
+  void _onWebKeyboardHeight() {
+    if (mounted) {
+      setState(() {
+        _webKeyboardHeight = WebKeyboardHeight.instance.currentHeight;
+      });
+    }
+  }
+
   /// v112: Fetch the saved wallpaperColor from ChatSettings and store
   /// it in _wallpaperColor so the body background picks it up. Called
   /// once from initState (via addPostFrameCallback so ref is ready).
@@ -197,6 +218,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   @override
   void dispose() {
+    // v128: Clean up web keyboard height listener.
+    WebKeyboardHeight.instance.removeListener(_onWebKeyboardHeight);
     _scrollController.dispose();
     _textController.dispose();
     _focusNode.dispose();
@@ -410,6 +433,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
           // Input bar
           _buildInputBar(),
+          // v128: On Flutter Web, resizeToAvoidBottomInset doesn't detect
+          // the mobile keyboard. We add explicit bottom padding equal to
+          // the visualViewport-measured keyboard height so the input bar
+          // is always visible above the keyboard.
+          if (kIsWeb && _webKeyboardHeight > 0)
+            SizedBox(height: _webKeyboardHeight),
         ],
       ),
     );
