@@ -45,6 +45,7 @@ import '../../pulse/providers/cross_feature_moments_provider.dart';
 import '../../shared_list/presentation/shared_list_screen.dart';
 import 'premium/family_hub_sections.dart';
 import 'premium/hero_section.dart';
+import 'widgets/image_crop_editor.dart';
 import 'package:image_picker/image_picker.dart';
 
 class FamilyDetailScreen extends ConsumerStatefulWidget {
@@ -502,22 +503,35 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
     );
   }
 
-  /// Picks an image from the gallery, uploads it to Supabase Storage,
-  /// and updates the Family row's avatarUrl. Shows loading/success/
-  /// error states via a SnackBar.
+  /// Picks an image from the gallery, opens a crop editor, uploads the
+  /// cropped image to Supabase Storage, and updates the Family row's
+  /// avatarUrl. Shows loading/success/error states via a SnackBar.
   Future<void> _uploadAvatar() async {
-    // Pick image from gallery (web-compatible — no camera option).
+    // 1. Pick image from gallery (web-compatible — no camera option).
+    //    Use a larger max dimension so the crop editor has room to work.
     final picker = ImagePicker();
     final xFile = await picker.pickImage(
       source: ImageSource.gallery,
-      maxWidth: 512,
-      maxHeight: 512,
-      imageQuality: 85,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 90,
     );
     if (xFile == null) return; // user cancelled
 
-    // Show loading indicator
     if (!mounted) return;
+
+    // 2. Open the crop editor — user can pan/zoom and crop to a circle.
+    final rawBytes = await xFile.readAsBytes();
+    if (!mounted) return;
+    final croppedBytes = await ImageCropEditor.show(
+      context,
+      imageBytes: rawBytes,
+    );
+    if (croppedBytes == null) return; // user cancelled crop
+
+    if (!mounted) return;
+
+    // 3. Show loading indicator during upload.
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Row(
@@ -540,44 +554,34 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
     );
 
     try {
-      // Upload to Supabase Storage (avatars bucket, family-avatars path).
-      // The path uses a unique timestamp so each upload is a fresh INSERT
-      // (not an UPDATE/upsert) — this avoids 403 errors from the UPDATE
-      // RLS policy which requires owner = auth.uid().
+      // 4. Upload to Supabase Storage (avatars bucket, family-avatars path).
       final client = ref.read(supabaseProvider);
       if (client == null) throw Exception('Not connected to server');
 
-      // Verify the user is authenticated (the storage INSERT policy
-      // requires TO authenticated — anon uploads are rejected).
+      // Verify the user is authenticated.
       if (client.auth.currentSession == null) {
         throw Exception('Not signed in. Please sign in and try again.');
       }
 
-      final bytes = await xFile.readAsBytes();
-      final ext = xFile.path.contains('.')
-          ? xFile.path.split('.').last.toLowerCase()
-          : 'jpg';
-      final safeExt =
-          const <String>['jpg', 'jpeg', 'png', 'webp'].contains(ext)
-              ? ext
-              : 'jpg';
-      final path =
-          'family-avatars/${DateTime.now().millisecondsSinceEpoch}.$safeExt';
+      // Use PNG for the cropped image (the crop editor outputs PNG).
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final path = 'family-avatars/$timestamp.png';
 
-      // Use upsert: false — each upload is a new file (unique timestamp
-      // path), so we don't need to replace an existing file. This avoids
-      // hitting the UPDATE RLS policy.
       await client.storage.from('avatars').uploadBinary(
             path,
-            bytes,
+            croppedBytes,
             fileOptions: FileOptions(
-              contentType: 'image/$safeExt',
+              contentType: 'image/png',
               upsert: false,
             ),
           );
-      final url = client.storage.from('avatars').getPublicUrl(path);
 
-      // Update the Family row
+      // Build the public URL with a cache-busting query param so
+      // CachedNetworkImage doesn't serve a stale cached image.
+      final url =
+          '${client.storage.from('avatars').getPublicUrl(path)}?t=$timestamp';
+
+      // 5. Update the Family row with the new avatar URL.
       await updateFamily(
         ref: ref,
         familyId: widget.familyId,

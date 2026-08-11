@@ -18,6 +18,7 @@
 
 import 'dart:math' as math;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -429,8 +430,10 @@ class _FamilyInitialAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // v118: If a family avatar URL is set, render the image in a
-    // circular clip instead of the initial-letter fallback.
+    // v119: If a family avatar URL is set, render the image using
+    // CachedNetworkImage with proper loading + error states.
+    // Cache-busting: append a timestamp query param so a new upload
+    // with a different URL isn't confused with a cached old one.
     if (avatarUrl != null && avatarUrl!.isNotEmpty) {
       return Container(
         width: size,
@@ -443,12 +446,27 @@ class _FamilyInitialAvatar extends StatelessWidget {
           ),
         ),
         child: ClipOval(
-          child: Image.network(
-            avatarUrl!,
+          child: CachedNetworkImage(
+            imageUrl: avatarUrl!,
             fit: BoxFit.cover,
             width: size,
             height: size,
-            errorBuilder: (_, __, ___) => _buildInitialFallback(),
+            // Show a spinner while loading.
+            placeholder: (_, __) => Container(
+              color: KinrelColors.darkElevated,
+              child: Center(
+                child: SizedBox(
+                  width: size * 0.2,
+                  height: size * 0.2,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: KinrelColors.orange,
+                  ),
+                ),
+              ),
+            ),
+            // Fall back to initials on error.
+            errorWidget: (_, __, ___) => _buildInitialFallback(),
           ),
         ),
       );
