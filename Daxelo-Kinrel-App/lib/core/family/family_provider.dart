@@ -2750,8 +2750,106 @@ Future<Family> updateFamily({
 
   ref.invalidate(familyDetailProvider(familyId));
 
+  // v121: Also update the centralized avatar provider so all screens
+  // see the new avatar URL instantly (optimistic + authoritative).
+  ref.read(familyAvatarProvider(familyId).notifier).setFromServer(
+        updatedFamily.avatarUrl,
+      );
+
   return updatedFamily;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// v121 — Centralized Family Avatar Provider
+// ═══════════════════════════════════════════════════════════════════════
+//
+// A single source of truth for the family avatar URL. All screens that
+// display the family avatar should watch this provider instead of
+// reading avatarUrl from familyDetailProvider or familyListProvider
+// directly.
+//
+// Features:
+// - Optimistic updates: setOptimistic(url) shows the new image
+//   instantly before the upload completes.
+// - Authoritative updates: setFromServer(url) confirms the optimistic
+//   value (or overrides it with the DB value).
+// - Falls back to familyDetailProvider's avatarUrl when no override
+//   is set.
+// - Cache-busting: the URL already includes ?t=timestamp from the
+//   upload flow; this provider passes it through unchanged.
+// - Realtime: when Supabase Realtime invalidates familyDetailProvider,
+//   this provider picks up the new avatarUrl from the fresh data.
+
+/// State notifier for [familyAvatarProvider].
+class FamilyAvatarNotifier extends StateNotifier<String?> {
+  FamilyAvatarNotifier(this._ref, this._familyId) : super(null) {
+    // Watch the detail provider's avatarUrl as the fallback.
+    _detailSub = _ref.listen(
+      familyDetailProvider(_familyId),
+      (_, detailAsync) {
+        // Only update from the server if we don't have an optimistic
+        // override pending (optimistic values are cleared by
+        // setFromServer once the upload completes).
+        if (!_hasOptimistic) {
+          final url = detailAsync.valueOrNull?.family.avatarUrl;
+          if (url != null && url != state) {
+            state = url;
+          } else if (url == null && state != null && !_hasOptimistic) {
+            // Avatar was removed.
+            state = null;
+          }
+        }
+      },
+    );
+  }
+
+  final Ref _ref;
+  final String _familyId;
+  late final ProviderSubscription<AsyncValue<FamilyDetail?>> _detailSub;
+  bool _hasOptimistic = false;
+
+  /// Shows the new avatar URL instantly (before upload completes).
+  /// Call this right after picking the image, before the upload starts.
+  void setOptimistic(String? url) {
+    _hasOptimistic = url != null;
+    state = url;
+  }
+
+  /// Confirms the optimistic value with the authoritative server URL.
+  /// Call this after the upload + DB update completes successfully.
+  void setFromServer(String? url) {
+    _hasOptimistic = false;
+    state = url;
+  }
+
+  /// Clears the avatar (used when removing the profile picture).
+  void clear() {
+    _hasOptimistic = false;
+    state = null;
+  }
+
+  @override
+  void dispose() {
+    _detailSub.dispose();
+    super.dispose();
+  }
+}
+
+/// Centralized family avatar URL provider.
+///
+/// All screens that display the family avatar should watch this:
+/// ```dart
+/// final avatarUrl = ref.watch(familyAvatarProvider(familyId));
+/// ```
+///
+/// This ensures instant updates across all screens when the avatar
+/// changes — optimistic during upload, authoritative after.
+final familyAvatarProvider = StateNotifierProvider.family<FamilyAvatarNotifier, String?, String>((
+  ref,
+  familyId,
+) {
+  return FamilyAvatarNotifier(ref, familyId);
+});
 
 /// Delete (deactivate) a relationship in Supabase.
 ///

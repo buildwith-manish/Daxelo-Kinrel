@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -87,6 +88,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(familyDetailProvider(widget.familyId));
+    // v121: Watch the centralized avatar provider for instant updates
+    // (optimistic during upload, authoritative after).
+    final avatarUrl = ref.watch(familyAvatarProvider(widget.familyId));
 
     // v116: PopScope ensures the Android device back button uses the
     // same logic as the top-left back arrow — pop if there's history,
@@ -251,17 +255,18 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                   SliverToBoxAdapter(
                     child: staggerFade(
                       HeroSection(
-                        // v120: Key on avatarUrl so Flutter destroys +
-                        // recreates the widget when the avatar changes,
-                        // forcing CachedNetworkImage to re-fetch the
-                        // new URL instead of showing the cached old one.
-                        key: ValueKey('hero_${detail.family.avatarUrl}'),
+                        // v121: Key on the centralized avatarUrl so
+                        // Flutter rebuilds when the avatar changes
+                        // (optimistic or authoritative).
+                        key: ValueKey('hero_$avatarUrl'),
                         familyId: widget.familyId,
                         familyName: detail.family.name,
                         memberCount: detail.members.length,
                         relationshipCount: detail.relationships.length,
                         scrollOffset: _heroScrollOffset,
-                        avatarUrl: detail.family.avatarUrl,
+                        // v121: Use the centralized avatarUrl (from
+                        // familyAvatarProvider) for instant updates.
+                        avatarUrl: avatarUrl,
                         onAvatarTap: () => _onAvatarInteraction(),
                         onAvatarLongPress: () => _onAvatarInteraction(),
                       ),
@@ -402,7 +407,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
     if (isAdminOrOwner) {
       _showAvatarMenu(family);
     } else {
-      _showFullScreenAvatar(family.avatarUrl, family.name);
+      // v121: Use the centralized avatarUrl for the full-screen viewer.
+      final avatarUrl = ref.read(familyAvatarProvider(widget.familyId));
+      _showFullScreenAvatar(avatarUrl, family.name);
     }
   }
 
@@ -411,8 +418,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
   /// - Change Family Profile Picture (gallery picker → upload)
   /// - Remove Family Profile Picture (only if one exists)
   void _showAvatarMenu(Family family) {
-    final hasAvatar =
-        family.avatarUrl != null && family.avatarUrl!.isNotEmpty;
+    // v121: Use the centralized avatarUrl (includes optimistic updates).
+    final avatarUrl = ref.read(familyAvatarProvider(widget.familyId));
+    final hasAvatar = avatarUrl != null && avatarUrl.isNotEmpty;
 
     showModalBottomSheet(
       context: context,
@@ -450,7 +458,7 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     style: TextStyle(color: KinrelColors.textWhite)),
                 onTap: () {
                   Navigator.pop(ctx);
-                  _showFullScreenAvatar(family.avatarUrl, family.name);
+                  _showFullScreenAvatar(avatarUrl, family.name);
                 },
               ),
             // Change
@@ -544,7 +552,17 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
     if (!mounted) return;
 
-    // 3. Capture the OLD avatar URL (to evict its cache + delete the
+    // 3. v121: Optimistic UI update — show the cropped image instantly
+    //    via a data URI before the upload completes. This makes the
+    //    avatar change appear in <1 second across ALL screens that
+    //    watch familyAvatarProvider.
+    final optimisticUrl =
+        'data:image/png;base64,${base64Encode(croppedBytes)}';
+    ref
+        .read(familyAvatarProvider(widget.familyId).notifier)
+        .setOptimistic(optimisticUrl);
+
+    // 4. Capture the OLD avatar URL (to evict its cache + delete the
     //    storage file after the new upload succeeds).
     final oldAvatarUrl = ref
         .read(familyDetailProvider(widget.familyId))
@@ -774,6 +792,9 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
       // Invalidate providers so the UI refreshes
       ref.invalidate(familyDetailProvider(widget.familyId));
       ref.invalidate(familyListProvider);
+
+      // v121: Clear the centralized avatar provider
+      ref.read(familyAvatarProvider(widget.familyId).notifier).clear();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).hideCurrentSnackBar();

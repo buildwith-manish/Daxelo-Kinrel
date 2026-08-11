@@ -16,7 +16,9 @@
 //   • Parallax collapse: as the user scrolls down, the hero shrinks
 //     and fades into a pinned header (iOS large-title collapse feel).
 
+import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -430,11 +432,34 @@ class _FamilyInitialAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // v119: If a family avatar URL is set, render the image using
-    // CachedNetworkImage with proper loading + error states.
-    // Cache-busting: append a timestamp query param so a new upload
-    // with a different URL isn't confused with a cached old one.
+    // v121: If a family avatar URL is set, render the image.
+    // Data URIs (optimistic updates) use Image.memory; network URLs
+    // use CachedNetworkImage with proper loading + error states.
     if (avatarUrl != null && avatarUrl!.isNotEmpty) {
+      // Optimistic data URI → Image.memory (instant, no network).
+      if (avatarUrl!.startsWith('data:')) {
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: KinrelColors.orange.withValues(alpha: 0.3),
+              width: 1.5,
+            ),
+          ),
+          child: ClipOval(
+            child: Image.memory(
+              _decodeDataUri(avatarUrl!),
+              fit: BoxFit.cover,
+              width: size,
+              height: size,
+              errorBuilder: (_, __, ___) => _buildInitialFallback(),
+            ),
+          ),
+        );
+      }
+      // Network URL → CachedNetworkImage (cached, with loading state).
       return Container(
         width: size,
         height: size,
@@ -451,7 +476,6 @@ class _FamilyInitialAvatar extends StatelessWidget {
             fit: BoxFit.cover,
             width: size,
             height: size,
-            // Show a spinner while loading.
             placeholder: (_, __) => Container(
               color: KinrelColors.darkElevated,
               child: Center(
@@ -465,13 +489,20 @@ class _FamilyInitialAvatar extends StatelessWidget {
                 ),
               ),
             ),
-            // Fall back to initials on error.
             errorWidget: (_, __, ___) => _buildInitialFallback(),
           ),
         ),
       );
     }
     return _buildInitialFallback();
+  }
+
+  /// Decodes a data URI string to Uint8List for Image.memory.
+  static Uint8List _decodeDataUri(String dataUri) {
+    final commaIdx = dataUri.indexOf(',');
+    if (commaIdx == -1) return Uint8List(0);
+    final b64 = dataUri.substring(commaIdx + 1);
+    return base64Decode(b64);
   }
 
   Widget _buildInitialFallback() {
