@@ -23,7 +23,9 @@ import 'package:kinrel/core/widgets/global_error_widget.dart';
 //   - Scroll-to-bottom FAB when scrolled up
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cross_file/cross_file.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/foundation.dart';
@@ -466,7 +468,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   // ── AppBar ───────────────────────────────────────────────────────
 
+  /// v124: Builds the default letter avatar (fallback when no image).
+  Widget _buildLetterAvatar() {
+    return Text(
+      (widget.familyName.isNotEmpty
+              ? widget.familyName.substring(0, 1)
+              : 'F')
+          .toUpperCase(),
+      style: TextStyle(
+        fontFamily: KinrelTypography.displayFont,
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
+        color: Colors.white,
+      ),
+    );
+  }
+
   PreferredSizeWidget _buildAppBar(ChatState chatState) {
+    // v124: Watch the centralized family avatar provider so the chat
+    // header shows the same image as the Chat List + Family Card.
+    final avatarUrl = ref.watch(familyAvatarProvider(widget.familyId));
+
     return PreferredSize(
       preferredSize: const Size.fromHeight(64),
       child: Container(
@@ -500,25 +522,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
           title: Row(
             children: [
-              // Family avatar
+              // v124: Family avatar — uses the centralized
+              // familyAvatarProvider so it matches the Chat List +
+              // Family Card. Shows the uploaded image when available,
+              // falls back to initials only when no image exists.
               Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: KinrelGradients.igniteGradient,
+                  gradient: avatarUrl == null || avatarUrl.isEmpty
+                      ? KinrelGradients.igniteGradient
+                      : null,
                 ),
-                child: Center(
-                  child: Text(
-                    (widget.familyName.isNotEmpty ? widget.familyName.substring(0, 1) : 'F').toUpperCase(),
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.displayFont,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
+                child: avatarUrl != null && avatarUrl.isNotEmpty
+                    ? ClipOval(
+                        child: avatarUrl.startsWith('data:')
+                            ? Image.memory(
+                                base64Decode(
+                                    avatarUrl.substring(avatarUrl.indexOf(',') + 1)),
+                                fit: BoxFit.cover,
+                                width: 38,
+                                height: 38,
+                                errorBuilder: (_, __, ___) => _buildLetterAvatar(),
+                              )
+                            : CachedNetworkImage(
+                                imageUrl: avatarUrl,
+                                fit: BoxFit.cover,
+                                width: 38,
+                                height: 38,
+                                placeholder: (_, __) => _buildLetterAvatar(),
+                                errorWidget: (_, __, ___) => _buildLetterAvatar(),
+                              ),
+                      )
+                    : Center(child: _buildLetterAvatar()),
               ),
               const SizedBox(width: 10),
               Expanded(
