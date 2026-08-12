@@ -51,7 +51,9 @@ import '../../family/presentation/family_space_floating_nav.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
 import '../data/chat_wallpaper_provider.dart';
 import '../data/wallpaper_picker.dart';
-import 'widgets/chat_wallpaper_builder.dart';
+import 'widgets/chat_background.dart';
+import 'widgets/chat_background_theme.dart';
+import 'widgets/chat_theme_picker_sheet.dart';
 import 'widgets/full_screen_image_viewer.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -395,9 +397,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
 
     return DKScaffold(
-      // v112: Apply saved wallpaper color, falling back to the default
-      // dark background when no wallpaper has been set.
-      backgroundColor: _wallpaperColor ?? const Color(0xFF13141E),
+      // v132: The background is now rendered by ChatBackground (a
+      // multi-layer ambient gradient + optional blurred wallpaper).
+      // The Scaffold background is a flat dark color that only shows
+      // behind the AppBar/input bar — the messages area is fully
+      // covered by ChatBackground.
+      backgroundColor: const Color(0xFF0A0B16),
       // v126: Explicitly enable keyboard resizing so the input bar
       // moves above the keyboard (WhatsApp-style).
       resizeToAvoidBottomInset: true,
@@ -411,11 +416,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           : null,
       body: Column(
         children: [
-          // Messages list — wrapped with ChatWallpaperBuilder so the
-          // custom wallpaper (if set) renders only behind the messages,
-          // not the AppBar or input bar.
+          // v132: Messages list wrapped with ChatBackground — a
+          // multi-layer ambient gradient (base + accent glow +
+          // vignette) plus optional blurred custom wallpaper.
+          // Gives the chat space depth without competing with bubbles.
           Expanded(
-            child: ChatWallpaperBuilder(
+            child: ChatBackground(
               chatId: widget.familyId,
               child: bodyContent,
             ),
@@ -541,13 +547,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       preferredSize: const Size.fromHeight(64),
       child: Container(
         decoration: BoxDecoration(
-          // v113: Apply the saved wallpaper color to the AppBar background
-          // too (previously hardcoded to 0xFF13141E), so the whole screen
-          // reflects the wallpaper choice consistently and the change is
-          // obviously visible immediately after picking.
-          color: _wallpaperColor ?? const Color(0xFF13141E),
+          // v132: AppBar matches the new ChatBackground base — deep
+          // navy-black so the header feels continuous with the
+          // messages area rather than a separate flat band.
+          color: const Color(0xFF0E0F1C),
           border: Border(
-            bottom: BorderSide(color: const Color(0xFF2A2A3D), width: 0.5),
+            bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06), width: 0.5),
           ),
         ),
         child: AppBar(
@@ -702,6 +707,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               color: KinrelColors.darkCard,
               onSelected: (value) {
                 switch (value) {
+                  case 'theme':
+                    _showThemePicker();
+                    break;
                   case 'wallpaper':
                     _showImageWallpaperPicker(context, widget.familyId);
                     break;
@@ -721,9 +729,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               },
               itemBuilder: (ctx) => [
                 const PopupMenuItem(
-                    value: 'wallpaper', child: Text('Chat Wallpaper')),
+                    value: 'theme', child: Text('Chat Atmosphere')),
                 const PopupMenuItem(
-                    value: 'wallpaper_color', child: Text('Wallpaper Color')),
+                    value: 'wallpaper', child: Text('Custom Wallpaper')),
+                const PopupMenuItem(
+                    value: 'wallpaper_color', child: Text('Solid Color')),
                 const PopupMenuItem(value: 'mute', child: Text('Mute notifications')),
                 const PopupMenuItem(value: 'starred', child: Text('Starred messages')),
                 // v122: Pinned messages view
@@ -833,6 +843,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ],
         ),
       ),
+    );
+  }
+
+  // v132: Opens the curated theme picker sheet. Each theme is a
+  // multi-layer ambient gradient (base + accent glow + vignette)
+  // that gives the chat space a curated atmosphere. Stored as
+  // "theme:<id>" in chatWallpaperProvider.
+  void _showThemePicker() {
+    showChatThemePickerSheet(
+      context,
+      chatId: widget.familyId,
+      onPickCustomWallpaper: () =>
+          _showImageWallpaperPicker(context, widget.familyId),
+      ref: ref,
     );
   }
 
@@ -1373,22 +1397,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Widget _buildDateSeparator(String label) {
+    // v132: Premium day divider — softer glass appearance with a
+    // refined shape. Uses a frosted-glass effect (semi-transparent
+    // dark + hairline white border) so it feels integrated with the
+    // ambient background rather than floating as a hard pill.
     return Center(
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+        margin: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
-          color: KinrelColors.elevation2,
-          borderRadius: BorderRadius.circular(KinrelRadius.xl),
+          // v132: Frosted glass — dark with low alpha so the ambient
+          // gradient shows through subtly.
+          color: const Color(0xFF13141E).withValues(alpha: 0.78),
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 0.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Text(
           label,
           style: TextStyle(
             fontFamily: KinrelTypography.monoFont,
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: KinrelColors.textSilver,
-            letterSpacing: 0.5,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+            color: KinrelColors.textSilver.withValues(alpha: 0.9),
+            letterSpacing: 0.8,
           ),
         ),
       ),
