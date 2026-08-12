@@ -59,6 +59,8 @@ import '../../features/family/presentation/family_list_screen.dart';
 import '../../features/family/presentation/family_detail_screen.dart';
 import '../../features/family/presentation/family_hub_screen.dart';
 import '../../features/family/presentation/family_groups_screen.dart';
+import '../../features/family/presentation/create_group_screen.dart';
+import '../../features/family/presentation/group_hub_screen.dart';
 import '../../features/family/presentation/path_finder_screen.dart';
 import '../../features/family/presentation/create_family_screen.dart';
 import '../../features/family/presentation/join_family_screen.dart';
@@ -1022,8 +1024,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/groups/:groupId/hub',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: FamilyGroupsScreen(familyId: state.pathParameters['id']!),
-          // TODO v138: replace with GroupHubScreen
+          child: GroupHubScreen(
+            familyId: state.pathParameters['id']!,
+            groupId: state.pathParameters['groupId']!,
+          ),
         ),
       ),
       // Group Chat — the conversation screen for a specific group
@@ -1032,7 +1036,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: FamilyGroupsScreen(familyId: state.pathParameters['id']!),
-          // TODO v138: replace with GroupChatScreen
+          // TODO v139: replace with GroupChatScreen (reuse ChatScreen with groupId)
         ),
       ),
       // Create Group flow
@@ -1040,8 +1044,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/family/:id/groups/create',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: FamilyGroupsScreen(familyId: state.pathParameters['id']!),
-          // TODO v138: replace with CreateGroupScreen
+          child: CreateGroupScreen(familyId: state.pathParameters['id']!),
         ),
       ),
 
@@ -2308,9 +2311,10 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    // Watch the unread notification count for the bell badge
-    final unreadCount = ref.watch(unreadCountProvider);
-
+    // v138: Notification bell is now part of the Home screen's sticky
+    // header (see _HomeNotificationBell in home_screen.dart). The
+    // floating overlay bell has been removed entirely — the bell is
+    // visible ONLY on the Home page, never on Chat/Family/Search/Me.
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -2340,105 +2344,13 @@ class _MainShellState extends ConsumerState<MainShell> {
                     ),
                   ),
                 Expanded(
-                  child: Stack(
-                    children: [
-                      // The actual screen content
-                      widget.child,
-                      // Floating notification bell (top-right, all screens)
-                      Positioned(
-                        top: MediaQuery.of(context).padding.top + 8,
-                        right: 8,
-                        child: _NotificationBell(
-                          unreadCount: unreadCount,
-                          onTap: () => context.push('/notifications'),
-                        ),
-                      ),
-                    ],
-                  ),
+                  child: widget.child,
                 ),
               ],
             );
           },
         ),
         bottomNavigationBar: const _BottomNav(),
-      ),
-    );
-  }
-}
-
-/// Floating notification bell with red unread badge.
-/// Visible on all main screens via the MainShell Stack overlay.
-class _NotificationBell extends StatelessWidget {
-  const _NotificationBell({required this.unreadCount, required this.onTap});
-
-  final int unreadCount;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: const Color(0xFF191B2C).withValues(alpha: 0.9),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08),
-              width: 1,
-            ),
-          ),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // Bell icon
-              Center(
-                child: Icon(
-                  unreadCount > 0
-                      ? Icons.notifications_rounded
-                      : Icons.notifications_outlined,
-                  color: const Color(0xFFC9B4A8),
-                  size: 22,
-                ),
-              ),
-              // Red unread badge
-              if (unreadCount > 0)
-                Positioned(
-                  top: 4,
-                  right: 4,
-                  child: Container(
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF4444),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: const Color(0xFF191B2C),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        unreadCount > 99 ? '99+' : '$unreadCount',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
       ),
     );
   }

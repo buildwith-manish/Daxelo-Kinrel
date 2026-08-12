@@ -17,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' hide Family;
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../../notifications/providers/notifications_provider.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
@@ -732,55 +733,87 @@ class _StickyHeader extends StatelessWidget {
             ),
           ),
           ),
-          // User Avatar (36px, orange ring if profile incomplete)
-          Semantics(
-            button: true,
-            label: 'User profile${isProfileIncomplete ? ', complete your profile' : ''}',
-            hint: 'Double tap to open profile',
-            child: minimumTapTarget(
-              child: GestureDetector(
-                onTap: () => context.go('/profile'),
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: isProfileIncomplete
-                        ? KinrelGradients.igniteGradient
-                        : null,
-                    color: isProfileIncomplete ? null : _cElevated,
-                    boxShadow: isProfileIncomplete
-                        ? [
-                            BoxShadow(
-                              color: _cOrange.withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              spreadRadius: 1,
-                            ),
-                          ]
-                        : null,
-                  ),
-                  padding: EdgeInsets.all(isProfileIncomplete ? 2.0 : 0),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _cCard,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      userName.isNotEmpty ? userName[0].toUpperCase() : '?',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.displayFont,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _cOrange,
+          // v138: Replaced the circular user-avatar icon with a single
+          // notification bell. The bell is now part of the Home header
+          // itself (naturally Home-only — no floating overlay needed).
+          // Tapping it opens /notifications. Shows a red badge with the
+          // unread count when > 0.
+          _HomeNotificationBell(),
+        ],
+      ),
+    );
+  }
+}
+
+/// Home-only notification bell — sits in the sticky header where the
+/// user avatar circle used to be. Single clean icon, no circular profile
+/// background. Red badge appears when there are unread notifications.
+class _HomeNotificationBell extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unreadCount = ref.watch(unreadCountProvider);
+
+    return Semantics(
+      button: true,
+      label: unreadCount > 0
+          ? 'Notifications, $unreadCount unread'
+          : 'Notifications',
+      hint: 'Double tap to view notifications',
+      child: minimumTapTarget(
+        child: GestureDetector(
+          onTap: () => context.push('/notifications'),
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _cElevated,
+            ),
+            alignment: Alignment.center,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  unreadCount > 0
+                      ? Icons.notifications_rounded
+                      : Icons.notifications_outlined,
+                  color: const Color(0xFFC9B4A8),
+                  size: 20,
+                ),
+                if (unreadCount > 0)
+                  Positioned(
+                    top: -2,
+                    right: -4,
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 14,
+                        minHeight: 14,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF4444),
+                        borderRadius: BorderRadius.circular(7),
+                        border: Border.all(
+                          color: _cBg,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          unreadCount > 99 ? '99+' : '$unreadCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

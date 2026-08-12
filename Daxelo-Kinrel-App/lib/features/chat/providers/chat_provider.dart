@@ -99,6 +99,7 @@ class ChatMessage {
     this.messageSubType,
     this.forwardedFrom,
     this.deletedForMe = const [],
+    this.groupId, // v137: for group-scoped messages (null = family-wide chat)
   });
 
   /// URL of the attached media (photo or voice note) in Supabase storage.
@@ -176,6 +177,10 @@ class ChatMessage {
 
   /// Phase 13: List of user IDs who deleted this message for themselves only.
   final List<dynamic> deletedForMe;
+
+  /// v137: Group ID if this message belongs to a sub-group chat.
+  /// Null means it's a family-wide chat message.
+  final String? groupId;
 
   /// Convenience: grouped reactions (emoji → count).
   Map<String, int> get groupedReactions {
@@ -277,6 +282,7 @@ class ChatMessage {
       messageSubType: json['messageSubType'] as String?,
       forwardedFrom: json['forwardedFrom'] as String?,
       deletedForMe: json['deletedForMe'] as List<dynamic>? ?? const [],
+      groupId: json['groupId'] as String?,
     );
   }
 
@@ -323,6 +329,7 @@ class ChatMessage {
       'messageStatus': messageStatus,
       if (messageSubType != null) 'messageSubType': messageSubType,
       if (forwardedFrom != null) 'forwardedFrom': forwardedFrom,
+      if (groupId != null) 'groupId': groupId,
     };
   }
 
