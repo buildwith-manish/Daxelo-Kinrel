@@ -19,6 +19,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/group_provider.dart';
 
@@ -38,8 +39,6 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   final _descriptionController = TextEditingController();
   final Set<String> _selectedMemberIds = {};
   bool _isCreating = false;
-
-  static const _steps = ['Type', 'Name', 'Description', 'Members', 'Create'];
 
   @override
   void dispose() {
@@ -776,6 +775,8 @@ class _StepProgress extends StatelessWidget {
   const _StepProgress({required this.currentStep});
 
   final int currentStep;
+
+  static const _steps = ['Type', 'Name', 'Description', 'Members', 'Create'];
 
   @override
   Widget build(BuildContext context) {
