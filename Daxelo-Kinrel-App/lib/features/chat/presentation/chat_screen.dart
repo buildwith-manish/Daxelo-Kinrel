@@ -2862,60 +2862,96 @@ class _MessageBubble extends ConsumerWidget {
                   children: [
                     // Reply preview (if replying to a message)
                     if (message.replyToId != null) _buildReplyPreview(),
-                    // Bubble — v129: subtle tinted-glass for own messages,
-                    // solid elevated surface + shadow for received.
+                    // v131 PREMIUM: Redesigned bubble system.
+                    // Design language: soft gradient fills for depth,
+                    // organic asymmetric corners (22px base / 6px tail)
+                    // for a crafted silhouette instead of a mechanical
+                    // rounded rectangle, layered shadows for gentle
+                    // elevation, and generous padding for readability.
+                    // Inspired by iMessage's softness + Telegram's tail.
                     Container(
                       padding: isSticker
                           ? const EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 2)
+                              horizontal: 14, vertical: 8)
                           : const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
+                              horizontal: 16,
+                              vertical: 11,
                             ),
                       decoration: BoxDecoration(
-                        // v129: Own messages → low-opacity orange tint (12%)
-                        // over dark background + thin orange border (35%).
-                        // Received messages → solid darkElevated surface.
-                        // Stickers → transparent (no bubble).
-                        color: isSticker
-                            ? Colors.transparent
+                        // v131: Subtle vertical gradient — top slightly
+                        // lighter (lit-from-above), bottom darker. Stays
+                        // within the tinted-glass palette so the ember
+                        // accent remains understated, not saturated.
+                        gradient: isSticker
+                            ? null
                             : (isMe
-                                ? KinrelColors.ember.withValues(alpha: 0.12)
-                                : KinrelColors.elevation3),
-                        // v127: Tail effect — the corner nearest the
-                        // "tail" (bottom-right for isMe, bottom-left for
-                        // others) drops to 4px only on isLastInGroup.
+                                ? LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      KinrelColors.ember.withValues(alpha: 0.18),
+                                      KinrelColors.ember.withValues(alpha: 0.08),
+                                    ],
+                                  )
+                                : const LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Color(0xFF2E3150),
+                                      Color(0xFF23263B),
+                                    ],
+                                  )),
+                        color: isSticker ? Colors.transparent : null,
+                        // v131: Organic corners — 22px base, tail corner
+                        // drops to 6px on isLastInGroup. Less mechanical
+                        // than equal radii; mirrors Telegram's silhouette.
+                        // Stickers get a soft 18px pill so they feel
+                        // integrated rather than floating.
                         borderRadius: isSticker
-                            ? BorderRadius.zero
+                            ? BorderRadius.circular(18)
                             : BorderRadius.only(
-                                topLeft: const Radius.circular(18),
-                                topRight: const Radius.circular(18),
+                                topLeft: const Radius.circular(22),
+                                topRight: const Radius.circular(22),
                                 bottomLeft: Radius.circular(
-                                    isMe ? 18 : (isLastInGroup ? 4 : 18)),
+                                    isMe ? 22 : (isLastInGroup ? 6 : 22)),
                                 bottomRight: Radius.circular(
-                                    isMe ? (isLastInGroup ? 4 : 18) : 18),
+                                    isMe ? (isLastInGroup ? 6 : 22) : 22),
                               ),
-                        // v129: Own messages get a thin orange border at
-                        // 35% opacity. Received messages have no border
-                        // (the shadow provides separation). Stickers: none.
+                        // v131: Hairline border for definition. Sent:
+                        // ember at 28% (softer than v129's 35%). Received:
+                        // white at 6% (subtle edge to lift off wallpaper).
                         border: isSticker
-                            ? Border.all(color: Colors.transparent)
+                            ? null
                             : (isMe
                                 ? Border.all(
                                     color: KinrelColors.ember
-                                        .withValues(alpha: 0.35),
-                                    width: 1,
+                                        .withValues(alpha: 0.28),
+                                    width: 0.75,
                                   )
-                                : null),
-                        // v127: Subtle shadow on received bubbles only.
-                        boxShadow: isSticker || isMe
+                                : Border.all(
+                                    color: Colors.white.withValues(alpha: 0.06),
+                                    width: 0.75,
+                                  )),
+                        // v131: Layered elevation shadows for soft depth.
+                        // Received: deeper shadow anchors it to the wall.
+                        // Sent: gentler shadow lifts it + a faint ember
+                        // ambient glow for warmth. Stickers: none.
+                        boxShadow: isSticker
                             ? null
                             : [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.15),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
+                                  color: Colors.black.withValues(
+                                      alpha: isMe ? 0.18 : 0.30),
+                                  blurRadius: isMe ? 8 : 12,
+                                  offset: Offset(0, isMe ? 2 : 4),
                                 ),
+                                if (isMe)
+                                  BoxShadow(
+                                    color: KinrelColors.ember
+                                        .withValues(alpha: 0.10),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 0),
+                                  ),
                               ],
                       ),
                       child: Column(
@@ -2950,14 +2986,18 @@ class _MessageBubble extends ConsumerWidget {
   }
 
   Widget _buildReplyPreview() {
+    // v131: Premium reply preview — softer background, refined accent
+    // bar, gentler radius. Sits naturally above the bubble without
+    // feeling like a separate floating card.
     return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: const Color(0xFF202338).withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(KinrelRadius.sm),
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
         border: Border(
-          left: BorderSide(color: KinrelColors.orange, width: 2.5),
+          left: BorderSide(
+              color: KinrelColors.orange.withValues(alpha: 0.7), width: 2.5),
         ),
       ),
       child: Column(
@@ -2969,16 +3009,18 @@ class _MessageBubble extends ConsumerWidget {
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: KinrelColors.orange,
+              color: KinrelColors.orange.withValues(alpha: 0.95),
+              letterSpacing: 0.2,
             ),
           ),
-          const SizedBox(height: 1),
+          const SizedBox(height: 2),
           Text(
             message.replyToContent ?? '',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,
-              color: KinrelColors.textSilver,
+              color: KinrelColors.textSilver.withValues(alpha: 0.85),
+              height: 1.3,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -2989,29 +3031,40 @@ class _MessageBubble extends ConsumerWidget {
   }
 
   Widget _buildSenderName() {
+    // v131: Premium sender label — slightly larger, letter-spaced,
+    // with a refined online dot. Reads as a quiet header above the
+    // message rather than competing with it.
     return Padding(
-      padding: const EdgeInsets.only(bottom: 3),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Online dot
+          // Online dot — softer presence dot, slightly larger for elegance
           if (message.isOnline)
             Container(
-              width: 6,
-              height: 6,
-              margin: const EdgeInsets.only(right: 4),
+              width: 7,
+              height: 7,
+              margin: const EdgeInsets.only(right: 5),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: KinrelColors.success,
+                boxShadow: [
+                  BoxShadow(
+                    color: KinrelColors.success.withValues(alpha: 0.4),
+                    blurRadius: 4,
+                    offset: const Offset(0, 0),
+                  ),
+                ],
               ),
             ),
           Text(
             message.senderName,
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
-              fontSize: 12,
+              fontSize: 12.5,
               fontWeight: FontWeight.w600,
               color: KinrelColors.orange,
+              letterSpacing: 0.2,
             ),
           ),
         ],
@@ -3022,13 +3075,17 @@ class _MessageBubble extends ConsumerWidget {
   Widget _buildMessageContent() {
     switch (message.messageType) {
       case MessageType.text:
+        // v131: Premium typography — comfortable line height (1.5),
+        // generous size (15px), subtle letter-spacing for elegance.
+        // Reads effortlessly across long paragraphs without fatigue.
         return Text(
           message.content,
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
-            fontSize: 14.5,
+            fontSize: 15,
             color: KinrelColors.textWhite,
-            height: 1.45,
+            height: 1.5,
+            letterSpacing: 0.1,
           ),
         );
 
@@ -3052,22 +3109,22 @@ class _MessageBubble extends ConsumerWidget {
                     timestamp: message.timestamp,
                   ),
                   child: ClipRRect(
-                borderRadius: BorderRadius.circular(KinrelRadius.md),
+                borderRadius: BorderRadius.circular(14),
                 child: Image.network(
                   message.mediaUrl!,
                   fit: BoxFit.cover,
                   width: double.infinity,
-                  height: 180,
+                  height: 200,
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
                     return Container(
                       width: double.infinity,
-                      height: 180,
+                      height: 200,
                       color: const Color(0xFF202338),
                       child: Center(
                         child: SizedBox(
-                          width: 24,
-                          height: 24,
+                          width: 26,
+                          height: 26,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.5,
                             value: loadingProgress.expectedTotalBytes !=
@@ -3083,11 +3140,11 @@ class _MessageBubble extends ConsumerWidget {
                   },
                   errorBuilder: (_, __, ___) => Container(
                     width: double.infinity,
-                    height: 180,
+                    height: 200,
                     decoration: BoxDecoration(
                       color: const Color(0xFF202338),
                       borderRadius:
-                          BorderRadius.circular(KinrelRadius.md),
+                          BorderRadius.circular(14),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -3119,10 +3176,10 @@ class _MessageBubble extends ConsumerWidget {
               // Legacy message with no mediaUrl — keep the placeholder.
               Container(
                 width: double.infinity,
-                height: 180,
+                height: 200,
                 decoration: BoxDecoration(
                   color: const Color(0xFF202338),
-                  borderRadius: BorderRadius.circular(KinrelRadius.md),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -3146,14 +3203,14 @@ class _MessageBubble extends ConsumerWidget {
               ),
             if (message.content.isNotEmpty &&
                 message.content != 'Photo placeholder') ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Text(
                 message.content,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 14,
+                  fontSize: 14.5,
                   color: KinrelColors.textWhite,
-                  height: 1.4,
+                  height: 1.45,
                 ),
               ),
             ],
@@ -3226,14 +3283,15 @@ class _MessageBubble extends ConsumerWidget {
         );
 
       case MessageType.sticker:
-        // Phase 14: render the emoji at 4x size with no bubble background.
-        // The emoji IS the message — no text wrapping needed.
+        // v131: Reduced from 64→46px so emoji feels integrated into
+        // the chat rhythm rather than floating as an oversized anomaly.
+        // Still expressive, now proportional to the bubble padding.
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Text(
             message.content,
             style: const TextStyle(
-              fontSize: 64,
+              fontSize: 46,
               height: 1.0,
             ),
           ),
@@ -3421,8 +3479,11 @@ class _MessageBubble extends ConsumerWidget {
   }
 
   Widget _buildTimeRow() {
+    // v131: Refined timestamp — smaller, dimmer, letter-spaced.
+    // Reads as supporting information, not a primary element.
+    // Aligned tightly with the read-receipt for visual balance.
     return Padding(
-      padding: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.only(top: 5),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: isMe
@@ -3433,8 +3494,9 @@ class _MessageBubble extends ConsumerWidget {
             message.formattedTime,
             style: TextStyle(
               fontFamily: KinrelTypography.monoFont,
-              fontSize: 10,
-              color: KinrelColors.textDim,
+              fontSize: 9.5,
+              color: KinrelColors.textDim.withValues(alpha: 0.85),
+              letterSpacing: 0.3,
             ),
           ),
           // Read receipts (only for sent messages)
@@ -3453,16 +3515,19 @@ class _MessageBubble extends ConsumerWidget {
   /// Phase 14: A minimal time row for stickers — right-aligned below the
   /// emoji, no read receipts (stickers don't need delivery confirmation).
   Widget _buildStickerTimeRow() {
+    // v131: Sticker timestamp matches the refined text-bubble timestamp
+    // style for consistency across message types.
     return Padding(
-      padding: const EdgeInsets.only(top: 0),
+      padding: const EdgeInsets.only(top: 2),
       child: Align(
         alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
         child: Text(
           message.formattedTime,
           style: TextStyle(
             fontFamily: KinrelTypography.monoFont,
-            fontSize: 10,
-            color: KinrelColors.textDim,
+            fontSize: 9.5,
+            color: KinrelColors.textDim.withValues(alpha: 0.85),
+            letterSpacing: 0.3,
           ),
         ),
       ),
