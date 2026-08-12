@@ -1751,15 +1751,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             right: 5, bottom: 5),
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 220),
-                          transitionBuilder: (child) =>
+                          transitionBuilder: (child, animation) =>
                               ScaleTransition(
                             scale: Tween<double>(begin: 0.6, end: 1.0)
                                 .animate(CurvedAnimation(
-                              parent: AlwaysStoppedAnimation(1.0),
+                              parent: animation,
                               curve: Curves.easeOutBack,
                             )),
                             child: FadeTransition(
-                              opacity: AlwaysStoppedAnimation(1.0),
+                              opacity: animation,
                               child: child,
                             ),
                           ),
