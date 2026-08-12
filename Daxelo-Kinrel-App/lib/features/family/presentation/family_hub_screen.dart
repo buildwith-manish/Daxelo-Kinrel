@@ -23,6 +23,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/family/family_provider.dart';
+import '../data/group_provider.dart';
 import '../../chat/providers/chat_provider.dart';
 import '../../../shared/widgets/dk_components.dart';
 
@@ -91,6 +92,9 @@ class FamilyHubScreen extends ConsumerWidget {
                     ),
 
                     const SizedBox(height: 20),
+
+                    // ── LEVEL 2: Groups (v137) ──────────────────────
+                    _GroupsQuickAccess(familyId: familyId),
 
                     // ── LEVEL 2: Members ─────────────────────────────
                     _MembersSection(
@@ -437,6 +441,98 @@ class _HeroInitials extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 1b. Groups Quick Access — LEVEL 2 (v137)
+// ═══════════════════════════════════════════════════════════════════════
+
+class _GroupsQuickAccess extends ConsumerWidget {
+  const _GroupsQuickAccess({required this.familyId});
+
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final groupsAsync = ref.watch(familyGroupsProvider(familyId));
+
+    return groupsAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (groups) {
+        return Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => context.push('/family/$familyId/groups'),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: _level2CardDecoration(),
+              child: Row(
+                children: [
+                  // Icon with ember glow
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: KinrelColors.ember.withValues(alpha: 0.12),
+                      border: Border.all(
+                        color: KinrelColors.ember.withValues(alpha: 0.35),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.groups_2_rounded,
+                      size: 22,
+                      color: KinrelColors.ember,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Family Groups',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: KinrelColors.textWhite,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          groups.isEmpty
+                              ? 'Create sub-groups for cousins, parents, siblings & more'
+                              : '${groups.length} group${groups.length == 1 ? '' : 's'} · Tap to view all',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 12,
+                            color: KinrelColors.textSilver
+                                .withValues(alpha: 0.75),
+                            height: 1.3,
+                            letterSpacing: 0.1,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(Icons.chevron_right,
+                      size: 22, color: KinrelColors.textDim),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

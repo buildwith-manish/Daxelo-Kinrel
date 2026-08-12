@@ -58,6 +58,7 @@ import '../../features/home/presentation/home_screen.dart';
 import '../../features/family/presentation/family_list_screen.dart';
 import '../../features/family/presentation/family_detail_screen.dart';
 import '../../features/family/presentation/family_hub_screen.dart';
+import '../../features/family/presentation/family_groups_screen.dart';
 import '../../features/family/presentation/path_finder_screen.dart';
 import '../../features/family/presentation/create_family_screen.dart';
 import '../../features/family/presentation/join_family_screen.dart';
@@ -1004,6 +1005,43 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: FamilyMembersScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+
+      // v137: Family Space Groups — sub-groups within a family.
+      // Groups are child entities of the Family Space.
+      GoRoute(
+        path: '/family/:id/groups',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyGroupsScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      // Group Hub — premium overview of a single group (mirrors Family Hub)
+      GoRoute(
+        path: '/family/:id/groups/:groupId/hub',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyGroupsScreen(familyId: state.pathParameters['id']!),
+          // TODO v138: replace with GroupHubScreen
+        ),
+      ),
+      // Group Chat — the conversation screen for a specific group
+      GoRoute(
+        path: '/family/:id/groups/:groupId/chat',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyGroupsScreen(familyId: state.pathParameters['id']!),
+          // TODO v138: replace with GroupChatScreen
+        ),
+      ),
+      // Create Group flow
+      GoRoute(
+        path: '/family/:id/groups/create',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyGroupsScreen(familyId: state.pathParameters['id']!),
+          // TODO v138: replace with CreateGroupScreen
         ),
       ),
 
