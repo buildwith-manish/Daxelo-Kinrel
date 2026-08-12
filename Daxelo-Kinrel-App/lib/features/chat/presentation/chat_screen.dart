@@ -3595,7 +3595,7 @@ class _ReadReceipt extends StatelessWidget {
     final bool showDouble;
 
     if (status == 'read' || isRead) {
-      color = const Color(0xFF4FC3F7); // WhatsApp blue
+      color = KinrelColors.gold; // Kinrel premium accent (replaces WhatsApp blue)
       showDouble = true;
     } else if (status == 'delivered') {
       color = KinrelColors.textDim;
