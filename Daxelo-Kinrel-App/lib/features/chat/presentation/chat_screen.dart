@@ -3288,7 +3288,7 @@ class _MessageBubble extends ConsumerWidget {
                         children: [
                           // v127: Sender name only on first message in group
                           if (!isMe && !isSticker && isFirstInGroup)
-                            _buildSenderName(),
+                            _buildSenderName(ref),
                           // Message content
                           _buildMessageContent(),
                           // v127: Inline timestamp only on last-in-group
@@ -3357,7 +3357,7 @@ class _MessageBubble extends ConsumerWidget {
     );
   }
 
-  Widget _buildSenderName() {
+  Widget _buildSenderName(WidgetRef ref) {
     // v131: Premium sender label — slightly larger, letter-spaced,
     // with a refined online dot. Reads as a quiet header above the
     // message rather than competing with it.
