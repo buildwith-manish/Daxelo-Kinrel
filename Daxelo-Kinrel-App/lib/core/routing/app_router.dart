@@ -57,6 +57,7 @@ import '../../features/home/presentation/home_screen.dart';
 // KIN-25: ExploreScreen import removed — /explore route deleted.
 import '../../features/family/presentation/family_list_screen.dart';
 import '../../features/family/presentation/family_detail_screen.dart';
+import '../../features/family/presentation/family_hub_screen.dart';
 import '../../features/family/presentation/path_finder_screen.dart';
 import '../../features/family/presentation/create_family_screen.dart';
 import '../../features/family/presentation/join_family_screen.dart';
@@ -927,6 +928,22 @@ final routerProvider = Provider<GoRouter>((ref) {
               familyId: familyId,
               child: FamilyDetailScreen(familyId: familyId),
             ),
+          );
+        },
+      ),
+      // v135: Family Hub — intermediate screen between the chat and
+      // the Family Space. Tapping the chat header (avatar, name, or
+      // relationship chip) navigates HERE, not to /family/:id.
+      // The Hub is the digital home of the conversation — a premium
+      // overview space with hero, members, shared content, insights,
+      // and a gateway to enter the full Family Space.
+      GoRoute(
+        path: '/family/:id/hub',
+        pageBuilder: (context, state) {
+          final familyId = state.pathParameters['id']!;
+          return _fastFadePage(
+            key: state.pageKey,
+            child: FamilyHubScreen(familyId: familyId),
           );
         },
       ),

@@ -610,8 +610,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // so it feels like the visual anchor of the header.
                 // Double-ring framing: outer hairline ember ring + inner
                 // image. This is the Kinrel signature avatar treatment.
+                // v135: Tapping navigates to the Family Hub (intermediate
+                // screen), NOT the Family Space directly.
                 GestureDetector(
-                  onTap: () => context.push('/family/${widget.familyId}'),
+                  onTap: () => context.push('/family/${widget.familyId}/hub'),
                   child: Container(
                     width: 48,
                     height: 48,
@@ -678,7 +680,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 Expanded(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () => context.push('/family/${widget.familyId}'),
+                    onTap: () => context.push('/family/${widget.familyId}/hub'),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
