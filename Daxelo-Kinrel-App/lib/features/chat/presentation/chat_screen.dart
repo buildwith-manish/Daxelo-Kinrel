@@ -41,6 +41,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/kinship/kinship_edge_style.dart';
 import '../../family/data/relationship_label_provider.dart';
 import '../../../core/utils/web_keyboard_height.dart';
 import '../../../shared/widgets/dk_components.dart';
@@ -3099,6 +3100,23 @@ class _MessageBubble extends ConsumerWidget {
     // for solo emoji impact, like WhatsApp stickers.
     final isSticker = message.messageType == MessageType.sticker;
 
+    // v140: Kinship-category generation bands. Resolve the sender's
+    // relationship key to the current viewer, classify it into a
+    // KinshipEdgeCategory, and map to a generation-band color. The
+    // color is applied as a 3px left border + 6% background fill on
+    // the message bubble. Only for family/group chats, not DMs, and
+    // only for received messages (not isMe). Self/indirect → no band.
+    Color? kinshipBandColor;
+    if (familyId != null && !isMe && !isSticker) {
+      final rawKey = ref.watch(relationshipKeyProvider(
+        (familyId: familyId!, senderUserId: message.senderId),
+      ));
+      if (rawKey != null) {
+        final category = KinshipEdgeStyleClassifier.classify(rawKey);
+        kinshipBandColor = _kinshipCategoryColor(category);
+      }
+    }
+
     // v122: Swipe-to-reply — user can swipe right on any message to
     // quote-reply to it. Uses a horizontal drag gesture with a
     // threshold. When the swipe exceeds the threshold, onReply is
@@ -3220,14 +3238,34 @@ class _MessageBubble extends ConsumerWidget {
                                       KinrelColors.ember.withValues(alpha: 0.08),
                                     ],
                                   )
-                                : const LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Color(0xFF2E3150),
-                                      Color(0xFF23263B),
-                                    ],
-                                  )),
+                                : kinshipBandColor != null
+                                    // v140: Blend 6% kinship band color
+                                    // into the received-message gradient
+                                    // so the generation band is felt as
+                                    // a subtle background tint, not just
+                                    // the left border.
+                                    ? LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Color.lerp(
+                                            const Color(0xFF2E3150),
+                                            kinshipBandColor,
+                                            0.06)!,
+                                          Color.lerp(
+                                            const Color(0xFF23263B),
+                                            kinshipBandColor,
+                                            0.06)!,
+                                        ],
+                                      )
+                                    : const LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Color(0xFF2E3150),
+                                          Color(0xFF23263B),
+                                        ],
+                                      )),
                         color: isSticker ? Colors.transparent : null,
                         // v131: Organic corners — 22px base, tail corner
                         // drops to 6px on isLastInGroup. Less mechanical
@@ -3247,6 +3285,10 @@ class _MessageBubble extends ConsumerWidget {
                         // v131: Hairline border for definition. Sent:
                         // ember at 28% (softer than v129's 35%). Received:
                         // white at 6% (subtle edge to lift off wallpaper).
+                        // v140: When a kinship band color is resolved,
+                        // replace the uniform border with an asymmetric
+                        // Border that has a 3px left side in the kinship
+                        // color + hairline on the other 3 sides.
                         border: isSticker
                             ? null
                             : (isMe
@@ -3255,10 +3297,29 @@ class _MessageBubble extends ConsumerWidget {
                                         .withValues(alpha: 0.28),
                                     width: 0.75,
                                   )
-                                : Border.all(
-                                    color: Colors.white.withValues(alpha: 0.06),
-                                    width: 0.75,
-                                  )),
+                                : kinshipBandColor != null
+                                    ? Border(
+                                        left: BorderSide(
+                                            color: kinshipBandColor,
+                                            width: 3),
+                                        top: BorderSide(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.06),
+                                            width: 0.75),
+                                        right: BorderSide(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.06),
+                                            width: 0.75),
+                                        bottom: BorderSide(
+                                            color: Colors.white
+                                                .withValues(alpha: 0.06),
+                                            width: 0.75),
+                                      )
+                                    : Border.all(
+                                        color: Colors.white
+                                            .withValues(alpha: 0.06),
+                                        width: 0.75,
+                                      )),
                         // v131: Layered elevation shadows for soft depth.
                         // Received: deeper shadow anchors it to the wall.
                         // Sent: gentler shadow lifts it + a faint ember
@@ -4105,6 +4166,36 @@ class _DoubleTickPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DoubleTickPainter oldDelegate) =>
       oldDelegate.color != color || oldDelegate.showDouble != showDouble;
+}
+
+/// v140: Maps a [KinshipEdgeCategory] to its generation-band color
+/// for the message bubble left border + background tint.
+///
+/// Returns null for `self` and `indirect` (no band shown).
+Color? _kinshipCategoryColor(KinshipEdgeCategory category) {
+  switch (category) {
+    case KinshipEdgeCategory.parent:
+      return KinrelEdgeColors.parent;
+    case KinshipEdgeCategory.child:
+      return KinrelEdgeColors.child;
+    case KinshipEdgeCategory.sibling:
+      return KinrelEdgeColors.sibling;
+    case KinshipEdgeCategory.spouse:
+      return KinrelEdgeColors.spouseEdge;
+    case KinshipEdgeCategory.grandparent:
+      return KinrelEdgeColors.grandparent;
+    case KinshipEdgeCategory.auntUncle:
+      return KinrelEdgeColors.auntUncle;
+    case KinshipEdgeCategory.cousin:
+      return KinrelEdgeColors.cousin;
+    case KinshipEdgeCategory.inLaw:
+      return KinrelEdgeColors.inLaw;
+    case KinshipEdgeCategory.extended:
+      return KinrelEdgeColors.extended;
+    case KinshipEdgeCategory.self:
+    case KinshipEdgeCategory.indirect:
+      return null; // No band for self or indirect
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════

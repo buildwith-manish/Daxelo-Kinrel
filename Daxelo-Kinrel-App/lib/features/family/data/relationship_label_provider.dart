@@ -29,16 +29,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/supabase_service.dart';
 
-/// Resolves the relationship label for a given (familyId, senderUserId)
+/// Resolves the RAW relationshipKey for a given (familyId, senderUserId)
 /// pair from the viewer's perspective. Returns null if no relationship
 /// is found.
 ///
-/// Example: if the viewer is "Rahul" and the sender is Rahul's father's
-/// younger brother, this returns "fathers younger brother" (or the
-/// raw key if no prettifier is applied).
-///
-/// The label is viewer-specific — it depends on who is logged in.
-final relationshipLabelProvider = Provider.family<String?, ({String familyId, String senderUserId})>(
+/// This is the unformatted key (e.g. "fathers_younger_brother") used
+/// for kinship category classification via
+/// KinshipEdgeStyleClassifier.classify(). For the display label, use
+/// [relationshipLabelProvider] instead.
+final relationshipKeyProvider = Provider.family<String?, ({String familyId, String senderUserId})>(
   (ref, params) {
     final client = ref.read(supabaseProvider);
     if (client == null) return null;
@@ -46,7 +45,6 @@ final relationshipLabelProvider = Provider.family<String?, ({String familyId, St
     final currentUserId = client.auth.currentUser?.id;
     if (currentUserId == null) return null;
 
-    // Get family detail (includes Person members + relationships)
     final detailAsync = ref.watch(familyDetailProvider(params.familyId));
     final detail = detailAsync.valueOrNull;
     if (detail == null) return null;
@@ -74,8 +72,6 @@ final relationshipLabelProvider = Provider.family<String?, ({String familyId, St
     if (senderPerson.id.isEmpty) return null;
 
     // Find a relationship edge FROM viewer TO sender
-    // (the edge's relationshipKey describes what the TO person is TO
-    // the FROM person — e.g. from=me, to=my father's brother, key="uncle")
     final relationship = detail.relationships.firstWhere(
       (r) => r.fromPersonId == viewerPerson.id && r.toPersonId == senderPerson.id,
       orElse: () => const FamilyRelationship(
@@ -88,12 +84,24 @@ final relationshipLabelProvider = Provider.family<String?, ({String familyId, St
     );
 
     if (relationship.relationshipKey.isEmpty) return null;
+    return relationship.relationshipKey;
+  },
+);
 
-    // Format the key as a human-readable label.
-    // "fathers_younger_brother" → "fathers younger brother"
-    // "elder_brother" → "elder brother"
-    // "uncle" → "uncle"
-    return _formatRelationshipLabel(relationship.relationshipKey);
+/// Resolves the relationship label for a given (familyId, senderUserId)
+/// pair from the viewer's perspective. Returns null if no relationship
+/// is found.
+///
+/// Example: if the viewer is "Rahul" and the sender is Rahul's father's
+/// younger brother, this returns "fathers younger brother" (or the
+/// raw key if no prettifier is applied).
+///
+/// The label is viewer-specific — it depends on who is logged in.
+final relationshipLabelProvider = Provider.family<String?, ({String familyId, String senderUserId})>(
+  (ref, params) {
+    final rawKey = ref.watch(relationshipKeyProvider(params));
+    if (rawKey == null) return null;
+    return _formatRelationshipLabel(rawKey);
   },
 );
 
