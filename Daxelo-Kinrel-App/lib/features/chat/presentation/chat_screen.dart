@@ -542,209 +542,337 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   PreferredSizeWidget _buildAppBar(ChatState chatState) {
-    // v124: Watch the centralized family avatar provider so the chat
-    // header shows the same image as the Chat List + Family Card.
+    // v134 KINREL SIGNATURE HEADER
+    // Design language: relationship-centered rather than utility-bar.
+    // The header celebrates the human connection rather than treating
+    // the recipient as a contact row. Visual hierarchy is:
+    //   1. Person (avatar with premium framing)
+    //   2. Relationship (Kinrel signature chip — "Family" / "Group")
+    //   3. Status (refined presence indicator)
+    //   4. Actions (visually balanced, never competing with identity)
+    //
+    // Unique Kinrel element: a small relationship chip below the name
+    // with a soft ember accent — this is what makes the header
+    // recognizable as Kinrel rather than another messaging app.
+    //
+    // Header atmosphere: the surface uses the same vertical gradient
+    // as the v132 ChatBackground + v133 composer so the whole screen
+    // feels cohesive. A subtle ember ambient glow behind the avatar
+    // adds warmth.
     final avatarUrl = ref.watch(familyAvatarProvider(widget.familyId));
+    final familyDetail = ref.watch(familyDetailProvider(widget.familyId)).valueOrNull;
+    final memberCount = familyDetail?.family.memberCount ?? chatState.members.length;
 
     return PreferredSize(
-      preferredSize: const Size.fromHeight(64),
+      preferredSize: const Size.fromHeight(72),
       child: Container(
         decoration: BoxDecoration(
-          // v132: AppBar matches the new ChatBackground base — deep
-          // navy-black so the header feels continuous with the
-          // messages area rather than a separate flat band.
-          color: const Color(0xFF0E0F1C),
+          // v134: Vertical gradient matches ChatBackground + composer
+          // for full-screen cohesion. Top is slightly lighter (lit
+          // from above), bottom darker.
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF11132A), // top — warm dark navy
+              Color(0xFF0A0B16), // bottom — base dark
+            ],
+          ),
           border: Border(
-            bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06), width: 0.5),
+            bottom: BorderSide(
+                color: Colors.white.withValues(alpha: 0.06), width: 0.5),
           ),
         ),
-        child: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          centerTitle: false,
-          leading: IconButton(
-            icon: Icon(
-              Icons.arrow_back_ios_new,
-              size: 20,
-              color: KinrelColors.textWhite,
-            ),
-            onPressed: () {
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.go('/family/${widget.familyId}');
-              }
-            },
-          ),
-          title: Row(
-            children: [
-              // v124: Family avatar — uses the centralized
-              // familyAvatarProvider so it matches the Chat List +
-              // Family Card. Shows the uploaded image when available,
-              // falls back to initials only when no image exists.
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: avatarUrl == null || avatarUrl.isEmpty
-                      ? KinrelGradients.igniteGradient
-                      : null,
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            child: Row(
+              children: [
+                // ── Back button ────────────────────────────────────────
+                IconButton(
+                  icon: Icon(
+                    Icons.arrow_back_ios_new,
+                    size: 18,
+                    color: KinrelColors.textSilver,
+                  ),
+                  onPressed: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/family/${widget.familyId}');
+                    }
+                  },
                 ),
-                child: avatarUrl != null && avatarUrl.isNotEmpty
-                    ? ClipOval(
-                        child: avatarUrl.startsWith('data:')
-                            ? Image.memory(
-                                base64Decode(
-                                    avatarUrl.substring(avatarUrl.indexOf(',') + 1)),
-                                fit: BoxFit.cover,
-                                width: 38,
-                                height: 38,
-                                errorBuilder: (_, __, ___) => _buildLetterAvatar(),
-                              )
-                            : CachedNetworkImage(
-                                imageUrl: avatarUrl,
-                                fit: BoxFit.cover,
-                                width: 38,
-                                height: 38,
-                                placeholder: (_, __) => _buildLetterAvatar(),
-                                errorWidget: (_, __, ___) => _buildLetterAvatar(),
-                              ),
-                      )
-                    : Center(child: _buildLetterAvatar()),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      widget.familyName,
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: KinrelColors.textWhite,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Green dot for online
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: KinrelColors.success,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${chatState.onlineCount} online',
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w400,
-                            color: KinrelColors.textSilver,
-                          ),
+
+                // ── Premium avatar with ambient glow ──────────────────
+                // v134: Avatar gets a soft ember ambient glow behind it
+                // so it feels like the visual anchor of the header.
+                // Double-ring framing: outer hairline ember ring + inner
+                // image. This is the Kinrel signature avatar treatment.
+                GestureDetector(
+                  onTap: () => context.push('/family/${widget.familyId}'),
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      // v134: Soft ember ambient glow — felt behind the
+                      // avatar, suggests warmth + human connection.
+                      boxShadow: [
+                        BoxShadow(
+                          color: KinrelColors.ember.withValues(alpha: 0.18),
+                          blurRadius: 14,
+                          offset: const Offset(0, 0),
                         ),
                       ],
                     ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        // v134: Hairline ember ring frames the avatar.
+                        border: Border.all(
+                          color: KinrelColors.ember.withValues(alpha: 0.35),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: ClipOval(
+                        child: avatarUrl != null && avatarUrl.isNotEmpty
+                            ? (avatarUrl.startsWith('data:')
+                                ? Image.memory(
+                                    base64Decode(avatarUrl.substring(
+                                        avatarUrl.indexOf(',') + 1)),
+                                    fit: BoxFit.cover,
+                                    width: 46,
+                                    height: 46,
+                                    errorBuilder: (_, __, ___) =>
+                                        _buildLetterAvatar(),
+                                  )
+                                : CachedNetworkImage(
+                                    imageUrl: avatarUrl,
+                                    fit: BoxFit.cover,
+                                    width: 46,
+                                    height: 46,
+                                    placeholder: (_, __) =>
+                                        _buildLetterAvatar(),
+                                    errorWidget: (_, __, ___) =>
+                                        _buildLetterAvatar(),
+                                  ))
+                            : Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: KinrelGradients.igniteGradient,
+                                ),
+                                child: Center(child: _buildLetterAvatar()),
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+
+                // ── Identity + relationship + status column ───────────
+                // Visual hierarchy: name (primary) → relationship chip
+                // (Kinrel signature) → presence status (supporting).
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => context.push('/family/${widget.familyId}'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // ── Name ──────────────────────────────────────
+                        Text(
+                          widget.familyName,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w700,
+                            color: KinrelColors.textWhite,
+                            letterSpacing: 0.1,
+                            height: 1.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        // ── Relationship chip + presence row ──────────
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // v134: KINREL SIGNATURE RELATIONSHIP CHIP
+                            // A small pill with a soft ember tint +
+                            // hairline border. Communicates the type of
+                            // connection. This is the unique Kinrel
+                            // element that distinguishes the header
+                            // from standard messaging apps.
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2.5),
+                              decoration: BoxDecoration(
+                                color: KinrelColors.ember
+                                    .withValues(alpha: 0.10),
+                                borderRadius: BorderRadius.circular(100),
+                                border: Border.all(
+                                  color: KinrelColors.ember
+                                      .withValues(alpha: 0.30),
+                                  width: 0.6,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Small family icon — heart for
+                                  // family connection (warmth, care)
+                                  Icon(
+                                    Icons.favorite_rounded,
+                                    size: 9,
+                                    color:
+                                        KinrelColors.ember,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    memberCount > 2
+                                        ? 'Family · $memberCount'
+                                        : 'Family',
+                                    style: TextStyle(
+                                      fontFamily: KinrelTypography.bodyFont,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: KinrelColors.ember
+                                          .withValues(alpha: 0.95),
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // ── Presence indicator ────────────────────
+                            // v134: Refined status — small glowing dot
+                            // (with subtle ambient glow, not flat) +
+                            // letter-spaced count text. Feels integrated
+                            // rather than a generic green dot.
+                            if (chatState.onlineCount > 0) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                width: 5,
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: KinrelColors.success,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: KinrelColors.success
+                                          .withValues(alpha: 0.5),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 0),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                '${chatState.onlineCount} active',
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.bodyFont,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: KinrelColors.textSilver
+                                      .withValues(alpha: 0.85),
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // ── Action buttons (visually balanced, secondary) ────
+                // v134: Actions use a softer icon style (outline, 20px,
+                // silver) so they never compete with the identity column.
+                // The members button is dropped — redundant with tapping
+                // the avatar/header which navigates to family detail.
+                // Video + voice + more remain, but more compact.
+                _HeaderActionButton(
+                  icon: Icons.videocam_outlined,
+                  size: 20,
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Video call coming soon!'),
+                        backgroundColor: KinrelColors.darkCard,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                ),
+                _HeaderActionButton(
+                  icon: Icons.call_outlined,
+                  size: 18,
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Voice call coming soon!'),
+                        backgroundColor: KinrelColors.darkCard,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                ),
+                // More menu — settings, wallpaper, mute, etc.
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert,
+                      color: KinrelColors.textSilver, size: 20),
+                  color: KinrelColors.darkCard,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'theme':
+                        _showThemePicker();
+                        break;
+                      case 'wallpaper':
+                        _showImageWallpaperPicker(context, widget.familyId);
+                        break;
+                      case 'wallpaper_color':
+                        _showWallpaperColorPicker();
+                        break;
+                      case 'mute':
+                        _toggleMute();
+                        break;
+                      case 'starred':
+                        _showStarredMessages();
+                        break;
+                      case 'pinned':
+                        _showPinnedMessages();
+                        break;
+                    }
+                  },
+                  itemBuilder: (ctx) => [
+                    const PopupMenuItem(
+                        value: 'theme', child: Text('Chat Atmosphere')),
+                    const PopupMenuItem(
+                        value: 'wallpaper', child: Text('Custom Wallpaper')),
+                    const PopupMenuItem(
+                        value: 'wallpaper_color', child: Text('Solid Color')),
+                    const PopupMenuItem(
+                        value: 'mute', child: Text('Mute notifications')),
+                    const PopupMenuItem(
+                        value: 'starred', child: Text('Starred messages')),
+                    const PopupMenuItem(
+                        value: 'pinned', child: Text('Pinned messages')),
                   ],
                 ),
-              ),
-            ],
-          ),
-          actions: [
-            // v113: Members list — opens a bottom sheet listing all
-            // family members. Tapping a member opens their profile sheet.
-            IconButton(
-              icon: Icon(
-                Icons.people_outline_rounded,
-                size: 24,
-                color: KinrelColors.textSilver,
-              ),
-              onPressed: () => _showMembersList(),
-            ),
-            // Video call
-            IconButton(
-              icon: Icon(
-                Icons.videocam_outlined,
-                size: 24,
-                color: KinrelColors.textSilver,
-              ),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Video call coming soon!'),
-                    backgroundColor: KinrelColors.darkCard,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-            ),
-            // Voice call
-            IconButton(
-              icon: Icon(
-                Icons.call_outlined,
-                size: 22,
-                color: KinrelColors.textSilver,
-              ),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Voice call coming soon!'),
-                    backgroundColor: KinrelColors.darkCard,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-            ),
-            // v109.11: Chat settings (wallpaper, mute)
-            PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert, color: KinrelColors.textSilver, size: 22),
-              color: KinrelColors.darkCard,
-              onSelected: (value) {
-                switch (value) {
-                  case 'theme':
-                    _showThemePicker();
-                    break;
-                  case 'wallpaper':
-                    _showImageWallpaperPicker(context, widget.familyId);
-                    break;
-                  case 'wallpaper_color':
-                    _showWallpaperColorPicker();
-                    break;
-                  case 'mute':
-                    _toggleMute();
-                    break;
-                  case 'starred':
-                    _showStarredMessages();
-                    break;
-                  case 'pinned':
-                    _showPinnedMessages();
-                    break;
-                }
-              },
-              itemBuilder: (ctx) => [
-                const PopupMenuItem(
-                    value: 'theme', child: Text('Chat Atmosphere')),
-                const PopupMenuItem(
-                    value: 'wallpaper', child: Text('Custom Wallpaper')),
-                const PopupMenuItem(
-                    value: 'wallpaper_color', child: Text('Solid Color')),
-                const PopupMenuItem(value: 'mute', child: Text('Mute notifications')),
-                const PopupMenuItem(value: 'starred', child: Text('Starred messages')),
-                // v122: Pinned messages view
-                const PopupMenuItem(value: 'pinned', child: Text('Pinned messages')),
+                const SizedBox(width: 4),
               ],
             ),
-            const SizedBox(width: 4),
-          ],
+          ),
         ),
       ),
     );
@@ -3945,6 +4073,50 @@ class _SendButton extends StatelessWidget {
           Icons.send_rounded,
           size: 18,
           color: isActive ? Colors.white : KinrelColors.textDim,
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Header Action Button (v134 — Kinrel signature header)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A soft, secondary action button for the Kinrel chat header.
+///
+/// v134: Header actions (video call, voice call) use this refined
+/// button style so they never compete with the identity column.
+/// Softer than a standard IconButton — smaller (36px), silver icon,
+/// no background fill, gentle press feedback via AnimatedContainer.
+class _HeaderActionButton extends StatelessWidget {
+  const _HeaderActionButton({
+    required this.icon,
+    required this.onPressed,
+    this.size = 20,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onPressed,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.transparent,
+        ),
+        child: Icon(
+          icon,
+          size: size,
+          color: KinrelColors.textSilver,
         ),
       ),
     );
