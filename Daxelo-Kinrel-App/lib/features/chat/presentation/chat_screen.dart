@@ -1368,7 +1368,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         margin: const EdgeInsets.symmetric(vertical: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
         decoration: BoxDecoration(
-          color: const Color(0xFF202338),
+          color: KinrelColors.elevation2,
           borderRadius: BorderRadius.circular(KinrelRadius.xl),
         ),
         child: Text(
