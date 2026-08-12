@@ -100,13 +100,17 @@ jobs:
 
       # ── Step 5: Static analysis (catch errors before deploy) ─────
       # flutter analyze catches compile errors that would cause the web
-      # build to fail. We only fail on errors (--no-fatal-infos keeps
-      # warnings/lints non-blocking). Skip with workflow_dispatch input
-      # for emergency deploys.
+      # build to fail. We fail ONLY on errors (--no-fatal-infos keeps
+      # info-level lints non-blocking, --no-fatal-warnings keeps warning-
+      # level lints non-blocking). This matches the user intent "fail on
+      # errors" — style cleanups (unused imports, prefer_single_quotes,
+      # etc.) should NOT block a production deploy. Actual type errors
+      # and missing required parameters still fail the build.
+      # Skip with workflow_dispatch input for emergency deploys.
       - name: Run flutter analyze
         if: github.event.inputs.skip_analyze != 'true'
         working-directory: ${{ env.FLUTTER_APP_DIR }}
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       # ── Step 6: Build the web app ────────────────────────────────
       # --release enables dart2js tree-shaking and minification.

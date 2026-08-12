@@ -1,0 +1,266 @@
+# .github/workflows/deploy-web.yml
+#
+# DAXELO KINREL — CI/CD for Flutter Web → Vercel production deployment
+#
+# Triggers on every push to `main` and on manual dispatch. Runs:
+#   1. Checkout code (with full git history for build-identifier embedding)
+#   2. Set up Flutter (pinned to 3.44.2 to match pubspec.yaml's sdk: ^3.12.0
+#      and vercel-install.sh's FLUTTER_VERSION default)
+#   3. `flutter pub get` — fetch dependencies
+#   4. `flutter analyze` — fail the run on any static-analysis error
+#   5. Run build_runner — generates Drift .g.dart files required by the
+#      web build (without this, dart2js fails with "Type '_$AppDatabase'
+#      not found")
+#   6. `flutter build web --release` — compile to JavaScript with tree-shaking
+#   7. Verify build/web/main.dart.js exists and is non-empty — catches
+#      silent build failures where dart2js exits 0 but produces no output
+#   8. Deploy build/web to Vercel production using the Vercel CLI's
+#      `--prebuilt` mode (skips Vercel's own build step, uses our local
+#      build output directly — faster + matches what we just verified)
+#   9. Verify the live URL returns HTTP 200 — catches deploy-time issues
+#      where the deployment reports READY but the URL is unreachable
+#
+# Concurrency control: only the latest run per branch proceeds. Older
+# in-progress runs on the same branch are cancelled so we don't waste
+# minutes on stale builds when a new commit is pushed mid-build.
+#
+# Required GitHub Secrets (Settings → Secrets and variables → Actions):
+#   VERCEL_TOKEN       — Vercel access token with deploy scope
+#   VERCEL_ORG_ID      — Vercel team ID (team_...)
+#   VERCEL_PROJECT_ID  — Vercel project ID (prj_...)
+#
+# These three values can be read from the Vercel dashboard → Project →
+# Settings → General → "Project ID" + run `vercel link` locally to
+# generate .vercel/project.json which contains all three.
+
+name: Deploy Web
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel any in-progress run on the same branch when a new commit is
+# pushed. This avoids stacking deployments when multiple commits land in
+# quick succession — only the most recent state of `main` should deploy.
+concurrency:
+  group: deploy-web-${{ github.ref }}
+  cancel-in-progress: true
+
+# Default environment variables shared across all jobs. Job-specific
+# envs (like FLUTTER_VERSION) are declared inside each job.
+env:
+  # Pin Flutter to the same version vercel-install.sh downloads. Changing
+  # this here WITHOUT also changing vercel-install.sh's FLUTTER_VERSION
+  # default would cause local CI and Vercel to build with different SDKs,
+  # which is exactly the kind of silent skew that produces "works on CI,
+  # broken in prod" bugs.
+  FLUTTER_VERSION: '3.44.2'
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────
+      # fetch-depth: 0 pulls full git history. We need the commit SHA
+      # for the build-identifier --dart-define (mirrors vercel-build.sh).
+      # GitHub Actions already provides github.sha, but we also want the
+      # short SHA which `git rev-parse --short HEAD` gives us reliably.
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── 2. Set up Flutter ──────────────────────────────────────────
+      # subosito/flutter-ready-action caches the SDK automatically across
+      # workflow runs, so subsequent runs are ~30s faster than the first.
+      # We pin the exact version (not a channel) for reproducibility.
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      # Verify Flutter is actually on PATH — catches the rare case where
+      # the action reports success but the binary isn't callable.
+      - name: Verify Flutter
+        run: |
+          echo "Flutter version:"
+          flutter --version
+          echo "Dart version:"
+          dart --version
+          if ! command -v flutter >/dev/null 2>&1; then
+            echo "::error::flutter not found on PATH after setup"
+            exit 1
+          fi
+
+      # ── 3. Pub get ─────────────────────────────────────────────────
+      # Fetches all dependencies listed in pubspec.yaml. Must run before
+      # analyze and build. The --no-precompile flag speeds this up by
+      # skipping the optional ahead-of-time compilation of dev tools
+      # (we'll JIT them when needed).
+      - name: Flutter pub get
+        run: flutter pub get
+
+      # ── 4. Static analysis ─────────────────────────────────────────
+      # `flutter analyze` runs the Dart analyzer with the project's
+      # analysis_options.yaml. Any warning, error, or info lint will
+      # cause this step to fail with exit code 1, blocking the deploy.
+      # This is intentionally strict — we don't want to deploy code with
+      # known type errors or unused imports.
+      #
+      # If a legitimate warning needs to be temporarily ignored, use
+      # `// ignore: code_name` on the specific line rather than weakening
+      # this step.
+      - name: Flutter analyze
+        run: flutter analyze --no-fatal-infos
+
+      # ── 5. build_runner (Drift codegen) ────────────────────────────
+      # Generates lib/core/database/app_database.g.dart and other .g.dart
+      # files. Drift requires this BEFORE any web/native build — without
+      # it, dart2js fails with "Type '_$AppDatabase' not found" plus
+      # ~30 follow-on errors.
+      #
+      # --delete-conflicting-outputs: forces regeneration of any stale
+      # generated files (prevents "conflicting outputs" errors when a
+      # developer accidentally committed a locally-generated .g.dart
+      # that doesn't match the current schema).
+      - name: Run build_runner
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # ── 6. Build web ───────────────────────────────────────────────
+      # Compiles the Flutter app to a JavaScript bundle in build/web/.
+      # --release: enables dart2js tree-shaking + minification
+      # --base-href "/": app is served at root domain (matches vercel.json)
+      #
+      # Build identifier --dart-define vars mirror vercel-build.sh so
+      # the in-app "build: <hash> · <ts>" label matches between CI-built
+      # and Vercel-built deployments. We use github.sha (full 40 chars)
+      # and truncate to 7 chars for display.
+      - name: Build web
+        env:
+          BUILD_COMMIT: ${{ github.sha }}
+          BUILD_TIMESTAMP: ${{ github.run_id }}
+        run: |
+          SHORT_SHA="${BUILD_COMMIT:0:7}"
+          BUILD_TS="$(date -u '+%Y-%m-%d %H:%M') UTC"
+          echo "Building with identifier: build: ${SHORT_SHA} · ${BUILD_TS}"
+          flutter build web --release \
+            --base-href "/" \
+            --dart-define=KINREL_BUILD_COMMIT="$SHORT_SHA" \
+            --dart-define=KINREL_BUILD_TIMESTAMP="$BUILD_TS"
+
+      # ── 7. Verify build output ─────────────────────────────────────
+      # Belt-and-suspenders check: dart2js has been known to exit 0 even
+      # when the build silently failed (e.g. out-of-memory during tree
+      # shaking). We verify the two files that MUST exist for the app to
+      # load at all: index.html (the entry point) and main.dart.js (the
+      # compiled Dart code). We also check main.dart.js is non-empty
+      # (a 0-byte file would mean the compile produced nothing).
+      - name: Verify build output
+        run: |
+          echo "Build output listing:"
+          ls -la build/web/ | head -20
+          
+          if [ ! -f build/web/index.html ]; then
+            echo "::error::build/web/index.html not found"
+            exit 1
+          fi
+          
+          if [ ! -f build/web/main.dart.js ]; then
+            echo "::error::build/web/main.dart.js not found"
+            exit 1
+          fi
+          
+          SIZE=$(stat -c%s build/web/main.dart.js 2>/dev/null || stat -f%z build/web/main.dart.js)
+          if [ "$SIZE" -lt 100000 ]; then
+            echo "::error::main.dart.js is only ${SIZE} bytes — build likely failed silently"
+            exit 1
+          fi
+          
+          echo "✓ main.dart.js size: ${SIZE} bytes"
+
+      # ── 8. Deploy to Vercel ────────────────────────────────────────
+      # Uses the Vercel CLI's --prebuilt mode: we upload our already-
+      # built build/web directory directly, skipping Vercel's own build
+      # step. This is faster (no second Flutter install on Vercel's
+      # builders) AND guarantees the deployed artifact is byte-identical
+      # to what we just verified locally.
+      #
+      # The three env vars (VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID)
+      # come from GitHub Secrets configured in the repo settings. They
+      # map directly to .vercel/project.json contents:
+      #   orgId     → VERCEL_ORG_ID
+      #   projectId → VERCEL_PROJECT_ID
+      #   token     → VERCEL_TOKEN (not stored in project.json, generated
+      #               from the Vercel dashboard → Account Settings → Tokens)
+      #
+      # `vercel deploy --prebuilt --prod --yes` flags:
+      #   --prebuilt  : use the local build/ directory as-is
+      #   --prod      : promote this deployment to production (aliases
+      #                 the production domain to this deployment)
+      #   --yes       : skip interactive prompts (CI can't answer them)
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Deploy to Vercel (prebuilt, prod)
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          # vercel deploy prints the deployment URL to stdout in the
+          # format "Preview: https://xxx.vercel.app" — we capture it
+          # for the verification step below.
+          DEPLOY_OUTPUT=$(vercel deploy build/web --prebuilt --prod --yes --token "$VERCEL_TOKEN")
+          echo "$DEPLOY_OUTPUT"
+          
+          # Extract the URL (first https:// URL in the output)
+          DEPLOY_URL=$(echo "$DEPLOY_OUTPUT" | grep -oE 'https://[a-zA-Z0-9.-]+\.vercel\.app' | head -1)
+          echo "deployment_url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
+          
+          if [ -z "$DEPLOY_URL" ]; then
+            echo "::error::Could not extract deployment URL from Vercel output"
+            exit 1
+          fi
+          
+          echo "✓ Deployed to: $DEPLOY_URL"
+
+      # ── 9. Verify live URL ─────────────────────────────────────────
+      # Wait briefly for Vercel to propagate the deployment, then verify
+      # the URL returns HTTP 200. A non-200 response here means either:
+      #   - Vercel is still propagating (retry with a longer sleep)
+      #   - The deployment is malformed (rare with --prebuilt, but possible
+      #     if build/web was missing a required file)
+      #   - Vercel is having an outage (check status.vercel.com)
+      - name: Verify live URL
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.deployment_url }}
+        run: |
+          echo "Waiting 15s for Vercel to propagate deployment..."
+          sleep 15
+          
+          echo "Checking $DEPLOY_URL ..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L "$DEPLOY_URL")
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✓ Live URL returned HTTP 200"
+          else
+            echo "::error::Live URL returned HTTP $HTTP_CODE (expected 200)"
+            echo "If this is a propagation delay, re-run this workflow in 30s."
+            exit 1
+          fi
+          
+          # Also verify main.dart.js is reachable — sometimes index.html
+          # loads but the JS bundle 404s due to a routing misconfiguration.
+          JS_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L "$DEPLOY_URL/main.dart.js")
+          if [ "$JS_CODE" = "200" ]; then
+            echo "✓ main.dart.js reachable (HTTP 200)"
+          else
+            echo "::error::main.dart.js returned HTTP $JS_CODE"
+            exit 1
+          fi

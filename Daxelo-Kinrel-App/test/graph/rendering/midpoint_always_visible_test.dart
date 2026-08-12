@@ -83,6 +83,7 @@ void main() {
         relationshipKey: 'spouse',
       ),
       lateralOffset: 0.0,
+      parallelCount: 1,
     ),
     DedupedEdge(
       edge: GraphEdgeData(
@@ -92,6 +93,7 @@ void main() {
         relationshipKey: 'father',
       ),
       lateralOffset: 0.0,
+      parallelCount: 1,
     ),
   ];
   // Map edges to their kinship categories so the painter can resolve

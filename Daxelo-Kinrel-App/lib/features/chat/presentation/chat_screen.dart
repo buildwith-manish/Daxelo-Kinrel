@@ -1304,10 +1304,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Group messages by date for separators
     final grouped = _groupByDate(messages);
 
+    // v130: Bottom padding reserves space for the scroll-to-bottom FAB
+    // (40px tall, 8px from bottom = 48px footprint) plus a 16px buffer
+    // so the most recent message — including full-size 64px sticker
+    // emoji messages — is never obscured by the floating button when
+    // the user scrolls slightly up from the bottom and the FAB is
+    // visible. In a reversed ListView, padding.bottom is applied at
+    // the visual bottom of the viewport (where index 0 / newest
+    // message renders).
+    const fabClearance = 64.0; // FAB(40) + margin(8) + buffer(16)
+
     return ListView.builder(
       controller: _scrollController,
       reverse: true,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, fabClearance),
       itemCount: grouped.length,
       itemBuilder: (context, index) {
         final group = grouped[index];
