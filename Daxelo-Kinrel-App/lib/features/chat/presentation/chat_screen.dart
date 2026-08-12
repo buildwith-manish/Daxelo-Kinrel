@@ -4175,23 +4175,23 @@ class _DoubleTickPainter extends CustomPainter {
 Color? _kinshipCategoryColor(KinshipEdgeCategory category) {
   switch (category) {
     case KinshipEdgeCategory.parent:
-      return KinrelEdgeColors.parent;
+      return KinshipEdgeColors.parent;
     case KinshipEdgeCategory.child:
-      return KinrelEdgeColors.child;
+      return KinshipEdgeColors.child;
     case KinshipEdgeCategory.sibling:
-      return KinrelEdgeColors.sibling;
+      return KinshipEdgeColors.sibling;
     case KinshipEdgeCategory.spouse:
-      return KinrelEdgeColors.spouseEdge;
+      return KinshipEdgeColors.spouseEdge;
     case KinshipEdgeCategory.grandparent:
-      return KinrelEdgeColors.grandparent;
+      return KinshipEdgeColors.grandparent;
     case KinshipEdgeCategory.auntUncle:
-      return KinrelEdgeColors.auntUncle;
+      return KinshipEdgeColors.auntUncle;
     case KinshipEdgeCategory.cousin:
-      return KinrelEdgeColors.cousin;
+      return KinshipEdgeColors.cousin;
     case KinshipEdgeCategory.inLaw:
-      return KinrelEdgeColors.inLaw;
+      return KinshipEdgeColors.inLaw;
     case KinshipEdgeCategory.extended:
-      return KinrelEdgeColors.extended;
+      return KinshipEdgeColors.extended;
     case KinshipEdgeCategory.self:
     case KinshipEdgeCategory.indirect:
       return null; // No band for self or indirect
