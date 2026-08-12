@@ -1031,13 +1031,25 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       // Group Chat — the conversation screen for a specific group
+      // v139: Reuses the existing ChatScreen with groupId + groupName
+      // params. The screen filters messages to this group only.
       GoRoute(
         path: '/family/:id/groups/:groupId/chat',
-        pageBuilder: (context, state) => _fastFadePage(
-          key: state.pageKey,
-          child: FamilyGroupsScreen(familyId: state.pathParameters['id']!),
-          // TODO v139: replace with GroupChatScreen (reuse ChatScreen with groupId)
-        ),
+        pageBuilder: (context, state) {
+          final familyId = state.pathParameters['id']!;
+          final groupId = state.pathParameters['groupId']!;
+          final groupName = state.uri.queryParameters['name'] ?? 'Group';
+          return _fastFadePage(
+            key: state.pageKey,
+            child: ChatScreen(
+              familyId: familyId,
+              familyName: groupName,
+              groupId: groupId,
+              groupName: groupName,
+              showFamilyNav: false,
+            ),
+          );
+        },
       ),
       // Create Group flow
       GoRoute(

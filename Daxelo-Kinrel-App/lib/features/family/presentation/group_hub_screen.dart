@@ -1029,8 +1029,8 @@ class _EnterGroupChatGateway extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () =>
-            context.go('/family/$familyId/groups/$groupId/chat'),
+        onTap: () => context.go(
+            '/family/$familyId/groups/$groupId/chat?name=${Uri.encodeComponent(group.name)}'),
         child: Container(
           padding:
               const EdgeInsets.symmetric(vertical: 28, horizontal: 24),

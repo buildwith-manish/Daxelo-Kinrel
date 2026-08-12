@@ -865,7 +865,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// Send a new text message. Inserts optimistically into state, then
   /// persists to Supabase. If the server INSERT fails, the optimistic
   /// message is removed and an error is surfaced.
-  Future<void> sendMessage(String content, {String? replyToId}) async {
+  Future<void> sendMessage(String content, {String? replyToId, String? groupId}) async {
     final trimmed = content.trim();
     if (trimmed.isEmpty) return;
 
@@ -906,6 +906,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       replyToContent: replyContent,
       replyToSenderName: replySender,
       senderInitials: _initialsFromName(senderName),
+      groupId: groupId,
     );
 
     // Track for echo de-dup so the realtime INSERT doesn't double-render.

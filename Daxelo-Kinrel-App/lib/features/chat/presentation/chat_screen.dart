@@ -41,6 +41,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
+import '../../family/data/relationship_label_provider.dart';
 import '../../../core/utils/web_keyboard_height.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/chat_enhancement_service.dart';
@@ -66,6 +67,8 @@ class ChatScreen extends ConsumerStatefulWidget {
     required this.familyId,
     required this.familyName,
     this.showFamilyNav = true,
+    this.groupId,
+    this.groupName,
   });
 
   /// The family ID for this chat.
@@ -84,6 +87,15 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// used when the chat is opened from the Family Chat List screen as
   /// a pushed conversation, matching WhatsApp/Telegram UX.
   final bool showFamilyNav;
+
+  /// v139: Group ID for sub-group chats. When set, the screen filters
+  /// messages to this group only and uses [groupName] in the header.
+  /// When null, shows the family-wide chat (existing behavior).
+  final String? groupId;
+
+  /// v139: Display name for the group (used in the AppBar when
+  /// [groupId] is set). Falls back to [familyName] if null.
+  final String? groupName;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -289,7 +301,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     Future.microtask(() {
       ref
           .read(chatProvider(widget.familyId).notifier)
-          .sendMessage(text, replyToId: replyToId);
+          .sendMessage(text, replyToId: replyToId, groupId: widget.groupId);
     });
 
     _textController.clear();
@@ -367,9 +379,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // refreshMessages() re-fetched ALL rows including the hidden ones
     // and they stayed visible. This filter fixes that.
     final uid = _currentUserId;
-    final messages = uid != null
+    // v139: If groupId is set, filter to only messages belonging to
+    // this sub-group. Otherwise (family-wide chat), show messages
+    // where groupId is null (excludes group-scoped messages).
+    List<ChatMessage> messages = uid != null
         ? rawMessages.where((m) => !m.isHiddenFor(uid)).toList()
         : rawMessages;
+    if (widget.groupId != null) {
+      messages = messages.where((m) => m.groupId == widget.groupId).toList();
+    } else {
+      messages = messages.where((m) => m.groupId == null).toList();
+    }
 
     // Loading state — show a centered spinner while the initial fetch
     // is in flight. Once _initialLoadDone is true (set by the notifier
@@ -686,8 +706,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         // ── Name ──────────────────────────────────────
+                        // v139: Show group name if this is a group chat,
+                        // otherwise the family name.
                         Text(
-                          widget.familyName,
+                          widget.groupName ?? widget.familyName,
                           style: TextStyle(
                             fontFamily: KinrelTypography.displayFont,
                             fontSize: 16.5,
@@ -1511,6 +1533,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 child: _MessageBubble(
                   message: msg,
                   isMe: isMe,
+                  familyId: widget.familyId,
                   isFirstInGroup: isFirstInGroup,
                   isLastInGroup: isLastInGroup,
                   onReply: () {
@@ -3036,6 +3059,7 @@ class _MessageBubble extends ConsumerWidget {
     required this.onReply,
     required this.onReact,
     required this.onLongPress,
+    required this.familyId,
     this.isFirstInGroup = true,
     this.isLastInGroup = true,
     this.animateIn = false,
@@ -3046,6 +3070,11 @@ class _MessageBubble extends ConsumerWidget {
   final VoidCallback onReply;
   final VoidCallback onReact;
   final VoidCallback onLongPress;
+
+  /// v139: Family ID used to resolve the sender's relationship label
+  /// to the current viewer via the K-Graph. Only family/group chats
+  /// pass this — 1-on-1 DMs pass null and skip the relationship label.
+  final String? familyId;
 
   /// v127: Whether this is the first message in a consecutive group
   /// from the same sender. Controls avatar + sender name visibility.
@@ -3332,6 +3361,23 @@ class _MessageBubble extends ConsumerWidget {
     // v131: Premium sender label — slightly larger, letter-spaced,
     // with a refined online dot. Reads as a quiet header above the
     // message rather than competing with it.
+    //
+    // v139: Relationship-aware sender labels — Kinrel's signature
+    // differentiator. For family/group chats (familyId != null),
+    // resolve the sender's relationship to the current viewer from
+    // the K-Graph (e.g. "Chacha", "Bhaiya", "Nani"). The relationship
+    // label appears as a small amber tag BEFORE the sender's name.
+    // Falls back to sender name only if no relationship is found.
+    //
+    // Viewer-specific: the label changes based on who is logged in.
+    // Not applied to 1-on-1 DMs (familyId == null).
+    String? relationshipLabel;
+    if (familyId != null && !isMe) {
+      relationshipLabel = ref.watch(relationshipLabelProvider(
+        (familyId: familyId!, senderUserId: message.senderId),
+      ));
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
@@ -3355,13 +3401,42 @@ class _MessageBubble extends ConsumerWidget {
                 ],
               ),
             ),
+          // v139: Relationship label (amber, small, before the name)
+          // — the Kinrel signature differentiator. Only shown for
+          // family/group chats where a relationship was resolved.
+          if (relationshipLabel != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+              margin: const EdgeInsets.only(right: 5),
+              decoration: BoxDecoration(
+                color: KinrelColors.ember.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(100),
+                border: Border.all(
+                  color: KinrelColors.ember.withValues(alpha: 0.30),
+                  width: 0.5,
+                ),
+              ),
+              child: Text(
+                relationshipLabel,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.ember,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+          ],
           Text(
             message.senderName,
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
-              color: KinrelColors.orange,
+              color: relationshipLabel != null
+                  ? KinrelColors.textSilver.withValues(alpha: 0.85)
+                  : KinrelColors.orange,
               letterSpacing: 0.2,
             ),
           ),
