@@ -2870,8 +2870,8 @@ class _MessageBubble extends ConsumerWidget {
                         color: isSticker
                             ? Colors.transparent
                             : (isMe
-                                ? KinrelColors.orange.withValues(alpha: 0.12)
-                                : KinrelColors.darkElevated),
+                                ? KinrelColors.ember.withValues(alpha: 0.12)
+                                : KinrelColors.elevation3),
                         // v127: Tail effect — the corner nearest the
                         // "tail" (bottom-right for isMe, bottom-left for
                         // others) drops to 4px only on isLastInGroup.
@@ -2892,7 +2892,7 @@ class _MessageBubble extends ConsumerWidget {
                             ? Border.all(color: Colors.transparent)
                             : (isMe
                                 ? Border.all(
-                                    color: KinrelColors.orange
+                                    color: KinrelColors.ember
                                         .withValues(alpha: 0.35),
                                     width: 1,
                                   )
