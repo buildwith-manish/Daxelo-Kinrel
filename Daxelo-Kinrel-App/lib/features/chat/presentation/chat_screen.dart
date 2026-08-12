@@ -3112,7 +3112,7 @@ class _MessageBubble extends ConsumerWidget {
         (familyId: familyId!, senderUserId: message.senderId),
       ));
       if (rawKey != null) {
-        final category = KinshipEdgeStyleClassifier.classify(rawKey);
+        final category = KinshipEdgeClassifier.classify(rawKey);
         kinshipBandColor = _kinshipCategoryColor(category);
       }
     }
