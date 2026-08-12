@@ -20,8 +20,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/brand_colors.dart';
-import '../../../core/constants/brand_typography.dart';
+import '../../../../core/constants/brand_colors.dart';
+import '../../../../core/constants/brand_typography.dart';
 import '../../data/chat_wallpaper_provider.dart';
 import 'chat_background_theme.dart';
 

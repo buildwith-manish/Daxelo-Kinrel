@@ -82,7 +82,7 @@ class ChatBackgroundTheme {
   /// Returns [defaultTheme] if the id is unknown or malformed.
   static ChatBackgroundTheme fromStoredValue(String? value) {
     if (!isThemeValue(value)) return defaultTheme;
-    final id = value.substring('theme:'.length);
+    final id = value!.substring('theme:'.length);
     return allThemes.firstWhere(
       (t) => t.id == id,
       orElse: () => defaultTheme,
