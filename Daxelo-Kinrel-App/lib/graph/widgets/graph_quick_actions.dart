@@ -321,7 +321,7 @@ class GraphQuickActions {
     String familyId,
     GraphPersonData sourcePerson,
   ) async {
-    // Step 1: Fetch family members and show the person picker.
+    // Step 1: Fetch family members + relationships.
     final detailAsync = ref.read(familyDetailProvider(familyId));
     final detail = detailAsync.valueOrNull;
 
@@ -338,23 +338,64 @@ class GraphQuickActions {
       return;
     }
 
-    // Filter out the source person + deceased-unrelated if needed.
-    // We keep ALL other persons — the user can relate to anyone.
-    final otherPersons = detail.members
-        .where((p) => p.id != sourcePerson.id)
-        .toList();
+    // v142: Build the set of person IDs that already have a DIRECT
+    // relationship with the source person. A direct relationship exists
+    // if there's any FamilyRelationship edge where (from=source AND
+    // to=other) OR (from=other AND to=source). These persons are
+    // excluded from the picker to prevent duplicate relationships.
+    final relationships = detail.relationships;
+    final directlyRelatedIds = <String>{};
+    for (final rel in relationships) {
+      if (rel.fromPersonId == sourcePerson.id) {
+        directlyRelatedIds.add(rel.toPersonId);
+      } else if (rel.toPersonId == sourcePerson.id) {
+        directlyRelatedIds.add(rel.fromPersonId);
+      }
+    }
 
-    if (otherPersons.isEmpty) {
+    // Filter: exclude the source person themselves + anyone already
+    // directly related to the source person.
+    final availablePersons = detail.members.where((p) =>
+        p.id != sourcePerson.id && !directlyRelatedIds.contains(p.id)).toList();
+
+    if (availablePersons.isEmpty) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('No other family members to relate to.'),
+            content: const Text(
+                'Everyone in this family is already related to ${sourcePerson.name}.'),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
           ),
         );
       }
       return;
+    }
+
+    // v142: For each available person, resolve their kinship label
+    // RELATIVE TO THE SOURCE PERSON (not the viewer/anchor). This uses
+    // the same semantics as GraphRelationshipLabels.getRelationLabel
+    // but with sourcePerson as the "anchor" perspective.
+    //
+    // Edge semantics: from: A, to: B, key: 'X' means "A is the X of B"
+    //   - Edge from=other, to=source, key=X → other is X of source → label = formatKey(X)
+    //   - Edge from=source, to=other, key=X → source is X of other → other's label = formatKey(inverse(X))
+    //
+    // Since we filtered out directly-related persons, most labels will
+    // be empty — but some persons may have INDIRECT relationships that
+    // still resolve to a label via the graph. We show whatever label
+    // is available; if none, we show no subtitle.
+    String kinshipLabelFor(Person other) {
+      for (final rel in relationships) {
+        if (rel.fromPersonId == other.id && rel.toPersonId == sourcePerson.id) {
+          return GraphRelationshipLabels.formatKey(rel.relationshipKey);
+        }
+        if (rel.fromPersonId == sourcePerson.id && rel.toPersonId == other.id) {
+          return GraphRelationshipLabels.formatKey(
+              GraphRelationshipLabels.getInverseKey(rel.relationshipKey));
+        }
+      }
+      return '';
     }
 
     // Step 1: Show person picker bottom sheet.
@@ -411,13 +452,14 @@ class GraphQuickActions {
               ),
             ),
             const Divider(color: Color(0x1AFFFFFF), height: 1.0),
-            // Person list
+            // Person list — each item shows avatar + name + kinship label
             Flexible(
               child: ListView.builder(
                 shrinkWrap: true,
-                itemCount: otherPersons.length,
+                itemCount: availablePersons.length,
                 itemBuilder: (ctx, i) {
-                  final p = otherPersons[i];
+                  final p = availablePersons[i];
+                  final label = kinshipLabelFor(p);
                   return ListTile(
                     leading: CircleAvatar(
                       backgroundColor:
@@ -445,6 +487,20 @@ class GraphQuickActions {
                         color: KinrelColors.textWhite,
                       ),
                     ),
+                    // v142: Kinship label beneath the name — uses the
+                    // same tealAccent color + bodyFont styling as graph
+                    // node labels. Only shown when a label exists.
+                    subtitle: label.isNotEmpty
+                        ? Text(
+                            label,
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 12,
+                              color: KinrelColors.tealAccent,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          )
+                        : null,
                     onTap: () => Navigator.pop(ctx, p),
                   );
                 },
