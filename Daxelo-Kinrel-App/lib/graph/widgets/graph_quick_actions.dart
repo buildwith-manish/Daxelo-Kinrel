@@ -514,28 +514,61 @@ class GraphQuickActions {
 
     if (selectedPerson == null) return; // User cancelled
 
+    // v144: Debug — confirm the person was selected + show what's happening next.
+    debugPrint('[RelateToPerson] Selected: ${selectedPerson.name} (${selectedPerson.id})');
+    debugPrint('[RelateToPerson] Source: ${sourcePerson.name} (${sourcePerson.id})');
+    debugPrint('[RelateToPerson] Opening RelationshipPickerSheet...');
+
+    // v144: Show a brief SnackBar so the user sees the flow is continuing.
+    // This makes it obvious if the next step (RelationshipPickerSheet)
+    // fails to open — the user will see "Opening kinship selection..."
+    // and know the person pick succeeded.
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Opening kinship selection for ${selectedPerson.name}...'),
+          backgroundColor: KinrelColors.darkCard,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(milliseconds: 1500),
+        ),
+      );
+    }
+
     // Step 2: Show the existing RelationshipPickerSheet.
     // Header: "How is [selectedPerson] related to [sourcePerson]?"
     //
-    // v143: Use a fresh navigator context via rootNavigator to ensure
-    // the sheet opens even after the person-picker sheet was dismissed.
-    // The original `context` may have been invalidated when the picker
-    // sheet popped. Using Navigator.of(context, rootNavigator: true)
-    // gives us a stable overlay to show the next sheet on.
-    final navContext = Navigator.of(context, rootNavigator: true).context;
-    if (!navContext.mounted) return;
+    // v144: The original `context` IS still valid after the person-picker
+    // sheet closes — `showModalBottomSheet` returns the selected value
+    // but doesn't invalidate the calling context. The v143 attempt to
+    // use `Navigator.of(context, rootNavigator: true).context` was
+    // incorrect — that returns the NavigatorState's own context, which
+    // is NOT a valid context for showing modal sheets.
+    //
+    // Wait briefly for the SnackBar to show before opening the sheet,
+    // so the user sees the transition.
+    await Future.delayed(const Duration(milliseconds: 200));
 
+    if (!context.mounted) {
+      debugPrint('[RelateToPerson] Context not mounted after person pick — aborting');
+      return;
+    }
     final relationshipKey = await RelationshipPickerSheet.show(
-      navContext,
+      context,
       personAName: sourcePerson.name,
       personBName: selectedPerson.name,
     );
 
-    if (relationshipKey == null) return; // User cancelled
+    debugPrint('[RelateToPerson] RelationshipPickerSheet returned: $relationshipKey');
+
+    if (relationshipKey == null) {
+      debugPrint('[RelateToPerson] User cancelled kinship selection');
+      return; // User cancelled
+    }
 
     // Step 3: Create the relationship using the existing function.
     // createRelationship handles: validation (self-link, duplicate,
     // cycle), edge creation, inverse creation, and graph refresh.
+    debugPrint('[RelateToPerson] Creating relationship: ${sourcePerson.id} → ${selectedPerson.id} as $relationshipKey');
     try {
       await createRelationship(
         ref: ref,
@@ -544,9 +577,9 @@ class GraphQuickActions {
         toPersonId: selectedPerson.id,
         relationshipKey: relationshipKey,
       );
+      debugPrint('[RelateToPerson] Relationship created successfully');
 
-      // v143: Show a confirmation dialog with the created relationship
-      // + the auto-generated inverse, so the user sees both directions.
+      // v144: Show a confirmation SnackBar with both directions.
       if (context.mounted) {
         final inverseKey = GraphRelationshipLabels.getInverseKey(relationshipKey);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -562,8 +595,8 @@ class GraphQuickActions {
         );
       }
     } catch (e) {
-      // createRelationship throws on validation failure (duplicate,
-      // self-link, cycle) or network error. Show a clear error message.
+      debugPrint('[RelateToPerson] ERROR creating relationship: $e');
+      // v144: Show a clear error message — never silently fail.
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
