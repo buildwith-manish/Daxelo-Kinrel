@@ -516,9 +516,17 @@ class GraphQuickActions {
 
     // Step 2: Show the existing RelationshipPickerSheet.
     // Header: "How is [selectedPerson] related to [sourcePerson]?"
-    if (!context.mounted) return;
+    //
+    // v143: Use a fresh navigator context via rootNavigator to ensure
+    // the sheet opens even after the person-picker sheet was dismissed.
+    // The original `context` may have been invalidated when the picker
+    // sheet popped. Using Navigator.of(context, rootNavigator: true)
+    // gives us a stable overlay to show the next sheet on.
+    final navContext = Navigator.of(context, rootNavigator: true).context;
+    if (!navContext.mounted) return;
+
     final relationshipKey = await RelationshipPickerSheet.show(
-      context,
+      navContext,
       personAName: sourcePerson.name,
       personBName: selectedPerson.name,
     );
@@ -537,26 +545,32 @@ class GraphQuickActions {
         relationshipKey: relationshipKey,
       );
 
+      // v143: Show a confirmation dialog with the created relationship
+      // + the auto-generated inverse, so the user sees both directions.
       if (context.mounted) {
+        final inverseKey = GraphRelationshipLabels.getInverseKey(relationshipKey);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${selectedPerson.name} is now ${sourcePerson.name}\'s ${relationshipKey.replaceAll('_', ' ')}',
+              '${selectedPerson.name} is now ${sourcePerson.name}\'s ${relationshipKey.replaceAll('_', ' ')}'
+              '${inverseKey != relationshipKey ? '\n${sourcePerson.name} is ${selectedPerson.name}\'s ${inverseKey.replaceAll('_', ' ')}' : ''}',
             ),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
     } catch (e) {
       // createRelationship throws on validation failure (duplicate,
-      // self-link, cycle) or network error. Show the error message.
+      // self-link, cycle) or network error. Show a clear error message.
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Could not create relationship: $e'),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
           ),
         );
       }
