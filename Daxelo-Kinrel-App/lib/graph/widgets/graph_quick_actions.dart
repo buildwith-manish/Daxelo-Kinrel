@@ -22,6 +22,7 @@ import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/family/family_provider.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
+import '../../features/family/presentation/relationship_picker_sheet.dart';
 import '../interaction/graph_focus_state.dart';
 import 'graph_relationship_labels.dart';
 
@@ -225,6 +226,31 @@ class GraphQuickActions {
                 }
               },
             ),
+            // v141: "Relate to another person" — opens a person picker,
+            // then the existing RelationshipPickerSheet, then calls
+            // createRelationship() to add an edge between the two
+            // existing nodes. Reuses the app's entire kinship system.
+            if (familyId != null && ref != null)
+              ListTile(
+                leading: const Icon(Icons.link_rounded,
+                    color: KinrelColors.tealAccent),
+                title: const Text(
+                  'Relate to another person',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showRelateToPersonFlow(
+                    context,
+                    ref!,
+                    familyId!,
+                    person,
+                  );
+                },
+              ),
             // Remove Member — shown for all non-self nodes (not just non-anchor)
             if (!isSelf && familyId != null) ...[
               const Divider(color: Color(0x1AFFFFFF), height: 1.0),
@@ -275,6 +301,210 @@ class GraphQuickActions {
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  /// v141: Shows the "Relate to another person" flow.
+  ///
+  /// Step 1: Opens a bottom sheet listing all other Person nodes in the
+  ///         family (excluding the source person). User picks one.
+  /// Step 2: Opens the existing [RelationshipPickerSheet] — "How is
+  ///         [selected person] related to [source person]?"
+  /// Step 3: Calls [createRelationship] which handles validation
+  ///         (self-link, duplicate, cycle), creates the edge + its
+  ///         inverse, and refreshes the graph.
+  ///
+  /// Reuses the app's entire kinship system — no new relationship
+  /// mechanism is created.
+  static void _showRelateToPersonFlow(
+    BuildContext context,
+    WidgetRef ref,
+    String familyId,
+    GraphPersonData sourcePerson,
+  ) async {
+    // Step 1: Fetch family members and show the person picker.
+    final detailAsync = ref.read(familyDetailProvider(familyId));
+    final detail = detailAsync.valueOrNull;
+
+    if (detail == null || detail.members.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('No other family members to relate to.'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Filter out the source person + deceased-unrelated if needed.
+    // We keep ALL other persons — the user can relate to anyone.
+    final otherPersons = detail.members
+        .where((p) => p.id != sourcePerson.id)
+        .toList();
+
+    if (otherPersons.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('No other family members to relate to.'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Step 1: Show person picker bottom sheet.
+    if (!context.mounted) return;
+    final selectedPerson = await showModalBottomSheet<Person>(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            Padding(
+              padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
+              child: Container(
+                width: 40.0,
+                height: 4.0,
+                decoration: BoxDecoration(
+                  color: KinrelColors.textDim,
+                  borderRadius: BorderRadius.circular(2.0),
+                ),
+              ),
+            ),
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 20.0, vertical: 12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Relate ${sourcePerson.name} to…',
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 18.0,
+                      fontWeight: FontWeight.w700,
+                      color: KinrelColors.textWhite,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Select an existing family member',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 13,
+                      color: KinrelColors.textDim,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: Color(0x1AFFFFFF), height: 1.0),
+            // Person list
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: otherPersons.length,
+                itemBuilder: (ctx, i) {
+                  final p = otherPersons[i];
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor:
+                          KinrelColors.tealAccent.withValues(alpha: 0.15),
+                      backgroundImage: p.photoUrl != null &&
+                              p.photoUrl!.isNotEmpty
+                          ? NetworkImage(p.photoUrl!)
+                          : null,
+                      child: (p.photoUrl == null || p.photoUrl!.isEmpty)
+                          ? Text(
+                              p.name.isNotEmpty
+                                  ? p.name[0].toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                color: KinrelColors.tealAccent,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            )
+                          : null,
+                    ),
+                    title: Text(
+                      p.name,
+                      style: const TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                    onTap: () => Navigator.pop(ctx, p),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8.0),
+          ],
+        ),
+      ),
+    );
+
+    if (selectedPerson == null) return; // User cancelled
+
+    // Step 2: Show the existing RelationshipPickerSheet.
+    // Header: "How is [selectedPerson] related to [sourcePerson]?"
+    if (!context.mounted) return;
+    final relationshipKey = await RelationshipPickerSheet.show(
+      context,
+      personAName: sourcePerson.name,
+      personBName: selectedPerson.name,
+    );
+
+    if (relationshipKey == null) return; // User cancelled
+
+    // Step 3: Create the relationship using the existing function.
+    // createRelationship handles: validation (self-link, duplicate,
+    // cycle), edge creation, inverse creation, and graph refresh.
+    try {
+      await createRelationship(
+        ref: ref,
+        familyId: familyId,
+        fromPersonId: sourcePerson.id,
+        toPersonId: selectedPerson.id,
+        relationshipKey: relationshipKey,
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${selectedPerson.name} is now ${sourcePerson.name}\'s ${relationshipKey.replaceAll('_', ' ')}',
+            ),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      // createRelationship throws on validation failure (duplicate,
+      // self-link, cycle) or network error. Show the error message.
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not create relationship: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   /// Shows the confirmation dialog before removing a member.
