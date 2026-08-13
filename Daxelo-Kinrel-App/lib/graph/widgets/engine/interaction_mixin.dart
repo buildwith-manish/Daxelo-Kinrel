@@ -623,51 +623,23 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       return;
     }
 
-    // v147: Relationship Linking Mode — if active, intercept the tap
-    // to select the target node for relationship creation.
-    final linkingState = ref.read(relationshipLinkingProvider);
-    if (linkingState.isActive && linkingState.phase == LinkingPhase.awaitingTarget) {
-      // Check if the tapped node is a valid target
-      if (!ref.read(relationshipLinkingProvider.notifier).isValidTarget(nodeId)) {
-        // Invalid target — show a message
-        SemanticsService.announce(
-            'Cannot select this person. Pick a different one.', TextDirection.ltr);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('This person cannot be selected. Choose someone else.'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-        return;
-      }
-
-      // Valid target — find the source + target GraphPersonData
-      final sourceData = flat.persons
-          .where((p) => p['id'] == linkingState.sourcePersonId)
-          .firstOrNull;
-      final targetData = flat.persons
+    // v148: Relationship Creation Mode — if active, intercept the tap
+    // for two-phase node selection (first node → second node → kinship).
+    final creationState = ref.read(relationshipCreationProvider);
+    if (creationState.isActive) {
+      final personData = flat.persons
           .where((p) => p['id'] == nodeId)
           .firstOrNull;
-      if (sourceData == null || targetData == null) return;
+      if (personData == null) return;
 
-      final sourcePerson = GraphPersonData(
-        id: linkingState.sourcePersonId!,
-        name: (sourceData['name'] as String?) ?? '',
-      );
-      final targetPerson = GraphPersonData(
-        id: nodeId,
-        name: (targetData['name'] as String?) ?? '',
-      );
+      final personName = (personData['name'] as String?) ?? '';
 
-      // Exit linking mode + open the kinship picker
-      GraphQuickActions.completeLinking(
+      GraphQuickActions.handleCreationTap(
         context: context,
         ref: ref,
         familyId: widget.familyId,
-        sourcePerson: sourcePerson,
-        targetPerson: targetPerson,
+        personId: nodeId,
+        personName: personName,
       );
       return;
     }

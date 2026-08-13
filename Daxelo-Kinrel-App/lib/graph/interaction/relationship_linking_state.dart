@@ -1,121 +1,136 @@
 // lib/graph/interaction/relationship_linking_state.dart
 //
-// DAXELO KINREL — Relationship Linking Mode (v147)
+// DAXELO KINREL — Relationship Creation Mode (v148)
 //
-// When the user taps "Relate to another person" from the long-press
-// menu, the graph enters Relationship Linking Mode. Instead of showing
-// a person-picker bottom sheet, the graph canvas itself becomes the
-// selector:
-//   1. The source node glows brightly
-//   2. Valid target nodes pulse subtly
-//   3. Invalid nodes (self, already-related) appear dimmed
-//   4. An instruction bar appears at the top: "Tap another person to
-//      create a relationship"
-//   5. The user taps a target node directly on the graph
-//   6. An animated connection line grows from source to target
-//   7. The existing RelationshipPickerSheet opens
-//   8. After kinship selection, createRelationship() creates the edge
+// A dedicated focused mode for creating relationships between graph nodes.
+// When active, the graph transforms into a relationship-building workspace:
+//   - All floating controls are hidden
+//   - An instruction banner appears at the top
+//   - Nodes are dimmed/highlighted to show what's selectable
+//   - The user taps two nodes (first + second) directly on the graph
+//   - The kinship picker opens after the second node is selected
+//   - A cancel button exits the mode and restores normal controls
 //
-// This file defines the state for that mode. It's a simple Riverpod
-// state notifier — the interaction_mixin checks this state in
-// _handleNodeTapDown and intercepts the tap if linking mode is active.
+// Two-phase selection:
+//   Phase 1 (awaitingFirst): "Select a family member to start"
+//   Phase 2 (awaitingSecond): "Select another member to connect with"
+//
+// v148 redesign: renamed from "Linking Mode" to "Creation Mode" with
+// improved UX — instruction banner, dim/highlight visuals, cancel button,
+// human-friendly error messages, success feedback.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// The phases of the relationship linking flow.
-enum LinkingPhase {
-  /// Not in linking mode — normal graph interaction.
+/// The phases of the relationship creation flow.
+enum CreationPhase {
+  /// Not in creation mode — normal graph interaction.
   idle,
 
-  /// Waiting for the user to tap a target node.
-  /// [sourcePersonId] is set; the user needs to tap another node.
-  awaitingTarget,
+  /// Waiting for the user to tap the FIRST node.
+  awaitingFirst,
+
+  /// First node selected, waiting for the SECOND node.
+  awaitingSecond,
 }
 
-/// State for the relationship linking mode.
-class RelationshipLinkingState {
-  const RelationshipLinkingState({
-    this.phase = LinkingPhase.idle,
-    this.sourcePersonId,
-    this.sourcePersonName,
-    this.invalidTargetIds = const {},
+/// State for the relationship creation mode.
+class RelationshipCreationState {
+  const RelationshipCreationState({
+    this.phase = CreationPhase.idle,
+    this.firstPersonId,
+    this.firstPersonName,
+    this.invalidIds = const {},
   });
 
-  /// Current phase of the linking flow.
-  final LinkingPhase phase;
+  /// Current phase of the creation flow.
+  final CreationPhase phase;
 
-  /// The person ID of the source node (the one the user long-pressed
-  /// and selected "Relate to another person" from).
-  final String? sourcePersonId;
+  /// The person ID of the first selected node (set after phase 1).
+  final String? firstPersonId;
 
-  /// Display name of the source person (for the instruction bar).
-  final String? sourcePersonName;
+  /// Display name of the first person (for the instruction banner).
+  final String? firstPersonName;
 
-  /// Set of person IDs that CANNOT be selected as targets:
-  ///   - the source person themselves
-  ///   - anyone already directly related to the source person
-  final Set<String> invalidTargetIds;
+  /// Set of person IDs that CANNOT be selected:
+  ///   - the first person themselves (in phase 2)
+  ///   - anyone already directly related to the first person
+  /// Only populated in phase 2.
+  final Set<String> invalidIds;
 
-  bool get isActive => phase != LinkingPhase.idle;
+  bool get isActive => phase != CreationPhase.idle;
 
-  RelationshipLinkingState copyWith({
-    LinkingPhase? phase,
-    String? sourcePersonId,
-    String? sourcePersonName,
-    Set<String>? invalidTargetIds,
-    bool clearSource = false,
+  RelationshipCreationState copyWith({
+    CreationPhase? phase,
+    String? firstPersonId,
+    String? firstPersonName,
+    Set<String>? invalidIds,
+    bool clearFirst = false,
     bool clearInvalid = false,
   }) {
-    return RelationshipLinkingState(
+    return RelationshipCreationState(
       phase: phase ?? this.phase,
-      sourcePersonId:
-          clearSource ? null : (sourcePersonId ?? this.sourcePersonId),
-      sourcePersonName: clearSource
+      firstPersonId:
+          clearFirst ? null : (firstPersonId ?? this.firstPersonId),
+      firstPersonName: clearFirst
           ? null
-          : (sourcePersonName ?? this.sourcePersonName),
-      invalidTargetIds:
-          clearInvalid ? const {} : (invalidTargetIds ?? this.invalidTargetIds),
+          : (firstPersonName ?? this.firstPersonName),
+      invalidIds: clearInvalid ? const {} : (invalidIds ?? this.invalidIds),
     );
   }
 }
 
-/// Riverpod state notifier for relationship linking mode.
-class RelationshipLinkingNotifier
-    extends StateNotifier<RelationshipLinkingState> {
-  RelationshipLinkingNotifier() : super(const RelationshipLinkingState());
+/// Riverpod state notifier for relationship creation mode.
+class RelationshipCreationNotifier
+    extends StateNotifier<RelationshipCreationState> {
+  RelationshipCreationNotifier() : super(const RelationshipCreationState());
 
-  /// Enter linking mode. [sourcePersonId] is the node the user long-pressed.
-  /// [invalidTargetIds] is the set of person IDs that cannot be targets
-  /// (self + already directly related).
-  void startLinking({
-    required String sourcePersonId,
-    required String sourcePersonName,
-    required Set<String> invalidTargetIds,
-  }) {
-    state = RelationshipLinkingState(
-      phase: LinkingPhase.awaitingTarget,
-      sourcePersonId: sourcePersonId,
-      sourcePersonName: sourcePersonName,
-      invalidTargetIds: invalidTargetIds,
+  /// Enter creation mode. The user will be prompted to tap the first node.
+  void startCreation() {
+    state = const RelationshipCreationState(
+      phase: CreationPhase.awaitingFirst,
     );
   }
 
-  /// Exit linking mode (cancel or after relationship creation).
-  void stopLinking() {
-    state = const RelationshipLinkingState();
+  /// Set the first selected node. Transitions to awaitingSecond.
+  void setFirstNode({
+    required String personId,
+    required String personName,
+    required Set<String> invalidIds,
+  }) {
+    state = RelationshipCreationState(
+      phase: CreationPhase.awaitingSecond,
+      firstPersonId: personId,
+      firstPersonName: personName,
+      invalidIds: invalidIds,
+    );
   }
 
-  /// Check if [personId] is a valid target for linking.
-  bool isValidTarget(String personId) {
+  /// Check if [personId] is a valid selection for the current phase.
+  bool isValidSelection(String personId) {
     if (!state.isActive) return false;
-    if (personId == state.sourcePersonId) return false;
-    if (state.invalidTargetIds.contains(personId)) return false;
+    if (state.phase == CreationPhase.awaitingSecond) {
+      if (personId == state.firstPersonId) return false;
+      if (state.invalidIds.contains(personId)) return false;
+    }
     return true;
   }
+
+  /// Exit creation mode (cancel or after relationship creation).
+  void stopCreation() {
+    state = const RelationshipCreationState();
+  }
 }
 
-/// Provider for the relationship linking state.
-final relationshipLinkingProvider =
-    StateNotifierProvider<RelationshipLinkingNotifier, RelationshipLinkingState>(
-  (ref) => RelationshipLinkingNotifier(),
+/// Provider for the relationship creation state.
+final relationshipCreationProvider = StateNotifierProvider<
+    RelationshipCreationNotifier, RelationshipCreationState>(
+  (ref) => RelationshipCreationNotifier(),
 );
+
+// Backward-compatible alias for code that still references the old name.
+// v148 renamed LinkingPhase → CreationPhase but kept the old provider
+// name so existing imports don't break.
+final relationshipLinkingProvider = relationshipCreationProvider;
+typedef LinkingPhase = CreationPhase;
+typedef RelationshipLinkingState = RelationshipCreationState;
+typedef RelationshipLinkingNotifier = RelationshipCreationNotifier;

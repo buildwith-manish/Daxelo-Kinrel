@@ -247,16 +247,13 @@ class GraphQuickActions {
                 ),
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  // v147: Enter Relationship Linking Mode instead of
-                  // showing a person-picker bottom sheet. The graph
-                  // canvas becomes the selector — the user taps a
-                  // target node directly.
-                  _enterLinkingMode(
-                    context,
-                    ref!,
-                    familyId!,
-                    person,
-                  );
+                  // v148: Enter dedicated Relationship Creation Mode.
+                  // The graph transforms into a focused workspace —
+                  // all controls hidden, instruction banner shown,
+                  // user taps two nodes directly on the graph.
+                  ref!
+                      .read(relationshipCreationProvider.notifier)
+                      .startCreation();
                 },
               ),
             // Remove Member — shown for all non-self nodes (not just non-anchor)
@@ -311,79 +308,110 @@ class GraphQuickActions {
     );
   }
 
-  /// v147: Enters Relationship Linking Mode.
+  /// v148: Handles a node tap during Relationship Creation Mode.
   ///
-  /// Instead of showing a person-picker bottom sheet, the graph canvas
-  /// becomes the selector. The source node glows, valid targets pulse,
-  /// and the user taps a target node directly on the graph.
+  /// Called by the interaction mixin. Two phases:
+  ///   Phase 1 (awaitingFirst): sets the first node, transitions to phase 2
+  ///   Phase 2 (awaitingSecond): sets the second node, opens kinship picker
   ///
-  /// The interaction_mixin checks `relationshipLinkingProvider` in
-  /// `_handleNodeTapDown` and intercepts the tap if linking mode is
-  /// active — calling `_completeLinking()` to open the kinship picker.
-  static void _enterLinkingMode(
-    BuildContext context,
-    WidgetRef ref,
-    String familyId,
-    GraphPersonData sourcePerson,
-  ) {
-    // Build the set of invalid target IDs: source person themselves +
-    // anyone already directly related to the source person.
-    final detailAsync = ref.read(familyDetailProvider(familyId));
-    final detail = detailAsync.valueOrNull;
+  /// Returns true if the tap was handled (valid selection), false if
+  /// the tap was invalid (same node, already related).
+  static bool handleCreationTap({
+    required BuildContext context,
+    required WidgetRef ref,
+    required String familyId,
+    required String personId,
+    required String personName,
+  }) {
+    final state = ref.read(relationshipCreationProvider);
+    if (!state.isActive) return false;
 
-    final invalidTargetIds = <String>{sourcePerson.id};
-    if (detail != null) {
-      for (final rel in detail.relationships) {
-        if (rel.fromPersonId == sourcePerson.id) {
-          invalidTargetIds.add(rel.toPersonId);
-        } else if (rel.toPersonId == sourcePerson.id) {
-          invalidTargetIds.add(rel.fromPersonId);
+    final notifier = ref.read(relationshipCreationProvider.notifier);
+
+    // Phase 1: Select the first node
+    if (state.phase == CreationPhase.awaitingFirst) {
+      // Build invalid IDs: anyone already directly related to this person
+      final detailAsync = ref.read(familyDetailProvider(familyId));
+      final detail = detailAsync.valueOrNull;
+      final invalidIds = <String>{};
+      if (detail != null) {
+        for (final rel in detail.relationships) {
+          if (rel.fromPersonId == personId) {
+            invalidIds.add(rel.toPersonId);
+          } else if (rel.toPersonId == personId) {
+            invalidIds.add(rel.fromPersonId);
+          }
         }
       }
+
+      notifier.setFirstNode(
+        personId: personId,
+        personName: personName,
+        invalidIds: invalidIds,
+      );
+      return true;
     }
 
-    // Enter linking mode — the interaction mixin will intercept the
-    // next node tap and call _completeLinking().
-    ref.read(relationshipLinkingProvider.notifier).startLinking(
-          sourcePersonId: sourcePerson.id,
-          sourcePersonName: sourcePerson.name,
-          invalidTargetIds: invalidTargetIds,
-        );
+    // Phase 2: Select the second node
+    if (state.phase == CreationPhase.awaitingSecond) {
+      // Check validity
+      if (!notifier.isValidSelection(personId)) {
+        // Human-friendly error message
+        if (personId == state.firstPersonId) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                  'Please select two different family members.'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Connection already exists — these family members are already connected.'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+        return false;
+      }
 
-    // Show a brief SnackBar instruction.
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-            'Tap another person to create a relationship with ${sourcePerson.name}'),
-        backgroundColor: KinrelColors.darkCard,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+      // Valid second node — exit creation mode + open kinship picker
+      notifier.stopCreation();
+      _openKinshipPicker(
+        context: context,
+        ref: ref,
+        familyId: familyId,
+        sourcePerson: GraphPersonData(id: state.firstPersonId!, name: state.firstPersonName ?? ''),
+        targetPerson: GraphPersonData(id: personId, name: personName),
+      );
+      return true;
+    }
+
+    return false;
   }
 
-  /// v147: Completes the relationship linking flow.
-  ///
-  /// Called by the interaction mixin when the user taps a target node
-  /// while linking mode is active. Opens the RelationshipPickerSheet,
-  /// then creates the relationship.
-  static void completeLinking({
+  /// v148: Opens the kinship picker + creates the relationship.
+  /// Human-friendly success + error messages.
+  static void _openKinshipPicker({
     required BuildContext context,
     required WidgetRef ref,
     required String familyId,
     required GraphPersonData sourcePerson,
     required GraphPersonData targetPerson,
   }) async {
-    // Exit linking mode immediately so the graph returns to normal.
-    ref.read(relationshipLinkingProvider.notifier).stopLinking();
+    debugPrint('[CreationMode] ${sourcePerson.name} → ${targetPerson.name}');
 
-    debugPrint('[RelateToPerson] Linking: ${sourcePerson.name} → ${targetPerson.name}');
-
-    // Show a brief SnackBar so the user sees the tap was registered.
+    // Brief progress feedback
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Opening kinship selection for ${targetPerson.name}...'),
+          content: Text('Choose how ${targetPerson.name} is related to ${sourcePerson.name}...'),
           backgroundColor: KinrelColors.darkCard,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(milliseconds: 1500),
@@ -393,7 +421,7 @@ class GraphQuickActions {
 
     await Future.delayed(const Duration(milliseconds: 200));
 
-    // Step 1: Open the existing RelationshipPickerSheet.
+    // Open the kinship picker
     if (!context.mounted) return;
     final relationshipKey = await RelationshipPickerSheet.show(
       context,
@@ -401,15 +429,10 @@ class GraphQuickActions {
       personBName: targetPerson.name,
     );
 
-    debugPrint('[RelateToPerson] RelationshipPickerSheet returned: $relationshipKey');
+    if (relationshipKey == null) return; // User cancelled
 
-    if (relationshipKey == null) {
-      debugPrint('[RelateToPerson] User cancelled kinship selection');
-      return;
-    }
-
-    // Step 2: Create the relationship.
-    debugPrint('[RelateToPerson] Creating relationship: ${sourcePerson.id} → ${targetPerson.id} as $relationshipKey');
+    // Create the relationship
+    debugPrint('[CreationMode] Creating: ${sourcePerson.id} → ${targetPerson.id} as $relationshipKey');
     try {
       await createRelationship(
         ref: ref,
@@ -418,15 +441,15 @@ class GraphQuickActions {
         toPersonId: targetPerson.id,
         relationshipKey: relationshipKey,
       );
-      debugPrint('[RelateToPerson] Relationship created successfully');
+      debugPrint('[CreationMode] Relationship created successfully');
 
       if (context.mounted) {
         final inverseKey = GraphRelationshipLabels.getInverseKey(relationshipKey);
+        final label = relationshipKey.replaceAll('_', ' ');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${targetPerson.name} is now ${sourcePerson.name}\'s ${relationshipKey.replaceAll('_', ' ')}'
-              '${inverseKey != relationshipKey ? '\n${sourcePerson.name} is ${targetPerson.name}\'s ${inverseKey.replaceAll('_', ' ')}' : ''}',
+              'Relationship Added\n${targetPerson.name} is now connected to ${sourcePerson.name} as $label.',
             ),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
@@ -435,22 +458,31 @@ class GraphQuickActions {
         );
       }
     } catch (e) {
-      debugPrint('[RelateToPerson] ERROR creating relationship: $e');
-      String errorDetail;
-      if (e is PostgrestException) {
-        errorDetail = 'Database error: ${e.message} (code: ${e.code})';
-      } else if (e is RelationshipValidationException) {
-        errorDetail = e.message;
+      debugPrint('[CreationMode] ERROR: $e');
+      // Human-friendly error messages — never show raw exception text
+      String friendlyError;
+      if (e is RelationshipValidationException) {
+        if (e.code == 'self_relationship') {
+          friendlyError = 'Please select two different family members.';
+        } else if (e.code == 'duplicate_relationship') {
+          friendlyError = 'Connection already exists — these family members are already connected.';
+        } else if (e.code == 'duplicate_parent') {
+          friendlyError = 'This person already has a parent. Remove the existing one first.';
+        } else if (e.code == 'circular_parentage') {
+          friendlyError = 'This connection would create a family cycle.';
+        } else {
+          friendlyError = 'Relationship couldn\'t be created. ${e.message}';
+        }
       } else {
-        errorDetail = e.toString();
+        friendlyError = 'Relationship couldn\'t be created. Please try again.';
       }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not create relationship: $errorDetail'),
+            content: Text(friendlyError),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 8),
+            duration: const Duration(seconds: 5),
           ),
         );
       }
