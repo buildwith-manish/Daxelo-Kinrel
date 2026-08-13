@@ -566,11 +566,11 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     String title;
     String subtitle;
     if (creationState.phase == CreationPhase.awaitingFirst) {
-      title = 'Create Relationship';
-      subtitle = 'Select a family member to start creating a connection.';
+      title = 'Create a Relationship';
+      subtitle = 'Tap a family member to connect them.';
     } else {
-      title = 'Choose Related Member';
-      subtitle = 'Now select another family member to connect with.';
+      title = 'Now choose the other family member';
+      subtitle = 'Tap another family member to create the connection.';
     }
 
     return [

@@ -22,6 +22,8 @@ import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/family/family_provider.dart';
+import '../../core/relationship/relationship_engine.dart';
+import '../../core/services/graph_layout_service.dart' show GraphPerson;
 import '../../core/services/supabase_service.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_picker_sheet.dart';
@@ -381,9 +383,9 @@ class GraphQuickActions {
         return false;
       }
 
-      // Valid second node — exit creation mode + open kinship picker
+      // Valid second node — exit creation mode + auto-detect kinship
       notifier.stopCreation();
-      _openKinshipPicker(
+      _autoDetectAndCreate(
         context: context,
         ref: ref,
         familyId: familyId,
@@ -396,42 +398,122 @@ class GraphQuickActions {
     return false;
   }
 
-  /// v148: Opens the kinship picker + creates the relationship.
-  /// Human-friendly success + error messages.
-  static void _openKinshipPicker({
+  /// v149: Automatically detects the kinship between two selected persons
+  /// using the existing RelationshipEngine + graph BFS, then creates the
+  /// relationship — NO manual kinship picker.
+  ///
+  /// If the engine confidently resolves the kinship → creates automatically.
+  /// If ambiguous or unresolvable → falls back to the RelationshipPickerSheet
+  /// with a human-friendly message.
+  /// If already connected → shows "Already connected" message.
+  static void _autoDetectAndCreate({
     required BuildContext context,
     required WidgetRef ref,
     required String familyId,
     required GraphPersonData sourcePerson,
     required GraphPersonData targetPerson,
   }) async {
-    debugPrint('[CreationMode] ${sourcePerson.name} → ${targetPerson.name}');
+    debugPrint('[CreationMode] Auto-detecting: ${sourcePerson.name} → ${targetPerson.name}');
 
-    // Brief progress feedback
+    // Show progress
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Choose how ${targetPerson.name} is related to ${sourcePerson.name}...'),
+          content: Text('Determining the relationship between ${sourcePerson.name} and ${targetPerson.name}...'),
           backgroundColor: KinrelColors.darkCard,
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(milliseconds: 1500),
+          duration: const Duration(milliseconds: 2000),
         ),
       );
     }
 
-    await Future.delayed(const Duration(milliseconds: 200));
+    // Fetch family detail to get all persons + relationships for the engine
+    final detailAsync = ref.read(familyDetailProvider(familyId));
+    final detail = detailAsync.valueOrNull;
 
-    // Open the kinship picker
-    if (!context.mounted) return;
-    final relationshipKey = await RelationshipPickerSheet.show(
-      context,
-      personAName: sourcePerson.name,
-      personBName: targetPerson.name,
+    if (detail == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Couldn\'t load family data. Please try again.'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Build GraphPerson list + relationship tuples for RelationshipEngine
+    final graphPersons = detail.members.map((p) => GraphPerson(
+      id: p.id,
+      name: p.name,
+      gender: p.gender,
+      generationIndex: p.generationIndex,
+      isAnchor: p.isAnchor,
+      photoUrl: p.photoUrl,
+      isDeceased: p.isDeceased,
+    )).toList();
+
+    final relTuples = detail.relationships.map((r) =>
+      (fromId: r.fromPersonId, toId: r.toPersonId, type: r.relationshipKey)
+    ).toList();
+
+    // Use RelationshipEngine to resolve from sourcePerson's perspective
+    final classification = RelationshipEngine.instance.resolveClassification(
+      viewerPersonId: sourcePerson.id,
+      targetPersonId: targetPerson.id,
+      persons: graphPersons,
+      relationships: relTuples,
     );
 
-    if (relationshipKey == null) return; // User cancelled
+    if (classification == null || classification.key.isEmpty) {
+      // Couldn't auto-detect — fall back to manual picker with explanation
+      debugPrint('[CreationMode] Auto-detect failed — falling back to manual picker');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('We couldn\'t determine the relationship automatically. Please choose the relationship between ${targetPerson.name} and ${sourcePerson.name}.'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+      // Fall back to the manual picker
+      if (!context.mounted) return;
+      final relationshipKey = await RelationshipPickerSheet.show(
+        context,
+        personAName: sourcePerson.name,
+        personBName: targetPerson.name,
+      );
+      if (relationshipKey == null) return;
+      await _createRelationshipWithFeedback(
+        context, ref, familyId, sourcePerson, targetPerson, relationshipKey,
+      );
+      return;
+    }
 
-    // Create the relationship
+    // Auto-detected successfully!
+    final relationshipKey = classification.key;
+    final label = classification.label;
+    debugPrint('[CreationMode] Auto-detected: $relationshipKey ($label)');
+
+    await _createRelationshipWithFeedback(
+      context, ref, familyId, sourcePerson, targetPerson, relationshipKey,
+    );
+  }
+
+  /// v149: Creates the relationship with human-friendly success/error feedback.
+  static Future<void> _createRelationshipWithFeedback(
+    BuildContext context,
+    WidgetRef ref,
+    String familyId,
+    GraphPersonData sourcePerson,
+    GraphPersonData targetPerson,
+    String relationshipKey,
+  ) async {
     debugPrint('[CreationMode] Creating: ${sourcePerson.id} → ${targetPerson.id} as $relationshipKey');
     try {
       await createRelationship(
@@ -444,12 +526,11 @@ class GraphQuickActions {
       debugPrint('[CreationMode] Relationship created successfully');
 
       if (context.mounted) {
-        final inverseKey = GraphRelationshipLabels.getInverseKey(relationshipKey);
         final label = relationshipKey.replaceAll('_', ' ');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Relationship Added\n${targetPerson.name} is now connected to ${sourcePerson.name} as $label.',
+              'Relationship Added\n${targetPerson.name} → $label → ${sourcePerson.name}',
             ),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
@@ -459,22 +540,21 @@ class GraphQuickActions {
       }
     } catch (e) {
       debugPrint('[CreationMode] ERROR: $e');
-      // Human-friendly error messages — never show raw exception text
       String friendlyError;
       if (e is RelationshipValidationException) {
         if (e.code == 'self_relationship') {
-          friendlyError = 'Please select two different family members.';
+          friendlyError = 'Choose two different family members.';
         } else if (e.code == 'duplicate_relationship') {
-          friendlyError = 'Connection already exists — these family members are already connected.';
+          friendlyError = 'Already connected — ${sourcePerson.name} and ${targetPerson.name} already have a family relationship.';
         } else if (e.code == 'duplicate_parent') {
           friendlyError = 'This person already has a parent. Remove the existing one first.';
         } else if (e.code == 'circular_parentage') {
           friendlyError = 'This connection would create a family cycle.';
         } else {
-          friendlyError = 'Relationship couldn\'t be created. ${e.message}';
+          friendlyError = 'Couldn\'t create this connection. ${e.message}';
         }
       } else {
-        friendlyError = 'Relationship couldn\'t be created. Please try again.';
+        friendlyError = 'Couldn\'t create this connection. Please try again.';
       }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
