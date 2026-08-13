@@ -108,6 +108,7 @@ import '../interaction/couple_union_model.dart'
         unionMidpoint;
 import '../../core/constants/feature_flags.dart' show kEnableGraphShareExport;
 import '../../core/constants/brand_colors.dart' show KinrelColors;
+import '../../core/constants/brand_typography.dart' show KinrelTypography;
 import '../../core/kinship/kinship_edge_style.dart';
 import '../../core/kinship/kinship_category_map.dart';
 import '../../core/kinship/structural_kinship_classifier.dart';
