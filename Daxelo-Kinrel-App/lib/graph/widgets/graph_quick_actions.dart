@@ -60,7 +60,7 @@ class GraphQuickActions {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
       ),
-      builder: (context) => SafeArea(
+      builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -105,7 +105,7 @@ class GraphQuickActions {
                 ),
               ),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 if (familyId != null) {
                   context.push('/member/${person.id}');
                 }
@@ -125,7 +125,7 @@ class GraphQuickActions {
                   ),
                 ),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                   onViewRelationship(person.id);
                 },
               ),
@@ -144,7 +144,7 @@ class GraphQuickActions {
                   ),
                 ),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                   if (onFocusPerson != null) {
                     onFocusPerson(person.id, person.name);
                   } else if (ref != null) {
@@ -173,7 +173,7 @@ class GraphQuickActions {
                   ),
                 ),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                   _showLightACandleToast(context, person.name);
                 },
               ),
@@ -191,7 +191,7 @@ class GraphQuickActions {
                   ),
                 ),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                   context.push('/memorials?familyId=$familyId');
                 },
               ),
@@ -206,7 +206,7 @@ class GraphQuickActions {
                 ),
               ),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 if (familyId != null) {
                   AddPersonSheet.show(
                     context,
@@ -242,7 +242,7 @@ class GraphQuickActions {
                   ),
                 ),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                   _showRelateToPersonFlow(
                     context,
                     ref!,
@@ -265,7 +265,7 @@ class GraphQuickActions {
                   ),
                 ),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                   _showRemoveConfirmation(
                     context,
                     person,
