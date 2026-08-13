@@ -23,6 +23,9 @@ import 'kinship_signature.dart';
 import 'path_canonicalizer.dart';
 import 'vocabulary_mapper.dart';
 
+/// A neighbor entry in the adjacency list.
+typedef AdjacencyEntry = ({String nodeId, TraversePrimitive primitive});
+
 /// A single step in the BFS traversal path.
 class BfsStep {
   final String nodeId;
@@ -117,7 +120,7 @@ class DeterministicKinshipEngine {
   /// For each stored edge, creates TWO traversal entries:
   ///   - Forward (e.g. parent A→B means B is A's parent → UP_PARENT from A)
   ///   - Reverse (e.g. parent A→B means A is B's child → DOWN_CHILD from B)
-  Map<String, List<({String nodeId, TraversePrimitive primitive})>> _buildAdjacencyList(
+  Map<String, List<AdjacencyEntry>> _buildAdjacencyList(
     List<GraphPerson> persons,
     List<({String fromId, String toId, String type})> relationships,
   ) {
@@ -190,7 +193,7 @@ class DeterministicKinshipEngine {
   _BfsResult? _bfs(
     String fromId,
     String toId,
-    Map<String, List<({String nodeId, TraversePrimitive primitive})>> adjacency,
+    Map<String, List<AdjacencyEntry>> adjacency,
   ) {
     final queue = <_BfsState>[
       _BfsState(nodeId: fromId, path: [], visited: [fromId]),
@@ -227,7 +230,7 @@ class DeterministicKinshipEngine {
     String fromPersonId,
     String toPersonId,
     List<GraphPerson> persons,
-    Map<String, List<({String nodeId, TraversePrimitive primitive})>> adjacency,
+    Map<String, List<AdjacencyEntry>> adjacency,
   ) {
     // Calculate generation delta
     int upCount = 0;
@@ -383,7 +386,7 @@ class DeterministicKinshipEngine {
   /// Gets the set of parent IDs for [personId].
   Set<String> _getParents(
     String personId,
-    Map<String, List<({String nodeId, TraversePrimitive primitive})>> adjacency,
+    Map<String, List<AdjacencyEntry>> adjacency,
   ) {
     final parents = <String>{};
     final neighbors = adjacency[personId] ?? [];
