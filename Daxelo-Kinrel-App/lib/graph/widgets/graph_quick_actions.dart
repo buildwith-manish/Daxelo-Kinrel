@@ -26,6 +26,7 @@ import '../../core/services/supabase_service.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_picker_sheet.dart';
 import '../interaction/graph_focus_state.dart';
+import '../interaction/relationship_linking_state.dart';
 import '../interaction/relationship_validation.dart' show RelationshipValidationException;
 import 'graph_relationship_labels.dart';
 
@@ -246,7 +247,11 @@ class GraphQuickActions {
                 ),
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  _showRelateToPersonFlow(
+                  // v147: Enter Relationship Linking Mode instead of
+                  // showing a person-picker bottom sheet. The graph
+                  // canvas becomes the selector — the user taps a
+                  // target node directly.
+                  _enterLinkingMode(
                     context,
                     ref!,
                     familyId!,
@@ -306,230 +311,79 @@ class GraphQuickActions {
     );
   }
 
-  /// v141: Shows the "Relate to another person" flow.
+  /// v147: Enters Relationship Linking Mode.
   ///
-  /// Step 1: Opens a bottom sheet listing all other Person nodes in the
-  ///         family (excluding the source person). User picks one.
-  /// Step 2: Opens the existing [RelationshipPickerSheet] — "How is
-  ///         [selected person] related to [source person]?"
-  /// Step 3: Calls [createRelationship] which handles validation
-  ///         (self-link, duplicate, cycle), creates the edge + its
-  ///         inverse, and refreshes the graph.
+  /// Instead of showing a person-picker bottom sheet, the graph canvas
+  /// becomes the selector. The source node glows, valid targets pulse,
+  /// and the user taps a target node directly on the graph.
   ///
-  /// Reuses the app's entire kinship system — no new relationship
-  /// mechanism is created.
-  static void _showRelateToPersonFlow(
+  /// The interaction_mixin checks `relationshipLinkingProvider` in
+  /// `_handleNodeTapDown` and intercepts the tap if linking mode is
+  /// active — calling `_completeLinking()` to open the kinship picker.
+  static void _enterLinkingMode(
     BuildContext context,
     WidgetRef ref,
     String familyId,
     GraphPersonData sourcePerson,
-  ) async {
-    // Step 1: Fetch family members + relationships.
+  ) {
+    // Build the set of invalid target IDs: source person themselves +
+    // anyone already directly related to the source person.
     final detailAsync = ref.read(familyDetailProvider(familyId));
     final detail = detailAsync.valueOrNull;
 
-    if (detail == null || detail.members.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('No other family members to relate to.'),
-            backgroundColor: KinrelColors.darkCard,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-      return;
-    }
-
-    // v142: Build the set of person IDs that already have a DIRECT
-    // relationship with the source person. A direct relationship exists
-    // if there's any FamilyRelationship edge where (from=source AND
-    // to=other) OR (from=other AND to=source). These persons are
-    // excluded from the picker to prevent duplicate relationships.
-    final relationships = detail.relationships;
-    final directlyRelatedIds = <String>{};
-    for (final rel in relationships) {
-      if (rel.fromPersonId == sourcePerson.id) {
-        directlyRelatedIds.add(rel.toPersonId);
-      } else if (rel.toPersonId == sourcePerson.id) {
-        directlyRelatedIds.add(rel.fromPersonId);
-      }
-    }
-
-    // Filter: exclude the source person themselves + anyone already
-    // directly related to the source person.
-    final availablePersons = detail.members.where((p) =>
-        p.id != sourcePerson.id && !directlyRelatedIds.contains(p.id)).toList();
-
-    if (availablePersons.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Everyone in this family is already related to ${sourcePerson.name}.'),
-            backgroundColor: KinrelColors.darkCard,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-      return;
-    }
-
-    // v142: For each available person, resolve their kinship label
-    // RELATIVE TO THE SOURCE PERSON (not the viewer/anchor). This uses
-    // the same semantics as GraphRelationshipLabels.getRelationLabel
-    // but with sourcePerson as the "anchor" perspective.
-    //
-    // Edge semantics: from: A, to: B, key: 'X' means "A is the X of B"
-    //   - Edge from=other, to=source, key=X → other is X of source → label = formatKey(X)
-    //   - Edge from=source, to=other, key=X → source is X of other → other's label = formatKey(inverse(X))
-    //
-    // Since we filtered out directly-related persons, most labels will
-    // be empty — but some persons may have INDIRECT relationships that
-    // still resolve to a label via the graph. We show whatever label
-    // is available; if none, we show no subtitle.
-    String kinshipLabelFor(Person other) {
-      for (final rel in relationships) {
-        if (rel.fromPersonId == other.id && rel.toPersonId == sourcePerson.id) {
-          return GraphRelationshipLabels.formatKey(rel.relationshipKey);
-        }
-        if (rel.fromPersonId == sourcePerson.id && rel.toPersonId == other.id) {
-          return GraphRelationshipLabels.formatKey(
-              GraphRelationshipLabels.getInverseKey(rel.relationshipKey));
+    final invalidTargetIds = <String>{sourcePerson.id};
+    if (detail != null) {
+      for (final rel in detail.relationships) {
+        if (rel.fromPersonId == sourcePerson.id) {
+          invalidTargetIds.add(rel.toPersonId);
+        } else if (rel.toPersonId == sourcePerson.id) {
+          invalidTargetIds.add(rel.fromPersonId);
         }
       }
-      return '';
     }
 
-    // Step 1: Show person picker bottom sheet.
-    if (!context.mounted) return;
-    final selectedPerson = await showModalBottomSheet<Person>(
-      context: context,
-      backgroundColor: KinrelColors.darkCard,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Drag handle
-            Padding(
-              padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
-              child: Container(
-                width: 40.0,
-                height: 4.0,
-                decoration: BoxDecoration(
-                  color: KinrelColors.textDim,
-                  borderRadius: BorderRadius.circular(2.0),
-                ),
-              ),
-            ),
-            // Title
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 20.0, vertical: 12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Relate ${sourcePerson.name} to…',
-                    style: const TextStyle(
-                      fontFamily: KinrelTypography.displayFont,
-                      fontSize: 18.0,
-                      fontWeight: FontWeight.w700,
-                      color: KinrelColors.textWhite,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Select an existing family member',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 13,
-                      color: KinrelColors.textDim,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(color: Color(0x1AFFFFFF), height: 1.0),
-            // Person list — each item shows avatar + name + kinship label
-            Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: availablePersons.length,
-                itemBuilder: (ctx, i) {
-                  final p = availablePersons[i];
-                  final label = kinshipLabelFor(p);
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor:
-                          KinrelColors.tealAccent.withValues(alpha: 0.15),
-                      backgroundImage: p.photoUrl != null &&
-                              p.photoUrl!.isNotEmpty
-                          ? NetworkImage(p.photoUrl!)
-                          : null,
-                      child: (p.photoUrl == null || p.photoUrl!.isEmpty)
-                          ? Text(
-                              p.name.isNotEmpty
-                                  ? p.name[0].toUpperCase()
-                                  : '?',
-                              style: const TextStyle(
-                                color: KinrelColors.tealAccent,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            )
-                          : null,
-                    ),
-                    title: Text(
-                      p.name,
-                      style: const TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        color: KinrelColors.textWhite,
-                      ),
-                    ),
-                    // v142: Kinship label beneath the name — uses the
-                    // same tealAccent color + bodyFont styling as graph
-                    // node labels. Only shown when a label exists.
-                    subtitle: label.isNotEmpty
-                        ? Text(
-                            label,
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 12,
-                              color: KinrelColors.tealAccent,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          )
-                        : null,
-                    onTap: () => Navigator.pop(ctx, p),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 8.0),
-          ],
-        ),
+    // Enter linking mode — the interaction mixin will intercept the
+    // next node tap and call _completeLinking().
+    ref.read(relationshipLinkingProvider.notifier).startLinking(
+          sourcePersonId: sourcePerson.id,
+          sourcePersonName: sourcePerson.name,
+          invalidTargetIds: invalidTargetIds,
+        );
+
+    // Show a brief SnackBar instruction.
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+            'Tap another person to create a relationship with ${sourcePerson.name}'),
+        backgroundColor: KinrelColors.darkCard,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
       ),
     );
+  }
 
-    if (selectedPerson == null) return; // User cancelled
+  /// v147: Completes the relationship linking flow.
+  ///
+  /// Called by the interaction mixin when the user taps a target node
+  /// while linking mode is active. Opens the RelationshipPickerSheet,
+  /// then creates the relationship.
+  static void completeLinking({
+    required BuildContext context,
+    required WidgetRef ref,
+    required String familyId,
+    required GraphPersonData sourcePerson,
+    required GraphPersonData targetPerson,
+  }) async {
+    // Exit linking mode immediately so the graph returns to normal.
+    ref.read(relationshipLinkingProvider.notifier).stopLinking();
 
-    // v144: Debug — confirm the person was selected + show what's happening next.
-    debugPrint('[RelateToPerson] Selected: ${selectedPerson.name} (${selectedPerson.id})');
-    debugPrint('[RelateToPerson] Source: ${sourcePerson.name} (${sourcePerson.id})');
-    debugPrint('[RelateToPerson] Opening RelationshipPickerSheet...');
+    debugPrint('[RelateToPerson] Linking: ${sourcePerson.name} → ${targetPerson.name}');
 
-    // v144: Show a brief SnackBar so the user sees the flow is continuing.
-    // This makes it obvious if the next step (RelationshipPickerSheet)
-    // fails to open — the user will see "Opening kinship selection..."
-    // and know the person pick succeeded.
+    // Show a brief SnackBar so the user sees the tap was registered.
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Opening kinship selection for ${selectedPerson.name}...'),
+          content: Text('Opening kinship selection for ${targetPerson.name}...'),
           backgroundColor: KinrelColors.darkCard,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(milliseconds: 1500),
@@ -537,124 +391,42 @@ class GraphQuickActions {
       );
     }
 
-    // Step 2: Show the existing RelationshipPickerSheet.
-    // Header: "How is [selectedPerson] related to [sourcePerson]?"
-    //
-    // v144: The original `context` IS still valid after the person-picker
-    // sheet closes — `showModalBottomSheet` returns the selected value
-    // but doesn't invalidate the calling context. The v143 attempt to
-    // use `Navigator.of(context, rootNavigator: true).context` was
-    // incorrect — that returns the NavigatorState's own context, which
-    // is NOT a valid context for showing modal sheets.
-    //
-    // Wait briefly for the SnackBar to show before opening the sheet,
-    // so the user sees the transition.
     await Future.delayed(const Duration(milliseconds: 200));
 
-    if (!context.mounted) {
-      debugPrint('[RelateToPerson] Context not mounted after person pick — aborting');
-      return;
-    }
+    // Step 1: Open the existing RelationshipPickerSheet.
+    if (!context.mounted) return;
     final relationshipKey = await RelationshipPickerSheet.show(
       context,
       personAName: sourcePerson.name,
-      personBName: selectedPerson.name,
+      personBName: targetPerson.name,
     );
 
     debugPrint('[RelateToPerson] RelationshipPickerSheet returned: $relationshipKey');
 
     if (relationshipKey == null) {
       debugPrint('[RelateToPerson] User cancelled kinship selection');
-      return; // User cancelled
-    }
-
-    // Step 3: Create the relationship using the existing function.
-    // createRelationship handles: validation (self-link, duplicate,
-    // cycle), edge creation, inverse creation, and graph refresh.
-    debugPrint('[RelateToPerson] Creating relationship: ${sourcePerson.id} → ${selectedPerson.id} as $relationshipKey');
-
-    // v146: Pre-flight check — verify both person IDs exist in the
-    // Person table. The graph's GraphPersonData.id might not match
-    // Person.id if the graph uses synthetic IDs. This catches FK
-    // violations BEFORE the INSERT and gives a clear error message.
-    final client = ref.read(supabaseProvider);
-    if (client == null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Not connected to the database. Please restart the app.'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
       return;
     }
 
+    // Step 2: Create the relationship.
+    debugPrint('[RelateToPerson] Creating relationship: ${sourcePerson.id} → ${targetPerson.id} as $relationshipKey');
     try {
-      // Verify source person exists
-      final sourceCheck = await client
-          .from('Person')
-          .select('id, name')
-          .eq('id', sourcePerson.id)
-          .maybeSingle()
-          .timeout(const Duration(seconds: 5));
-      if (sourceCheck == null) {
-        debugPrint('[RelateToPerson] ERROR: Source person ${sourcePerson.id} not found in Person table');
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Cannot create relationship: "${sourcePerson.name}" was not found in the family database. This may be a synced node that needs to be linked to a real person record.'),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 8),
-            ),
-          );
-        }
-        return;
-      }
-      debugPrint('[RelateToPerson] Source person verified: ${sourceCheck['name']}');
-
-      // Verify target person exists (already from familyDetailProvider, but double-check)
-      final targetCheck = await client
-          .from('Person')
-          .select('id, name')
-          .eq('id', selectedPerson.id)
-          .maybeSingle()
-          .timeout(const Duration(seconds: 5));
-      if (targetCheck == null) {
-        debugPrint('[RelateToPerson] ERROR: Target person ${selectedPerson.id} not found in Person table');
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Cannot create relationship: "${selectedPerson.name}" was not found in the family database.'),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 8),
-            ),
-          );
-        }
-        return;
-      }
-      debugPrint('[RelateToPerson] Target person verified: ${targetCheck['name']}');
-
       await createRelationship(
         ref: ref,
         familyId: familyId,
         fromPersonId: sourcePerson.id,
-        toPersonId: selectedPerson.id,
+        toPersonId: targetPerson.id,
         relationshipKey: relationshipKey,
       );
       debugPrint('[RelateToPerson] Relationship created successfully');
 
-      // v144: Show a confirmation SnackBar with both directions.
       if (context.mounted) {
         final inverseKey = GraphRelationshipLabels.getInverseKey(relationshipKey);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${selectedPerson.name} is now ${sourcePerson.name}\'s ${relationshipKey.replaceAll('_', ' ')}'
-              '${inverseKey != relationshipKey ? '\n${sourcePerson.name} is ${selectedPerson.name}\'s ${inverseKey.replaceAll('_', ' ')}' : ''}',
+              '${targetPerson.name} is now ${sourcePerson.name}\'s ${relationshipKey.replaceAll('_', ' ')}'
+              '${inverseKey != relationshipKey ? '\n${sourcePerson.name} is ${targetPerson.name}\'s ${inverseKey.replaceAll('_', ' ')}' : ''}',
             ),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
@@ -664,8 +436,6 @@ class GraphQuickActions {
       }
     } catch (e) {
       debugPrint('[RelateToPerson] ERROR creating relationship: $e');
-      // v146: Show a DETAILED error message — include the exception type
-      // and message so we can diagnose FK violations, RLS denials, etc.
       String errorDetail;
       if (e is PostgrestException) {
         errorDetail = 'Database error: ${e.message} (code: ${e.code})';

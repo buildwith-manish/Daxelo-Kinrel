@@ -146,6 +146,12 @@ import 'graph_outline_view.dart' show GraphOutlineView;
 import 'graph_legend.dart' show GraphLegend;
 import 'graph_quick_actions.dart' show GraphQuickActions;
 import 'graph_relationship_labels.dart' show GraphPersonData;
+import '../interaction/relationship_linking_state.dart'
+    show
+        RelationshipLinkingState,
+        RelationshipLinkingNotifier,
+        relationshipLinkingProvider,
+        LinkingPhase;
 import 'relationship_info_sheet.dart' show RelationshipInfoSheet;
 
 // ── P0.4: Extracted helpers (imports MUST come before part directives) ──
