@@ -22,13 +22,12 @@ import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/family/family_provider.dart';
-import '../../core/relationship/relationship_engine.dart';
+import '../../core/kinship/v3/deterministic_kinship_engine.dart';
 import '../../core/services/graph_layout_service.dart' show GraphPerson;
 import '../../core/services/supabase_service.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_picker_sheet.dart';
 import '../interaction/graph_focus_state.dart';
-import '../interaction/relationship_linking_state.dart';
 import '../interaction/relationship_validation.dart' show RelationshipValidationException;
 import 'graph_relationship_labels.dart';
 
@@ -511,23 +510,46 @@ class GraphQuickActions {
       (fromId: r.fromPersonId, toId: r.toPersonId, type: r.relationshipKey)
     ).toList();
 
-    // Resolve kinship from sourcePerson's perspective
-    final classification = RelationshipEngine.instance.resolveClassification(
-      viewerPersonId: sourcePerson.id,
-      targetPersonId: selectedPerson.id,
+    // Use v3 Deterministic Kinship Engine to resolve kinship
+    final result = DeterministicKinshipEngine.instance.resolve(
+      fromPersonId: sourcePerson.id,
+      toPersonId: selectedPerson.id,
       persons: graphPersons,
       relationships: relTuples,
     );
 
     String relationshipKey;
 
-    if (classification != null && classification.key.isNotEmpty) {
-      // Auto-detected!
-      relationshipKey = classification.key;
-      debugPrint('[RelateToPerson] Auto-detected: $relationshipKey');
+    if (result != null && result.fundamentalEdge != null) {
+      // Auto-detected a fundamental edge!
+      relationshipKey = result.fundamentalEdge!;
+      debugPrint('[RelateToPerson] v3 auto-detected: $relationshipKey (${result.term})');
+    } else if (result != null && result.isDerived) {
+      // Derived term (grandfather, uncle, etc.) — need to ask user for
+      // the missing fundamental edge. Fall back to manual picker.
+      debugPrint('[RelateToPerson] v3 derived: ${result.term} — need fundamental edge');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('We detected: ${result.term}. Please confirm the basic relationship.'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+      if (!context.mounted) return;
+      final manualKey = await RelationshipPickerSheet.show(
+        context,
+        personAName: sourcePerson.name,
+        personBName: selectedPerson.name,
+      );
+      if (manualKey == null) return;
+      relationshipKey = manualKey;
     } else {
       // Couldn't auto-detect — fall back to manual picker
-      debugPrint('[RelateToPerson] Auto-detect failed — manual picker');
+      debugPrint('[RelateToPerson] v3 auto-detect failed — manual picker');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
