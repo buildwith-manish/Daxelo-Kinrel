@@ -124,7 +124,7 @@ class DeterministicKinshipEngine {
     List<GraphPerson> persons,
     List<({String fromId, String toId, String type})> relationships,
   ) {
-    final adjacency = <String, List<({String nodeId, TraversePrimitive primitive})>>{};
+    final adjacency = <String, List<AdjacencyEntry>>{};
 
     for (final rel in relationships) {
       final type = rel.type.toLowerCase();
@@ -298,7 +298,7 @@ class DeterministicKinshipEngine {
     List<TraversePrimitive> path,
     String fromPersonId,
     List<GraphPerson> persons,
-    Map<String, List<({String nodeId, TraversePrimitive primitive})}> adjacency,
+    Map<String, List<AdjacencyEntry>> adjacency,
   ) {
     // Find the first UP_PARENT in the path
     // Then check if that parent is male (paternal) or female (maternal)
@@ -347,7 +347,7 @@ class DeterministicKinshipEngine {
     String fromPersonId,
     String toPersonId,
     List<GraphPerson> persons,
-    Map<String, List<({String nodeId, TraversePrimitive primitive})}> adjacency,
+    Map<String, List<AdjacencyEntry>> adjacency,
   ) {
     // If path starts with SPOUSE → inLaw (for in-law relationships)
     if (path.isNotEmpty && path.first == TraversePrimitive.spouse) {
