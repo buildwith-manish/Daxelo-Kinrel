@@ -17,6 +17,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
@@ -24,6 +25,7 @@ import '../../core/family/family_provider.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_picker_sheet.dart';
 import '../interaction/graph_focus_state.dart';
+import '../interaction/relationship_validation.dart' show RelationshipValidationException;
 import 'graph_relationship_labels.dart';
 
 /// Shows a modal bottom sheet with quick actions for a graph node.
@@ -569,7 +571,72 @@ class GraphQuickActions {
     // createRelationship handles: validation (self-link, duplicate,
     // cycle), edge creation, inverse creation, and graph refresh.
     debugPrint('[RelateToPerson] Creating relationship: ${sourcePerson.id} → ${selectedPerson.id} as $relationshipKey');
+
+    // v146: Pre-flight check — verify both person IDs exist in the
+    // Person table. The graph's GraphPersonData.id might not match
+    // Person.id if the graph uses synthetic IDs. This catches FK
+    // violations BEFORE the INSERT and gives a clear error message.
+    final client = ref.read(supabaseProvider);
+    if (client == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Not connected to the database. Please restart the app.'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
     try {
+      // Verify source person exists
+      final sourceCheck = await client
+          .from('Person')
+          .select('id, name')
+          .eq('id', sourcePerson.id)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 5));
+      if (sourceCheck == null) {
+        debugPrint('[RelateToPerson] ERROR: Source person ${sourcePerson.id} not found in Person table');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Cannot create relationship: "${sourcePerson.name}" was not found in the family database. This may be a synced node that needs to be linked to a real person record.'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 8),
+            ),
+          );
+        }
+        return;
+      }
+      debugPrint('[RelateToPerson] Source person verified: ${sourceCheck['name']}');
+
+      // Verify target person exists (already from familyDetailProvider, but double-check)
+      final targetCheck = await client
+          .from('Person')
+          .select('id, name')
+          .eq('id', selectedPerson.id)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 5));
+      if (targetCheck == null) {
+        debugPrint('[RelateToPerson] ERROR: Target person ${selectedPerson.id} not found in Person table');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Cannot create relationship: "${selectedPerson.name}" was not found in the family database.'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 8),
+            ),
+          );
+        }
+        return;
+      }
+      debugPrint('[RelateToPerson] Target person verified: ${targetCheck['name']}');
+
       await createRelationship(
         ref: ref,
         familyId: familyId,
@@ -596,14 +663,23 @@ class GraphQuickActions {
       }
     } catch (e) {
       debugPrint('[RelateToPerson] ERROR creating relationship: $e');
-      // v144: Show a clear error message — never silently fail.
+      // v146: Show a DETAILED error message — include the exception type
+      // and message so we can diagnose FK violations, RLS denials, etc.
+      String errorDetail;
+      if (e is PostgrestException) {
+        errorDetail = 'Database error: ${e.message} (code: ${e.code})';
+      } else if (e is RelationshipValidationException) {
+        errorDetail = e.message;
+      } else {
+        errorDetail = e.toString();
+      }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not create relationship: $e'),
+            content: Text('Could not create relationship: $errorDetail'),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 5),
+            duration: const Duration(seconds: 8),
           ),
         );
       }
