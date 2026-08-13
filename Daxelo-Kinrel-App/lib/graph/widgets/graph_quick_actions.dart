@@ -22,6 +22,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/family/family_provider.dart';
+import '../../core/services/supabase_service.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_picker_sheet.dart';
 import '../interaction/graph_focus_state.dart';
