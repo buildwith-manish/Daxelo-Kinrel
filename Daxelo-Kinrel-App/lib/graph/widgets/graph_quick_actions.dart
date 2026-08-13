@@ -362,7 +362,7 @@ class GraphQuickActions {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text(
+            content: Text(
                 'Everyone in this family is already related to ${sourcePerson.name}.'),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
