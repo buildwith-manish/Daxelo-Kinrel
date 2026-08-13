@@ -554,144 +554,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
 
   // ── Build ──────────────────────────────────────────────────────────────
 
-  /// v148: Builds the Relationship Creation Mode overlay — instruction
-  /// banner at the top + cancel button. Only rendered when creation mode
-  /// is active. All normal floating controls are hidden by the
-  /// `if (!isActive)` check in the Stack.
-  List<Widget> _buildCreationModeOverlay(BuildContext context, FlatGraphResult flat) {
-    final creationState = ref.watch(relationshipCreationProvider);
-    if (!creationState.isActive) return [];
-
-    // Determine instruction text based on phase
-    String title;
-    String subtitle;
-    if (creationState.phase == CreationPhase.awaitingFirst) {
-      title = 'Create a Relationship';
-      subtitle = 'Tap a family member to connect them.';
-    } else {
-      title = 'Now choose the other family member';
-      subtitle = 'Tap another family member to create the connection.';
-    }
-
-    return [
-      // Instruction banner (top)
-      Positioned(
-        top: MediaQuery.of(context).padding.top + 8,
-        left: 16,
-        right: 16,
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            decoration: BoxDecoration(
-              color: KinrelColors.darkCard.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: KinrelColors.ember.withValues(alpha: 0.40),
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.30),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                // Step indicator
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: KinrelColors.ember.withValues(alpha: 0.15),
-                    border: Border.all(
-                      color: KinrelColors.ember.withValues(alpha: 0.50),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      creationState.phase == CreationPhase.awaitingFirst
-                          ? '1'
-                          : '2',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.displayFont,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: KinrelColors.ember,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Instruction text
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: KinrelColors.textWhite,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 12,
-                          color: KinrelColors.textSilver.withValues(alpha: 0.80),
-                          height: 1.3,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Cancel button
-                GestureDetector(
-                  onTap: () {
-                    ref.read(relationshipCreationProvider.notifier).stopCreation();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(100),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.10),
-                        width: 0.6,
-                      ),
-                    ),
-                    child: Text(
-                      'Cancel',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: KinrelColors.textSilver,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ];
-  }
-
   @override
   Widget build(BuildContext context) {
     // Keep Supabase Realtime invalidation alive while this view is mounted.
@@ -760,82 +622,76 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                           layout, flat, viewerPersonId),
                     ),
                   ),
-                  // v148: Relationship Creation Mode overlay
-                  // When active, hide ALL floating controls + show
-                  // instruction banner + cancel button.
-                  ..._buildCreationModeOverlay(context, flat),
-                  if (!ref.watch(relationshipCreationProvider).isActive) ...[
-                    if (!isOnline)
-                      const Positioned(
-                          left: 0, right: 0, top: 0, child: OfflineBanner()),
-                    // v99 (Phase 1): Focus Back control
-                    if (ref.watch(graphFocusProvider.select((s) => s.history)).isNotEmpty)
-                      Positioned(
-                        top: MediaQuery.of(context).padding.top + 8,
-                        left: 8,
-                        child: FloatingActionButton.small(
-                          heroTag: 'graph_focus_back',
-                          backgroundColor: KinrelColors.darkCard,
-                          foregroundColor: KinrelColors.textWhite,
-                          onPressed: _onFocusBack,
-                          tooltip: 'Back to previous person',
-                          child: const Icon(Icons.arrow_back),
-                        ),
+                  if (!isOnline)
+                    const Positioned(
+                        left: 0, right: 0, top: 0, child: OfflineBanner()),
+                  // v99 (Phase 1): Focus Back control
+                  if (ref.watch(graphFocusProvider.select((s) => s.history)).isNotEmpty)
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + 8,
+                      left: 8,
+                      child: FloatingActionButton.small(
+                        heroTag: 'graph_focus_back',
+                        backgroundColor: KinrelColors.darkCard,
+                        foregroundColor: KinrelColors.textWhite,
+                        onPressed: _onFocusBack,
+                        tooltip: 'Back to previous person',
+                        child: const Icon(Icons.arrow_back),
                       ),
-                    // P4.1: Mini-map
-                    if (flat.persons.length > 30)
-                      Positioned(
-                        right: 8,
-                        bottom: 8,
-                        child: GraphMiniMap(
-                          camera: _camera,
-                          positions: layout.positions,
-                          viewportSize: _viewportSize,
-                          anchorId: _SubtreeMethods._findAnchorId(flat, viewerPersonId),
-                          onTap: (graphSpaceTarget) {
-                            final bool reduced =
-                                MediaQuery.disableAnimationsOf(context);
-                            _camera.animateToWithSpring(
-                              -graphSpaceTarget.dx * _camera.zoomLevel +
-                                  _viewportSize.width / 2,
-                              -graphSpaceTarget.dy * _camera.zoomLevel +
-                                  _viewportSize.height / 2,
-                              _camera.zoomLevel,
-                              reducedMotion: reduced,
-                            );
-                          },
-                        ),
+                    ),
+                  // P4.1: Mini-map
+                  if (flat.persons.length > 30)
+                    Positioned(
+                      right: 8,
+                      bottom: 8,
+                      child: GraphMiniMap(
+                        camera: _camera,
+                        positions: layout.positions,
+                        viewportSize: _viewportSize,
+                        anchorId: _SubtreeMethods._findAnchorId(flat, viewerPersonId),
+                        onTap: (graphSpaceTarget) {
+                          final bool reduced =
+                              MediaQuery.disableAnimationsOf(context);
+                          _camera.animateToWithSpring(
+                            -graphSpaceTarget.dx * _camera.zoomLevel +
+                                _viewportSize.width / 2,
+                            -graphSpaceTarget.dy * _camera.zoomLevel +
+                                _viewportSize.height / 2,
+                            _camera.zoomLevel,
+                            reducedMotion: reduced,
+                          );
+                        },
                       ),
-                    // Share FAB
-                    if (kEnableGraphShareExport)
-                      Positioned(
-                        right: 16,
-                        bottom: flat.persons.length > 30 ? 80 : 16,
-                        child: FloatingActionButton(
-                          heroTag: 'graph_share_export',
-                          backgroundColor: KinrelColors.orange,
-                          foregroundColor: Colors.white,
-                          elevation: 4,
-                          onPressed: _shareGraph,
-                          tooltip: 'Share graph',
-                          child: const Icon(Icons.ios_share),
-                        ),
+                    ),
+                  // Share FAB
+                  if (kEnableGraphShareExport)
+                    Positioned(
+                      right: 16,
+                      bottom: flat.persons.length > 30 ? 80 : 16,
+                      child: FloatingActionButton(
+                        heroTag: 'graph_share_export',
+                        backgroundColor: KinrelColors.orange,
+                        foregroundColor: Colors.white,
+                        elevation: 4,
+                        onPressed: _shareGraph,
+                        tooltip: 'Share graph',
+                        child: const Icon(Icons.ios_share),
                       ),
-                    // P4.5: Outline view overlay
-                    if (_showOutlineView)
-                      Positioned.fill(
-                        child: GraphOutlineView(
-                          persons: flat.persons,
-                          relationshipLabels: const {},
-                          onNodeFocus: (personId, personName) {
-                            setState(() => _showOutlineView = false);
-                            _onFocusPerson(personId, personName);
-                          },
-                          onClose: () =>
-                              setState(() => _showOutlineView = false),
-                        ),
+                    ),
+                  // P4.5: Outline view overlay
+                  if (_showOutlineView)
+                    Positioned.fill(
+                      child: GraphOutlineView(
+                        persons: flat.persons,
+                        relationshipLabels: const {},
+                        onNodeFocus: (personId, personName) {
+                          setState(() => _showOutlineView = false);
+                          _onFocusPerson(personId, personName);
+                        },
+                        onClose: () =>
+                            setState(() => _showOutlineView = false),
                       ),
-                  ],
+                    ),
                 ],
               ),
             ),

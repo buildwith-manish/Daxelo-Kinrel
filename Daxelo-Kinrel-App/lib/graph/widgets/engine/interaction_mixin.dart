@@ -623,27 +623,6 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       return;
     }
 
-    // v148: Relationship Creation Mode — if active, intercept the tap
-    // for two-phase node selection (first node → second node → kinship).
-    final creationState = ref.read(relationshipCreationProvider);
-    if (creationState.isActive) {
-      final personData = flat.persons
-          .where((p) => p['id'] == nodeId)
-          .firstOrNull;
-      if (personData == null) return;
-
-      final personName = (personData['name'] as String?) ?? '';
-
-      GraphQuickActions.handleCreationTap(
-        context: context,
-        ref: ref,
-        familyId: widget.familyId,
-        personId: nodeId,
-        personName: personName,
-      );
-      return;
-    }
-
     // Select / highlight the node. A normal tap does NOT open the
     // member info bottom sheet — that is reserved for long-press
     // (see [_handleNodeLongPress]).
