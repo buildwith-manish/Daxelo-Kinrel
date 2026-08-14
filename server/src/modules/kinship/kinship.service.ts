@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { shuffle } from '../../common/utils/shuffle.util';
+import { PrismaService } from '../../prisma/prisma.service';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -911,8 +912,17 @@ const KINSHIP_DATABASE: KinshipTerm[] = [
 export class KinshipService {
   private readonly kinshipTerms: Map<string, KinshipTerm> = new Map();
 
-  constructor() {
-    // Index the database for fast lookups
+  // ── v4.1: signature → vocabulary row cache (in-memory, LRU per spec §13.1) ──
+  // Caches recent signature lookups so we don't hit Postgres on every call.
+  // Per spec §13.1: in-memory only, never persisted, LRU eviction after
+  // 1,000 entries per family (we use a single global LRU here since the
+  // signature itself is family-agnostic).
+  private readonly signatureCache: Map<string, { term: string; termEn: string }> = new Map();
+  private readonly SIGNATURE_CACHE_MAX = 5_000;
+
+  constructor(private readonly prisma: PrismaService) {
+    // Index the legacy database for fast lookups (backward compat for
+    // lookup(), categories(), randomTerms(), etc.)
     for (const term of KINSHIP_DATABASE) {
       this.kinshipTerms.set(term.relationshipKey, term);
     }
@@ -1119,11 +1129,21 @@ export class KinshipService {
   }
 
   /**
-   * v4.0: Resolves a KinshipSignature to a kinship term from the
-   * vocabulary database.
+   * v4.1: Resolves a KinshipSignature to a kinship term from the
+   * KinshipVocabulary database table (9,552 rows across 24 languages).
    *
    * This is the bridge between the deterministic engine (which returns
-   * only signatures, never terms) and the 5,396+ term vocabulary.
+   * only signatures, never terms) and the 9,552-row vocabulary.
+   *
+   * Deterministic lookup (spec §14):
+   *   WHERE signature_key = $1 AND language_code = $2 AND variant_rank = 0
+   *
+   * Fallback chain (spec §7.2):
+   *   1. Try without seniority
+   *   2. Try with genderAnchor = neutral
+   *   3. Try generic term (match on pathPattern only)
+   *   4. Fall back to legacy 51-entry KINSHIP_DATABASE (backward compat)
+   *   5. Return null
    *
    * @param signature - The KinshipSignature from the engine
    * @param locale - ISO language code (e.g. 'hi', 'ta', 'te')
@@ -1139,34 +1159,246 @@ export class KinshipService {
       seniority: string;
       removal: number;
       doubleKinship: boolean;
+      temporal?: string; // v3.1 — current | former | late (default: current)
     },
     locale: string,
   ): Promise<{ term: string; termEn: string } | null> {
-    // Map signature fields to vocabulary database lookup
+    // Build the deterministic signature key (must match the Python generator
+    // in scripts/kinship_vocab_generator.py exactly — spec §14)
+    const temporal = signature.temporal ?? 'current';
+    const signatureKey = [
+      `g=${signature.generationDelta}`,
+      `p=${signature.pathPattern}`,
+      `s=${signature.side}`,
+      `c=${signature.consanguinity}`,
+      `x=${signature.genderAnchor}`,
+      `r=${signature.removal}`,
+      `sn=${signature.seniority}`,
+      `d=${signature.doubleKinship ? 1 : 0}`,
+      `t=${temporal}`,
+    ].join('|');
+
+    // 0. In-memory cache hit (spec §13.1)
+    const cacheKey = `${signatureKey}|${locale}`;
+    const cached = this.signatureCache.get(cacheKey);
+    if (cached) return cached;
+
+    // Helper to query the DB with progressive fallback (spec §7.2)
+    const tryQuery = async (overrides: Partial<typeof signature> = {}): Promise<any | null> => {
+      const merged = { ...signature, ...overrides, temporal: overrides.temporal ?? temporal };
+      const mergedKey = [
+        `g=${merged.generationDelta}`,
+        `p=${merged.pathPattern}`,
+        `s=${merged.side}`,
+        `c=${merged.consanguinity}`,
+        `x=${merged.genderAnchor}`,
+        `r=${merged.removal}`,
+        `sn=${merged.seniority}`,
+        `d=${merged.doubleKinship ? 1 : 0}`,
+        `t=${merged.temporal}`,
+      ].join('|');
+      try {
+        return await this.prisma.kinshipVocabulary.findFirst({
+          where: {
+            signatureKey: mergedKey,
+            languageCode: locale,
+            variantRank: 0,
+          },
+        });
+      } catch {
+        // DB might be unreachable during initial deploy; fall through to legacy
+        return null;
+      }
+    };
+
+    // Step 0: exact match
+    let row = await tryQuery();
+
+    // Step 1: try without seniority (spec §7.2)
+    if (!row && signature.seniority !== 'none') {
+      row = await tryQuery({ seniority: 'none' });
+    }
+
+    // Step 2: try with genderAnchor = neutral
+    if (!row && signature.genderAnchor !== 'neutral') {
+      row = await tryQuery({ genderAnchor: 'neutral', seniority: signature.seniority });
+    }
+
+    // Step 3: try generic — match on pathPattern + language only
+    if (!row) {
+      try {
+        row = await this.prisma.kinshipVocabulary.findFirst({
+          where: {
+            pathPattern: signature.pathPattern,
+            languageCode: locale,
+            variantRank: 0,
+          },
+        });
+      } catch {
+        // DB unreachable — fall through to legacy
+      }
+    }
+
+    if (row) {
+      const result = { term: row.localizedTerm, termEn: row.englishTerm };
+      this.cacheSignature(cacheKey, result);
+      return result;
+    }
+
+    // Step 4: legacy fallback — the 51-entry KINSHIP_DATABASE
+    // (used when the KinshipVocabulary table is empty or unreachable,
+    //  e.g. before `npx ts-node scripts/import-vocabulary.ts` has been run)
+    const legacyResult = this.resolveSignatureLegacy(signature, locale);
+    if (legacyResult) {
+      this.cacheSignature(cacheKey, legacyResult);
+      return legacyResult;
+    }
+
+    return null;
+  }
+
+  /**
+   * LRU cache helper (spec §13.1 — in-memory, never persisted)
+   */
+  private cacheSignature(key: string, value: { term: string; termEn: string }): void {
+    if (this.signatureCache.size >= this.SIGNATURE_CACHE_MAX) {
+      // Evict oldest entry (Map preserves insertion order in JS)
+      const oldest = this.signatureCache.keys().next().value;
+      if (oldest) this.signatureCache.delete(oldest);
+    }
+    this.signatureCache.set(key, value);
+  }
+
+  /**
+   * v4.1 legacy fallback — original 51-entry database.
+   * Used when the KinshipVocabulary table is empty or unreachable.
+   */
+  private resolveSignatureLegacy(
+    signature: {
+      generationDelta: number;
+      pathPattern: string;
+      side: string;
+      consanguinity: string;
+      genderAnchor: string;
+      seniority: string;
+      removal: number;
+      doubleKinship: boolean;
+    },
+    locale: string,
+  ): { term: string; termEn: string } | null {
     const gender = signature.genderAnchor as 'male' | 'female' | 'neutral';
     const lineage = signature.side as 'paternal' | 'maternal' | 'neutral';
 
-    // Map path patterns to relationship keys that exist in the vocabulary
     const relationshipKey = this.signatureToRelationshipKey(signature);
     if (!relationshipKey) return null;
 
-    // Search the vocabulary database
     for (const term of KINSHIP_DATABASE) {
       if (term.relationshipKey !== relationshipKey) continue;
       if (term.gender !== gender && term.gender !== 'neutral') continue;
       if (lineage !== 'neutral' && term.lineage !== 'neutral' && term.lineage !== lineage) continue;
 
-      // Found a match — get localized term
       const translation = term.translations[locale];
       if (translation) {
         return { term: translation.native, termEn: term.englishTerm };
       }
-
-      // Fallback to English
       return { term: term.englishTerm, termEn: term.englishTerm };
     }
 
     return null;
+  }
+
+  /**
+   * v4.1: Browse the full 9,552-row vocabulary (replaces the legacy 51-entry
+   * list when the DB is populated). Falls back to the legacy array if DB
+   * is unreachable.
+   */
+  async browseVocabulary(params: {
+    languageCode?: string;
+    category?: string;
+    limit?: number;
+  } = {}): Promise<Array<{
+    relationshipKey: string;
+    englishTerm: string;
+    localizedTerm: string;
+    languageCode: string;
+    category: string;
+    signatureKey: string;
+  }>> {
+    const { languageCode = 'en', category, limit = 100 } = params;
+    try {
+      const rows = await this.prisma.kinshipVocabulary.findMany({
+        where: {
+          languageCode,
+          variantRank: 0,
+          ...(category ? { category } : {}),
+        },
+        take: Math.min(limit, 1000),
+        orderBy: [{ category: 'asc' }, { englishTerm: 'asc' }],
+      });
+      if (rows.length > 0) {
+        return rows.map((r) => ({
+          relationshipKey: r.signatureKey, // legacy field name for compat
+          englishTerm: r.englishTerm,
+          localizedTerm: r.localizedTerm,
+          languageCode: r.languageCode,
+          category: r.category,
+          signatureKey: r.signatureKey,
+        }));
+      }
+    } catch {
+      // DB unreachable — fall through to legacy
+    }
+    // Legacy fallback
+    return KINSHIP_DATABASE
+      .filter((t) => !category || t.relationshipCategory === category)
+      .slice(0, limit)
+      .map((t) => ({
+        relationshipKey: t.relationshipKey,
+        englishTerm: t.englishTerm,
+        localizedTerm: t.translations[languageCode]?.native ?? t.englishTerm,
+        languageCode,
+        category: t.relationshipCategory,
+        signatureKey: t.relationshipKey,
+      }));
+  }
+
+  /**
+   * v4.1: Vocabulary statistics — useful for /health and admin dashboards.
+   */
+  async vocabularyStats(): Promise<{
+    totalRows: number;
+    primaryRows: number;
+    languages: number;
+    categories: number;
+    engine: string;
+  } | null> {
+    try {
+      const total = await this.prisma.kinshipVocabulary.count();
+      const primary = await this.prisma.kinshipVocabulary.count({ where: { variantRank: 0 } });
+      const langGroup = await this.prisma.kinshipVocabulary.groupBy({
+        by: ['languageCode'],
+        _count: true,
+      });
+      const catGroup = await this.prisma.kinshipVocabulary.groupBy({
+        by: ['category'],
+        _count: true,
+      });
+      return {
+        totalRows: total,
+        primaryRows: primary,
+        languages: langGroup.length,
+        categories: catGroup.length,
+        engine: 'postgres-9552-row',
+      };
+    } catch {
+      return {
+        totalRows: KINSHIP_DATABASE.length,
+        primaryRows: KINSHIP_DATABASE.length,
+        languages: 7, // hi, mr, ta, te, kn, bn, gu
+        categories: new Set(KINSHIP_DATABASE.map((t) => t.relationshipCategory)).size,
+        engine: 'legacy-in-memory-51-entry',
+      };
+    }
   }
 
   /**
