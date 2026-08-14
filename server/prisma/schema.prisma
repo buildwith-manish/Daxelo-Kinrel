@@ -1266,7 +1266,7 @@ model Relationship {
   // The legacy `relationshipKey` / `relationshipType` columns are kept for
   // backward compatibility with existing rows but are now read-only and
   // should be migrated to `edgeType` (Phase D, see migration script).
-  edgeType         EdgeType  // spec §2 — PARENT | SPOUSE | ADOPTIVE_PARENT | STEP_PARENT only
+  edgeType         EdgeType  @default(PARENT) // spec §2 — PARENT | SPOUSE | ADOPTIVE_PARENT | STEP_PARENT only (default PARENT for migration safety; backfill script corrects per-row)
   edgeTemporal     EdgeTemporal @default(CURRENT) // spec §6 (v3.1) — current | former | late
   isInferred       Boolean   @default(false) // spec §9 — true for spouse inference suggestions
 
