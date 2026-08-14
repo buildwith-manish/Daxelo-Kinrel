@@ -27,6 +27,7 @@ class VocabSeed {
   final String? seniority;
   final String? intermediateSeniority;
   final FamilySide? spouseSide;
+  final int? removal;
   final Map<String, ({String term, List<String> aliases})> translations;
 
   const VocabSeed({
@@ -38,6 +39,7 @@ class VocabSeed {
     this.seniority,
     this.intermediateSeniority,
     this.spouseSide,
+    this.removal,
     required this.translations,
   });
 }
