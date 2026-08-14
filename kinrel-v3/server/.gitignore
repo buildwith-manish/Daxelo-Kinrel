@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Vercel
+.vercel/
+
+# Test coverage
+coverage/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Prisma
+# (Generated Prisma Client is committed to node_modules — not needed in repo)
+# Migrations ARE committed (prisma/migrations/).
+
+# Drift (Flutter)
+*.g.dart
