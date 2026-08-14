@@ -35,10 +35,9 @@ concurrency:
   cancel-in-progress: false    # never cancel a migration mid-flight
 
 env:
-  # Map Neon connection string to the env vars Prisma expects.
-  # Neon's free tier auto-suspends the DB after inactivity — the wake-up
-  # step below + connect_timeout=30 gives the DB time to spin up.
-  # sslmode=require is mandatory for Neon.
+  # Initial placeholder — overridden by the "Resolve direct Neon endpoint" step
+  # below to strip "-pooler" from the hostname (GitHub Actions can't reach
+  # Neon's pooler reliably).
   DATABASE_URL: ${{ format('{0}?sslmode=require&connect_timeout=30', secrets.NEON_CONNECTION_STRING) }}
   DIRECT_URL: ${{ format('{0}?sslmode=require&connect_timeout=30', secrets.NEON_CONNECTION_STRING) }}
 
@@ -57,6 +56,32 @@ jobs:
             exit 1
           fi
           echo "✓ NEON_CONNECTION_STRING is configured"
+
+      # ───────────────────────────────────────────────────────────────────
+      # Override DATABASE_URL + DIRECT_URL to use Neon's DIRECT endpoint
+      # (strip -pooler from hostname so we hit the primary, not PgBouncer).
+      # GitHub Actions runners can't reliably reach Neon's pooler.
+      # ───────────────────────────────────────────────────────────────────
+      - name: Resolve direct Neon endpoint
+        id: resolve-db
+        run: |
+          ORIGINAL='${{ secrets.NEON_CONNECTION_STRING }}'
+          # Strip "-pooler" from hostname to get direct endpoint
+          DIRECT_URL="${ORIGINAL/-pooler/}"
+          # Ensure sslmode is set
+          DIRECT_URL="${DIRECT_URL%%\?*}?sslmode=require&connect_timeout=30"
+          echo "Original host: $(echo "$ORIGINAL" | sed -n 's|.*@\([^:/?]*\).*|\1|p')"
+          echo "Direct host:   $(echo "$DIRECT_URL" | sed -n 's|.*@\([^:/?]*\).*|\1|p')"
+          # Mask the password when echoing the URL
+          MASKED=$(echo "$DIRECT_URL" | sed 's|://[^@]*@|://***:***@|')
+          echo "Connection URL (masked): $MASKED"
+          # Export to GITHUB_ENV for subsequent steps
+          echo "DATABASE_URL=$DIRECT_URL" >> $GITHUB_ENV
+          echo "DIRECT_URL=$DIRECT_URL" >> $GITHUB_ENV
+          # Also save the resolved host for the wake-up probe
+          HOST=$(echo "$DIRECT_URL" | sed -n 's|.*@\([^:/?]*\).*|\1|p')
+          echo "NEON_HOST=$HOST" >> $GITHUB_ENV
+          echo "Resolved NEON_HOST=$HOST"
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -83,23 +108,20 @@ jobs:
       # ───────────────────────────────────────────────────────────────────
       - name: "Wake up Neon database"
         run: |
-          # Extract host from connection string
-          HOST=$(echo "${{ secrets.NEON_CONNECTION_STRING }}" | sed -n 's|.*@\([^:]*\).*|\1|p')
+          HOST="${{ env.NEON_HOST }}"
           echo "Probing Neon host: $HOST"
           for i in 1 2 3 4 5 6; do
-            if nc -z -w 5 "$HOST" 5432 2>/dev/null; then
+            if nc -z -w 10 "$HOST" 5432 2>/dev/null; then
               echo "✓ Neon DB is reachable (attempt $i)"
-              break
+              exit 0
             fi
             echo "  attempt $i: not yet reachable, waiting 10s..."
             sleep 10
           done
-          # Final check
-          if ! nc -z -w 5 "$HOST" 5432 2>/dev/null; then
-            echo "::error::Could not reach Neon DB at $HOST:5432 after 60s"
-            echo "::error::Check that the Neon project is active (not deleted) and the connection string is correct"
-            exit 1
-          fi
+          echo "::error::Could not reach Neon DB at $HOST:5432 after 60s"
+          echo "::error::The Neon project may be suspended, deleted, or the connection string is wrong."
+          echo "::error::Check the Neon dashboard: https://console.neon.tech"
+          exit 1
 
       # ───────────────────────────────────────────────────────────────────
       # Step 1: Apply schema changes (idempotent — safe to re-run)
@@ -107,7 +129,7 @@ jobs:
       #   - We don't want to commit migration SQL files in CI
       #   - db push applies schema directly with --accept-data-loss for the
       #     RelationshipPathCache table drop (intentional, spec §1)
-      # Retries 3x because Neon pooler can drop connections on first attempt
+      # Retries 3x because Neon can drop connections on first attempt
       # ───────────────────────────────────────────────────────────────────
       - name: "[1/4] Apply schema changes (prisma db push)"
         working-directory: server
