@@ -75,8 +75,8 @@ class DeterministicKinshipEngine {
     // Self — no resolution needed
     if (fromPersonId == toPersonId) return null;
 
-    // Check cache
-    final cacheKey = '${fromPersonId}_$toPersonId';
+    // Check cache — use ':' delimiter to avoid substring collisions
+    final cacheKey = '$fromPersonId:$toPersonId';
     if (_cache.containsKey(cacheKey)) {
       final sig = _cache[cacheKey]!;
       return _buildResult(sig, toPersonId, persons);
@@ -101,6 +101,7 @@ class DeterministicKinshipEngine {
     // Build kinship signature
     final signature = _buildSignature(
       canonicalPath,
+      bfsResult.visitedNodes,
       fromPersonId,
       toPersonId,
       persons,
@@ -227,6 +228,7 @@ class DeterministicKinshipEngine {
   /// Builds a KinshipSignature from the canonical path.
   KinshipSignature _buildSignature(
     List<TraversePrimitive> path,
+    List<String> visitedNodes,
     String fromPersonId,
     String toPersonId,
     List<GraphPerson> persons,
@@ -258,8 +260,8 @@ class DeterministicKinshipEngine {
     // Determine path pattern
     final pathPattern = KinshipSignature.buildPattern(path);
 
-    // Determine side (paternal/maternal/none)
-    final side = _detectSide(path, fromPersonId, persons, adjacency);
+    // Determine side (paternal/maternal/none) using visitedNodes
+    final side = _detectSide(path, visitedNodes, persons);
 
     // Determine consanguinity
     final consanguinity = _detectConsanguinity(path, fromPersonId, toPersonId, persons, adjacency);
@@ -268,17 +270,33 @@ class DeterministicKinshipEngine {
     final target = persons.where((p) => p.id == toPersonId).firstOrNull;
     final gender = target?.gender?.toLowerCase() == 'female' ? 'female' : 'male';
 
-    // Determine seniority (placeholder — requires birth date comparison)
-    final seniority = 'none';
+    // Determine seniority from birth dates (for siblings)
+    String seniority = 'none';
+    if (pathPattern == 'UP_PARENT_DOWN_CHILD' && generationDelta == 0) {
+      final personA = persons.where((p) => p.id == fromPersonId).firstOrNull;
+      if (personA?.dateOfBirth != null && target?.dateOfBirth != null) {
+        if (personA!.dateOfBirth!.isBefore(target!.dateOfBirth!)) {
+          seniority = 'younger'; // A is younger than B
+        } else if (personA.dateOfBirth!.isAfter(target.dateOfBirth!)) {
+          seniority = 'elder';
+        } else {
+          seniority = 'twin';
+        }
+      }
+    }
 
-    // Determine removal (for cousins)
+    // Determine removal (for cousins only)
+    // Removal only applies when BOTH up and down >= 2 (cousin patterns).
+    // For uncle (2 up, 1 down) removal should be 0, not 1.
     int removal = 0;
-    if (upCount > 0 && downCount > 0) {
+    if (upCount >= 2 && downCount >= 2) {
       removal = (upCount - downCount).abs();
     }
 
-    // Determine double kinship (multiple valid paths exist)
-    final doubleKinship = false; // Simplified — would need multi-path analysis
+    // Determine double kinship (multiple valid paths of same length exist)
+    final doubleKinship = _detectDoubleKinship(
+      fromPersonId, toPersonId, canonicalPath.length, adjacency,
+    );
 
     return KinshipSignature(
       generationDelta: generationDelta,
@@ -294,33 +312,27 @@ class DeterministicKinshipEngine {
 
   /// Detects which side of the family the relationship belongs to.
   /// Based on the first UP_PARENT link from the starting person.
+  /// Uses BFS visitedNodes to look up the intermediate parent directly.
   FamilySide _detectSide(
     List<TraversePrimitive> path,
-    String fromPersonId,
+    List<String> visitedNodes,
     List<GraphPerson> persons,
-    Map<String, List<AdjacencyEntry>> adjacency,
   ) {
-    // Find the first UP_PARENT in the path
-    // Then check if that parent is male (paternal) or female (maternal)
-    // For simplicity, if the path starts with SPOUSE, side = none
-
     if (path.isEmpty) return FamilySide.none;
     if (path.first == TraversePrimitive.spouse) return FamilySide.none;
 
-    // Walk the path to find the first parent
-    String currentNode = fromPersonId;
-    for (final prim in path) {
+    // Walk the path using visitedNodes (which tracks the actual node
+    // reached at each step). visitedNodes[0] = fromPerson,
+    // visitedNodes[1] = node after step 0, etc.
+    for (int i = 0; i < path.length; i++) {
+      final prim = path[i];
       if (prim == TraversePrimitive.upParent ||
           prim == TraversePrimitive.upAdoptiveParent ||
           prim == TraversePrimitive.upStepParent) {
-        // Find the parent node
-        final neighbors = adjacency[currentNode] ?? [];
-        final parentEntry = neighbors.firstWhere(
-          (n) => n.primitive == prim,
-          orElse: () => (nodeId: '', primitive: prim),
-        );
-        if (parentEntry.nodeId.isNotEmpty) {
-          final parent = persons.where((p) => p.id == parentEntry.nodeId).firstOrNull;
+        // The parent node is visitedNodes[i+1]
+        if (i + 1 < visitedNodes.length) {
+          final parentId = visitedNodes[i + 1];
+          final parent = persons.where((p) => p.id == parentId).firstOrNull;
           if (parent?.gender?.toLowerCase() == 'female') {
             return FamilySide.maternal;
           }
@@ -328,14 +340,6 @@ class DeterministicKinshipEngine {
         }
         break;
       }
-      // Move to next node
-      final neighbors = adjacency[currentNode] ?? [];
-      final entry = neighbors.firstWhere(
-        (n) => n.primitive == prim,
-        orElse: () => (nodeId: '', primitive: prim),
-      );
-      if (entry.nodeId.isEmpty) break;
-      currentNode = entry.nodeId;
     }
 
     return FamilySide.none;
@@ -351,9 +355,11 @@ class DeterministicKinshipEngine {
   ) {
     // If path starts with SPOUSE → inLaw (for in-law relationships)
     if (path.isNotEmpty && path.first == TraversePrimitive.spouse) {
-      // Check if the rest of the path is just SPOUSE (direct spouse)
+      // Direct spouse (SPOUSE only) → affine, not blood
       if (path.length == 1 && path[0] == TraversePrimitive.spouse) {
-        return Consanguinity.blood; // Spouse is not "blood" but not inLaw either
+        return Consanguinity.blood; // v4: should be Consanguinity.affine
+        // For now using blood as the v3 Consanguinity enum doesn't have affine.
+        // The v4 KinshipSignatureV4 adds this properly.
       }
       return Consanguinity.inLaw;
     }
@@ -400,6 +406,71 @@ class DeterministicKinshipEngine {
     return parents;
   }
 
+  /// Detects double kinship by running a second BFS to find alternative
+  /// paths of the same length between the same two persons.
+  /// Returns true if multiple valid shortest paths exist.
+  bool _detectDoubleKinship(
+    String fromId,
+    String toId,
+    int shortestPathLength,
+    Map<String, List<AdjacencyEntry>> adjacency,
+  ) {
+    if (shortestPathLength == 0) return false;
+
+    // Run a second BFS but exclude one of the intermediate nodes
+    // from the first path to see if an alternative path exists.
+    // For simplicity, we check if there are multiple neighbors at
+    // the first level that can reach the target in shortestPathLength-1 steps.
+    //
+    // A simpler heuristic: if the two persons share BOTH parents
+    // (both father+mother), AND both sets of grandparents are couples,
+    // they may be double first cousins.
+    //
+    // For now, use a count-based approach: find all paths of the
+    // shortest length using a modified BFS that allows revisiting
+    // only at the same depth level.
+    final pathsFound = <List<TraversePrimitive>>[];
+    _findAllPathsOfLength(
+      fromId, toId, adjacency, shortestPathLength,
+      [], {fromId}, pathsFound,
+    );
+    return pathsFound.length >= 2;
+  }
+
+  /// Recursively finds all paths of exactly [targetLength] between
+  /// [currentId] and [targetId].
+  void _findAllPathsOfLength(
+    String currentId,
+    String targetId,
+    Map<String, List<AdjacencyEntry>> adjacency,
+    int targetLength,
+    List<TraversePrimitive> currentPath,
+    Set<String> visited,
+    List<List<TraversePrimitive>> results,
+  ) {
+    if (currentPath.length == targetLength) {
+      if (currentId == targetId) {
+        results.add(List.from(currentPath));
+      }
+      return;
+    }
+
+    if (currentPath.length > targetLength) return;
+
+    final neighbors = adjacency[currentId] ?? [];
+    for (final n in neighbors) {
+      if (visited.contains(n.nodeId)) continue;
+      visited.add(n.nodeId);
+      currentPath.add(n.primitive);
+      _findAllPathsOfLength(
+        n.nodeId, targetId, adjacency, targetLength,
+        currentPath, visited, results,
+      );
+      currentPath.removeLast();
+      visited.remove(n.nodeId);
+    }
+  }
+
   /// Builds the final KinshipResult from a signature.
   KinshipResult _buildResult(
     KinshipSignature signature,
@@ -439,8 +510,12 @@ class DeterministicKinshipEngine {
   }
 
   /// Invalidates cache entries containing [personId].
+  /// Uses ':' delimiter parsing to avoid substring collisions.
   void invalidatePerson(String personId) {
-    _cache.removeWhere((key, _) => key.contains(personId));
+    _cache.removeWhere((key, _) {
+      final parts = key.split(':');
+      return parts.length == 2 && (parts[0] == personId || parts[1] == personId);
+    });
   }
 
   /// Clears the entire cache.

@@ -40,38 +40,41 @@ class PathCanonicalizer {
 
   /// Removes cycle sub-paths. A cycle occurs when the same node ID
   /// appears more than once in [visitedNodes].
+  ///
+  /// When a cycle is found (e.g. A → B → C → B), the sub-path between
+  /// the two visits is removed (keeping A → B, dropping B → C → B,
+  /// and continuing from B onward).
+  ///
+  /// BFS already uses a visited set so cycles shouldn't occur, but
+  /// this is a safety net for edge cases.
   static List<TraversePrimitive> _removeCycles(
     List<TraversePrimitive> path,
     List<String> visitedNodes,
   ) {
     if (path.length + 1 != visitedNodes.length) {
-      // Mismatch — return as-is (shouldn't happen with correct BFS)
-      return path;
+      return path; // Mismatch — return as-is
     }
 
-    // Find the first repeated node
     final seen = <String, int>{};
     for (int i = 0; i < visitedNodes.length; i++) {
       final node = visitedNodes[i];
       if (seen.containsKey(node)) {
-        // Cycle detected: from seen[node] to i
-        // Keep the path before the cycle + after the cycle
+        // Cycle detected: visitedNodes[seen[node]] == visitedNodes[i]
+        // Remove edges from seen[node] to i-1 (the cycle edges).
+        // Keep edges 0..seen[node]-1 (before the cycle)
+        // and edges i..path.length-1 (after returning to the cycle node).
         final cycleStart = seen[node]!;
         final before = path.sublist(0, cycleStart);
-        final after = path.sublist(i); // i is the node index, which
-        // corresponds to path[i-1] being the edge that led to it.
-        // Actually, path[i-1] is the edge from visitedNodes[i-1] to
-        // visitedNodes[i]. If visitedNodes[i] == visitedNodes[cycleStart],
-        // we skip edges from cycleStart to i-1.
-        final cleanPath = [...before, ...after.length > i - 1 ? after.sublist(i - cycleStart) : []];
-        // This is complex — for simplicity, just return path without
-        // the cycle. BFS already avoids cycles, so this is a safety net.
-        return List.from(path);
+        final after = path.sublist(i);
+        final cleanPath = [...before, ...after];
+        // Recursively check for more cycles
+        final cleanVisited = [...visitedNodes.sublist(0, cycleStart + 1), ...visitedNodes.sublist(i + 1)];
+        return _removeCycles(cleanPath, cleanVisited);
       }
       seen[node] = i;
     }
 
-    return List.from(path);
+    return path; // No cycles found
   }
 
   /// Removes backtracking: UP_PARENT immediately followed by DOWN_CHILD
