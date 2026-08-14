@@ -324,7 +324,7 @@ class VocabularyTable {
     //         Nand (husband sister), Sala (wife brother), Saali (wife sister)
     VocabularyEntry(term: 'Jeth', locale: 'hi', pathPattern: 'SPOUSE_UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', spouseSide: FamilySide.paternal, intermediateSeniority: 'elder'),
     VocabularyEntry(term: 'Devar', locale: 'hi', pathPattern: 'SPOUSE_UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', spouseSide: FamilySide.paternal, intermediateSeniority: 'younger'),
-    VocabularyEntry(term: 'Nand', locale: 'hi', pathPattern: 'SPOUSE_UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', spouseSide: FamilySide.paternal'),
+    VocabularyEntry(term: 'Nand', locale: 'hi', pathPattern: 'SPOUSE_UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', spouseSide: FamilySide.paternal),
     VocabularyEntry(term: 'Sala', locale: 'hi', pathPattern: 'SPOUSE_UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', spouseSide: FamilySide.maternal),
     VocabularyEntry(term: 'Saali', locale: 'hi', pathPattern: 'SPOUSE_UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', spouseSide: FamilySide.maternal),
     // Generic Hindi
