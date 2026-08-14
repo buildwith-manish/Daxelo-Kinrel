@@ -328,7 +328,7 @@ class VocabularyTable {
     VocabularyEntry(term: 'Sala', locale: 'hi', pathPattern: 'SPOUSE_UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', spouseSide: FamilySide.maternal),
     VocabularyEntry(term: 'Saali', locale: 'hi', pathPattern: 'SPOUSE_UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', spouseSide: FamilySide.maternal),
     // Generic Hindi
-    VocabularyEntry(term: 'Bhabhi', locale: 'hi', pathPattern: 'SPOUSE_UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', spouseSide: FamilySide.paternal, notes: \"Brother's wife\"),
+    VocabularyEntry(term: 'Bhabhi', locale: 'hi', pathPattern: 'SPOUSE_UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', spouseSide: FamilySide.paternal, notes: 'Brother wife'),
 
     // Son-in-law / Daughter-in-law
     VocabularyEntry(term: 'Son-in-Law', locale: 'en', pathPattern: 'SPOUSE_DOWN_CHILD', generationDelta: 1, genderAnchor: 'male'),
