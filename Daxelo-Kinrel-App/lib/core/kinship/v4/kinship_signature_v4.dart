@@ -4,7 +4,7 @@
 //
 // Extended signature with fields required for full 5,396+ term coverage.
 
-import '../v3/kinship_signature.dart' show TraversePrimitive, Consanguinity, FamilySide;
+import '../v3/kinship_signature.dart' show TraversePrimitive, Consanguinity, FamilySide, KinshipSignature;
 
 enum ResolutionStatus { confirmed, derived, inferred, ambiguous, incomplete }
 
