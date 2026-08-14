@@ -9,9 +9,10 @@
 # TRIGGER: MANUAL ONLY (workflow_dispatch). Never runs on push — migrations
 # must be intentional. The workflow is safe to re-run (all scripts idempotent).
 #
-# REQUIRED REPO SECRETS:
-#   DATABASE_URL  — Postgres connection string (Supabase or self-hosted)
-#   DIRECT_URL    — Direct Postgres URL (Supabase pooler bypass; same as DATABASE_URL for non-Supabase)
+# DATABASE WIRING:
+#   The repo uses Neon Postgres. The connection string is stored in the
+#   NEON_CONNECTION_STRING repo secret. This workflow maps it to the
+#   DATABASE_URL / DIRECT_URL env vars that Prisma expects.
 #
 # Monitor: https://github.com/buildwith-manish/Daxelo-Kinrel/actions/workflows/migrate-v4.1.yml
 
@@ -33,6 +34,13 @@ concurrency:
   group: v4.1-migration
   cancel-in-progress: false    # never cancel a migration mid-flight
 
+env:
+  # Map Neon connection string to the env vars Prisma expects.
+  # Neon's connection string works for both pooled (DATABASE_URL) and
+  # direct (DIRECT_URL) access — same string is fine for migrations.
+  DATABASE_URL: ${{ secrets.NEON_CONNECTION_STRING }}
+  DIRECT_URL: ${{ secrets.NEON_CONNECTION_STRING }}
+
 jobs:
   migrate:
     name: Run v4.1 Migration
@@ -40,6 +48,15 @@ jobs:
     timeout-minutes: 15
     if: ${{ github.event.inputs.confirm == 'yes' }}
     steps:
+      - name: Verify DATABASE_URL is set
+        run: |
+          if [ -z "${{ secrets.NEON_CONNECTION_STRING }}" ]; then
+            echo "::error::NEON_CONNECTION_STRING secret is not set in the repo."
+            echo "::error::Add it at: https://github.com/${{ github.repository }}/settings/secrets/actions"
+            exit 1
+          fi
+          echo "✓ NEON_CONNECTION_STRING is configured"
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -58,9 +75,6 @@ jobs:
       - name: Generate Prisma Client
         working-directory: server
         run: npx prisma generate
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
 
       # ───────────────────────────────────────────────────────────────────
       # Step 1: Apply schema changes (idempotent — safe to re-run)
@@ -72,9 +86,6 @@ jobs:
       - name: "[1/4] Apply schema changes (prisma db push)"
         working-directory: server
         run: npx prisma db push --accept-data-loss
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
 
       # ───────────────────────────────────────────────────────────────────
       # Step 2: Backfill edgeType from legacy relationshipType column
@@ -83,9 +94,6 @@ jobs:
       - name: "[2/4] Backfill edgeType from legacy columns (Phase C)"
         working-directory: server
         run: npx ts-node scripts/migrate-v4.1-phase-c-backfill.ts
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
 
       # ───────────────────────────────────────────────────────────────────
       # Step 3: Drop deprecated RelationshipPathCache table (Phase D)
@@ -94,9 +102,6 @@ jobs:
       - name: "[3/4] Drop RelationshipPathCache table (Phase D)"
         working-directory: server
         run: npx ts-node scripts/migrate-v4.1-phase-d.ts
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
 
       # ───────────────────────────────────────────────────────────────────
       # Step 4: Load 9,552-row vocabulary into KinshipVocabulary table
@@ -107,8 +112,6 @@ jobs:
         working-directory: server
         run: npx ts-node scripts/import-vocabulary.ts
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
           KINREL_VOCAB_CSV: ../kinrel-v3/vocabulary/daxelo_kinrel_vocabulary.csv
 
       - name: Summary
