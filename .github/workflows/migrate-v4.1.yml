@@ -58,27 +58,28 @@ jobs:
           echo "✓ NEON_CONNECTION_STRING is configured"
 
       # ───────────────────────────────────────────────────────────────────
-      # Override DATABASE_URL + DIRECT_URL to use Neon's DIRECT endpoint
-      # (strip -pooler from hostname so we hit the primary, not PgBouncer).
-      # GitHub Actions runners can't reliably reach Neon's pooler.
+      # Override DATABASE_URL + DIRECT_URL for Neon + Prisma 6 compatibility.
+      # Per Neon's Prisma guide: https://neon.tech/docs/guides/prisma
+      #   - DATABASE_URL  = POOLED connection (with -pooler) + pgbouncer=true
+      #   - DIRECT_URL    = DIRECT connection (without -pooler) for migrations
+      # Both need sslmode=require. Prisma 6 db push uses DIRECT_URL.
       # ───────────────────────────────────────────────────────────────────
       - name: Resolve direct Neon endpoint
         id: resolve-db
         run: |
           ORIGINAL='${{ secrets.NEON_CONNECTION_STRING }}'
-          # Strip "-pooler" from hostname to get direct endpoint
-          DIRECT_URL="${ORIGINAL/-pooler/}"
-          # Ensure sslmode is set
-          DIRECT_URL="${DIRECT_URL%%\?*}?sslmode=require&connect_timeout=30"
+          # Determine pooled vs direct URLs
+          POOLED_URL="${ORIGINAL%%\?*}?pgbouncer=true&connection_limit=1&sslmode=require&connect_timeout=30"
+          # Strip -pooler for direct URL
+          DIRECT_BASE="${ORIGINAL/-pooler/}"
+          DIRECT_URL="${DIRECT_BASE%%\?*}?sslmode=require&connect_timeout=30"
           echo "Original host: $(echo "$ORIGINAL" | sed -n 's|.*@\([^:/?]*\).*|\1|p')"
+          echo "Pooled host:   $(echo "$POOLED_URL" | sed -n 's|.*@\([^:/?]*\).*|\1|p')"
           echo "Direct host:   $(echo "$DIRECT_URL" | sed -n 's|.*@\([^:/?]*\).*|\1|p')"
-          # Mask the password when echoing the URL
-          MASKED=$(echo "$DIRECT_URL" | sed 's|://[^@]*@|://***:***@|')
-          echo "Connection URL (masked): $MASKED"
           # Export to GITHUB_ENV for subsequent steps
-          echo "DATABASE_URL=$DIRECT_URL" >> $GITHUB_ENV
+          echo "DATABASE_URL=$POOLED_URL" >> $GITHUB_ENV
           echo "DIRECT_URL=$DIRECT_URL" >> $GITHUB_ENV
-          # Also save the resolved host for the wake-up probe
+          # Use direct host for wake-up probe
           HOST=$(echo "$DIRECT_URL" | sed -n 's|.*@\([^:/?]*\).*|\1|p')
           echo "NEON_HOST=$HOST" >> $GITHUB_ENV
           echo "Resolved NEON_HOST=$HOST"
