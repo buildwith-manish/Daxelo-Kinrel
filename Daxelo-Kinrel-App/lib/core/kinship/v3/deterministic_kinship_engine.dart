@@ -271,19 +271,11 @@ class DeterministicKinshipEngine {
     final gender = target?.gender?.toLowerCase() == 'female' ? 'female' : 'male';
 
     // Determine seniority from birth dates (for siblings)
-    String seniority = 'none';
-    if (pathPattern == 'UP_PARENT_DOWN_CHILD' && generationDelta == 0) {
-      final personA = persons.where((p) => p.id == fromPersonId).firstOrNull;
-      if (personA?.dateOfBirth != null && target?.dateOfBirth != null) {
-        if (personA!.dateOfBirth!.isBefore(target!.dateOfBirth!)) {
-          seniority = 'younger'; // A is younger than B
-        } else if (personA.dateOfBirth!.isAfter(target.dateOfBirth!)) {
-          seniority = 'elder';
-        } else {
-          seniority = 'twin';
-        }
-      }
-    }
+    // Note: GraphPerson doesn't have dateOfBirth — we skip seniority
+    // detection at the engine level. The v4 KinshipSignatureV4 with
+    // Person model (which has dateOfBirth) will handle this properly.
+    // For now, seniority remains 'none' in the v3 engine.
+    const seniority = 'none';
 
     // Determine removal (for cousins only)
     // Removal only applies when BOTH up and down >= 2 (cousin patterns).
