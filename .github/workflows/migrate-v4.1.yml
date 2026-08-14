@@ -1,0 +1,124 @@
+# Daxelo-Kinrel v4.1 — Database Migration Workflow
+# ================================================
+# Runs the 4-step v4.1 migration:
+#   1. prisma db push (apply schema changes — EdgeType enum, drop RelationshipPathCache, add KinshipVocabulary)
+#   2. migrate-v4.1-phase-c-backfill.ts (backfill edgeType from legacy relationshipType)
+#   3. migrate-v4.1-phase-d.ts (drop RelationshipPathCache table — idempotent)
+#   4. import-vocabulary.ts (load 9,552-row CSV into KinshipVocabulary)
+#
+# TRIGGER: MANUAL ONLY (workflow_dispatch). Never runs on push — migrations
+# must be intentional. The workflow is safe to re-run (all scripts idempotent).
+#
+# REQUIRED REPO SECRETS:
+#   DATABASE_URL  — Postgres connection string (Supabase or self-hosted)
+#   DIRECT_URL    — Direct Postgres URL (Supabase pooler bypass; same as DATABASE_URL for non-Supabase)
+#
+# Monitor: https://github.com/buildwith-manish/Daxelo-Kinrel/actions/workflows/migrate-v4.1.yml
+
+name: v4.1 Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "yes" to confirm — this modifies production data'
+        required: true
+        default: 'no'
+        type: choice
+        options:
+          - 'no'
+          - 'yes'
+
+concurrency:
+  group: v4.1-migration
+  cancel-in-progress: false    # never cancel a migration mid-flight
+
+jobs:
+  migrate:
+    name: Run v4.1 Migration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ github.event.inputs.confirm == 'yes' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server deps
+        run: |
+          cd server
+          npm ci --legacy-peer-deps
+
+      - name: Generate Prisma Client
+        working-directory: server
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+
+      # ───────────────────────────────────────────────────────────────────
+      # Step 1: Apply schema changes (idempotent — safe to re-run)
+      # Uses `db push` instead of `migrate dev` because:
+      #   - We don't want to commit migration SQL files in CI
+      #   - db push applies schema directly with --accept-data-loss for the
+      #     RelationshipPathCache table drop (intentional, spec §1)
+      # ───────────────────────────────────────────────────────────────────
+      - name: "[1/4] Apply schema changes (prisma db push)"
+        working-directory: server
+        run: npx prisma db push --accept-data-loss
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+
+      # ───────────────────────────────────────────────────────────────────
+      # Step 2: Backfill edgeType from legacy relationshipType column
+      # Maps father/mother/parent → PARENT, husband/wife → SPOUSE, etc.
+      # ───────────────────────────────────────────────────────────────────
+      - name: "[2/4] Backfill edgeType from legacy columns (Phase C)"
+        working-directory: server
+        run: npx ts-node scripts/migrate-v4.1-phase-c-backfill.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+
+      # ───────────────────────────────────────────────────────────────────
+      # Step 3: Drop deprecated RelationshipPathCache table (Phase D)
+      # Idempotent — uses DROP TABLE IF EXISTS
+      # ───────────────────────────────────────────────────────────────────
+      - name: "[3/4] Drop RelationshipPathCache table (Phase D)"
+        working-directory: server
+        run: npx ts-node scripts/migrate-v4.1-phase-d.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+
+      # ───────────────────────────────────────────────────────────────────
+      # Step 4: Load 9,552-row vocabulary into KinshipVocabulary table
+      # CSV is committed at kinrel-v3/vocabulary/daxelo_kinrel_vocabulary.csv
+      # Idempotent — TRUNCATE before insert
+      # ───────────────────────────────────────────────────────────────────
+      - name: "[4/4] Import 9,552-row vocabulary"
+        working-directory: server
+        run: npx ts-node scripts/import-vocabulary.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          KINREL_VOCAB_CSV: ../kinrel-v3/vocabulary/daxelo_kinrel_vocabulary.csv
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "  v4.1 Migration — ${{ job.status }}"
+          echo "=========================================="
+          echo ""
+          echo "Next steps:"
+          echo "  1. Verify schema: npx prisma studio (or check via psql)"
+          echo "  2. Test API: curl https://your-app/v1/kinship/vocab/stats"
+          echo "  3. If any step failed, check logs above and re-run (idempotent)"
