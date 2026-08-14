@@ -287,7 +287,7 @@ class DeterministicKinshipEngine {
 
     // Determine double kinship (multiple valid paths of same length exist)
     final doubleKinship = _detectDoubleKinship(
-      fromPersonId, toPersonId, canonicalPath.length, adjacency,
+      fromPersonId, toPersonId, path.length, adjacency,
     );
 
     return KinshipSignature(
