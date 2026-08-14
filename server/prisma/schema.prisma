@@ -1259,8 +1259,20 @@ model Relationship {
   familyId         String
   fromPersonId     String
   toPersonId       String
-  relationshipKey  String // Kinship key e.g. "fathers_sister", "spouse", "child" — renamed from "type"
-  relationshipType String    @default("custom") // father, mother, son, daughter, brother, sister, husband, wife, custom
+
+  // ── v4.1 FIX (spec §2): EdgeType enum strictly enforces the 4 fundamental edges ──
+  // Only these values are allowed. Any attempt to insert "father", "uncle",
+  // "cousin", or any other derived label will be REJECTED at the database layer.
+  // The legacy `relationshipKey` / `relationshipType` columns are kept for
+  // backward compatibility with existing rows but are now read-only and
+  // should be migrated to `edgeType` (Phase D, see migration script).
+  edgeType         EdgeType  // spec §2 — PARENT | SPOUSE | ADOPTIVE_PARENT | STEP_PARENT only
+  edgeTemporal     EdgeTemporal @default(CURRENT) // spec §6 (v3.1) — current | former | late
+  isInferred       Boolean   @default(false) // spec §9 — true for spouse inference suggestions
+
+  // Legacy columns (DEPRECATED — do not write to these in new code):
+  relationshipKey  String? // Legacy: kinship key e.g. "fathers_sister", "spouse", "child"
+  relationshipType String? // Legacy: father, mother, son, daughter, brother, sister, husband, wife, custom
   direction        String    @default("from") // from: fromPerson is the type of toPerson (e.g. from=father means fromPerson is father of toPerson)
   isActive         Boolean   @default(true)
   label            String? // Custom user-defined label override
@@ -1280,6 +1292,9 @@ model Relationship {
   fromPerson Person @relation("RelationshipFrom", fields: [fromPersonId], references: [id], onDelete: Cascade)
   toPerson   Person @relation("RelationshipTo", fields: [toPersonId], references: [id], onDelete: Cascade)
 
+  // v4.1: prevent duplicate fundamental edges (spec §12 rule 2)
+  @@unique([familyId, fromPersonId, toPersonId, edgeType, edgeTemporal], name: "no_duplicate_fundamental_edge")
+
   @@index([familyId])
   @@index([fromPersonId])
   @@index([toPersonId])
@@ -1287,6 +1302,24 @@ model Relationship {
   @@index([familyId, fromPersonId])
   @@index([familyId, toPersonId])
   @@index([familyId, isActive])
+  @@index([familyId, edgeType])
+  @@index([familyId, edgeTemporal])
+}
+
+// v4.1 (spec §2): The ONLY edge types allowed in the database.
+// Adding a 5th type requires a schema migration AND a spec amendment.
+enum EdgeType {
+  PARENT           // A → B: A's parent is B
+  SPOUSE           // A ↔ B: bidirectional
+  ADOPTIVE_PARENT  // A → B: A's adoptive parent is B
+  STEP_PARENT      // A → B: A's step-parent is B
+}
+
+// v4.1 (spec §6 v3.1 temporal extension): first-class temporal state.
+enum EdgeTemporal {
+  CURRENT  // active relationship
+  FORMER   // divorced / severed — spec §6 temporal="former"
+  LATE     // deceased partner (still considered a relationship in the tree)
 }
 
 // ── Family Feed (Instagram-style family moments) ──────────────────────
@@ -2022,26 +2055,19 @@ model SyncLog {
   @@index([userId, lastSyncedAt])
 }
 
-// ── Relationship Path Cache (computed kinship paths) ──────────────────
-
-model RelationshipPathCache {
-  id            String   @id @default(cuid())
-  familyId      String
-  fromPersonId  String
-  toPersonId    String
-  path          String // JSON array of {personId, relationshipType} steps
-  kinshipTerm   String? // Computed term like "cousin"
-  kinshipTermHi String? // Hindi translation
-  distance      Int // Number of hops
-  computedAt    DateTime @default(now())
-  expiresAt     DateTime @default(now())
-
-  @@unique([familyId, fromPersonId, toPersonId])
-  @@index([familyId])
-  @@index([fromPersonId])
-  @@index([toPersonId])
-  @@index([expiresAt])
-}
+// ── v4.1 REMOVED: RelationshipPathCache ─────────────────────────────────
+// Per spec §1: "Store ONLY fundamental relationships. The database is the
+// single source of truth." Per spec §13.1: "In-memory only. Never persist."
+//
+// This table violated the core principle by permanently storing derived
+// kinship paths and terms. It has been removed in v4.1.
+//
+// Migration (Phase D):
+//   DROP TABLE IF EXISTS "RelationshipPathCache";
+//
+// The deterministic engine (GraphEngineService) now computes paths at
+// runtime via BFS depth 8 and caches signatures in-memory only (60s TTL,
+// LRU 1,000 per family) per spec §13.1 — never persisted to Postgres.
 
 // ── v2.2: Person-Link Invitations ─────────────────────────────────────
 // Tracks pending invitations to claim a Person node. A family admin
@@ -3650,4 +3676,49 @@ model Place {
   @@index([personId])
   @@index([placeType])
   @@map("Place")
+}
+
+// ── v4.1 FIX (spec §7): KinshipVocabulary — 9,552-row lookup table ──────
+// Replaces the 51-entry hardcoded KINSHIP_DATABASE in kinship.service.ts.
+//
+// The engine NEVER returns relationship names — it returns only
+// KinshipSignature objects. This table is the bridge from signature →
+// localized term. Deterministic lookup (spec §14):
+//
+//   WHERE signature_key = $1 AND language_code = $2 AND variant_rank = 0
+//
+// Adding term #9,553 requires only a new INSERT — no engine changes
+// (spec §7.1).
+//
+// Populate via: npx ts-node scripts/import-vocabulary.ts
+// (reads kinrel-v3/vocabulary/daxelo_kinrel_vocabulary.csv)
+
+model KinshipVocabulary {
+  id                Int       @id @default(autoincrement())
+  rowId             Int       @unique
+  canonicalId       String    // PARENT | SPOUSE | ADOPTIVE_PARENT | STEP_PARENT | DERIVED
+  signatureKey      String    // composite deterministic lookup key
+  pathPattern       String    // traversal primitives, e.g. "UP_PARENT_UP_PARENT"
+  generationDelta   Int       // -8..+8
+  side              String    // paternal | maternal | none
+  consanguinity     String    // blood | half | step | adoptive | inLaw | foster | spiritual
+  genderAnchor      String    // male | female | neutral
+  seniority         String    // elder | younger | twin | none
+  removal           Int       // 0..8
+  doubleKinship     Boolean
+  temporal          String    @default("current") // current | former | late (v3.1)
+  category          String    // direct_ancestor | sibling | cousin | in_law | ...
+  englishTerm       String
+  notes             String?
+  languageCode      String    // ISO 639-1
+  languageName      String
+  localizedTerm     String
+  variantType       String    @default("primary") // primary | regional | dialectal
+  variantRank       Int       @default(0)         // 0 = engine default
+
+  @@unique([signatureKey, languageCode, variantRank], name: "deterministic_lookup_idx")
+  @@index([signatureKey, languageCode, variantRank])
+  @@index([languageCode, category])
+  @@index([canonicalId])
+  @@index([languageCode, variantRank, category])
 }
