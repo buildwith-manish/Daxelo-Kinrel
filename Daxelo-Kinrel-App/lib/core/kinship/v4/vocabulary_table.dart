@@ -1,12 +1,12 @@
 // lib/core/kinship/v4/vocabulary_table.dart
 //
-// DAXELO-KINREL — v4.0 Vocabulary Table (Phase 6 + Phase 7)
+// DAXELO-KINREL - v4.0 Vocabulary Table (Phase 6 + Phase 7)
 //
 // The full vocabulary database mapping KinshipSignature → kinship term
 // across 11 languages (English, Hindi, Tamil, Telugu, Kannada, Malayalam,
 // Bengali, Marathi, Gujarati, Punjabi, Urdu).
 //
-// This is a DATA file — no engine logic. Adding terms requires ONLY
+// This is a DATA file - no engine logic. Adding terms requires ONLY
 // new VocabularyEntry objects here. The engine never changes.
 
 import '../v3/kinship_signature.dart';
@@ -80,12 +80,12 @@ class VocabularyTable {
     VocabularyEntry(term: 'Grandfather', locale: 'en', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'male', side: FamilySide.maternal),
     VocabularyEntry(term: 'Grandmother', locale: 'en', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'female', side: FamilySide.paternal, aliases: ['Grandma']),
     VocabularyEntry(term: 'Grandmother', locale: 'en', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'female', side: FamilySide.maternal),
-    // Hindi — Dada (paternal) vs Nana (maternal)
+    // Hindi - Dada (paternal) vs Nana (maternal)
     VocabularyEntry(term: 'Dada', locale: 'hi', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'male', side: FamilySide.paternal),
     VocabularyEntry(term: 'Dadi', locale: 'hi', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'female', side: FamilySide.paternal),
     VocabularyEntry(term: 'Nana', locale: 'hi', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'male', side: FamilySide.maternal),
     VocabularyEntry(term: 'Nani', locale: 'hi', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'female', side: FamilySide.maternal),
-    // Tamil — Thatha (both), Paatti (both)
+    // Tamil - Thatha (both), Paatti (both)
     VocabularyEntry(term: 'Thatha', locale: 'ta', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'male', side: FamilySide.paternal),
     VocabularyEntry(term: 'Thatha', locale: 'ta', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'male', side: FamilySide.maternal),
     VocabularyEntry(term: 'Paatti', locale: 'ta', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'female', side: FamilySide.paternal),
@@ -95,11 +95,11 @@ class VocabularyTable {
     VocabularyEntry(term: 'Thata', locale: 'te', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'male', side: FamilySide.maternal),
     VocabularyEntry(term: 'Ammaamma', locale: 'te', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'female', side: FamilySide.maternal),
     VocabularyEntry(term: 'Naayana', locale: 'te', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'female', side: FamilySide.paternal),
-    // Bengali — Dadu (both), Didima (maternal), Thakurma (paternal)
+    // Bengali - Dadu (both), Didima (maternal), Thakurma (paternal)
     VocabularyEntry(term: 'Dadu', locale: 'bn', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'male'),
     VocabularyEntry(term: 'Thakurma', locale: 'bn', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'female', side: FamilySide.paternal),
     VocabularyEntry(term: 'Didima', locale: 'bn', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'female', side: FamilySide.maternal),
-    // Marathi — Ajoba (paternal), Aaji (paternal)
+    // Marathi - Ajoba (paternal), Aaji (paternal)
     VocabularyEntry(term: 'Ajoba', locale: 'mr', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'male', side: FamilySide.paternal),
     VocabularyEntry(term: 'Aaji', locale: 'mr', pathPattern: 'UP_PARENT_UP_PARENT', generationDelta: -2, genderAnchor: 'female', side: FamilySide.paternal),
     // Punjabi
@@ -124,20 +124,20 @@ class VocabularyTable {
     // ════════════════════════════════════════════════════════════════════
     // 5. SIBLINGS (UP_PARENT_DOWN_CHILD, gen=0)
     // ════════════════════════════════════════════════════════════════════
-    // English — blood siblings
+    // English - blood siblings
     VocabularyEntry(term: 'Brother', locale: 'en', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood),
     VocabularyEntry(term: 'Sister', locale: 'en', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.blood),
     VocabularyEntry(term: 'Elder Brother', locale: 'en', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood, seniority: 'elder'),
     VocabularyEntry(term: 'Elder Sister', locale: 'en', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.blood, seniority: 'elder'),
     VocabularyEntry(term: 'Younger Brother', locale: 'en', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood, seniority: 'younger'),
     VocabularyEntry(term: 'Younger Sister', locale: 'en', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.blood, seniority: 'younger'),
-    // English — half/step/adoptive
+    // English - half/step/adoptive
     VocabularyEntry(term: 'Half Brother', locale: 'en', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.half),
     VocabularyEntry(term: 'Half Sister', locale: 'en', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.half),
     VocabularyEntry(term: 'Step Brother', locale: 'en', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.step),
     VocabularyEntry(term: 'Step Sister', locale: 'en', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.step),
 
-    // Hindi — Bhaiya/Bhai (elder/younger brother), Didi/Bahen (elder/younger sister)
+    // Hindi - Bhaiya/Bhai (elder/younger brother), Didi/Bahen (elder/younger sister)
     VocabularyEntry(term: 'Bhaiya', locale: 'hi', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood, seniority: 'elder', aliases: ['Bade Bhai']),
     VocabularyEntry(term: 'Bhai', locale: 'hi', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood, seniority: 'younger', aliases: ['Chhote Bhai']),
     VocabularyEntry(term: 'Didi', locale: 'hi', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.blood, seniority: 'elder', aliases: ['Badi Bahen']),
@@ -145,7 +145,7 @@ class VocabularyTable {
     VocabularyEntry(term: 'Bhai', locale: 'hi', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood), // generic
     VocabularyEntry(term: 'Bahen', locale: 'hi', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.blood), // generic
 
-    // Tamil — Anna/Thambi (elder/younger brother), Akka/Thangai (elder/younger sister)
+    // Tamil - Anna/Thambi (elder/younger brother), Akka/Thangai (elder/younger sister)
     VocabularyEntry(term: 'Anna', locale: 'ta', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood, seniority: 'elder'),
     VocabularyEntry(term: 'Thambi', locale: 'ta', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood, seniority: 'younger'),
     VocabularyEntry(term: 'Akka', locale: 'ta', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.blood, seniority: 'elder'),
@@ -153,25 +153,25 @@ class VocabularyTable {
     VocabularyEntry(term: 'Sagotharan', locale: 'ta', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood), // generic
     VocabularyEntry(term: 'Sagothari', locale: 'ta', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.blood), // generic
 
-    // Telugu — Anna/Thammudu, Akka/Chelli
+    // Telugu - Anna/Thammudu, Akka/Chelli
     VocabularyEntry(term: 'Anna', locale: 'te', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood, seniority: 'elder'),
     VocabularyEntry(term: 'Thammudu', locale: 'te', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood, seniority: 'younger'),
     VocabularyEntry(term: 'Akka', locale: 'te', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.blood, seniority: 'elder'),
     VocabularyEntry(term: 'Chelli', locale: 'te', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.blood, seniority: 'younger'),
 
-    // Bengali — Dada/Chhoto bhai, Didi/Chhoto bon
+    // Bengali - Dada/Chhoto bhai, Didi/Chhoto bon
     VocabularyEntry(term: 'Dada', locale: 'bn', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood, seniority: 'elder'),
     VocabularyEntry(term: 'Chhoto Bhai', locale: 'bn', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood, seniority: 'younger'),
     VocabularyEntry(term: 'Didi', locale: 'bn', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.blood, seniority: 'elder'),
     VocabularyEntry(term: 'Chhoto Bon', locale: 'bn', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.blood, seniority: 'younger'),
 
-    // Marathi — Dada/Bahini, Tai/Bahin
+    // Marathi - Dada/Bahini, Tai/Bahin
     VocabularyEntry(term: 'Dada', locale: 'mr', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood, seniority: 'elder'),
     VocabularyEntry(term: 'Bahina', locale: 'mr', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood, seniority: 'younger'),
     VocabularyEntry(term: 'Tai', locale: 'mr', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.blood, seniority: 'elder'),
     VocabularyEntry(term: 'Bahin', locale: 'mr', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.blood, seniority: 'younger'),
 
-    // Punjabi — Veer/Bhara, Bhua/Didi
+    // Punjabi - Veer/Bhara, Bhua/Didi
     VocabularyEntry(term: 'Veer', locale: 'pa', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood, seniority: 'younger', aliases: ['Veera']),
     VocabularyEntry(term: 'Bhara', locale: 'pa', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', consanguinity: Consanguinity.blood, seniority: 'elder'),
     VocabularyEntry(term: 'Bhain', locale: 'pa', pathPattern: 'UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', consanguinity: Consanguinity.blood),
@@ -186,9 +186,9 @@ class VocabularyTable {
     VocabularyEntry(term: 'Aunt', locale: 'en', pathPattern: 'UP_PARENT_UP_PARENT_DOWN_CHILD', generationDelta: -1, genderAnchor: 'female', side: FamilySide.paternal),
     VocabularyEntry(term: 'Aunt', locale: 'en', pathPattern: 'UP_PARENT_UP_PARENT_DOWN_CHILD', generationDelta: -1, genderAnchor: 'female', side: FamilySide.maternal),
 
-    // Hindi — CRITICAL DISTINCTIONS:
+    // Hindi - CRITICAL DISTINCTIONS:
     // Paternal: Tau (father's elder brother), Chacha (father's younger brother),
-    //           Bua (father's sister), Phupha (father's sister's husband — but stored as uncle)
+    //           Bua (father's sister), Phupha (father's sister's husband - but stored as uncle)
     // Maternal: Mama (mother's brother), Mausi (mother's sister)
     VocabularyEntry(term: 'Tau', locale: 'hi', pathPattern: 'UP_PARENT_UP_PARENT_DOWN_CHILD', generationDelta: -1, genderAnchor: 'male', side: FamilySide.paternal, intermediateSeniority: 'elder', aliases: ['Taufather']),
     VocabularyEntry(term: 'Chacha', locale: 'hi', pathPattern: 'UP_PARENT_UP_PARENT_DOWN_CHILD', generationDelta: -1, genderAnchor: 'male', side: FamilySide.paternal, intermediateSeniority: 'younger', aliases: ['Chachaji']),
@@ -199,7 +199,7 @@ class VocabularyTable {
     VocabularyEntry(term: 'Chacha', locale: 'hi', pathPattern: 'UP_PARENT_UP_PARENT_DOWN_CHILD', generationDelta: -1, genderAnchor: 'male', side: FamilySide.paternal),
     VocabularyEntry(term: 'Mama', locale: 'hi', pathPattern: 'UP_PARENT_UP_PARENT_DOWN_CHILD', generationDelta: -1, genderAnchor: 'male', side: FamilySide.maternal),
 
-    // Tamil — Periyappa (father's elder brother), Chitthappa (father's younger brother),
+    // Tamil - Periyappa (father's elder brother), Chitthappa (father's younger brother),
     //         Ammamma/Periyamma (father's elder sister), Chithi (father's younger sister),
     //         Mama (mother's brother), Athai (mother's sister)
     VocabularyEntry(term: 'Periyappa', locale: 'ta', pathPattern: 'UP_PARENT_UP_PARENT_DOWN_CHILD', generationDelta: -1, genderAnchor: 'male', side: FamilySide.paternal, intermediateSeniority: 'elder'),
@@ -254,15 +254,15 @@ class VocabularyTable {
     // ════════════════════════════════════════════════════════════════════
     VocabularyEntry(term: 'Nephew', locale: 'en', pathPattern: 'UP_PARENT_DOWN_CHILD_DOWN_CHILD', generationDelta: 1, genderAnchor: 'male'),
     VocabularyEntry(term: 'Niece', locale: 'en', pathPattern: 'UP_PARENT_DOWN_CHILD_DOWN_CHILD', generationDelta: 1, genderAnchor: 'female'),
-    // Hindi — Bhatija/Bhatiji (brother's child), Bhanja/Bhanji (sister's child)
+    // Hindi - Bhatija/Bhatiji (brother's child), Bhanja/Bhanji (sister's child)
     VocabularyEntry(term: 'Bhatija', locale: 'hi', pathPattern: 'UP_PARENT_DOWN_CHILD_DOWN_CHILD', generationDelta: 1, genderAnchor: 'male', side: FamilySide.paternal),
     VocabularyEntry(term: 'Bhatiji', locale: 'hi', pathPattern: 'UP_PARENT_DOWN_CHILD_DOWN_CHILD', generationDelta: 1, genderAnchor: 'female', side: FamilySide.paternal),
     VocabularyEntry(term: 'Bhanja', locale: 'hi', pathPattern: 'UP_PARENT_DOWN_CHILD_DOWN_CHILD', generationDelta: 1, genderAnchor: 'male', side: FamilySide.maternal),
     VocabularyEntry(term: 'Bhanji', locale: 'hi', pathPattern: 'UP_PARENT_DOWN_CHILD_DOWN_CHILD', generationDelta: 1, genderAnchor: 'female', side: FamilySide.maternal),
-    // Tamil — Marumagan/Marumagal
+    // Tamil - Marumagan/Marumagal
     VocabularyEntry(term: 'Marumagan', locale: 'ta', pathPattern: 'UP_PARENT_DOWN_CHILD_DOWN_CHILD', generationDelta: 1, genderAnchor: 'male'),
     VocabularyEntry(term: 'Marumagal', locale: 'ta', pathPattern: 'UP_PARENT_DOWN_CHILD_DOWN_CHILD', generationDelta: 1, genderAnchor: 'female'),
-    // Bengali — Vagnya/Vagni (brother's), Bhanja/Bhnaji (sister's)
+    // Bengali - Vagnya/Vagni (brother's), Bhanja/Bhnaji (sister's)
     VocabularyEntry(term: 'Vagnya', locale: 'bn', pathPattern: 'UP_PARENT_DOWN_CHILD_DOWN_CHILD', generationDelta: 1, genderAnchor: 'male', side: FamilySide.paternal),
     VocabularyEntry(term: 'Vagni', locale: 'bn', pathPattern: 'UP_PARENT_DOWN_CHILD_DOWN_CHILD', generationDelta: 1, genderAnchor: 'female', side: FamilySide.paternal),
 
@@ -320,8 +320,8 @@ class VocabularyTable {
     // Brother-in-law / Sister-in-law
     VocabularyEntry(term: 'Brother-in-Law', locale: 'en', pathPattern: 'SPOUSE_UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male'),
     VocabularyEntry(term: 'Sister-in-Law', locale: 'en', pathPattern: 'SPOUSE_UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female'),
-    // Hindi — Jeth (husband's elder brother), Devar (husband's younger brother),
-    //         Nand (husband's sister), Sala (wife's brother), Saali (wife's sister)
+    // Hindi - Jeth (husband elder brother), Devar (husband younger brother),
+    //         Nand (husband sister), Sala (wife brother), Saali (wife sister)
     VocabularyEntry(term: 'Jeth', locale: 'hi', pathPattern: 'SPOUSE_UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', spouseSide: FamilySide.paternal, intermediateSeniority: 'elder'),
     VocabularyEntry(term: 'Devar', locale: 'hi', pathPattern: 'SPOUSE_UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'male', spouseSide: FamilySide.paternal, intermediateSeniority: 'younger'),
     VocabularyEntry(term: 'Nand', locale: 'hi', pathPattern: 'SPOUSE_UP_PARENT_DOWN_CHILD', generationDelta: 0, genderAnchor: 'female', spouseSide: FamilySide.paternal'),
