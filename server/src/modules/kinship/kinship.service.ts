@@ -1117,4 +1117,141 @@ export class KinshipService {
   getAllTerms(): KinshipTerm[] {
     return [...KINSHIP_DATABASE];
   }
+
+  /**
+   * v4.0: Resolves a KinshipSignature to a kinship term from the
+   * vocabulary database.
+   *
+   * This is the bridge between the deterministic engine (which returns
+   * only signatures, never terms) and the 5,396+ term vocabulary.
+   *
+   * @param signature - The KinshipSignature from the engine
+   * @param locale - ISO language code (e.g. 'hi', 'ta', 'te')
+   * @returns The kinship term + English fallback, or null if no match
+   */
+  async resolveSignature(
+    signature: {
+      generationDelta: number;
+      pathPattern: string;
+      side: string;
+      consanguinity: string;
+      genderAnchor: string;
+      seniority: string;
+      removal: number;
+      doubleKinship: boolean;
+    },
+    locale: string,
+  ): Promise<{ term: string; termEn: string } | null> {
+    // Map signature fields to vocabulary database lookup
+    const gender = signature.genderAnchor as 'male' | 'female' | 'neutral';
+    const lineage = signature.side as 'paternal' | 'maternal' | 'neutral';
+
+    // Map path patterns to relationship keys that exist in the vocabulary
+    const relationshipKey = this.signatureToRelationshipKey(signature);
+    if (!relationshipKey) return null;
+
+    // Search the vocabulary database
+    for (const term of KINSHIP_DATABASE) {
+      if (term.relationshipKey !== relationshipKey) continue;
+      if (term.gender !== gender && term.gender !== 'neutral') continue;
+      if (lineage !== 'neutral' && term.lineage !== 'neutral' && term.lineage !== lineage) continue;
+
+      // Found a match — get localized term
+      const translation = term.translations[locale];
+      if (translation) {
+        return { term: translation.native, termEn: term.englishTerm };
+      }
+
+      // Fallback to English
+      return { term: term.englishTerm, termEn: term.englishTerm };
+    }
+
+    return null;
+  }
+
+  /**
+   * Maps a KinshipSignature's pathPattern to a relationship key
+   * that exists in the KINSHIP_DATABASE.
+   */
+  private signatureToRelationshipKey(signature: {
+    pathPattern: string;
+    generationDelta: number;
+    side: string;
+    consanguinity: string;
+    genderAnchor: string;
+    seniority: string;
+    removal: number;
+    doubleKinship: boolean;
+  }): string | null {
+    const { pathPattern, generationDelta, side, consanguinity, genderAnchor, seniority, doubleKinship } = signature;
+    const isFemale = genderAnchor === 'female';
+
+    // Parent
+    if (pathPattern === 'UP_PARENT' && generationDelta === -1) {
+      if (consanguinity === 'adoptive') return isFemale ? 'adoptive_mother' : 'adoptive_father';
+      if (consanguinity === 'step') return isFemale ? 'step_mother' : 'step_father';
+      return isFemale ? 'mother' : 'father';
+    }
+    if (pathPattern === 'UP_PARENT' && generationDelta === 1) return isFemale ? 'daughter' : 'son';
+
+    // Spouse
+    if (pathPattern === 'SPOUSE') return isFemale ? 'wife' : 'husband';
+
+    // Sibling
+    if (pathPattern === 'UP_PARENT_DOWN_CHILD' && generationDelta === 0) {
+      if (consanguinity === 'half') return isFemale ? 'half_sister' : 'half_brother';
+      if (consanguinity === 'step') return isFemale ? 'step_sister' : 'step_brother';
+      if (seniority === 'elder') return isFemale ? 'elder_sister' : 'elder_brother';
+      if (seniority === 'younger') return isFemale ? 'younger_sister' : 'younger_brother';
+      return isFemale ? 'sister' : 'brother';
+    }
+
+    // Grandparent
+    if (pathPattern === 'UP_PARENT_UP_PARENT' && generationDelta === -2) {
+      if (side === 'paternal') return isFemale ? 'paternal_grandmother' : 'paternal_grandfather';
+      return isFemale ? 'maternal_grandmother' : 'maternal_grandfather';
+    }
+
+    // Uncle/Aunt
+    if (pathPattern === 'UP_PARENT_UP_PARENT_DOWN_CHILD' && generationDelta === -1) {
+      if (side === 'paternal') {
+        return isFemale ? 'paternal_aunt' : 'paternal_uncle';
+      }
+      return isFemale ? 'maternal_aunt' : 'maternal_uncle';
+    }
+
+    // Nephew/Niece
+    if (pathPattern === 'UP_PARENT_DOWN_CHILD_DOWN_CHILD' && generationDelta === 1) {
+      return isFemale ? 'niece' : 'nephew';
+    }
+
+    // Cousin
+    if (pathPattern === 'UP_PARENT_UP_PARENT_DOWN_CHILD_DOWN_CHILD' && generationDelta === 0) {
+      if (doubleKinship) return 'cousin';
+      return 'cousin';
+    }
+
+    // In-laws
+    if (pathPattern === 'SPOUSE_UP_PARENT' && generationDelta === -1) {
+      return isFemale ? 'mother_in_law' : 'father_in_law';
+    }
+    if (pathPattern === 'SPOUSE_UP_PARENT_DOWN_CHILD' && generationDelta === 0) {
+      return isFemale ? 'sister_in_law' : 'brother_in_law';
+    }
+    if (pathPattern === 'SPOUSE_DOWN_CHILD' && generationDelta === 1) {
+      return isFemale ? 'daughter_in_law' : 'son_in_law';
+    }
+
+    // Grandchild
+    if (pathPattern === 'DOWN_CHILD_DOWN_CHILD' && generationDelta === 2) {
+      return isFemale ? 'granddaughter' : 'grandson';
+    }
+
+    // Great grandparent
+    if (pathPattern === 'UP_PARENT_UP_PARENT_UP_PARENT' && generationDelta === -3) {
+      return isFemale ? 'great_grandmother' : 'great_grandfather';
+    }
+
+    return null;
+  }
 }

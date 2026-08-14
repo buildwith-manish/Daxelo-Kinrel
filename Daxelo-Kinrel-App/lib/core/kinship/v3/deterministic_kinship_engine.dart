@@ -40,12 +40,14 @@ class KinshipResult {
   final String? fundamentalEdge; // The edge to store (e.g. "parent") or null if derived
   final KinshipSignature signature;
   final bool isDerived;        // True if the term is derived (not a fundamental edge)
+  final bool isSuggested;      // True if this is an inference (e.g. spouse from shared child) requiring user confirmation
 
   const KinshipResult({
     required this.term,
     this.fundamentalEdge,
     required this.signature,
     required this.isDerived,
+    this.isSuggested = false,
   });
 }
 
@@ -513,6 +515,174 @@ class DeterministicKinshipEngine {
   /// Clears the entire cache.
   void clearCache() {
     _cache.clear();
+  }
+
+  /// v4.0: Suggests a spouse relationship if [personAId] and [personBId]
+  /// share at least one child and are NOT already spouses.
+  ///
+  /// Returns a [KinshipResult] with `isSuggested: true` if a spouse
+  /// inference is warranted, or null if:
+  /// - No shared children exist
+  /// - They already have a spouse edge
+  ///
+  /// The UI should show this as a dashed line / suggestion that the
+  /// user can confirm or reject. Never auto-creates.
+  KinshipResult? suggestSpouseIfSharedChildren({
+    required String personAId,
+    required String personBId,
+    required List<GraphPerson> persons,
+    required List<({String fromId, String toId, String type})> relationships,
+  }) {
+    if (personAId == personBId) return null;
+
+    // Check if they already have a spouse edge
+    for (final rel in relationships) {
+      final type = rel.type.toLowerCase();
+      if (type == 'spouse' || type == 'husband' || type == 'wife') {
+        if ((rel.fromId == personAId && rel.toId == personBId) ||
+            (rel.fromId == personBId && rel.toId == personAId)) {
+          return null; // Already spouses
+        }
+      }
+    }
+
+    // Find children of personA (persons whose parent is personA)
+    final childrenA = <String>{};
+    for (final rel in relationships) {
+      final type = rel.type.toLowerCase();
+      if (type == 'parent' || type == 'father' || type == 'mother') {
+        // Stored: fromId's parent is toId
+        // So if toId == personAId, then fromId is a child of personA
+        if (rel.toId == personAId) {
+          childrenA.add(rel.fromId);
+        }
+      } else if (type == 'child' || type == 'son' || type == 'daughter') {
+        // Stored: fromId's child is toId
+        if (rel.fromId == personAId) {
+          childrenA.add(rel.toId);
+        }
+      }
+    }
+
+    // Find children of personB
+    final childrenB = <String>{};
+    for (final rel in relationships) {
+      final type = rel.type.toLowerCase();
+      if (type == 'parent' || type == 'father' || type == 'mother') {
+        if (rel.toId == personBId) {
+          childrenB.add(rel.fromId);
+        }
+      } else if (type == 'child' || type == 'son' || type == 'daughter') {
+        if (rel.fromId == personBId) {
+          childrenB.add(rel.toId);
+        }
+      }
+    }
+
+    // Check for shared children
+    final shared = childrenA.intersection(childrenB);
+    if (shared.isEmpty) return null;
+
+    // Suggest spouse!
+    final personB = persons.where((p) => p.id == personBId).firstOrNull;
+    final gender = personB?.gender?.toLowerCase() == 'female' ? 'female' : 'male';
+
+    final signature = KinshipSignature(
+      generationDelta: 0,
+      pathPattern: 'SPOUSE',
+      side: FamilySide.none,
+      consanguinity: Consanguinity.blood, // Will be Consanguinity.affine in v4
+      genderAnchor: gender,
+      seniority: 'none',
+      removal: 0,
+      doubleKinship: false,
+    );
+
+    return KinshipResult(
+      term: gender == 'female' ? 'Wife' : 'Husband',
+      fundamentalEdge: 'spouse',
+      signature: signature,
+      isDerived: false,
+      isSuggested: true, // Requires user confirmation
+    );
+  }
+
+  /// Scans the entire family for ALL spouse inference candidates.
+  /// Returns a list of (personA, personB, result) tuples.
+  List<({String personAId, String personBId, KinshipResult result})>
+      scanForSpouseSuggestions({
+    required List<GraphPerson> persons,
+    required List<({String fromId, String toId, String type})> relationships,
+  }) {
+    final results = <({String personAId, String personBId, KinshipResult result})>[];
+
+    // Build child → parents map
+    final childToParents = <String, Set<String>>{};
+    for (final rel in relationships) {
+      final type = rel.type.toLowerCase();
+      String? childId;
+      String? parentId;
+
+      if (type == 'parent' || type == 'father' || type == 'mother') {
+        childId = rel.fromId;
+        parentId = rel.toId;
+      } else if (type == 'child' || type == 'son' || type == 'daughter') {
+        childId = rel.toId;
+        parentId = rel.fromId;
+      }
+
+      if (childId != null && parentId != null) {
+        childToParents.putIfAbsent(childId, () => {});
+        childToParents[childId]!.add(parentId);
+      }
+    }
+
+    // Build spouse set for quick lookup
+    final spousePairs = <String>{};
+    for (final rel in relationships) {
+      final type = rel.type.toLowerCase();
+      if (type == 'spouse' || type == 'husband' || type == 'wife') {
+        final pair = [rel.fromId, rel.toId]..sort();
+        spousePairs.add('${pair[0]}:${pair[1]}');
+      }
+    }
+
+    // Find all pairs of parents who share a child
+    final seenPairs = <String>{};
+
+    for (final entry in childToParents.entries) {
+      final parents = entry.value.toList();
+      if (parents.length < 2) continue;
+
+      for (int i = 0; i < parents.length; i++) {
+        for (int j = i + 1; j < parents.length; j++) {
+          final pair = [parents[i], parents[j]]..sort();
+          final pairKey = '${pair[0]}:${pair[1]}';
+
+          if (seenPairs.contains(pairKey)) continue;
+          if (spousePairs.contains(pairKey)) continue;
+
+          seenPairs.add(pairKey);
+
+          final suggestion = suggestSpouseIfSharedChildren(
+            personAId: parents[i],
+            personBId: parents[j],
+            persons: persons,
+            relationships: relationships,
+          );
+
+          if (suggestion != null) {
+            results.add((
+              personAId: parents[i],
+              personBId: parents[j],
+              result: suggestion,
+            ));
+          }
+        }
+      }
+    }
+
+    return results;
   }
 }
 

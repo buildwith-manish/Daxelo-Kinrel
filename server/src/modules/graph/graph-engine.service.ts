@@ -1,872 +1,172 @@
 /**
- * Daxelo-Kinrel Graph Engine Service
+ * Daxelo-Kinrel Graph Engine Service v4.0
  * ══════════════════════════════════════════════════════════════════════
  *
- * The CORE of the platform — stores only 8 core relationship types and
- * computes ALL kinship terms dynamically via graph traversal.
+ * COMPLETE REWRITE to match the v4.0 Deterministic Kinship Engine spec.
  *
- * Core Relationship Types (ONLY these are stored in the database):
- *   father, mother, son, daughter, brother, sister, husband, wife
- *
- * All other kinship terms (grandfather, uncle, cousin, etc.) are
- * derived at query time by traversing the family graph and composing
- * core relationship steps into resolved kinship terms.
+ * CHANGES FROM v3:
+ * - Stores only 4 fundamental edge types: parent, spouse, adoptive_parent, step_parent
+ * - NO confidence scores (deterministic only)
+ * - NO hardcoded KINSHIP_RULES (all derived at runtime)
+ * - Max depth 8 (was 15)
+ * - BFS traversal with cycle detection
+ * - Returns KinshipSignature (not string terms) — vocabulary mapping is separate
+ * - Path canonicalization (cycle removal, backtracking removal)
+ * - Double kinship detection
+ * - Spouse inference from shared children
  *
  * Architecture:
- *   1. buildGraph()       — Load raw relationships from DB → adjacency list
- *   2. findPath()         — BFS shortest path between any two persons
- *   3. resolveKinship()   — Walk the path → compose kinship term
- *   4. getAllRelationships() — Compute every derived relationship for a person
- *   5. getAncestors()     — Traverse upward (parent links)
- *   6. getDescendants()   — Traverse downward (child links)
+ *   1. buildAdjacency()    — Load fundamental edges → adjacency list
+ *   2. findShortestPath()  — BFS shortest path (depth 8, cycle detection)
+ *   3. canonicalizePath()  — Remove cycles, backtracking
+ *   4. buildSignature()    — Path → KinshipSignature
+ *   5. resolve()           — Full pipeline: path → signature → term
  */
 
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 // ── Exported Types ────────────────────────────────────────────────────
 
-export interface PathResult {
-  found: boolean;
-  path: RelationshipStep[];
-  distance: number;
-  kinshipTerm?: string;
-  kinshipTermHindi?: string;
-}
+export type TraversePrimitive =
+  | 'UP_PARENT'
+  | 'DOWN_CHILD'
+  | 'SPOUSE'
+  | 'UP_ADOPTIVE_PARENT'
+  | 'UP_STEP_PARENT';
 
-export interface RelationshipStep {
-  personId: string;
-  personName: string;
-  relationshipType: string; // Core type: father, mother, etc.
-  direction: 'up' | 'down' | 'sideways';
+export type Consanguinity = 'blood' | 'half' | 'step' | 'adoptive' | 'inLaw' | 'affine';
+export type FamilySide = 'paternal' | 'maternal' | 'none';
+export type ResolutionStatus = 'confirmed' | 'derived' | 'inferred' | 'ambiguous' | 'incomplete';
+
+export interface KinshipSignature {
+  generationDelta: number;
+  pathPattern: string;
+  side: FamilySide;
+  consanguinity: Consanguinity;
+  genderAnchor: string;
+  seniority: string;
+  removal: number;
+  doubleKinship: boolean;
+  resolutionStatus: ResolutionStatus;
+  intermediateSeniority: string;
+  spouseSide: FamilySide;
+  intermediateGender: string;
 }
 
 export interface KinshipResult {
-  term: string; // "cousin"
-  termHindi: string; // "चचेरा भाई"
-  confidence: number; // 0-1
-  path: RelationshipStep[];
-  genderSpecific: boolean; // Whether the term is gender-specific
+  term: string;
+  fundamentalEdge: string | null;
+  signature: KinshipSignature;
+  isDerived: boolean;
+  isSuggested: boolean;
+  path: PathStep[];
+}
+
+export interface PathStep {
+  personId: string;
+  personName: string;
+  primitive: TraversePrimitive;
+}
+
+export interface PathResult {
+  found: boolean;
+  path: PathStep[];
+  distance: number;
+  signature?: KinshipSignature;
+  result?: KinshipResult;
 }
 
 export interface ComputedRelationship {
   personId: string;
   personName: string;
-  relationshipKey: string; // Stored key
-  computedTerm: string; // Computed term like "cousin"
-  computedTermHindi: string;
+  relationshipKey: string;
+  computedTerm: string;
   distance: number;
-  path: RelationshipStep[];
-}
-
-export interface PersonNode {
-  personId: string;
-  name: string;
-  gender?: string;
-  depth: number;
-  relationship: string;
+  path: PathStep[];
+  signature: KinshipSignature;
 }
 
 // ── Internal Types ────────────────────────────────────────────────────
 
 interface AdjacencyEntry {
   neighborId: string;
-  relationshipKey: string;
-  direction: 'up' | 'down' | 'sideways';
+  primitive: TraversePrimitive;
 }
 
 interface PersonRecord {
   id: string;
   name: string;
-  gender: string | null;
+  gender?: string | null;
 }
 
-interface KinshipLookupEntry {
-  term: string;
-  termHindi: string;
-  genderSpecific: boolean;
-  confidence: number;
+interface BfsState {
+  nodeId: string;
+  path: TraversePrimitive[];
+  visited: string[];
 }
 
-// ── Service Implementation ────────────────────────────────────────────
+interface BfsResult {
+  path: TraversePrimitive[];
+  visitedNodes: string[];
+}
+
+// ── Constants ─────────────────────────────────────────────────────────
+
+const MAX_DEPTH = 8;
+
+const FUNDAMENTAL_EDGES = new Set([
+  'parent',
+  'spouse',
+  'adoptive_parent',
+  'step_parent',
+]);
+
+// ── Service ───────────────────────────────────────────────────────────
 
 @Injectable()
 export class GraphEngineService {
   private readonly logger = new Logger(GraphEngineService.name);
 
-  // ── Core Relationship Types ──────────────────────────────────────────
-  // ONLY these 8 types are stored in the database. Everything else is
-  // computed dynamically via graph traversal.
-
-  static readonly CORE_TYPES = [
-    'father',
-    'mother',
-    'son',
-    'daughter',
-    'brother',
-    'sister',
-    'husband',
-    'wife',
-  ] as const;
-
-  // ── Inverse Mapping for Bidirectional Traversal ──────────────────────
-  // Given a relationship from A→B, what is the relationship from B→A?
-  // Some inverses are gender-dependent (e.g., father → son/daughter).
-
-  static readonly INVERSE_MAP: Record<string, string> = {
-    father: 'child', // child is gender-normalized later
-    mother: 'child',
-    son: 'parent', // parent is gender-normalized later
-    daughter: 'parent',
-    brother: 'sibling',
-    sister: 'sibling',
-    husband: 'wife',
-    wife: 'husband',
-  };
-
-  // ── Direction Classification ─────────────────────────────────────────
-  // "up" = going to an older generation (parent, grandparent)
-  // "down" = going to a younger generation (child, grandchild)
-  // "sideways" = same generation or lateral (sibling, spouse)
-
-  private static readonly DIRECTION_MAP: Record<string, 'up' | 'down' | 'sideways'> = {
-    // Core types — data model: A→B 'father' means "A's father IS B"
-    // (A is the child, B is the parent)
-    // 'up'   = following this edge goes to an OLDER generation (child→parent)
-    // 'down' = following this edge goes to a YOUNGER generation (parent→child)
-    father: 'up',         // A's father is B → edge goes UP (older generation)
-    mother: 'up',
-    son: 'down',          // A's son is B → edge goes DOWN (younger generation)
-    daughter: 'down',
-    brother: 'sideways',
-    sister: 'sideways',
-    husband: 'sideways',
-    wife: 'sideways',
-    // Grandparents: A's grandparent is B → edge goes UP (older generation)
-    grandfather: 'up',
-    grandmother: 'up',
-    paternal_grandfather: 'up',
-    paternal_grandmother: 'up',
-    maternal_grandfather: 'up',
-    maternal_grandmother: 'up',
-    // Grandchildren: A's grandchild is B → edge goes DOWN (younger generation)
-    grandson: 'down',
-    granddaughter: 'down',
-    // Great-grandparents / great-grandchildren
-    great_grandfather: 'up',
-    great_grandmother: 'up',
-    great_grandson: 'down',
-    great_granddaughter: 'down',
-    // Step-parents/children (same directional logic)
-    stepfather: 'up',
-    stepmother: 'up',
-    stepson: 'down',
-    stepdaughter: 'down',
-    // Lateral relationships (uncle/aunt, nephew/niece are sideways for ancestor/descendant traversal)
-    uncle: 'sideways',
-    aunt: 'sideways',
-    nephew: 'sideways',
-    niece: 'sideways',
-    cousin: 'sideways',
-    // In-laws (lateral)
-    husbands_father: 'sideways',
-    husbands_mother: 'sideways',
-    wives_father: 'sideways',
-    wives_mother: 'sideways',
-    sons_wife: 'sideways',
-    daughters_husband: 'sideways',
-    father_in_law: 'sideways',
-    mother_in_law: 'sideways',
-    son_in_law: 'sideways',
-    daughter_in_law: 'sideways',
-    brother_in_law: 'sideways',
-    sister_in_law: 'sideways',
-    elder_brother: 'sideways',
-    younger_brother: 'sideways',
-    elder_sister: 'sideways',
-    younger_sister: 'sideways',
-    fathers_brother: 'sideways',
-    fathers_sister: 'sideways',
-    mothers_brother: 'sideways',
-    mothers_sister: 'sideways',
-  };
-
-  // ── Kinship Composition Rules ────────────────────────────────────────
-  // Maps a sequence of core relationship keys (joined with →) to a
-  // resolved kinship term. The target person's gender is used to
-  // disambiguate gender-specific terms.
-  //
-  // Format: path_key → { male: {...}, female: {...}, neutral: {...} }
-
-  private static readonly KINSHIP_RULES: Record<
-    string,
-    { male: KinshipLookupEntry; female: KinshipLookupEntry; neutral: KinshipLookupEntry }
-  > = {
-    // ── Grandparents (2 steps up) ────────────────────────────────────
-    'father→father': {
-      male: { term: 'grandfather', termHindi: 'दादा', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'grandfather', termHindi: 'दादा', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'grandfather', termHindi: 'दादा', genderSpecific: false, confidence: 1.0 },
-    },
-    'father→mother': {
-      male: { term: 'grandmother', termHindi: 'दादी', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'grandmother', termHindi: 'दादी', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'grandmother', termHindi: 'दादी', genderSpecific: false, confidence: 1.0 },
-    },
-    'mother→father': {
-      male: { term: 'grandfather', termHindi: 'नाना', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'grandfather', termHindi: 'नाना', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'grandfather', termHindi: 'नाना', genderSpecific: false, confidence: 1.0 },
-    },
-    'mother→mother': {
-      male: { term: 'grandmother', termHindi: 'नानी', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'grandmother', termHindi: 'नानी', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'grandmother', termHindi: 'नानी', genderSpecific: false, confidence: 1.0 },
-    },
-
-    // ── Uncles / Aunts (parent → sibling) ────────────────────────────
-    'father→brother': {
-      male: { term: 'uncle', termHindi: 'चाचा', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'uncle', termHindi: 'चाचा', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'uncle', termHindi: 'चाचा', genderSpecific: true, confidence: 1.0 },
-    },
-    'father→sister': {
-      male: { term: 'aunt', termHindi: 'बुआ', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'aunt', termHindi: 'बुआ', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'aunt', termHindi: 'बुआ', genderSpecific: true, confidence: 1.0 },
-    },
-    'mother→brother': {
-      male: { term: 'uncle', termHindi: 'मामा', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'uncle', termHindi: 'मामा', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'uncle', termHindi: 'मामा', genderSpecific: true, confidence: 1.0 },
-    },
-    'mother→sister': {
-      male: { term: 'aunt', termHindi: 'मौसी', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'aunt', termHindi: 'मौसी', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'aunt', termHindi: 'मौसी', genderSpecific: true, confidence: 1.0 },
-    },
-
-    // ── Cousins (uncle/aunt → child) ─────────────────────────────────
-    // father → brother → son/daughter = paternal cousin
-    'father→brother→son': {
-      male: { term: 'cousin', termHindi: 'चचेरा भाई', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'cousin', termHindi: 'चचेरा भाई', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'cousin', termHindi: 'चचेरा भाई', genderSpecific: true, confidence: 1.0 },
-    },
-    'father→brother→daughter': {
-      male: { term: 'cousin', termHindi: 'चचेरी बहन', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'cousin', termHindi: 'चचेरी बहन', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'cousin', termHindi: 'चचेरी बहन', genderSpecific: true, confidence: 1.0 },
-    },
-    'father→sister→son': {
-      male: { term: 'cousin', termHindi: 'फुफेरा भाई', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'cousin', termHindi: 'फुफेरा भाई', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'cousin', termHindi: 'फुफेरा भाई', genderSpecific: true, confidence: 1.0 },
-    },
-    'father→sister→daughter': {
-      male: { term: 'cousin', termHindi: 'फुफेरी बहन', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'cousin', termHindi: 'फुफेरी बहन', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'cousin', termHindi: 'फुफेरी बहन', genderSpecific: true, confidence: 1.0 },
-    },
-    'mother→brother→son': {
-      male: { term: 'cousin', termHindi: 'ममेरा भाई', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'cousin', termHindi: 'ममेरा भाई', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'cousin', termHindi: 'ममेरा भाई', genderSpecific: true, confidence: 1.0 },
-    },
-    'mother→brother→daughter': {
-      male: { term: 'cousin', termHindi: 'ममेरी बहन', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'cousin', termHindi: 'ममेरी बहन', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'cousin', termHindi: 'ममेरी बहन', genderSpecific: true, confidence: 1.0 },
-    },
-    'mother→sister→son': {
-      male: { term: 'cousin', termHindi: 'मौसेरा भाई', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'cousin', termHindi: 'मौसेरा भाई', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'cousin', termHindi: 'मौसेरा भाई', genderSpecific: true, confidence: 1.0 },
-    },
-    'mother→sister→daughter': {
-      male: { term: 'cousin', termHindi: 'मौसेरी बहन', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'cousin', termHindi: 'मौसेरी बहन', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'cousin', termHindi: 'मौसेरी बहन', genderSpecific: true, confidence: 1.0 },
-    },
-
-    // ── Nephew / Niece (sibling → child) ─────────────────────────────
-    // The target person's gender (targetGender param) determines nephew vs niece.
-    // The path key's last segment (son/daughter) is only the edge label and may
-    // differ from the target's actual gender — targetGender takes precedence.
-    'brother→son': {
-      male: { term: 'nephew', termHindi: 'भतीजा', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'niece', termHindi: 'भतीजी', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'nephew', termHindi: 'भतीजा', genderSpecific: false, confidence: 0.95 },
-    },
-    'brother→daughter': {
-      male: { term: 'nephew', termHindi: 'भतीजा', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'niece', termHindi: 'भतीजी', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'niece', termHindi: 'भतीजी', genderSpecific: false, confidence: 0.95 },
-    },
-    'sister→son': {
-      male: { term: 'nephew', termHindi: 'भांजा', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'niece', termHindi: 'भांजी', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'nephew', termHindi: 'भांजा', genderSpecific: false, confidence: 0.95 },
-    },
-    'sister→daughter': {
-      male: { term: 'nephew', termHindi: 'भांजा', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'niece', termHindi: 'भांजी', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'niece', termHindi: 'भांजी', genderSpecific: false, confidence: 0.95 },
-    },
-
-    // ── Great Grandparents (3 steps up) ──────────────────────────────
-    'father→father→father': {
-      male: { term: 'great_grandfather', termHindi: 'परदादा', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'great_grandfather', termHindi: 'परदादा', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'great_grandfather', termHindi: 'परदादा', genderSpecific: false, confidence: 1.0 },
-    },
-    'father→father→mother': {
-      male: { term: 'great_grandmother', termHindi: 'परदादी', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'great_grandmother', termHindi: 'परदादी', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'great_grandmother', termHindi: 'परदादी', genderSpecific: false, confidence: 1.0 },
-    },
-    'father→mother→father': {
-      male: { term: 'great_grandfather', termHindi: 'परनाना', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'great_grandfather', termHindi: 'परनाना', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'great_grandfather', termHindi: 'परनाना', genderSpecific: false, confidence: 1.0 },
-    },
-    'father→mother→mother': {
-      male: { term: 'great_grandmother', termHindi: 'परनानी', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'great_grandmother', termHindi: 'परनानी', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'great_grandmother', termHindi: 'परनानी', genderSpecific: false, confidence: 1.0 },
-    },
-    'mother→father→father': {
-      male: { term: 'great_grandfather', termHindi: 'नाना के पिता', genderSpecific: false, confidence: 0.95 },
-      female: { term: 'great_grandfather', termHindi: 'नाना के पिता', genderSpecific: false, confidence: 0.95 },
-      neutral: { term: 'great_grandfather', termHindi: 'नाना के पिता', genderSpecific: false, confidence: 0.95 },
-    },
-    'mother→father→mother': {
-      male: { term: 'great_grandmother', termHindi: 'नाना की माँ', genderSpecific: false, confidence: 0.95 },
-      female: { term: 'great_grandmother', termHindi: 'नाना की माँ', genderSpecific: false, confidence: 0.95 },
-      neutral: { term: 'great_grandmother', termHindi: 'नाना की माँ', genderSpecific: false, confidence: 0.95 },
-    },
-    'mother→mother→father': {
-      male: { term: 'great_grandfather', termHindi: 'नानी के पिता', genderSpecific: false, confidence: 0.95 },
-      female: { term: 'great_grandfather', termHindi: 'नानी के पिता', genderSpecific: false, confidence: 0.95 },
-      neutral: { term: 'great_grandfather', termHindi: 'नानी के पिता', genderSpecific: false, confidence: 0.95 },
-    },
-    'mother→mother→mother': {
-      male: { term: 'great_grandmother', termHindi: 'नानी की माँ', genderSpecific: false, confidence: 0.95 },
-      female: { term: 'great_grandmother', termHindi: 'नानी की माँ', genderSpecific: false, confidence: 0.95 },
-      neutral: { term: 'great_grandmother', termHindi: 'नानी की माँ', genderSpecific: false, confidence: 0.95 },
-    },
-
-    // ── In-Laws (via spouse → parent) ────────────────────────────────
-    'husband→father': {
-      male: { term: 'father_in_law', termHindi: 'ससुर', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'father_in_law', termHindi: 'ससुर', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'father_in_law', termHindi: 'ससुर', genderSpecific: false, confidence: 1.0 },
-    },
-    'husband→mother': {
-      male: { term: 'mother_in_law', termHindi: 'सास', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'mother_in_law', termHindi: 'सास', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'mother_in_law', termHindi: 'सास', genderSpecific: false, confidence: 1.0 },
-    },
-    'wife→father': {
-      male: { term: 'father_in_law', termHindi: 'ससुर', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'father_in_law', termHindi: 'ससुर', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'father_in_law', termHindi: 'ससुर', genderSpecific: false, confidence: 1.0 },
-    },
-    'wife→mother': {
-      male: { term: 'mother_in_law', termHindi: 'सास', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'mother_in_law', termHindi: 'सास', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'mother_in_law', termHindi: 'सास', genderSpecific: false, confidence: 1.0 },
-    },
-
-    // ── Brother-in-Law / Sister-in-Law ───────────────────────────────
-    // Via sister's husband
-    'sister→husband': {
-      male: { term: 'brother_in_law', termHindi: 'जीजा', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'brother_in_law', termHindi: 'जीजा', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'brother_in_law', termHindi: 'जीजा', genderSpecific: false, confidence: 1.0 },
-    },
-    // Via brother's wife
-    'brother→wife': {
-      male: { term: 'sister_in_law', termHindi: 'भाभी', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'sister_in_law', termHindi: 'भाभी', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'sister_in_law', termHindi: 'भाभी', genderSpecific: true, confidence: 1.0 },
-    },
-    // Via wife's brother
-    'wife→brother': {
-      male: { term: 'brother_in_law', termHindi: 'साला', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'brother_in_law', termHindi: 'साला', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'brother_in_law', termHindi: 'साला', genderSpecific: true, confidence: 1.0 },
-    },
-    // Via wife's sister
-    'wife→sister': {
-      male: { term: 'sister_in_law', termHindi: 'साली', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'sister_in_law', termHindi: 'साली', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'sister_in_law', termHindi: 'साली', genderSpecific: true, confidence: 1.0 },
-    },
-    // Via husband's brother
-    'husband→brother': {
-      male: { term: 'brother_in_law', termHindi: 'देवर', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'brother_in_law', termHindi: 'देवर', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'brother_in_law', termHindi: 'देवर', genderSpecific: true, confidence: 1.0 },
-    },
-    // Via husband's sister
-    'husband→sister': {
-      male: { term: 'sister_in_law', termHindi: 'ननद', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'sister_in_law', termHindi: 'ननद', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'sister_in_law', termHindi: 'ननद', genderSpecific: true, confidence: 1.0 },
-    },
-
-    // ── Son-in-Law / Daughter-in-Law (via child → spouse) ───────────
-    'son→wife': {
-      male: { term: 'daughter_in_law', termHindi: 'बहू', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'daughter_in_law', termHindi: 'बहू', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'daughter_in_law', termHindi: 'बहू', genderSpecific: false, confidence: 1.0 },
-    },
-    'daughter→husband': {
-      male: { term: 'son_in_law', termHindi: 'दामाद', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'son_in_law', termHindi: 'दामाद', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'son_in_law', termHindi: 'दामाद', genderSpecific: false, confidence: 1.0 },
-    },
-
-    // ── Uncle/Aunt's spouse ──────────────────────────────────────────
-    'father→brother→wife': {
-      male: { term: 'aunt', termHindi: 'चाची', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'aunt', termHindi: 'चाची', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'aunt', termHindi: 'चाची', genderSpecific: true, confidence: 1.0 },
-    },
-    'father→sister→husband': {
-      male: { term: 'uncle', termHindi: 'फूफा', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'uncle', termHindi: 'फूफा', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'uncle', termHindi: 'फूफा', genderSpecific: true, confidence: 1.0 },
-    },
-    'mother→brother→wife': {
-      male: { term: 'aunt', termHindi: 'मामी', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'aunt', termHindi: 'मामी', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'aunt', termHindi: 'मामी', genderSpecific: true, confidence: 1.0 },
-    },
-    'mother→sister→husband': {
-      male: { term: 'uncle', termHindi: 'मौसा', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'uncle', termHindi: 'मौसा', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'uncle', termHindi: 'मौसा', genderSpecific: true, confidence: 1.0 },
-    },
-
-    // ── Grandchild (2 steps down) ────────────────────────────────────
-    'son→son': {
-      male: { term: 'grandson', termHindi: 'पोता', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'granddaughter', termHindi: 'पोती', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'grandchild', termHindi: 'पोता/पोती', genderSpecific: false, confidence: 0.9 },
-    },
-    'son→daughter': {
-      male: { term: 'grandson', termHindi: 'पोता', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'granddaughter', termHindi: 'पोती', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'grandchild', termHindi: 'पोता/पोती', genderSpecific: false, confidence: 0.9 },
-    },
-    'daughter→son': {
-      male: { term: 'grandson', termHindi: 'नाती', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'granddaughter', termHindi: 'नातिन', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'grandchild', termHindi: 'नाती/नातिन', genderSpecific: false, confidence: 0.9 },
-    },
-    'daughter→daughter': {
-      male: { term: 'grandson', termHindi: 'नाती', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'granddaughter', termHindi: 'नातिनी', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'grandchild', termHindi: 'नाती/नातिनी', genderSpecific: false, confidence: 0.9 },
-    },
-
-    // ── Great Grandchild (3 steps down) ──────────────────────────────
-    'son→son→son': {
-      male: { term: 'great_grandson', termHindi: 'परपोता', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'great_grandson', termHindi: 'परपोता', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'great_grandson', termHindi: 'परपोता', genderSpecific: true, confidence: 1.0 },
-    },
-    'son→son→daughter': {
-      male: { term: 'great_granddaughter', termHindi: 'परपोती', genderSpecific: true, confidence: 1.0 },
-      female: { term: 'great_granddaughter', termHindi: 'परपोती', genderSpecific: true, confidence: 1.0 },
-      neutral: { term: 'great_granddaughter', termHindi: 'परपोती', genderSpecific: true, confidence: 1.0 },
-    },
-    'son→daughter→son': {
-      male: { term: 'great_grandson', termHindi: 'परनाती', genderSpecific: true, confidence: 0.95 },
-      female: { term: 'great_grandson', termHindi: 'परनाती', genderSpecific: true, confidence: 0.95 },
-      neutral: { term: 'great_grandson', termHindi: 'परनाती', genderSpecific: true, confidence: 0.95 },
-    },
-    'son→daughter→daughter': {
-      male: { term: 'great_granddaughter', termHindi: 'परनातिनी', genderSpecific: true, confidence: 0.95 },
-      female: { term: 'great_granddaughter', termHindi: 'परनातिनी', genderSpecific: true, confidence: 0.95 },
-      neutral: { term: 'great_granddaughter', termHindi: 'परनातिनी', genderSpecific: true, confidence: 0.95 },
-    },
-    'daughter→son→son': {
-      male: { term: 'great_grandson', termHindi: 'वंशज', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'great_grandson', termHindi: 'वंशज', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'great_grandson', termHindi: 'वंशज', genderSpecific: true, confidence: 0.9 },
-    },
-    'daughter→son→daughter': {
-      male: { term: 'great_granddaughter', termHindi: 'वंशज', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'great_granddaughter', termHindi: 'वंशज', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'great_granddaughter', termHindi: 'वंशज', genderSpecific: true, confidence: 0.9 },
-    },
-    'daughter→daughter→son': {
-      male: { term: 'great_grandson', termHindi: 'वंशज', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'great_grandson', termHindi: 'वंशज', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'great_grandson', termHindi: 'वंशज', genderSpecific: true, confidence: 0.9 },
-    },
-    'daughter→daughter→daughter': {
-      male: { term: 'great_granddaughter', termHindi: 'वंशज', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'great_granddaughter', termHindi: 'वंशज', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'great_granddaughter', termHindi: 'वंशज', genderSpecific: true, confidence: 0.9 },
-    },
-
-    // ── Co-Brother/Sister-in-Law (spouse's sibling's spouse) ─────────
-    'wife→sister→husband': {
-      male: { term: 'co_brother_in_law', termHindi: 'समंधी', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'co_brother_in_law', termHindi: 'समंधी', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'co_brother_in_law', termHindi: 'समंधी', genderSpecific: false, confidence: 1.0 },
-    },
-    'husband→brother→wife': {
-      male: { term: 'co_sister_in_law', termHindi: 'भाभी', genderSpecific: false, confidence: 1.0 },
-      female: { term: 'co_sister_in_law', termHindi: 'भाभी', genderSpecific: false, confidence: 1.0 },
-      neutral: { term: 'co_sister_in_law', termHindi: 'भाभी', genderSpecific: false, confidence: 1.0 },
-    },
-
-    // ── Second Cousin (parent's cousin's child) ──────────────────────
-    // father → brother → son → son (paternal uncle's grandson)
-    'father→brother→son→son': {
-      male: { term: 'second_cousin', termHindi: 'दूर का चचेरा भाई', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'second_cousin', termHindi: 'दूर का चचेरा भाई', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'second_cousin', termHindi: 'दूर का चचेरा भाई', genderSpecific: true, confidence: 0.9 },
-    },
-    'father→brother→son→daughter': {
-      male: { term: 'second_cousin', termHindi: 'दूर की चचेरी बहन', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'second_cousin', termHindi: 'दूर की चचेरी बहन', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'second_cousin', termHindi: 'दूर की चचेरी बहन', genderSpecific: true, confidence: 0.9 },
-    },
-    'father→brother→daughter→son': {
-      male: { term: 'second_cousin', termHindi: 'दूर का चचेरा भाई', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'second_cousin', termHindi: 'दूर का चचेरा भाई', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'second_cousin', termHindi: 'दूर का चचेरा भाई', genderSpecific: true, confidence: 0.9 },
-    },
-    'father→brother→daughter→daughter': {
-      male: { term: 'second_cousin', termHindi: 'दूर की चचेरी बहन', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'second_cousin', termHindi: 'दूर की चचेरी बहन', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'second_cousin', termHindi: 'दूर की चचेरी बहन', genderSpecific: true, confidence: 0.9 },
-    },
-    'mother→brother→son→son': {
-      male: { term: 'second_cousin', termHindi: 'दूर का ममेरा भाई', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'second_cousin', termHindi: 'दूर का ममेरा भाई', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'second_cousin', termHindi: 'दूर का ममेरा भाई', genderSpecific: true, confidence: 0.9 },
-    },
-    'mother→brother→son→daughter': {
-      male: { term: 'second_cousin', termHindi: 'दूर की ममेरी बहन', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'second_cousin', termHindi: 'दूर की ममेरी बहन', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'second_cousin', termHindi: 'दूर की ममेरी बहन', genderSpecific: true, confidence: 0.9 },
-    },
-    'mother→brother→daughter→son': {
-      male: { term: 'second_cousin', termHindi: 'दूर का ममेरा भाई', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'second_cousin', termHindi: 'दूर का ममेरा भाई', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'second_cousin', termHindi: 'दूर का ममेरा भाई', genderSpecific: true, confidence: 0.9 },
-    },
-    'mother→brother→daughter→daughter': {
-      male: { term: 'second_cousin', termHindi: 'दूर की ममेरी बहन', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'second_cousin', termHindi: 'दूर की ममेरी बहन', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'second_cousin', termHindi: 'दूर की ममेरी बहन', genderSpecific: true, confidence: 0.9 },
-    },
-
-    // ── Third Cousin (grandparent's second cousin's child) ───────────
-    // father → father → brother → son → son
-    'father→father→brother→son→son': {
-      male: { term: 'third_cousin', termHindi: 'तीसरा चचेरा भाई', genderSpecific: true, confidence: 0.8 },
-      female: { term: 'third_cousin', termHindi: 'तीसरा चचेरा भाई', genderSpecific: true, confidence: 0.8 },
-      neutral: { term: 'third_cousin', termHindi: 'तीसरा चचेरा भाई', genderSpecific: true, confidence: 0.8 },
-    },
-    'father→father→brother→son→daughter': {
-      male: { term: 'third_cousin', termHindi: 'तीसरी चचेरी बहन', genderSpecific: true, confidence: 0.8 },
-      female: { term: 'third_cousin', termHindi: 'तीसरी चचेरी बहन', genderSpecific: true, confidence: 0.8 },
-      neutral: { term: 'third_cousin', termHindi: 'तीसरी चचेरी बहन', genderSpecific: true, confidence: 0.8 },
-    },
-    'father→father→brother→daughter→son': {
-      male: { term: 'third_cousin', termHindi: 'तीसरा चचेरा भाई', genderSpecific: true, confidence: 0.8 },
-      female: { term: 'third_cousin', termHindi: 'तीसरा चचेरा भाई', genderSpecific: true, confidence: 0.8 },
-      neutral: { term: 'third_cousin', termHindi: 'तीसरा चचेरा भाई', genderSpecific: true, confidence: 0.8 },
-    },
-    'father→father→brother→daughter→daughter': {
-      male: { term: 'third_cousin', termHindi: 'तीसरी चचेरी बहन', genderSpecific: true, confidence: 0.8 },
-      female: { term: 'third_cousin', termHindi: 'तीसरी चचेरी बहन', genderSpecific: true, confidence: 0.8 },
-      neutral: { term: 'third_cousin', termHindi: 'तीसरी चचेरी बहन', genderSpecific: true, confidence: 0.8 },
-    },
-
-    // ── Cousin once removed (uncle/aunt → grandchild) ────────────────
-    // NOTE: father→brother→son→son/daughter and mother→brother→son→son/daughter
-    // are already mapped as second_cousin above. The "cousin once removed"
-    // interpretation is handled by the progressive composition fallback.
-    'father→sister→son→son': {
-      male: { term: 'cousin_once_removed', termHindi: 'फुफेरे भाई का बेटा', genderSpecific: true, confidence: 0.85 },
-      female: { term: 'cousin_once_removed', termHindi: 'फुफेरे भाई का बेटा', genderSpecific: true, confidence: 0.85 },
-      neutral: { term: 'cousin_once_removed', termHindi: 'फुफेरे भाई का बेटा', genderSpecific: true, confidence: 0.85 },
-    },
-    'father→sister→son→daughter': {
-      male: { term: 'cousin_once_removed', termHindi: 'फुफेरे भाई की बेटी', genderSpecific: true, confidence: 0.85 },
-      female: { term: 'cousin_once_removed', termHindi: 'फुफेरे भाई की बेटी', genderSpecific: true, confidence: 0.85 },
-      neutral: { term: 'cousin_once_removed', termHindi: 'फुफेरे भाई की बेटी', genderSpecific: true, confidence: 0.85 },
-    },
-    'father→sister→daughter→son': {
-      male: { term: 'cousin_once_removed', termHindi: 'फुफेरी बहन का बेटा', genderSpecific: true, confidence: 0.85 },
-      female: { term: 'cousin_once_removed', termHindi: 'फुफेरी बहन का बेटा', genderSpecific: true, confidence: 0.85 },
-      neutral: { term: 'cousin_once_removed', termHindi: 'फुफेरी बहन का बेटा', genderSpecific: true, confidence: 0.85 },
-    },
-    'father→sister→daughter→daughter': {
-      male: { term: 'cousin_once_removed', termHindi: 'फुफेरी बहन की बेटी', genderSpecific: true, confidence: 0.85 },
-      female: { term: 'cousin_once_removed', termHindi: 'फुफेरी बहन की बेटी', genderSpecific: true, confidence: 0.85 },
-      neutral: { term: 'cousin_once_removed', termHindi: 'फुफेरी बहन की बेटी', genderSpecific: true, confidence: 0.85 },
-    },
-    'mother→sister→son→son': {
-      male: { term: 'cousin_once_removed', termHindi: 'मौसेरे भाई का बेटा', genderSpecific: true, confidence: 0.85 },
-      female: { term: 'cousin_once_removed', termHindi: 'मौसेरे भाई का बेटा', genderSpecific: true, confidence: 0.85 },
-      neutral: { term: 'cousin_once_removed', termHindi: 'मौसेरे भाई का बेटा', genderSpecific: true, confidence: 0.85 },
-    },
-    'mother→sister→son→daughter': {
-      male: { term: 'cousin_once_removed', termHindi: 'मौसेरे भाई की बेटी', genderSpecific: true, confidence: 0.85 },
-      female: { term: 'cousin_once_removed', termHindi: 'मौसेरे भाई की बेटी', genderSpecific: true, confidence: 0.85 },
-      neutral: { term: 'cousin_once_removed', termHindi: 'मौसेरे भाई की बेटी', genderSpecific: true, confidence: 0.85 },
-    },
-    'mother→sister→daughter→son': {
-      male: { term: 'cousin_once_removed', termHindi: 'मौसेरी बहन का बेटा', genderSpecific: true, confidence: 0.85 },
-      female: { term: 'cousin_once_removed', termHindi: 'मौसेरी बहन का बेटा', genderSpecific: true, confidence: 0.85 },
-      neutral: { term: 'cousin_once_removed', termHindi: 'मौसेरी बहन का बेटा', genderSpecific: true, confidence: 0.85 },
-    },
-    'mother→sister→daughter→daughter': {
-      male: { term: 'cousin_once_removed', termHindi: 'मौसेरी बहन की बेटी', genderSpecific: true, confidence: 0.85 },
-      female: { term: 'cousin_once_removed', termHindi: 'मौसेरी बहन की बेटी', genderSpecific: true, confidence: 0.85 },
-      neutral: { term: 'cousin_once_removed', termHindi: 'मौसेरी बहन की बेटी', genderSpecific: true, confidence: 0.85 },
-    },
-    // ── Step-relationships (parent → spouse → child) ─────────────────
-    'father→wife→son': {
-      male: { term: 'step_brother', termHindi: 'सौतेला भाई', genderSpecific: true, confidence: 0.8 },
-      female: { term: 'step_brother', termHindi: 'सौतेला भाई', genderSpecific: true, confidence: 0.8 },
-      neutral: { term: 'step_brother', termHindi: 'सौतेला भाई', genderSpecific: true, confidence: 0.8 },
-    },
-    'father→wife→daughter': {
-      male: { term: 'step_sister', termHindi: 'सौतेली बहन', genderSpecific: true, confidence: 0.8 },
-      female: { term: 'step_sister', termHindi: 'सौतेली बहन', genderSpecific: true, confidence: 0.8 },
-      neutral: { term: 'step_sister', termHindi: 'सौतेली बहन', genderSpecific: true, confidence: 0.8 },
-    },
-    'mother→husband→son': {
-      male: { term: 'step_brother', termHindi: 'सौतेला भाई', genderSpecific: true, confidence: 0.8 },
-      female: { term: 'step_brother', termHindi: 'सौतेला भाई', genderSpecific: true, confidence: 0.8 },
-      neutral: { term: 'step_brother', termHindi: 'सौतेला भाई', genderSpecific: true, confidence: 0.8 },
-    },
-    'mother→husband→daughter': {
-      male: { term: 'step_sister', termHindi: 'सौतेली बहन', genderSpecific: true, confidence: 0.8 },
-      female: { term: 'step_sister', termHindi: 'सौतेली बहन', genderSpecific: true, confidence: 0.8 },
-      neutral: { term: 'step_sister', termHindi: 'सौतेली बहन', genderSpecific: true, confidence: 0.8 },
-    },
-  };
-
-  // ── In-Law extended paths (4+ steps) ─────────────────────────────────
-  // These are less common but needed for completeness
-
-  private static readonly EXTENDED_INLAW_RULES: Record<
-    string,
-    { male: KinshipLookupEntry; female: KinshipLookupEntry; neutral: KinshipLookupEntry }
-  > = {
-    // Spouse's sibling's child
-    'wife→brother→son': {
-      male: { term: 'nephew_in_law', termHindi: 'साले का बेटा', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'nephew_in_law', termHindi: 'साले का बेटा', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'nephew_in_law', termHindi: 'साले का बेटा', genderSpecific: true, confidence: 0.9 },
-    },
-    'wife→brother→daughter': {
-      male: { term: 'niece_in_law', termHindi: 'साले की बेटी', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'niece_in_law', termHindi: 'साले की बेटी', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'niece_in_law', termHindi: 'साले की बेटी', genderSpecific: true, confidence: 0.9 },
-    },
-    'wife→sister→son': {
-      male: { term: 'nephew_in_law', termHindi: 'साली का बेटा', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'nephew_in_law', termHindi: 'साली का बेटा', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'nephew_in_law', termHindi: 'साली का बेटा', genderSpecific: true, confidence: 0.9 },
-    },
-    'wife→sister→daughter': {
-      male: { term: 'niece_in_law', termHindi: 'साली की बेटी', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'niece_in_law', termHindi: 'साली की बेटी', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'niece_in_law', termHindi: 'साली की बेटी', genderSpecific: true, confidence: 0.9 },
-    },
-    'husband→brother→son': {
-      male: { term: 'nephew_in_law', termHindi: 'देवर का बेटा', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'nephew_in_law', termHindi: 'देवर का बेटा', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'nephew_in_law', termHindi: 'देवर का बेटा', genderSpecific: true, confidence: 0.9 },
-    },
-    'husband→brother→daughter': {
-      male: { term: 'niece_in_law', termHindi: 'देवर की बेटी', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'niece_in_law', termHindi: 'देवर की बेटी', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'niece_in_law', termHindi: 'देवर की बेटी', genderSpecific: true, confidence: 0.9 },
-    },
-    'husband→sister→son': {
-      male: { term: 'nephew_in_law', termHindi: 'ननद का बेटा', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'nephew_in_law', termHindi: 'ननद का बेटा', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'nephew_in_law', termHindi: 'ननद का बेटा', genderSpecific: true, confidence: 0.9 },
-    },
-    'husband→sister→daughter': {
-      male: { term: 'niece_in_law', termHindi: 'ननद की बेटी', genderSpecific: true, confidence: 0.9 },
-      female: { term: 'niece_in_law', termHindi: 'ननद की बेटी', genderSpecific: true, confidence: 0.9 },
-      neutral: { term: 'niece_in_law', termHindi: 'ननद की बेटी', genderSpecific: true, confidence: 0.9 },
-    },
-  };
-
-  // ── Cache for built graphs (in-memory, per family) ────────────────────
-  // Keyed by familyId, stores adjacency list + person map.
-  // TTL-based invalidation would be ideal in production; here we use
-  // a simple version counter that increments on any write to the family.
-
-  private graphCache = new Map<
-    string,
-    {
-      adjacency: Map<string, AdjacencyEntry[]>;
-      personMap: Map<string, PersonRecord>;
-      builtAt: number;
-      ttlMs: number;
-    }
-  >();
-
-  private static readonly DEFAULT_CACHE_TTL_MS = 60_000; // 1 minute
-  private readonly MAX_CACHE_ENTRIES = 50; // LRU eviction limit
-
-  constructor(private prisma: PrismaService) {}
-
-  // ══════════════════════════════════════════════════════════════════════
-  // PUBLIC API
-  // ══════════════════════════════════════════════════════════════════════
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Build adjacency list from database relationships.
-   *
-   * Returns a Map where each key is a personId and the value is an
-   * array of adjacency entries (neighbor + relationship type + direction).
-   *
-   * The graph is bidirectional — for every stored relationship A→B,
-   * we also create an inverse edge B→A using the INVERSE_MAP.
-   *
-   * Caching: Results are cached in-memory for DEFAULT_CACHE_TTL_MS.
-   *          Call with `{ forceRefresh: true }` to bypass cache.
+   * Resolves the kinship between two persons using the deterministic engine.
+   * Returns null if:
+   * - fromPersonId === toPersonId (self)
+   * - No path exists within max depth 8
    */
-  async buildGraph(
+  async resolveKinship(
     familyId: string,
-    options: { forceRefresh?: boolean; ttlMs?: number } = {},
-  ): Promise<Map<string, AdjacencyEntry[]>> {
-    const cacheKey = familyId;
-    const cached = this.graphCache.get(cacheKey);
-    const ttlMs = options.ttlMs ?? GraphEngineService.DEFAULT_CACHE_TTL_MS;
+    fromPersonId: string,
+    toPersonId: string,
+  ): Promise<KinshipResult | null> {
+    if (fromPersonId === toPersonId) return null;
 
-    if (!options.forceRefresh && cached && Date.now() - cached.builtAt < cached.ttlMs) {
-      this.logger.debug(`Graph cache hit for family ${familyId}`);
-      return cached.adjacency;
-    }
+    const { persons, relationships } = await this.loadFamilyGraph(familyId);
+    const adjacency = this.buildAdjacency(relationships);
 
-    this.logger.debug(`Building graph for family ${familyId}`);
+    const bfsResult = this.findShortestPath(fromPersonId, toPersonId, adjacency);
+    if (!bfsResult) return null;
 
-    // Load all active, non-deleted persons
-    const persons = await this.prisma.person.findMany({
-      where: { familyId, deletedAt: null },
-      select: { id: true, name: true, gender: true },
-    });
+    const canonicalPath = this.canonicalizePath(bfsResult.path, bfsResult.visitedNodes);
+    if (canonicalPath.length === 0) return null;
 
-    const personMap = new Map<string, PersonRecord>(
-      persons.map((p) => [p.id, { id: p.id, name: p.name, gender: p.gender }]),
-    );
-
-    const activePersonIds = new Set(persons.map((p) => p.id));
-
-    // Load all active relationships
-    const relationships = await this.prisma.relationship.findMany({
-      where: { familyId, isActive: true },
-      select: {
-        fromPersonId: true,
-        toPersonId: true,
-        relationshipKey: true,
-      },
-    });
-
-    // Build adjacency list with bidirectional edges
-    const adjacency = new Map<string, AdjacencyEntry[]>();
-
-    const addEdge = (
-      fromId: string,
-      toId: string,
-      relKey: string,
-      direction: 'up' | 'down' | 'sideways',
-    ) => {
-      if (!activePersonIds.has(fromId) || !activePersonIds.has(toId)) return;
-      if (fromId === toId) return; // Skip self-loops
-
-      if (!adjacency.has(fromId)) {
-        adjacency.set(fromId, []);
-      }
-
-      // Deduplication: since relationships are stored bidirectionally in the DB
-      // AND we compute inverse edges on top, skip if the exact same edge already exists
-      const existingEdges = adjacency.get(fromId)!;
-      const isDuplicate = existingEdges.some(
-        (e) => e.neighborId === toId && e.relationshipKey === relKey,
-      );
-      if (isDuplicate) return;
-
-      existingEdges.push({ neighborId: toId, relationshipKey: relKey, direction });
-    };
-
-    for (const rel of relationships) {
-      const fromId = rel.fromPersonId;
-      const toId = rel.toPersonId;
-      const key = rel.relationshipKey;
-
-      if (!activePersonIds.has(fromId) || !activePersonIds.has(toId)) continue;
-      if (fromId === toId) continue;
-
-      // Forward edge: fromPerson --[key]--> toPerson
-      const forwardDir = GraphEngineService.DIRECTION_MAP[key] ?? 'sideways';
-      addEdge(fromId, toId, key, forwardDir);
-
-      // Inverse edge: toPerson --[inverseKey]--> fromPerson
-      // Data model: A→B 'father' means "A's father is B" (A is child, B is parent).
-      // Inverse: "B's son/daughter is A" — depends on A's gender (fromId),
-      // since A is the child whose son/daughter label is being assigned.
-      const inverseKey = this.computeInverseKey(key, personMap.get(fromId)?.gender ?? null);
-      const inverseDir = this.invertDirection(forwardDir);
-      addEdge(toId, fromId, inverseKey, inverseDir);
-    }
-
-    // LRU eviction: prevent memory leak by evicting oldest entries when cache exceeds limit
-    if (this.graphCache.size > this.MAX_CACHE_ENTRIES) {
-      const oldest = [...this.graphCache.entries()]
-        .sort((a, b) => a[1].builtAt - b[1].builtAt)[0];
-      if (oldest) {
-        this.graphCache.delete(oldest[0]);
-        this.logger.debug(`Evicted oldest graph cache entry for family ${oldest[0]}`);
-      }
-    }
-
-    // Cache the result
-    this.graphCache.set(cacheKey, {
+    const signature = this.buildSignature(
+      canonicalPath,
+      bfsResult.visitedNodes,
+      fromPersonId,
+      toPersonId,
+      persons,
       adjacency,
-      personMap,
-      builtAt: Date.now(),
-      ttlMs,
-    });
-
-    this.logger.debug(
-      `Built graph for family ${familyId}: ${personMap.size} persons, ${adjacency.size} nodes`,
     );
 
-    return adjacency;
+    return this.buildResult(signature, toPersonId, persons);
   }
 
   /**
-   * BFS shortest path between two persons.
-   *
-   * Uses breadth-first search to find the shortest relationship path
-   * from `fromPersonId` to `toPersonId` in the family graph.
-   *
-   * Returns a PathResult with:
-   *  - found: whether a path exists
-   *  - path: ordered list of RelationshipStep objects
-   *  - distance: number of edges
-   *  - kinshipTerm: resolved English kinship term (if path found)
-   *  - kinshipTermHindi: resolved Hindi kinship term (if path found)
+   * Finds the shortest path between two persons.
+   * Returns the path + visited nodes, or null if no path found.
    */
   async findPath(
     familyId: string,
@@ -874,689 +174,768 @@ export class GraphEngineService {
     toPersonId: string,
   ): Promise<PathResult> {
     if (fromPersonId === toPersonId) {
-      const person = await this.getPersonRecord(familyId, fromPersonId);
-      return {
-        found: true,
-        path: person
-          ? [
-              {
-                personId: person.id,
-                personName: person.name,
-                relationshipType: 'self',
-                direction: 'sideways',
-              },
-            ]
-          : [],
-        distance: 0,
-        kinshipTerm: 'self',
-        kinshipTermHindi: 'स्वयं',
-      };
+      return { found: false, path: [], distance: 0 };
     }
 
-    const adjacency = await this.buildGraph(familyId);
-    const cached = this.graphCache.get(familyId);
-    const personMap = cached?.personMap ?? new Map<string, PersonRecord>();
+    const { persons, relationships } = await this.loadFamilyGraph(familyId);
+    const adjacency = this.buildAdjacency(relationships);
 
-    // Validate that both persons exist
-    if (!personMap.has(fromPersonId)) {
-      throw new NotFoundException(`Person ${fromPersonId} not found in family ${familyId}`);
-    }
-    if (!personMap.has(toPersonId)) {
-      throw new NotFoundException(`Person ${toPersonId} not found in family ${familyId}`);
+    const bfsResult = this.findShortestPath(fromPersonId, toPersonId, adjacency);
+    if (!bfsResult) {
+      return { found: false, path: [], distance: 0 };
     }
 
-    // BFS with path tracking.
-    // BUG-018 FIX: cap traversal depth at 15 hops. For a healthy family graph,
-    // any two living relatives are within 8-10 hops of each other; 15 gives
-    // generous headroom for blended/step families while preventing a corrupt
-    // cyclic graph from causing 30s+ API timeouts.
-    const MAX_PATH_DEPTH = 15;
-    const visited = new Set<string>();
-    const queue: Array<{
-      personId: string;
-      steps: RelationshipStep[];
-    }> = [
-      {
-        personId: fromPersonId,
-        steps: [],
-      },
-    ];
-    visited.add(fromPersonId);
-
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-
-      // Don't expand beyond MAX_PATH_DEPTH — nodes already enqueued at this
-      // depth will still be checked for `=== toPersonId` below, but we won't
-      // enqueue their neighbors.
-      const atDepthLimit = current.steps.length >= MAX_PATH_DEPTH;
-
-      const neighbors = adjacency.get(current.personId) ?? [];
-      for (const neighbor of neighbors) {
-        if (visited.has(neighbor.neighborId)) continue;
-        if (atDepthLimit) continue; // BUG-018 FIX: depth cap
-
-        visited.add(neighbor.neighborId);
-
-        const personRecord = personMap.get(neighbor.neighborId);
-        const step: RelationshipStep = {
-          personId: neighbor.neighborId,
-          personName: personRecord?.name ?? 'Unknown',
-          relationshipType: neighbor.relationshipKey,
-          direction: neighbor.direction,
-        };
-
-        const newSteps = [...current.steps, step];
-
-        if (neighbor.neighborId === toPersonId) {
-          // Found the target — resolve kinship term
-          const targetGender = personMap.get(toPersonId)?.gender ?? null;
-          const kinshipResult = this.resolveKinship(newSteps, targetGender);
-
-          return {
-            found: true,
-            path: newSteps,
-            distance: newSteps.length,
-            kinshipTerm: kinshipResult.term,
-            kinshipTermHindi: kinshipResult.termHindi,
-          };
-        }
-
-        queue.push({ personId: neighbor.neighborId, steps: newSteps });
-      }
-    }
-
-    // No path found
-    this.logger.debug(
-      `No path found between ${fromPersonId} and ${toPersonId} in family ${familyId}`,
+    const canonicalPath = this.canonicalizePath(bfsResult.path, bfsResult.visitedNodes);
+    const signature = this.buildSignature(
+      canonicalPath,
+      bfsResult.visitedNodes,
+      fromPersonId,
+      toPersonId,
+      persons,
+      adjacency,
     );
 
+    const pathSteps: PathStep[] = canonicalPath.map((primitive, i) => {
+      const nodeId = bfsResult.visitedNodes[i + 1] || '';
+      const person = persons.find((p) => p.id === nodeId);
+      return {
+        personId: nodeId,
+        personName: person?.name || 'Unknown',
+        primitive,
+      };
+    });
+
+    const result = this.buildResult(signature, toPersonId, persons);
+
     return {
-      found: false,
-      path: [],
-      distance: -1,
+      found: true,
+      path: pathSteps,
+      distance: canonicalPath.length,
+      signature,
+      result,
     };
   }
 
   /**
-   * Convert a path of RelationshipStep objects to a kinship term.
-   *
-   * This is the core algorithm:
-   * 1. Extract the sequence of relationship types from the path
-   * 2. Try to match against the KINSHIP_RULES lookup table (exact match)
-   * 3. If no exact match, try progressive prefix matching (longest prefix first)
-   * 4. If still no match, compose a descriptive term from the path
-   *
-   * @param path - Array of RelationshipStep objects (the traversal path)
-   * @param targetGender - Gender of the target person (for gender-specific terms)
-   */
-  resolveKinship(path: RelationshipStep[], targetGender?: string | null): KinshipResult {
-    if (path.length === 0) {
-      return {
-        term: 'self',
-        termHindi: 'स्वयं',
-        confidence: 1.0,
-        path,
-        genderSpecific: false,
-      };
-    }
-
-    // Step 1: Build the path key (e.g., "father→brother→son")
-    const pathKey = path.map((step) => step.relationshipType).join('→');
-
-    // Step 2: Try exact match in KINSHIP_RULES
-    const exactMatch =
-      GraphEngineService.KINSHIP_RULES[pathKey] ??
-      GraphEngineService.EXTENDED_INLAW_RULES[pathKey];
-
-    if (exactMatch) {
-      const genderKey = this.normalizeGenderKey(targetGender ?? null);
-      const entry = exactMatch[genderKey];
-      return {
-        term: entry.term,
-        termHindi: entry.termHindi,
-        confidence: entry.confidence,
-        path,
-        genderSpecific: entry.genderSpecific,
-      };
-    }
-
-    // Step 3: Try progressive prefix matching (longest first)
-    // This handles cases where the exact path isn't in the lookup but
-    // a prefix of it matches a known composition.
-    const prefixResult = this.tryProgressiveComposition(path, targetGender ?? null);
-    if (prefixResult) {
-      return prefixResult;
-    }
-
-    // Step 4: No match found — compose a descriptive term
-    return this.composeDescriptiveTerm(path, targetGender ?? null);
-  }
-
-  /**
-   * Get all relationships for a person — both stored and computed.
-   *
-   * This method traverses the entire family graph starting from
-   * `personId` and computes the kinship term for every reachable person.
-   *
-   * @param familyId - The family to search within
-   * @param personId - The person whose relationships to compute
-   * @param maxDepth - Maximum traversal depth (default: 6)
+   * Gets ALL computed relationships for a person (every reachable person
+   * within max depth 8, with their resolved kinship term).
    */
   async getAllRelationships(
     familyId: string,
     personId: string,
-    maxDepth: number = 6,
   ): Promise<ComputedRelationship[]> {
-    const adjacency = await this.buildGraph(familyId);
-    const cached = this.graphCache.get(familyId);
-    const personMap = cached?.personMap ?? new Map<string, PersonRecord>();
-
-    if (!personMap.has(personId)) {
-      throw new NotFoundException(`Person ${personId} not found in family ${familyId}`);
-    }
+    const { persons, relationships } = await this.loadFamilyGraph(familyId);
+    const adjacency = this.buildAdjacency(relationships);
 
     const results: ComputedRelationship[] = [];
 
-    // BFS to find all reachable persons within maxDepth.
-    //
-    // Mark-when-enqueue pattern: a node is added to `visited` as soon as it is
-    // placed on the queue. This guarantees each node is enqueued at most once,
-    // even when multiple edges connect to the same neighbor.
-    //
-    // Do NOT re-check `visited` at pop time — every dequeued node is unprocessed
-    // by construction (it was added to `visited` only when first enqueued, and
-    // we never re-enqueue visited nodes). Re-checking at pop time would silently
-    // drop all seeded level-1 neighbors because they were already marked during
-    // the seed loop, causing every reachable node to be skipped.
-    const visited = new Set<string>([personId]);
-    const queue: Array<{
-      currentId: string;
-      steps: RelationshipStep[];
-      depth: number;
-    }> = [];
+    for (const person of persons) {
+      if (person.id === personId) continue;
 
-    // Seed queue with immediate neighbors (depth 1)
-    const neighbors = adjacency.get(personId) ?? [];
-    for (const neighbor of neighbors) {
-      if (visited.has(neighbor.neighborId)) continue;
-      visited.add(neighbor.neighborId);
+      const bfsResult = this.findShortestPath(personId, person.id, adjacency);
+      if (!bfsResult) continue;
 
-      const personRecord = personMap.get(neighbor.neighborId);
-      const step: RelationshipStep = {
-        personId: neighbor.neighborId,
-        personName: personRecord?.name ?? 'Unknown',
-        relationshipType: neighbor.relationshipKey,
-        direction: neighbor.direction,
-      };
+      const canonicalPath = this.canonicalizePath(bfsResult.path, bfsResult.visitedNodes);
+      if (canonicalPath.length === 0) continue;
 
-      queue.push({ currentId: neighbor.neighborId, steps: [step], depth: 1 });
-    }
+      const signature = this.buildSignature(
+        canonicalPath,
+        bfsResult.visitedNodes,
+        personId,
+        person.id,
+        persons,
+        adjacency,
+      );
 
-    while (queue.length > 0) {
-      const current = queue.shift()!;
+      const result = this.buildResult(signature, person.id, persons);
 
-      // Resolve kinship term for this path
-      const targetGender = personMap.get(current.currentId)?.gender ?? null;
-      const kinshipResult = this.resolveKinship(current.steps, targetGender);
-
-      const personRecord = personMap.get(current.currentId);
       results.push({
-        personId: current.currentId,
-        personName: personRecord?.name ?? 'Unknown',
-        relationshipKey: current.steps.map((s) => s.relationshipType).join('→'),
-        computedTerm: kinshipResult.term,
-        computedTermHindi: kinshipResult.termHindi,
-        distance: current.depth,
-        path: current.steps,
+        personId: person.id,
+        personName: person.name,
+        relationshipKey: result.fundamentalEdge || signature.pathPattern,
+        computedTerm: result.term,
+        distance: canonicalPath.length,
+        path: canonicalPath.map((primitive, i) => ({
+          personId: bfsResult.visitedNodes[i + 1] || '',
+          personName: persons.find((p) => p.id === bfsResult.visitedNodes[i + 1])?.name || 'Unknown',
+          primitive,
+        })),
+        signature,
       });
-
-      // Continue BFS if within depth limit
-      if (current.depth < maxDepth) {
-        const nextNeighbors = adjacency.get(current.currentId) ?? [];
-        for (const neighbor of nextNeighbors) {
-          if (visited.has(neighbor.neighborId)) continue;
-          visited.add(neighbor.neighborId);
-
-          const nextRecord = personMap.get(neighbor.neighborId);
-          const nextStep: RelationshipStep = {
-            personId: neighbor.neighborId,
-            personName: nextRecord?.name ?? 'Unknown',
-            relationshipType: neighbor.relationshipKey,
-            direction: neighbor.direction,
-          };
-
-          queue.push({
-            currentId: neighbor.neighborId,
-            steps: [...current.steps, nextStep],
-            depth: current.depth + 1,
-          });
-        }
-      }
     }
 
     return results;
   }
 
   /**
-   * Get ancestors (going up the tree through parent links).
-   *
-   * Traverses the graph upward via father/mother edges,
-   * collecting all ancestors up to `maxDepth` generations.
+   * Gets all ancestors of a person (traversing UP_PARENT edges).
    */
-  async getAncestors(
-    familyId: string,
-    personId: string,
-    maxDepth: number = 5,
-  ): Promise<PersonNode[]> {
-    const adjacency = await this.buildGraph(familyId);
-    const cached = this.graphCache.get(familyId);
-    const personMap = cached?.personMap ?? new Map<string, PersonRecord>();
+  async getAncestors(familyId: string, personId: string): Promise<PersonRecord[]> {
+    const { persons, relationships } = await this.loadFamilyGraph(familyId);
+    const adjacency = this.buildAdjacency(relationships);
 
-    if (!personMap.has(personId)) {
-      throw new NotFoundException(`Person ${personId} not found in family ${familyId}`);
-    }
-
-    const ancestors: PersonNode[] = [];
+    const ancestors: PersonRecord[] = [];
     const visited = new Set<string>([personId]);
+    const queue = [personId];
 
-    // DFS upward through parent edges
-    const stack: Array<{ id: string; depth: number; relationship: string }> = [];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const neighbors = adjacency[current] || [];
 
-    // Seed with parent edges
-    const neighbors = adjacency.get(personId) ?? [];
-    for (const neighbor of neighbors) {
-      if (neighbor.direction === 'up' && !visited.has(neighbor.neighborId)) {
-        stack.push({
-          id: neighbor.neighborId,
-          depth: 1,
-          relationship: neighbor.relationshipKey,
-        });
+      for (const n of neighbors) {
+        if (n.primitive !== 'UP_PARENT' && n.primitive !== 'UP_ADOPTIVE_PARENT' && n.primitive !== 'UP_STEP_PARENT') continue;
+        if (visited.has(n.neighborId)) continue;
+        visited.add(n.neighborId);
+
+        const person = persons.find((p) => p.id === n.neighborId);
+        if (person) ancestors.push(person);
+        queue.push(n.neighborId);
       }
     }
 
-    while (stack.length > 0) {
-      const current = stack.pop()!;
+    return ancestors;
+  }
 
-      if (visited.has(current.id) || current.depth > maxDepth) continue;
-      visited.add(current.id);
+  /**
+   * Gets all descendants of a person (traversing DOWN_CHILD edges).
+   */
+  async getDescendants(familyId: string, personId: string): Promise<PersonRecord[]> {
+    const { persons, relationships } = await this.loadFamilyGraph(familyId);
+    const adjacency = this.buildAdjacency(relationships);
 
-      const personRecord = personMap.get(current.id);
-      if (!personRecord) continue;
+    const descendants: PersonRecord[] = [];
+    const visited = new Set<string>([personId]);
+    const queue = [personId];
 
-      ancestors.push({
-        personId: current.id,
-        name: personRecord.name,
-        gender: personRecord.gender ?? undefined,
-        depth: current.depth,
-        relationship: current.relationship,
-      });
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const neighbors = adjacency[current] || [];
 
-      // Continue upward
-      const parentEdges = (adjacency.get(current.id) ?? []).filter(
-        (e) => e.direction === 'up',
-      );
-      for (const edge of parentEdges) {
-        if (!visited.has(edge.neighborId)) {
-          stack.push({
-            id: edge.neighborId,
-            depth: current.depth + 1,
-            relationship: edge.relationshipKey,
-          });
+      for (const n of neighbors) {
+        if (n.primitive !== 'DOWN_CHILD') continue;
+        if (visited.has(n.neighborId)) continue;
+        visited.add(n.neighborId);
+
+        const person = persons.find((p) => p.id === n.neighborId);
+        if (person) descendants.push(person);
+        queue.push(n.neighborId);
+      }
+    }
+
+    return descendants;
+  }
+
+  /**
+   * v4.0: Suggests a spouse relationship if two persons share at least
+   * one child and are NOT already spouses.
+   * Returns a KinshipResult with isSuggested=true, or null.
+   */
+  async suggestSpouseIfSharedChildren(
+    familyId: string,
+    personAId: string,
+    personBId: string,
+  ): Promise<KinshipResult | null> {
+    if (personAId === personBId) return null;
+
+    const { persons, relationships } = await this.loadFamilyGraph(familyId);
+
+    // Check if already spouses
+    for (const rel of relationships) {
+      const type = rel.relationshipKey.toLowerCase();
+      if (type === 'spouse') {
+        if (
+          (rel.fromId === personAId && rel.toId === personBId) ||
+          (rel.fromId === personBId && rel.toId === personAId)
+        ) {
+          return null;
         }
       }
     }
 
-    // Sort by depth then name
-    return ancestors.sort((a, b) => a.depth - b.depth || a.name.localeCompare(b.name));
-  }
-
-  /**
-   * Get descendants (going down the tree through child links).
-   *
-   * Traverses the graph downward via son/daughter edges,
-   * collecting all descendants up to `maxDepth` generations.
-   */
-  async getDescendants(
-    familyId: string,
-    personId: string,
-    maxDepth: number = 5,
-  ): Promise<PersonNode[]> {
-    const adjacency = await this.buildGraph(familyId);
-    const cached = this.graphCache.get(familyId);
-    const personMap = cached?.personMap ?? new Map<string, PersonRecord>();
-
-    if (!personMap.has(personId)) {
-      throw new NotFoundException(`Person ${personId} not found in family ${familyId}`);
-    }
-
-    const descendants: PersonNode[] = [];
-    const visited = new Set<string>([personId]);
-
-    // BFS downward through child edges
-    const queue: Array<{ id: string; depth: number; relationship: string }> = [];
-
-    // Seed with child edges
-    const neighbors = adjacency.get(personId) ?? [];
-    for (const neighbor of neighbors) {
-      if (neighbor.direction === 'down' && !visited.has(neighbor.neighborId)) {
-        queue.push({
-          id: neighbor.neighborId,
-          depth: 1,
-          relationship: neighbor.relationshipKey,
-        });
+    // Find children of personA
+    const childrenA = new Set<string>();
+    for (const rel of relationships) {
+      const type = rel.relationshipKey.toLowerCase();
+      if (type === 'parent') {
+        if (rel.toId === personAId) childrenA.add(rel.fromId);
+        if (rel.fromId === personAId) childrenA.add(rel.toId);
       }
     }
+
+    // Find children of personB
+    const childrenB = new Set<string>();
+    for (const rel of relationships) {
+      const type = rel.relationshipKey.toLowerCase();
+      if (type === 'parent') {
+        if (rel.toId === personBId) childrenB.add(rel.fromId);
+        if (rel.fromId === personBId) childrenB.add(rel.toId);
+      }
+    }
+
+    // Check for shared children
+    const shared = [...childrenA].filter((c) => childrenB.has(c));
+    if (shared.length === 0) return null;
+
+    // Suggest spouse!
+    const personB = persons.find((p) => p.id === personBId);
+    const gender = personB?.gender?.toLowerCase() === 'female' ? 'female' : 'male';
+
+    const signature: KinshipSignature = {
+      generationDelta: 0,
+      pathPattern: 'SPOUSE',
+      side: 'none',
+      consanguinity: 'affine',
+      genderAnchor: gender,
+      seniority: 'none',
+      removal: 0,
+      doubleKinship: false,
+      resolutionStatus: 'inferred',
+      intermediateSeniority: 'none',
+      spouseSide: 'none',
+      intermediateGender: 'none',
+    };
+
+    return {
+      term: gender === 'female' ? 'Wife' : 'Husband',
+      fundamentalEdge: 'spouse',
+      signature,
+      isDerived: false,
+      isSuggested: true,
+      path: [],
+    };
+  }
+
+  // ── Private: Graph Loading ──────────────────────────────────────────
+
+  private async loadFamilyGraph(familyId: string): Promise<{
+    persons: PersonRecord[];
+    relationships: { id: string; fromId: string; toId: string; relationshipKey: string }[];
+  }> {
+    const [personRows, relationshipRows] = await Promise.all([
+      this.prisma.person.findMany({
+        where: { familyId, deletedAt: null },
+        select: { id: true, name: true, gender: true },
+      }),
+      this.prisma.relationship.findMany({
+        where: { familyId, isActive: true },
+        select: { id: true, fromPersonId: true, toPersonId: true, relationshipKey: true },
+      }),
+    ]);
+
+    return {
+      persons: personRows.map((p) => ({ id: p.id, name: p.name, gender: p.gender })),
+      relationships: relationshipRows.map((r) => ({
+        id: r.id,
+        fromId: r.fromPersonId,
+        toId: r.toPersonId,
+        relationshipKey: r.relationshipKey,
+      })),
+    };
+  }
+
+  // ── Private: Adjacency List ─────────────────────────────────────────
+
+  private buildAdjacency(
+    relationships: { fromId: string; toId: string; relationshipKey: string }[],
+  ): Record<string, AdjacencyEntry[]> {
+    const adjacency: Record<string, AdjacencyEntry[]> = {};
+
+    for (const rel of relationships) {
+      const type = rel.relationshipKey.toLowerCase();
+
+      let forwardPrim: TraversePrimitive | null = null;
+      let reversePrim: TraversePrimitive | null = null;
+
+      switch (type) {
+        case 'parent':
+        case 'father':
+        case 'mother':
+          forwardPrim = 'UP_PARENT';
+          reversePrim = 'DOWN_CHILD';
+          break;
+        case 'spouse':
+        case 'husband':
+        case 'wife':
+          forwardPrim = 'SPOUSE';
+          reversePrim = 'SPOUSE';
+          break;
+        case 'adoptive_parent':
+        case 'adoptive_father':
+        case 'adoptive_mother':
+          forwardPrim = 'UP_ADOPTIVE_PARENT';
+          reversePrim = 'DOWN_CHILD';
+          break;
+        case 'step_parent':
+        case 'step_father':
+        case 'step_mother':
+        case 'stepfather':
+        case 'stepmother':
+          forwardPrim = 'UP_STEP_PARENT';
+          reversePrim = 'DOWN_CHILD';
+          break;
+        case 'child':
+        case 'son':
+        case 'daughter':
+          forwardPrim = 'DOWN_CHILD';
+          reversePrim = 'UP_PARENT';
+          break;
+        default:
+          // Skip non-fundamental types
+          continue;
+      }
+
+      if (!adjacency[rel.fromId]) adjacency[rel.fromId] = [];
+      adjacency[rel.fromId].push({ neighborId: rel.toId, primitive: forwardPrim });
+
+      if (!adjacency[rel.toId]) adjacency[rel.toId] = [];
+      adjacency[rel.toId].push({ neighborId: rel.fromId, primitive: reversePrim });
+    }
+
+    return adjacency;
+  }
+
+  // ── Private: BFS ────────────────────────────────────────────────────
+
+  private findShortestPath(
+    fromId: string,
+    toId: string,
+    adjacency: Record<string, AdjacencyEntry[]>,
+  ): BfsResult | null {
+    const queue: BfsState[] = [{ nodeId: fromId, path: [], visited: [fromId] }];
+    const visited = new Set<string>([fromId]);
 
     while (queue.length > 0) {
       const current = queue.shift()!;
 
-      if (visited.has(current.id) || current.depth > maxDepth) continue;
-      visited.add(current.id);
-
-      const personRecord = personMap.get(current.id);
-      if (!personRecord) continue;
-
-      descendants.push({
-        personId: current.id,
-        name: personRecord.name,
-        gender: personRecord.gender ?? undefined,
-        depth: current.depth,
-        relationship: current.relationship,
-      });
-
-      // Continue downward
-      const childEdges = (adjacency.get(current.id) ?? []).filter(
-        (e) => e.direction === 'down',
-      );
-      for (const edge of childEdges) {
-        if (!visited.has(edge.neighborId)) {
-          queue.push({
-            id: edge.neighborId,
-            depth: current.depth + 1,
-            relationship: edge.relationshipKey,
-          });
-        }
-      }
-    }
-
-    // Sort by depth then name
-    return descendants.sort((a, b) => a.depth - b.depth || a.name.localeCompare(b.name));
-  }
-
-  /**
-   * Invalidate the graph cache for a specific family.
-   * Call this whenever relationships are added/updated/deleted.
-   */
-  invalidateCache(familyId: string): void {
-    this.graphCache.delete(familyId);
-    this.logger.debug(`Graph cache invalidated for family ${familyId}`);
-  }
-
-  /**
-   * Invalidate all graph caches.
-   */
-  invalidateAllCaches(): void {
-    this.graphCache.clear();
-    this.logger.debug('All graph caches invalidated');
-  }
-
-  // ══════════════════════════════════════════════════════════════════════
-  // PRIVATE HELPERS
-  // ══════════════════════════════════════════════════════════════════════
-
-  /**
-   * Compute the inverse relationship key for bidirectional traversal.
-   *
-   * For gender-dependent inverses (e.g., father → son/daughter),
-   * we use the target person's gender to determine the correct term.
-   * If gender is unknown, we use a generic term.
-   */
-  private computeInverseKey(
-    forwardKey: string,
-    fromPersonGender: string | null,
-  ): string {
-    switch (forwardKey) {
-      case 'father':
-        return fromPersonGender === 'female' ? 'daughter' : 'son';
-      case 'mother':
-        return fromPersonGender === 'female' ? 'daughter' : 'son';
-      case 'son':
-        return fromPersonGender === 'female' ? 'mother' : 'father';
-      case 'daughter':
-        return fromPersonGender === 'female' ? 'mother' : 'father';
-      case 'brother':
-        return fromPersonGender === 'female' ? 'sister' : 'brother';
-      case 'sister':
-        return fromPersonGender === 'female' ? 'sister' : 'brother';
-      case 'husband':
-        return 'wife';
-      case 'wife':
-        return 'husband';
-      default:
-        // For non-core relationship keys stored in the database
-        // (e.g., grandfather, uncle, cousin), apply similar logic
-        return this.computeExtendedInverseKey(forwardKey, fromPersonGender);
-    }
-  }
-
-  /**
-   * Compute inverse keys for extended (non-core) relationship types.
-   * These may already exist in the database from the RelationshipsService.
-   */
-  private computeExtendedInverseKey(
-    forwardKey: string,
-    fromPersonGender: string | null,
-  ): string {
-    // Handle common extended keys that might be in the database
-    const EXTENDED_INVERSE: Record<string, string> = {
-      grandfather: fromPersonGender === 'female' ? 'granddaughter' : 'grandson',
-      grandmother: fromPersonGender === 'female' ? 'granddaughter' : 'grandson',
-      grandson: 'grandfather',
-      granddaughter: 'grandmother',
-      uncle: fromPersonGender === 'female' ? 'niece' : 'nephew',
-      aunt: fromPersonGender === 'female' ? 'niece' : 'nephew',
-      nephew: fromPersonGender === 'female' ? 'aunt' : 'uncle',
-      niece: fromPersonGender === 'female' ? 'aunt' : 'uncle',
-      cousin: 'cousin',
-      father_in_law: fromPersonGender === 'female' ? 'daughter_in_law' : 'son_in_law',
-      mother_in_law: fromPersonGender === 'female' ? 'daughter_in_law' : 'son_in_law',
-      son_in_law: fromPersonGender === 'female' ? 'mother_in_law' : 'father_in_law',
-      daughter_in_law: fromPersonGender === 'female' ? 'mother_in_law' : 'father_in_law',
-      brother_in_law: 'brother_in_law',
-      sister_in_law: 'sister_in_law',
-      great_grandfather: fromPersonGender === 'female' ? 'great_granddaughter' : 'great_grandson',
-      great_grandmother: fromPersonGender === 'female' ? 'great_granddaughter' : 'great_grandson',
-      paternal_grandfather: fromPersonGender === 'female' ? 'granddaughter' : 'grandson',
-      paternal_grandmother: fromPersonGender === 'female' ? 'granddaughter' : 'grandson',
-      maternal_grandfather: fromPersonGender === 'female' ? 'granddaughter' : 'grandson',
-      maternal_grandmother: fromPersonGender === 'female' ? 'granddaughter' : 'grandson',
-      stepfather: fromPersonGender === 'female' ? 'stepdaughter' : 'stepson',
-      stepmother: fromPersonGender === 'female' ? 'stepdaughter' : 'stepson',
-      elder_brother: 'younger_brother',
-      younger_brother: 'elder_brother',
-      elder_sister: 'younger_sister',
-      younger_sister: 'elder_sister',
-      // Keys used by the RelationshipsService
-      fathers_brother: fromPersonGender === 'female' ? 'niece' : 'nephew',
-      fathers_sister: fromPersonGender === 'female' ? 'niece' : 'nephew',
-      mothers_brother: fromPersonGender === 'female' ? 'niece' : 'nephew',
-      mothers_sister: fromPersonGender === 'female' ? 'niece' : 'nephew',
-      husbands_father: 'sons_wife',
-      husbands_mother: 'sons_wife',
-      wives_father: 'daughters_husband',
-      wives_mother: 'daughters_husband',
-      sons_wife: 'husbands_father',
-      daughters_husband: 'wives_father',
-    };
-
-    return EXTENDED_INVERSE[forwardKey] ?? forwardKey;
-  }
-
-  /**
-   * Invert a direction (up ↔ down, sideways stays sideways).
-   */
-  private invertDirection(dir: 'up' | 'down' | 'sideways'): 'up' | 'down' | 'sideways' {
-    if (dir === 'up') return 'down';
-    if (dir === 'down') return 'up';
-    return 'sideways';
-  }
-
-  /**
-   * Normalize a gender value to one of the three keys used in the
-   * KINSHIP_RULES lookup table: 'male', 'female', or 'neutral'.
-   */
-  private normalizeGenderKey(gender: string | null): 'male' | 'female' | 'neutral' {
-    if (gender === 'male') return 'male';
-    if (gender === 'female') return 'female';
-    return 'neutral';
-  }
-
-  /**
-   * Try progressive composition — match the longest prefix of the path
-   * against known rules, then attempt to compose the remaining steps.
-   *
-   * For example, if the path is [father, father, brother, son, daughter]
-   * and we know "father→father→brother→son" = second_cousin,
-   * then "second_cousin + daughter" might be "second_cousin_once_removed".
-   */
-  private tryProgressiveComposition(
-    path: RelationshipStep[],
-    targetGender: string | null,
-  ): KinshipResult | null {
-    // Try matching progressively shorter prefixes
-    for (let prefixLen = path.length - 1; prefixLen >= 2; prefixLen--) {
-      const prefixKey = path
-        .slice(0, prefixLen)
-        .map((s) => s.relationshipType)
-        .join('→');
-
-      const prefixRule =
-        GraphEngineService.KINSHIP_RULES[prefixKey] ??
-        GraphEngineService.EXTENDED_INLAW_RULES[prefixKey];
-
-      if (!prefixRule) continue;
-
-      const genderKey = this.normalizeGenderKey(targetGender ?? null);
-      const prefixEntry = prefixRule[genderKey];
-      const remainingSteps = path.slice(prefixLen);
-
-      // Compose: prefix_term + remaining steps
-      const remainingKey = remainingSteps.map((s) => s.relationshipType).join('→');
-
-      // Check if the composed path exists
-      const composedKey = `${prefixEntry.term}→${remainingKey}`;
-      const composedRule =
-        GraphEngineService.KINSHIP_RULES[composedKey] ??
-        GraphEngineService.EXTENDED_INLAW_RULES[composedKey];
-
-      if (composedRule) {
-        const entry = composedRule[genderKey];
-        return {
-          term: entry.term,
-          termHindi: entry.termHindi,
-          confidence: Math.min(entry.confidence, prefixEntry.confidence) * 0.9,
-          path,
-          genderSpecific: entry.genderSpecific || prefixEntry.genderSpecific,
-        };
+      if (current.nodeId === toId && current.path.length > 0) {
+        return { path: current.path, visitedNodes: current.visited };
       }
 
-      // If no composed rule exists, use the prefix term with a
-      // reduced confidence and append the remaining steps descriptively
-      const suffix = remainingSteps
-        .map((s) => s.relationshipType)
-        .join("'s ")
-        .replace(/_/g, ' ');
+      if (current.path.length >= MAX_DEPTH) continue;
 
-      return {
-        term: `${prefixEntry.term}'s ${suffix}`,
-        termHindi: `${prefixEntry.termHindi} का/की ${suffix}`,
-        confidence: prefixEntry.confidence * 0.7,
-        path,
-        genderSpecific: prefixEntry.genderSpecific,
-      };
+      const neighbors = adjacency[current.nodeId] || [];
+      for (const n of neighbors) {
+        if (visited.has(n.neighborId)) continue;
+        visited.add(n.neighborId);
+        queue.push({
+          nodeId: n.neighborId,
+          path: [...current.path, n.primitive],
+          visited: [...current.visited, n.neighborId],
+        });
+      }
     }
 
     return null;
   }
 
-  /**
-   * Compose a descriptive kinship term when no lookup rule matches.
-   *
-   * This handles deeply nested or uncommon relationship paths by
-   * generating a human-readable description like
-   * "father's brother's son's daughter" and computing an
-   * appropriate confidence score based on path length.
-   */
-  private composeDescriptiveTerm(
-    path: RelationshipStep[],
-    targetGender: string | null,
-  ): KinshipResult {
-    // Generate human-readable path description
-    const parts = path.map((step) => step.relationshipType.replace(/_/g, ' '));
-    const descriptiveTerm = parts.join("'s ");
+  // ── Private: Path Canonicalization ──────────────────────────────────
 
-    // Generate Hindi descriptive term
-    const hindiParts = path.map((step) => {
-      const hindiMap: Record<string, string> = {
-        father: 'पिता',
-        mother: 'माता',
-        son: 'बेटा',
-        daughter: 'बेटी',
-        brother: 'भाई',
-        sister: 'बहन',
-        husband: 'पति',
-        wife: 'पत्नी',
-      };
-      return hindiMap[step.relationshipType] ?? step.relationshipType;
-    });
-    const descriptiveTermHindi = hindiParts.join(' के/की ');
+  private canonicalizePath(
+    path: TraversePrimitive[],
+    visitedNodes: string[],
+  ): TraversePrimitive[] {
+    if (path.length < 2) return path;
 
-    // Confidence decreases with path length
-    const confidence = Math.max(0.3, 1.0 - path.length * 0.1);
+    // Remove backtracking: UP_PARENT + DOWN_CHILD cancels, etc.
+    const result: TraversePrimitive[] = [];
+    for (const prim of path) {
+      if (result.length > 0) {
+        const prev = result[result.length - 1];
+        if (
+          (prev === 'UP_PARENT' && prim === 'DOWN_CHILD') ||
+          (prev === 'DOWN_CHILD' && prim === 'UP_PARENT') ||
+          (prev === 'SPOUSE' && prim === 'SPOUSE')
+        ) {
+          result.pop();
+          continue;
+        }
+      }
+      result.push(prim);
+    }
 
-    // Determine if the final step is gender-specific
-    const lastStep = path[path.length - 1];
-    const genderSpecific =
-      lastStep.relationshipType === 'son' ||
-      lastStep.relationshipType === 'daughter' ||
-      lastStep.relationshipType === 'brother' ||
-      lastStep.relationshipType === 'sister' ||
-      lastStep.relationshipType === 'husband' ||
-      lastStep.relationshipType === 'wife' ||
-      lastStep.relationshipType === 'father' ||
-      lastStep.relationshipType === 'mother';
+    return result;
+  }
+
+  // ── Private: Signature Builder ──────────────────────────────────────
+
+  private buildSignature(
+    path: TraversePrimitive[],
+    visitedNodes: string[],
+    fromPersonId: string,
+    toPersonId: string,
+    persons: PersonRecord[],
+    adjacency: Record<string, AdjacencyEntry[]>,
+  ): KinshipSignature {
+    let upCount = 0;
+    let downCount = 0;
+
+    for (const p of path) {
+      if (p === 'UP_PARENT' || p === 'UP_ADOPTIVE_PARENT' || p === 'UP_STEP_PARENT') upCount++;
+      else if (p === 'DOWN_CHILD') downCount++;
+    }
+
+    const generationDelta = downCount - upCount;
+    const pathPattern = path.join('_');
+
+    // Side detection using visitedNodes
+    const side = this.detectSide(path, visitedNodes, persons);
+
+    // Consanguinity
+    const consanguinity = this.detectConsanguinity(path, fromPersonId, toPersonId, adjacency);
+
+    // Gender
+    const target = persons.find((p) => p.id === toPersonId);
+    const genderAnchor = target?.gender?.toLowerCase() === 'female' ? 'female' : 'male';
+
+    // Removal (cousins only)
+    let removal = 0;
+    if (upCount >= 2 && downCount >= 2) {
+      removal = Math.abs(upCount - downCount);
+    }
+
+    // Double kinship
+    const doubleKinship = this.detectDoubleKinship(fromPersonId, toPersonId, path.length, adjacency);
+
+    // Resolution status
+    const isFundamental =
+      pathPattern === 'UP_PARENT' ||
+      pathPattern === 'DOWN_CHILD' ||
+      pathPattern === 'SPOUSE' ||
+      pathPattern === 'UP_ADOPTIVE_PARENT' ||
+      pathPattern === 'UP_STEP_PARENT';
+
+    const resolutionStatus: ResolutionStatus = isFundamental ? 'confirmed' : 'derived';
 
     return {
-      term: descriptiveTerm,
-      termHindi: descriptiveTermHindi,
-      confidence,
-      path,
-      genderSpecific,
+      generationDelta,
+      pathPattern,
+      side,
+      consanguinity,
+      genderAnchor,
+      seniority: 'none',
+      removal,
+      doubleKinship,
+      resolutionStatus,
+      intermediateSeniority: 'none',
+      spouseSide: 'none',
+      intermediateGender: 'none',
+    };
+  }
+
+  private detectSide(
+    path: TraversePrimitive[],
+    visitedNodes: string[],
+    persons: PersonRecord[],
+  ): FamilySide {
+    if (path.length === 0) return 'none';
+    if (path[0] === 'SPOUSE') return 'none';
+
+    for (let i = 0; i < path.length; i++) {
+      const prim = path[i];
+      if (prim === 'UP_PARENT' || prim === 'UP_ADOPTIVE_PARENT' || prim === 'UP_STEP_PARENT') {
+        if (i + 1 < visitedNodes.length) {
+          const parentId = visitedNodes[i + 1];
+          const parent = persons.find((p) => p.id === parentId);
+          return parent?.gender?.toLowerCase() === 'female' ? 'maternal' : 'paternal';
+        }
+        break;
+      }
+    }
+
+    return 'none';
+  }
+
+  private detectConsanguinity(
+    path: TraversePrimitive[],
+    fromPersonId: string,
+    toPersonId: string,
+    adjacency: Record<string, AdjacencyEntry[]>,
+  ): Consanguinity {
+    if (path.length > 0 && path[0] === 'SPOUSE') {
+      if (path.length === 1) return 'affine';
+      return 'inLaw';
+    }
+
+    if (path.some((p) => p === 'UP_STEP_PARENT')) return 'step';
+    if (path.some((p) => p === 'UP_ADOPTIVE_PARENT')) return 'adoptive';
+
+    // Sibling consanguinity
+    if (
+      path.length === 2 &&
+      path[0] === 'UP_PARENT' &&
+      path[1] === 'DOWN_CHILD'
+    ) {
+      const parentsOfA = this.getParents(fromPersonId, adjacency);
+      const parentsOfB = this.getParents(toPersonId, adjacency);
+      const shared = [...parentsOfA].filter((p) => parentsOfB.has(p));
+
+      if (shared.length >= 2) return 'blood';
+      if (shared.length === 1) return 'half';
+      return 'step';
+    }
+
+    return 'blood';
+  }
+
+  private getParents(
+    personId: string,
+    adjacency: Record<string, AdjacencyEntry[]>,
+  ): Set<string> {
+    const parents = new Set<string>();
+    const neighbors = adjacency[personId] || [];
+    for (const n of neighbors) {
+      if (n.primitive === 'UP_PARENT' || n.primitive === 'UP_ADOPTIVE_PARENT' || n.primitive === 'UP_STEP_PARENT') {
+        parents.add(n.neighborId);
+      }
+    }
+    return parents;
+  }
+
+  private detectDoubleKinship(
+    fromId: string,
+    toId: string,
+    pathLength: number,
+    adjacency: Record<string, AdjacencyEntry[]>,
+  ): boolean {
+    if (pathLength === 0) return false;
+
+    const pathsFound: TraversePrimitive[][] = [];
+    this.findAllPathsOfLength(
+      fromId,
+      toId,
+      adjacency,
+      pathLength,
+      [],
+      new Set([fromId]),
+      pathsFound,
+    );
+
+    return pathsFound.length >= 2;
+  }
+
+  private findAllPathsOfLength(
+    currentId: string,
+    targetId: string,
+    adjacency: Record<string, AdjacencyEntry[]>,
+    targetLength: number,
+    currentPath: TraversePrimitive[],
+    visited: Set<string>,
+    results: TraversePrimitive[][],
+  ): void {
+    if (currentPath.length === targetLength) {
+      if (currentId === targetId) {
+        results.push([...currentPath]);
+      }
+      return;
+    }
+
+    if (currentPath.length > targetLength) return;
+
+    const neighbors = adjacency[currentId] || [];
+    for (const n of neighbors) {
+      if (visited.has(n.neighborId)) continue;
+      visited.add(n.neighborId);
+      currentPath.push(n.primitive);
+      this.findAllPathsOfLength(
+        n.neighborId,
+        targetId,
+        adjacency,
+        targetLength,
+        currentPath,
+        visited,
+        results,
+      );
+      currentPath.pop();
+      visited.delete(n.neighborId);
+    }
+  }
+
+  // ── Private: Result Builder ─────────────────────────────────────────
+
+  private buildResult(
+    signature: KinshipSignature,
+    toPersonId: string,
+    persons: PersonRecord[],
+  ): KinshipResult {
+    const term = this.resolveTerm(signature);
+
+    const isFundamental =
+      signature.pathPattern === 'UP_PARENT' ||
+      signature.pathPattern === 'DOWN_CHILD' ||
+      signature.pathPattern === 'SPOUSE' ||
+      signature.pathPattern === 'UP_ADOPTIVE_PARENT' ||
+      signature.pathPattern === 'UP_STEP_PARENT';
+
+    let fundamentalEdge: string | null = null;
+    if (isFundamental) {
+      if (signature.pathPattern === 'UP_PARENT' || signature.pathPattern === 'DOWN_CHILD') {
+        fundamentalEdge = 'parent';
+      } else if (signature.pathPattern === 'SPOUSE') {
+        fundamentalEdge = 'spouse';
+      } else if (signature.pathPattern === 'UP_ADOPTIVE_PARENT') {
+        fundamentalEdge = 'adoptive_parent';
+      } else if (signature.pathPattern === 'UP_STEP_PARENT') {
+        fundamentalEdge = 'step_parent';
+      }
+    }
+
+    return {
+      term,
+      fundamentalEdge,
+      signature,
+      isDerived: !isFundamental,
+      isSuggested: false,
+      path: [],
     };
   }
 
   /**
-   * Get a person record from the database.
+   * Maps a KinshipSignature to a human-readable term.
+   * This is a minimal local mapper — the full 5,396+ term vocabulary
+   * is served via the /kinship/resolve API endpoint.
    */
-  private async getPersonRecord(
-    familyId: string,
-    personId: string,
-  ): Promise<PersonRecord | null> {
-    // Check cache first
-    const cached = this.graphCache.get(familyId);
-    if (cached?.personMap.has(personId)) {
-      return cached.personMap.get(personId)!;
+  private resolveTerm(signature: KinshipSignature): string {
+    const { pathPattern, generationDelta, side, consanguinity, genderAnchor, seniority, removal, doubleKinship } = signature;
+    const isFemale = genderAnchor === 'female';
+
+    // Parent
+    if (pathPattern === 'UP_PARENT' && generationDelta === -1) {
+      if (consanguinity === 'adoptive') return isFemale ? 'Adoptive Mother' : 'Adoptive Father';
+      if (consanguinity === 'step') return isFemale ? 'Step Mother' : 'Step Father';
+      return isFemale ? 'Mother' : 'Father';
     }
 
-    // Fallback to DB
-    const person = await this.prisma.person.findFirst({
-      where: { id: personId, familyId, deletedAt: null },
-      select: { id: true, name: true, gender: true },
-    });
+    // Grandparent
+    if (pathPattern === 'UP_PARENT_UP_PARENT' && generationDelta === -2) {
+      if (side === 'paternal') return isFemale ? 'Grandmother (Paternal)' : 'Grandfather (Paternal)';
+      return isFemale ? 'Grandmother (Maternal)' : 'Grandfather (Maternal)';
+    }
 
-    if (!person) return null;
+    // Great grandparent
+    if (pathPattern === 'UP_PARENT_UP_PARENT_UP_PARENT' && generationDelta === -3) {
+      return isFemale ? 'Great Grandmother' : 'Great Grandfather';
+    }
 
-    return { id: person.id, name: person.name, gender: person.gender };
+    // Child
+    if (pathPattern === 'DOWN_CHILD' && generationDelta === 1) {
+      return isFemale ? 'Daughter' : 'Son';
+    }
+
+    // Grandchild
+    if (pathPattern === 'DOWN_CHILD_DOWN_CHILD' && generationDelta === 2) {
+      return isFemale ? 'Granddaughter' : 'Grandson';
+    }
+
+    // Great grandchild
+    if (pathPattern === 'DOWN_CHILD_DOWN_CHILD_DOWN_CHILD' && generationDelta === 3) {
+      return isFemale ? 'Great Granddaughter' : 'Great Grandson';
+    }
+
+    // Siblings
+    if (pathPattern === 'UP_PARENT_DOWN_CHILD' && generationDelta === 0) {
+      const label = isFemale ? 'Sister' : 'Brother';
+      switch (consanguinity) {
+        case 'blood':
+          if (seniority === 'elder') return `Elder ${label}`;
+          if (seniority === 'younger') return `Younger ${label}`;
+          return label;
+        case 'half':
+          return `Half ${label}`;
+        case 'step':
+          return `Step ${label}`;
+        case 'adoptive':
+          return `Adoptive ${label}`;
+        default:
+          return label;
+      }
+    }
+
+    // Uncle/Aunt
+    if (pathPattern === 'UP_PARENT_UP_PARENT_DOWN_CHILD' && generationDelta === -1) {
+      if (side === 'paternal') return isFemale ? 'Aunt (Paternal)' : 'Uncle (Paternal)';
+      return isFemale ? 'Aunt (Maternal)' : 'Uncle (Maternal)';
+    }
+
+    // Great uncle/aunt
+    if (pathPattern === 'UP_PARENT_UP_PARENT_UP_PARENT_DOWN_CHILD' && generationDelta === -2) {
+      return isFemale ? 'Great Aunt' : 'Great Uncle';
+    }
+
+    // Nephew/Niece
+    if (pathPattern === 'UP_PARENT_DOWN_CHILD_DOWN_CHILD' && generationDelta === 1) {
+      return isFemale ? 'Niece' : 'Nephew';
+    }
+
+    // First cousin
+    if (pathPattern === 'UP_PARENT_UP_PARENT_DOWN_CHILD_DOWN_CHILD' && generationDelta === 0) {
+      if (doubleKinship) return 'Double Cousin';
+      return 'Cousin';
+    }
+
+    // Cousin removed
+    if (
+      pathPattern === 'UP_PARENT_UP_PARENT_DOWN_CHILD_DOWN_CHILD_DOWN_CHILD' ||
+      pathPattern === 'UP_PARENT_UP_PARENT_UP_PARENT_DOWN_CHILD_DOWN_CHILD'
+    ) {
+      if (removal === 1) return 'Cousin (Once Removed)';
+      if (removal === 2) return 'Cousin (Twice Removed)';
+      return 'Cousin';
+    }
+
+    // Second cousin
+    if (
+      pathPattern === 'UP_PARENT_UP_PARENT_UP_PARENT_DOWN_CHILD_DOWN_CHILD_DOWN_CHILD' &&
+      generationDelta === 0
+    ) {
+      return 'Second Cousin';
+    }
+
+    // In-laws
+    if (pathPattern === 'SPOUSE_UP_PARENT' && generationDelta === -1) {
+      return isFemale ? 'Mother-in-Law' : 'Father-in-Law';
+    }
+
+    if (pathPattern === 'SPOUSE_UP_PARENT_UP_PARENT' && generationDelta === -2) {
+      return isFemale ? 'Grandmother-in-Law' : 'Grandfather-in-Law';
+    }
+
+    if (pathPattern === 'SPOUSE_UP_PARENT_DOWN_CHILD' && generationDelta === 0) {
+      return isFemale ? 'Sister-in-Law' : 'Brother-in-Law';
+    }
+
+    if (pathPattern === 'SPOUSE_DOWN_CHILD' && generationDelta === 1) {
+      return isFemale ? 'Daughter-in-Law' : 'Son-in-Law';
+    }
+
+    // Spouse
+    if (pathPattern === 'SPOUSE' && generationDelta === 0) {
+      return isFemale ? 'Wife' : 'Husband';
+    }
+
+    // Step parents
+    if (pathPattern === 'UP_STEP_PARENT' && generationDelta === -1) {
+      return isFemale ? 'Step Mother' : 'Step Father';
+    }
+
+    // Adoptive parents
+    if (pathPattern === 'UP_ADOPTIVE_PARENT' && generationDelta === -1) {
+      return isFemale ? 'Adoptive Mother' : 'Adoptive Father';
+    }
+
+    // Fallback: compose descriptive term
+    const parts: string[] = [];
+    if (consanguinity === 'half') parts.push('Half');
+    if (consanguinity === 'step') parts.push('Step');
+    if (consanguinity === 'adoptive') parts.push('Adoptive');
+    if (consanguinity === 'inLaw') parts.push('In-Law');
+    if (generationDelta < -2) parts.push('Great');
+    if (generationDelta === -2) parts.push('Grand');
+    if (generationDelta < 0) parts.push(isFemale ? 'Mother' : 'Father');
+    else if (generationDelta > 2) { parts.push('Great'); parts.push(isFemale ? 'Granddaughter' : 'Grandson'); }
+    else if (generationDelta === 2) parts.push(isFemale ? 'Granddaughter' : 'Grandson');
+    else if (generationDelta === 1) parts.push(isFemale ? 'Daughter' : 'Son');
+    else parts.push('Relative');
+
+    return parts.join(' ');
   }
 }
