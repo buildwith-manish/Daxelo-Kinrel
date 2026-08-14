@@ -110,4 +110,38 @@ export class KinshipController {
     );
     return { suggested: result !== null, result };
   }
+
+  // ── v4.1 NEW ENDPOINTS (issue #3 fix — vocabulary data) ──────────────
+
+  /**
+   * v4.1: GET /v1/kinship/vocab/browse
+   * Browse the full 9,552-row vocabulary (replaces the 51-entry array).
+   *
+   * Query params:
+   *   lang      — ISO 639-1 language code (default: en)
+   *   category  — filter by category (direct_ancestor, sibling, cousin, in_law, ...)
+   *   limit     — max results (default: 100, max: 1000)
+   */
+  @Get('vocab/browse')
+  async vocabBrowse(
+    @Query('lang') lang: string = 'en',
+    @Query('category') category?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const parsedLimit = limit ? parseInt(limit, 10) : 100;
+    return this.kinshipService.browseVocabulary({
+      languageCode: lang,
+      category,
+      limit: parsedLimit,
+    });
+  }
+
+  /**
+   * v4.1: GET /v1/kinship/vocab/stats
+   * Returns vocabulary statistics — useful for /health and admin dashboards.
+   */
+  @Get('vocab/stats')
+  async vocabStats() {
+    return this.kinshipService.vocabularyStats();
+  }
 }
