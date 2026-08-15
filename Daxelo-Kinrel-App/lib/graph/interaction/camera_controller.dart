@@ -1002,37 +1002,13 @@ class CameraController extends ChangeNotifier {
 
   // ── v4.4: Auto-Recenter ─────────────────────────────────────────
 
-  /// Checks if the current viewport shows any content. If not (e.g.
-  /// after a layout update changed node positions), gently animates
-  /// the camera back to a valid position so nodes are visible.
-  ///
-  /// Call this after any layout change (add/remove person, expand/
-  /// collapse subtree, family switch).
+  /// v4.16: recenterIfNeeded() is now a NO-OP.
+  /// Previously, this method checked if the pan was "out of bounds" and
+  /// animated the camera back — which caused the "pushed back upward" bug.
+  /// With free panning enabled, the camera should never be forced back.
+  /// The user can pan wherever they want; fitToView handles initial centering.
   void recenterIfNeeded() {
-    if (_contentBounds == null) return;
-    if (_viewportSize.width <= 0 || _viewportSize.height <= 0) return;
-    if (_isAnimating) return; // don't interrupt active animations
-
-    final limits = _computePanLimits();
-    if (limits == null) return;
-
-    final needsRecenterX =
-        _panX < limits.minX - 1 || _panX > limits.maxX + 1;
-    final needsRecenterY =
-        _panY < limits.minY - 1 || _panY > limits.maxY + 1;
-
-    if (needsRecenterX || needsRecenterY) {
-      // Gently animate to the clamped position
-      final targetX = _panX.clamp(limits.minX, limits.maxX);
-      final targetY = _panY.clamp(limits.minY, limits.maxY);
-      animateTo(
-        targetX,
-        targetY,
-        _zoomLevel,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
+    // No-op — free panning, no forced recentering
   }
 
   // ── Lifecycle ────────────────────────────────────────────────────
