@@ -522,20 +522,20 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             if (_onThisDayCount(graph) > 0) _buildOnThisDayBanner(graph),
 
             Expanded(
-              // v2.2: Always use the V2.1 engine view. The old
-              // FamilyGraphWidget with its RelationshipEdge painter
-              // is removed — rendering both painters caused a double
-              // line bug on the web build.
-              //
-              // v106: highlightedGeneration is no longer passed — the
-              // generation filter bar has been removed, so no
-              // generation is ever highlighted. The parameter defaults
-              // to null (show all generations at full opacity).
-              child: FamilyGraphEngineView(
-                familyId: widget.familyId,
-                recenterKey: _recenterKey,
-                bottomChromeHeight: bottomChromeHeight,
-                topChromeHeight: 0, // AppBar already excluded by Scaffold
+              // v4.17: Add bottom padding so the graph area doesn't extend
+              // behind the stats panel + toolbar. This creates a visible
+              // boundary — nodes can't go behind the UI overlays because the
+              // graph canvas itself is shorter.
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: bottomChromeHeight,
+                ),
+                child: FamilyGraphEngineView(
+                  familyId: widget.familyId,
+                  recenterKey: _recenterKey,
+                  bottomChromeHeight: bottomChromeHeight,
+                  topChromeHeight: 0, // AppBar already excluded by Scaffold
+                ),
               ),
             ),
           ],
