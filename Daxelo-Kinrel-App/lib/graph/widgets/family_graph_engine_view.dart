@@ -607,10 +607,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         if (layout.positions.isEmpty || flat == null) {
           return const EmptyGraph();
         }
-        // v4.4: Check if the camera needs recentering after layout change
-        // (e.g. add/remove person changed the bounding box). Content bounds
-        // are pushed in _buildCanvas; this just triggers the recenter check.
-        _onLayoutChanged(layout);
+        // v4.16: Removed _onLayoutChanged call — it triggered recenterIfNeeded()
+        // which forced the camera back after panning. With free panning, no
+        // forced recentering should happen.
         // v107: Execute a pending Reset View request now that the
         // layout positions are available. This runs the new
         // resetView() method which centers the focus node (selected →
@@ -762,14 +761,11 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     if (mounted) setState(() {});
   }
 
-  /// v4.4: Called after the layout changes (add/remove person, expand/
-  /// collapse subtree) to check if the camera needs recentering.
+  /// v4.16: _onLayoutChanged is now a NO-OP.
+  /// Previously this called recenterIfNeeded() which forced the camera back
+  /// after panning. With free panning enabled, no forced recentering.
   void _onLayoutChanged(GraphLayoutResult layout) {
-    // Content bounds are already pushed in _buildCanvas. Just check if
-    // the camera needs to recenter to keep nodes visible.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _camera.recenterIfNeeded();
-    });
+    // No-op — free panning, no forced recentering
   }
 
   /// v107: Executes a pending Reset View request using the current
