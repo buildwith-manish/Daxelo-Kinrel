@@ -279,33 +279,13 @@ class CameraController extends ChangeNotifier {
     }
   }
 
-  /// Clamps the current pan position to the computed limits.
-  /// Called after every pan/zoom/animation change.
-  ///
-  /// v4.13: Reverted v4.12's "skip clamping for small graphs" — that allowed
-  /// nodes to be dragged behind the stats panel. Now we ALWAYS clamp, using
-  /// the chrome-adjusted limits from _computePanLimits() (v4.11).
-  ///
-  /// For small graphs (content fits within viewport), the clamp centers the
-  /// content in the effective viewport (above the bottom chrome). This means:
-  ///   - fitToView centers the node above the stats panel ✓
-  ///   - If the user drags the node down, _clampPan() pulls it back up ✓
-  ///   - The node can never go behind the stats panel ✓
+  /// v4.15: Pan clamping has been REMOVED entirely.
+  /// The user can pan freely — nodes go wherever the user drags them.
+  /// If a node goes off-screen, that's the user's choice.
+  /// Nodes are never partially clipped while on screen (handled by _OverscanClipper).
+  /// fitToView still centers correctly on initial load.
   void _clampPan() {
-    final limits = _computePanLimits();
-    if (limits == null) return;
-
-    // If content is smaller than viewport (min > max), center it.
-    if (limits.minX > limits.maxX) {
-      _panX = (limits.minX + limits.maxX) / 2;
-    } else {
-      _panX = _panX.clamp(limits.minX, limits.maxX);
-    }
-    if (limits.minY > limits.maxY) {
-      _panY = (limits.minY + limits.maxY) / 2;
-    } else {
-      _panY = _panY.clamp(limits.minY, limits.maxY);
-    }
+    // No-op — free panning enabled
   }
 
   /// The combined transform matrix for applying the camera state
