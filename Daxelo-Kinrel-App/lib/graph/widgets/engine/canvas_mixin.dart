@@ -45,12 +45,14 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           _culler.invalidate();
         }
 
-        // v4.4: Push content bounds to the camera (bounding box of all
-        // node positions + node size). This enables pan clamping so
-        // nodes can never be moved completely off-screen.
+        // v4.5: Push content bounds to the camera (bounding box of all
+        // node positions + expanded node size including visual effects).
+        // Uses 220×256 (base 140×176 + glow/shadow/badges/indicators)
+        // so pan clamping accounts for ALL visual elements, not just the
+        // node circle. This ensures nodes are never partially clipped.
         if (layout.positions.isNotEmpty) {
-          const nodeWidth = 140.0;
-          const nodeHeight = 176.0;
+          const nodeWidth = 220.0;   // 140 base + 40 glow/shadow + 40 indicators
+          const nodeHeight = 256.0;  // 176 base + 40 glow/shadow + 40 badges
           double minX = double.infinity;
           double minY = double.infinity;
           double maxX = double.negativeInfinity;
@@ -643,11 +645,17 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             onDoubleTap: _handleDoubleTapZoom,
             child: Stack(
               children: [
+                // v4.5: Overscan clip — give visual elements (glow, shadows,
+                // badges, labels) room to render beyond the viewport edge.
+                // The clip region is 48px larger than the viewport on each
+                // side, so nodes near the edge are never partially clipped.
                 ClipRect(
-              child: AnimatedBuilder(
-                animation: _camera,
-                child: content,
-                builder: (BuildContext context, Widget? child) {
+                  child: Padding(
+                    padding: const EdgeInsets.all(48.0),
+                    child: AnimatedBuilder(
+                      animation: _camera,
+                      child: content,
+                      builder: (BuildContext context, Widget? child) {
                   // P2.2: Cinematic depth-of-field — when focus is active,
                   // desaturate the entire graph canvas to 40% and apply a
                   // subtle blur on non-web platforms. The focus subgraph
@@ -696,9 +704,10 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     }
                   }
 
-                  return transformed;
-                },
-              ),
+                      return transformed;
+                    },
+                    ),
+                  ),
                 ),
                 // P2.4: Visual drag line for the two-node select-and-compare gesture.
                 // Drawn as a screen-space overlay (NOT inside the camera transform)
