@@ -1404,14 +1404,25 @@ Future<Family> createFamily({
     if (existingPerson.isEmpty) {
       debugPrint('[createFamily] Auto-creating creator Person for family ${family.id}');
 
-      // Derive the creator's name from auth user metadata
+      // Derive the creator's name from auth user metadata.
+      // In Dart, || requires bool operands — use explicit if-else for
+      // "first non-null, non-empty string" logic (not JS-style ||).
       final authUser = client.auth.currentUser;
       final userMeta = authUser?.userMetadata;
-      final creatorName = (userMeta?['full_name'] as String?)?.trim() ||
-          (userMeta?['name'] as String?)?.trim() ||
-          (userMeta?['user_name'] as String?)?.trim() ||
-          authUser?.email?.split('@').first ??
-          'You';
+      String creatorName = 'You';
+      final fullName = (userMeta?['full_name'] as String?)?.trim();
+      final metaName = (userMeta?['name'] as String?)?.trim();
+      final metaUserName = (userMeta?['user_name'] as String?)?.trim();
+      final emailPrefix = authUser?.email?.split('@').first;
+      if (fullName != null && fullName.isNotEmpty) {
+        creatorName = fullName;
+      } else if (metaName != null && metaName.isNotEmpty) {
+        creatorName = metaName;
+      } else if (metaUserName != null && metaUserName.isNotEmpty) {
+        creatorName = metaUserName;
+      } else if (emailPrefix != null && emailPrefix.isNotEmpty) {
+        creatorName = emailPrefix;
+      }
 
       // Derive gender from user metadata (optional — null is fine)
       final creatorGender = (userMeta?['gender'] as String?)?.toLowerCase();
