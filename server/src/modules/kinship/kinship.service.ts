@@ -1198,6 +1198,11 @@ export class KinshipService {
         `t=${merged.temporal}`,
       ].join('|');
       try {
+        // Guard: kinshipVocabulary delegate may not exist if Prisma Client
+        // was generated from an older schema (Docker layer caching issue)
+        if (!this.prisma.kinshipVocabulary) {
+          return null;
+        }
         return await this.prisma.kinshipVocabulary.findFirst({
           where: {
             signatureKey: mergedKey,
@@ -1227,6 +1232,7 @@ export class KinshipService {
     // Step 3: try generic — match on pathPattern + language only
     if (!row) {
       try {
+        if (!this.prisma.kinshipVocabulary) return null;
         row = await this.prisma.kinshipVocabulary.findFirst({
           where: {
             pathPattern: signature.pathPattern,
@@ -1326,6 +1332,7 @@ export class KinshipService {
   }>> {
     const { languageCode = 'en', category, limit = 100 } = params;
     try {
+      if (!this.prisma.kinshipVocabulary) throw new Error('kinshipVocabulary delegate not available');
       const rows = await this.prisma.kinshipVocabulary.findMany({
         where: {
           languageCode,
@@ -1373,6 +1380,7 @@ export class KinshipService {
     engine: string;
   } | null> {
     try {
+      if (!this.prisma.kinshipVocabulary) throw new Error('kinshipVocabulary delegate not available');
       const total = await this.prisma.kinshipVocabulary.count();
       const primary = await this.prisma.kinshipVocabulary.count({ where: { variantRank: 0 } });
       const langGroup = await this.prisma.kinshipVocabulary.groupBy({
