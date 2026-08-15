@@ -19,7 +19,7 @@
  * but serve as path connectors for in-law relationships.
  */
 
-import { RelationshipStep } from '../../graph/graph-engine.service';
+import { PathStep as RelationshipStep } from "../../graph/graph-engine.service";
 
 // ── Known Coefficients for Computed Terms ────────────────────────────
 // Maps resolved kinship terms directly to their coefficient of relationship.
