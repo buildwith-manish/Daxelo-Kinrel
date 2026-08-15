@@ -203,12 +203,23 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
   /// Whether the family has existing members (definitively).
   /// Returns false only when we are certain there are no members.
-  /// Returns true if members exist OR if we're still loading
-  /// (conservative: assume members exist until proven otherwise).
+  /// Returns true if members exist OR if we're still loading OR if the
+  /// fetch errored (conservative: assume members exist until proven otherwise).
+  ///
+  /// v4.7: Added hasError check. When familyMembersProvider throws (e.g. RLS
+  /// permission error on an unclaimed/anonymous session), valueOrNull is null,
+  /// which previously caused this to return false — meaning "no existing
+  /// members" — even though the anchor person clearly exists. This caused
+  /// relationships to be skipped (no Relationship row inserted, no edge drawn).
+  /// Now we treat error the same as loading: conservative (assume members exist).
   bool get _familyHasExistingMembers {
     if (_isEditMode) return false;
     final membersAsync = ref.read(familyMembersProvider(widget.familyId));
-    if (membersAsync.isLoading) return true; // Assume members exist while loading
+    // Conservative: assume members exist while loading OR if the fetch
+    // errored (e.g. RLS/auth issue on an unclaimed/anonymous session).
+    // Only return false when we have a definitive, successful empty result.
+    if (membersAsync.hasError) return true;
+    if (membersAsync.isLoading) return true;
     final existingMembers = membersAsync.valueOrNull;
     return existingMembers != null && existingMembers.isNotEmpty;
   }
