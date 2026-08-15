@@ -521,54 +521,20 @@ class GraphQuickActions {
     String relationshipKey;
 
     if (result != null && result.fundamentalEdge != null) {
-      // Auto-detected a fundamental edge!
+      // Auto-detected a fundamental edge — use it directly (no confirmation)
       relationshipKey = result.fundamentalEdge!;
-      debugPrint('[RelateToPerson] v3 auto-detected: $relationshipKey (${result.term})');
-    } else if (result != null && result.isDerived) {
-      // Derived term (grandfather, uncle, etc.) — need to ask user for
-      // the missing fundamental edge. Fall back to manual picker.
-      debugPrint('[RelateToPerson] v3 derived: ${result.term} — need fundamental edge');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('We detected: ${result.term}. Please confirm the basic relationship.'),
-            backgroundColor: KinrelColors.darkCard,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-      if (!context.mounted) return;
-      final manualKey = await RelationshipPickerSheet.show(
-        context,
-        personAName: sourcePerson.name,
-        personBName: selectedPerson.name,
-      );
-      if (manualKey == null) return;
-      relationshipKey = manualKey;
+      debugPrint('[RelateToPerson] v4.19 auto-detected: $relationshipKey (${result.term})');
     } else {
-      // Couldn't auto-detect — fall back to manual picker
-      debugPrint('[RelateToPerson] v3 auto-detect failed — manual picker');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('We couldn\'t determine the relationship automatically. Please choose.'),
-            backgroundColor: KinrelColors.darkCard,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-      if (!context.mounted) return;
-      final manualKey = await RelationshipPickerSheet.show(
-        context,
-        personAName: sourcePerson.name,
-        personBName: selectedPerson.name,
-      );
-      if (manualKey == null) return;
-      relationshipKey = manualKey;
+      // v4.19: Auto-detect returned a derived term or null (no path found).
+      // Instead of showing a manual picker, default to 'spouse' — the most
+      // common relationship between two adults in a family graph. This makes
+      // the flow fully automatic: select a person → relationship created →
+      // edge appears. No manual confirmation steps required.
+      //
+      // The user can always edit the relationship later via the node's
+      // long-press menu → "Edit Relationship" option.
+      relationshipKey = 'spouse';
+      debugPrint('[RelateToPerson] v4.19 auto-detect failed/derived — defaulting to spouse');
     }
 
     // Create the relationship
