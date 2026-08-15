@@ -34,7 +34,7 @@ class CreateFamilyScreen extends ConsumerStatefulWidget {
 class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   final _pageController = PageController();
   int _currentStep = 0;
-  static const int _totalSteps = 3;
+  static const int _totalSteps = 2; // v4.3: was 3, removed 'Add Yourself' step
   bool _isSubmitting = false;
 
   final _nameController = TextEditingController();
@@ -47,17 +47,16 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
 
   _PrivacyMode _privacyMode = _PrivacyMode.inviteOnly;
 
-  final _personNameController = TextEditingController();
-  final _birthYearController = TextEditingController();
-  String? _selectedGender;
+  // v4.3: Removed _personNameController, _birthYearController, _selectedGender
+  // — the creator Person is now auto-created by createFamily() with
+  // name/gender derived from auth user metadata. No manual input needed.
 
   @override
   void initState() {
     super.initState();
     _nameController.addListener(_onNameChanged);
     // ✅ FIX (BUG-NEXT): Also listen to person name and gender so
-    // _canProceedStep3 re-evaluates on Step 3.
-    _personNameController.addListener(_onStep3Changed);
+    // v4.3: No Step 3 listener needed — Step 3 was removed.
 
     // ✅ FIX (BUG-02): Generate initial code and username so Next is enabled
     // and the family code shows correctly on first render instead of
@@ -76,24 +75,10 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
         //   1. Supabase auth userMetadata['name'] (set at sign-up)
         //   2. Supabase auth userMetadata['full_name'] (Google OAuth)
         //   3. Email username (part before @)
-        // The user can still edit it before submitting.
-        final user = ref.read(supabaseProvider)?.auth.currentUser;
-        if (user != null && _personNameController.text.isEmpty) {
-          final name = user.userMetadata?['name'] as String? ??
-              user.userMetadata?['full_name'] as String? ??
-              user.userMetadata?['displayName'] as String?;
-          if (name != null && name.trim().isNotEmpty) {
-            _personNameController.text = name.trim();
-          } else if (user.email != null && user.email!.isNotEmpty) {
-            // Fall back to the email username (before @).
-            final emailUser = user.email!.split('@').first;
-            if (emailUser.isNotEmpty) {
-              _personNameController.text = emailUser;
-            }
-          }
-        }
-
-        setState(() {}); // refresh _canProceedStep1 + _canProceedStep3
+        // v4.3: This pre-fill was for Step 3 (_personNameController) which
+        // has been removed. The creator Person is now auto-created by
+        // createFamily() using the same auth metadata derivation.
+        setState(() {}); // refresh _canProceedStep1
       }
     });
   }
@@ -101,12 +86,11 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
   @override
   void dispose() {
     _nameController.removeListener(_onNameChanged);
-    _personNameController.removeListener(_onStep3Changed);
+    // v4.3: No Step 3 listener to remove.
     _nameController.dispose();
     _codeController.dispose();
     _usernameController.dispose();
-    _personNameController.dispose();
-    _birthYearController.dispose();
+    // v4.3: No Step 3 controllers to dispose.
     _pageController.dispose();
     super.dispose();
   }
@@ -141,18 +125,15 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
       _usernameController.text = username;
     }
     // ✅ FIX (BUG-NEXT): Must call setState so the parent rebuilds and
-    // _canProceedStep1 / _canProceedStep3 re-evaluate. Without this,
+    // _canProceedStep1 re-evaluates. Without this,
     // the Next / Create Family button state never updates after typing.
     setState(() {});
   }
 
   String _lastAutoUsername = '';
 
-  // ✅ FIX (BUG-NEXT): Listener for Step 3 fields so the Create Family
-  // button state updates as the user types their name.
-  void _onStep3Changed() {
-    setState(() {});
-  }
+  // v4.3: _onStep3Changed() removed — Step 3 was eliminated.
+  // The Create Family button state now only depends on _canProceedStep1.
 
   Future<void> _pickAvatarImage() async {
     final picker = ImagePicker();
@@ -237,11 +218,8 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
     final usernameError = usernameValidator(_usernameController.text);
     return nameError == null && !codeEmpty && usernameError == null;
   }
-
-  bool get _canProceedStep3 {
-    final nameError = nameValidator(_personNameController.text);
-    return nameError == null;
-  }
+  // v4.3: _canProceedStep3 removed — Step 3 was eliminated.
+  // Step 2 (privacy) always has a valid default, so canProceed is always true.
 
   void _nextStep() {
     if (_currentStep < _totalSteps - 1) {
@@ -267,8 +245,12 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
     }
   }
 
+  /// v4.3: Create Family — the ONLY submit path.
+  /// The creator Person is auto-created by createFamily() with name/gender
+  /// derived from auth user metadata. No "Add Yourself" step, no manual
+  /// person creation, no duplicate prevention logic needed.
   Future<void> _submit() async {
-    if (_personNameController.text.trim().isEmpty) return;
+    if (!_canProceedStep1) return;
 
     setState(() => _isSubmitting = true);
 
@@ -290,71 +272,12 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
         username: _usernameController.text.trim(),
       ).timeout(const Duration(seconds: 15));
 
-      // v4.2 (2026-08-15): createFamily now AUTO-CREATES the creator Person.
-      // Instead of creating a duplicate, UPDATE the auto-created person with
-      // the user's custom details (name, gender, birth year).
-      final customName = _personNameController.text.trim();
-      final birthYear = int.tryParse(_birthYearController.text.trim());
-      final customGender = _selectedGender?.toLowerCase();
-
-      // Find the auto-created creator Person (linked to current user)
-      final client = ref.read(supabaseProvider);
-      final creatorUserId = client?.auth.currentUser?.id;
-      if (client != null && creatorUserId != null) {
-        try {
-          final existingPerson = await client
-              .from('Person')
-              .select('id')
-              .eq('familyId', family.id)
-              .eq('linkedUserId', creatorUserId)
-              .limit(1)
-              .timeout(const Duration(seconds: 5));
-
-          if (existingPerson.isNotEmpty) {
-            // UPDATE the auto-created person with custom details
-            final personId = existingPerson[0]['id'] as String;
-            final updateData = <String, dynamic>{
-              'name': customName,
-            };
-            if (customGender != null) updateData['gender'] = customGender;
-            if (birthYear != null) updateData['birthYear'] = birthYear;
-
-            await client
-                .from('Person')
-                .update(updateData)
-                .eq('id', personId)
-                .timeout(const Duration(seconds: 10));
-
-            debugPrint('[create_family_screen] Updated auto-created creator Person: $personId');
-          } else {
-            // Fallback: if no auto-created person exists (e.g. auto-create
-            // failed), create one manually via createPersonOptimistic.
-            await createPersonOptimistic(
-              ref: ref,
-              familyId: family.id,
-              name: customName,
-              gender: customGender,
-              birthYear: birthYear,
-              isAnchor: true,
-              linkedUserId: creatorUserId,
-            ).timeout(const Duration(seconds: 15));
-          }
-        } catch (e) {
-          debugPrint('[create_family_screen] Could not update creator Person (non-fatal): $e');
-          // Fallback: try creating via createPersonOptimistic
-          try {
-            await createPersonOptimistic(
-              ref: ref,
-              familyId: family.id,
-              name: customName,
-              gender: customGender,
-              birthYear: birthYear,
-              isAnchor: true,
-              linkedUserId: creatorUserId,
-            ).timeout(const Duration(seconds: 15));
-          } catch (_) {}
-        }
-      }
+      // v4.3: createFamily() has already:
+      //   1. Created the Family record
+      //   2. Created the FamilyMember (role=owner)
+      //   3. Auto-created the creator Person (isAnchor=true, linkedUserId=userId)
+      //   4. Set Family.anchorPersonId
+      // No further person creation or update is needed.
 
       // Invalidate the graph so it reloads with the creator node
       ref.invalidate(familyGraphProvider(family.id));
@@ -365,14 +288,13 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
         'Family "${family.name}" created! You\'re the anchor!',
       );
 
-      // v62.5: Navigate IMMEDIATELY — don't keep the spinner going.
       setState(() => _isSubmitting = false);
 
-      // Navigate to the family list (avoids white screen from graph
-      // not loading freshly-created family data yet).
+      // Navigate to the family list
       context.go('/families');
 
-      // Show the AddPersonSheet after a short delay (let the list load)
+      // Show the AddPersonSheet after a short delay so the user can
+      // immediately add relatives (spouse, parents, children, etc.)
       Future.delayed(const Duration(milliseconds: 800), () {
         if (!mounted) return;
         AddPersonSheet.show(context, familyId: family.id);
@@ -411,93 +333,9 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
     }
   }
 
-  /// v4.2 (2026-08-15): "Skip and Create" — creates the family WITH the
-  /// auto-created creator Person (no custom details needed).
-  /// The createFamily function now auto-creates the creator Person, so
-  /// skipping just means the creator gets a default name (from auth
-  /// metadata) instead of a custom one. The family graph will never
-  /// be empty.
-  Future<void> _submitSkip() async {
-    setState(() => _isSubmitting = true);
-
-    try {
-      await _uploadAvatarIfNeeded().timeout(const Duration(seconds: 10));
-
-      final family = await createFamilyOptimistic(
-        ref: ref,
-        name: _nameController.text.trim(),
-        description: null,
-        primaryLanguage: null,
-        region: _selectedRegion,
-        photoUrl: _avatarUrl,
-        privacyMode: _privacyMode == _PrivacyMode.private
-            ? 'private'
-            : _privacyMode == _PrivacyMode.inviteOnly
-            ? 'invite'
-            : 'link',
-        username: _usernameController.text.trim(),
-      ).timeout(const Duration(seconds: 15));
-
-      // v4.2: The creator Person is now auto-created by createFamily.
-      // If the user entered a custom name on Step 3, update the
-      // auto-created person with it. Otherwise, the default name
-      // (derived from auth metadata) is used.
-      final personName = _personNameController.text.trim();
-      if (personName.isNotEmpty) {
-        final client = ref.read(supabaseProvider);
-        final creatorUserId = client?.auth.currentUser?.id;
-        if (client != null && creatorUserId != null) {
-          try {
-            final existingPerson = await client
-                .from('Person')
-                .select('id')
-                .eq('familyId', family.id)
-                .eq('linkedUserId', creatorUserId)
-                .limit(1)
-                .timeout(const Duration(seconds: 5));
-
-            if (existingPerson.isNotEmpty) {
-              final personId = existingPerson[0]['id'] as String;
-              final birthYear = int.tryParse(_birthYearController.text.trim());
-              final updateData = <String, dynamic>{'name': personName};
-              if (_selectedGender != null) {
-                updateData['gender'] = _selectedGender!.toLowerCase();
-              }
-              if (birthYear != null) updateData['birthYear'] = birthYear;
-
-              await client
-                  .from('Person')
-                  .update(updateData)
-                  .eq('id', personId)
-                  .timeout(const Duration(seconds: 10));
-            }
-          } catch (e) {
-            debugPrint('[create_family_screen] _submitSkip: could not update creator Person: $e');
-          }
-        }
-      }
-
-      // Invalidate the graph so it reloads with the creator node
-      ref.invalidate(familyGraphProvider(family.id));
-
-      if (!mounted) return;
-
-      context.showSnackBar(
-        'Family "${family.name}" created! Add members anytime.',
-      );
-      setState(() => _isSubmitting = false);
-      context.go('/families');
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-        String errorMsg = e.toString();
-        if (errorMsg.startsWith('Exception: ')) {
-          errorMsg = errorMsg.substring(11);
-        }
-        context.showSnackBar('Failed: $errorMsg', isError: true);
-      }
-    }
-  }
+  // v4.3: _submitSkip() removed — there is no longer a 'Skip and Create'
+  // option. The only submit path is _submit(), which creates the family
+  // with the auto-created creator Person.
 
   @override
   Widget build(BuildContext context) {
@@ -578,15 +416,8 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
                   avatarImageFile: _avatarImageFile,
                   onPickAvatar: kIsWeb ? _pickAvatarImageWeb : _pickAvatarImage,
                 ),
-                _Step3AddYourself(
-                  nameController: _personNameController,
-                  birthYearController: _birthYearController,
-                  selectedGender: _selectedGender,
-                  onGenderChanged: (g) => setState(() => _selectedGender = g),
-                  canProceed: _canProceedStep3,
-                  familyName: _nameController.text.trim(),
-                  avatarImageFile: _avatarImageFile,
-                ),
+                // v4.3: Step 3 (_Step3AddYourself) removed — creator Person
+                // is auto-created by createFamily().
               ],
             ),
           ),
@@ -599,13 +430,9 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
             onNext: _nextStep,
             canProceed: _currentStep == 0
                 ? _canProceedStep1
-                : _currentStep == 2
-                ? _canProceedStep3
-                : true,
+                : true, // v4.3: Step 2 (privacy) always has a valid default
             isSubmitting: _isSubmitting,
-            // v62.4: On the last step, pass the Skip callback so the
-            // user can create the family without adding more members.
-            onSkip: _currentStep == _totalSteps - 1 ? _submitSkip : null,
+            // v4.3: No onSkip — the only action on the last step is "Create Family"
           ),
         ],
       ),
@@ -1095,252 +922,9 @@ class _Step2PrivacySetup extends StatelessWidget {
 
 // ── Step 3: Add Yourself ─────────────────────────────────────────
 
-class _Step3AddYourself extends StatelessWidget {
-  const _Step3AddYourself({
-    required this.nameController,
-    required this.birthYearController,
-    required this.selectedGender,
-    required this.onGenderChanged,
-    required this.canProceed,
-    required this.familyName,
-    required this.avatarImageFile,
-  });
-
-  final TextEditingController nameController;
-  final TextEditingController birthYearController;
-  final String? selectedGender;
-  final ValueChanged<String?> onGenderChanged;
-  final bool canProceed;
-  final String familyName;
-  final File? avatarImageFile;
-
-  @override
-  Widget build(BuildContext context) {
-    final genders = ['Male', 'Female', 'Non-Binary', 'Prefer not to say'];
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Add Yourself',
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: DKColors.textPrimary(context),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'You are the anchor of this family tree',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 14,
-              color: DKColors.textSecondary(context),
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 32),
-
-          // Family avatar preview (persisted from Step 2)
-          Center(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Family avatar as background circle
-                Container(
-                  width: 88,
-                  height: 88,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [
-                        DKColors.brandPurple.withValues(alpha: 0.15),
-                        DKColors.brandViolet.withValues(alpha: 0.08),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    border: Border.all(
-                      color: DKColors.brandPurple.withValues(alpha: 0.3),
-                      width: 2,
-                    ),
-                  ),
-                  child: avatarImageFile != null
-                      ? CircleAvatar(
-                          radius: 42,
-                          backgroundImage: FileImage(avatarImageFile!),
-                        )
-                      : DKAvatar(
-                          initials: familyName.isNotEmpty
-                              ? familyName[0].toUpperCase()
-                              : 'F',
-                          size: DKAvatarSize.xl,
-                          backgroundColor: DKColors.brandPurple,
-                          borderColor: DKColors.brandGold.withValues(alpha: 0.4),
-                        ),
-                ),
-                // Person initial overlay (bottom-right)
-                Positioned(
-                  bottom: -2,
-                  right: -2,
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: DKColors.brandPurple,
-                      border: Border.all(color: DKColors.cardColor(context), width: 2),
-                    ),
-                    child: Center(
-                      child: Text(
-                        nameController.text.isNotEmpty
-                            ? nameController.text[0].toUpperCase()
-                            : '?',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Center(
-            child: Text(
-              'Who are you in this family?',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 13,
-                color: DKColors.textSecondary(context),
-              ),
-            ),
-          ),
-          const SizedBox(height: 28),
-
-          // Name
-          Text(
-            'Your Name *',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: DKColors.textSecondary(context),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: nameController,
-            keyboardType: TextInputType.name,
-            textCapitalization: TextCapitalization.words,
-            textInputAction: TextInputAction.next,
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: DKColors.textPrimary(context),
-            ),
-            decoration: InputDecoration(
-              hintText: 'e.g., Rahul Sharma',
-              hintStyle: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: DKColors.textSecondary(context).withValues(alpha: 0.3),
-              ),
-              filled: true,
-              fillColor: DKColors.elevatedColor(context),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(KinrelRadius.input),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
-              ),
-            ),
-            autofocus: true,
-          ),
-          const SizedBox(height: 20),
-
-          // Birth Year
-          Text(
-            'Birth Year (optional)',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: DKColors.textSecondary(context),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: birthYearController,
-            keyboardType: TextInputType.number,
-            textInputAction: TextInputAction.done,
-            maxLength: 4,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 16,
-              color: DKColors.textPrimary(context),
-            ),
-            decoration: InputDecoration(
-              hintText: 'e.g., 1990',
-              hintStyle: TextStyle(
-                color: DKColors.textSecondary(context).withValues(alpha: 0.5),
-              ),
-              filled: true,
-              fillColor: DKColors.elevatedColor(context),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(KinrelRadius.input),
-                borderSide: BorderSide.none,
-              ),
-              counterText: '',
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Gender chips
-          Text(
-            'Gender (optional)',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: DKColors.textSecondary(context),
-            ),
-          ),
-          SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: genders.map((gender) {
-              final isSelected = selectedGender == gender;
-              return DKSuggestionChip(
-                label: gender,
-                isSelected: isSelected,
-                onTap: () => onGenderChanged(isSelected ? null : gender),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Bottom Navigation ────────────────────────────────────────────
+// v4.3: _Step3AddYourself class removed — the 'Add Yourself' step
+// has been eliminated. The creator Person is now auto-created
+// by createFamily() during family creation.
 
 class _BottomNav extends StatelessWidget {
   const _BottomNav({
@@ -1350,7 +934,6 @@ class _BottomNav extends StatelessWidget {
     required this.onNext,
     required this.canProceed,
     required this.isSubmitting,
-    this.onSkip,
   });
 
   final int currentStep;
@@ -1359,10 +942,7 @@ class _BottomNav extends StatelessWidget {
   final VoidCallback onNext;
   final bool canProceed;
   final bool isSubmitting;
-  /// v62.4: If non-null, a "Skip and Create" button is shown alongside
-  /// the primary "Create Family" button on the last step. Tapping it
-  /// creates the family without prompting to add more members.
-  final VoidCallback? onSkip;
+  // v4.3: Removed onSkip — there is no "Skip and Create" option anymore.
 
   @override
   Widget build(BuildContext context) {
@@ -1396,7 +976,7 @@ class _BottomNav extends StatelessWidget {
                 Expanded(
                   flex: 2,
                   child: DKButton(
-                    label: isLastStep ? 'Create & Add Members' : 'Next',
+                    label: isLastStep ? 'Create Family' : 'Next', // v4.3: was 'Create & Add Members'
                     variant: isLastStep
                         ? DKButtonVariant.gradient
                         : DKButtonVariant.primary,
@@ -1408,21 +988,8 @@ class _BottomNav extends StatelessWidget {
                 ),
               ],
             ),
-            // v62.4: "Skip and Create" button — only on the last step.
-            // v62.5: Skip button only requires Step 1 to be valid (family
-            // name + username), NOT Step 3 (person name). The person name
-            // is still required by _submitSkip(), but we show a snackbar
-            // if it's empty rather than disabling the button.
-            if (isLastStep && onSkip != null) ...[
-              SizedBox(height: 8),
-              DKButton(
-                label: 'Skip and Create',
-                variant: DKButtonVariant.secondary,
-                onPressed: !isSubmitting ? onSkip : null,
-                fullWidth: true,
-                size: DKButtonSize.md,
-              ),
-            ],
+            // v4.3: 'Skip and Create' button removed — creator Person
+            // is auto-created, so there's nothing to skip.
           ],
         ),
       ),
