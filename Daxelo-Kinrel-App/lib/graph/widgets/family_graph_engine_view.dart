@@ -184,6 +184,8 @@ class FamilyGraphEngineView extends ConsumerStatefulWidget {
     required this.familyId,
     this.highlightedGeneration,
     this.recenterKey,
+    this.bottomChromeHeight = 0,
+    this.topChromeHeight = 0,
   });
 
   /// The family whose graph to render.
@@ -193,6 +195,16 @@ class FamilyGraphEngineView extends ConsumerStatefulWidget {
   /// NOT in this generation are dimmed to 15% opacity. Passed from
   /// the parent screen's generation filter chip bar.
   final int? highlightedGeneration;
+
+  /// v4.10: Height of the app's own bottom UI chrome (stats panel + toolbar)
+  /// that overlays the canvas. Passed from family_graph_screen.dart where the
+  /// real overlay geometry is computed. Used by fitToView to center content
+  /// above the bottom overlay instead of behind it.
+  final double bottomChromeHeight;
+
+  /// v4.10: Height of the app's top UI chrome (AppBar). 0 if the Scaffold
+  /// already excludes the AppBar from the body (which it does in this app).
+  final double topChromeHeight;
 
   /// v62: When this value changes, the camera re-centers on the
   /// anchor node. Passed from the parent screen's "Center on Root"
