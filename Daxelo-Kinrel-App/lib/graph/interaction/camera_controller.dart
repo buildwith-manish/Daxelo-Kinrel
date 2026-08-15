@@ -112,6 +112,25 @@ class CameraController extends ChangeNotifier {
   /// Current family ID for position persistence.
   String? _currentFamilyId;
 
+  // ── v4.4: Viewport Bounds (prevent nodes from being clipped) ──────
+  /// Content bounds in graph-space coordinates (the bounding box of all
+  /// visible nodes + labels + glow effects). When set, pan is clamped so
+  /// the camera can never move the content completely off-screen.
+  Rect? _contentBounds;
+
+  /// Viewport size (screen-space) — needed to compute pan limits.
+  /// Updated by the view on every LayoutBuilder rebuild.
+  Size _viewportSize = Size.zero;
+
+  /// Safe-area padding around the viewport (navbar, bottom controls, FAB).
+  /// The camera keeps content within these insets so nodes are never
+  /// hidden behind UI elements.
+  EdgeInsets _safeAreaInsets = EdgeInsets.zero;
+
+  /// Margin (in screen-space pixels) kept between content and viewport edge.
+  /// Ensures nodes are never rendered at the very edge of the screen.
+  static const double _edgeMargin = 24.0;
+
   // ── Public Getters ───────────────────────────────────────────────
 
   /// Current horizontal pan offset in graph-space pixels.
@@ -134,6 +153,100 @@ class CameraController extends ChangeNotifier {
 
   /// Maximum zoom level.
   double get maxZoom => _maxZoom;
+
+  // ── v4.4: Content Bounds API ─────────────────────────────────────
+
+  /// Sets the content bounds (graph-space bounding box of all visible
+  /// nodes). The camera uses this to clamp panning so nodes can never
+  /// be moved completely off-screen.
+  ///
+  /// Call this whenever the graph layout changes (family switch, add/
+  /// remove person, expand/collapse subtree).
+  void setContentBounds(Rect? bounds) {
+    _contentBounds = bounds;
+    // If the current pan is now out of bounds (e.g. after a layout
+    // shrink), gently re-clamp it.
+    _clampPan();
+  }
+
+  /// Sets the current viewport size (screen-space dimensions).
+  /// Call from LayoutBuilder on every rebuild.
+  void setViewportSize(Size size) {
+    _viewportSize = size;
+  }
+
+  /// Sets the safe-area insets (navbar height, bottom bar, FAB, notches).
+  /// The camera keeps content within these insets.
+  void setSafeAreaInsets(EdgeInsets insets) {
+    _safeAreaInsets = insets;
+  }
+
+  /// Computes the allowed pan range so that content stays visible.
+  /// Returns null if bounds or viewport are not yet set (no clamping).
+  ({double minX, double maxX, double minY, double maxY})? _computePanLimits() {
+    if (_contentBounds == null) return null;
+    if (_viewportSize.width <= 0 || _viewportSize.height <= 0) return null;
+
+    final cb = _contentBounds!;
+    final zoom = _zoomLevel;
+
+    // Effective viewport minus safe areas and edge margin.
+    final effectiveWidth = _viewportSize.width
+        - _safeAreaInsets.left - _safeAreaInsets.right
+        - _edgeMargin * 2;
+    final effectiveHeight = _viewportSize.height
+        - _safeAreaInsets.top - _safeAreaInsets.bottom
+        - _edgeMargin * 2;
+
+    // Content size in screen-space.
+    final contentWidth = cb.width * zoom;
+    final contentHeight = cb.height * zoom;
+
+    // Content center in screen-space (relative to content top-left).
+    final contentCenterX = cb.left * zoom;
+    final contentCenterY = cb.top * zoom;
+
+    // Viewport center accounting for safe areas.
+    final viewCenterX = _safeAreaInsets.left + _edgeMargin + effectiveWidth / 2;
+    final viewCenterY = _safeAreaInsets.top + _edgeMargin + effectiveHeight / 2;
+
+    if (contentWidth <= effectiveWidth) {
+      // Content is smaller than viewport — center it, allow small drift.
+      final minX = viewCenterX - contentCenterX - contentWidth / 2;
+      final maxX = viewCenterX - contentCenterX + contentWidth / 2;
+      // For Y
+      final minY = viewCenterY - contentCenterY - contentHeight / 2;
+      final maxY = viewCenterY - contentCenterY + contentHeight / 2;
+      return (minX: minX, maxX: maxX, minY: minY, maxY: maxY);
+    } else {
+      // Content is larger than viewport — allow panning but keep edges
+      // within the margin.
+      final minX = viewCenterX - contentCenterX - contentWidth / 2 + effectiveWidth / 2;
+      final maxX = viewCenterX - contentCenterX + contentWidth / 2 - effectiveWidth / 2;
+      final minY = viewCenterY - contentCenterY - contentHeight / 2 + effectiveHeight / 2;
+      final maxY = viewCenterY - contentCenterY + contentHeight / 2 - effectiveHeight / 2;
+      return (minX: minX, maxX: maxX, minY: minY, maxY: maxY);
+    }
+  }
+
+  /// Clamps the current pan position to the computed limits.
+  /// Called after every pan/zoom/animation change.
+  void _clampPan() {
+    final limits = _computePanLimits();
+    if (limits == null) return;
+
+    // If content is smaller than viewport (min > max), center it.
+    if (limits.minX > limits.maxX) {
+      _panX = (limits.minX + limits.maxX) / 2;
+    } else {
+      _panX = _panX.clamp(limits.minX, limits.maxX);
+    }
+    if (limits.minY > limits.maxY) {
+      _panY = (limits.minY + limits.maxY) / 2;
+    } else {
+      _panY = _panY.clamp(limits.minY, limits.maxY);
+    }
+  }
 
   /// The combined transform matrix for applying the camera state
   /// to the graph widget tree.
@@ -160,6 +273,7 @@ class CameraController extends ChangeNotifier {
   void panBy(double dx, double dy) {
     _panX += dx;
     _panY += dy;
+    _clampPan(); // v4.4: keep nodes visible
     _focusedNodeId = null;
     _scheduleSave();
     notifyListeners();
@@ -231,10 +345,6 @@ class CameraController extends ChangeNotifier {
   /// stationary during the zoom. If null, the viewport center is used.
   void zoomTo(double level, {Offset? focalPoint}) {
     final newZoom = level.clamp(_minZoom, _maxZoom);
-    // Epsilon handling: floating-point pinch noise can produce
-    // infinitesimal zoom deltas. Without this guard, the equality
-    // short-circuit may fail to fire, causing unnecessary
-    // notifyListeners() calls and visual jitter.
     const zoomEpsilon = 0.0001;
     if ((newZoom - _zoomLevel).abs() < zoomEpsilon) return;
 
@@ -246,6 +356,7 @@ class CameraController extends ChangeNotifier {
     }
 
     _zoomLevel = newZoom;
+    _clampPan(); // v4.4: re-clamp after zoom (content may shrink/grow)
     _scheduleSave();
 
     AnalyticsService.instance.logGraphZoomed(_zoomLevel);
@@ -499,6 +610,7 @@ class CameraController extends ChangeNotifier {
       _panY = startPanY + (targetPanY - startPanY) * curvedT;
       _zoomLevel =
           startZoom + (targetZoomClamped - startZoom) * curvedT;
+      _clampPan(); // v4.4: keep nodes visible during animation
 
       notifyListeners();
 
@@ -604,6 +716,7 @@ class CameraController extends ChangeNotifier {
       _panX = simX.x(elapsedSeconds);
       _panY = simY.x(elapsedSeconds);
       _zoomLevel = simZoom.x(elapsedSeconds);
+      _clampPan(); // v4.4: keep nodes visible during spring animation
 
       notifyListeners();
 
@@ -616,6 +729,7 @@ class CameraController extends ChangeNotifier {
         _panX = targetPanX;
         _panY = targetPanY;
         _zoomLevel = targetZoomClamped;
+        _clampPan(); // v4.4: final clamp
         _isAnimating = false;
         _scheduleSave();
         notifyListeners();
@@ -831,6 +945,41 @@ class CameraController extends ChangeNotifier {
     return Rect.fromLTWH(left, top, width, height);
   }
 
+  // ── v4.4: Auto-Recenter ─────────────────────────────────────────
+
+  /// Checks if the current viewport shows any content. If not (e.g.
+  /// after a layout update changed node positions), gently animates
+  /// the camera back to a valid position so nodes are visible.
+  ///
+  /// Call this after any layout change (add/remove person, expand/
+  /// collapse subtree, family switch).
+  void recenterIfNeeded() {
+    if (_contentBounds == null) return;
+    if (_viewportSize.width <= 0 || _viewportSize.height <= 0) return;
+    if (_isAnimating) return; // don't interrupt active animations
+
+    final limits = _computePanLimits();
+    if (limits == null) return;
+
+    final needsRecenterX =
+        _panX < limits.minX - 1 || _panX > limits.maxX + 1;
+    final needsRecenterY =
+        _panY < limits.minY - 1 || _panY > limits.maxY + 1;
+
+    if (needsRecenterX || needsRecenterY) {
+      // Gently animate to the clamped position
+      final targetX = _panX.clamp(limits.minX, limits.maxX);
+      final targetY = _panY.clamp(limits.minY, limits.maxY);
+      animateTo(
+        targetX,
+        targetY,
+        _zoomLevel,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
   // ── Lifecycle ────────────────────────────────────────────────────
 
   @override
@@ -918,6 +1067,7 @@ class CameraController extends ChangeNotifier {
 
       _panX = simX.x(elapsedSeconds);
       _panY = simY.x(elapsedSeconds);
+      _clampPan(); // v4.4: keep nodes visible during momentum decay
 
       notifyListeners();
 
@@ -926,6 +1076,7 @@ class CameraController extends ChangeNotifier {
       } else {
         _panX = targetPanX;
         _panY = targetPanY;
+        _clampPan(); // v4.4: final clamp
         _isAnimating = false;
         _velocityX = 0.0;
         _velocityY = 0.0;
