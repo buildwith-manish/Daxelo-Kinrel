@@ -1151,8 +1151,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   relationshipKey: relKey,
                   // v5.3: Pass genders so the inverse edge gets the
                   // correct gender-aware key (e.g. 'son' instead of
-                  // 'child').
-                  fromPersonGender: newPersonGender,
+                  // 'child'). _selectedGender is the new person's gender.
+                  fromPersonGender: _selectedGender,
                   toPersonGender: widget.anchorPerson?.gender,
                   // v83: Pass custom kinship colors + display name
                   customColors: _customKinshipName != null

@@ -498,7 +498,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   // v5.2: Listener for family member changes — refreshes the chat
   // member roster when a Person is added/deleted.
   // ref.listen returns a ProviderSubscription.
-  ProviderSubscription<List<Person>>? _memberListListener;
+  ProviderSubscription<AsyncValue<List<Person>>>? _memberListListener;
 
   // ── Initialization ───────────────────────────────────────────────
 
@@ -519,11 +519,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
     try {
       // Watch the familyMembersProvider — when it invalidates (e.g.
       // after createPerson), re-load the chat member roster.
+      // FutureProvider<List<Person>> emits AsyncValue<List<Person>>,
+      // so we listen to the AsyncValue and re-load when it has data.
       _memberListListener = ref.listen(
         familyMembersProvider(familyId),
-        (_, __) {
-          // Re-load members on the next microtask to avoid reentrancy.
-          Future.microtask(() => _loadMembers());
+        (previous, next) {
+          // Only re-load when the new AsyncValue has data (not loading).
+          if (next.hasValue && !next.isLoading) {
+            Future.microtask(() => _loadMembers());
+          }
         },
         fireImmediately: false,
       );
