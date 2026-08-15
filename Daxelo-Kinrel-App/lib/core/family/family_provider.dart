@@ -1373,6 +1373,89 @@ Future<Family> createFamily({
     debugPrint('[createFamily] FamilyMember verification/creation failed (non-fatal): $e');
   }
 
+  // ════════════════════════════════════════════════════════════════════
+  // v4.2 (2026-08-15): AUTO-CREATE CREATOR PERSON
+  // ════════════════════════════════════════════════════════════════════
+  // When a user creates a new family space, automatically create a Person
+  // record for the account owner so the family graph never starts empty.
+  // The creator is marked as:
+  //   - isAnchor: true (root/starting node of the family graph)
+  //   - linkedUserId: <creator's auth user ID> (claims the node)
+  //   - Family.anchorPersonId: set to this person's ID
+  //
+  // This eliminates the "Add Yourself" step — the creator immediately
+  // sees themselves in the graph after family creation.
+  //
+  // Edge cases handled:
+  //   - Only creates if no Person with linkedUserId=userId exists in this family
+  //   - Prevents duplicate "You" nodes
+  //   - Non-fatal: if Person creation fails, the family is still created
+  // ════════════════════════════════════════════════════════════════════
+  try {
+    // Check if a Person already exists for this user in this family
+    final existingPerson = await client
+        .from('Person')
+        .select('id')
+        .eq('familyId', family.id)
+        .eq('linkedUserId', userId)
+        .limit(1)
+        .timeout(const Duration(seconds: 5));
+
+    if (existingPerson.isEmpty) {
+      debugPrint('[createFamily] Auto-creating creator Person for family ${family.id}');
+
+      // Derive the creator's name from auth user metadata
+      final authUser = client.auth.currentUser;
+      final userMeta = authUser?.userMetadata;
+      final creatorName = (userMeta?['full_name'] as String?)?.trim() ||
+          (userMeta?['name'] as String?)?.trim() ||
+          (userMeta?['user_name'] as String?)?.trim() ||
+          authUser?.email?.split('@').first ??
+          'You';
+
+      // Derive gender from user metadata (optional — null is fine)
+      final creatorGender = (userMeta?['gender'] as String?)?.toLowerCase();
+
+      final personId = _generateId();
+      final personInsert = <String, dynamic>{
+        'id': personId,
+        'familyId': family.id,
+        'name': creatorName,
+        'isAnchor': true,
+        'privacyLevel': 'family',
+        'linkedUserId': userId,
+        'generationIndex': 0,
+      };
+      if (creatorGender != null && creatorGender.isNotEmpty) {
+        personInsert['gender'] = creatorGender;
+      }
+
+      await client
+          .from('Person')
+          .insert(personInsert)
+          .timeout(const Duration(seconds: 10));
+
+      // Set Family.anchorPersonId + memberCount=1
+      await client
+          .from('Family')
+          .update({
+            'anchorPersonId': personId,
+            'memberCount': 1,
+            'lastActivityAt': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', family.id)
+          .timeout(const Duration(seconds: 5));
+
+      debugPrint('[createFamily] Creator Person created: $personId (name=$creatorName)');
+    } else {
+      debugPrint('[createFamily] Creator Person already exists — skipping auto-create');
+    }
+  } catch (e) {
+    // Non-fatal: the family was created successfully. The user can
+    // manually add themselves via the "Add Yourself" flow if needed.
+    debugPrint('[createFamily] Auto-create creator Person failed (non-fatal): $e');
+  }
+
   ref.invalidate(familyListProvider);
 
   // Invalidate the Isar cache for the family list
