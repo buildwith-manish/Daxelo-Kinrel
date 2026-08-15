@@ -93,6 +93,86 @@ export class FamiliesService {
 
     const formattedFamily = this.formatFamily(family);
 
+    // ════════════════════════════════════════════════════════════════════
+    // v4.2 (2026-08-15): AUTO-CREATE CREATOR PERSON
+    // ════════════════════════════════════════════════════════════════════
+    // When a user creates a new family space, automatically create a Person
+    // record for the account owner so the family graph never starts empty.
+    // The creator is marked as:
+    //   - isAnchor: true (root/starting node of the family graph)
+    //   - linkedUserId: <creator's user ID> (claims the node)
+    //   - Family.anchorPersonId: set to this person's ID
+    //
+    // Edge cases:
+    //   - Only creates if no Person with linkedUserId=userId exists in this family
+    //   - Prevents duplicate "You" nodes
+    //   - Non-fatal: if Person creation fails, the family is still created
+    // ════════════════════════════════════════════════════════════════════
+    try {
+      // Check if a Person already exists for this user in this family
+      const existingPerson = await this.prisma.person.findFirst({
+        where: { familyId: family.id, linkedUserId: userId },
+        select: { id: true },
+      });
+
+      if (!existingPerson) {
+        // Derive the creator's name from their User record
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { name: true, username: true, email: true, gender: true },
+        });
+
+        const creatorName = user?.name?.trim() ||
+          user?.username?.trim() ||
+          (user?.email ? user.email.split('@')[0] : 'You');
+
+        const creatorPerson = await this.prisma.person.create({
+          data: {
+            familyId: family.id,
+            name: creatorName,
+            isAnchor: true,
+            privacyLevel: 'family',
+            linkedUserId: userId,
+            generationIndex: 0,
+            ...(user?.gender ? { gender: user.gender } : {}),
+          },
+        });
+
+        // Set Family.anchorPersonId + memberCount=1
+        await this.prisma.family.update({
+          where: { id: family.id },
+          data: {
+            anchorPersonId: creatorPerson.id,
+            memberCount: 1,
+            lastActivityAt: new Date(),
+          },
+        });
+
+        // Emit websocket events so connected clients refresh
+        try {
+          this.gateway.emitToFamily(family.id, 'person:created', {
+            personId: creatorPerson.id,
+            familyId: family.id,
+            name: creatorName,
+            isAnchor: true,
+            isCreator: true,
+          });
+          this.gateway.emitToFamily(family.id, 'graph:updated', {
+            familyId: family.id,
+            reason: 'creator_person_auto_created',
+          });
+        } catch {}
+      }
+    } catch (err) {
+      // Non-fatal: the family was created successfully. The user can
+      // manually add themselves via the "Add Yourself" flow if needed.
+      this.logger?.warn?.(
+        `Auto-create creator Person failed (non-fatal): ${(err as Error).message}`,
+      ) ?? console.warn(
+        `Auto-create creator Person failed (non-fatal): ${(err as Error).message}`,
+      );
+    }
+
     // Fire-and-forget — wrapped in try/catch inside each notify method
     this.notificationsService.notifyFamilyCreated(userId, family.name, family.id);
     this.notificationsService.notifyFamilyInviteLinkReady(userId, family.name, family.id);
