@@ -61,15 +61,17 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   Future<void> _createGroup() async {
     setState(() => _isCreating = true);
 
-    final membershipsAsync =
-        ref.read(familyMembershipsProvider(widget.familyId));
-    final memberships = membershipsAsync.valueOrNull ?? [];
+    // v5.2: Use the unified roster so Persons with linkedUserId can
+    // be added to groups too.
+    final rosterAsync =
+        ref.read(unifiedFamilyRosterProvider(widget.familyId));
+    final roster = rosterAsync.valueOrNull ?? [];
 
-    final selectedMembers = memberships
-        .where((m) => _selectedMemberIds.contains(m.userId))
+    final selectedMembers = roster
+        .where((m) => m.isKinrelUser && _selectedMemberIds.contains(m.userId))
         .map((m) => (
-              userId: m.userId,
-              displayName: m.user?.displayName ?? 'Member',
+              userId: m.userId!,
+              displayName: m.displayName,
               isGuest: false,
             ))
         .toList();
@@ -382,12 +384,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   // ── Step 3: Members ─────────────────────────────────────────────────
 
   Widget _buildMembersStep() {
-    final membershipsAsync =
-        ref.watch(familyMembershipsProvider(widget.familyId));
+    // v5.2: Use the unified roster so manually-added Persons with
+    // linkedUserId can also be added to groups.
+    final rosterAsync =
+        ref.watch(unifiedFamilyRosterProvider(widget.familyId));
     final currentUserId =
         ref.read(supabaseProvider)?.auth.currentUser?.id;
 
-    return membershipsAsync.when(
+    return rosterAsync.when(
       loading: () => const Center(
         child: CircularProgressIndicator(color: KinrelColors.orange),
       ),
@@ -395,7 +399,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         child: Text('Could not load members',
             style: TextStyle(color: KinrelColors.textDim)),
       ),
-      data: (memberships) {
+      data: (roster) {
+        // v5.2: Filter to only Kinrel users (groups require userId).
+        final memberships = roster.where((m) => m.isKinrelUser).toList();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -457,17 +463,21 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             // Member list
             ...memberships.where((m) => m.userId != currentUserId).map((m) {
               final isSelected = _selectedMemberIds.contains(m.userId);
-              final name = m.user?.displayName ?? 'Member';
-              final initials = m.user?.initials ?? '?';
-              final avatarUrl = m.user?.avatarUrl;
+              // v5.2: UnifiedFamilyMember has displayName, initials,
+              // avatarUrl directly (no nested .user object).
+              final name = m.displayName;
+              final initials = m.initials;
+              final avatarUrl = m.avatarUrl;
 
               return GestureDetector(
                 onTap: () {
+                  final userId = m.userId;
+                  if (userId == null) return;
                   setState(() {
                     if (isSelected) {
-                      _selectedMemberIds.remove(m.userId);
+                      _selectedMemberIds.remove(userId);
                     } else {
-                      _selectedMemberIds.add(m.userId);
+                      _selectedMemberIds.add(userId);
                     }
                   });
                 },

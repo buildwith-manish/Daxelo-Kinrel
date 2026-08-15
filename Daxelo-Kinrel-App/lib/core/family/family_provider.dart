@@ -1216,6 +1216,178 @@ final familyMembershipsProvider =
   }
 });
 
+/// v5.2: Unified family roster — combines FamilyMember rows (Kinrel users
+/// who joined the family space) with Person nodes (manually-added family
+/// members, deceased ancestors, children, etc.).
+///
+/// This provider powers the Family Hub member grid, the Create Group
+/// member picker, and any UI that needs to show ALL people in a family
+/// — not just the Kinrel users who joined the family space.
+///
+/// Deduplication: if a Person has `linkedUserId` matching a FamilyMember's
+/// `userId`, only ONE entry is shown (the FamilyMembership, which has the
+/// richer user profile data).
+///
+/// Auto-refreshes when either familyMembersProvider or familyMembershipsProvider
+/// changes (both are watched).
+final unifiedFamilyRosterProvider =
+    FutureProvider.family<List<UnifiedFamilyMember>, String>((ref, familyId) async {
+  // Watch both providers so this rebuilds when either changes.
+  final membersAsync = ref.watch(familyMembersProvider(familyId));
+  final membershipsAsync = ref.watch(familyMembershipsProvider(familyId));
+
+  final persons = membersAsync.valueOrNull ?? [];
+  final memberships = membershipsAsync.valueOrNull ?? [];
+
+  // Build a set of userIds that already have a FamilyMembership — we
+  // skip their Person node to avoid duplicates.
+  final membershipUserIds = <String>{};
+  for (final m in memberships) {
+    if (m.userId.isNotEmpty) {
+      membershipUserIds.add(m.userId);
+    }
+  }
+
+  final roster = <UnifiedFamilyMember>[];
+
+  // 1. Add all FamilyMember rows (Kinrel users who joined the space)
+  for (final m in memberships) {
+    roster.add(UnifiedFamilyMember.fromMembership(m));
+  }
+
+  // 2. Add all Person nodes that are NOT already represented by a FamilyMember
+  for (final p in persons) {
+    if (p.linkedUserId != null &&
+        p.linkedUserId!.isNotEmpty &&
+        membershipUserIds.contains(p.linkedUserId)) {
+      // This Person is already in the roster via their FamilyMembership
+      continue;
+    }
+    roster.add(UnifiedFamilyMember.fromPerson(p));
+  }
+
+  return roster;
+});
+
+/// v5.2: A unified family member entry — either a Kinrel user (FamilyMember)
+/// or a manually-added Person node. Carries the display info needed by
+/// the Family Hub grid, Create Group picker, etc.
+class UnifiedFamilyMember {
+  const UnifiedFamilyMember({
+    required this.id,
+    required this.displayName,
+    required this.role,
+    required this.source,
+    this.userId,
+    this.personId,
+    this.avatarUrl,
+    this.initials = '?',
+    this.gender,
+    this.isDeceased = false,
+    this.isAnchor = false,
+    this.joinedAt,
+  });
+
+  /// Creates a UnifiedFamilyMember from a FamilyMembership (Kinrel user).
+  factory UnifiedFamilyMember.fromMembership(FamilyMembership m) {
+    final user = m.user;
+    return UnifiedFamilyMember(
+      id: 'fm_${m.id}',
+      userId: m.userId,
+      displayName: user?.displayName ?? 'Member',
+      role: m.role,
+      source: UnifiedMemberSource.membership,
+      avatarUrl: user?.avatarUrl,
+      initials: user?.initials ?? '?',
+      joinedAt: m.joinedAt,
+    );
+  }
+
+  /// Creates a UnifiedFamilyMember from a Person node (manually added).
+  factory UnifiedFamilyMember.fromPerson(Person p) {
+    final name = p.name.isNotEmpty ? p.name : 'Unknown';
+    final initials = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    return UnifiedFamilyMember(
+      id: 'person_${p.id}',
+      personId: p.id,
+      displayName: name,
+      role: 'member',
+      source: UnifiedMemberSource.person,
+      avatarUrl: p.photoUrl,
+      initials: initials,
+      gender: p.gender,
+      isDeceased: p.isDeceased,
+      isAnchor: p.isAnchor,
+    );
+  }
+
+  /// Unique ID for this roster entry (prefixed to avoid collisions).
+  final String id;
+
+  /// The Supabase auth user ID (only set for Kinrel users).
+  final String? userId;
+
+  /// The Person node ID (only set for manually-added Persons).
+  final String? personId;
+
+  /// Display name for the UI.
+  final String displayName;
+
+  /// Role in the family ('admin', 'editor', 'member', 'viewer').
+  final String role;
+
+  /// Whether this entry came from a FamilyMember row or a Person node.
+  final UnifiedMemberSource source;
+
+  /// Avatar URL (if any).
+  final String? avatarUrl;
+
+  /// Initials for the avatar placeholder.
+  final String initials;
+
+  /// Gender (only set for Person nodes).
+  final String? gender;
+
+  /// Whether this person is deceased (only set for Person nodes).
+  final bool isDeceased;
+
+  /// Whether this is the family anchor (only set for Person nodes).
+  final bool isAnchor;
+
+  /// When this member joined the family (only set for FamilyMember rows).
+  final DateTime? joinedAt;
+
+  /// Whether this entry is a Kinrel user (has a userId).
+  bool get isKinrelUser => userId != null && userId!.isNotEmpty;
+
+  /// Whether this entry has admin privileges.
+  bool get isAdmin => role.toLowerCase() == 'admin' || role.toLowerCase() == 'owner';
+
+  /// Display-friendly role label.
+  String get displayRole {
+    switch (role.toLowerCase()) {
+      case 'admin':
+      case 'owner':
+        return 'Admin';
+      case 'editor':
+        return 'Editor';
+      case 'viewer':
+        return 'Viewer';
+      default:
+        return 'Member';
+    }
+  }
+}
+
+/// The source of a UnifiedFamilyMember entry.
+enum UnifiedMemberSource {
+  /// A Kinrel user who joined the family space (FamilyMember table).
+  membership,
+
+  /// A manually-added Person node (Person table).
+  person,
+}
+
 /// Computes the current user's role in a given family.
 /// Returns the role string (e.g. 'admin', 'editor', 'member', 'viewer')
 /// or null if the user is not a member or data is unavailable.
@@ -1758,6 +1930,11 @@ Future<Person> createPerson({
   // ── Step 4: Invalidate all providers so the UI refreshes immediately ──
   ref.invalidate(familyMembersProvider(familyId));
   ref.invalidate(familyDetailProvider(familyId));
+  // v5.2: Invalidate familyMembershipsProvider so the Family Hub member
+  // grid, Create Group picker, and any UI reading FamilyMember rows
+  // refreshes. Also invalidate the unified roster (combines both).
+  ref.invalidate(familyMembershipsProvider(familyId));
+  ref.invalidate(unifiedFamilyRosterProvider(familyId));
 
   // v94 (EDGE BUG FIX): Only clear the graph cache when this is a
   // standalone Person creation. When `refreshGraph` is false, the
@@ -2118,12 +2295,16 @@ Future<void> deletePerson({
   }
 
   ref.invalidate(familyMembersProvider(familyId));
+  // v5.2: Invalidate memberships + unified roster so all member-list UIs refresh.
+  ref.invalidate(familyMembershipsProvider(familyId));
+  ref.invalidate(unifiedFamilyRosterProvider(familyId));
   // familyDetailProvider auto-rebuilds via ref.watch on familyMembersProvider
 
   // ✅ RELEASE-READY FIX: invalidate graph provider + clear cache
   // so the deleted person disappears from the family graph immediately.
   FamilyGraphNotifier.clearCache(familyId);
   ref.invalidate(familyGraphProvider(familyId));
+  ref.invalidate(familyRelationshipsProvider(familyId));
 
   // ✅ FIX: Decrement Family.memberCount in Supabase
   // The NestJS backend decrements memberCount when a person is deleted.
@@ -2479,6 +2660,10 @@ Future<FamilyRelationship> createRelationship({
   }
 
   ref.invalidate(familyRelationshipsProvider(familyId));
+  // v5.2: Invalidate the unified roster so any UI showing the combined
+  // FamilyMember + Person list refreshes (relationship edges affect
+  // member display in some views).
+  ref.invalidate(unifiedFamilyRosterProvider(familyId));
   // familyDetailProvider auto-rebuilds via ref.watch on familyRelationshipsProvider
 
   // v94 (EDGE BUG FIX): Only clear the graph cache + invalidate the
@@ -3079,6 +3264,8 @@ Future<void> deleteRelationship({
 
   ref.invalidate(familyRelationshipsProvider(familyId));
   ref.invalidate(familyDetailProvider(familyId));
+  // v5.2: Invalidate the unified roster so member-list UIs refresh.
+  ref.invalidate(unifiedFamilyRosterProvider(familyId));
 
   // ✅ RELEASE-READY FIX: invalidate the graph provider + clear its
   // in-memory cache so the deleted edge disappears immediately.

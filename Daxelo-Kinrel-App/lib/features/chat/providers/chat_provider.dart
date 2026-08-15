@@ -32,6 +32,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
+import '../../../core/family/family_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Models
@@ -494,6 +495,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
   StreamSubscription<List<Map<String, dynamic>>>? _membersSub;
   // Whether we've completed the initial load
   bool _initialLoadDone = false;
+  // v5.2: Listener for family member changes — refreshes the chat
+  // member roster when a Person is added/deleted.
+  // ref.listen returns a RemoveListener (void Function()).
+  void Function()? _cancelMemberListListener;
 
   // ── Initialization ───────────────────────────────────────────────
 
@@ -501,6 +506,30 @@ class ChatNotifier extends StateNotifier<ChatState> {
     await _loadMembers();
     await _loadMessages();
     _subscribeToRealtime();
+    _listenToMemberChanges();
+  }
+
+  /// v5.2: Listens to changes in familyMembersProvider and re-loads
+  /// the chat member roster when members are added/deleted/updated.
+  ///
+  /// Without this, the chat header's member list only refreshes when
+  /// the chat screen is re-opened. With this listener, it refreshes
+  /// immediately when a new Person is added to the family.
+  void _listenToMemberChanges() {
+    try {
+      // Watch the familyMembersProvider — when it invalidates (e.g.
+      // after createPerson), re-load the chat member roster.
+      _cancelMemberListListener = ref.listen(
+        familyMembersProvider(familyId),
+        (_, __) {
+          // Re-load members on the next microtask to avoid reentrancy.
+          Future.microtask(() => _loadMembers());
+        },
+        fireImmediately: false,
+      );
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier._listenToMemberChanges error: $e');
+    }
   }
 
   /// Returns the current Supabase client (or null if not ready).
@@ -1409,6 +1438,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _channel?.unsubscribe();
     _channel = null;
     _membersSub?.cancel();
+    // v5.2: Cancel the family member listener to prevent leaks.
+    _cancelMemberListListener?.call();
+    _cancelMemberListListener = null;
     super.dispose();
   }
 }

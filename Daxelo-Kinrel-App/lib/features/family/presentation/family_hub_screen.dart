@@ -37,9 +37,13 @@ class FamilyHubScreen extends ConsumerWidget {
     final familyAsync = ref.watch(familyDetailProvider(familyId));
     final avatarUrl = ref.watch(familyAvatarProvider(familyId));
     final chatState = ref.watch(chatProvider(familyId));
+    // v5.2: Use the unified roster (FamilyMember + Person nodes) so the
+    // grid shows ALL family members, including manually-added Persons.
+    final rosterAsync = ref.watch(unifiedFamilyRosterProvider(familyId));
     final membershipsAsync = ref.watch(familyMembershipsProvider(familyId));
 
     final family = familyAsync.valueOrNull?.family;
+    final roster = rosterAsync.valueOrNull ?? [];
     final memberships = membershipsAsync.valueOrNull ?? [];
 
     return DKScaffold(
@@ -99,8 +103,8 @@ class FamilyHubScreen extends ConsumerWidget {
                     // ── LEVEL 2: Members ─────────────────────────────
                     _MembersSection(
                       familyId: familyId,
-                      memberships: memberships,
-                      memberCount: family.memberCount,
+                      roster: roster,
+                      memberCount: roster.isNotEmpty ? roster.length : family.memberCount,
                     ),
 
                     // ── LEVEL 2: Shared Content ──────────────────────
@@ -544,12 +548,12 @@ class _GroupsQuickAccess extends ConsumerWidget {
 class _MembersSection extends StatelessWidget {
   const _MembersSection({
     required this.familyId,
-    required this.memberships,
+    required this.roster,
     required this.memberCount,
   });
 
   final String familyId;
-  final List<FamilyMembership> memberships;
+  final List<UnifiedFamilyMember> roster;
   final int memberCount;
 
   @override
@@ -614,7 +618,7 @@ class _MembersSection extends StatelessWidget {
           const SizedBox(height: 18),
           // v136: Larger member cards with better grouping.
           // 2-column layout (was 3) so each card has more room.
-          if (memberships.isEmpty)
+          if (roster.isEmpty)
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(20),
@@ -634,9 +638,9 @@ class _MembersSection extends StatelessWidget {
                 mainAxisSpacing: 14,
                 childAspectRatio: 0.92,
               ),
-              itemCount: memberships.take(4).length,
+              itemCount: roster.take(4).length,
               itemBuilder: (ctx, i) {
-                return _MemberCard(membership: memberships[i]);
+                return _MemberCard(member: roster[i]);
               },
             ),
         ],
@@ -646,20 +650,23 @@ class _MembersSection extends StatelessWidget {
 }
 
 class _MemberCard extends StatelessWidget {
-  const _MemberCard({required this.membership});
-  final FamilyMembership membership;
+  const _MemberCard({required this.member});
+  final UnifiedFamilyMember member;
 
   @override
   Widget build(BuildContext context) {
-    final user = membership.user;
-    final name = user?.displayName ?? 'Member';
-    final initials = user?.initials ?? '?';
-    final avatarUrl = user?.avatarUrl;
+    final name = member.displayName;
+    final initials = member.initials;
+    final avatarUrl = member.avatarUrl;
 
     return GestureDetector(
       onTap: () {
-        if (user != null) {
-          context.push('/dm/${user.id}');
+        // v5.2: If this is a Kinrel user (has userId), open DM.
+        // If it's a manually-added Person, open their profile.
+        if (member.userId != null && member.userId!.isNotEmpty) {
+          context.push('/dm/${member.userId}');
+        } else if (member.personId != null) {
+          context.push('/member/${member.personId}');
         }
       },
       child: Container(
@@ -668,7 +675,7 @@ class _MemberCard extends StatelessWidget {
           color: Colors.white.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: membership.isAdmin
+            color: member.isAdmin
                 ? KinrelColors.ember.withValues(alpha: 0.20)
                 : Colors.white.withValues(alpha: 0.05),
             width: 0.6,
@@ -683,12 +690,12 @@ class _MemberCard extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: membership.isAdmin
+                  color: member.isAdmin
                       ? KinrelColors.ember.withValues(alpha: 0.55)
                       : Colors.white.withValues(alpha: 0.10),
                   width: 1.5,
                 ),
-                boxShadow: membership.isAdmin
+                boxShadow: member.isAdmin
                     ? [
                         BoxShadow(
                           color: KinrelColors.ember
@@ -730,12 +737,12 @@ class _MemberCard extends StatelessWidget {
             ),
             const SizedBox(height: 3),
             Text(
-              membership.displayRole,
+              member.displayRole,
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
-                color: membership.isAdmin
+                color: member.isAdmin
                     ? KinrelColors.ember.withValues(alpha: 0.85)
                     : KinrelColors.textDim,
                 letterSpacing: 0.3,

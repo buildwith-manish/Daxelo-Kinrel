@@ -113,7 +113,7 @@ class SupabaseRealtimeService {
     channel.onPostgresChanges(
       event: PostgresChangeEvent.all,
       schema: 'public',
-      table: 'Persons',
+      table: 'Person',
       filter: PostgresChangeFilter(
         type: PostgresChangeFilterType.eq,
         column: 'familyId',
@@ -126,7 +126,7 @@ class SupabaseRealtimeService {
     channel.onPostgresChanges(
       event: PostgresChangeEvent.all,
       schema: 'public',
-      table: 'Relationships',
+      table: 'Relationship',
       filter: PostgresChangeFilter(
         type: PostgresChangeFilterType.eq,
         column: 'familyId',
@@ -140,7 +140,7 @@ class SupabaseRealtimeService {
     channel.onPostgresChanges(
       event: PostgresChangeEvent.update,
       schema: 'public',
-      table: 'Families',
+      table: 'Family',
       filter: PostgresChangeFilter(
         type: PostgresChangeFilterType.eq,
         column: 'id',
@@ -222,7 +222,7 @@ class SupabaseRealtimeService {
     channel.onPostgresChanges(
       event: PostgresChangeEvent.insert,
       schema: 'public',
-      table: 'FamilyMembers',
+      table: 'FamilyMember',
       filter: PostgresChangeFilter(
         type: PostgresChangeFilterType.eq,
         column: 'userId',

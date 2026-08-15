@@ -19,6 +19,7 @@ import '../database/isar_database.dart';
 import '../database/sync/cache_invalidation.dart';
 import '../family/family_provider.dart';
 import '../services/supabase_service.dart';
+import '../../features/family/presentation/providers/family_graph_provider.dart' show FamilyGraphNotifier;
 import 'realtime_dedup.dart';
 
 // ── Realtime Subscription Service ─────────────────────────────────
@@ -198,6 +199,60 @@ class RealtimeSubscriptionService {
         callback: (payload) => _handlePostgresChange(
           'Family',
           'UPDATE',
+          familyId,
+          payload,
+        ),
+      );
+
+      // ── FamilyMember: INSERT/UPDATE/DELETE (v5.2) ───────────────
+      // Listen for family-space membership changes (join/leave/role
+      // change) so the Family Hub member grid refreshes in real time.
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'FamilyMember',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'familyId',
+          value: familyId,
+        ),
+        callback: (payload) => _handlePostgresChange(
+          'FamilyMember',
+          'INSERT',
+          familyId,
+          payload,
+        ),
+      );
+
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'FamilyMember',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'familyId',
+          value: familyId,
+        ),
+        callback: (payload) => _handlePostgresChange(
+          'FamilyMember',
+          'UPDATE',
+          familyId,
+          payload,
+        ),
+      );
+
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.delete,
+        schema: 'public',
+        table: 'FamilyMember',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'familyId',
+          value: familyId,
+        ),
+        callback: (payload) => _handlePostgresChange(
+          'FamilyMember',
+          'DELETE',
           familyId,
           payload,
         ),
@@ -396,9 +451,34 @@ class RealtimeSubscriptionService {
         switch (table) {
           case 'Person':
             _ref.invalidate(familyMembersProvider(familyId));
+            // v5.2: Also invalidate the unified roster so the Family Hub
+            // member grid, Create Group picker, etc. refresh when a
+            // Person is added/deleted by another user or session.
+            _ref.invalidate(familyMembershipsProvider(familyId));
+            _ref.invalidate(unifiedFamilyRosterProvider(familyId));
+            // v5.2: Refresh the graph provider too — a Person change
+            // affects node rendering on the graph.
+            try {
+              FamilyGraphNotifier.clearCache(familyId);
+              _ref.invalidate(familyGraphProvider(familyId));
+            } catch (_) {}
             break;
           case 'Relationship':
             _ref.invalidate(familyRelationshipsProvider(familyId));
+            // v5.2: Invalidate the unified roster (relationship edges
+            // affect member display in some views).
+            _ref.invalidate(unifiedFamilyRosterProvider(familyId));
+            // v5.2: Refresh the graph provider for edge rendering.
+            try {
+              FamilyGraphNotifier.clearCache(familyId);
+              _ref.invalidate(familyGraphProvider(familyId));
+            } catch (_) {}
+            break;
+          case 'FamilyMember':
+            // v5.2: Listen for FamilyMember changes (join/leave) so the
+            // Family Hub member grid refreshes in real time.
+            _ref.invalidate(familyMembershipsProvider(familyId));
+            _ref.invalidate(unifiedFamilyRosterProvider(familyId));
             break;
           case 'Family':
             _ref.invalidate(familyListProvider);
