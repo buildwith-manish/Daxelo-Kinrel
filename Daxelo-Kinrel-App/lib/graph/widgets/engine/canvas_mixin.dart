@@ -39,6 +39,13 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // clamp panning and keep nodes fully visible.
         _camera.setViewportSize(_viewportSize);
         _camera.setSafeAreaInsets(MediaQuery.of(context).padding);
+        // v4.8: Pass the app's own bottom UI chrome height (stats panel +
+        // toolbar + FAB area) so fitToView centers content above the overlay.
+        // Measured from family_graph_screen.dart: stats ~40 + toolbar 56 +
+        // margins ~24 = ~120px. This prevents single-node graphs (brand-new
+        // families) from being centered behind the bottom stats card.
+        _camera.setAppBottomChromeHeight(120.0);
+        _camera.setAppTopChromeHeight(56.0); // AppBar height
         // Invalidate the culler on any size change so the visible node
         // set is recomputed for the new viewport dimensions.
         if (sizeChanged) {
