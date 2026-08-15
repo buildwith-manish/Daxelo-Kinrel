@@ -284,7 +284,6 @@ export class GraphService {
       computedRelationships = await this.graphEngine.getAllRelationships(
         familyId,
         resolvedSelfId,
-        6, // max depth
       );
     } catch (error) {
       this.logger.warn(`Failed to compute relationships: ${error}`);
