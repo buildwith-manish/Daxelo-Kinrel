@@ -490,6 +490,22 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     // Toolbar height = 48px + 8px bottom margin
     final fabBottomOffset = bottomPadding + 72;
 
+    // v4.10: Compute the REAL bottom chrome height for the camera.
+    // The bottom overlay stack (from screen bottom upward) is:
+    //   1. OS safe area: bottomPadding
+    //   2. Toolbar bottom margin: 24px (Positioned bottom: bottomPadding + 24)
+    //   3. Toolbar height: 48px (each button is height: 48)
+    //   4. Gap between toolbar top and stats panel bottom: 0 (stats sit at fabBottomOffset = bottomPadding + 72)
+    //   5. StatsPanel height: ~124px (padding 12 all sides + 4 stat rows ~20px each + gaps 6+6+8 = ~100 content + 24 padding)
+    //
+    // Total bottom chrome = bottomPadding + 72 (toolbar bottom + height) + 124 (stats panel) = bottomPadding + 196
+    // The StatsPanel is the HIGHEST element, so its top edge defines the true reserved bottom space.
+    //
+    // The AppBar is already excluded from the Scaffold body (body starts below AppBar),
+    // so topChromeHeight = 0 (NOT 56 as previously assumed).
+    const statsPanelEstimatedHeight = 124.0;
+    final bottomChromeHeight = bottomPadding + 72 + statsPanelEstimatedHeight;
+
     return Stack(
       children: [
         // Main graph content
@@ -518,6 +534,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
               child: FamilyGraphEngineView(
                 familyId: widget.familyId,
                 recenterKey: _recenterKey,
+                bottomChromeHeight: bottomChromeHeight,
+                topChromeHeight: 0, // AppBar already excluded by Scaffold
               ),
             ),
           ],
