@@ -663,9 +663,12 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 // while far-away content is still clipped (prevents graph from drawing
                 // over UI elements like the app bar, FABs, etc.).
                 // This matches what camera_controller.dart's _edgeMargin (48px) assumes.
-                ClipRect(
-                  clipper: const _OverscanClipper(overscan: 200.0), // v4.15: increased from 48 to 200 so nodes are never clipped at edges
-                  child: AnimatedBuilder(
+                // v4.17: Removed ClipRect + _OverscanClipper entirely.
+                // The graph is now an infinite canvas with NO clipping.
+                // The graph area is bounded by the parent widget's padding
+                // (added in family_graph_screen.dart) so it doesn't extend
+                // behind the stats panel/toolbar. No clipping = no dark edges.
+                AnimatedBuilder(
                       animation: _camera,
                       child: content,
                       builder: (BuildContext context, Widget? child) {
@@ -720,7 +723,6 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                       return transformed;
                     },
                   ),
-                ),
                 // P2.4: Visual drag line for the two-node select-and-compare gesture.
                 // Drawn as a screen-space overlay (NOT inside the camera transform)
                 // because the drag position is in screen coordinates.
