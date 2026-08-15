@@ -522,20 +522,17 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             if (_onThisDayCount(graph) > 0) _buildOnThisDayBanner(graph),
 
             Expanded(
-              // v4.17: Add bottom padding so the graph area doesn't extend
-              // behind the stats panel + toolbar. This creates a visible
-              // boundary — nodes can't go behind the UI overlays because the
-              // graph canvas itself is shorter.
-              child: Padding(
-                padding: EdgeInsets.only(
-                  bottom: bottomChromeHeight,
-                ),
-                child: FamilyGraphEngineView(
-                  familyId: widget.familyId,
-                  recenterKey: _recenterKey,
-                  bottomChromeHeight: bottomChromeHeight,
-                  topChromeHeight: 0, // AppBar already excluded by Scaffold
-                ),
+              // v4.18: Removed the Padding wrapper (v4.17) that created a
+              // visible dark rectangle at the bottom. The graph canvas now
+              // extends to the full height. The stats panel + toolbar are
+              // drawn as Positioned overlays on top with semi-transparent
+              // backgrounds, so they remain visible. The graph's gradient
+              // background fills the entire area — no visible rectangle.
+              child: FamilyGraphEngineView(
+                familyId: widget.familyId,
+                recenterKey: _recenterKey,
+                bottomChromeHeight: bottomChromeHeight,
+                topChromeHeight: 0, // AppBar already excluded by Scaffold
               ),
             ),
           ],
