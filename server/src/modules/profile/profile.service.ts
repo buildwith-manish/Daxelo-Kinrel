@@ -143,7 +143,6 @@ export class ProfileService {
       computedRelationships = await this.graphEngine.getAllRelationships(
         familyId,
         personId,
-        6, // maxDepth
       );
     } catch (error) {
       this.logger.warn(
@@ -211,7 +210,6 @@ export class ProfileService {
     const computedRelationships = await this.graphEngine.getAllRelationships(
       familyId,
       personId,
-      6,
     );
 
     // 4. Enrich with translations and coefficients
@@ -282,7 +280,6 @@ export class ProfileService {
     const computedRelationships = await this.graphEngine.getAllRelationships(
       familyId,
       personId,
-      6,
     );
 
     const kinshipGraph = this.enrichKinshipRelationships(
