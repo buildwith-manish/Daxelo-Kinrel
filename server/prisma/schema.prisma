@@ -1270,9 +1270,11 @@ model Relationship {
   edgeTemporal     EdgeTemporal @default(CURRENT) // spec §6 (v3.1) — current | former | late
   isInferred       Boolean   @default(false) // spec §9 — true for spouse inference suggestions
 
-  // Legacy columns (DEPRECATED — do not write to these in new code):
-  relationshipKey  String? // Legacy: kinship key e.g. "fathers_sister", "spouse", "child"
-  relationshipType String? // Legacy: father, mother, son, daughter, brother, sister, husband, wife, custom
+  // Legacy columns (KEPT for backward compat — read-only, but still NOT NULL
+  // because existing code expects non-null values. The new `edgeType` enum is
+  // the strict constraint; these legacy columns stay as-is for old code paths.)
+  relationshipKey  String   // Legacy: kinship key e.g. "fathers_sister", "spouse", "child"
+  relationshipType String   @default("custom") // Legacy: father, mother, son, daughter, brother, sister, husband, wife, custom
   direction        String    @default("from") // from: fromPerson is the type of toPerson (e.g. from=father means fromPerson is father of toPerson)
   isActive         Boolean   @default(true)
   label            String? // Custom user-defined label override
@@ -2055,19 +2057,34 @@ model SyncLog {
   @@index([userId, lastSyncedAt])
 }
 
-// ── v4.1 REMOVED: RelationshipPathCache ─────────────────────────────────
-// Per spec §1: "Store ONLY fundamental relationships. The database is the
-// single source of truth." Per spec §13.1: "In-memory only. Never persist."
+// ── Relationship Path Cache (KEPT for backward compat — v4.1) ──────────
+// The user's existing relationships.service.ts code references this table
+// for caching computed kinship paths. The table is being phased out per
+// spec §1 ("Store ONLY fundamental relationships") and §13.1 ("In-memory
+// only. Never persist."), but the code path still uses it.
 //
-// This table violated the core principle by permanently storing derived
-// kinship paths and terms. It has been removed in v4.1.
-//
-// Migration (Phase D):
-//   DROP TABLE IF EXISTS "RelationshipPathCache";
-//
-// The deterministic engine (GraphEngineService) now computes paths at
-// runtime via BFS depth 8 and caches signatures in-memory only (60s TTL,
-// LRU 1,000 per family) per spec §13.1 — never persisted to Postgres.
+// v4.1 strategy: KEEP the model + table so existing code doesn't break.
+// New code paths should use the in-memory LRU cache in SignatureCacheService
+// instead. A future v5.0 will remove this table entirely once all callers
+// are migrated.
+model RelationshipPathCache {
+  id            String   @id @default(cuid())
+  familyId      String
+  fromPersonId  String
+  toPersonId    String
+  path          String // JSON array of {personId, relationshipType} steps
+  kinshipTerm   String? // Computed term like "cousin"
+  kinshipTermHi String? // Hindi translation
+  distance      Int // Number of hops
+  computedAt    DateTime @default(now())
+  expiresAt     DateTime @default(now())
+
+  @@unique([familyId, fromPersonId, toPersonId])
+  @@index([familyId])
+  @@index([fromPersonId])
+  @@index([toPersonId])
+  @@index([expiresAt])
+}
 
 // ── v2.2: Person-Link Invitations ─────────────────────────────────────
 // Tracks pending invitations to claim a Person node. A family admin
