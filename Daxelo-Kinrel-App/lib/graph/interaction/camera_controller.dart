@@ -235,12 +235,18 @@ class CameraController extends ChangeNotifier {
     );
     final zoom = _zoomLevel;
 
-    // Effective viewport minus safe areas and edge margin.
+    // v4.11: Effective viewport must account for BOTH OS safe areas AND
+    // app UI chrome (stats panel, toolbar, AppBar). Previously, only
+    // _safeAreaInsets was subtracted — the app chrome was ignored here
+    // but WAS used in fitToView centering. This mismatch caused _clampPan()
+    // to immediately re-clamp the pan back to the raw viewport center after
+    // fitToView had set it to the effective (chrome-adjusted) center.
     final effectiveWidth = _viewportSize.width
         - _safeAreaInsets.left - _safeAreaInsets.right
         - _edgeMargin * 2;
     final effectiveHeight = _viewportSize.height
         - _safeAreaInsets.top - _safeAreaInsets.bottom
+        - _appTopChromeHeight - _appBottomChromeHeight
         - _edgeMargin * 2;
 
     // Content size in screen-space.
@@ -251,9 +257,11 @@ class CameraController extends ChangeNotifier {
     final contentCenterX = cb.left * zoom;
     final contentCenterY = cb.top * zoom;
 
-    // Viewport center accounting for safe areas.
+    // v4.11: Viewport center must use the SAME effective center as fitToView.
+    // This includes _appTopChromeHeight and _appBottomChromeHeight so the
+    // pan clamp and the centering logic agree on where "center" is.
     final viewCenterX = _safeAreaInsets.left + _edgeMargin + effectiveWidth / 2;
-    final viewCenterY = _safeAreaInsets.top + _edgeMargin + effectiveHeight / 2;
+    final viewCenterY = _safeAreaInsets.top + _appTopChromeHeight + _edgeMargin + effectiveHeight / 2;
 
     if (contentWidth <= effectiveWidth) {
       // Content is smaller than viewport — center it, allow small drift.
