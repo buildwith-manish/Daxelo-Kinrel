@@ -125,22 +125,46 @@ RelationshipValidationResult validateRelationship({
   }
 
   // ── ERROR: Duplicate relationship ──
-  // Check if an edge with the same canonical pair already exists.
+  // v5.0: Canonicalized duplicate detection — checks both the SAME
+  // key and its INVERSE on the same pair. e.g. if A→B "father" exists,
+  // then B→A "child" is also a duplicate (same canonical relationship).
+  // Without this, the user could "create" the same family link twice
+  // by selecting the inverse direction in the picker.
   final pair = [fromPersonId, toPersonId]..sort();
   final canonicalPair = '${pair[0]}|${pair[1]}';
+  final key = relationshipKey.toLowerCase();
+  // v5.0: Fundamental-key family groups. Keys within the same group
+  // represent the SAME edge from a different perspective — they are
+  // duplicates of each other when applied to the same pair.
+  const parentFamily = {'father', 'mother', 'parent'};
+  const childFamily = {'son', 'daughter', 'child'};
+  const spouseFamily = {'husband', 'wife', 'spouse'};
+  const siblingFamily = {'brother', 'sister', 'sibling'};
+
+  bool sameFamily(String a, String b) {
+    if (a == b) return true;
+    if (parentFamily.contains(a) && parentFamily.contains(b)) return false;
+    if (childFamily.contains(a) && childFamily.contains(b)) return false;
+    if (spouseFamily.contains(a) && spouseFamily.contains(b)) return false;
+    if (siblingFamily.contains(a) && siblingFamily.contains(b)) return false;
+    // Parent ↔ Child are inverses (same canonical edge)
+    if (parentFamily.contains(a) && childFamily.contains(b)) return true;
+    if (childFamily.contains(a) && parentFamily.contains(b)) return true;
+    return false;
+  }
+
   for (final e in existingEdges) {
     final existingPair = [e.fromId, e.toId]..sort();
     if ('${existingPair[0]}|${existingPair[1]}' == canonicalPair) {
-      // Same pair — check if it's the same relationship key.
-      if (e.relationshipKey.toLowerCase() ==
-          relationshipKey.toLowerCase()) {
+      // Same pair — check if it's the same key (or inverse key).
+      if (sameFamily(e.relationshipKey.toLowerCase(), key)) {
         return const RelationshipValidationResult(
           severity: ValidationSeverity.error,
           message: 'This relationship already exists.',
           code: 'duplicate_relationship',
         );
       }
-      // Different key on same pair — that's OK (e.g. parent + spouse
+      // Different family on same pair — that's OK (e.g. parent + spouse
       // between the same two people, which is unusual but not
       // impossible in extended families).
     }
@@ -149,9 +173,9 @@ RelationshipValidationResult validateRelationship({
   // ── ERROR: Circular parent ancestry ──
   // If the relationship is a parent→child edge, check that the child
   // is not an ancestor of the parent (which would create a cycle).
+  // v5.0: `key` is already declared above (in the duplicate check).
   const parentKeys = {'father', 'mother', 'parent'};
   const childKeys = {'son', 'daughter', 'child'};
-  final key = relationshipKey.toLowerCase();
 
   if (ancestorMap != null) {
     if (parentKeys.contains(key)) {
@@ -183,31 +207,105 @@ RelationshipValidationResult validateRelationship({
   }
 
   // ── ERROR: Duplicate parent relationship ──
-  // A person should not have two fathers or two mothers (unless the
-  // existing one is removed first). This is an ERROR for
-  // father/mother specifically; for generic 'parent' it's a WARNING.
-  if (key == 'father' || key == 'mother') {
-    // Check if toPersonId already has a parent of the same gender.
+  // v5.0: A person should not have two parents of the SAME gender.
+  // Father + mother (standard biological family) is ALLOWED. Father +
+  // father, mother + mother, or any third parent is BLOCKED.
+  //
+  // Storage convention: `from=A, to=B, key=X` means "A's X is B".
+  // So `from=A, to=B, key=father` means B is A's father → A is the
+  // CHILD, B is the FATHER.
+  //
+  // Forward direction (key in {father, mother, parent}):
+  //   childId = fromPersonId (A in the example above).
+  //   Block when: existing edge points to the same child with the SAME
+  //   gender-specific parent key (father + father, mother + mother).
+  //   'parent' (gender-neutral) is treated as conflicting with EITHER
+  //   father or mother.
+  //
+  // Inverse direction (key in {son, daughter, child}):
+  //   childId = toPersonId. Block when ANY existing edge establishes a
+  //   parent of the same gender (since we can't tell which gender from
+  //   a 'son' edge, we conservatively block — the user must remove the
+  //   existing edge first).
+  //
+  // The previous check used `e.toId == toPersonId` (the new parent),
+  // which incorrectly checked if the NEW PARENT already had a parent
+  // — completely missing the actual duplicate-parent case.
+  if (key == 'father' || key == 'mother' || key == 'parent') {
+    // Forward direction: from=A (child), to=B (parent).
+    // childId = fromPersonId (A).
+    // We block when an EXISTING edge also makes A the child of some
+    // parent. That existing edge can be in either direction:
+    //   (a) `from=A, to=X, key in {father, mother, parent}` — A's
+    //       parent is X (forward parent-edge).
+    //   (b) `from=X, to=A, key in {son, daughter, child}` — X's child
+    //       is A (inverse child-edge).
+    final childId = fromPersonId;
     for (final e in existingEdges) {
-      if (e.toId == toPersonId && e.relationshipKey.toLowerCase() == key) {
+      final existingKey = e.relationshipKey.toLowerCase();
+      // Case (a): existing forward parent-edge where A is the child.
+      if (e.fromId == childId &&
+          (existingKey == 'father' || existingKey == 'mother' || existingKey == 'parent')) {
+        // Allow father + mother (opposite genders).
+        final sameGender = existingKey == key;
+        final hasNeutral = key == 'parent' || existingKey == 'parent';
+        if (sameGender || hasNeutral) {
+          return RelationshipValidationResult(
+            severity: ValidationSeverity.error,
+            message: 'This person already has a $key. Remove the existing '
+                'one before adding a new one.',
+            code: 'duplicate_parent',
+          );
+        }
+      }
+      // Case (b): existing inverse child-edge where A is the child.
+      // We can't tell the parent's gender from {son, daughter, child},
+      // so conservatively block (the user must remove the existing
+      // edge first).
+      if (e.toId == childId &&
+          (existingKey == 'son' || existingKey == 'daughter' || existingKey == 'child')) {
         return RelationshipValidationResult(
           severity: ValidationSeverity.error,
-          message: 'This person already has a $key. Remove the existing '
+          message: 'This person already has a parent. Remove the existing '
               'one before adding a new one.',
           code: 'duplicate_parent',
         );
       }
-      // Also check inverse direction (child→parent edge).
-      if (e.fromId == toPersonId) {
-        final existingKey = e.relationshipKey.toLowerCase();
-        if (key == 'father' &&
-            (existingKey == 'son' || existingKey == 'daughter' || existingKey == 'child')) {
-          // e.fromId (toPersonId) IS the child of e.toId — check if
-          // e.toId is also a father.
-          // This is complex — we need to check the inverse.
-          // For now, we skip this direction check as EdgeDeduplicator
-          // should have collapsed bidirectional edges.
+    }
+  } else if (key == 'son' || key == 'daughter' || key == 'child') {
+    // Inverse direction: from=A (parent), to=B (child).
+    // childId = toPersonId (B).
+    // Block when B already has a parent — either:
+    //   (a) `from=B, to=X, key in {father, mother, parent}` — B's
+    //       parent is X (forward parent-edge).
+    //   (b) `from=X, to=B, key in {son, daughter, child}` — X's child
+    //       is B (inverse child-edge).
+    final childId = toPersonId;
+    for (final e in existingEdges) {
+      final existingKey = e.relationshipKey.toLowerCase();
+      // Case (a): existing forward parent-edge where B is the child.
+      if (e.fromId == childId &&
+          (existingKey == 'father' || existingKey == 'mother' || existingKey == 'parent')) {
+        final sameGender = existingKey == key;
+        final hasNeutral = key == 'child' || existingKey == 'parent';
+        if (sameGender || hasNeutral) {
+          return RelationshipValidationResult(
+            severity: ValidationSeverity.error,
+            message: 'This person already has a parent. Remove the existing '
+                'one before adding a new one.',
+            code: 'duplicate_parent',
+          );
         }
+      }
+      // Case (b): existing inverse child-edge where B is the child.
+      if (e.toId == childId &&
+          (existingKey == 'son' || existingKey == 'daughter' || existingKey == 'child')) {
+        return RelationshipValidationResult(
+          severity: ValidationSeverity.error,
+          message: 'This person already has a parent. Remove the existing '
+              'one before adding a new one.',
+          code: 'duplicate_parent',
+        );
       }
     }
   }

@@ -100,31 +100,16 @@ void main() {
       expect(result.isOk, isTrue);
     });
 
-    test('TEST 6: inverse semantics — WARNING for incompatible inverse', () {
-      // A is already B's father. Adding A as B's son is incompatible.
-      final edges = [
-        (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'father'),
-      ];
-      final result = validateRelationship(
-        fromPersonId: 'A',
-        toPersonId: 'B',
-        relationshipKey: 'son',
-        existingEdges: edges,
-      );
-      // The existing edge is A→B 'father'. The new edge is A→B 'son'.
-      // The check: existing edge B→A (inverse direction). But the
-      // existing edge is A→B, not B→A. So the inverse check doesn't
-      // fire here.
+    test('TEST 6: inverse semantics — same canonical edge is a DUPLICATE (v5.0)', () {
+      // v5.0: Previously, an existing B→A 'son' edge + a new A→B 'father'
+      // edge was treated as a WARNING (incompatible inverse). But these
+      // represent the SAME canonical relationship (B is A's father = A is
+      // B's son), so they should be DUPLICATES.
       //
-      // Actually the check looks for edges where fromId == toPersonId
-      // and toId == fromPersonId. So for new A→B 'son', it looks for
-      // B→A edges. The existing edge is A→B, not B→A.
-      //
-      // So this should actually be OK (same pair, different key, which
-      // is unusual but allowed — the duplicate check only fires for
-      // same key + same pair).
-      //
-      // Let me test with the actual inverse direction.
+      // Storage convention: `from=A, to=B, key=X` means "A's X is B".
+      // So `B→A 'son'` means "B's son is A" → A is B's son → B is A's father.
+      // And `A→B 'father'` means "A's father is B" → B is A's father.
+      // Same canonical edge → duplicate.
       final edges2 = [
         (fromId: 'B', toId: 'A', edgeId: 'e1', relationshipKey: 'son'),
       ];
@@ -134,29 +119,98 @@ void main() {
         relationshipKey: 'father',
         existingEdges: edges2,
       );
-      // New: A→B 'father'. Existing: B→A 'son'.
-      // Check: existing edge fromId==B(=toPersonId), toId==A(=fromPersonId).
-      // existingKey = 'son'. expectedInverse of 'father' = 'child'.
-      // inverseMap['son'] = 'parent'. expectedInverse = 'child'.
-      // 'parent' != 'father' AND 'child' != 'son' → WARNING.
-      expect(result2.isWarning, isTrue,
-          reason: 'Existing B→A son + new A→B father should warn about '
-              'incompatible inverse');
+      expect(result2.isError, isTrue,
+          reason: 'v5.0: Existing B→A son + new A→B father are the same '
+              'canonical edge — should be flagged as duplicate, not warning');
+      expect(result2.code, 'duplicate_relationship');
     });
 
     test('TEST 7: duplicate parent rejected (ERROR)', () {
-      // B already has a father (A). Adding C as B's father is rejected.
+      // v5.0: Storage convention: `from=A, to=B, key=father` means
+      // "A's father is B" → B is A's father, A is the CHILD.
+      //
+      // Setup: A already has B as father (edge A→B 'father').
+      // Test: Adding C as A's father should be rejected as duplicate_parent.
       final edges = [
         (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'father'),
       ];
       final result = validateRelationship(
-        fromPersonId: 'C',
-        toPersonId: 'B',
+        fromPersonId: 'A',
+        toPersonId: 'C',
         relationshipKey: 'father',
         existingEdges: edges,
       );
       expect(result.isError, isTrue);
       expect(result.code, 'duplicate_parent');
+    });
+
+    test('TEST 7b: duplicate parent via inverse direction (v5.0)', () {
+      // v5.0: Existing edge `A→B 'son'` means "A's son is B" → A is B's
+      // parent (father or mother — we don't know which). Adding C as B's
+      // father should be rejected because B already has a parent.
+      final edges = [
+        (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'son'),
+      ];
+      final result = validateRelationship(
+        fromPersonId: 'B',
+        toPersonId: 'C',
+        relationshipKey: 'father',
+        existingEdges: edges,
+      );
+      expect(result.isError, isTrue,
+          reason: 'B already has parent A (stored as A→B son). Adding C as '
+              'father should be rejected.');
+      expect(result.code, 'duplicate_parent');
+    });
+
+    test('TEST 7c: opposite-gender second parent ALLOWED (father + mother)', () {
+      // v5.0: A child can have BOTH a father and a mother (standard
+      // biological family). The validator blocks same-gender duplicates
+      // (two fathers or two mothers) but allows opposite-gender pairs.
+      final edges = [
+        (fromId: 'B', toId: 'A', edgeId: 'e1', relationshipKey: 'mother'),
+      ];
+      final result = validateRelationship(
+        fromPersonId: 'B',
+        toPersonId: 'C',
+        relationshipKey: 'father',
+        existingEdges: edges,
+      );
+      expect(result.isOk, isTrue,
+          reason: 'B already has mother A. Adding father C should be ALLOWED.');
+    });
+
+    test('TEST 7e: same-gender second parent BLOCKED (two fathers)', () {
+      // v5.0: Two fathers is blocked — the user must remove the existing
+      // father before adding a new one.
+      final edges = [
+        (fromId: 'B', toId: 'A', edgeId: 'e1', relationshipKey: 'father'),
+      ];
+      final result = validateRelationship(
+        fromPersonId: 'B',
+        toPersonId: 'C',
+        relationshipKey: 'father',
+        existingEdges: edges,
+      );
+      expect(result.isError, isTrue);
+      expect(result.code, 'duplicate_parent');
+    });
+
+    test('TEST 7d: sibling co-parenting is allowed (different children)', () {
+      // v5.0: A→B 'father' (B is A's father) + C→D 'father' (D is C's
+      // father) — these are different children, so no duplicate. The
+      // new edge should be accepted.
+      final edges = [
+        (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'father'),
+      ];
+      final result = validateRelationship(
+        fromPersonId: 'C',
+        toPersonId: 'D',
+        relationshipKey: 'father',
+        existingEdges: edges,
+      );
+      expect(result.isOk, isTrue,
+          reason: 'Different children → different parents → no duplicate');
     });
   });
 

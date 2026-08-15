@@ -11,7 +11,7 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
 import 'add_person_sheet.dart';
-import 'relationship_picker_sheet.dart';
+import 'fundamental_relationship_picker.dart';
 import 'package:go_router/go_router.dart';
 
 /// Screen for graph-based relationship building.
@@ -280,19 +280,19 @@ class _RelationshipBuilderScreenState
       ),
     );
 
-    // Get existing relationship types for person1
-    final existingRels = <String>[];
-    for (final rel in detail.relationships) {
-      if (rel.fromPersonId == person1.id) {
-        existingRels.add(rel.relationshipKey);
-      }
-    }
-
-    RelationshipPickerSheet.show(
+    // v5.0: Use the simplified FundamentalRelationshipPicker instead
+    // of the 5,000-term picker. Only fundamental edges (parent/child/
+    // spouse/sibling) can be stored — derived terms are computed at
+    // query time by the Deterministic Kinship Engine. This:
+    //   - Reduces the picker to 1-3 taps (vs 5+ previously)
+    //   - Eliminates the confirm-button step
+    //   - Ensures stored edges are always traversable by the BFS
+    FundamentalRelationshipPicker.show(
       context,
       personAName: person1.name,
       personBName: person2.name,
-      existingRelationshipTypes: existingRels,
+      personAGender: person1.gender,
+      personBGender: person2.gender,
     ).then((selectedKey) {
       if (selectedKey != null) {
         _createRelationship(person1, person2, selectedKey);

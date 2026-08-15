@@ -26,7 +26,7 @@ import '../../core/kinship/v3/deterministic_kinship_engine.dart';
 import '../../core/services/graph_layout_service.dart' show GraphPerson;
 import '../../core/services/supabase_service.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
-import '../../features/family/presentation/relationship_picker_sheet.dart';
+import '../../features/family/presentation/fundamental_relationship_picker.dart';
 import '../interaction/graph_focus_state.dart';
 import '../interaction/relationship_validation.dart' show RelationshipValidationException;
 import 'graph_relationship_labels.dart';
@@ -231,10 +231,12 @@ class GraphQuickActions {
                 }
               },
             ),
-            // v141: "Relate to another person" — opens a person picker,
-            // then the existing RelationshipPickerSheet, then calls
-            // createRelationship() to add an edge between the two
-            // existing nodes. Reuses the app's entire kinship system.
+            // v5.0: "Relate to another person" — opens a person picker,
+            // then either auto-creates a relationship (if the kinship
+            // engine can derive one from existing edges) or opens the
+            // simplified FundamentalRelationshipPicker (parent / child /
+            // spouse / sibling only). Then calls createRelationship() to
+            // persist the edge + refresh the graph.
             if (familyId != null && ref != null)
               ListTile(
                 leading: const Icon(Icons.link_rounded,
@@ -312,17 +314,27 @@ class GraphQuickActions {
     );
   }
 
-  /// v150: Shows a bottom sheet of eligible family members, then
-  /// automatically determines + creates the relationship when one is
-  /// selected. No graph linking mode, no multi-step selection.
+  /// v5.0: Shows a bottom sheet of eligible family members, then
+  /// either (a) auto-creates a relationship if the kinship engine can
+  /// derive one from existing edges, OR (b) opens the simplified
+  /// FundamentalRelationshipPicker to ask the user for the missing
+  /// fundamental edge (parent / child / spouse / sibling).
+  ///
+  /// KEY FIX: Previously, this flow EXCLUDED already-related persons
+  /// AND required an existing graph path for auto-detection. Since
+  /// the two people were unrelated, the engine ALWAYS returned null
+  /// and the user fell through to the manual 5,000-term picker.
+  /// Now we INCLUDE all non-self persons, and when no path exists,
+  /// we surface the simplified fundamental picker (4 options only,
+  /// gender-aware, single tap to confirm).
   ///
   /// Flow:
-  /// 1. Show bottom sheet with eligible persons (excludes self +
-  ///    already-related)
+  /// 1. Show bottom sheet with eligible persons (excludes self only)
   /// 2. User taps one person → sheet closes
-  /// 3. RelationshipEngine auto-determines kinship
-  /// 4. createRelationship() creates the edge + refreshes graph
-  /// 5. Success/error SnackBar
+  /// 3. If kinship engine resolves a fundamental edge → auto-create
+  /// 4. Otherwise → FundamentalRelationshipPicker.show() → create
+  /// 5. Graph refreshes via createRelationship's invalidation
+  /// 6. Success/error SnackBar
   static void _showPersonListAndAutoCreate(
     BuildContext context,
     WidgetRef ref,
@@ -345,26 +357,26 @@ class GraphQuickActions {
       return;
     }
 
-    // Build set of directly-related IDs to exclude
-    final directlyRelatedIds = <String>{};
-    for (final rel in detail.relationships) {
-      if (rel.fromPersonId == sourcePerson.id) {
-        directlyRelatedIds.add(rel.toPersonId);
-      } else if (rel.toPersonId == sourcePerson.id) {
-        directlyRelatedIds.add(rel.fromPersonId);
-      }
-    }
-
-    // Filter: exclude source person + already-related persons
+    // v5.0: Include ALL members (except self). Previously we excluded
+    // already-related persons, but that prevented the user from
+    // re-linking two people after a wrong relationship was created.
+    // Duplicate prevention is now handled by validateRelationship
+    // (which throws a clean duplicate_relationship error if the same
+    // edge is re-created).
     final eligiblePersons = detail.members
-        .where((p) => p.id != sourcePerson.id && !directlyRelatedIds.contains(p.id))
+        .where((p) =>
+            p.id != sourcePerson.id &&
+            p.deletedAt == null)
         .toList();
 
     if (eligiblePersons.isEmpty) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Everyone in this family is already connected to ${sourcePerson.name}.'),
+            content: Text(
+              'No other family members to connect to ${sourcePerson.name}. '
+              'Add more members first.',
+            ),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
           ),
@@ -470,11 +482,11 @@ class GraphQuickActions {
                     ),
                     subtitle: label.isNotEmpty
                         ? Text(
-                            label,
+                            'Already: $label',
                             style: TextStyle(
                               fontFamily: KinrelTypography.bodyFont,
                               fontSize: 12,
-                              color: KinrelColors.tealAccent,
+                              color: KinrelColors.amber,
                               fontWeight: FontWeight.w500,
                             ),
                           )
@@ -492,7 +504,6 @@ class GraphQuickActions {
 
     if (selectedPerson == null) return; // User cancelled
 
-    // Auto-detect kinship + create relationship
     debugPrint('[RelateToPerson] ${sourcePerson.name} → ${selectedPerson.name}');
 
     // Build GraphPerson list for RelationshipEngine
@@ -510,7 +521,10 @@ class GraphQuickActions {
       (fromId: r.fromPersonId, toId: r.toPersonId, type: r.relationshipKey)
     ).toList();
 
-    // Use v3 Deterministic Kinship Engine to resolve kinship
+    // Try to auto-detect via v3 Deterministic Kinship Engine.
+    // The engine only resolves fundamental edges (parent/spouse/etc.)
+    // — derived terms (grandfather, uncle) are returned with
+    // fundamentalEdge=null and isDerived=true.
     final result = DeterministicKinshipEngine.instance.resolve(
       fromPersonId: sourcePerson.id,
       toPersonId: selectedPerson.id,
@@ -520,25 +534,40 @@ class GraphQuickActions {
 
     String relationshipKey;
 
-    if (result != null && result.fundamentalEdge != null) {
-      // Auto-detected a fundamental edge — use it directly (no confirmation)
+    if (result != null && result.fundamentalEdge != null && !result.isDerived) {
+      // Auto-detected a fundamental edge directly!
+      // (e.g. they share a parent → sibling; they're spouses → spouse)
       relationshipKey = result.fundamentalEdge!;
-      debugPrint('[RelateToPerson] v4.19 auto-detected: $relationshipKey (${result.term})');
+      debugPrint('[RelateToPerson] v3 auto-detected fundamental: $relationshipKey (${result.term})');
     } else {
-      // v4.19: Auto-detect returned a derived term or null (no path found).
-      // Instead of showing a manual picker, default to 'spouse' — the most
-      // common relationship between two adults in a family graph. This makes
-      // the flow fully automatic: select a person → relationship created →
-      // edge appears. No manual confirmation steps required.
+      // No fundamental edge found (either no path, or a derived term).
+      // The user must supply the missing fundamental edge.
       //
-      // The user can always edit the relationship later via the node's
-      // long-press menu → "Edit Relationship" option.
-      relationshipKey = 'spouse';
-      debugPrint('[RelateToPerson] v4.19 auto-detect failed/derived — defaulting to spouse');
+      // v5.0: Use the simplified FundamentalRelationshipPicker
+      // instead of the 5,000-term picker. This shows only the 4
+      // fundamental types (parent / child / spouse / sibling) with
+      // gender-specific labels (Father / Mother / Son / Daughter /
+      // Husband / Wife / Brother / Sister). One tap to confirm.
+      if (result != null && result.isDerived) {
+        debugPrint('[RelateToPerson] v3 derived: ${result.term} — asking for fundamental edge');
+      } else {
+        debugPrint('[RelateToPerson] v3 auto-detect failed — asking for fundamental edge');
+      }
+      if (!context.mounted) return;
+      final fundamentalKey = await FundamentalRelationshipPicker.show(
+        context,
+        personAName: sourcePerson.name,
+        personBName: selectedPerson.name,
+        personAGender: sourcePerson.gender,
+        personBGender: selectedPerson.gender,
+      );
+      if (fundamentalKey == null) return; // User cancelled
+      relationshipKey = fundamentalKey;
     }
 
     // Create the relationship
     debugPrint('[RelateToPerson] Creating: ${sourcePerson.id} → ${selectedPerson.id} as $relationshipKey');
+    final messenger = ScaffoldMessenger.maybeOf(context);
     try {
       await createRelationship(
         ref: ref,
@@ -549,19 +578,18 @@ class GraphQuickActions {
       );
       debugPrint('[RelateToPerson] Relationship created successfully');
 
-      if (context.mounted) {
-        final label = relationshipKey.replaceAll('_', ' ');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Relationship Added\n${selectedPerson.name} → $label → ${sourcePerson.name}',
-            ),
-            backgroundColor: KinrelColors.darkCard,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
+      // Determine the human-readable label for the SnackBar
+      final label = relationshipKey.replaceAll('_', ' ');
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Connected: ${selectedPerson.name} is the $label of ${sourcePerson.name}',
           ),
-        );
-      }
+          backgroundColor: KinrelColors.darkCard,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     } catch (e) {
       debugPrint('[RelateToPerson] ERROR: $e');
       String friendlyError;
@@ -569,7 +597,8 @@ class GraphQuickActions {
         if (e.code == 'self_relationship') {
           friendlyError = 'Choose two different family members.';
         } else if (e.code == 'duplicate_relationship') {
-          friendlyError = 'Already connected — ${sourcePerson.name} and ${selectedPerson.name} already have a family relationship.';
+          friendlyError = '${sourcePerson.name} and ${selectedPerson.name} are already connected. '
+              'Remove the existing relationship first if you want to change it.';
         } else if (e.code == 'duplicate_parent') {
           friendlyError = 'This person already has a parent. Remove the existing one first.';
         } else if (e.code == 'circular_parentage') {
@@ -580,16 +609,14 @@ class GraphQuickActions {
       } else {
         friendlyError = 'Couldn\'t create this connection. Please try again.';
       }
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(friendlyError),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(friendlyError),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+        ),
+      );
     }
   }
 
