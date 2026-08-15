@@ -285,39 +285,28 @@ class CameraController extends ChangeNotifier {
   /// Clamps the current pan position to the computed limits.
   /// Called after every pan/zoom/animation change.
   ///
-  /// v4.12: For small graphs (content fits within viewport), skip clamping
-  /// entirely — fitToView already centered the content correctly, and
-  /// clamping with slightly-wrong chrome heights can fight that centering.
-  /// Only clamp when content is LARGER than the viewport (where panning
-  /// could actually move content off-screen).
+  /// v4.13: Reverted v4.12's "skip clamping for small graphs" — that allowed
+  /// nodes to be dragged behind the stats panel. Now we ALWAYS clamp, using
+  /// the chrome-adjusted limits from _computePanLimits() (v4.11).
+  ///
+  /// For small graphs (content fits within viewport), the clamp centers the
+  /// content in the effective viewport (above the bottom chrome). This means:
+  ///   - fitToView centers the node above the stats panel ✓
+  ///   - If the user drags the node down, _clampPan() pulls it back up ✓
+  ///   - The node can never go behind the stats panel ✓
   void _clampPan() {
     final limits = _computePanLimits();
     if (limits == null) return;
 
-    // v4.12: If content fits within viewport in BOTH dimensions, don't
-    // force-center — let fitToView's positioning stand. This prevents
-    // the clamp from fighting fitToView on single-node/small graphs.
-    final contentFitsX = limits.minX > limits.maxX;
-    final contentFitsY = limits.minY > limits.maxY;
-    if (contentFitsX && contentFitsY) {
-      // Content is smaller than viewport in both dimensions — no clamping needed.
-      // The user can still pan freely (the content just won't go off-screen
-      // because it's smaller than the viewport).
-      return;
-    }
-
-    // Content is larger than viewport in at least one dimension — clamp.
-    if (contentFitsX) {
-      // X fits, Y doesn't — center X, clamp Y
+    // If content is smaller than viewport (min > max), center it.
+    if (limits.minX > limits.maxX) {
       _panX = (limits.minX + limits.maxX) / 2;
-      _panY = _panY.clamp(limits.minY, limits.maxY);
-    } else if (contentFitsY) {
-      // Y fits, X doesn't — center Y, clamp X
-      _panY = (limits.minY + limits.maxY) / 2;
-      _panX = _panX.clamp(limits.minX, limits.maxX);
     } else {
-      // Both dimensions larger than viewport — clamp both
       _panX = _panX.clamp(limits.minX, limits.maxX);
+    }
+    if (limits.minY > limits.maxY) {
+      _panY = (limits.minY + limits.maxY) / 2;
+    } else {
       _panY = _panY.clamp(limits.minY, limits.maxY);
     }
   }
