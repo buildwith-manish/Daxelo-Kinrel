@@ -19,7 +19,8 @@ import '../database/isar_database.dart';
 import '../database/sync/cache_invalidation.dart';
 import '../family/family_provider.dart';
 import '../services/supabase_service.dart';
-import '../../features/family/presentation/providers/family_graph_provider.dart' show FamilyGraphNotifier;
+import '../../features/family/presentation/providers/family_graph_provider.dart'
+    show FamilyGraphNotifier, familyGraphProvider;
 import 'realtime_dedup.dart';
 
 // ── Realtime Subscription Service ─────────────────────────────────

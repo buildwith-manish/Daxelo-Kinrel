@@ -2384,8 +2384,11 @@ Future<FamilyRelationship> createRelationship({
   /// v5.3: When true, this is an INTERNAL call creating the inverse edge.
   /// Skips validation (the forward edge already passed) and skips
   /// creating ANOTHER inverse (prevents infinite recursion).
-  bool _isInverseEdge = false,
+  /// NOTE: Dart disallows underscore-prefixed named parameters, so this
+  /// uses a public name even though it's intended for internal use only.
+  bool isInverseEdge = false,
 }) async {
+  final skipValidation = isInverseEdge;
   final client = ref.read(supabaseProvider);
   if (client == null) {
     throw Exception(
@@ -2398,7 +2401,7 @@ Future<FamilyRelationship> createRelationship({
   // v5.3: Skip validation for inverse edges — the forward edge already
   // passed validation, and the inverse edge is the SAME canonical
   // relationship (just from the other person's perspective).
-  if (!_isInverseEdge) {
+  if (!skipValidation) {
     try {
       final existingRels = await client
           .from('Relationship')
@@ -2513,7 +2516,7 @@ Future<FamilyRelationship> createRelationship({
   // which is passed via [fromPersonGender].
   //
   // We SKIP inverse creation when:
-  //   - _isInverseEdge is true (we're already creating the inverse)
+  //   - skipValidation is true (we're already creating the inverse)
   //   - The inverse key is the same as the forward key AND the
   //     relationship is symmetric (spouse, sibling, cousin) — only
   //     one edge is needed for symmetric relationships.
@@ -2524,7 +2527,7 @@ Future<FamilyRelationship> createRelationship({
           relationshipKey == 'sibling' ||
           relationshipKey == 'brother' ||
           relationshipKey == 'sister');
-  final hasKnownInverse = !_isInverseEdge && !isSymmetric && inverseKey != relationshipKey;
+  final hasKnownInverse = !skipValidation && !isSymmetric && inverseKey != relationshipKey;
 
   debugPrint('[CREATE-REL] === START createRelationship ===');
   debugPrint('[CREATE-REL] familyId: $familyId');
@@ -2665,7 +2668,7 @@ Future<FamilyRelationship> createRelationship({
       // Best-effort — inverse creation failure shouldn't block the user
       debugPrint('[CREATE-REL] ⚠️ Could not create inverse relationship (non-fatal): $e');
     }
-  } else if (_isInverseEdge) {
+  } else if (skipValidation) {
     debugPrint('[CREATE-REL] ⏭️ Skipping inverse creation — this IS the inverse edge (prevents recursion)');
   } else if (isSymmetric) {
     debugPrint('[CREATE-REL] ⏭️ Skipping inverse creation — $relationshipKey is symmetric (one edge suffices)');
