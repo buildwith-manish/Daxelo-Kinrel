@@ -15,6 +15,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/optimistic_actions.dart';
+import '../../../core/family/family_provider.dart' show familyGraphProvider;
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
@@ -289,22 +290,74 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
         username: _usernameController.text.trim(),
       ).timeout(const Duration(seconds: 15));
 
+      // v4.2 (2026-08-15): createFamily now AUTO-CREATES the creator Person.
+      // Instead of creating a duplicate, UPDATE the auto-created person with
+      // the user's custom details (name, gender, birth year).
+      final customName = _personNameController.text.trim();
       final birthYear = int.tryParse(_birthYearController.text.trim());
-      // ── Link the creator's Person to their auth account ──────────
-      // Pass linkedUserId so the Person node is "claimed" by the
-      // creator — shows in Members, no "Pending" badge, enables
-      // viewer-perspective kinship calculations.
-      final creatorUserId =
-          ref.read(supabaseProvider)?.auth.currentUser?.id;
-      await createPersonOptimistic(
-        ref: ref,
-        familyId: family.id,
-        name: _personNameController.text.trim(),
-        gender: _selectedGender?.toLowerCase(),
-        birthYear: birthYear,
-        isAnchor: true,
-        linkedUserId: creatorUserId,
-      ).timeout(const Duration(seconds: 15));
+      final customGender = _selectedGender?.toLowerCase();
+
+      // Find the auto-created creator Person (linked to current user)
+      final client = ref.read(supabaseProvider);
+      final creatorUserId = client?.auth.currentUser?.id;
+      if (client != null && creatorUserId != null) {
+        try {
+          final existingPerson = await client
+              .from('Person')
+              .select('id')
+              .eq('familyId', family.id)
+              .eq('linkedUserId', creatorUserId)
+              .limit(1)
+              .timeout(const Duration(seconds: 5));
+
+          if (existingPerson.isNotEmpty) {
+            // UPDATE the auto-created person with custom details
+            final personId = existingPerson[0]['id'] as String;
+            final updateData = <String, dynamic>{
+              'name': customName,
+            };
+            if (customGender != null) updateData['gender'] = customGender;
+            if (birthYear != null) updateData['birthYear'] = birthYear;
+
+            await client
+                .from('Person')
+                .update(updateData)
+                .eq('id', personId)
+                .timeout(const Duration(seconds: 10));
+
+            debugPrint('[create_family_screen] Updated auto-created creator Person: $personId');
+          } else {
+            // Fallback: if no auto-created person exists (e.g. auto-create
+            // failed), create one manually via createPersonOptimistic.
+            await createPersonOptimistic(
+              ref: ref,
+              familyId: family.id,
+              name: customName,
+              gender: customGender,
+              birthYear: birthYear,
+              isAnchor: true,
+              linkedUserId: creatorUserId,
+            ).timeout(const Duration(seconds: 15));
+          }
+        } catch (e) {
+          debugPrint('[create_family_screen] Could not update creator Person (non-fatal): $e');
+          // Fallback: try creating via createPersonOptimistic
+          try {
+            await createPersonOptimistic(
+              ref: ref,
+              familyId: family.id,
+              name: customName,
+              gender: customGender,
+              birthYear: birthYear,
+              isAnchor: true,
+              linkedUserId: creatorUserId,
+            ).timeout(const Duration(seconds: 15));
+          } catch (_) {}
+        }
+      }
+
+      // Invalidate the graph so it reloads with the creator node
+      ref.invalidate(familyGraphProvider(family.id));
 
       if (!mounted) return;
 
@@ -313,8 +366,6 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
       );
 
       // v62.5: Navigate IMMEDIATELY — don't keep the spinner going.
-      // Reset _isSubmitting before navigation so the button doesn't
-      // stay in loading state if the user navigates back.
       setState(() => _isSubmitting = false);
 
       // Navigate to the family list (avoids white screen from graph
@@ -360,9 +411,12 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
     }
   }
 
-  /// v62.5: "Skip and Create" — creates the family WITHOUT any member.
-  /// The user can add themselves and other members later from the
-  /// family list / graph screen. No name required.
+  /// v4.2 (2026-08-15): "Skip and Create" — creates the family WITH the
+  /// auto-created creator Person (no custom details needed).
+  /// The createFamily function now auto-creates the creator Person, so
+  /// skipping just means the creator gets a default name (from auth
+  /// metadata) instead of a custom one. The family graph will never
+  /// be empty.
   Future<void> _submitSkip() async {
     setState(() => _isSubmitting = true);
 
@@ -384,35 +438,54 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
         username: _usernameController.text.trim(),
       ).timeout(const Duration(seconds: 15));
 
-      // v62.5: Only create the anchor person if the user entered a name.
-      // If name is empty, skip person creation — the family will have 0
-      // members and show the empty-state "Add Yourself" screen.
+      // v4.2: The creator Person is now auto-created by createFamily.
+      // If the user entered a custom name on Step 3, update the
+      // auto-created person with it. Otherwise, the default name
+      // (derived from auth metadata) is used.
       final personName = _personNameController.text.trim();
       if (personName.isNotEmpty) {
-        final birthYear = int.tryParse(_birthYearController.text.trim());
-        // Link the creator's Person to their auth account (same as _submit).
-        final creatorUserId =
-            ref.read(supabaseProvider)?.auth.currentUser?.id;
-        await createPersonOptimistic(
-          ref: ref,
-          familyId: family.id,
-          name: personName,
-          gender: _selectedGender?.toLowerCase(),
-          birthYear: birthYear,
-          isAnchor: true,
-          linkedUserId: creatorUserId,
-        ).timeout(const Duration(seconds: 15));
+        final client = ref.read(supabaseProvider);
+        final creatorUserId = client?.auth.currentUser?.id;
+        if (client != null && creatorUserId != null) {
+          try {
+            final existingPerson = await client
+                .from('Person')
+                .select('id')
+                .eq('familyId', family.id)
+                .eq('linkedUserId', creatorUserId)
+                .limit(1)
+                .timeout(const Duration(seconds: 5));
+
+            if (existingPerson.isNotEmpty) {
+              final personId = existingPerson[0]['id'] as String;
+              final birthYear = int.tryParse(_birthYearController.text.trim());
+              final updateData = <String, dynamic>{'name': personName};
+              if (_selectedGender != null) {
+                updateData['gender'] = _selectedGender!.toLowerCase();
+              }
+              if (birthYear != null) updateData['birthYear'] = birthYear;
+
+              await client
+                  .from('Person')
+                  .update(updateData)
+                  .eq('id', personId)
+                  .timeout(const Duration(seconds: 10));
+            }
+          } catch (e) {
+            debugPrint('[create_family_screen] _submitSkip: could not update creator Person: $e');
+          }
+        }
       }
+
+      // Invalidate the graph so it reloads with the creator node
+      ref.invalidate(familyGraphProvider(family.id));
 
       if (!mounted) return;
 
       context.showSnackBar(
         'Family "${family.name}" created! Add members anytime.',
       );
-      // v62.5: Reset spinner BEFORE navigation.
       setState(() => _isSubmitting = false);
-      // Navigate to the family list (not the graph, which can show a
-      // white screen if the family data hasn't propagated yet).
       context.go('/families');
     } catch (e) {
       if (mounted) {
