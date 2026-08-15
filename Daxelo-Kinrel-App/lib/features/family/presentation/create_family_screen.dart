@@ -15,7 +15,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/optimistic_actions.dart';
-import '../../../core/family/family_provider.dart' show familyGraphProvider;
+import 'providers/family_graph_provider.dart' show familyGraphProvider;
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
