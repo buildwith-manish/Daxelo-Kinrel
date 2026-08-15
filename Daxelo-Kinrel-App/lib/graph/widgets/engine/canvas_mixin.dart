@@ -35,10 +35,37 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         final sizeChanged = _viewportSize.width != newWidth ||
             _viewportSize.height != newHeight;
         _viewportSize = constraints.biggest;
+        // v4.4: Push viewport size + safe area to the camera so it can
+        // clamp panning and keep nodes fully visible.
+        _camera.setViewportSize(_viewportSize);
+        _camera.setSafeAreaInsets(MediaQuery.of(context).padding);
         // Invalidate the culler on any size change so the visible node
         // set is recomputed for the new viewport dimensions.
         if (sizeChanged) {
           _culler.invalidate();
+        }
+
+        // v4.4: Push content bounds to the camera (bounding box of all
+        // node positions + node size). This enables pan clamping so
+        // nodes can never be moved completely off-screen.
+        if (layout.positions.isNotEmpty) {
+          const nodeWidth = 140.0;
+          const nodeHeight = 176.0;
+          double minX = double.infinity;
+          double minY = double.infinity;
+          double maxX = double.negativeInfinity;
+          double maxY = double.negativeInfinity;
+          for (final pos in layout.positions.values) {
+            if (pos.dx < minX) minX = pos.dx;
+            if (pos.dy < minY) minY = pos.dy;
+            if (pos.dx + nodeWidth > maxX) maxX = pos.dx + nodeWidth;
+            if (pos.dy + nodeHeight > maxY) maxY = pos.dy + nodeHeight;
+          }
+          if (minX != double.infinity) {
+            _camera.setContentBounds(Rect.fromLTRB(minX, minY, maxX, maxY));
+          }
+        } else {
+          _camera.setContentBounds(null);
         }
 
         // One-time framing AFTER the first frame — never during build, which
