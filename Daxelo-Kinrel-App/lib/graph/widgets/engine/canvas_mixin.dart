@@ -644,17 +644,17 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 _doubleTapPosition = details.localPosition,
             onDoubleTap: _handleDoubleTapZoom,
             child: Stack(
-              clipBehavior: Clip.none, // v4.6: no clipping — nodes render fully at edges
+              clipBehavior: Clip.none, // v4.7: Stack doesn't clip; the _OverscanClipper below handles clipping
               children: [
-                // v4.6: Removed ClipRect + Padding — the graph canvas is now an
-                // infinite canvas. The camera's pan clamping (with 200px overscan)
-                // keeps content within view, while Clip.none on the Stack ensures
-                // nodes near edges are never visually clipped.
-                // v4.5: Overscan clip — give visual elements (glow, shadows,
-                // badges, labels) room to render beyond the viewport edge.
-                // The clip region is 48px larger than the viewport on each
-                // side, so nodes near the edge are never partially clipped.
-                AnimatedBuilder(
+                // v4.7: Use _OverscanClipper instead of raw ClipRect or Clip.none.
+                // The clipper expands the clip rect by 48px on each side, so nodes
+                // near the edge render fully (circle + glow + shadow + badges + labels)
+                // while far-away content is still clipped (prevents graph from drawing
+                // over UI elements like the app bar, FABs, etc.).
+                // This matches what camera_controller.dart's _edgeMargin (48px) assumes.
+                ClipRect(
+                  clipper: const _OverscanClipper(overscan: 48.0),
+                  child: AnimatedBuilder(
                       animation: _camera,
                       child: content,
                       builder: (BuildContext context, Widget? child) {
@@ -709,6 +709,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                       return transformed;
                     },
                   ),
+                ),
                 ),
                 // P2.4: Visual drag line for the two-node select-and-compare gesture.
                 // Drawn as a screen-space overlay (NOT inside the camera transform)
@@ -895,4 +896,33 @@ class _CompareDragLinePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CompareDragLinePainter old) =>
       fromPosition != old.fromPosition || toPosition != old.toPosition;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v4.7: Overscan Clipper — expands the clip rect beyond the viewport
+// ═══════════════════════════════════════════════════════════════════════
+// A raw ClipRect clips to its own render box size (exactly the viewport).
+// Padding inside a ClipRect only shifts content inward — it does NOT
+// enlarge the clip region. This CustomClipper actually expands the clip
+// rect by [overscan] pixels on each side, so nodes near the edge render
+// fully (circle + glow + shadow + badges + labels) without being clipped.
+//
+// This matches what camera_controller.dart's _edgeMargin (48px) assumes:
+// the camera lets you pan a node into a 48px "buffer zone" at the edge,
+// and this clipper ensures that zone is actually visible (not clipped).
+class _OverscanClipper extends CustomClipper<Rect> {
+  const _OverscanClipper({required this.overscan});
+  final double overscan;
+
+  @override
+  Rect getClip(Size size) => Rect.fromLTRB(
+        -overscan,
+        -overscan,
+        size.width + overscan,
+        size.height + overscan,
+      );
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Rect> oldClipper) =>
+      oldClipper is! _OverscanClipper || oldClipper.overscan != overscan;
 }
