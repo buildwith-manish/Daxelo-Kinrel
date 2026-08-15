@@ -128,8 +128,15 @@ class CameraController extends ChangeNotifier {
   EdgeInsets _safeAreaInsets = EdgeInsets.zero;
 
   /// Margin (in screen-space pixels) kept between content and viewport edge.
-  /// Ensures nodes are never rendered at the very edge of the screen.
-  static const double _edgeMargin = 24.0;
+  /// v4.5: Increased from 24 to 48 to account for visual effects that extend
+  /// beyond the node bounding box: glow (+24px), drop shadow (+12px),
+  /// relationship badges (+12px below), connection indicators (+16px sides).
+  static const double _edgeMargin = 48.0;
+
+  /// v4.5: Overscan margin (graph-space) added to content bounds so the
+  /// camera allows panning slightly beyond the outermost nodes. This gives
+  /// users room to see edge nodes' visual effects without them being clipped.
+  static const double _overscanMargin = 80.0;
 
   // ── Public Getters ───────────────────────────────────────────────
 
@@ -187,7 +194,15 @@ class CameraController extends ChangeNotifier {
     if (_contentBounds == null) return null;
     if (_viewportSize.width <= 0 || _viewportSize.height <= 0) return null;
 
-    final cb = _contentBounds!;
+    // v4.5: Expand content bounds by overscan margin so the camera allows
+    // panning beyond the outermost nodes. This ensures edge nodes' visual
+    // effects (glow, shadows, badges) are never clipped by the viewport.
+    final cb = Rect.fromLTRB(
+      _contentBounds!.left - _overscanMargin,
+      _contentBounds!.top - _overscanMargin,
+      _contentBounds!.right + _overscanMargin,
+      _contentBounds!.bottom + _overscanMargin,
+    );
     final zoom = _zoomLevel;
 
     // Effective viewport minus safe areas and edge margin.
@@ -509,10 +524,12 @@ class CameraController extends ChangeNotifier {
     // node labels, badges, and glow effects that extend beyond the
     // node circle.
     //
-    // Node dimensions mirror GraphLayoutService._nodeWidth/_nodeHeight
-    // Updated for _kNodeSize = 140×176 to account for pseudo-3D shadows.
-    const nodeWidth = 140.0;
-    const nodeHeight = 176.0;
+    // v4.5: Node dimensions expanded to account for visual effects that
+    // extend beyond the base 140×176 node: glow (+24px each side), drop
+    // shadow (+12px each side), badges (+20px below), connection indicators
+    // (+16px each side). Total: 140+80=220 wide, 176+80=256 tall.
+    const nodeWidth = 220.0;   // 140 base + 40 glow/shadow + 40 indicators
+    const nodeHeight = 256.0;  // 176 base + 40 glow/shadow + 40 badges
 
     double minX = double.infinity;
     double minY = double.infinity;
@@ -533,10 +550,12 @@ class CameraController extends ChangeNotifier {
     final rawWidth = maxX - minX;
     final rawHeight = maxY - minY;
     const minBoxSize = 200.0; // Minimum 200x200 bounding box
-    // Bug B fix: 20% padding (was 10%) to leave room for node labels
-    // and badges that extend beyond the node circle.
-    final width = (rawWidth < minBoxSize ? minBoxSize : rawWidth) * 1.2;
-    final height = (rawHeight < minBoxSize ? minBoxSize : rawHeight) * 1.2;
+    // v4.5: 30% padding (was 20%) to leave room for node labels, badges,
+    // glow effects, drop shadows, and connection indicators that extend
+    // beyond the node circle. This ensures nodes are NEVER placed directly
+    // on viewport edges after fit-to-screen.
+    final width = (rawWidth < minBoxSize ? minBoxSize : rawWidth) * 1.3;
+    final height = (rawHeight < minBoxSize ? minBoxSize : rawHeight) * 1.3;
     final centerX = (minX + maxX) / 2;
     final centerY = (minY + maxY) / 2;
 
