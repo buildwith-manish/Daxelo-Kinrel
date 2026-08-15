@@ -425,8 +425,8 @@ export class RelationshipsService {
     path: Array<{
       personId: string;
       personName: string;
-      relationshipType: string;
-      direction: string;
+      relationshipType?: string;
+      direction?: string;
     }>;
     distance: number;
     kinshipTerm: string | null;
