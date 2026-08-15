@@ -131,12 +131,12 @@ class CameraController extends ChangeNotifier {
   /// v4.5: Increased from 24 to 48 to account for visual effects that extend
   /// beyond the node bounding box: glow (+24px), drop shadow (+12px),
   /// relationship badges (+12px below), connection indicators (+16px sides).
-  static const double _edgeMargin = 48.0;
+  static const double _edgeMargin = 100.0; // v4.6: was 48, increased for large nodes + glow
 
   /// v4.5: Overscan margin (graph-space) added to content bounds so the
   /// camera allows panning slightly beyond the outermost nodes. This gives
   /// users room to see edge nodes' visual effects without them being clipped.
-  static const double _overscanMargin = 80.0;
+  static const double _overscanMargin = 200.0; // v4.6: was 80, increased to 200 per UX recommendation
 
   // ── Public Getters ───────────────────────────────────────────────
 
