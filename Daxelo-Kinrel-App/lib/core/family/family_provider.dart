@@ -1427,6 +1427,31 @@ Future<Family> createFamily({
       // Derive gender from user metadata (optional — null is fine)
       final creatorGender = (userMeta?['gender'] as String?)?.toLowerCase();
 
+      // v4.3.1: Check if the user already has a linkedUserId in ANY family.
+      // The Person.linkedUserId column has a UNIQUE constraint — a user can
+      // only be "linked" to ONE Person across ALL families. If they already
+      // have a linked Person elsewhere, we create the new Person WITHOUT
+      // linkedUserId (it's still the anchor of this family, just not "claimed"
+      // as the user's primary identity). The user can claim it later via the
+      // Person Link flow, which will unclaim the old one first.
+      bool canLinkToUser = false;
+      try {
+        final existingLinkedPerson = await client
+            .from('Person')
+            .select('id')
+            .eq('linkedUserId', userId)
+            .limit(1)
+            .timeout(const Duration(seconds: 5));
+        canLinkToUser = existingLinkedPerson.isEmpty;
+        if (!canLinkToUser) {
+          debugPrint('[createFamily] User already has a linked Person in another family — creating without linkedUserId');
+        }
+      } catch (e) {
+        debugPrint('[createFamily] Could not check existing linkedUserId (non-fatal): $e');
+        // If the check fails, be safe and don't set linkedUserId
+        canLinkToUser = false;
+      }
+
       final personId = _generateId();
       final personInsert = <String, dynamic>{
         'id': personId,
@@ -1434,9 +1459,13 @@ Future<Family> createFamily({
         'name': creatorName,
         'isAnchor': true,
         'privacyLevel': 'family',
-        'linkedUserId': userId,
         'generationIndex': 0,
       };
+      // Only set linkedUserId if the user doesn't already have one elsewhere
+      // (avoids unique constraint violation on Person_linkedUserId_unique)
+      if (canLinkToUser) {
+        personInsert['linkedUserId'] = userId;
+      }
       if (creatorGender != null && creatorGender.isNotEmpty) {
         personInsert['gender'] = creatorGender;
       }
@@ -1457,7 +1486,7 @@ Future<Family> createFamily({
           .eq('id', family.id)
           .timeout(const Duration(seconds: 5));
 
-      debugPrint('[createFamily] Creator Person created: $personId (name=$creatorName)');
+      debugPrint('[createFamily] Creator Person created: $personId (name=$creatorName, linkedToUser=$canLinkToUser)');
     } else {
       debugPrint('[createFamily] Creator Person already exists — skipping auto-create');
     }
