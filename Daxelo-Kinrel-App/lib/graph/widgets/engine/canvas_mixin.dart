@@ -644,15 +644,17 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 _doubleTapPosition = details.localPosition,
             onDoubleTap: _handleDoubleTapZoom,
             child: Stack(
+              clipBehavior: Clip.none, // v4.6: no clipping — nodes render fully at edges
               children: [
+                // v4.6: Removed ClipRect + Padding — the graph canvas is now an
+                // infinite canvas. The camera's pan clamping (with 200px overscan)
+                // keeps content within view, while Clip.none on the Stack ensures
+                // nodes near edges are never visually clipped.
                 // v4.5: Overscan clip — give visual elements (glow, shadows,
                 // badges, labels) room to render beyond the viewport edge.
                 // The clip region is 48px larger than the viewport on each
                 // side, so nodes near the edge are never partially clipped.
-                ClipRect(
-                  child: Padding(
-                    padding: const EdgeInsets.all(48.0),
-                    child: AnimatedBuilder(
+                AnimatedBuilder(
                       animation: _camera,
                       child: content,
                       builder: (BuildContext context, Widget? child) {
@@ -706,7 +708,6 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
 
                       return transformed;
                     },
-                    ),
                   ),
                 ),
                 // P2.4: Visual drag line for the two-node select-and-compare gesture.
