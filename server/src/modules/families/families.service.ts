@@ -151,6 +151,9 @@ export class FamiliesService {
         // Emit websocket events so connected clients refresh
         try {
           this.gateway.emitToFamily(family.id, 'person:created', {
+            id: creatorPerson.id,
+            type: 'person:created',
+            updatedAt: new Date().toISOString(),
             personId: creatorPerson.id,
             familyId: family.id,
             name: creatorName,
@@ -158,6 +161,9 @@ export class FamiliesService {
             isCreator: true,
           });
           this.gateway.emitToFamily(family.id, 'graph:updated', {
+            id: family.id,
+            type: 'graph:updated',
+            updatedAt: new Date().toISOString(),
             familyId: family.id,
             reason: 'creator_person_auto_created',
           });
