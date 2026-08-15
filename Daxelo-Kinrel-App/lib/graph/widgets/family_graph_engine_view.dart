@@ -582,8 +582,8 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     final viewerIsLinked =
         ref.watch(isViewerLinkedProvider(widget.familyId)).valueOrNull ??
             true;
-    final viewerIsUnlinked =
-        viewerPersonId != null && !viewerIsLinked;
+    // v4.9: viewerIsUnlinked removed — was only used by the ClaimProfileBanner
+    // which is no longer rendered. Left viewerIsLinked in case it's needed later.
 
     return layoutAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -607,14 +607,15 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
           _pendingResetView = false;
           _maybeRunPendingResetView(layout, flat, viewerPersonId);
         }
-        // Wrap the graph in a Column so we can show a claim-profile banner
-        // above it when the viewer is unlinked. The graph itself expands
-        // to fill the remaining space.
+        // Wrap the graph in a Column so the graph expands to fill the space.
+        // v4.9: Removed the ClaimProfileBanner — it's no longer rendered here.
+        // The claim_profile_banner.dart file is left in place (unused) in case
+        // it's wanted later. The graph's Expanded child fills the full remaining
+        // space with the banner gone.
         return Column(
           children: [
-            // Claim banner — shown when user has no linked Person node
-            if (viewerIsUnlinked)
-              ClaimProfileBanner(familyId: widget.familyId),
+            // v4.9: ClaimProfileBanner removed — no longer rendered regardless
+            // of claim status. The Expanded below now fills the full height.
             // Existing graph widget — expand to fill remaining space
             Expanded(
               child: Stack(
