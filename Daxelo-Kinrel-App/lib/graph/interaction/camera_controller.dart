@@ -284,19 +284,40 @@ class CameraController extends ChangeNotifier {
 
   /// Clamps the current pan position to the computed limits.
   /// Called after every pan/zoom/animation change.
+  ///
+  /// v4.12: For small graphs (content fits within viewport), skip clamping
+  /// entirely — fitToView already centered the content correctly, and
+  /// clamping with slightly-wrong chrome heights can fight that centering.
+  /// Only clamp when content is LARGER than the viewport (where panning
+  /// could actually move content off-screen).
   void _clampPan() {
     final limits = _computePanLimits();
     if (limits == null) return;
 
-    // If content is smaller than viewport (min > max), center it.
-    if (limits.minX > limits.maxX) {
-      _panX = (limits.minX + limits.maxX) / 2;
-    } else {
-      _panX = _panX.clamp(limits.minX, limits.maxX);
+    // v4.12: If content fits within viewport in BOTH dimensions, don't
+    // force-center — let fitToView's positioning stand. This prevents
+    // the clamp from fighting fitToView on single-node/small graphs.
+    final contentFitsX = limits.minX > limits.maxX;
+    final contentFitsY = limits.minY > limits.maxY;
+    if (contentFitsX && contentFitsY) {
+      // Content is smaller than viewport in both dimensions — no clamping needed.
+      // The user can still pan freely (the content just won't go off-screen
+      // because it's smaller than the viewport).
+      return;
     }
-    if (limits.minY > limits.maxY) {
+
+    // Content is larger than viewport in at least one dimension — clamp.
+    if (contentFitsX) {
+      // X fits, Y doesn't — center X, clamp Y
+      _panX = (limits.minX + limits.maxX) / 2;
+      _panY = _panY.clamp(limits.minY, limits.maxY);
+    } else if (contentFitsY) {
+      // Y fits, X doesn't — center Y, clamp X
       _panY = (limits.minY + limits.maxY) / 2;
+      _panX = _panX.clamp(limits.minX, limits.maxX);
     } else {
+      // Both dimensions larger than viewport — clamp both
+      _panX = _panX.clamp(limits.minX, limits.maxX);
       _panY = _panY.clamp(limits.minY, limits.maxY);
     }
   }
