@@ -710,7 +710,6 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     },
                   ),
                 ),
-                ),
                 // P2.4: Visual drag line for the two-node select-and-compare gesture.
                 // Drawn as a screen-space overlay (NOT inside the camera transform)
                 // because the drag position is in screen coordinates.
