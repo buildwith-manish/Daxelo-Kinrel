@@ -664,7 +664,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 // over UI elements like the app bar, FABs, etc.).
                 // This matches what camera_controller.dart's _edgeMargin (48px) assumes.
                 ClipRect(
-                  clipper: const _OverscanClipper(overscan: 48.0),
+                  clipper: const _OverscanClipper(overscan: 200.0), // v4.15: increased from 48 to 200 so nodes are never clipped at edges
                   child: AnimatedBuilder(
                       animation: _camera,
                       child: content,
