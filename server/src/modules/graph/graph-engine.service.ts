@@ -67,12 +67,16 @@ export interface PathStep {
   personId: string;
   personName: string;
   primitive: TraversePrimitive;
+  direction?: string;        // v4.0 legacy field - 'up' / 'down' / 'sideways'
+  relationshipType?: string; // v4.0 legacy field - original relationshipKey
 }
 
 export interface PathResult {
   found: boolean;
   path: PathStep[];
   distance: number;
+  kinshipTerm?: string;      // v4.0 legacy — populated by callers that resolve vocabulary
+  kinshipTermHindi?: string; // v4.0 legacy — populated by callers that resolve vocabulary
   signature?: KinshipSignature;
   result?: KinshipResult;
 }
@@ -82,6 +86,7 @@ export interface ComputedRelationship {
   personName: string;
   relationshipKey: string;
   computedTerm: string;
+  computedTermHindi: string;  // v4.0 legacy field — populated by callers (default empty string)
   distance: number;
   path: PathStep[];
   signature: KinshipSignature;
@@ -254,6 +259,7 @@ export class GraphEngineService {
         personName: person.name,
         relationshipKey: result.fundamentalEdge || signature.pathPattern,
         computedTerm: result.term,
+        computedTermHindi: '', // v4.0 legacy — populated downstream if needed
         distance: canonicalPath.length,
         path: canonicalPath.map((primitive, i) => ({
           personId: bfsResult.visitedNodes[i + 1] || '',
@@ -406,6 +412,15 @@ export class GraphEngineService {
   }
 
   // ── Private: Graph Loading ──────────────────────────────────────────
+
+  /**
+   * v4.1: Invalidate the in-memory graph cache for a family.
+   * Currently a no-op since loadFamilyGraph queries the DB directly (no cache).
+   * Kept for API compat with graph.service.ts which calls this on mutations.
+   */
+  invalidateCache(_familyId: string): void {
+    // No-op — loadFamilyGraph always reads from DB
+  }
 
   private async loadFamilyGraph(familyId: string): Promise<{
     persons: PersonRecord[];
