@@ -224,15 +224,12 @@ class CameraController extends ChangeNotifier {
     if (_contentBounds == null) return null;
     if (_viewportSize.width <= 0 || _viewportSize.height <= 0) return null;
 
-    // v4.5: Expand content bounds by overscan margin so the camera allows
-    // panning beyond the outermost nodes. This ensures edge nodes' visual
-    // effects (glow, shadows, badges) are never clipped by the viewport.
-    final cb = Rect.fromLTRB(
-      _contentBounds!.left - _overscanMargin,
-      _contentBounds!.top - _overscanMargin,
-      _contentBounds!.right + _overscanMargin,
-      _contentBounds!.bottom + _overscanMargin,
-    );
+    // v4.14: Use ACTUAL content bounds (without overscan expansion) for
+    // the clamp calculation. The previous code expanded bounds by _overscanMargin
+    // (200px), which caused the clamp to allow the node to go 200px into the
+    // stats panel area. Now the clamp keeps the actual node bounding box within
+    // the effective viewport — the node circle can never go behind the stats panel.
+    final cb = _contentBounds!;
     final zoom = _zoomLevel;
 
     // v4.11: Effective viewport must account for BOTH OS safe areas AND
