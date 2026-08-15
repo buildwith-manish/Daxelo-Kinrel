@@ -22,8 +22,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/family/family_provider.dart';
-import '../../core/kinship/v3/deterministic_kinship_engine.dart';
-import '../../core/services/graph_layout_service.dart' show GraphPerson;
+import '../../core/kinship/kinship_inference_engine.dart';
 import '../../core/services/supabase_service.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/fundamental_relationship_picker.dart';
@@ -314,27 +313,35 @@ class GraphQuickActions {
     );
   }
 
-  /// v5.0: Shows a bottom sheet of eligible family members, then
-  /// either (a) auto-creates a relationship if the kinship engine can
-  /// derive one from existing edges, OR (b) opens the simplified
-  /// FundamentalRelationshipPicker to ask the user for the missing
-  /// fundamental edge (parent / child / spouse / sibling).
+  /// v5.1: Shows a bottom sheet of eligible family members, then
+  /// AUTO-CREATES the most likely relationship using the Smart Kinship
+  /// Inference Engine. NO manual picker — the system detects, calculates,
+  /// and establishes the relationship automatically.
   ///
-  /// KEY FIX: Previously, this flow EXCLUDED already-related persons
-  /// AND required an existing graph path for auto-detection. Since
-  /// the two people were unrelated, the engine ALWAYS returned null
-  /// and the user fell through to the manual 5,000-term picker.
-  /// Now we INCLUDE all non-self persons, and when no path exists,
-  /// we surface the simplified fundamental picker (4 options only,
-  /// gender-aware, single tap to confirm).
+  /// The inference engine uses multiple signals:
+  ///   - Gender of both people
+  ///   - Birth year (age delta)
+  ///   - Existing family structure (what's missing?)
+  ///   - Direction of the "Relate to" action
+  ///
+  /// It returns a RANKED list of candidate relationships. We try each
+  /// one in order until validation passes — so the user NEVER sees an
+  /// error or a picker. The first valid inference is created instantly.
+  ///
+  /// If ALL candidates fail (rare — only when the two people are
+  /// already connected in every possible way), we show a helpful
+  /// SnackBar explaining the situation.
+  ///
+  /// The success SnackBar includes an "Undo" action so the user can
+  /// quickly reverse a wrong auto-inference.
   ///
   /// Flow:
   /// 1. Show bottom sheet with eligible persons (excludes self only)
   /// 2. User taps one person → sheet closes
-  /// 3. If kinship engine resolves a fundamental edge → auto-create
-  /// 4. Otherwise → FundamentalRelationshipPicker.show() → create
+  /// 3. KinshipInferenceEngine.infer() returns ranked candidates
+  /// 4. Try each candidate via createRelationship() until one succeeds
   /// 5. Graph refreshes via createRelationship's invalidation
-  /// 6. Success/error SnackBar
+  /// 6. Success SnackBar with "Undo" action OR error SnackBar
   static void _showPersonListAndAutoCreate(
     BuildContext context,
     WidgetRef ref,
@@ -357,16 +364,9 @@ class GraphQuickActions {
       return;
     }
 
-    // v5.0: Include ALL members (except self). Previously we excluded
-    // already-related persons, but that prevented the user from
-    // re-linking two people after a wrong relationship was created.
-    // Duplicate prevention is now handled by validateRelationship
-    // (which throws a clean duplicate_relationship error if the same
-    // edge is re-created).
+    // Include ALL members (except self + deleted).
     final eligiblePersons = detail.members
-        .where((p) =>
-            p.id != sourcePerson.id &&
-            p.deletedAt == null)
+        .where((p) => p.id != sourcePerson.id && p.deletedAt == null)
         .toList();
 
     if (eligiblePersons.isEmpty) {
@@ -439,7 +439,7 @@ class GraphQuickActions {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Select a family member — we\'ll determine the relationship automatically.',
+                    'Tap a family member — we\'ll auto-detect the relationship.',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,
@@ -506,80 +506,67 @@ class GraphQuickActions {
 
     debugPrint('[RelateToPerson] ${sourcePerson.name} → ${selectedPerson.name}');
 
-    // Build GraphPerson list for RelationshipEngine
-    final graphPersons = detail.members.map((p) => GraphPerson(
-      id: p.id,
-      name: p.name,
-      gender: p.gender,
-      generationIndex: p.generationIndex,
-      isAnchor: p.isAnchor,
-      photoUrl: p.photoUrl,
-      isDeceased: p.isDeceased,
-    )).toList();
-
-    final relTuples = detail.relationships.map((r) =>
-      (fromId: r.fromPersonId, toId: r.toPersonId, type: r.relationshipKey)
-    ).toList();
-
-    // Try to auto-detect via v3 Deterministic Kinship Engine.
-    // The engine only resolves fundamental edges (parent/spouse/etc.)
-    // — derived terms (grandfather, uncle) are returned with
-    // fundamentalEdge=null and isDerived=true.
-    final result = DeterministicKinshipEngine.instance.resolve(
-      fromPersonId: sourcePerson.id,
-      toPersonId: selectedPerson.id,
-      persons: graphPersons,
-      relationships: relTuples,
+    // v5.1: Use the Smart Kinship Inference Engine to get a ranked list
+    // of candidate relationships. We try each one in order until
+    // validation passes — so the user NEVER sees a picker or an error.
+    //
+    // Look up the source Person from detail.members to get the full
+    // record (including birthYear, which GraphPersonData doesn't have).
+    final sourcePersonRecord = detail.members.firstWhere(
+      (p) => p.id == sourcePerson.id,
+      orElse: () => Person(
+        id: sourcePerson.id,
+        familyId: familyId,
+        name: sourcePerson.name,
+        gender: sourcePerson.gender,
+      ),
     );
 
-    String relationshipKey;
+    final candidates = KinshipInferenceEngine.infer(
+      personA: sourcePersonRecord,
+      personB: selectedPerson,
+      existingRelationships: detail.relationships,
+    );
 
-    if (result != null && result.fundamentalEdge != null && !result.isDerived) {
-      // Auto-detected a fundamental edge directly!
-      // (e.g. they share a parent → sibling; they're spouses → spouse)
-      relationshipKey = result.fundamentalEdge!;
-      debugPrint('[RelateToPerson] v3 auto-detected fundamental: $relationshipKey (${result.term})');
-    } else {
-      // No fundamental edge found (either no path, or a derived term).
-      // The user must supply the missing fundamental edge.
-      //
-      // v5.0: Use the simplified FundamentalRelationshipPicker
-      // instead of the 5,000-term picker. This shows only the 4
-      // fundamental types (parent / child / spouse / sibling) with
-      // gender-specific labels (Father / Mother / Son / Daughter /
-      // Husband / Wife / Brother / Sister). One tap to confirm.
-      if (result != null && result.isDerived) {
-        debugPrint('[RelateToPerson] v3 derived: ${result.term} — asking for fundamental edge');
-      } else {
-        debugPrint('[RelateToPerson] v3 auto-detect failed — asking for fundamental edge');
-      }
-      if (!context.mounted) return;
-      final fundamentalKey = await FundamentalRelationshipPicker.show(
-        context,
-        personAName: sourcePerson.name,
-        personBName: selectedPerson.name,
-        personAGender: sourcePerson.gender,
-        personBGender: selectedPerson.gender,
-      );
-      if (fundamentalKey == null) return; // User cancelled
-      relationshipKey = fundamentalKey;
+    debugPrint('[RelateToPerson] Inference returned ${candidates.length} candidates:');
+    for (final c in candidates) {
+      debugPrint('  - ${c.key} (confidence=${c.confidence.toStringAsFixed(2)}): ${c.reason}');
     }
 
-    // Create the relationship
-    debugPrint('[RelateToPerson] Creating: ${sourcePerson.id} → ${selectedPerson.id} as $relationshipKey');
+    // Try each candidate in order until one succeeds.
     final messenger = ScaffoldMessenger.maybeOf(context);
-    try {
-      await createRelationship(
-        ref: ref,
-        familyId: familyId,
-        fromPersonId: sourcePerson.id,
-        toPersonId: selectedPerson.id,
-        relationshipKey: relationshipKey,
-      );
-      debugPrint('[RelateToPerson] Relationship created successfully');
+    String? createdKey;
+    String? createdRelId;
+    String? failureReason;
 
-      // Determine the human-readable label for the SnackBar
-      final label = relationshipKey.replaceAll('_', ' ');
+    for (final candidate in candidates) {
+      try {
+        debugPrint('[RelateToPerson] Trying: ${candidate.key} (${candidate.reason})');
+        final rel = await createRelationship(
+          ref: ref,
+          familyId: familyId,
+          fromPersonId: sourcePerson.id,
+          toPersonId: selectedPerson.id,
+          relationshipKey: candidate.key,
+        );
+        createdKey = candidate.key;
+        createdRelId = rel.id;
+        debugPrint('[RelateToPerson] ✓ Created: ${candidate.key}');
+        break;
+      } on RelationshipValidationException catch (e) {
+        debugPrint('[RelateToPerson] ✗ ${candidate.key} failed: ${e.code} — ${e.message}');
+        failureReason = e.message;
+        // Continue to next candidate
+      } catch (e) {
+        debugPrint('[RelateToPerson] ✗ ${candidate.key} error: $e');
+        failureReason = e.toString();
+        // Continue to next candidate
+      }
+    }
+
+    if (createdKey != null) {
+      // Success!
+      final label = KinshipInferenceEngine.labelFor(createdKey);
       messenger?.showSnackBar(
         SnackBar(
           content: Text(
@@ -587,34 +574,88 @@ class GraphQuickActions {
           ),
           backgroundColor: KinrelColors.darkCard,
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 4),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Undo',
+            textColor: KinrelColors.tealAccent,
+            onPressed: () async {
+              if (createdRelId != null) {
+                try {
+                  await deleteRelationship(
+                    ref: ref,
+                    relationshipId: createdRelId,
+                    familyId: familyId,
+                  );
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Connection removed'),
+                      backgroundColor: KinrelColors.darkCard,
+                      behavior: SnackBarBehavior.floating,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                } catch (e) {
+                  debugPrint('[RelateToPerson] Undo failed: $e');
+                }
+              }
+            },
+          ),
         ),
       );
-    } catch (e) {
-      debugPrint('[RelateToPerson] ERROR: $e');
-      String friendlyError;
-      if (e is RelationshipValidationException) {
-        if (e.code == 'self_relationship') {
-          friendlyError = 'Choose two different family members.';
-        } else if (e.code == 'duplicate_relationship') {
-          friendlyError = '${sourcePerson.name} and ${selectedPerson.name} are already connected. '
-              'Remove the existing relationship first if you want to change it.';
-        } else if (e.code == 'duplicate_parent') {
-          friendlyError = 'This person already has a parent. Remove the existing one first.';
-        } else if (e.code == 'circular_parentage') {
-          friendlyError = 'This connection would create a family cycle.';
-        } else {
-          friendlyError = 'Couldn\'t create this connection. ${e.message}';
-        }
-      } else {
-        friendlyError = 'Couldn\'t create this connection. Please try again.';
-      }
+    } else {
+      // All candidates failed — show a helpful error with a "Choose Manually"
+      // action that opens the FundamentalRelationshipPicker as a last resort.
       messenger?.showSnackBar(
         SnackBar(
-          content: Text(friendlyError),
+          content: Text(
+            'Could not auto-connect ${selectedPerson.name} to ${sourcePerson.name}. '
+            '${failureReason ?? "They may already be fully connected."}',
+          ),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 5),
+          duration: const Duration(seconds: 8),
+          action: SnackBarAction(
+            label: 'Choose Manually',
+            textColor: KinrelColors.textWhite,
+            onPressed: () async {
+              if (!context.mounted) return;
+              final manualKey = await FundamentalRelationshipPicker.show(
+                context,
+                personAName: sourcePerson.name,
+                personBName: selectedPerson.name,
+                personAGender: sourcePerson.gender,
+                personBGender: selectedPerson.gender,
+              );
+              if (manualKey == null) return;
+              try {
+                await createRelationship(
+                  ref: ref,
+                  familyId: familyId,
+                  fromPersonId: sourcePerson.id,
+                  toPersonId: selectedPerson.id,
+                  relationshipKey: manualKey,
+                );
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Connected: ${selectedPerson.name} is the ${KinshipInferenceEngine.labelFor(manualKey)} of ${sourcePerson.name}',
+                    ),
+                    backgroundColor: KinrelColors.darkCard,
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+              } catch (e) {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('Failed: $e'),
+                    backgroundColor: Colors.redAccent,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+          ),
         ),
       );
     }
