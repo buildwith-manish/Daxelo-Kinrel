@@ -127,6 +127,22 @@ class CameraController extends ChangeNotifier {
   /// hidden behind UI elements.
   EdgeInsets _safeAreaInsets = EdgeInsets.zero;
 
+  /// v4.8: Height of the app's own bottom UI chrome (stats panel + bottom
+  /// toolbar + FAB area) that overlays the canvas. This is NOT the OS safe
+  /// area — it's the in-app UI drawn on top of the graph. When centering
+  /// content (fitToView), the camera offsets the vertical center by this
+  /// amount so nodes don't land behind the stats card/toolbar.
+  ///
+  /// Measured from family_graph_screen.dart:
+  ///   - Stats panel: ~40px
+  ///   - Bottom toolbar: 48px + 8px margin = 56px
+  ///   - Margins/gaps: ~24px
+  ///   Total: ~120px
+  double _appBottomChromeHeight = 120.0;
+
+  /// v4.8: Height of the app's top UI chrome (AppBar) that overlays the canvas.
+  double _appTopChromeHeight = 0.0;
+
   /// Margin (in screen-space pixels) kept between content and viewport edge.
   /// v4.5: Increased from 24 to 48 to account for visual effects that extend
   /// beyond the node bounding box: glow (+24px), drop shadow (+12px),
@@ -186,6 +202,20 @@ class CameraController extends ChangeNotifier {
   /// The camera keeps content within these insets.
   void setSafeAreaInsets(EdgeInsets insets) {
     _safeAreaInsets = insets;
+  }
+
+  /// v4.8: Sets the app's own bottom UI chrome height (stats panel +
+  /// toolbar + FAB area). This is the in-app overlay drawn on top of the
+  /// canvas, NOT the OS safe area. When fitToView centers content, it
+  /// offsets the vertical center by this amount so nodes don't land
+  /// behind the bottom overlay.
+  void setAppBottomChromeHeight(double height) {
+    _appBottomChromeHeight = height;
+  }
+
+  /// v4.8: Sets the app's top UI chrome height (AppBar).
+  void setAppTopChromeHeight(double height) {
+    _appTopChromeHeight = height;
   }
 
   /// Computes the allowed pan range so that content stays visible.
@@ -575,9 +605,20 @@ class CameraController extends ChangeNotifier {
       fitZoom = fitZoom.clamp(_minZoom, 2.0);
     }
 
-    // Compute pan to center.
-    final targetPanX = (viewportSize.width / 2) - (centerX * fitZoom);
-    final targetPanY = (viewportSize.height / 2) - (centerY * fitZoom);
+    // v4.8: Compute pan to center using the EFFECTIVE viewport — not the
+    // raw viewport height. The app draws bottom UI chrome (stats panel +
+    // toolbar + FAB) as an overlay on top of the canvas, so the visual
+    // center of the usable area is higher than the raw viewport center.
+    // Without this fix, single-node graphs (brand-new families) get
+    // centered behind the bottom overlay, making the node look cut off.
+    final topInset = _safeAreaInsets.top + _appTopChromeHeight;
+    final bottomInset = _safeAreaInsets.bottom + _appBottomChromeHeight;
+    final effectiveHeight = viewportSize.height - topInset - bottomInset;
+    final effectiveCenterY = topInset + effectiveHeight / 2;
+    final effectiveCenterX = viewportSize.width / 2; // no horizontal chrome
+
+    final targetPanX = effectiveCenterX - (centerX * fitZoom);
+    final targetPanY = effectiveCenterY - (centerY * fitZoom);
 
     // v62.5: Use instant set (no animation) for initial fit to prevent
     // blank screen during the 600ms animation. The animation was causing
