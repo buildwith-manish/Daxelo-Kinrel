@@ -497,8 +497,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
   bool _initialLoadDone = false;
   // v5.2: Listener for family member changes — refreshes the chat
   // member roster when a Person is added/deleted.
-  // ref.listen returns a RemoveListener (void Function()).
-  void Function()? _cancelMemberListListener;
+  // ref.listen returns a ProviderSubscription.
+  ProviderSubscription<List<Person>>? _memberListListener;
 
   // ── Initialization ───────────────────────────────────────────────
 
@@ -519,7 +519,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     try {
       // Watch the familyMembersProvider — when it invalidates (e.g.
       // after createPerson), re-load the chat member roster.
-      _cancelMemberListListener = ref.listen(
+      _memberListListener = ref.listen(
         familyMembersProvider(familyId),
         (_, __) {
           // Re-load members on the next microtask to avoid reentrancy.
@@ -1439,8 +1439,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _channel = null;
     _membersSub?.cancel();
     // v5.2: Cancel the family member listener to prevent leaks.
-    _cancelMemberListListener?.call();
-    _cancelMemberListListener = null;
+    _memberListListener?.close();
+    _memberListListener = null;
     super.dispose();
   }
 }

@@ -316,6 +316,9 @@ class _RelationshipBuilderScreenState
         fromPersonId: person1.id,
         toPersonId: person2.id,
         relationshipKey: relationshipKey,
+        // v5.3: Pass genders for gender-aware inverse edge creation.
+        fromPersonGender: person1.gender,
+        toPersonGender: person2.gender,
       );
 
       if (mounted) {

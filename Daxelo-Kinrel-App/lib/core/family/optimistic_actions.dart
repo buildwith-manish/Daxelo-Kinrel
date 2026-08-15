@@ -900,6 +900,10 @@ Future<FamilyRelationship> addRelationshipOptimistic({
   required String fromPersonId,
   required String toPersonId,
   required String relationshipKey,
+  /// v5.3: Gender of fromPerson (for gender-aware inverse key).
+  String? fromPersonGender,
+  /// v5.3: Gender of toPerson (for gender-aware inverse key).
+  String? toPersonGender,
 }) async {
   final db = ref.read(isarProvider);
   final ts = DateTime.now().millisecondsSinceEpoch;
@@ -987,6 +991,9 @@ Future<FamilyRelationship> addRelationshipOptimistic({
       fromPersonId: fromPersonId,
       toPersonId: toPersonId,
       relationshipKey: relationshipKey,
+      // v5.3: Pass genders for gender-aware inverse edge creation.
+      fromPersonGender: fromPersonGender,
+      toPersonGender: toPersonGender,
     );
 
     // 5. On success: remove temp entries from Drift

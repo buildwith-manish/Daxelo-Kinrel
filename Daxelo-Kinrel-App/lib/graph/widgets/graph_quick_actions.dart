@@ -548,6 +548,10 @@ class GraphQuickActions {
           fromPersonId: sourcePerson.id,
           toPersonId: selectedPerson.id,
           relationshipKey: candidate.key,
+          // v5.3: Pass genders so the inverse edge gets the correct
+          // gender-aware key (e.g. 'son' instead of 'child').
+          fromPersonGender: sourcePersonRecord.gender,
+          toPersonGender: selectedPerson.gender,
         );
         createdKey = candidate.key;
         createdRelId = rel.id;

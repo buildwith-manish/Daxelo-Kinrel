@@ -2373,6 +2373,18 @@ Future<FamilyRelationship> createRelationship({
   /// will perform ONE authoritative graph refresh after this returns.
   /// Default true preserves standalone-relationship-creation behavior.
   bool refreshGraph = true,
+  /// v5.3: The gender of the fromPerson (e.g. 'male', 'female').
+  /// Used to compute the gender-aware inverse key for the reverse edge.
+  /// If null, the inverse uses the gender-neutral fallback (e.g. 'child'
+  /// instead of 'son'/'daughter').
+  String? fromPersonGender,
+  /// v5.3: The gender of the toPerson (e.g. 'male', 'female').
+  /// Used to compute the gender-aware inverse key for the reverse edge.
+  String? toPersonGender,
+  /// v5.3: When true, this is an INTERNAL call creating the inverse edge.
+  /// Skips validation (the forward edge already passed) and skips
+  /// creating ANOTHER inverse (prevents infinite recursion).
+  bool _isInverseEdge = false,
 }) async {
   final client = ref.read(supabaseProvider);
   if (client == null) {
@@ -2383,54 +2395,61 @@ Future<FamilyRelationship> createRelationship({
 
   // v98 (Phase 7): Validate the relationship BEFORE writing to Supabase.
   // Fetch existing edges for validation (self-link, duplicate, cycle).
-  try {
-    final existingRels = await client
-        .from('Relationship')
-        .select('id, "fromPersonId", "toPersonId", "relationshipKey"')
-        .eq('familyId', familyId)
-        .timeout(const Duration(seconds: 10));
-    final existingEdges = <({String fromId, String toId, String edgeId, String relationshipKey})>[
-      for (final r in existingRels)
-        (
-          fromId: (r['fromPersonId'] ?? '').toString(),
-          toId: (r['toPersonId'] ?? '').toString(),
-          edgeId: (r['id'] ?? '').toString(),
-          relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
-        ),
-    ];
-    final validation = validateRelationship(
-      fromPersonId: fromPersonId,
-      toPersonId: toPersonId,
-      relationshipKey: relationshipKey,
-      existingEdges: existingEdges,
-    );
-    if (validation.isError) {
-      // v102 (BUG-3 FIX): Throw a typed RelationshipValidationException
-      // carrying BOTH the message and the code. The catch block below
-      // does a TYPE CHECK (e is RelationshipValidationException) instead
-      // of the old fragile string-match on e.toString() — which never
-      // matched because e.toString() returned the message, not the code.
-      throw RelationshipValidationException(
-        validation.message,
-        validation.code ?? 'unknown',
+  // v5.3: Skip validation for inverse edges — the forward edge already
+  // passed validation, and the inverse edge is the SAME canonical
+  // relationship (just from the other person's perspective).
+  if (!_isInverseEdge) {
+    try {
+      final existingRels = await client
+          .from('Relationship')
+          .select('id, "fromPersonId", "toPersonId", "relationshipKey"')
+          .eq('familyId', familyId)
+          .timeout(const Duration(seconds: 10));
+      final existingEdges = <({String fromId, String toId, String edgeId, String relationshipKey})>[
+        for (final r in existingRels)
+          (
+            fromId: (r['fromPersonId'] ?? '').toString(),
+            toId: (r['toPersonId'] ?? '').toString(),
+            edgeId: (r['id'] ?? '').toString(),
+            relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
+          ),
+      ];
+      final validation = validateRelationship(
+        fromPersonId: fromPersonId,
+        toPersonId: toPersonId,
+        relationshipKey: relationshipKey,
+        existingEdges: existingEdges,
       );
+      if (validation.isError) {
+        // v102 (BUG-3 FIX): Throw a typed RelationshipValidationException
+        // carrying BOTH the message and the code. The catch block below
+        // does a TYPE CHECK (e is RelationshipValidationException) instead
+        // of the old fragile string-match on e.toString() — which never
+        // matched because e.toString() returned the message, not the code.
+        throw RelationshipValidationException(
+          validation.message,
+          validation.code ?? 'unknown',
+        );
+      }
+      // Warnings are logged but do not block — the user may confirm.
+      if (validation.isWarning) {
+        debugPrint('[CREATE-REL] ⚠️ Validation warning: ${validation.message}');
+      }
+    } on RelationshipValidationException catch (_) {
+      // v102 (BUG-3 FIX): Typed rethrow — validation determined this
+      // relationship is invalid (self-relationship, duplicate, circular
+      // ancestry, duplicate parent). Block the write by rethrowing.
+      rethrow;
+    } catch (e) {
+      // Network error fetching existing edges — log and continue
+      // (validation is best-effort when the network fails to fetch
+      // existing edges; only re-throw when validation ITSELF determined
+      // the relationship is invalid, which is handled by the typed
+      // catch above).
+      debugPrint('[CREATE-REL] Validation fetch failed (non-blocking): $e');
     }
-    // Warnings are logged but do not block — the user may confirm.
-    if (validation.isWarning) {
-      debugPrint('[CREATE-REL] ⚠️ Validation warning: ${validation.message}');
-    }
-  } on RelationshipValidationException catch (_) {
-    // v102 (BUG-3 FIX): Typed rethrow — validation determined this
-    // relationship is invalid (self-relationship, duplicate, circular
-    // ancestry, duplicate parent). Block the write by rethrowing.
-    rethrow;
-  } catch (e) {
-    // Network error fetching existing edges — log and continue
-    // (validation is best-effort when the network fails to fetch
-    // existing edges; only re-throw when validation ITSELF determined
-    // the relationship is invalid, which is handled by the typed
-    // catch above).
-    debugPrint('[CREATE-REL] Validation fetch failed (non-blocking): $e');
+  } else {
+    debugPrint('[CREATE-REL] ⏭️ Skipping validation — this is an inverse edge');
   }
 
   // v83: If custom colors are provided, save them to CustomKinshipConfig
@@ -2476,31 +2495,36 @@ Future<FamilyRelationship> createRelationship({
   // inverse row does NOT break traversal — the BFS can still walk in
   // both directions via the forward edge's reverse entry.
   //
-  // v86 FIX: STOP creating inverse relationship rows entirely.
+  // v5.3: RE-ENABLED bidirectional inverse edge creation.
   //
-  // Previously, createRelationship created BOTH:
-  //   forward: from: newPerson, to: anchor, key: 'father'
-  //   inverse: from: anchor, to: newPerson, key: 'child'
+  // The v86 fix disabled inverse edges because the BFS was picking up
+  // the inverse edge and classifying nodes wrong (e.g. "Parent shows
+  // Son"). But the user's requirement is clear: relationships must be
+  // bidirectional — when A sees B as father, B should see A as son.
   //
-  // This caused TWO bugs:
-  //   1. "Parent shows Son" — the BFS found the inverse edge first
-  //      (from: anchor, to: newPerson, key: 'child') and classified
-  //      the new person as 'child' (Son), not 'parent' (Father).
-  //   2. Duplicate edges — the EdgeDeduplicator collapsed the pair
-  //      but sometimes picked the inverse edge's key, giving the
-  //      wrong color.
+  // The v5.3 fix: create the inverse edge with `direction: 'inverse'`
+  // so the BFS can distinguish forward edges (direction: 'from') from
+  // inverse edges (direction: 'inverse'). The graph renderer uses
+  // ONLY forward edges for layout/traversal, but uses BOTH for
+  // perspective-based label display.
   //
-  // The fix: create ONLY the forward edge. The BFS adjacency list
-  // (GraphService.buildAdjacencyList) automatically adds a reverse
-  // entry for every edge, so traversal still works in both directions.
-  // The inverse key is computed dynamically by RelationshipEngine
-  // when needed, so no data is lost.
+  // The inverse key is now GENDER-AWARE: if A (male) sees B as father,
+  // B sees A as "son" (not "child"). This requires knowing A's gender,
+  // which is passed via [fromPersonGender].
   //
-  // This also simplifies the _relationCategories logic — there's only
-  // ONE edge per pair, always pointing from newPerson → anchor with
-  // the user-selected key. No more inverse confusion.
-  final inverseKey = _relationshipInverseMap[relationshipKey];
-  final hasKnownInverse = false; // v86: NEVER create inverse edge
+  // We SKIP inverse creation when:
+  //   - _isInverseEdge is true (we're already creating the inverse)
+  //   - The inverse key is the same as the forward key AND the
+  //     relationship is symmetric (spouse, sibling, cousin) — only
+  //     one edge is needed for symmetric relationships.
+  final inverseKey = getGenderAwareInverseKey(relationshipKey, toPersonGender);
+  final isSymmetric = relationshipKey == inverseKey &&
+      (relationshipKey == 'spouse' ||
+          relationshipKey == 'cousin' ||
+          relationshipKey == 'sibling' ||
+          relationshipKey == 'brother' ||
+          relationshipKey == 'sister');
+  final hasKnownInverse = !_isInverseEdge && !isSymmetric && inverseKey != relationshipKey;
 
   debugPrint('[CREATE-REL] === START createRelationship ===');
   debugPrint('[CREATE-REL] familyId: $familyId');
@@ -2605,19 +2629,22 @@ Future<FamilyRelationship> createRelationship({
 
   // 2. Create the inverse relationship (best-effort, only if known)
   //
-  // v2.2 FIX: Only create the inverse if we have a KNOWN inverse key.
-  // For extended kinship types (5,299 of 5,359), the inverse is not in
-  // _relationshipInverseMap. Previously, the code stored the SAME key
-  // for both directions — which caused the layout engine to assign
-  // wrong generations (the inverse edge would say "uncle is -1" when
-  // it should say "nephew is +1", creating conflicting BFS offsets).
+  // v5.3: Re-enabled inverse edge creation with `direction: 'inverse'`.
+  // The inverse edge is stored as:
+  //   from=toPersonId, to=fromPersonId, key=inverseKey, direction='inverse'
   //
-  // Now we skip the inverse entirely for unknown keys. The layout's
-  // adjacency list handles bidirectional traversal via the forward
-  // edge's auto-generated reverse entry.
+  // The `direction: 'inverse'` flag lets the graph renderer distinguish
+  // forward edges (direction: 'from') from inverse edges. The BFS
+  // traversal uses ONLY forward edges for layout, but the label
+  // resolver uses BOTH to display the correct perspective.
+  //
+  // The inverse key is GENDER-AWARE: if A (male) sees B as father,
+  // B sees A as "son" (not "child"). The gender comes from
+  // [toPersonGender] (which is A's gender — the fromPerson of the
+  // forward edge, which becomes the toPerson of the inverse edge).
   if (hasKnownInverse) {
     try {
-      debugPrint('[CREATE-REL] Inserting inverse relationship (key=$inverseKey)...');
+      debugPrint('[CREATE-REL] Inserting inverse relationship (key=$inverseKey, direction=inverse)...');
       await client.from(_kRelationshipTable).insert({
         'id': inverseRelId,
         'familyId': familyId,
@@ -2625,12 +2652,12 @@ Future<FamilyRelationship> createRelationship({
         'toPersonId': fromPersonId,
         'relationshipKey': inverseKey,
         'relationshipType': inverseKey,
-        'direction': 'from',
+        'direction': 'inverse',
         'isActive': true,
         'createdAt': now,
         'updatedAt': now,
       }).select().maybeSingle().timeout(const Duration(seconds: 10));
-      debugPrint('[CREATE-REL] ✅ Inverse relationship created');
+      debugPrint('[CREATE-REL] ✅ Inverse relationship created (key=$inverseKey, direction=inverse)');
     } on PostgrestException catch (e) {
       // Best-effort — inverse creation failure shouldn't block the user
       debugPrint('[CREATE-REL] ⚠️ Inverse INSERT PostgrestException (non-fatal): code=${e.code} message=${e.message}');
@@ -2638,9 +2665,12 @@ Future<FamilyRelationship> createRelationship({
       // Best-effort — inverse creation failure shouldn't block the user
       debugPrint('[CREATE-REL] ⚠️ Could not create inverse relationship (non-fatal): $e');
     }
+  } else if (_isInverseEdge) {
+    debugPrint('[CREATE-REL] ⏭️ Skipping inverse creation — this IS the inverse edge (prevents recursion)');
+  } else if (isSymmetric) {
+    debugPrint('[CREATE-REL] ⏭️ Skipping inverse creation — $relationshipKey is symmetric (one edge suffices)');
   } else {
-    debugPrint('[CREATE-REL] ⏭️ Skipping inverse creation — key "$relationshipKey" not in inverse map (extended kinship). '
-        'Layout engine will handle bidirectional traversal via the forward edge.');
+    debugPrint('[CREATE-REL] ⏭️ Skipping inverse creation — key "$relationshipKey" has no known inverse.');
   }
 
   // 3. Update Family.lastActivityAt
@@ -2812,50 +2842,158 @@ String getInverseRelationshipType(String relationshipType) {
   return _relationshipInverseMap[normalized] ?? normalized;
 }
 
+/// v5.3: Get the GENDER-AWARE inverse relationship key.
+///
+/// Storage convention: `from=A, to=B, key=X` means "A's X is B".
+/// So `from=A, to=B, key='father'` means B is A's father.
+/// The inverse (from B's perspective) is "A is B's ___" — which
+/// depends on A's gender:
+///   - If A is male → "son"
+///   - If A is female → "daughter"
+///   - If A's gender is unknown → "child"
+///
+/// This function computes the correct inverse key based on the
+/// `fromPersonId`'s gender (the person who is the SUBJECT of the
+/// inverse relationship).
+///
+/// [fromPersonGender] — the gender of the person who will be the
+/// `fromPersonId` in the inverse edge (i.e., the original `toPersonId`).
+/// Pass 'male', 'female', or null.
+String getGenderAwareInverseKey(
+  String relationshipKey,
+  String? fromPersonGender,
+) {
+  final key = relationshipKey.toLowerCase().trim();
+  final gender = fromPersonGender?.toLowerCase();
+
+  // ── Parent → Child (gender-aware) ──
+  // If B is A's father/mother/parent, then A is B's son/daughter/child.
+  if (key == 'father' || key == 'mother' || key == 'parent') {
+    if (gender == 'female') return 'daughter';
+    if (gender == 'male') return 'son';
+    return 'child';
+  }
+
+  // ── Child → Parent (gender-aware) ──
+  // If B is A's son/daughter/child, then A is B's father/mother/parent.
+  if (key == 'son' || key == 'daughter' || key == 'child') {
+    if (gender == 'female') return 'mother';
+    if (gender == 'male') return 'father';
+    return 'parent';
+  }
+
+  // ── Spouse (gender-aware) ──
+  if (key == 'husband') return 'wife';
+  if (key == 'wife') return 'husband';
+  if (key == 'spouse') return 'spouse';
+
+  // ── Sibling (gender-aware) ──
+  if (key == 'brother' || key == 'sister' || key == 'sibling') {
+    if (gender == 'female') return 'sister';
+    if (gender == 'male') return 'brother';
+    return 'sibling';
+  }
+
+  // ── Grandparent → Grandchild (gender-aware) ──
+  if (key == 'grandfather' || key == 'grandmother' || key == 'grandparent') {
+    if (gender == 'female') return 'granddaughter';
+    if (gender == 'male') return 'grandson';
+    return 'grandchild';
+  }
+
+  // ── Grandchild → Grandparent (gender-aware) ──
+  if (key == 'grandson' || key == 'granddaughter' || key == 'grandchild') {
+    if (gender == 'female') return 'grandmother';
+    if (gender == 'male') return 'grandfather';
+    return 'grandparent';
+  }
+
+  // ── Uncle/Aunt → Nephew/Niece (gender-aware) ──
+  if (key == 'uncle' || key == 'aunt') {
+    if (gender == 'female') return 'niece';
+    if (gender == 'male') return 'nephew';
+    return 'nephew_or_niece';
+  }
+
+  // ── Nephew/Niece → Uncle/Aunt (gender-aware) ──
+  if (key == 'nephew' || key == 'niece' || key == 'nephew_or_niece') {
+    if (gender == 'female') return 'aunt';
+    if (gender == 'male') return 'uncle';
+    return 'uncle_or_aunt';
+  }
+
+  // ── Cousin (symmetric) ──
+  if (key == 'cousin') return 'cousin';
+
+  // ── In-laws (gender-aware where possible) ──
+  if (key == 'father_in_law' || key == 'mother_in_law') {
+    if (gender == 'female') return 'daughter_in_law';
+    if (gender == 'male') return 'son_in_law';
+    return 'child_in_law';
+  }
+  if (key == 'son_in_law' || key == 'daughter_in_law') {
+    if (gender == 'female') return 'mother_in_law';
+    if (gender == 'male') return 'father_in_law';
+    return 'parent_in_law';
+  }
+  if (key == 'brother_in_law' || key == 'sister_in_law') {
+    if (gender == 'female') return 'sister_in_law';
+    if (gender == 'male') return 'brother_in_law';
+    return 'sibling_in_law';
+  }
+
+  // ── Step-parent/child (gender-aware) ──
+  if (key == 'step_father' || key == 'step_mother' || key == 'stepfather' || key == 'stepmother') {
+    if (gender == 'female') return 'step_daughter';
+    if (gender == 'male') return 'step_son';
+    return 'step_child';
+  }
+  if (key == 'step_son' || key == 'step_daughter') {
+    if (gender == 'female') return 'step_mother';
+    if (gender == 'male') return 'step_father';
+    return 'step_parent';
+  }
+  if (key == 'step_brother' || key == 'step_sister') {
+    if (gender == 'female') return 'step_sister';
+    if (gender == 'male') return 'step_brother';
+    return 'step_sibling';
+  }
+
+  // ── Fallback: use the static inverse map ──
+  return _relationshipInverseMap[key] ?? key;
+}
+
 /// Create a bidirectional relationship between two persons.
+///
+/// v5.3: This function is now a thin wrapper around createRelationship,
+/// which handles inverse edge creation internally. Kept for backward
+/// compatibility with callers that explicitly want bidirectional creation.
 ///
 /// When Person A has relationship X to Person B, this also creates
 /// the inverse relationship from Person B to Person A.
 ///
-/// E.g., If B is "father" of A, then A is "child" of B.
+/// E.g., If B is "father" of A, then A is "son"/"daughter" of B
+/// (gender-aware based on A's gender).
 Future<FamilyRelationship> createRelationshipBetween({
   required WidgetRef ref,
   required String familyId,
   required String fromPersonId,
   required String toPersonId,
   required String relationshipKey,
+  String? fromPersonGender,
+  String? toPersonGender,
 }) async {
-  // 1. Create the primary relationship (fromPerson → toPerson)
-  final primary = await createRelationship(
+  // createRelationship now handles inverse edge creation internally
+  // (v5.3). We just pass the gender parameters through.
+  return createRelationship(
     ref: ref,
     familyId: familyId,
     fromPersonId: fromPersonId,
     toPersonId: toPersonId,
     relationshipKey: relationshipKey,
+    fromPersonGender: fromPersonGender,
+    toPersonGender: toPersonGender,
   );
-
-  // 2. Create the inverse relationship (toPerson → fromPerson)
-  final inverseType = getInverseRelationshipType(relationshipKey);
-  if (inverseType != relationshipKey ||
-      relationshipKey == 'spouse' ||
-      relationshipKey == 'cousin' ||
-      relationshipKey == 'sibling') {
-    try {
-      await createRelationship(
-        ref: ref,
-        familyId: familyId,
-        fromPersonId: toPersonId,
-        toPersonId: fromPersonId,
-        relationshipKey: inverseType,
-      );
-    } catch (e) {
-      // If inverse creation fails, the primary is still valid.
-      debugPrint('⚠️ Failed to create inverse relationship: $e');
-    }
-  }
-
-  // 3. Return the primary relationship
-  return primary;
 }
 
 /// Get relationship suggestions for a person based on their
