@@ -12,6 +12,7 @@ import '../../../core/constants/feature_flags.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
+import '../../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider; // v5.13
 import 'dart:typed_data';
 
 import 'package:image_picker/image_picker.dart' show XFile;
@@ -176,11 +177,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   bool get _isEditMode => widget.existingPerson != null;
 
   /// Resolve the effective anchor person for relationship creation.
-  /// If `widget.anchorPerson` is explicitly provided, use it.
-  /// Otherwise, find the first existing member in the family (typically
-  /// the family creator / anchor person) so that relationships are
-  /// always created when there are existing members.
+  /// v5.13: Priority is now:
+  ///   1. _selectedTargetPerson (user explicitly picked via UI)
+  ///   2. widget.anchorPerson (passed from node context menu)
+  ///   3. First existing member (anchor or oldest) — last resort fallback
   Person? get _effectiveAnchorPerson {
+    // v5.13: User-selected target takes priority
+    if (_selectedTargetPerson != null) return _selectedTargetPerson;
     if (widget.anchorPerson != null) return widget.anchorPerson;
     // Only auto-resolve in add mode (not edit mode)
     if (_isEditMode) return null;
@@ -315,13 +318,14 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       case 0:
         return nameValidator(_nameController.text) == null;
       case 1:
-        // Relationship is mandatory when there are existing family members
-        // (i.e., when an anchor person exists) OR when we're still loading
-        // the members list (conservative: assume members exist until proven
-        // otherwise). If this is the very first member being added and we
-        // have confirmed there are no members, relationship can be skipped.
+        // v5.13: Relationship + target person are both mandatory when
+        // there are existing family members.
         if (_familyHasExistingMembers) {
-          return _effectiveRelationshipKey != null;
+          // Must have a target person (either user-selected or anchorPerson passed)
+          final hasTarget = _selectedTargetPerson != null ||
+              widget.anchorPerson != null;
+          // Must have a relationship type selected
+          return hasTarget && _effectiveRelationshipKey != null;
         }
         return true;
       case 2:
@@ -2025,16 +2029,273 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
   // ── STEP 1: Relationship ───────────────────────────────────────
 
+  /// v5.13: Builds the "Related to" person picker control.
+  /// Shows the currently selected target person (or a prompt to pick one).
+  /// Tapping opens a bottom sheet listing all existing family members.
+  Widget _buildTargetPersonPicker() {
+    final target = _selectedTargetPerson;
+    final hasSelection = target != null;
+
+    return GestureDetector(
+      onTap: _pickTargetPerson,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: KinrelColors.darkCard,
+          borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+          border: Border.all(
+            color: hasSelection
+                ? KinrelColors.orange.withValues(alpha: 0.3)
+                : KinrelColors.textDim.withValues(alpha: 0.15),
+          ),
+        ),
+        child: Row(
+          children: [
+            // Avatar or placeholder
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: hasSelection
+                    ? KinrelColors.orange.withValues(alpha: 0.15)
+                    : KinrelColors.textDim.withValues(alpha: 0.1),
+              ),
+              child: Icon(
+                hasSelection ? Icons.person : Icons.person_add,
+                color: hasSelection ? KinrelColors.orange : KinrelColors.textDim,
+                size: 18,
+              ),
+            ),
+            SizedBox(width: 12),
+            // Name or prompt
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hasSelection ? target!.name : 'Select a family member…',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: hasSelection
+                          ? KinrelColors.textWhite
+                          : KinrelColors.textDim,
+                    ),
+                  ),
+                  if (hasSelection && target!.isAnchor)
+                    Text(
+                      'Family anchor',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 11,
+                        color: KinrelColors.textDim,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Change icon
+            Icon(
+              hasSelection ? Icons.swap_horiz : Icons.chevron_right,
+              color: KinrelColors.textDim,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// v5.13: Opens a bottom sheet to pick the target person.
+  /// Lists all existing family members (excluding the new person being added).
+  Future<void> _pickTargetPerson() async {
+    final membersAsync = ref.read(familyMembersProvider(widget.familyId));
+    final members = membersAsync.valueOrNull ?? [];
+
+    // Filter: exclude the person being edited (if in edit mode)
+    final eligible = members
+        .where((m) => m.deletedAt == null && m.id != widget.existingPerson?.id)
+        .toList();
+
+    if (eligible.isEmpty) {
+      return;
+    }
+
+    // Default preselection: prefer the viewer's own Person, then the anchor
+    Person? preselected;
+    // Try viewer's own Person
+    try {
+      final viewerId = ref.read(viewerPersonIdProvider(widget.familyId)).valueOrNull;
+      if (viewerId != null) {
+        preselected = eligible.firstWhere(
+          (m) => m.id == viewerId,
+          orElse: () => eligible.first,
+        );
+      }
+    } catch (_) {}
+    preselected ??= eligible.firstWhere(
+      (m) => m.isAnchor,
+      orElse: () => eligible.first,
+    );
+
+    final picked = await showModalBottomSheet<Person>(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            Padding(
+              padding: const EdgeInsets.only(top: 12.0, bottom: 4.0),
+              child: Container(
+                width: 40.0,
+                height: 4.0,
+                decoration: BoxDecoration(
+                  color: KinrelColors.textDim,
+                  borderRadius: BorderRadius.circular(2.0),
+                ),
+              ),
+            ),
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Who is the new member related to?',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 16.0,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+              ),
+            ),
+            const Divider(color: Color(0x1AFFFFFF), height: 1.0),
+            // Member list
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: eligible.length,
+                itemBuilder: (ctx, i) {
+                  final p = eligible[i];
+                  final isSelected = _selectedTargetPerson?.id == p.id ||
+                      (preselected?.id == p.id && _selectedTargetPerson == null);
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
+                      backgroundImage: p.photoUrl != null && p.photoUrl!.isNotEmpty
+                          ? NetworkImage(p.photoUrl!)
+                          : null,
+                      child: (p.photoUrl == null || p.photoUrl!.isEmpty)
+                          ? Text(
+                              p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
+                              style: TextStyle(
+                                color: KinrelColors.orange,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            )
+                          : null,
+                    ),
+                    title: Text(
+                      p.name,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                    subtitle: p.isAnchor
+                        ? Text(
+                            'Family anchor',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: KinrelColors.textDim,
+                            ),
+                          )
+                        : null,
+                    trailing: isSelected
+                        ? Icon(Icons.check_circle, color: KinrelColors.orange, size: 20)
+                        : null,
+                    onTap: () => Navigator.pop(ctx, p),
+                  );
+                },
+              ),
+            ),
+            SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (picked != null && mounted) {
+      setState(() => _selectedTargetPerson = picked);
+      debugPrint('[ADD-MEMBER] v5.13: User selected target person: ${picked.name} (${picked.id})');
+    }
+  }
+
   Widget _buildStep1Relationship() {
     final anchor = _effectiveAnchorPerson;
     final newName = _nameController.text.trim().isNotEmpty
         ? _nameController.text.trim()
         : 'New Member';
 
+    // v5.13: Determine if the "Related to" picker should be shown.
+    // Show it when NO anchorPerson was explicitly passed (generic Add flow).
+    // When anchorPerson IS passed (node context menu), show a read-only label.
+    final bool showTargetPicker = widget.anchorPerson == null && !_isEditMode;
+    final bool familyHasMembers = _familyHasExistingMembers;
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // v5.13: "Related to" person picker — lets the user choose WHICH
+          // existing member the new person relates to.
+          if (familyHasMembers && showTargetPicker) ...[
+            _SectionLabel('Related to *'),
+            SizedBox(height: 8),
+            _buildTargetPersonPicker(),
+            SizedBox(height: 20),
+          ] else if (widget.anchorPerson != null) ...[
+            // Non-editable confirmation label when target was passed from context
+            _SectionLabel('Related to'),
+            SizedBox(height: 8),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: KinrelColors.darkCard,
+                borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+                border: Border.all(
+                  color: KinrelColors.orange.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.person, color: KinrelColors.orange, size: 20),
+                  SizedBox(width: 10),
+                  Text(
+                    widget.anchorPerson!.name,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.textWhite,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 20),
+          ],
+
           // Question
           if (anchor != null) ...[
             Text(
@@ -2088,9 +2349,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               ],
             ),
             SizedBox(height: 28),
-          ] else ...[
+          ] else if (!familyHasMembers) ...[
             Text(
-              'Select the relationship type.',
+              'This is the first member of the family. No relationship needed yet.',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 16,
@@ -2858,7 +3119,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   )
                 : _buildIgniteButton(
                     label: _currentStep == 1 && !_canProceed()
-                        ? 'Next (select relationship)'
+                        ? (_selectedTargetPerson == null && widget.anchorPerson == null
+                            ? 'Next (select target & relationship)'
+                            : 'Next (select relationship)')
                         : _currentStep == 0 && !_canProceed()
                             ? 'Next (name required)'
                             : 'Next',
