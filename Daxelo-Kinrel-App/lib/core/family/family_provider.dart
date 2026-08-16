@@ -325,6 +325,8 @@ class FamilyRelationship {
     this.direction = 'from',
     this.isActive = true,
     this.label,
+    this.labelAtoB,
+    this.labelBtoA,
     this.createdAt,
   });
 
@@ -338,6 +340,8 @@ class FamilyRelationship {
       direction: json['direction'] as String? ?? 'from',
       isActive: json['isActive'] as bool? ?? true,
       label: json['label'] as String?,
+      labelAtoB: json['labelAtoB'] as String?,
+      labelBtoA: json['labelBtoA'] as String?,
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString())
           : null,
@@ -352,6 +356,12 @@ class FamilyRelationship {
   final String direction;
   final bool isActive;
   final String? label;
+  /// v5.11: The specific kinship label from fromPerson→toPerson.
+  /// e.g. 'father', 'brother', 'wife'. May be null for legacy rows.
+  final String? labelAtoB;
+  /// v5.11: The inverse label (toPerson→fromPerson).
+  /// Auto-filled by the DB trigger from labelAtoB.
+  final String? labelBtoA;
   final DateTime? createdAt;
 
   ({String fromId, String toId, String type}) toGraphEdge() {
