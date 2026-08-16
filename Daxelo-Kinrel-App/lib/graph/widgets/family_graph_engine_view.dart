@@ -589,12 +589,10 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // but gives no indication why. We surface a banner prompting them to
     // claim their profile.
     //
-    // The check is best-effort: if isViewerLinkedProvider hasn't resolved
-    // yet (loading) or errors, we assume "linked" so we never block the
-    // graph UI or show a false-positive banner.
-    final viewerIsLinked =
-        ref.watch(isViewerLinkedProvider(widget.familyId)).valueOrNull ??
-            true;
+    // v5.11: isViewerLinkedProvider is now a synchronous Provider (not
+    // FutureProvider) that derives from viewerPersonIdProvider. It returns
+    // true when the viewer is linked, false when not, and true on loading/error.
+    final viewerIsLinked = ref.watch(isViewerLinkedProvider(widget.familyId));
     // v4.9: viewerIsUnlinked removed — was only used by the ClaimProfileBanner
     // which is no longer rendered. Left viewerIsLinked in case it's needed later.
 
