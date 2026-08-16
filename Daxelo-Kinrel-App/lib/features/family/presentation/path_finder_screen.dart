@@ -576,7 +576,7 @@ class _PersonSelectorCard extends StatelessWidget {
   }
 
   Widget _buildAvatar(Person person) {
-    final initial = PersonAvatar.initialsFor(person.name)?';
+    final initial = PersonAvatar.initialsFor(person.name);
     return Center(
       child: Text(
         initial,
@@ -815,7 +815,7 @@ class _PathNodeWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = PersonAvatar.initialsFor(node.name)?';
+    final initial = PersonAvatar.initialsFor(node.name);
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -1580,7 +1580,7 @@ class _PersonListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = PersonAvatar.initialsFor(person.name)?';
+    final initial = PersonAvatar.initialsFor(person.name);
 
     return InkWell(
       onTap: onTap,

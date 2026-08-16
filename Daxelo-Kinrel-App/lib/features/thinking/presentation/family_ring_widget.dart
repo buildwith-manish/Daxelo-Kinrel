@@ -611,7 +611,7 @@ class _Placeholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final initial =
-        PersonAvatar.initialsFor(name)?';
+        PersonAvatar.initialsFor(name);
     return Container(
       color: KinrelColors.darkElevated,
       alignment: Alignment.center,

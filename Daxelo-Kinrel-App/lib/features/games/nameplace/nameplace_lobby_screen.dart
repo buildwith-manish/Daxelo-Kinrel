@@ -189,7 +189,7 @@ class _NameplaceLobbyScreenState extends ConsumerState<NameplaceLobbyScreen> {
       ...state.players.map((p) => Container(margin: const EdgeInsets.only(bottom: KinrelSpacing.sm), padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.md, vertical: KinrelSpacing.md),
         decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.lg), border: Border.all(color: p.userId == ref.read(supabaseProvider)?.auth.currentUser?.id ? KinrelColors.orange : KinrelColors.border, width: p.userId == ref.read(supabaseProvider)?.auth.currentUser?.id ? 2 : 1)),
         child: Row(children: [
-          DKAvatar(initials: PersonAvatar.initialsFor(p.userName)?'),
+          DKAvatar(initials: PersonAvatar.initialsFor(p.userName)),
           const SizedBox(width: KinrelSpacing.md),
           Expanded(child: Text(p.userId == ref.read(supabaseProvider)?.auth.currentUser?.id ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
           if (p.userId == game.hostUserId) Text('👑', style: TextStyle(fontSize: 14)),

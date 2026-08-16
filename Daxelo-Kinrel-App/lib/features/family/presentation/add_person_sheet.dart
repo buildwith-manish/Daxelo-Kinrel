@@ -2905,7 +2905,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   ),
                   child: Center(
                     child: Text(
-                      PersonAvatar.initialsFor(newName)?',
+                      PersonAvatar.initialsFor(newName),
                       style: TextStyle(
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 28,
@@ -3426,7 +3426,7 @@ class _PortraitCard extends StatelessWidget {
           ),
           child: Center(
             child: Text(
-              PersonAvatar.initialsFor(name)?',
+              PersonAvatar.initialsFor(name),
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 24,

@@ -287,7 +287,7 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
             padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.md, vertical: KinrelSpacing.sm),
             decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.md), border: Border.all(color: KinrelColors.border)),
             child: Row(children: [
-              DKAvatar(initials: PersonAvatar.initialsFor(p.userName)?'),
+              DKAvatar(initials: PersonAvatar.initialsFor(p.userName)),
               const SizedBox(width: KinrelSpacing.md),
               Expanded(child: Text(p.userId == _myId(state) ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textWhite))),
               Icon(submitted ? Icons.check_circle : Icons.hourglass_empty, size: 16, color: submitted ? KinrelColors.success : KinrelColors.textDim),
@@ -351,7 +351,7 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
     return Container(margin: const EdgeInsets.only(bottom: KinrelSpacing.sm), padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.md, vertical: KinrelSpacing.md),
       decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.lg), border: Border.all(color: isMe ? KinrelColors.orange : KinrelColors.border, width: isMe ? 2 : 1)),
       child: Row(children: [
-        DKAvatar(initials: PersonAvatar.initialsFor(p.userName)?'),
+        DKAvatar(initials: PersonAvatar.initialsFor(p.userName)),
         const SizedBox(width: KinrelSpacing.md),
         Expanded(child: Text(isMe ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
         if (p.userId == hostUserId) Text('👑', style: TextStyle(fontSize: 14)),

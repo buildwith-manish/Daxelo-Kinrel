@@ -268,7 +268,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
           ),
           child: Row(
             children: [
-              DKAvatar(initials: PersonAvatar.initialsFor(p.userName)?'),
+              DKAvatar(initials: PersonAvatar.initialsFor(p.userName)),
               const SizedBox(width: KinrelSpacing.md),
               Expanded(
                 child: Text(

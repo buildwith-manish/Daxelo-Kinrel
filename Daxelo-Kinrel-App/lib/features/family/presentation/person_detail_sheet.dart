@@ -466,7 +466,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
   Widget _buildInitials(Person person) {
     return Center(
       child: Text(
-        PersonAvatar.initialsFor(person.name)?',
+        PersonAvatar.initialsFor(person.name),
         style: TextStyle(
           fontFamily: KinrelTypography.displayFont,
           fontSize: 40,

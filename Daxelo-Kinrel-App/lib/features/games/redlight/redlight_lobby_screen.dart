@@ -698,7 +698,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
                 color: KinrelColors.border.withValues(alpha: 0.5),
               ),
             ListTile(
-              leading: DKAvatar(initials: PersonAvatar.initialsFor(state.players[i].userName)?'),
+              leading: DKAvatar(initials: PersonAvatar.initialsFor(state.players[i].userName)),
               title: Text(
                 state.players[i].userName,
                 style: TextStyle(

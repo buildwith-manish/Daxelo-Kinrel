@@ -246,7 +246,7 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
               Container(width: 24, height: 24, decoration: BoxDecoration(shape: BoxShape.circle,
                 color: hasSelected ? KinrelColors.success : KinrelColors.darkElevated,
                 border: Border.all(color: hasSelected ? KinrelColors.success : KinrelColors.border, width: 1)),
-                child: Center(child: Text(PersonAvatar.initialsFor(p.userName)?', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: hasSelected ? Colors.white : KinrelColors.textDim))),
+                child: Center(child: Text(PersonAvatar.initialsFor(p.userName), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: hasSelected ? Colors.white : KinrelColors.textDim))),
               ),
             ]);
           }),

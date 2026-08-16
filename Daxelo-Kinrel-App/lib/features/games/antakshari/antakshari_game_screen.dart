@@ -847,7 +847,7 @@ class _AntakshariGameScreenState
       ),
       child: Center(
         child: Text(
-          PersonAvatar.initialsFor(p.userName)?',
+          PersonAvatar.initialsFor(p.userName),
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 12,
@@ -888,7 +888,7 @@ class _AntakshariGameScreenState
         ),
         child: Center(
           child: Text(
-            PersonAvatar.initialsFor(p.userName)?',
+            PersonAvatar.initialsFor(p.userName),
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,

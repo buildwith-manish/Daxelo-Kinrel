@@ -1320,7 +1320,7 @@ class UnifiedFamilyMember {
   /// Creates a UnifiedFamilyMember from a Person node (manually added).
   factory UnifiedFamilyMember.fromPerson(Person p) {
     final name = p.name.isNotEmpty ? p.name : 'Unknown';
-    final initials = PersonAvatar.initialsFor(name)?';
+    final initials = PersonAvatar.initialsFor(name);
     return UnifiedFamilyMember(
       id: 'person_${p.id}',
       personId: p.id,

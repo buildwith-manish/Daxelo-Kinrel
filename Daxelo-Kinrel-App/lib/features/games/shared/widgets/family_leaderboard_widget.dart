@@ -180,7 +180,7 @@ class _FamilyLeaderboardWidgetState
             ),
             child: Center(
               child: Text(
-                PersonAvatar.initialsFor(name)?',
+                PersonAvatar.initialsFor(name),
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 13,

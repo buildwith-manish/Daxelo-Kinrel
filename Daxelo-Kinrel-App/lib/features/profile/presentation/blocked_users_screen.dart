@@ -50,7 +50,7 @@ class _BlockedUsersScreenState extends ConsumerState<BlockedUsersScreen> {
     if (parts.length >= 2) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
-    return PersonAvatar.initialsFor(name)?';
+    return PersonAvatar.initialsFor(name);
   }
 
   void _showUnblockConfirmDialog(BlockedUserModel user) {
