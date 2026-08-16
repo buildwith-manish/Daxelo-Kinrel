@@ -638,18 +638,38 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
   /// colors can be resolved from the anchor's perspective (matching
   /// the node colors).
   ///
-  /// Resolution order:
-  ///   1. The person with `isAnchor == true` in [flat.persons].
-  ///   2. [viewerPersonId] as a fallback (when no anchor is flagged).
+  /// v5.4: Resolution order is now VIEWER-FIRST:
+  ///   1. [viewerPersonId] — the currently logged-in user's Person ID.
+  ///      This ensures the graph is rendered from the VIEWER's perspective,
+  ///      not the family creator's perspective.
+  ///   2. The person with `isAnchor == true` in [flat.persons] — legacy
+  ///      fallback (family creator).
   ///   3. null if neither exists.
+  ///
+  /// PREVIOUS BUG: _findAnchorId preferred `isAnchor` (family creator)
+  /// over `viewerPersonId` (current user). This caused the graph to
+  /// always render from the creator's perspective, even when a different
+  /// user was logged in. Edge colors and relationship labels were
+  /// computed from the creator's perspective instead of the viewer's.
   static String? _findAnchorId(FlatGraphResult flat, String? viewerPersonId) {
+    // v5.4: Viewer-first — if the current user has a Person node in this
+    // family, use THEIR ID as the perspective anchor.
+    if (viewerPersonId != null && viewerPersonId.isNotEmpty) {
+      // Verify the viewerPersonId exists in the flat.persons list
+      for (final Map<String, dynamic> p in flat.persons) {
+        if (p['id'] == viewerPersonId) {
+          return viewerPersonId;
+        }
+      }
+    }
+    // Fallback: use the isAnchor-flagged person (family creator)
     for (final Map<String, dynamic> p in flat.persons) {
       if (p['isAnchor'] == true) {
         final id = p['id'];
         if (id is String && id.isNotEmpty) return id;
       }
     }
-    return viewerPersonId;
+    return null;
   }
 
   /// Returns the inverse relationship key for common kinship terms.

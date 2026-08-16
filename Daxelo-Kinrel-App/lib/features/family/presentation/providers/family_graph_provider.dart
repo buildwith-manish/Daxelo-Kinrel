@@ -729,6 +729,13 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     // Invalidate the layout when graph data is (re)fetched
     ref.invalidate(graphLayoutProvider(familyId));
 
+    // v5.4: Watch viewerPersonIdProvider so the graph rebuilds when the
+    // current user changes (account switch, sign-in, sign-out). This
+    // ensures the "You" node and perspective labels update immediately.
+    // We use ref.watch (not ref.read) so Riverpod rebuilds this provider
+    // when viewerPersonIdProvider's value changes.
+    ref.watch(viewerPersonIdProvider(familyId));
+
     // Guard against empty familyId
     if (familyId.isEmpty) {
       debugPrint('[FamilyGraphNotifier] build() called with empty familyId, returning empty result');

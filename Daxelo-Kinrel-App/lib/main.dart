@@ -54,6 +54,7 @@ import 'core/services/analytics_service.dart';
 import 'core/services/remote_config_service.dart';
 import 'core/app_startup.dart';
 import 'core/family/family_provider.dart';
+import 'core/viewer/viewer_provider.dart' show invalidateViewerCache;
 import 'features/games/shared/widgets/game_invite_listener.dart';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -396,6 +397,12 @@ Future<void> _handleSignOut(WidgetRef ref) async {
     final pushService = ref.read(pushNotificationServiceProvider);
     await pushService.deleteToken().timeout(const Duration(seconds: 5));
   } catch (_) {}
+  // v5.4: Clear the viewer cache so the next user gets a fresh graph
+  // render from THEIR perspective, not the previous user's.
+  try {
+    invalidateViewerCache();
+    debugPrint('🔐 _handleSignOut: viewer cache cleared');
+  } catch (_) {}
 }
 
 class KinrelApp extends ConsumerStatefulWidget {
@@ -519,7 +526,12 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
               try {
                 ref.invalidate(familyListProvider);
                 ref.invalidate(archivedFamiliesProvider);
-                debugPrint('🔐 Auth listener: signedIn — familyListProvider invalidated');
+                // v5.4: Invalidate viewer + graph providers so the graph
+                // re-renders from the NEW user's perspective on account switch.
+                // Without this, the graph keeps showing the previous user's
+                // "You" node and perspective labels.
+                invalidateViewerCache();
+                debugPrint('🔐 Auth listener: signedIn — familyListProvider + viewerCache invalidated');
               } catch (e) {
                 debugPrint('⚠️ Auth listener: failed to invalidate family providers: $e');
               }
