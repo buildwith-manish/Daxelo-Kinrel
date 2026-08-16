@@ -52,7 +52,8 @@ import '../../features/family/presentation/providers/family_graph_provider.dart'
         graphLayoutProvider,
         graphRealtimeProvider,
         selectedEdgeProvider,
-        selectedNodeProvider;
+        selectedNodeProvider,
+        unlinkedPersonIdsProvider; // v5.9
 import '../data/graph_data_models.dart' show GraphEdgeData;
 import '../data/position_memory.dart' show PositionMemory;
 import '../engine/edge_dedup.dart' show DedupedEdge, EdgeDeduplicator;

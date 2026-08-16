@@ -16,7 +16,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../features/family/presentation/providers/family_graph_provider.dart';
-import '../interaction/graph_focus_state.dart';
 
 /// Shows a bottom sheet listing all unlinked family members.
 ///
@@ -24,7 +23,7 @@ import '../interaction/graph_focus_state.dart';
 /// [onPersonSelected] — callback invoked when the user taps a person.
 ///   Receives the person's ID and name. The caller can choose to focus
 ///   the graph on them and/or start Relationship Creation Mode.
-static Future<void> showUnlinkedMembersSheet(
+Future<void> showUnlinkedMembersSheet(
   BuildContext context,
   WidgetRef ref,
   String familyId, {
