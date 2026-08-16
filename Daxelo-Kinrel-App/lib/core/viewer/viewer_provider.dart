@@ -68,8 +68,90 @@ final viewerPersonIdProvider =
       debugPrint('⚠️ viewerPersonIdProvider: linkedUserId query failed: $e');
     }
 
-    // Step 2: Fall back to anchor person (legacy)
-    return _resolveAnchorPerson(client, familyId);
+    // v5.5: Step 2 — Try to find a Person by matching the user's email.
+    // This handles the case where a Person was added manually (e.g.
+    // "Yakshiii") but hasn't been linked to the auth user yet. We match
+    // the email from the auth user's metadata against the Person's
+    // linkedUserId or any email field.
+    // This is a BEST-EFFORT match — if it fails, we fall through to
+    // the anchor fallback.
+    try {
+      final userEmail = client.auth.currentUser?.email;
+      if (userEmail != null && userEmail.isNotEmpty) {
+        // Extract the name part of the email (before @) and try to
+        // find a Person with that name in this family.
+        final namePart = userEmail.split('@').first.toLowerCase();
+        // Try exact name match (case-insensitive)
+        final nameMatch = await client
+            .from('Person')
+            .select('id, name')
+            .eq('familyId', familyId)
+            .filter('deletedAt', 'is', null)
+            .timeout(const Duration(seconds: 10));
+
+        for (final p in nameMatch as List) {
+          final personName = (p['name'] as String?)?.toLowerCase() ?? '';
+          // Check if the person's name matches the email name part
+          if (personName == namePart ||
+              personName.contains(namePart) ||
+              namePart.contains(personName)) {
+            final personId = p['id'] as String?;
+            if (personId != null) {
+              debugPrint('🔍 viewerPersonIdProvider: matched Person by email/name: $personName → $personId');
+              // Auto-link this Person to the current user so future
+              // resolutions use the fast path (Step 1).
+              try {
+                await client
+                    .from('Person')
+                    .update({'linkedUserId': userId})
+                    .eq('id', personId);
+                debugPrint('✅ Auto-linked Person $personId to user $userId');
+              } catch (e) {
+                debugPrint('⚠️ Auto-link failed (non-fatal): $e');
+              }
+              _cacheViewerPersonId(familyId, personId);
+              return personId;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ viewerPersonIdProvider: email/name match failed: $e');
+    }
+
+    // Step 3: Fall back to anchor person (legacy)
+    // v5.5: Only fall back to anchor if the current user IS the anchor
+    // (i.e. the family creator). Otherwise, return null so the graph
+    // shows no "You" node instead of showing the WRONG person as "You".
+    final anchorId = await _resolveAnchorPerson(client, familyId);
+    if (anchorId != null) {
+      // Check if the anchor's linkedUserId matches the current user
+      try {
+        final anchorData = await client
+            .from('Person')
+            .select('linkedUserId')
+            .eq('id', anchorId)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 5));
+        final anchorLinkedUserId = anchorData?['linkedUserId'] as String?;
+        if (anchorLinkedUserId == userId) {
+          // The anchor IS the current user — safe to use
+          _cacheViewerPersonId(familyId, anchorId);
+          return anchorId;
+        } else {
+          // The anchor is a DIFFERENT user — don't fall back to it.
+          // Return null so no "You" node is shown (better than showing
+          // the wrong person as "You").
+          debugPrint('⚠️ viewerPersonIdProvider: anchor is a different user, not falling back');
+          return null;
+        }
+      } catch (e) {
+        debugPrint('⚠️ viewerPersonIdProvider: anchor link check failed: $e');
+        return null;
+      }
+    }
+
+    return null;
   },
 );
 
