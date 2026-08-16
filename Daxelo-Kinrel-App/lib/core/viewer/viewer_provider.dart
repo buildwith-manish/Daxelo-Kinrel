@@ -32,13 +32,19 @@ import '../services/supabase_service.dart';
 final viewerPersonIdProvider =
     FutureProvider.autoDispose.family<String?, String>(
   (ref, familyId) async {
+    // v5.6: Watch currentUserProvider so this provider REBUILDS when the
+    // auth user changes (sign-in, sign-out, account switch). Without this,
+    // the provider caches the OLD user's viewerPersonId and never updates
+    // — causing the graph to show the previous user's "You" node.
+    final currentUser = ref.watch(currentUserProvider);
+    final userId = currentUser?.id;
+
     final client = ref.read(supabaseProvider);
     if (client == null) {
       // Supabase not ready — try offline cache
       return _resolveFromCache(familyId);
     }
 
-    final userId = client.auth.currentUser?.id;
     if (userId == null) {
       // No authenticated user — fall back to anchor (legacy / unclaimed)
       return _resolveAnchorPerson(client, familyId);
@@ -76,7 +82,7 @@ final viewerPersonIdProvider =
     // This is a BEST-EFFORT match — if it fails, we fall through to
     // the anchor fallback.
     try {
-      final userEmail = client.auth.currentUser?.email;
+      final userEmail = currentUser?.email;
       if (userEmail != null && userEmail.isNotEmpty) {
         // Extract the name part of the email (before @) and try to
         // find a Person with that name in this family.
