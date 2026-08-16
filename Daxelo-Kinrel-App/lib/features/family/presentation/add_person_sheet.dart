@@ -12,6 +12,7 @@ import '../../../core/constants/feature_flags.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
+import '../../../core/widgets/person_avatar.dart'; // v5.15
 import '../../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider; // v5.13
 import 'dart:typed_data';
 
@@ -2190,20 +2191,12 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   final isSelected = _selectedTargetPerson?.id == p.id ||
                       (preselected?.id == p.id && _selectedTargetPerson == null);
                   return ListTile(
-                    leading: CircleAvatar(
+                    leading: PersonAvatar(
+                      name: p.name,
+                      photoUrl: p.photoUrl,
+                      size: 40,
                       backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
-                      backgroundImage: p.photoUrl != null && p.photoUrl!.isNotEmpty
-                          ? NetworkImage(p.photoUrl!)
-                          : null,
-                      child: (p.photoUrl == null || p.photoUrl!.isEmpty)
-                          ? Text(
-                              p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
-                              style: TextStyle(
-                                color: KinrelColors.orange,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            )
-                          : null,
+                      textColor: KinrelColors.orange,
                     ),
                     title: Text(
                       p.name,

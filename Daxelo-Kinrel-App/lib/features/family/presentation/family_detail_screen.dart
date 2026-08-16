@@ -26,10 +26,13 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../../presentation/widgets/skeletons/member_list_skeleton.dart';
 import '../../../graph/widgets/family_graph_engine_view.dart';
+import '../../../graph/widgets/relationship_picker_flow.dart'; // v5.15
+import '../../../graph/widgets/graph_relationship_labels.dart' show GraphPersonData; // v5.15
+import '../../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider; // v5.15
 import 'family_space_floating_nav.dart';
 import 'add_person_sheet.dart';
 import 'person_detail_sheet.dart';
-import 'relationship_builder_screen.dart';
+import 'relationship_builder_screen.dart' show RelationshipBuilderScreen; // v5.15: kept for route compat but no longer called directly
 import 'add_member_options_sheet.dart';
 
 import '../../../core/utils/error_boundary.dart';
@@ -1699,12 +1702,42 @@ class _GraphTabState extends ConsumerState<_GraphTab> {
               label: 'Link to Another Member',
               onTap: () {
                 Navigator.pop(ctx);
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => RelationshipBuilderScreen(
-                      familyId: widget.familyId,
-                      familyName: widget.detail.family.name,
+                // v5.15: Retired RelationshipBuilderScreen — now uses the
+                // shared showRelationshipPickerFlow, which includes:
+                //   - Permission check (canCreateRelationship)
+                //   - Auto kinship inference
+                //   - Fundamental-edge mapping for DB constraint
+                //   - Full RelationshipPickerSheet (5,300+ terms)
+                // The viewer's own Person is used as sourcePerson.
+                final viewerId = ref
+                    .read(viewerPersonIdProvider(widget.familyId))
+                    .valueOrNull;
+                Person? sourcePerson;
+                if (viewerId != null) {
+                  sourcePerson = widget.detail.members
+                      .where((m) => m.id == viewerId)
+                      .firstOrNull;
+                }
+                sourcePerson ??= widget.detail.members
+                    .where((m) => m.isAnchor)
+                    .firstOrNull;
+                if (sourcePerson == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('No family members to link to yet.'),
+                      backgroundColor: KinrelColors.darkCard,
                     ),
+                  );
+                  return;
+                }
+                showRelationshipPickerFlow(
+                  context: context,
+                  ref: ref,
+                  familyId: widget.familyId,
+                  sourcePerson: GraphPersonData(
+                    id: sourcePerson.id,
+                    name: sourcePerson.name,
+                    gender: sourcePerson.gender,
                   ),
                 );
               },

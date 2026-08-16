@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/brand_colors.dart';
+import '../../core/widgets/person_avatar.dart'; // v5.15
 import '../../core/constants/brand_typography.dart';
 import '../../features/family/presentation/providers/family_graph_provider.dart';
 
@@ -162,20 +163,12 @@ class _UnlinkedMembersSheet extends ConsumerWidget {
                   final gender = p['gender']?.toString();
 
                   return ListTile(
-                    leading: CircleAvatar(
+                    leading: PersonAvatar(
+                      name: name,
+                      photoUrl: photoUrl,
+                      size: 40,
                       backgroundColor: KinrelColors.amber.withValues(alpha: 0.15),
-                      backgroundImage: photoUrl != null && photoUrl.isNotEmpty
-                          ? NetworkImage(photoUrl)
-                          : null,
-                      child: (photoUrl == null || photoUrl.isEmpty)
-                          ? Text(
-                              name.isNotEmpty ? name[0].toUpperCase() : '?',
-                              style: const TextStyle(
-                                color: KinrelColors.amber,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            )
-                          : null,
+                      textColor: KinrelColors.amber,
                     ),
                     title: Text(
                       name,

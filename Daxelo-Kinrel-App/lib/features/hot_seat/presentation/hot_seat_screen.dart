@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../../core/widgets/person_avatar.dart'; // v5.15
 import '../../../core/constants/brand_spacing.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../providers/hot_seat_provider.dart';
@@ -79,8 +80,7 @@ class _HotSeatScreenState extends ConsumerState<HotSeatScreen> {
     if (!_answerControllers.containsKey(q.id)) _answerControllers[q.id] = TextEditingController();
     return Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [CircleAvatar(radius: 16, backgroundColor: const Color(0xFF06B6D4).withValues(alpha: 0.15),
-          child: Text(q.askerName.isNotEmpty ? q.askerName[0].toUpperCase() : '?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF06B6D4)))),
+        Row(children: [PersonAvatar(name: q.askerName, size: 32, backgroundColor: const Color(0xFF06B6D4).withValues(alpha: 0.15), textColor: const Color(0xFF06B6D4)),
           SizedBox(width: 10), Text(q.askerName, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))]),
         SizedBox(height: 8),
         Text(q.question, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 15, color: KinrelColors.textWhite, height: 1.4)),

@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/brand_colors.dart';
+import '../../core/widgets/person_avatar.dart'; // v5.15
 import '../../core/constants/brand_typography.dart';
 import '../../core/family/family_provider.dart';
 import '../../core/family/relationship_permissions.dart'; // v5.12
@@ -179,21 +180,12 @@ Future<void> showRelationshipPickerFlow({
                 final p = eligiblePersons[i];
                 final label = kinshipLabelFor(p);
                 return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor:
-                        KinrelColors.tealAccent.withValues(alpha: 0.15),
-                    backgroundImage: p.photoUrl != null && p.photoUrl!.isNotEmpty
-                        ? NetworkImage(p.photoUrl!)
-                        : null,
-                    child: (p.photoUrl == null || p.photoUrl!.isEmpty)
-                        ? Text(
-                            p.name.isNotEmpty ? p.name[0].toUpperCase() : '?',
-                            style: const TextStyle(
-                              color: KinrelColors.tealAccent,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          )
-                        : null,
+                  leading: PersonAvatar(
+                    name: p.name,
+                    photoUrl: p.photoUrl,
+                    size: 40,
+                    backgroundColor: KinrelColors.tealAccent.withValues(alpha: 0.15),
+                    textColor: KinrelColors.tealAccent,
                   ),
                   title: Text(
                     p.name,
