@@ -164,6 +164,8 @@ class GraphNode extends ConsumerStatefulWidget {
     this.nodeSize = 72.0,
     this.isPrivate = false,
     this.isUnclaimed = false,
+    // v5.9: unlinked-member detection
+    this.isUnlinked = false,
     this.familyId,
     this.showRelationLabel = true,
     // P3.3: birthday glow parameters.
@@ -272,6 +274,12 @@ class GraphNode extends ConsumerStatefulWidget {
   /// Whether this Person node has NOT been claimed by a linked Kinrel user
   /// (linkedUserId is null). Shows a small "Pending" badge on the node.
   final bool isUnclaimed;
+
+  /// v5.9: Whether this person has ZERO relationship edges in the graph
+  /// (an "unlinked" member). When true, the node ring is rendered with
+  /// a DASHED border and a small "link-off" badge in the corner to
+  /// signal that the user should connect them to the family tree.
+  final bool isUnlinked;
 
   /// Optional family ID — when provided AND kEnableKinrel is true, the
   /// node shows an Kinrel role glyph badge (root/anchor/bridge/weaver/leaf/
@@ -835,6 +843,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       isDeceased: widget.isDeceased,
       memorialCandleFlickerValue: widget.memorialCandleFlickerValue,
       isRecentlyDeceased: widget.isRecentlyDeceased,
+      isUnlinked: widget.isUnlinked, // v5.9
     );
 
     final extraPad = widget.isAnchor ? 16.0 : 12.0;
@@ -948,6 +957,30 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                     fontWeight: FontWeight.w700,
                     color: KinrelColors.darkCard,
                   ),
+                ),
+              ),
+            ),
+          // v5.9: "Needs linking" badge — link-off icon, top-left corner.
+          // Shown when the person has zero relationship edges.
+          if (widget.isUnlinked)
+            Positioned(
+              left: -2,
+              top: -2,
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: KinrelColors.amber,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: KinrelColors.darkCard,
+                    width: 1.5,
+                  ),
+                ),
+                child: Icon(
+                  Icons.link_off,
+                  size: 12,
+                  color: KinrelColors.darkCard,
                 ),
               ),
             ),

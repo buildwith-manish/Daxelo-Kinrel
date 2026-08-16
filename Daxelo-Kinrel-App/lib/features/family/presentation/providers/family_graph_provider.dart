@@ -1291,10 +1291,67 @@ final familyGraphProvider =
 );
 
 // ═══════════════════════════════════════════════════════════════════════
-// 2. GRAPH LAYOUT PROVIDER — FutureProvider.family
+// 1b. UNLINKED PERSON IDS PROVIDER — v5.9
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Computes the graph layout for a given family in a background isolate.
+/// Computes the set of Person IDs that have ZERO active relationship edges
+/// in the family graph — i.e. "unlinked" members who were added to the
+/// family but never connected to anyone via a relationship.
+///
+/// This is a pure derivation from [familyGraphProvider]'s data (persons +
+/// relationships). No new RPC or query is needed — the edges are already
+/// fetched by the existing graph query.
+///
+/// The provider reactively rebuilds whenever [familyGraphProvider] changes
+/// (new member added, relationship created/deleted) because it watches
+/// the same provider.
+///
+/// Edge case: if the family has exactly 1 member (the viewer themselves),
+/// that member is NOT considered "unlinked" — a family of 1 is a valid
+/// starting state, not an error to fix.
+///
+/// Usage:
+/// ```dart
+/// final unlinkedIds = ref.watch(unlinkedPersonIdsProvider(familyId));
+/// if (unlinkedIds.contains(personId)) {
+///   // Render with "needs linking" style
+/// }
+/// ```
+final unlinkedPersonIdsProvider =
+    Provider.family<Set<String>, String>((ref, familyId) {
+  final graphAsync = ref.watch(familyGraphProvider(familyId));
+  final graph = graphAsync.valueOrNull;
+  if (graph == null) return <String>{};
+
+  final persons = graph.persons;
+  final relationships = graph.relationships;
+
+  // Edge case: family of 1 — not unlinked
+  if (persons.length <= 1) return <String>{};
+
+  // Collect all person IDs that appear in at least one active relationship
+  final connectedIds = <String>{};
+  for (final r in relationships) {
+    final isActive = r['isActive'] as bool? ?? true;
+    if (!isActive) continue;
+    final from = r['fromPersonId']?.toString();
+    final to = r['toPersonId']?.toString();
+    if (from != null && from.isNotEmpty) connectedIds.add(from);
+    if (to != null && to.isNotEmpty) connectedIds.add(to);
+  }
+
+  // Unlinked = all persons NOT in connectedIds
+  final unlinked = <String>{};
+  for (final p in persons) {
+    final id = p['id']?.toString();
+    if (id != null && id.isNotEmpty && !connectedIds.contains(id)) {
+      unlinked.add(id);
+    }
+  }
+
+  return unlinked;
+});
+
 final graphLayoutProvider =
     FutureProvider.family<GraphLayoutResult, String>((ref, familyId) async {
   final graphAsync = ref.watch(familyGraphProvider(familyId));

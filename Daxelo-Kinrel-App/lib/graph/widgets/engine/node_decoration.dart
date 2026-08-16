@@ -64,6 +64,8 @@ class Pseudo3DNodeParams {
     this.isDeceased = false,
     this.memorialCandleFlickerValue = 0.0,
     this.isRecentlyDeceased = false,
+    // v5.9: unlinked-member dashed ring
+    this.isUnlinked = false,
   });
 
   final double diameter;
@@ -86,6 +88,11 @@ class Pseudo3DNodeParams {
 
   /// P3.4: true if death was within the last 30 days (brighter candle).
   final bool isRecentlyDeceased;
+
+  /// v5.9: true if this person has zero relationship edges (unlinked).
+  /// When true, the border ring is drawn as a DASHED circle instead of
+  /// solid, signaling "needs linking."
+  final bool isUnlinked;
 
   double get _scale => diameter / 72.0;
 
@@ -277,6 +284,29 @@ class Pseudo3DNodePainter extends CustomPainter {
           transform: GradientRotation(-pi * 0.75),
         ).createShader(rimRect),
     );
+
+    // ══ LAYER 5b: Dashed ring overlay (v5.9 — unlinked members) ════
+    // When isUnlinked is true, draw a dashed amber ring ON TOP of the
+    // normal border to signal "needs linking." This is an OVERLAY, not
+    // a replacement — the node still keeps its category color.
+    if (params.isUnlinked) {
+      const dashCount = 16;
+      const dashArc = 2 * pi / dashCount * 0.5; // 50% duty cycle
+      final dashRect = Rect.fromCircle(center: center, radius: r + 2);
+      for (int i = 0; i < dashCount; i++) {
+        final start = i * (2 * pi / dashCount);
+        canvas.drawArc(
+          dashRect,
+          start,
+          dashArc,
+          false,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.0
+            ..color = KinrelColors.amber.withValues(alpha: 0.85),
+        );
+      }
+    }
 
     // ══ LAYER 6: Inner bevel (directional) ═════════════════════════
     // FIX: Dark inset stronger (0.5 alpha), TL highlight brighter (0.12).

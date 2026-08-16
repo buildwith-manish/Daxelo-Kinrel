@@ -21,6 +21,9 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
   ) {
     // v2.2: If this node IS the viewer, show "You" as the relation label.
     final bool isViewer = viewerPersonId != null && id == viewerPersonId;
+    // v5.9: Check if this person is "unlinked" (zero relationship edges).
+    final unlinkedIds = ref.watch(unlinkedPersonIdsProvider(widget.familyId));
+    final bool isUnlinked = unlinkedIds.contains(id);
     // §4: Wire selectedNodeProvider to the node's NodeState so
     // selection visually highlights the node.
     final selectedId = ref.watch(selectedNodeProvider);
@@ -104,6 +107,8 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       // which requires checking the FamilyInvite table — not available
       // at the graph node level without an additional query.
       isUnclaimed: false,
+      // v5.9: Pass isUnlinked so GraphNode renders the dashed ring + badge.
+      isUnlinked: isUnlinked,
       // Pass familyId so GraphNode can render the Kinrel role glyph badge
       // (root/anchor/bridge/weaver/leaf/twin_node) on the node when
       // kEnableKinrel is true.

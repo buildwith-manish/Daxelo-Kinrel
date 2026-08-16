@@ -39,6 +39,7 @@ import '../../../graph/interaction/graph_focus_state.dart'
 import '../../../graph/widgets/family_graph_engine_view.dart';
 import '../../../graph/widgets/graph_tutorial_overlay.dart';
 import '../../../graph/widgets/search_bar.dart';
+import '../../../graph/widgets/unlinked_members_sheet.dart'; // v5.9
 import 'add_member_options_sheet.dart';
 import 'providers/family_graph_provider.dart'
     show
@@ -46,7 +47,8 @@ import 'providers/family_graph_provider.dart'
         FlatGraphResult,
         familyGraphProvider,
         graphRealtimeProvider,
-        selectedNodeProvider;
+        selectedNodeProvider,
+        unlinkedPersonIdsProvider; // v5.9
 import 'widgets/relationship_legend.dart';
 import 'widgets/stats_panel.dart';
 
@@ -550,6 +552,16 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             child: _buildHowConnectedFab(),
           ),
 
+        // v5.9: "Unlinked Members" button — only visible when there are
+        // members with zero relationship edges. Shows a count badge.
+        // Positioned top-right so it doesn't overlap other FABs.
+        if (ref.watch(unlinkedPersonIdsProvider(widget.familyId)).isNotEmpty)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 60,
+            right: 16,
+            child: _buildUnlinkedMembersButton(),
+          ),
+
         // REMOVED: Floating legend button (top-right).
         // The legend is now triggered from the bottom dock's Help/Legend
         // button — one entry point, not two. The legend card still appears
@@ -704,6 +716,101 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         child: Icon(
           inPathSelectMode ? Icons.close : Icons.timeline,
           size: 24,
+        ),
+      ),
+    );
+  }
+
+  // v5.9: Unlinked Members button — shows count badge, opens bottom sheet.
+  Widget _buildUnlinkedMembersButton() {
+    final unlinkedIds = ref.watch(unlinkedPersonIdsProvider(widget.familyId));
+    final count = unlinkedIds.length;
+
+    return Semantics(
+      label: '$count members need linking. Tap to see the list.',
+      button: true,
+      child: GestureDetector(
+        onTap: () {
+          showUnlinkedMembersSheet(
+            context,
+            ref,
+            widget.familyId,
+            onPersonSelected: (personId, personName) {
+              // Focus the graph on the selected person
+              ref.read(graphFocusProvider.notifier).focus(
+                    personId: personId,
+                    personName: personName,
+                    edges: const [],
+                    currentViewport: null,
+                  );
+              // Show a snackbar guiding the user to connect them
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Focused on $personName — use "Relate to another person" to connect them.',
+                  ),
+                  backgroundColor: KinrelColors.darkCard,
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            },
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkCard,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: KinrelColors.amber.withValues(alpha: 0.4),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.link_off,
+                size: 16,
+                color: KinrelColors.amber,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Link',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: KinrelColors.amber,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.monoFont,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.darkCard,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
