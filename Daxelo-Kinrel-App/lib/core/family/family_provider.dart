@@ -12,6 +12,7 @@ import '../networking/dio_client.dart';
 import '../services/supabase_service.dart';
 import '../services/analytics_service.dart';
 import '../services/graph_layout_service.dart';
+import '../constants/feature_flags.dart'; // v5.17: kEnableAutoKinshipInference
 import '../widgets/person_avatar.dart';
 import '../viewer/viewer_provider.dart' show viewerPersonIdProvider, invalidateViewerCache; // v5.10
 import '../kinship/automatic_kinship_inference.dart'
@@ -2576,6 +2577,25 @@ Future<FamilyRelationship> createRelationship({
   try {
     debugPrint('[CREATE-REL] Inserting forward relationship...');
     response = await client
+        // ════════════════════════════════════════════════════════════════
+        // v5.17 CANONICAL CONVENTION — labelAtoB
+        // ════════════════════════════════════════════════════════════════
+        // labelAtoB = "toPerson is fromPerson's <labelAtoB>"
+        //
+        // Example: fromPersonId=Alice, toPersonId=Bob, labelAtoB='father'
+        //   → "Bob is Alice's father"
+        //
+        // The get_viewer_family_graph RPC uses this convention:
+        //   WHEN r.fromPersonId = p_viewer_id THEN r.labelAtoB
+        //   WHEN r.toPersonId = p_viewer_id THEN r.labelBtoA
+        //
+        // All callers of createRelationship MUST follow this convention.
+        // If the user is asked "How is X related to Y?" and answers
+        // "X is Y's father", then:
+        //   fromPersonId = Y (the reference point)
+        //   toPersonId = X (the person being described)
+        //   labelAtoB = 'father' (X is Y's father)
+        // ════════════════════════════════════════════════════════════════
         .from(_kRelationshipTable)
         .insert({
           'id': forwardRelId,
@@ -2584,7 +2604,7 @@ Future<FamilyRelationship> createRelationship({
           'toPersonId': toPersonId,
           'relationshipKey': relationshipKey,
           'relationshipType': relationshipKey,
-          'labelAtoB': specificLabelAtoB ?? relationshipKey, // v5.11: Use specific label if provided
+          'labelAtoB': specificLabelAtoB ?? relationshipKey,
           'direction': 'from',
           'isActive': true,
           'customColors': customColors, // v83: null for standard, JSON for custom
@@ -2705,7 +2725,10 @@ Future<FamilyRelationship> createRelationship({
   // etc. This runs ONLY for forward edges (not inverse edges) to avoid
   // double-inference.
   List<String> inferredSummary = [];
-  if (!skipValidation && specificLabelAtoB != null) {
+  // v5.17: Gated behind kEnableAutoKinshipInference while fixing the
+  // labelAtoB directional-convention bug. A wrong auto-inserted edge
+  // compounds because it becomes input to the next inference call.
+  if (kEnableAutoKinshipInference && !skipValidation && specificLabelAtoB != null) {
     try {
       inferredSummary = await _runKinshipInference(
         client: client,

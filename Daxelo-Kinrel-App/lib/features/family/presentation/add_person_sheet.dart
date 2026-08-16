@@ -1220,20 +1220,23 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 await createRelationship(
                   ref: ref,
                   familyId: widget.familyId,
-                  fromPersonId: resultId,
-                  toPersonId: linkToPersonId,
+                  // v5.17: CANONICAL CONVENTION FIX.
+                  // labelAtoB means "toPerson is fromPerson's <label>".
+                  // The user answered "How is [newPerson] related to [anchor]?"
+                  // → relKey describes the NEW person's role relative to the anchor.
+                  // So: fromPersonId = anchor (the reference point),
+                  //     toPersonId = newPerson (the person being described),
+                  //     labelAtoB = relKey (e.g. 'father' = newPerson is anchor's father).
+                  // PREVIOUSLY: fromPersonId/toPersonId were swapped, causing
+                  // the RPC to read labels backwards.
+                  fromPersonId: linkToPersonId,
+                  toPersonId: resultId,
                   relationshipKey: fundamentalKey,
-                  // v5.11: Pass the SPECIFIC key (e.g. 'father', 'brother')
-                  // as labelAtoB so the viewer-aware RPC can resolve the
-                  // correct perspective label. The relationshipKey column
-                  // only accepts fundamental types ('parent', 'spouse', etc.)
-                  // due to the DB constraint.
                   specificLabelAtoB: relKey,
-                  // v5.3: Pass genders so the inverse edge gets the
-                  // correct gender-aware key (e.g. 'son' instead of
-                  // 'child'). _selectedGender is the new person's gender.
-                  fromPersonGender: _selectedGender,
-                  toPersonGender: widget.anchorPerson?.gender,
+                  // v5.17: Genders swapped to match the from/to swap.
+                  // fromPersonGender = anchor's gender, toPersonGender = new person's gender.
+                  fromPersonGender: widget.anchorPerson?.gender ?? _selectedTargetPerson?.gender,
+                  toPersonGender: _selectedGender,
                   // v83: Pass custom kinship colors + display name
                   customColors: _customKinshipName != null
                       ? {

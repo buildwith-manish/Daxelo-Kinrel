@@ -65,6 +65,15 @@ const bool kEnableLanguagePicker = true;
 /// Audio pronunciation of kinship terms via flutter_tts.
 const bool kEnableAudioPronunciation = true;
 
+/// v5.17: Auto kinship inference — when enabled, creating a relationship
+/// (e.g. "X is Y's sister") automatically derives implied edges (X is
+/// also Y's parents' daughter, Y's grandparents' granddaughter, etc.).
+///
+/// Temporarily OFF while fixing the labelAtoB directional-convention bug.
+/// A wrong auto-inserted edge is worse than no auto-inference because it
+/// becomes input to the next inference call and compounds.
+const bool kEnableAutoKinshipInference = false;
+
 /// Kinrel — Family Relationship Intelligence.
 /// Gates the Kinrel nav entry, the home-screen cover replacement, and the
 /// /kinrel route so the feature can ship dark and be turned on per build.
