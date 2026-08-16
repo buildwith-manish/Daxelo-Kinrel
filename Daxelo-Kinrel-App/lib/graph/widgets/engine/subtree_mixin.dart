@@ -62,50 +62,17 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
   ) {
     final labels = <String, String>{};
 
-    // No viewer → use the structural classifier on stored edges.
+    // v5.7: No viewer → return EMPTY labels (no perspective).
     //
-    // v67 (BUG-19 FIX): The previous version assigned the raw
-    // relationshipKey to the `to` person of each edge — but the key
-    // describes the `from` person's relationship TO the `to` person,
-    // not the anchor's perspective. This caused labels to be backwards
-    // (e.g. anchor labeled "Father", actual father unlabeled).
+    // PREVIOUS BUG: When viewerPersonId was null, this function fell back
+    // to the anchor's perspective (isAnchor == true). This caused labels
+    // to always be computed from the family creator's perspective, even
+    // when a different user was logged in.
     //
-    // The fix: resolve labels from the ANCHOR's perspective using the
-    // same directionality logic as _getStoredKey(). The anchor is the
-    // person with isAnchor == true (or the first person as fallback).
+    // Now: no viewer → no labels. The graph shows node names only, with
+    // no relationship labels. This is better than showing labels from
+    // the WRONG perspective.
     if (viewerPersonId == null) {
-      // Find the anchor.
-      String? anchorId;
-      for (final Map<String, dynamic> p in flat.persons) {
-        if (p['isAnchor'] == true) {
-          anchorId = p['id'] as String?;
-          break;
-        }
-      }
-      anchorId ??= flat.persons.isNotEmpty
-          ? flat.persons.first['id'] as String?
-          : null;
-
-      if (anchorId == null) return labels;
-
-      for (final Map<String, dynamic> r in flat.relationships) {
-        final from = r['fromPersonId'] as String?;
-        final to = r['toPersonId'] as String?;
-        final key = r['relationshipKey'] as String?;
-        if (key == null || key.isEmpty) continue;
-
-        // Edge points TO anchor: stored key IS the anchor's perspective
-        // on `from`. Label the `from` person.
-        if (to == anchorId && from != null && !labels.containsKey(from)) {
-          labels[from] = _prettyPrintKey(key);
-        }
-        // Edge points FROM anchor: anchor's perspective on `to` is the
-        // inverse. Label the `to` person with the inverse key.
-        else if (from == anchorId && to != null && !labels.containsKey(to)) {
-          final inverseKey = _inverseRelationshipKey(key);
-          labels[to] = _prettyPrintKey(inverseKey ?? key);
-        }
-      }
       return labels;
     }
 
@@ -201,17 +168,9 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
           ),
     ];
 
-    // v63: Pick the BFS source — prefer the viewer, fall back to the
-    // anchor person (every family has exactly one anchor). If neither
-    // exists, fall back to the legacy direct-edge-only path.
+    // v5.7: Pick the BFS source — viewer ONLY. No anchor fallback.
+    // If no viewer is resolved, return empty keys (no perspective).
     String? bfsSource = viewerPersonId;
-    if (bfsSource == null && graphPersons.isNotEmpty) {
-      final anchor = graphPersons.firstWhere(
-        (p) => p.isAnchor,
-        orElse: () => graphPersons.first,
-      );
-      bfsSource = anchor.id;
-    }
 
     if (bfsSource == null || graphPersons.isEmpty) {
       // No source — fall back to direct-edge assignment so connected
@@ -438,20 +397,12 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
     ];
 
     // Find the BFS source (viewer or anchor).
+    // v5.7: Viewer ONLY. No anchor fallback.
     String? bfsSource = viewerPersonId;
-    if (bfsSource == null && graphPersons.isNotEmpty) {
-      final anchor = graphPersons.firstWhere(
-        (p) => p.isAnchor,
-        orElse: () => graphPersons.first,
-      );
-      bfsSource = anchor.id;
-    }
-    // Guard: if source is not in graphPersons, fall back to anchor.
+    // Guard: if source is not in graphPersons, return empty (no perspective).
     final effectiveSource = graphPersons.any((p) => p.id == bfsSource)
         ? bfsSource
-        : (graphPersons.any((p) => p.isAnchor)
-            ? graphPersons.firstWhere((p) => p.isAnchor).id
-            : (graphPersons.isNotEmpty ? graphPersons.first.id : null));
+        : null;
 
     if (effectiveSource == null || graphPersons.isEmpty) return categories;
 
@@ -652,8 +603,19 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
   /// user was logged in. Edge colors and relationship labels were
   /// computed from the creator's perspective instead of the viewer's.
   static String? _findAnchorId(FlatGraphResult flat, String? viewerPersonId) {
-    // v5.4: Viewer-first — if the current user has a Person node in this
-    // family, use THEIR ID as the perspective anchor.
+    // v5.7: Viewer-FIRST and ONLY. If viewerPersonId is set and exists in
+    // the graph, use it. If viewerPersonId is null (user not linked to a
+    // Person node), return null — do NOT fall back to isAnchor.
+    //
+    // PREVIOUS BUG: When viewerPersonId was null, this function fell back
+    // to the isAnchor-flagged person (family creator). This caused the
+    // graph to ALWAYS show the family creator as "You", even when a
+    // different user was logged in. The anchor fallback was a legacy
+    // pattern from before viewer-perspective was implemented.
+    //
+    // Now: no viewer → no "You" node. This is better than showing the
+    // WRONG person as "You". The user will be prompted to claim their
+    // profile via the ClaimProfileBanner (or they can manually link).
     if (viewerPersonId != null && viewerPersonId.isNotEmpty) {
       // Verify the viewerPersonId exists in the flat.persons list
       for (final Map<String, dynamic> p in flat.persons) {
@@ -662,13 +624,7 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
         }
       }
     }
-    // Fallback: use the isAnchor-flagged person (family creator)
-    for (final Map<String, dynamic> p in flat.persons) {
-      if (p['isAnchor'] == true) {
-        final id = p['id'];
-        if (id is String && id.isNotEmpty) return id;
-      }
-    }
+    // v5.7: NO anchor fallback. Return null when no viewer is resolved.
     return null;
   }
 
