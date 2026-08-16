@@ -231,9 +231,8 @@ class GraphQuickActions {
             // v5.0: "Relate to another person" — opens a person picker,
             // then either auto-creates a relationship (if the kinship
             // engine can derive one from existing edges) or opens the
-            // simplified FundamentalRelationshipPicker (parent / child /
-            // spouse / sibling only). Then calls createRelationship() to
-            // persist the edge + refresh the graph.
+            // full-featured RelationshipPickerSheet (v5.14: search bar +
+            // categories, 5,300+ terms). Then calls createRelationship()
             if (familyId != null && ref != null)
               ListTile(
                 leading: const Icon(Icons.link_rounded,

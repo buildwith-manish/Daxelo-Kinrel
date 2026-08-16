@@ -19,14 +19,14 @@ import '../../core/family/family_provider.dart';
 import '../../core/family/relationship_permissions.dart'; // v5.12
 import '../../core/kinship/kinship_inference_engine.dart';
 import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider; // v5.12
-import '../../features/family/presentation/fundamental_relationship_picker.dart';
+import '../../features/family/presentation/relationship_picker_sheet.dart'; // v5.14
 import '../interaction/relationship_validation.dart'
     show RelationshipValidationException;
 import 'graph_relationship_labels.dart';
 
 /// Shows a bottom-sheet picker of ALL family members (except [sourcePerson]),
 /// lets the user pick ANY of them, then either auto-derives the kinship
-/// from existing edges or opens FundamentalRelationshipPicker
+/// from existing edges or opens RelationshipPickerSheet (v5.14: full 5,300+ term picker)
 /// (parent/child/spouse/sibling), then persists via createRelationship().
 ///
 /// This is the "flexible relate to any person" flow — the user can connect
@@ -256,23 +256,30 @@ Future<void> showRelationshipPickerFlow({
     // Auto-detected with high confidence — use it directly
     relationshipKey = candidates.first.key;
   } else {
-    // Open the FundamentalRelationshipPicker
+    // v5.14: Use the full-featured RelationshipPickerSheet (search bar +
+    // "Common Relationships" + "Browse by Category" — 5,300+ terms)
+    // instead of the narrow FundamentalRelationshipPicker (~8 options).
+    // RelationshipPickerSheet returns a String? key, same contract.
     if (!context.mounted) {
       onComplete?.call(false);
       return;
     }
-    final fundamentalKey = await FundamentalRelationshipPicker.show(
+    // Build existingRelationshipTypes from sourcePerson's edges (for smart suggestions)
+    final existingRels = detail.relationships
+        .where((r) => r.fromPersonId == sourcePerson.id || r.toPersonId == sourcePerson.id)
+        .map((r) => r.relationshipKey)
+        .toList();
+    final pickedKey = await RelationshipPickerSheet.show(
       context,
       personAName: sourcePerson.name,
       personBName: selectedPerson.name,
-      personAGender: sourcePerson.gender,
-      personBGender: selectedPerson.gender,
+      existingRelationshipTypes: existingRels,
     );
-    if (fundamentalKey == null) {
+    if (pickedKey == null) {
       onComplete?.call(false);
       return;
     }
-    relationshipKey = fundamentalKey;
+    relationshipKey = pickedKey;
   }
 
   // v5.11: Map the specific key to a fundamental edge type for the
