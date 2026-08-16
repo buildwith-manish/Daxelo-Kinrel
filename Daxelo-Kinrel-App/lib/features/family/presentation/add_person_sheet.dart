@@ -12,6 +12,7 @@ import '../../../core/constants/feature_flags.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
+import '../../../core/family/relationship_edge_builder.dart'; // v5.19
 import '../../../core/widgets/person_avatar.dart'; // v5.15
 import '../../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider; // v5.13
 import 'dart:typed_data';
@@ -1217,26 +1218,26 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 // after this returns, and the optimistic upsert below
                 // ensures the edge appears immediately in the provider
                 // state (not just the cache).
+                // v5.19: Use shared buildCanonicalRelationshipEdge to ensure
+                // this flow and relationship_picker_flow.dart produce
+                // IDENTICAL edges for the same semantic input.
+                final edgeInput = buildCanonicalRelationshipEdge(
+                  referencePersonId: linkToPersonId,
+                  describedPersonId: resultId,
+                  pickedRelationshipKey: relKey!,
+                  referencePersonGender: widget.anchorPerson?.gender ?? _selectedTargetPerson?.gender,
+                  describedPersonGender: _selectedGender,
+                );
+
                 await createRelationship(
                   ref: ref,
                   familyId: widget.familyId,
-                  // v5.17: CANONICAL CONVENTION FIX.
-                  // labelAtoB means "toPerson is fromPerson's <label>".
-                  // The user answered "How is [newPerson] related to [anchor]?"
-                  // → relKey describes the NEW person's role relative to the anchor.
-                  // So: fromPersonId = anchor (the reference point),
-                  //     toPersonId = newPerson (the person being described),
-                  //     labelAtoB = relKey (e.g. 'father' = newPerson is anchor's father).
-                  // PREVIOUSLY: fromPersonId/toPersonId were swapped, causing
-                  // the RPC to read labels backwards.
-                  fromPersonId: linkToPersonId,
-                  toPersonId: resultId,
-                  relationshipKey: fundamentalKey,
-                  specificLabelAtoB: relKey,
-                  // v5.17: Genders swapped to match the from/to swap.
-                  // fromPersonGender = anchor's gender, toPersonGender = new person's gender.
-                  fromPersonGender: widget.anchorPerson?.gender ?? _selectedTargetPerson?.gender,
-                  toPersonGender: _selectedGender,
+                  fromPersonId: edgeInput.fromPersonId,
+                  toPersonId: edgeInput.toPersonId,
+                  relationshipKey: edgeInput.relationshipKey,
+                  specificLabelAtoB: edgeInput.specificLabelAtoB,
+                  fromPersonGender: edgeInput.fromPersonGender,
+                  toPersonGender: edgeInput.toPersonGender,
                   // v83: Pass custom kinship colors + display name
                   customColors: _customKinshipName != null
                       ? {

@@ -17,6 +17,7 @@ import '../../core/constants/brand_colors.dart';
 import '../../core/widgets/person_avatar.dart'; // v5.15
 import '../../core/constants/brand_typography.dart';
 import '../../core/family/family_provider.dart';
+import '../../core/family/relationship_edge_builder.dart'; // v5.19
 import '../../core/family/relationship_permissions.dart'; // v5.12
 import '../../core/kinship/kinship_inference_engine.dart';
 import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider; // v5.12
@@ -274,11 +275,15 @@ Future<void> showRelationshipPickerFlow({
     relationshipKey = pickedKey;
   }
 
-  // v5.11: Map the specific key to a fundamental edge type for the
-  // relationshipKey column (DB constraint only allows parent/spouse/
-  // adoptive_parent/step_parent). The specific key is passed as
-  // specificLabelAtoB so the viewer-aware RPC resolves the correct label.
-  final dbEdgeKey = _mapToFundamentalEdge(relationshipKey);
+  // v5.19: Use shared buildCanonicalRelationshipEdge to ensure this flow
+  // and add_person_sheet.dart produce IDENTICAL edges for the same input.
+  final edgeInput = buildCanonicalRelationshipEdge(
+    referencePersonId: sourcePerson.id,
+    describedPersonId: selectedPerson.id,
+    pickedRelationshipKey: relationshipKey,
+    referencePersonGender: sourcePersonRecord.gender,
+    describedPersonGender: selectedPerson.gender,
+  );
   final messenger = ScaffoldMessenger.maybeOf(context);
 
   // v5.12: Permission check — admins can connect any two people;
@@ -289,8 +294,8 @@ Future<void> showRelationshipPickerFlow({
   if (!canCreateRelationship(
     isAdmin: isAdmin,
     viewerPersonId: viewerId,
-    fromPersonId: sourcePerson.id,
-    toPersonId: selectedPerson.id,
+    fromPersonId: edgeInput.fromPersonId,
+    toPersonId: edgeInput.toPersonId,
   )) {
     messenger?.showSnackBar(
       const SnackBar(
@@ -310,12 +315,12 @@ Future<void> showRelationshipPickerFlow({
     await createRelationship(
       ref: ref,
       familyId: familyId,
-      fromPersonId: sourcePerson.id,
-      toPersonId: selectedPerson.id,
-      relationshipKey: dbEdgeKey,
-      specificLabelAtoB: relationshipKey, // v5.11: specific label for RPC
-      fromPersonGender: sourcePersonRecord.gender,
-      toPersonGender: selectedPerson.gender,
+      fromPersonId: edgeInput.fromPersonId,
+      toPersonId: edgeInput.toPersonId,
+      relationshipKey: edgeInput.relationshipKey,
+      specificLabelAtoB: edgeInput.specificLabelAtoB,
+      fromPersonGender: edgeInput.fromPersonGender,
+      toPersonGender: edgeInput.toPersonGender,
     );
 
     final label = KinshipInferenceEngine.labelFor(relationshipKey);
@@ -358,19 +363,4 @@ Future<void> showRelationshipPickerFlow({
     );
     onComplete?.call(false);
   }
-}
-
-/// v5.11: Maps a specific kinship key to the fundamental edge type
-/// required by the DB constraint. See add_person_sheet.dart's
-/// _mapToFundamentalEdge for the full documentation.
-String _mapToFundamentalEdge(String? specificKey) {
-  if (specificKey == null || specificKey.isEmpty) return 'parent';
-  final k = specificKey.toLowerCase().trim();
-  if (k == 'husband' || k == 'wife' || k == 'spouse') return 'spouse';
-  if (k == 'step_father' || k == 'step_mother' ||
-      k == 'stepfather' || k == 'stepmother' ||
-      k == 'step_parent') return 'step_parent';
-  if (k == 'adoptive_father' || k == 'adoptive_mother' ||
-      k == 'adoptive_parent') return 'adoptive_parent';
-  return 'parent';
 }
