@@ -16,7 +16,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/family/family_provider.dart';
+import '../../core/family/relationship_permissions.dart'; // v5.12
 import '../../core/kinship/kinship_inference_engine.dart';
+import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider; // v5.12
 import '../../features/family/presentation/fundamental_relationship_picker.dart';
 import '../interaction/relationship_validation.dart'
     show RelationshipValidationException;
@@ -278,9 +280,33 @@ Future<void> showRelationshipPickerFlow({
   // adoptive_parent/step_parent). The specific key is passed as
   // specificLabelAtoB so the viewer-aware RPC resolves the correct label.
   final dbEdgeKey = _mapToFundamentalEdge(relationshipKey);
+  final messenger = ScaffoldMessenger.maybeOf(context);
+
+  // v5.12: Permission check — admins can connect any two people;
+  // regular members can only create relationships involving themselves.
+  final viewerId = ref.read(viewerPersonIdProvider(familyId)).valueOrNull;
+  final role = ref.read(currentUserFamilyRoleProvider(familyId));
+  final isAdmin = role == 'admin' || role == 'owner';
+  if (!canCreateRelationship(
+    isAdmin: isAdmin,
+    viewerPersonId: viewerId,
+    fromPersonId: sourcePerson.id,
+    toPersonId: selectedPerson.id,
+  )) {
+    messenger?.showSnackBar(
+      const SnackBar(
+        content: Text('You can only create relationships involving yourself. '
+            'Ask a family admin to connect other members.'),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 5),
+      ),
+    );
+    onComplete?.call(false);
+    return;
+  }
 
   // Create the relationship
-  final messenger = ScaffoldMessenger.maybeOf(context);
   try {
     await createRelationship(
       ref: ref,

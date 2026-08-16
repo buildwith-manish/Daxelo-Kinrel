@@ -143,6 +143,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   String? _selectedSubType; // elder | younger (siblings only)
   String? _selectedRelationshipKey; // full key from RelationshipPickerSheet
   String? _selectedRelationshipLabel;
+  // v5.12: Target person picker — the user explicitly chooses WHICH
+  // existing member the new person relates to. When null and no
+  // anchorPerson was passed, the user hasn't picked a target yet.
+  Person? _selectedTargetPerson;
   // v80: Custom kinship state
   String? _customKinshipName;
   int _customNodeColorValue = 0xFF64748B; // default slate
@@ -1123,12 +1127,19 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             if (client != null && client.auth.currentSession != null) {
               debugPrint('[ADD-MEMBER] v94: Creating relationship with key=$relKey');
 
-              // v50 FIX: Use widget.anchorPerson if provided (user selected
-              // a specific person to link to). Otherwise, resolve from DB.
+              // v5.12: Target person resolution — USER-SELECTED first.
+              // Priority:
+              //   1. _selectedTargetPerson (user explicitly picked via UI)
+              //   2. widget.anchorPerson (passed from node context menu)
+              //   3. DB anchor fallback (last resort — clearly indicated)
               String? linkToPersonId;
 
-              if (widget.anchorPerson != null) {
-                // User explicitly selected a target person
+              if (_selectedTargetPerson != null) {
+                // v5.12: User explicitly picked a target person
+                linkToPersonId = _selectedTargetPerson!.id;
+                debugPrint('[ADD-MEMBER] v5.12: Using user-selected target: ${_selectedTargetPerson!.name} ($linkToPersonId)');
+              } else if (widget.anchorPerson != null) {
+                // User opened Add from a specific node's context menu
                 linkToPersonId = widget.anchorPerson!.id;
                 debugPrint('[ADD-MEMBER] v94: Using provided anchorPerson: ${widget.anchorPerson!.name} ($linkToPersonId)');
               } else {
@@ -1334,9 +1345,15 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               ref.invalidate(familyGraphProvider(widget.familyId));
               ref.invalidate(familyMembersProvider(widget.familyId));
 
+              // v5.12: Show the ACTUAL error to the user, not just a generic
+              // message. Silent failure of a core feature is not acceptable.
+              final errorStr = e.toString();
+              final shortError = errorStr.length > 100
+                  ? errorStr.substring(0, 100) + '...'
+                  : errorStr;
               context.showSnackBar(
-                'Could not save the relationship. The member was not added — '
-                'please try again.',
+                'Could not save the relationship: $shortError. '
+                'The member was not added — please try again.',
                 isError: true,
               );
             }
