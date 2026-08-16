@@ -64,10 +64,8 @@ void main() {
     // ──────────────────────────────────────────────────────────────────
     test('TEST 1: manually-created spouse produces edge', () {
       // Simulate a manual add: Person A (anchor) + Person B (new, wife).
-      // The relationship row is: from=B, to=A, key=wife.
-      // (Per add_person_sheet.dart: the new person is `from`, the
-      // anchor is `to`, and the key describes how newPerson relates
-      // to anchor.)
+      // v5.17+ canonical: from=anchor(A), to=newPerson(B), labelAtoB='wife'
+      // → "B is A's wife". (Pre-v5.17, from/to were swapped — fixed.)
       final rawEdges = [
         buildEdge(
           id: 'rel-1',
@@ -138,7 +136,8 @@ void main() {
     // TEST 3 — manually-created parent produces edge
     // ──────────────────────────────────────────────────────────────────
     test('TEST 3: manually-created parent produces edge', () {
-      // Add a father to the anchor: from=father, to=anchor, key=father.
+      // Add a father to the anchor: v5.17+ canonical: from=anchor, to=father, key=father
+      // → "father is anchor's father". (Pre-v5.17, from/to were swapped.)
       final rawEdges = [
         buildEdge(
           id: 'rel-3',
@@ -161,7 +160,8 @@ void main() {
     // TEST 4 — manually-created child produces edge
     // ──────────────────────────────────────────────────────────────────
     test('TEST 4: manually-created child produces edge', () {
-      // Add a son to the anchor: from=son, to=anchor, key=son.
+      // Add a son to the anchor: v5.17+ canonical: from=anchor, to=son, key=son
+      // → "son is anchor's son". (Pre-v5.17, from/to were swapped.)
       final rawEdges = [
         buildEdge(
           id: 'rel-4',

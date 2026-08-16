@@ -69,10 +69,10 @@ const bool kEnableAudioPronunciation = true;
 /// (e.g. "X is Y's sister") automatically derives implied edges (X is
 /// also Y's parents' daughter, Y's grandparents' granddaughter, etc.).
 ///
-/// Temporarily OFF while fixing the labelAtoB directional-convention bug.
-/// A wrong auto-inserted edge is worse than no auto-inference because it
-/// becomes input to the next inference call and compounds.
-const bool kEnableAutoKinshipInference = false;
+/// v5.18: Re-enabled after fixing the labelAtoB directional-convention
+/// bug (v5.17) and updating the inference engine to use the canonical
+/// convention (v5.18).
+const bool kEnableAutoKinshipInference = true;
 
 /// Kinrel — Family Relationship Intelligence.
 /// Gates the Kinrel nav entry, the home-screen cover replacement, and the
