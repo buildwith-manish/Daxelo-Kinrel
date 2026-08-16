@@ -1,3 +1,4 @@
+import '../../../core/widgets/person_avatar.dart';
 // lib/features/thinking/presentation/family_ring_widget.dart
 //
 // "Who are you thinking of?" — horizontal ring of family member faces.
@@ -610,7 +611,7 @@ class _Placeholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final initial =
-        name.isNotEmpty ? name[0].toUpperCase() : '?';
+        PersonAvatar.initialsFor(name)?';
     return Container(
       color: KinrelColors.darkElevated,
       alignment: Alignment.center,

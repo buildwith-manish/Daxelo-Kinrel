@@ -1,3 +1,4 @@
+import '../../../core/widgets/person_avatar.dart';
 // lib/features/games/antakshari/antakshari_game_screen.dart
 //
 // Antakshari — main game screen with:
@@ -846,7 +847,7 @@ class _AntakshariGameScreenState
       ),
       child: Center(
         child: Text(
-          p.userName.isNotEmpty ? p.userName[0].toUpperCase() : '?',
+          PersonAvatar.initialsFor(p.userName)?',
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
             fontSize: 12,
@@ -887,7 +888,7 @@ class _AntakshariGameScreenState
         ),
         child: Center(
           child: Text(
-            p.userName.isNotEmpty ? p.userName[0].toUpperCase() : '?',
+            PersonAvatar.initialsFor(p.userName)?',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,

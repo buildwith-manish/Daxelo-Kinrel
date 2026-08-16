@@ -1,3 +1,4 @@
+import '../../../core/widgets/person_avatar.dart';
 // lib/features/games/redlight/redlight_lobby_screen.dart
 //
 // Freeze & Dash — Lobby / Setup screen.
@@ -697,7 +698,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
                 color: KinrelColors.border.withValues(alpha: 0.5),
               ),
             ListTile(
-              leading: DKAvatar(initials: state.players[i].userName.isNotEmpty ? state.players[i].userName[0].toUpperCase() : '?'),
+              leading: DKAvatar(initials: PersonAvatar.initialsFor(state.players[i].userName)?'),
               title: Text(
                 state.players[i].userName,
                 style: TextStyle(

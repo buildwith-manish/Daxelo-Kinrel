@@ -1,3 +1,4 @@
+import '../../../core/widgets/person_avatar.dart';
 // lib/features/games/truthordare/truthordare_table_screen.dart
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -100,7 +101,7 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
             color: isSpinner ? KinrelColors.orange : (isSelected ? KinrelColors.success : KinrelColors.darkElevated),
             border: Border.all(color: isSpinner ? KinrelColors.orange : (isSelected ? KinrelColors.success : KinrelColors.border), width: 2),
             boxShadow: isSelected ? [BoxShadow(color: KinrelColors.success.withValues(alpha: 0.5), blurRadius: 10, spreadRadius: 2)] : null,
-          ), child: Center(child: Text(p.userName.isNotEmpty ? p.userName[0].toUpperCase() : '?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: isSpinner || isSelected ? Colors.white : KinrelColors.textDim)))),
+          ), child: Center(child: Text(PersonAvatar.initialsFor(p.userName)?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: isSpinner || isSelected ? Colors.white : KinrelColors.textDim)))),
           const SizedBox(height: 2),
           Text(p.userName.split(' ').first, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 9, color: isSpinner ? KinrelColors.orange : (isSelected ? KinrelColors.success : KinrelColors.textDim), fontWeight: FontWeight.w600)),
         ]));

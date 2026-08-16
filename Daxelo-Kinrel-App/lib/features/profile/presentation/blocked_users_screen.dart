@@ -1,3 +1,4 @@
+import '../../../core/widgets/person_avatar.dart';
 // lib/features/profile/presentation/blocked_users_screen.dart
 //
 // DAXELO KINREL — Blocked Users Screen
@@ -49,7 +50,7 @@ class _BlockedUsersScreenState extends ConsumerState<BlockedUsersScreen> {
     if (parts.length >= 2) {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
-    return name.isNotEmpty ? name[0].toUpperCase() : '?';
+    return PersonAvatar.initialsFor(name)?';
   }
 
   void _showUnblockConfirmDialog(BlockedUserModel user) {

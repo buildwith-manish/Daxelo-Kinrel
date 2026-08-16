@@ -1,3 +1,4 @@
+import '../../../core/widgets/person_avatar.dart';
 // lib/features/games/dotsboxes/dotsboxes_lobby_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -142,7 +143,7 @@ class _DotsboxesLobbyScreenState extends ConsumerState<DotsboxesLobbyScreen> {
           child: Row(children: [
             Container(width: 16, height: 16, decoration: BoxDecoration(shape: BoxShape.circle, color: color)),
             const SizedBox(width: 8),
-            DKAvatar(initials: p.userName.isNotEmpty ? p.userName[0].toUpperCase() : '?'),
+            DKAvatar(initials: PersonAvatar.initialsFor(p.userName)?'),
             const SizedBox(width: 8),
             Expanded(child: Text(p.userId == ref.read(supabaseProvider)?.auth.currentUser?.id ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
             if (p.userId == game.hostUserId) Text('👑', style: TextStyle(fontSize: 14)),

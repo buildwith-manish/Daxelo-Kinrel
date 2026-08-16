@@ -1,3 +1,4 @@
+import '../../../core/widgets/person_avatar.dart';
 // lib/features/games/ludo/ludo_board_screen.dart
 //
 // Ludo — main board screen with:
@@ -267,7 +268,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
           ),
           child: Row(
             children: [
-              DKAvatar(initials: p.userName.isNotEmpty ? p.userName[0].toUpperCase() : '?'),
+              DKAvatar(initials: PersonAvatar.initialsFor(p.userName)?'),
               const SizedBox(width: KinrelSpacing.md),
               Expanded(
                 child: Text(

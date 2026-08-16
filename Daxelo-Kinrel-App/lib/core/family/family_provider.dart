@@ -12,6 +12,7 @@ import '../networking/dio_client.dart';
 import '../services/supabase_service.dart';
 import '../services/analytics_service.dart';
 import '../services/graph_layout_service.dart';
+import '../widgets/person_avatar.dart';
 import '../viewer/viewer_provider.dart' show viewerPersonIdProvider, invalidateViewerCache; // v5.10
 import '../kinship/automatic_kinship_inference.dart'
     show inferKinshipEdges, filterExistingEdges; // v5.11
@@ -1319,7 +1320,7 @@ class UnifiedFamilyMember {
   /// Creates a UnifiedFamilyMember from a Person node (manually added).
   factory UnifiedFamilyMember.fromPerson(Person p) {
     final name = p.name.isNotEmpty ? p.name : 'Unknown';
-    final initials = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    final initials = PersonAvatar.initialsFor(name)?';
     return UnifiedFamilyMember(
       id: 'person_${p.id}',
       personId: p.id,

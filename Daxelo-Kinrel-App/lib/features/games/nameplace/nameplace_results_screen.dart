@@ -1,3 +1,4 @@
+import '../../../core/widgets/person_avatar.dart';
 // lib/features/games/nameplace/nameplace_results_screen.dart
 // Route: /family/$familyId/nameplace/results/:gameId
 //
@@ -131,7 +132,7 @@ class _NameplaceResultsScreenState extends ConsumerState<NameplaceResultsScreen>
         padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.md, vertical: KinrelSpacing.sm),
         decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(8), border: Border.all(color: p.userId == ref.read(supabaseProvider)?.auth.currentUser?.id ? KinrelColors.orange : KinrelColors.border)),
         child: Row(children: [
-          DKAvatar(initials: p.userName.isNotEmpty ? p.userName[0].toUpperCase() : '?'),
+          DKAvatar(initials: PersonAvatar.initialsFor(p.userName)?'),
           const SizedBox(width: KinrelSpacing.sm),
           Expanded(child: Text(p.userId == ref.read(supabaseProvider)?.auth.currentUser?.id ? '${p.userName} (You)' : p.userName,
             style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textWhite, fontWeight: FontWeight.w600))),
@@ -184,7 +185,7 @@ class _NameplaceResultsScreenState extends ConsumerState<NameplaceResultsScreen>
             decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.lg), border: Border.all(color: p.userId == myId ? KinrelColors.orange : KinrelColors.border, width: p.userId == myId ? 2 : 1)),
             child: Row(children: [
               SizedBox(width: 30, child: Text(medal, style: TextStyle(fontSize: 16))),
-              DKAvatar(initials: p.userName.isNotEmpty ? p.userName[0].toUpperCase() : '?'),
+              DKAvatar(initials: PersonAvatar.initialsFor(p.userName)?'),
               const SizedBox(width: KinrelSpacing.sm),
               Expanded(child: Text(p.userId == myId ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
               Text('${p.totalScore} pts', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 16, fontWeight: FontWeight.w800, color: KinrelColors.orange)),

@@ -10,6 +10,8 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/family/optimistic_actions.dart';
+import '../../../core/family/relationship_permissions.dart'; // v5.15.1
+import '../../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider; // v5.15.1
 import 'add_person_sheet.dart';
 import 'relationship_picker_sheet.dart'; // v5.14: replace FundamentalRelationshipPicker
 import 'package:go_router/go_router.dart';
@@ -308,6 +310,27 @@ class _RelationshipBuilderScreenState
     Person person2,
     String relationshipKey,
   ) async {
+    // v5.15.1: Permission check — admins can connect any two people;
+    // regular members can only create relationships involving themselves.
+    // Same check as relationship_picker_flow.dart for consistency.
+    final viewerId = ref.read(viewerPersonIdProvider(widget.familyId)).valueOrNull;
+    final role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
+    final isAdmin = role == 'admin' || role == 'owner';
+    if (!canCreateRelationship(
+      isAdmin: isAdmin,
+      viewerPersonId: viewerId,
+      fromPersonId: person1.id,
+      toPersonId: person2.id,
+    )) {
+      context.showSnackBar(
+        'You can only create relationships involving yourself. '
+        'Ask a family admin to connect other members.',
+        isError: true,
+      );
+      _clearSelection();
+      return;
+    }
+
     setState(() => _isCreating = true);
 
     try {

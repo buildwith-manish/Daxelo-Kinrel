@@ -17,6 +17,7 @@ import 'add_person_sheet.dart';
 import 'path_finder_screen.dart';
 import '../../../core/services/image_cache_manager.dart';
 
+import '../../../core/widgets/person_avatar.dart';
 // ─────────────────────────────────────────────────────────────────────
 // Person Detail Sheet — Hero + Stats + Tabs
 //
@@ -465,7 +466,7 @@ class _PersonDetailSheetState extends ConsumerState<PersonDetailSheet>
   Widget _buildInitials(Person person) {
     return Center(
       child: Text(
-        person.name.isNotEmpty ? person.name[0].toUpperCase() : '?',
+        PersonAvatar.initialsFor(person.name)?',
         style: TextStyle(
           fontFamily: KinrelTypography.displayFont,
           fontSize: 40,

@@ -1,3 +1,4 @@
+import '../../../../core/widgets/person_avatar.dart';
 // lib/features/games/shared/widgets/family_leaderboard_widget.dart
 //
 // Shows per-family leaderboard for games. Watches fn_get_family_leaderboard
@@ -179,7 +180,7 @@ class _FamilyLeaderboardWidgetState
             ),
             child: Center(
               child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                PersonAvatar.initialsFor(name)?',
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 13,

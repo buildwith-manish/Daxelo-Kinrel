@@ -71,12 +71,17 @@ class PersonAvatar extends StatelessWidget {
   /// Font weight for the initial text. Defaults to FontWeight.w700.
   final FontWeight fontWeight;
 
-  String get _initial {
+  /// Static helper: computes the initial for a name.
+  /// Returns the first character uppercased, or '?' if empty.
+  /// Use this when you need just the initials string (e.g. for DKAvatar).
+  static String initialsFor(String name) {
     if (name.isNotEmpty) {
       return name[0].toUpperCase();
     }
     return '?';
   }
+
+  String get _initial => initialsFor(name);
 
   double get _fontSize => size * 0.4;
 

@@ -1,3 +1,4 @@
+import '../../../core/widgets/person_avatar.dart';
 // lib/features/games/truthordare/truthordare_lobby_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -167,7 +168,7 @@ class _TodLobbyScreenState extends ConsumerState<TodLobbyScreen> {
       ...state.players.map((p) => Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(10), border: Border.all(color: p.userId == ref.read(supabaseProvider)?.auth.currentUser?.id ? KinrelColors.orange : KinrelColors.border)),
         child: Row(children: [
-          DKAvatar(initials: p.userName.isNotEmpty ? p.userName[0].toUpperCase() : '?'),
+          DKAvatar(initials: PersonAvatar.initialsFor(p.userName)?'),
           const SizedBox(width: 8),
           Expanded(child: Text(p.userId == ref.read(supabaseProvider)?.auth.currentUser?.id ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
           if (p.userId == game.hostUserId) Text('👑', style: TextStyle(fontSize: 14)),

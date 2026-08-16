@@ -1,3 +1,4 @@
+import '../../../core/widgets/person_avatar.dart';
 // lib/features/games/twotruths/twotruths_results_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -72,7 +73,7 @@ class _TtResultsScreenState extends ConsumerState<TtResultsScreen> {
             return Container(margin: const EdgeInsets.only(bottom: 4), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(8), border: Border.all(color: KinrelColors.border)),
               child: Row(children: [
-                DKAvatar(initials: g.guesserName.isNotEmpty ? g.guesserName[0].toUpperCase() : '?'),
+                DKAvatar(initials: PersonAvatar.initialsFor(g.guesserName)?'),
                 const SizedBox(width: 8),
                 Expanded(child: Text(g.guesserName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
                 Text('guessed #${g.guessedLieIndex}', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: KinrelColors.textDim)),
@@ -89,7 +90,7 @@ class _TtResultsScreenState extends ConsumerState<TtResultsScreen> {
         ...state.players.map((p) => Container(margin: const EdgeInsets.only(bottom: 4), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(8), border: Border.all(color: p.userId == myId ? KinrelColors.orange : KinrelColors.border)),
           child: Row(children: [
-            DKAvatar(initials: p.userName.isNotEmpty ? p.userName[0].toUpperCase() : '?'),
+            DKAvatar(initials: PersonAvatar.initialsFor(p.userName)?'),
             const SizedBox(width: 8),
             Expanded(child: Text(p.userId == myId ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
             Text('${p.totalScore}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 14, fontWeight: FontWeight.w800, color: KinrelColors.orange)),
@@ -131,7 +132,7 @@ class _TtResultsScreenState extends ConsumerState<TtResultsScreen> {
           final medal = rank == 1 ? '🥇' : rank == 2 ? '🥈' : rank == 3 ? '🥉' : '$rank';
           return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(10), border: Border.all(color: p.userId == myId ? KinrelColors.orange : KinrelColors.border, width: p.userId == myId ? 2 : 1)),
-            child: Row(children: [SizedBox(width: 28, child: Text(medal, style: TextStyle(fontSize: 16))), DKAvatar(initials: p.userName.isNotEmpty ? p.userName[0].toUpperCase() : '?'),
+            child: Row(children: [SizedBox(width: 28, child: Text(medal, style: TextStyle(fontSize: 16))), DKAvatar(initials: PersonAvatar.initialsFor(p.userName)?'),
               const SizedBox(width: 8), Expanded(child: Text(p.userId == myId ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
               Text('${p.totalScore}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 16, fontWeight: FontWeight.w800, color: KinrelColors.orange))]));
         }),

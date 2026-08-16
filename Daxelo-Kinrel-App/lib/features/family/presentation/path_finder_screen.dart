@@ -14,6 +14,7 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/kinship/kinship_models.dart';
 
+import '../../../core/widgets/person_avatar.dart';
 // ────────────────────────────────────────────────────────────────
 // Path Finder Screen — Relationship Path Finder (#1 Wow Feature)
 // ────────────────────────────────────────────────────────────────
@@ -575,7 +576,7 @@ class _PersonSelectorCard extends StatelessWidget {
   }
 
   Widget _buildAvatar(Person person) {
-    final initial = person.name.isNotEmpty ? person.name[0].toUpperCase() : '?';
+    final initial = PersonAvatar.initialsFor(person.name)?';
     return Center(
       child: Text(
         initial,
@@ -814,7 +815,7 @@ class _PathNodeWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = node.name.isNotEmpty ? node.name[0].toUpperCase() : '?';
+    final initial = PersonAvatar.initialsFor(node.name)?';
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -1579,7 +1580,7 @@ class _PersonListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initial = person.name.isNotEmpty ? person.name[0].toUpperCase() : '?';
+    final initial = PersonAvatar.initialsFor(person.name)?';
 
     return InkWell(
       onTap: onTap,
