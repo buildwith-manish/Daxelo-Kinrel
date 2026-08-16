@@ -761,6 +761,49 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     }
   }
 
+  /// v5.11: Maps a specific kinship key (e.g. 'father', 'brother', 'wife')
+  /// to the FUNDAMENTAL edge type required by the DB constraint
+  /// `relationship_fundamental_edge_check` which only allows:
+  ///   'parent', 'spouse', 'adoptive_parent', 'step_parent'
+  ///
+  /// The specific key is still stored in `labelAtoB` (set by the trigger
+  /// from `relationshipKey` → `labelAtoB`, then used by the viewer-aware
+  /// RPC for perspective-based label resolution).
+  ///
+  /// Mapping:
+  ///   father/mother/parent/son/daughter/child → 'parent'
+  ///   husband/wife/spouse → 'spouse'
+  ///   brother/sister/sibling → 'parent' (siblings share parents — the
+  ///     fundamental edge between siblings IS the parent edge, but since
+  ///     we're creating an edge BETWEEN the siblings, not between sibling
+  ///     and parent, we use 'parent' as the closest fundamental type.
+  ///     The labelAtoB will carry the specific 'brother'/'sister' label.)
+  ///   step_father/step_mother/stepfather/stepmother → 'step_parent'
+  ///   adoptive_father/adoptive_mother/adoptive_parent → 'adoptive_parent'
+  ///   Everything else → 'parent' (safest fallback — covers grandfather,
+  ///     uncle, cousin, etc. which are all derived from parent edges)
+  static String _mapToFundamentalEdge(String? specificKey) {
+    if (specificKey == null || specificKey.isEmpty) return 'parent';
+    final k = specificKey.toLowerCase().trim();
+
+    // Spouse
+    if (k == 'husband' || k == 'wife' || k == 'spouse') return 'spouse';
+
+    // Step-parent
+    if (k == 'step_father' || k == 'step_mother' ||
+        k == 'stepfather' || k == 'stepmother' ||
+        k == 'step_parent') return 'step_parent';
+
+    // Adoptive parent
+    if (k == 'adoptive_father' || k == 'adoptive_mother' ||
+        k == 'adoptive_parent') return 'adoptive_parent';
+
+    // Everything else (father, mother, parent, son, daughter, child,
+    // brother, sister, sibling, grandfather, grandmother, uncle, aunt,
+    // cousin, nephew, niece, etc.) → 'parent' (the fundamental edge)
+    return 'parent';
+  }
+
   /// Human-readable preview sentence.
   /// Shows "NewPerson will be the [label] of Anchor" — matching the
   /// question "How is newName related to anchor?".
@@ -1136,6 +1179,21 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 //   key: relKey (e.g. 'brother' = newPerson is brother of anchor)
                 debugPrint('[ADD-MEMBER] v94: Creating relationship: from=$resultId (new) to=$linkToPersonId (anchor) key=$relKey');
 
+                // v5.11 FIX: The relationship_fundamental_edge_check DB
+                // constraint ONLY allows 'parent', 'spouse',
+                // 'adoptive_parent', 'step_parent' in the relationshipKey
+                // column. But relKey is a SPECIFIC key like 'father',
+                // 'brother', 'wife' — which would be REJECTED by the
+                // constraint, silently failing the INSERT and leaving
+                // the new person unlinked.
+                //
+                // The fix: map the specific key to the FUNDAMENTAL edge
+                // type for relationshipKey, while keeping the specific
+                // key in labelAtoB (which the viewer-aware RPC uses for
+                // perspective-based label resolution).
+                final fundamentalKey = _mapToFundamentalEdge(relKey);
+                debugPrint('[ADD-MEMBER] v5.11: Mapped $relKey → $fundamentalKey (fundamental edge)');
+
                 // v94 (EDGE BUG FIX): Create the relationship with
                 // `refreshGraph: false` — we do NOT want createRelationship
                 // to clear the graph cache + invalidate the provider here.
@@ -1148,7 +1206,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   familyId: widget.familyId,
                   fromPersonId: resultId,
                   toPersonId: linkToPersonId,
-                  relationshipKey: relKey,
+                  relationshipKey: fundamentalKey,
+                  // v5.11: Pass the SPECIFIC key (e.g. 'father', 'brother')
+                  // as labelAtoB so the viewer-aware RPC can resolve the
+                  // correct perspective label. The relationshipKey column
+                  // only accepts fundamental types ('parent', 'spouse', etc.)
+                  // due to the DB constraint.
+                  specificLabelAtoB: relKey,
                   // v5.3: Pass genders so the inverse edge gets the
                   // correct gender-aware key (e.g. 'son' instead of
                   // 'child'). _selectedGender is the new person's gender.

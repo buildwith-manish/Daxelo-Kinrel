@@ -628,9 +628,12 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
           children: [
             // v5.8: Re-enabled ClaimProfileBanner — shows a prompt when the
             // current user has NOT claimed a Person node in this family.
-            // Without this, unlinked users see the graph from the anchor's
-            // perspective with no indication that they need to claim.
-            if (!viewerIsLinked)
+            // v5.11: SAFETY NET — only show when viewerPersonId is null
+            // (genuinely unlinked). If viewerPersonId resolved to a real
+            // Person, the graph is already showing "You" on their node —
+            // the banner would contradict that. This guard prevents the
+            // banner from ever appearing when the graph is working correctly.
+            if (!viewerIsLinked && viewerPersonId == null)
               ClaimProfileBanner(familyId: widget.familyId),
             // Existing graph widget — expand to fill remaining space
             Expanded(

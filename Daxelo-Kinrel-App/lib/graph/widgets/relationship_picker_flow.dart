@@ -273,6 +273,12 @@ Future<void> showRelationshipPickerFlow({
     relationshipKey = fundamentalKey;
   }
 
+  // v5.11: Map the specific key to a fundamental edge type for the
+  // relationshipKey column (DB constraint only allows parent/spouse/
+  // adoptive_parent/step_parent). The specific key is passed as
+  // specificLabelAtoB so the viewer-aware RPC resolves the correct label.
+  final dbEdgeKey = _mapToFundamentalEdge(relationshipKey);
+
   // Create the relationship
   final messenger = ScaffoldMessenger.maybeOf(context);
   try {
@@ -281,7 +287,8 @@ Future<void> showRelationshipPickerFlow({
       familyId: familyId,
       fromPersonId: sourcePerson.id,
       toPersonId: selectedPerson.id,
-      relationshipKey: relationshipKey,
+      relationshipKey: dbEdgeKey,
+      specificLabelAtoB: relationshipKey, // v5.11: specific label for RPC
       fromPersonGender: sourcePersonRecord.gender,
       toPersonGender: selectedPerson.gender,
     );
@@ -326,4 +333,19 @@ Future<void> showRelationshipPickerFlow({
     );
     onComplete?.call(false);
   }
+}
+
+/// v5.11: Maps a specific kinship key to the fundamental edge type
+/// required by the DB constraint. See add_person_sheet.dart's
+/// _mapToFundamentalEdge for the full documentation.
+String _mapToFundamentalEdge(String? specificKey) {
+  if (specificKey == null || specificKey.isEmpty) return 'parent';
+  final k = specificKey.toLowerCase().trim();
+  if (k == 'husband' || k == 'wife' || k == 'spouse') return 'spouse';
+  if (k == 'step_father' || k == 'step_mother' ||
+      k == 'stepfather' || k == 'stepmother' ||
+      k == 'step_parent') return 'step_parent';
+  if (k == 'adoptive_father' || k == 'adoptive_mother' ||
+      k == 'adoptive_parent') return 'adoptive_parent';
+  return 'parent';
 }

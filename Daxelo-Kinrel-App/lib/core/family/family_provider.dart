@@ -13,6 +13,8 @@ import '../services/supabase_service.dart';
 import '../services/analytics_service.dart';
 import '../services/graph_layout_service.dart';
 import '../viewer/viewer_provider.dart' show viewerPersonIdProvider, invalidateViewerCache; // v5.10
+import '../kinship/automatic_kinship_inference.dart'
+    show inferKinshipEdges, filterExistingEdges; // v5.11
 import '../../graph/interaction/relationship_validation.dart' show validateRelationship, RelationshipValidationException, GraphEditCommand, GraphEditType, graphUndoProvider;
 import '../database/isar_database.dart';
 import '../database/app_database.dart';
@@ -2388,6 +2390,13 @@ Future<FamilyRelationship> createRelationship({
   /// NOTE: Dart disallows underscore-prefixed named parameters, so this
   /// uses a public name even though it's intended for internal use only.
   bool isInverseEdge = false,
+  /// v5.11: The SPECIFIC kinship label for the A→B direction (e.g. 'father',
+  /// 'brother', 'wife'). When provided, this is stored in the `labelAtoB`
+  /// column instead of `relationshipKey` (which must be a fundamental edge
+  /// type due to the `relationship_fundamental_edge_check` DB constraint).
+  /// The trigger will auto-fill `labelBtoA` from the RelationshipInverse
+  /// table. If null, `labelAtoB` defaults to `relationshipKey`.
+  String? specificLabelAtoB,
 }) async {
   final skipValidation = isInverseEdge;
   final client = ref.read(supabaseProvider);
@@ -2564,7 +2573,7 @@ Future<FamilyRelationship> createRelationship({
           'toPersonId': toPersonId,
           'relationshipKey': relationshipKey,
           'relationshipType': relationshipKey,
-          'labelAtoB': relationshipKey, // v5.8: Explicit labelAtoB for viewer RPC
+          'labelAtoB': specificLabelAtoB ?? relationshipKey, // v5.11: Use specific label if provided
           'direction': 'from',
           'isActive': true,
           'customColors': customColors, // v83: null for standard, JSON for custom
@@ -2676,6 +2685,31 @@ Future<FamilyRelationship> createRelationship({
     debugPrint('[CREATE-REL] ⏭️ Skipping inverse creation — $relationshipKey is symmetric (one edge suffices)');
   } else {
     debugPrint('[CREATE-REL] ⏭️ Skipping inverse creation — key "$relationshipKey" has no known inverse.');
+  }
+
+  // v5.11: Run automatic kinship inference — derive implicit relationships
+  // from the new edge + existing graph. e.g. if we just created "Alice is
+  // Bob's sister", infer that Alice should also be connected to Bob's
+  // parents as their daughter, to Bob's grandparents as their granddaughter,
+  // etc. This runs ONLY for forward edges (not inverse edges) to avoid
+  // double-inference.
+  List<String> inferredSummary = [];
+  if (!skipValidation && specificLabelAtoB != null) {
+    try {
+      inferredSummary = await _runKinshipInference(
+        client: client,
+        familyId: familyId,
+        fromPersonId: fromPersonId,
+        toPersonId: toPersonId,
+        labelAtoB: specificLabelAtoB,
+        now: now,
+      );
+      if (inferredSummary.isNotEmpty) {
+        debugPrint('[CREATE-REL] v5.11: Inferred ${inferredSummary.length} additional edges');
+      }
+    } catch (e) {
+      debugPrint('[CREATE-REL] v5.11: Kinship inference failed (non-fatal): $e');
+    }
   }
 
   // 3. Update Family.lastActivityAt
@@ -3464,4 +3498,100 @@ List<FamilyRelationship> _parseRelationshipList(List<dynamic> jsonList) {
   return jsonList
       .map((json) => FamilyRelationship.fromJson(json as Map<String, dynamic>))
       .toList();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v5.11: AUTOMATIC KINSHIP INFERENCE
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Runs the kinship inference engine after a new relationship is created.
+///
+/// Queries the family's persons + existing relationships, calls
+/// inferKinshipEdges(), filters out pairs that already have a relationship,
+/// and bulk-inserts the inferred edges.
+///
+/// Returns a list of human-readable summary strings for the snackbar.
+Future<List<String>> _runKinshipInference({
+  required dynamic client,
+  required String familyId,
+  required String fromPersonId,
+  required String toPersonId,
+  required String labelAtoB,
+  required String now,
+}) async {
+  // 1. Query all persons + relationships in the family
+  final personsData = await client
+      .from('Person')
+      .select('id, name, gender')
+      .eq('familyId', familyId)
+      .isFilter('deletedAt', null)
+      .timeout(const Duration(seconds: 10));
+
+  final relsData = await client
+      .from('Relationship')
+      .select('id, "fromPersonId", "toPersonId", "relationshipKey", "labelAtoB", "isActive"')
+      .eq('familyId', familyId)
+      .timeout(const Duration(seconds: 10));
+
+  final persons = (personsData as List)
+      .map((j) => Person.fromJson(j as Map<String, dynamic>))
+      .toList();
+  final existingRels = (relsData as List)
+      .map((j) => FamilyRelationship.fromJson(j as Map<String, dynamic>))
+      .toList();
+
+  // 2. Run inference
+  final inferred = inferKinshipEdges(
+    newFromPersonId: fromPersonId,
+    newToPersonId: toPersonId,
+    newLabelAtoB: labelAtoB,
+    persons: persons,
+    existingRelationships: existingRels,
+  );
+
+  // 3. Filter out pairs that already have a relationship
+  final newEdges = filterExistingEdges(
+    inferred: inferred,
+    existing: existingRels,
+  );
+
+  if (newEdges.isEmpty) return [];
+
+  // 4. Bulk-insert the inferred edges
+  final summary = <String>[];
+  for (final edge in newEdges) {
+    final fundamentalKey = _mapToFundamentalDbType(edge.labelAtoB);
+    final edgeId = _generateId();
+    try {
+      await client.from('Relationship').insert({
+        'id': edgeId,
+        'familyId': familyId,
+        'fromPersonId': edge.fromPersonId,
+        'toPersonId': edge.toPersonId,
+        'relationshipKey': fundamentalKey,
+        'relationshipType': fundamentalKey,
+        'labelAtoB': edge.labelAtoB,
+        'direction': 'inferred',
+        'isActive': true,
+        'createdAt': now,
+        'updatedAt': now,
+      }).timeout(const Duration(seconds: 5));
+      summary.add('${edge.labelAtoB}: ${edge.reason}');
+      debugPrint('[CREATE-REL] v5.11: Inferred edge: ${edge.fromPersonId} → ${edge.toPersonId} (${edge.labelAtoB})');
+    } catch (e) {
+      debugPrint('[CREATE-REL] v5.11: Inferred edge INSERT failed (non-fatal): $e');
+    }
+  }
+
+  return summary;
+}
+
+/// Maps a specific label to the fundamental DB edge type.
+String _mapToFundamentalDbType(String label) {
+  final k = label.toLowerCase().trim();
+  if (k == 'husband' || k == 'wife' || k == 'spouse') return 'spouse';
+  if (k == 'step_father' || k == 'step_mother' ||
+      k == 'stepfather' || k == 'stepmother') return 'step_parent';
+  if (k == 'adoptive_father' || k == 'adoptive_mother') return 'adoptive_parent';
+  return 'parent';
 }
