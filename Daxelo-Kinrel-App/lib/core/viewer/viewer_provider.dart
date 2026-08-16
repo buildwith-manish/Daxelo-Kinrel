@@ -25,8 +25,72 @@ import '../services/supabase_service.dart';
 /// If neither exists, returns null (user should be prompted to claim).
 ///
 /// Usage:
-///   final viewerId = ref.watch(viewerPersonIdProvider(familyId));
-///   if (viewerId.valueOrNull != null) {
+// ═══════════════════════════════════════════════════════════════════════
+// v5.16: PURE RESOLUTION LOGIC (extracted for testability)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// The result of querying for a linked Person and an anchor Person.
+/// Used by [resolveViewerPersonId] to make a decision without I/O.
+class ViewerQueryResult {
+  const ViewerQueryResult({
+    this.linkedPersonId,
+    this.anchorPersonId,
+    this.anchorLinkedUserId,
+  });
+
+  /// The Person.id where linkedUserId == current auth user (or null if not found).
+  final String? linkedPersonId;
+
+  /// The Person.id where isAnchor == true (or null if not found).
+  final String? anchorPersonId;
+
+  /// The linkedUserId of the anchor person (null if anchor has no link,
+  /// or if the anchor check itself failed).
+  final String? anchorLinkedUserId;
+}
+
+/// Pure function that decides which Person ID to use as the viewer,
+/// given already-fetched query results. NO I/O — fully testable.
+///
+/// Resolution chain (identical to the pre-v5.16 behavior):
+///   1. If [result.linkedPersonId] is non-null → return it (fast path)
+///   2. If [result.anchorPersonId] is non-null AND
+///      [result.anchorLinkedUserId] matches [currentUserId] → return it
+///      (anchor IS the current user — safe fallback)
+///   3. Otherwise → return null (don't show wrong person as "You")
+///
+/// [currentUserId] — the auth user's ID (from Supabase auth).
+///   Null means no authenticated user.
+String? resolveViewerPersonId({
+  required ViewerQueryResult result,
+  required String? currentUserId,
+}) {
+  // Step 1: Linked person found — use it directly
+  if (result.linkedPersonId != null && result.linkedPersonId!.isNotEmpty) {
+    return result.linkedPersonId;
+  }
+
+  // Step 3: Anchor fallback — only if the anchor IS the current user
+  if (result.anchorPersonId != null && result.anchorPersonId!.isNotEmpty) {
+    if (currentUserId != null && result.anchorLinkedUserId == currentUserId) {
+      return result.anchorPersonId;
+    }
+    // Anchor is a different user (or we can't tell) — don't fall back
+    return null;
+  }
+
+  return null;
+}
+
+/// Pure function: determines whether the viewer is "linked" (has an
+/// explicit linkedUserId on their Person node) vs falling back to anchor.
+///
+/// Returns true if [viewerPersonId] is non-null (the viewer resolved
+/// to a real Person), false otherwise. This is the single source of
+/// truth for isViewerLinkedProvider — no separate API call needed.
+bool isViewerLinked(String? viewerPersonId) {
+  return viewerPersonId != null && viewerPersonId.isNotEmpty;
+}
 ///     // Use viewerId as the center of the graph
 ///   }
 final viewerPersonIdProvider =
@@ -126,12 +190,10 @@ final viewerPersonIdProvider =
     }
 
     // Step 3: Fall back to anchor person (legacy)
-    // v5.5: Only fall back to anchor if the current user IS the anchor
-    // (i.e. the family creator). Otherwise, return null so the graph
-    // shows no "You" node instead of showing the WRONG person as "You".
+    // v5.16: Use the pure resolution function for the decision logic.
     final anchorId = await _resolveAnchorPerson(client, familyId);
+    String? anchorLinkedUserId;
     if (anchorId != null) {
-      // Check if the anchor's linkedUserId matches the current user
       try {
         final anchorData = await client
             .from('Person')
@@ -139,25 +201,25 @@ final viewerPersonIdProvider =
             .eq('id', anchorId)
             .maybeSingle()
             .timeout(const Duration(seconds: 5));
-        final anchorLinkedUserId = anchorData?['linkedUserId'] as String?;
-        if (anchorLinkedUserId == userId) {
-          // The anchor IS the current user — safe to use
-          _cacheViewerPersonId(familyId, anchorId);
-          return anchorId;
-        } else {
-          // The anchor is a DIFFERENT user — don't fall back to it.
-          // Return null so no "You" node is shown (better than showing
-          // the wrong person as "You").
-          debugPrint('⚠️ viewerPersonIdProvider: anchor is a different user, not falling back');
-          return null;
-        }
+        anchorLinkedUserId = anchorData?['linkedUserId'] as String?;
       } catch (e) {
         debugPrint('⚠️ viewerPersonIdProvider: anchor link check failed: $e');
-        return null;
       }
     }
 
-    return null;
+    final resolvedId = resolveViewerPersonId(
+      result: ViewerQueryResult(
+        linkedPersonId: null, // Already checked above — null means not found
+        anchorPersonId: anchorId,
+        anchorLinkedUserId: anchorLinkedUserId,
+      ),
+      currentUserId: userId,
+    );
+
+    if (resolvedId != null) {
+      _cacheViewerPersonId(familyId, resolvedId);
+    }
+    return resolvedId;
   },
 );
 
