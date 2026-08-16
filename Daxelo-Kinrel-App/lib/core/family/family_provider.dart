@@ -12,6 +12,7 @@ import '../networking/dio_client.dart';
 import '../services/supabase_service.dart';
 import '../services/analytics_service.dart';
 import '../services/graph_layout_service.dart';
+import '../viewer/viewer_provider.dart' show viewerPersonIdProvider, invalidateViewerCache; // v5.10
 import '../../graph/interaction/relationship_validation.dart' show validateRelationship, RelationshipValidationException, GraphEditCommand, GraphEditType, graphUndoProvider;
 import '../database/isar_database.dart';
 import '../database/app_database.dart';
@@ -3109,6 +3110,15 @@ Future<Family> joinFamilyByCode(WidgetRef ref, String familyCode) async {
   }
 
   ref.invalidate(familyListProvider);
+  // v5.10: Invalidate viewer + graph providers so the joining user's
+  // graph resolves THEIR perspective immediately (not the anchor's).
+  try {
+    invalidateViewerCache(family.id);
+    ref.invalidate(viewerPersonIdProvider(family.id));
+    ref.invalidate(familyGraphProvider(family.id));
+    ref.invalidate(familyDetailProvider(family.id));
+    ref.invalidate(familyMembersProvider(family.id));
+  } catch (_) {}
 
   // Invalidate the Isar cache for the family list
   if (IsarDatabase.isInitialized) {

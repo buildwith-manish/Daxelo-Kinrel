@@ -40,6 +40,8 @@ import '../../../graph/widgets/family_graph_engine_view.dart';
 import '../../../graph/widgets/graph_tutorial_overlay.dart';
 import '../../../graph/widgets/search_bar.dart';
 import '../../../graph/widgets/unlinked_members_sheet.dart'; // v5.9
+import '../../../graph/widgets/relationship_picker_flow.dart'; // v5.10
+import '../../../graph/widgets/graph_relationship_labels.dart' show GraphPersonData; // v5.10
 import 'add_member_options_sheet.dart';
 import 'providers/family_graph_provider.dart'
     show
@@ -736,23 +738,26 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             ref,
             widget.familyId,
             onPersonSelected: (personId, personName) {
-              // Focus the graph on the selected person
-              ref.read(graphFocusProvider.notifier).focus(
-                    personId: personId,
-                    personName: personName,
-                    edges: const [],
-                    currentViewport: null,
-                  );
-              // Show a snackbar guiding the user to connect them
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Focused on $personName — use "Relate to another person" to connect them.',
-                  ),
-                  backgroundColor: KinrelColors.darkCard,
-                  behavior: SnackBarBehavior.floating,
-                  duration: const Duration(seconds: 4),
+              // v5.10: Open the shared relationship picker flow directly
+              // (instead of the old focus+snackbar dead-end). The user
+              // picks ANY other person to connect this unlinked member to.
+              showRelationshipPickerFlow(
+                context: context,
+                ref: ref,
+                familyId: widget.familyId,
+                sourcePerson: GraphPersonData(
+                  id: personId,
+                  name: personName,
                 ),
+                onComplete: (created) {
+                  if (created) {
+                    // Relationship was created — unlinkedPersonIdsProvider
+                    // will reactively update (it watches familyGraphProvider
+                    // which is invalidated by createRelationship).
+                    // If there are still unlinked members, the user can
+                    // tap the button again to see the updated list.
+                  }
+                },
               );
             },
           );

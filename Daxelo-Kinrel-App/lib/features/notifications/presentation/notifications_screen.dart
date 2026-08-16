@@ -29,6 +29,8 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
+import '../../../core/viewer/viewer_provider.dart'
+    show viewerPersonIdProvider, invalidateViewerCache; // v5.10
 import '../../family/presentation/providers/family_graph_provider.dart'
     show familyGraphProvider;
 import '../../thinking/presentation/family_ring_widget.dart'
@@ -553,6 +555,10 @@ class _NotificationItem extends ConsumerWidget {
         //   • familyDetailProvider → Family Space (members tab, stats)
         //   • familyMembersProvider → "Who are you thinking of?" + Members list
         //   • familyGraphProvider → Family Graph (new Person node appears)
+        //   • viewerPersonIdProvider → v5.10: CRITICAL — must invalidate so
+        //     the graph resolves the NEW viewer (the just-accepted invitee)
+        //     instead of falling back to the anchor. Without this, the
+        //     ClaimProfileBanner shows until a manual refresh/restart.
         try {
           ref.invalidate(familyListProvider);
           ref.invalidate(familyDetailProvider(familyId));
@@ -562,6 +568,14 @@ class _NotificationItem extends ConsumerWidget {
           // by the "Who are you thinking of?" section so newly accepted
           // members appear instantly.
           ref.invalidate(familyKinrelMembersProvider(familyId));
+          // v5.10: Invalidate viewerPersonIdProvider + viewer cache so the
+          // invitee's newly-linked Person node is picked up immediately.
+          // The fn_accept_family_invite RPC creates a Person with
+          // linkedUserId set via the family_membership_sync trigger —
+          // but if we don't invalidate this provider, the graph keeps
+          // showing the old (anchor) viewer perspective.
+          invalidateViewerCache(familyId);
+          ref.invalidate(viewerPersonIdProvider(familyId));
         } catch (_) {}
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
