@@ -2563,6 +2563,7 @@ Future<FamilyRelationship> createRelationship({
           'toPersonId': toPersonId,
           'relationshipKey': relationshipKey,
           'relationshipType': relationshipKey,
+          'labelAtoB': relationshipKey, // v5.8: Explicit labelAtoB for viewer RPC
           'direction': 'from',
           'isActive': true,
           'customColors': customColors, // v83: null for standard, JSON for custom

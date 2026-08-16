@@ -334,16 +334,18 @@ Future<String?> _resolveViewerMemberId(
   SupabaseClient client,
   String familyId,
 ) async {
-  // 1. Try viewerPersonIdProvider first (v2.2 path).
+  // v5.8: Viewer-FIRST and ONLY. Do NOT fall back to the anchor person.
+  // The anchor fallback was the root cause of the graph always rendering
+  // from the family creator's perspective, even when a different user was
+  // logged in. When no viewer is linked, return null — the graph will
+  // show no "You" node and no perspective labels (better than wrong ones).
   try {
     final viewerAsync = await ref.read(viewerPersonIdProvider(familyId).future);
-    if (viewerAsync != null) return viewerAsync;
+    return viewerAsync;
   } catch (e) {
     debugPrint('[_resolveViewerMemberId] viewer lookup failed: $e');
+    return null;
   }
-
-  // 2. Legacy fallback: anchor person → first person.
-  return _resolveAnchorMemberId(client, familyId);
 }
 
 /// Looks up the anchor person ID for [familyId] from the Person table.
@@ -1321,9 +1323,12 @@ final graphLayoutProvider =
   final graphRelationships =
       relationships.map((r) => r.toGraphRelationship()).toList();
 
-  // v2.2: Center the layout on the VIEWER's node (not the legacy anchor).
-  // Falls back to the anchor → first person only when the viewer cannot
-  // be resolved (e.g., user not yet linked, offline without cache).
+  // v5.8: Center the layout on the VIEWER's node ONLY.
+  // If no viewer is resolved, fall back to anchor → first person.
+  // This is the ONLY acceptable anchor fallback: it affects only the
+  // LAYOUT center point, NOT the perspective labels or "You" node.
+  // (Perspective labels are computed in subtree_mixin.dart which is
+  // viewer-only with NO anchor fallback.)
   final viewerId = ref.read(viewerPersonIdProvider(familyId)).valueOrNull;
   final PersonData centerPerson;
   if (viewerId != null) {
@@ -1331,15 +1336,14 @@ final graphLayoutProvider =
     if (match != null) {
       centerPerson = match;
     } else {
-      // Viewer ID resolved but not present in the fetched persons set
-      // (rare — could be a stale cache). Fall back to anchor.
+      // Viewer ID resolved but not in fetched set — fall back to anchor.
       centerPerson = persons.firstWhere(
         (p) => p.isAnchor,
         orElse: () => persons.first,
       );
     }
   } else {
-    // No viewer resolved yet — use legacy anchor centering.
+    // No viewer resolved — center on anchor (layout only, not perspective).
     centerPerson = persons.firstWhere(
       (p) => p.isAnchor,
       orElse: () => persons.first,

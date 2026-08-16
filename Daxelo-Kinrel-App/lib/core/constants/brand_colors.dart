@@ -54,8 +54,9 @@ class KinrelColors {
   static const Color inLawGold = Color(0xFFD4AF37);
 
   // ── Relationship-Based Node Color System (V2.1 Blueprint §11) ───
-  /// Self — Teal #0D9488, teal glow + pulse animation
-  static const Color nodeSelf = Color(0xFF0D9488);
+  /// Self — Green #16A34A, green glow + pulse animation
+  /// v5.8: Changed from Teal #0D9488 to Green #16A34A per user request.
+  static const Color nodeSelf = Color(0xFF16A34A);
 
   /// Parent — Blue #3B82F6, blue tint 4%
   static const Color nodeParent = Color(0xFF3B82F6);

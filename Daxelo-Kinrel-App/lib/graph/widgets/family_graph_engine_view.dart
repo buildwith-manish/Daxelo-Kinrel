@@ -625,8 +625,12 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         // space with the banner gone.
         return Column(
           children: [
-            // v4.9: ClaimProfileBanner removed — no longer rendered regardless
-            // of claim status. The Expanded below now fills the full height.
+            // v5.8: Re-enabled ClaimProfileBanner — shows a prompt when the
+            // current user has NOT claimed a Person node in this family.
+            // Without this, unlinked users see the graph from the anchor's
+            // perspective with no indication that they need to claim.
+            if (!viewerIsLinked)
+              ClaimProfileBanner(familyId: widget.familyId),
             // Existing graph widget — expand to fill remaining space
             Expanded(
               child: Stack(

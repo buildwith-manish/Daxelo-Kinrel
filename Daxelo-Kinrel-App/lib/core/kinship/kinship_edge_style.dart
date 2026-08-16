@@ -4,7 +4,7 @@
 //
 // Single source of truth for the 10-category edge styling system used by
 // every graph painter in the app:
-//   1. Self             — Teal    #0D9488  (node ring only, never on edges)
+//   1. Self             — Green   #16A34A  (node ring only, never on edges)
 //   2. Parent / Child   — Blue    #3B82F6  (parent)  /  Pink #EC4899 (child)
 //   3. Sibling          — Purple  #8B5CF6  (dashed arc above)
 //   4. Spouse           — Orange  #F97316  edge + Pink heart #EC4899
@@ -207,8 +207,9 @@ class KinshipEdgeStyle {
 class KinshipEdgeColors {
   KinshipEdgeColors._();
 
-  /// Self — Teal #0D9488 (node ring only).
-  static const Color self = Color(0xFF0D9488);
+  /// Self — Green #16A34A (node ring only).
+  /// v5.8: Changed from Teal #0D9488 to Green #16A34A per user request.
+  static const Color self = Color(0xFF16A34A);
 
   /// Parent — Blue #3B82F6.
   static const Color parent = Color(0xFF3B82F6);
