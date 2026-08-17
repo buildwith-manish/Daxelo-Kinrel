@@ -129,10 +129,18 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     // We do this in initState via ref.listenToSelf so the listener
     // is wired once and survives rebuilds. The listener callback runs
     // AFTER the provider changes — `previous` is the prior value.
+    //
+    // NOTE: Riverpod's listenManual callback types the state as `bool?`
+    // (nullable) to support providers that may be in a loading/error
+    // state. StateProvider<bool> never actually emits null — but the
+    // static type is still bool?, so we use `next == true` /
+    // `previous == true` instead of the bare bool operators.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.listenManual(rearrangeModeProvider, (previous, next) {
-        if (next && !previous) {
+        final turnedOn = next == true && previous != true;
+        final turnedOff = next != true;
+        if (turnedOn) {
           // Just turned ON — show banner + arm auto-hide.
           _showRearrangeBanner = true;
           _rearrangeBannerTimer?.cancel();
@@ -146,7 +154,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           );
           // Trigger a rebuild so the banner appears immediately.
           setState(() {});
-        } else if (!next) {
+        } else if (turnedOff) {
           // Turned OFF — cancel any pending auto-hide + hide banner
           // immediately (so it doesn't linger if the user exits
           // before the 4s timer fires).
@@ -863,10 +871,15 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     // Rearrange mode is ON — check if the viewer has any saved
     // overrides. If yes, also show the Reset All button next to the
     // toggle.
+    //
+    // NOTE: PersonalLayoutOverrides.empty is a static const FIELD on
+    // the PersonalLayoutOverrides class (declared as
+    // `static const empty = PersonalLayoutOverrides();`), not a
+    // constructor. So we use it WITHOUT parens.
     final saved = ref
             .watch(personalLayoutOverridesProvider(widget.familyId))
             .valueOrNull ??
-        const PersonalLayoutOverrides.empty();
+        PersonalLayoutOverrides.empty;
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
