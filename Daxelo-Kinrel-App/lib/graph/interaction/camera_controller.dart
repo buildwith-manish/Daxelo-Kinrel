@@ -923,14 +923,17 @@ class CameraController extends ChangeNotifier {
       _scheduleSave();
       notifyListeners();
     } else {
-      // Smooth animated transition to the default zoom + centered
-      // focus node.
+      // v5.28 Fix 4b: Smooth animated transition to the default zoom
+      // + centered focus node. Changed from 500ms easeInOut (sluggish)
+      // to 220ms easeOutCubic — feels instant but still has polish.
+      // easeOutCubic snaps into position fast (front-loaded accel),
+      // unlike easeInOut which is symmetric and feels sluggish.
       animateTo(
         targetPanX,
         targetPanY,
         targetZoom,
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeInOut,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
       );
     }
   }

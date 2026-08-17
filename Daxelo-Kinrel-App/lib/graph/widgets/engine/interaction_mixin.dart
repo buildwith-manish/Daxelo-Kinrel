@@ -908,15 +908,19 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       _handleRearrangeDragEnd(details, layout);
       return;
     }
+    // In rearrange mode, if no drag was active (user long-pressed but
+    // the pan recognizer stole the gesture), just clear and do nothing.
+    // Never open QuickActions or compare flow while rearranging.
+    final isRearranging = ref.read(rearrangeModeProvider);
+    if (isRearranging) return;
+
     final fromId = _compareDragFromId;
     if (fromId == null) return;
 
-    // Clear the drag state first so the visual line disappears.
     final dragFromId = fromId;
     _compareDragFromId = null;
     setState(() {});
 
-    // Hit-test the release position.
     final toId = _hitTestNode(details.localPosition, layout);
 
     if (toId != null && toId != dragFromId) {
@@ -1178,6 +1182,13 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   /// clears the live override map (the saved overrides now reflect it)
   /// and hides the pill.
   Future<void> _handleRearrangeSave() async {
+    // v5.28 Fix 3: Hide the pill immediately so the user gets instant
+    // feedback and can't double-tap Save. The actual persist is async
+    // below — but the UI already dismisses the pill so there's no
+    // temptation to tap again, and no race window where a second tap
+    // could trigger a duplicate save.
+    _rearrangePillVisible = false;
+    setState(() {});
     final kind = _rearrangePillKind;
     final id = _rearrangePillId;
     if (kind == null || id == null) {

@@ -1263,6 +1263,19 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     final focusPosition = layout.positions[focusId];
     if (focusPosition == null) return;
 
+    // v5.28 Fix 4a: Clear ALL personal layout overrides so positions
+    // snap back to auto-layout instantly — no stale saved positions
+    // remain. Without this clear, the reset animation + resetView
+    // would center on the anchor's auto-layout position, which may
+    // differ from where it's currently visually displayed if overrides
+    // exist. Clearing the live override maps ensures the next build's
+    // effectivePositions uses pure auto-layout for every node + edge,
+    // so the anchor position passed to resetView matches what's
+    // rendered on screen.
+    _rearrangeLiveNodeOverrides = const {};
+    _rearrangeLiveEdgeWaypoints = const {};
+    _rearrangeDragRevision++;
+
     final bool reduced = MediaQuery.disableAnimationsOf(context);
     _camera.resetView(
       focusNodePosition: focusPosition,

@@ -807,7 +807,33 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             // impossible on both web and app.
             behavior: HitTestBehavior.translucent,
             onScaleStart: _onScaleStart,
-            onScaleUpdate: _onScaleUpdate,
+            // v5.28 Fix 2: In rearrange mode, if a node drag is in
+            // progress, route pan movement to the node drag updater
+            // instead of the camera. On Flutter Web the scale recognizer
+            // competes with long-press — when the user tries to drag a
+            // node, onLongPressStart fires only after the minimum
+            // long-press duration, during which the canvas pan gesture
+            // fires first and steals focus. This closure intercepts
+            // onScaleUpdate when a rearrange node drag is active so the
+            // node moves instead of the canvas panning.
+            onScaleUpdate: (details) {
+              final isRearranging = ref.read(rearrangeModeProvider);
+              if (isRearranging &&
+                  _rearrangeDragId != null &&
+                  _rearrangeDragKind == 'node') {
+                // Convert the scale focal point to graph space and
+                // move the dragged node there.
+                final graphPos = _screenToGraphSpace(details.focalPoint);
+                final newMap =
+                    Map<String, Offset>.from(_rearrangeLiveNodeOverrides);
+                newMap[_rearrangeDragId!] = graphPos;
+                _rearrangeLiveNodeOverrides = newMap;
+                _rearrangeDragRevision++;
+                setState(() {});
+                return;
+              }
+              _onScaleUpdate(details);
+            },
             onScaleEnd: _onScaleEnd,
             // v72 FIX: Add onTapDown + onLongPress for geometric node
             // hit-testing. The parent ScaleGestureRecognizer competes
