@@ -98,6 +98,63 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           ..._rearrangeLiveEdgeWaypoints,
         };
 
+        // v5.30 Issue 2: Load animation lerp.
+        //
+        // On first render with non-empty saved overrides, animate every
+        // node from its auto-layout origin to its saved override
+        // position over ~500ms easeOutCubic. This prevents the "snap or
+        // flash" where nodes briefly appear at auto-layout before
+        // jumping to saved positions.
+        //
+        // The lerp is FROM layout.positions (auto-layout) TO
+        // effectivePositions (which includes saved overrides + live drag
+        // overrides). At progress=0, all nodes are at auto-layout. At
+        // progress=1, nodes with overrides are at their saved positions
+        // and nodes without overrides stay at auto-layout (unchanged).
+        //
+        // Edges redraw automatically each frame since they derive paths
+        // from positions (no separate edge animation needed).
+        //
+        // The _hasPlayedLoadAnimation one-time flag (set in
+        // _maybeStartLoadAnimation) ensures this only fires once per
+        // session load, not on every rebuild.
+        //
+        // Reduced-motion: _maybeStartLoadAnimation never sets
+        // _animatingLoad=true if reduced motion is active, so this block
+        // is a no-op.
+        if (_animatingLoad && _loadController != null) {
+          final rawProgress = _loadController!.value.clamp(0.0, 1.0);
+          // easeOutCubic: 1 - (1 - t)^3
+          final easedProgress = 1.0 -
+              (1.0 - rawProgress) *
+                  (1.0 - rawProgress) *
+                  (1.0 - rawProgress);
+          // Lerp from auto-layout (layout.positions) to effectivePositions
+          // (which already includes saved overrides). Nodes without saved
+          // overrides lerp from themselves to themselves (no visible
+          // change), which is correct.
+          final lerpedLoadPositions = <String, Offset>{};
+          for (final entry in effectivePositions.entries) {
+            final auto = layout.positions[entry.key];
+            if (auto != null) {
+              lerpedLoadPositions[entry.key] = Offset(
+                auto.dx * (1.0 - easedProgress) +
+                    entry.value.dx * easedProgress,
+                auto.dy * (1.0 - easedProgress) +
+                    entry.value.dy * easedProgress,
+              );
+            } else {
+              lerpedLoadPositions[entry.key] = entry.value;
+            }
+          }
+          effectivePositions
+            ..clear()
+            ..addAll(lerpedLoadPositions);
+          // Edge waypoints don't need lerp during load — they start at
+          // their saved values (no "from" state to lerp from, since the
+          // user hasn't dragged anything yet on first load).
+        }
+
         // v5.27 Task 1: Reset animation lerp.
         //
         // If a reset animation is in progress (_animatingReset is true),

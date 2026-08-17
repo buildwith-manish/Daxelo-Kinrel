@@ -506,6 +506,21 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // has been populated enough to start the trace.
   List<String> _connectOnOpenOrderedEdgeIds = const [];
 
+  // ── v5.30 Issue 2 — Load animation for saved node overrides ──────
+  //
+  // When the graph first renders with personalLayoutOverridesProvider
+  // returning non-empty node positions, any node that has a saved
+  // override animates from its auto-layout origin to its saved
+  // position over ~500ms using easeOutCubic. Same pattern as
+  // _maybeStartConnectOnOpen (one-time flag, deferred-first-render).
+  //
+  // This prevents the "snap or flash" where the node briefly appears
+  // at the auto-layout position before jumping to the saved position.
+  // Instead, the node smoothly animates from auto-layout → saved.
+  AnimationController? _loadController;
+  bool _animatingLoad = false;
+  bool _hasPlayedLoadAnimation = false;
+
   @override
   void initState() {
     super.initState();
@@ -530,6 +545,16 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     );
     _resetController!.addStatusListener(_onResetAnimationStatus);
     _resetController!.addListener(_onResetAnimationTick);
+
+    // v5.30 Issue 2: Load animation controller for saved node overrides.
+    // 500ms easeOutCubic — animates nodes from their auto-layout origin
+    // to their saved override position on first render.
+    _loadController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _loadController!.addStatusListener(_onLoadAnimationStatus);
+    _loadController!.addListener(_onLoadAnimationTick);
     // v5.27 Task 1: watch the reset trigger counter — bumped by
     // LayoutOverridesService before each reset DB write. We use
     // ref.listenManual (not watch) so we run a callback on change
@@ -648,6 +673,11 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _connectOnOpenController?.detach();
     _connectOnOpenController?.dispose();
     _connectOnOpenController = null;
+    // v5.30 Issue 2: dispose the load animation controller.
+    _loadController?.removeStatusListener(_onLoadAnimationStatus);
+    _loadController?.removeListener(_onLoadAnimationTick);
+    _loadController?.dispose();
+    _loadController = null;
     super.dispose();
   }
 
@@ -856,6 +886,58 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     }
   }
 
+  // ── v5.30 Issue 2 — Load animation callbacks ────────────────────
+
+  void _onLoadAnimationTick() {
+    if (!mounted) return;
+    // Bump the per-frame revision so the EdgeSelectionWrapper's
+    // layoutRevision changes and the painter repaints (same pattern
+    // as the reset animation tick).
+    _rearrangeDragRevision++;
+    setState(() {});
+  }
+
+  void _onLoadAnimationStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    if (!mounted) return;
+    _animatingLoad = false;
+    setState(() {});
+  }
+
+  /// v5.30 Issue 2: On first render with non-empty saved overrides,
+  /// start a load animation that lerps every node from its auto-layout
+  /// origin to its saved override position over ~500ms easeOutCubic.
+  /// Uses a one-time _hasPlayedLoadAnimation flag (same pattern as
+  /// _hasPlayedConnectOnOpen) so it only fires once per session load.
+  ///
+  /// The animation is driven by the canvas_mixin's effectivePositions
+  /// computation: when _animatingLoad is true, it lerps from
+  /// layout.positions (auto-layout) to effectivePositions (which
+  /// includes saved overrides) by _loadController.value.
+  void _maybeStartLoadAnimation(PersonalLayoutOverrides savedOverrides) {
+    if (_hasPlayedLoadAnimation) return;
+    // Only start when saved overrides are non-empty (otherwise there's
+    // nothing to animate to — all nodes are already at auto-layout).
+    if (savedOverrides.isEmpty) {
+      // Mark as played so we don't keep checking on every rebuild.
+      // If overrides are saved LATER (via a drag+Save), they'll just
+      // snap into place on the next render — no load animation for
+      // mid-session saves, only on initial graph load.
+      _hasPlayedLoadAnimation = true;
+      return;
+    }
+    _hasPlayedLoadAnimation = true;
+    // Reduced-motion: skip the animation entirely.
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    if (reduced) {
+      _animatingLoad = false;
+      return;
+    }
+    _animatingLoad = true;
+    _loadController?.forward(from: 0.0);
+    setState(() {});
+  }
+
   /// Rebuild content ONLY when the visible set or LOD tier would change.
   /// Otherwise the AnimatedBuilder pans/zooms the Transform layer for free.
   void _onCameraChanged() {
@@ -1034,6 +1116,11 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         // _hasPlayedConnectOnOpen flag is a one-time gate — subsequent
         // rebuilds (pan/zoom/new members) won't re-trigger.
         _maybeStartConnectOnOpen(flat, viewerPersonId);
+        // v5.30 Issue 2: Kick off the load animation for saved node
+        // overrides on the FIRST render where savedOverrides is non-empty.
+        // The _hasPlayedLoadAnimation flag is a one-time gate — subsequent
+        // rebuilds won't re-trigger.
+        _maybeStartLoadAnimation(savedOverrides);
         // Wrap the graph in a Column so the graph expands to fill the space.
         // v4.9: Removed the ClaimProfileBanner — it's no longer rendered here.
         // The claim_profile_banner.dart file is left in place (unused) in case

@@ -1243,6 +1243,25 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       if (pos != null) {
         await LayoutOverridesService.saveNodeOverride(
             ref, widget.familyId, id, pos);
+        // v5.30 Issue 1: Wait for the provider to re-fetch and emit
+        // the new persisted value (which includes this node's saved
+        // override) BEFORE removing the live override entry. This
+        // prevents the one-frame gap where neither the saved override
+        // nor the live override is present, which would cause the node
+        // to visually snap back to its auto-layout position.
+        //
+        // Without this await: saveNodeOverride calls
+        // ref.invalidate(personalLayoutOverridesProvider) which starts
+        // an async re-fetch. The await for saveNodeOverride returns
+        // after the DB upsert + invalidate call (NOT after the re-fetch
+        // completes). Then we immediately remove the live override —
+        // but the provider's re-fetch may not have resolved yet, so
+        // the canvas reads PersonalLayoutOverrides.empty for one frame
+        // (or longer), and the node snaps back. The user sees this as
+        // a "cancel," taps Save again, and this time the provider has
+        // resolved so it holds.
+        await ref.read(
+            personalLayoutOverridesProvider(widget.familyId).future);
       }
       final newMap = Map<String, Offset>.from(_rearrangeLiveNodeOverrides);
       newMap.remove(id);
@@ -1252,6 +1271,13 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       if (delta != null) {
         await LayoutOverridesService.saveEdgeWaypoint(
             ref, widget.familyId, id, delta);
+        // v5.30 Issue 1: Same fix as for nodes above — wait for the
+        // provider to resolve with the new persisted edge waypoint
+        // BEFORE removing the live override entry. Prevents the curve
+        // from visually snapping back to the default midpoint during
+        // the async gap between invalidate and re-fetch completion.
+        await ref.read(
+            personalLayoutOverridesProvider(widget.familyId).future);
       }
       final newMap = Map<String, Offset>.from(_rearrangeLiveEdgeWaypoints);
       newMap.remove(id);
