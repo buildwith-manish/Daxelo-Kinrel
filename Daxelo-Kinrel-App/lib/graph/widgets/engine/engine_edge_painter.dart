@@ -58,6 +58,10 @@ class EngineEdgePainter extends CustomPainter {
     this.traceActive = false,
     this.completedTraceEdgeIds,
     this.edgeWaypoints = const {},
+    this.connectOnOpenActive = false,
+    this.connectOnOpenCurrentEdgeId,
+    this.connectOnOpenProgress = 0.0,
+    this.connectOnOpenRevealedEdgeIds = const <String>{},
   });
 
   final Map<String, Offset> positions;
@@ -120,6 +124,20 @@ class EngineEdgePainter extends CustomPainter {
   /// must never call createRelationship/updateRelationship/
   /// deleteRelationship — see _handleRearrangeDragUpdate assertion.
   final Map<String, Offset> edgeWaypoints;
+
+  /// v5.27 Task 2: Connect-on-open animation state. While true, the
+  /// painter HIDES non-revealed edges (alpha=0) instead of dimming
+  /// them. The current edge fades in over its time slot using
+  /// [connectOnOpenProgress]. Revealed edges (in
+  /// [connectOnOpenRevealedEdgeIds]) are drawn at full alpha.
+  ///
+  /// Reuses the EXISTING GraphPathTraceController's state shape —
+  /// the painter interprets these with fade-in semantics instead of
+  /// the existing sweep semantics when [connectOnOpenActive] is true.
+  final bool connectOnOpenActive;
+  final String? connectOnOpenCurrentEdgeId;
+  final double connectOnOpenProgress;
+  final Set<String> connectOnOpenRevealedEdgeIds;
 
   // ── Path construction ─────────────────────────────────────────────────
 
@@ -397,10 +415,39 @@ class EngineEdgePainter extends CustomPainter {
       final double pathFocusBoost =
           (isPathFocused || isCompletedTrace) ? 0.10 : 0.0;
 
-      // Final alpha after relationship-focus dimming + path-focus boost.
-      final double effectiveAlpha = isDimmed
-          ? (edgeAlpha * dimAlpha).clamp(0.0, 1.0)
-          : (edgeAlpha + pathFocusBoost).clamp(0.0, 1.0);
+      // v5.27 Task 2: Connect-on-open animation.
+      //
+      // While connectOnOpenActive is true, the painter HIDES non-revealed
+      // edges (alpha=0) instead of dimming them. The current edge fades
+      // in from alpha=0 to its normal effectiveAlpha over its time slot
+      // using connectOnOpenProgress (0..1). Revealed edges (in
+      // connectOnOpenRevealedEdgeIds) are drawn at their full effectiveAlpha.
+      //
+      // This is the SAME pattern as the existing path-trace fade (the
+      // painter already knows how to apply per-edge alpha multipliers)
+      // — we just add a new branch for the connect-on-open case.
+      double connectOnOpenAlpha = 1.0;
+      if (connectOnOpenActive) {
+        if (connectOnOpenRevealedEdgeIds.contains(e.id)) {
+          // Already revealed — full alpha.
+          connectOnOpenAlpha = 1.0;
+        } else if (e.id == connectOnOpenCurrentEdgeId) {
+          // Currently fading in — interpolate from 0 to 1.
+          connectOnOpenAlpha = connectOnOpenProgress.clamp(0.0, 1.0);
+        } else {
+          // Not yet started — completely hidden.
+          connectOnOpenAlpha = 0.0;
+        }
+      }
+
+      // Final alpha after relationship-focus dimming + path-focus boost
+      // + connect-on-open fade-in multiplier.
+      final double effectiveAlpha = connectOnOpenAlpha == 0.0
+          ? 0.0
+          : ((isDimmed
+                  ? (edgeAlpha * dimAlpha).clamp(0.0, 1.0)
+                  : (edgeAlpha + pathFocusBoost).clamp(0.0, 1.0)) *
+              connectOnOpenAlpha).clamp(0.0, 1.0);
 
       // ── DOT LOD: minimal stroke only ──────────────────────────────
       // No blur, no ridge, no sweep. Selected edges get a slightly
@@ -1221,7 +1268,14 @@ class EngineEdgePainter extends CustomPainter {
         old.traceActive != traceActive ||
         old.traceEdgeId != traceEdgeId ||
         (traceActive && old.traceProgress != traceProgress) ||
-        !_sameSet(old.completedTraceEdgeIds, completedTraceEdgeIds);
+        !_sameSet(old.completedTraceEdgeIds, completedTraceEdgeIds) ||
+        // v5.27 Task 2: connect-on-open animation changes
+        old.connectOnOpenActive != connectOnOpenActive ||
+        old.connectOnOpenCurrentEdgeId != connectOnOpenCurrentEdgeId ||
+        (connectOnOpenActive &&
+            old.connectOnOpenProgress != connectOnOpenProgress) ||
+        !_sameSet(old.connectOnOpenRevealedEdgeIds,
+            connectOnOpenRevealedEdgeIds);
   }
 
   /// Lightweight dimmed-set comparison. We do NOT deep-compare element

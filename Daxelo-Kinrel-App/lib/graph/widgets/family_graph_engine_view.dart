@@ -171,12 +171,14 @@ import 'engine/viewer_linked_provider.dart' show isViewerLinkedProvider;
 
 // v5.22: Personal layout overrides + Rearrange-mode toggle.
 // Both consumed by the canvas mixin and the interaction mixin.
+// v5.27 Task 1: also imports resetAnimationTriggerProvider.
 import '../rearrange/layout_overrides_service.dart'
     show
         LayoutOverridesService,
         PersonalLayoutOverrides,
         personalLayoutOverridesProvider,
-        rearrangeModeProvider;
+        rearrangeModeProvider,
+        resetAnimationTriggerProvider;
 import '../rearrange/save_lock_pill.dart' show SaveLockPill;
 
 // ── P0.4: Extracted parts (MUST come after all imports) ────────────────
@@ -227,7 +229,7 @@ class FamilyGraphEngineView extends ConsumerStatefulWidget {
       _FamilyGraphEngineViewState();
 }
 class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
- {
+    with TickerProviderStateMixin {
   /// Bounding box used for culling + node placement (circle + label).
   static const Size _kNodeSize = Size(140, 176);
 
@@ -444,6 +446,66 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// only the VALUES of overridden positions change.
   int _rearrangeDragRevision = 0;
 
+  // ── v5.27 Task 1 — Reset animation state ──────────────────────────
+  //
+  // When a reset (resetAllOverrides / removeNodeOverride /
+  // removeEdgeWaypoint) is triggered, LayoutOverridesService bumps
+  // resetAnimationTriggerProvider BEFORE the DB write + provider
+  // invalidation. We watch that counter via ref.listen in initState;
+  // on increment we capture the CURRENT effectivePositions (which
+  // still includes saved overrides + live drag overrides — the "from"
+  // state of the lerp) into _preResetPositions / _preResetEdgeWaypoints
+  // and start a 350ms easeOutCubic animation.
+  //
+  // On each tick the canvas_mixin computes:
+  //   effectivePositions =
+  //     lerp(_preResetPositions, layout.positions, _resetProgress)
+  //   effectiveEdgeWaypoints =
+  //     lerp(_preResetEdgeWaypoints, {}, _resetProgress)
+  // (Edges redraw automatically each frame since they derive paths
+  // from node positions.)
+  //
+  // On complete: clear _preResetPositions + _preResetEdgeWaypoints so
+  // effectivePositions falls back to the auto-layout (which is the
+  // post-reset state, with savedOverrides empty).
+  //
+  // Reduced-motion: if MediaQuery.disableAnimationsOf(context) is
+  // true at trigger time, skip the animation — clear the pre-reset
+  // snapshots immediately so the canvas snaps to pure auto-layout.
+  //
+  // Single shared AnimationController (NOT one per node — that's the
+  // expensive mistake to avoid on low-end devices). The lerp is cheap
+  // (simple Offset math per node, no re-running the layout engine per
+  // frame). Duration is 350ms flat regardless of how many nodes are
+  // resetting at once — so resetting a 50-person tree feels just as
+  // snappy as resetting 2 nodes.
+  AnimationController? _resetController;
+  Map<String, Offset>? _preResetPositions;
+  Map<String, Offset>? _preResetEdgeWaypoints;
+  bool _animatingReset = false;
+  int _lastResetTriggerValue = 0;
+
+  // ── v5.27 Task 2 — Connect-on-open animation state ───────────────
+  //
+  // On first graph load for a session, we animate edges appearing
+  // progressively outward from the viewer's anchor node. Reuses the
+  // EXISTING GraphPathTraceController (one AnimationController +
+  // orderedEdgeIds + per-edge duration scaling 320/250/180ms with
+  // 2200ms cap) — we just instantiate a SECOND controller for
+  // connect-on-open and add a painter flag to interpret
+  // currentEdgeId+traceProgress as fade-in alpha (vs the existing
+  // sweep semantics).
+  //
+  // The _hasPlayedConnectOnOpen flag is a one-time gate — only runs
+  // on the FIRST render after opening the graph screen, never on
+  // subsequent rebuilds/pan/zoom.
+  GraphPathTraceController? _connectOnOpenController;
+  bool _hasPlayedConnectOnOpen = false;
+  // The ordered edge IDs (BFS from viewer anchor) we last kicked off
+  // a connect-on-open trace for. Used to detect when flat.relationships
+  // has been populated enough to start the trace.
+  List<String> _connectOnOpenOrderedEdgeIds = const [];
+
   @override
   void initState() {
     super.initState();
@@ -458,6 +520,43 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     );
     _expandCollapse =
         ExpandCollapseController(const ExpandCollapseState());
+
+    // v5.27 Task 1: reset animation controller. 350ms easeOutCubic,
+    // flat duration regardless of how many nodes are resetting.
+    // Reduced-motion is checked at trigger time in _onResetTrigger.
+    _resetController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+    _resetController!.addStatusListener(_onResetAnimationStatus);
+    _resetController!.addListener(_onResetAnimationTick);
+    // v5.27 Task 1: watch the reset trigger counter — bumped by
+    // LayoutOverridesService before each reset DB write. We use
+    // ref.listenManual (not watch) so we run a callback on change
+    // WITHOUT triggering a rebuild (the rebuild happens naturally
+    // when the provider invalidation fires next frame).
+    //
+    // We can't call ref.listenManual directly in initState because the
+    // widget isn't fully built yet (ref isn't ready). Use postFrame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.listenManual(resetAnimationTriggerProvider, (previous, next) {
+        if (next != null && next > _lastResetTriggerValue) {
+          _lastResetTriggerValue = next;
+          _onResetTrigger();
+        }
+      });
+    });
+
+    // v5.27 Task 2: connect-on-open animation controller. Reuses
+    // the EXISTING GraphPathTraceController pattern (one
+    // AnimationController + orderedEdgeIds + per-edge duration scaling
+    // 320/250/180ms with 2200ms cap). We add a painter flag
+    // (connectOnOpenActive) so the painter interprets
+    // currentEdgeId+traceProgress as fade-in alpha instead of the
+    // existing sweep semantics.
+    _connectOnOpenController = GraphPathTraceController()..attach(this);
+    _connectOnOpenController!.addListener(_onConnectOnOpenTick);
 
     // v62: Start periodic telemetry — log edge cache + cull stats every
     // 30 seconds so we can monitor production performance.
@@ -506,6 +605,13 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       ref.read(graphUndoProvider.notifier).clearAll();
       _lastEdgeFingerprint = 0;
       _lastFocusedPersonId = null;
+      // v5.27 Task 2: reset the connect-on-open flag on family switch
+      // so the new family's graph plays the connect-on-open animation
+      // from scratch. Also stop any in-flight trace from the previous
+      // family.
+      _hasPlayedConnectOnOpen = false;
+      _connectOnOpenOrderedEdgeIds = const [];
+      _connectOnOpenController?.reset();
     }
     // v62/v107: Re-center when recenterKey changes (Center on Root /
     // Reset View button). v107 changes this from the old fitToView
@@ -532,7 +638,222 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _culler.dispose();
     _expandCollapse.dispose();
     _positionMemory.dispose();
+    // v5.27 Task 1: dispose the reset animation controller.
+    _resetController?.removeStatusListener(_onResetAnimationStatus);
+    _resetController?.removeListener(_onResetAnimationTick);
+    _resetController?.dispose();
+    _resetController = null;
+    // v5.27 Task 2: dispose the connect-on-open controller.
+    _connectOnOpenController?.removeListener(_onConnectOnOpenTick);
+    _connectOnOpenController?.detach();
+    _connectOnOpenController?.dispose();
+    _connectOnOpenController = null;
     super.dispose();
+  }
+
+  // ── v5.27 Task 1 — Reset animation callbacks ─────────────────────
+
+  void _onResetAnimationTick() {
+    if (!mounted) return;
+    // Bump the per-frame revision so the EdgeSelectionWrapper's
+    // layoutRevision changes — its painter's shouldRepaint checks
+    // layoutRevision, not the positions map content, so without this
+    // bump the painter would skip repainting during the animation.
+    // (This is the same pattern used during Rearrange drags — see
+    // _handleRearrangeDragUpdate which bumps _rearrangeDragRevision.)
+    _rearrangeDragRevision++;
+    // Trigger a rebuild so the canvas_mixin re-computes effectivePositions
+    // using the lerp'd values for the current _resetController.value.
+    setState(() {});
+  }
+
+  void _onResetAnimationStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    if (!mounted) return;
+    // Animation finished — clear the pre-reset snapshots so the
+    // canvas_mixin falls back to pure auto-layout (which is the
+    // post-reset state — savedOverrides is empty after the
+    // provider invalidation).
+    _preResetPositions = null;
+    _preResetEdgeWaypoints = null;
+    _animatingReset = false;
+    setState(() {});
+  }
+
+  /// Called when resetAnimationTriggerProvider increments. Captures
+  /// the current effectivePositions (including saved overrides + live
+  /// drag overrides — the "from" state of the lerp) into
+  /// _preResetPositions / _preResetEdgeWaypoints, then starts the
+  /// 350ms animation (or skips it entirely if reduced-motion is on).
+  void _onResetTrigger() {
+    if (!mounted) return;
+    // Capture the current effective positions. These are the values
+    // the canvas_mixin computed on the LAST build — accessible here
+    // via the _currentPositionsWithOffset cache (which is updated
+    // every build).
+    //
+    // _currentPositionsWithOffset is keyed by personId and includes
+    // the visual-circle Y offset. For the lerp we want the raw graph
+    // positions (without the Y offset), so we strip the offset back
+    // out: rawY = withOffsetY - _kCircleCenterYOffset.
+    //
+    // If _currentPositionsWithOffset is empty (very first frame,
+    // nothing rendered yet), there's nothing to animate from — skip
+    // the animation entirely and let the provider invalidation snap
+    // to the new state.
+    if (_currentPositionsWithOffset.isEmpty) {
+      // Nothing to lerp from — snap to pure auto-layout.
+      _preResetPositions = null;
+      _preResetEdgeWaypoints = null;
+      _animatingReset = false;
+      return;
+    }
+    final preResetPositions = <String, Offset>{};
+    for (final entry in _currentPositionsWithOffset.entries) {
+      preResetPositions[entry.key] = Offset(
+        entry.value.dx,
+        entry.value.dy - _kCircleCenterYOffset,
+      );
+    }
+    // Also capture the current edge waypoints (saved + live). The
+    // canvas_mixin stores these in effectiveEdgeWaypoints which is a
+    // LOCAL in the build method — we don't have a cached field. So
+    // we read from the saved overrides + live overrides directly.
+    final saved = ref
+        .read(personalLayoutOverridesProvider(widget.familyId))
+        .valueOrNull;
+    final preResetEdgeWaypoints = <String, Offset>{
+      ...?saved?.edgeWaypoints,
+      ..._rearrangeLiveEdgeWaypoints,
+    };
+
+    // Reduced motion: skip the animation entirely. Just clear the
+    // pre-reset snapshots so the canvas_mixin falls back to the
+    // post-reset state (pure auto-layout) on the next build.
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    if (reduced) {
+      _preResetPositions = null;
+      _preResetEdgeWaypoints = null;
+      _animatingReset = false;
+      return;
+    }
+
+    // Start the animation. The 350ms duration is already set on the
+    // controller in initState (flat — not scaled per node count, so
+    // resetting a 50-person tree feels just as snappy as resetting 2).
+    _preResetPositions = preResetPositions;
+    _preResetEdgeWaypoints = preResetEdgeWaypoints;
+    _animatingReset = true;
+    _resetController?.forward(from: 0.0);
+    // Trigger an immediate rebuild so the canvas_mixin sees
+    // _animatingReset=true + _preResetPositions and starts lerping.
+    setState(() {});
+  }
+
+  // ── v5.27 Task 2 — Connect-on-open animation callbacks ──────────
+
+  void _onConnectOnOpenTick() {
+    if (!mounted) return;
+    // Trigger a rebuild so the painter sees the new trace state
+    // (currentEdgeId, traceProgress, completedEdgeIds).
+    setState(() {});
+  }
+
+  /// Ordered edge IDs (BFS from the viewer's own anchor node) for the
+  /// connect-on-open animation. Used by _maybeStartConnectOnOpen to
+  /// order the edge draw-in: viewer's own edges first, then outward
+  /// by BFS distance. Falls back to flat.relationships order if the
+  /// viewer has no resolved Person node.
+  List<String> _orderedEdgesForConnectOnOpen(FlatGraphResult flat, String? viewerPersonId) {
+    if (flat.relationships.isEmpty) return const [];
+    // Build adjacency list (personId → list of edge IDs touching them).
+    final adjacency = <String, List<String>>{};
+    final edgeById = <String, Map<String, dynamic>>{};
+    for (final r in flat.relationships) {
+      final id = r['id']?.toString();
+      final from = r['fromPersonId']?.toString();
+      final to = r['toPersonId']?.toString();
+      if (id == null || from == null || to == null) continue;
+      edgeById[id] = r;
+      adjacency.putIfAbsent(from, () => []).add(id);
+      adjacency.putIfAbsent(to, () => []).add(id);
+    }
+
+    // BFS from the viewer's own node (or fall back to the first
+    // edge's source if the viewer has no resolved Person node).
+    final startNode = viewerPersonId ??
+        (flat.relationships.first['fromPersonId']?.toString() ??
+            flat.relationships.first['toPersonId']?.toString());
+    if (startNode == null) {
+      // No edges → empty list. (Connect-on-open is a no-op for empty
+      // graphs, but the spec says we should still set _hasPlayed.)
+      return const [];
+    }
+
+    final orderedEdgeIds = <String>[];
+    final visitedNodes = <String>{};
+    final visitedEdges = <String>{};
+    final queue = <String>[startNode];
+    visitedNodes.add(startNode);
+    while (queue.isNotEmpty) {
+      final node = queue.removeAt(0);
+      final incidentEdgeIds = adjacency[node] ?? const [];
+      for (final edgeId in incidentEdgeIds) {
+        if (visitedEdges.contains(edgeId)) continue;
+        final r = edgeById[edgeId]!;
+        final from = r['fromPersonId']!.toString();
+        final to = r['toPersonId']!.toString();
+        orderedEdgeIds.add(edgeId);
+        visitedEdges.add(edgeId);
+        // Enqueue the OTHER endpoint (BFS expands outward).
+        final other = from == node ? to : from;
+        if (!visitedNodes.contains(other)) {
+          visitedNodes.add(other);
+          queue.add(other);
+        }
+      }
+    }
+    return orderedEdgeIds;
+  }
+
+  /// Drives the connect-on-open animation on the FIRST render after
+  /// opening the graph screen (gated by _hasPlayedConnectOnOpen). If
+  /// reduced motion is active, calls revealAll instead of startTrace
+  /// (so all edges appear immediately, no animation).
+  void _maybeStartConnectOnOpen(
+    FlatGraphResult flat,
+    String? viewerPersonId,
+  ) {
+    if (_hasPlayedConnectOnOpen) return;
+    if (flat.relationships.isEmpty) {
+      // Empty family — nothing to animate. But still mark as played
+      // so we don't keep checking.
+      _hasPlayedConnectOnOpen = true;
+      return;
+    }
+    // Only kick off the trace ONCE — when flat.relationships is first
+    // populated. Subsequent rebuilds (pan/zoom/new members) won't
+    // re-trigger.
+    _hasPlayedConnectOnOpen = true;
+    final ordered =
+        _orderedEdgesForConnectOnOpen(flat, viewerPersonId);
+    _connectOnOpenOrderedEdgeIds = ordered;
+    if (ordered.isEmpty) return;
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    // Propagate reduced-motion to the controller so it suppresses
+    // per-step haptics (same pattern as the existing path trace).
+    _connectOnOpenController!.reducedMotion = reduced;
+    if (reduced) {
+      // Skip the animation — all edges revealed immediately.
+      _connectOnOpenController!.revealAll(ordered);
+    } else {
+      // startTrace handles the timing math:
+      //   1-5 edges:    320ms/edge
+      //   6-10 edges:   250ms/edge
+      //   >10 edges:    180ms/edge (capped at ~2200ms total)
+      // (See GraphPathTraceController._perEdgeDurationMs.)
+      _connectOnOpenController!.startTrace(ordered);
+    }
   }
 
   /// Rebuild content ONLY when the visible set or LOD tier would change.
@@ -708,6 +1029,11 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
           _pendingResetView = false;
           _maybeRunPendingResetView(layout, flat, viewerPersonId);
         }
+        // v5.27 Task 2: Kick off the connect-on-open animation on the
+        // FIRST render where flat.relationships is populated. The
+        // _hasPlayedConnectOnOpen flag is a one-time gate — subsequent
+        // rebuilds (pan/zoom/new members) won't re-trigger.
+        _maybeStartConnectOnOpen(flat, viewerPersonId);
         // Wrap the graph in a Column so the graph expands to fill the space.
         // v4.9: Removed the ClaimProfileBanner — it's no longer rendered here.
         // The claim_profile_banner.dart file is left in place (unused) in case

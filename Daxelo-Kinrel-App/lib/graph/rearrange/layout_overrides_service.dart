@@ -255,6 +255,12 @@ class LayoutOverridesService {
     String familyId,
     String personId,
   ) async {
+    // v5.27 Task 1: bump the reset animation trigger BEFORE the DB
+    // write so the engine view captures the pre-reset snapshot (the
+    // current effectivePositions including this node's saved override)
+    // before the provider invalidation re-renders with the override
+    // gone.
+    ref.read(resetAnimationTriggerProvider.notifier).state++;
     final client = ref.read(supabaseProvider);
     if (client == null) return;
     final auth = client.auth.currentUser;
@@ -317,6 +323,12 @@ class LayoutOverridesService {
     String familyId,
     String relationshipId,
   ) async {
+    // v5.27 Task 1: bump the reset animation trigger BEFORE the DB
+    // write so the engine view captures the pre-reset snapshot (the
+    // current effectiveEdgeWaypoints including this edge's saved
+    // override) before the provider invalidation re-renders with the
+    // override gone.
+    ref.read(resetAnimationTriggerProvider.notifier).state++;
     final client = ref.read(supabaseProvider);
     if (client == null) return;
     final auth = client.auth.currentUser;
@@ -366,6 +378,12 @@ class LayoutOverridesService {
     WidgetRef ref,
     String familyId,
   ) async {
+    // v5.27 Task 1: bump the reset animation trigger BEFORE the DB
+    // write so the engine view captures the pre-reset snapshot (the
+    // current effectivePositions + effectiveEdgeWaypoints including
+    // all saved overrides) before the provider invalidation re-renders
+    // with everything cleared.
+    ref.read(resetAnimationTriggerProvider.notifier).state++;
     final client = ref.read(supabaseProvider);
     if (client == null) return;
     final auth = client.auth.currentUser;
@@ -442,3 +460,43 @@ class LayoutOverridesService {
 /// Outside Rearrange mode, the canvas behaves exactly as before —
 /// no existing gesture is overloaded.
 final rearrangeModeProvider = StateProvider<bool>((ref) => false);
+
+// ────────────────────────────────────────────────────────────────────
+// v5.27 Task 1 — Reset animation trigger
+// ────────────────────────────────────────────────────────────────────
+//
+// A simple counter that increments each time a reset operation is
+// triggered (resetAllOverrides / removeNodeOverride / removeEdgeWaypoint).
+// The FamilyGraphEngineView state watches this counter; on increment
+// it captures the CURRENT effectivePositions (including saved
+// overrides + live drag overrides — the "from" state of the lerp)
+// BEFORE the provider invalidation re-renders with pure auto-layout,
+// then drives a 350ms easeOutCubic animation lerping every affected
+// node from its pre-reset position to its auto-layout position.
+//
+// This indirection (counter + watcher in the engine view) is needed
+// because:
+//   • The reset service is static + has no widget-tree access — it
+//     can't directly capture the canvas_mixin's _rearrangeLiveNodeOverrides
+//     + savedOverrides state.
+//   • The engine view state HAS that access (it's where the
+//     canvas_mixin lives), so it must do the capture.
+//   • The trigger must fire BEFORE the provider invalidation so the
+//     capture sees the pre-reset state, not the post-reset one.
+//
+// The counter pattern (vs. a one-shot provider of Map<String, Offset>)
+// is chosen because:
+//   • The capture must happen on the next build frame (after the
+//     counter bump), not synchronously — Flutter's provider
+//     invalidation is also next-frame, so they race. Bumping the
+//     counter triggers a build that runs BEFORE the invalidation's
+//     build, so the capture sees the OLD positions.
+//   • Using a counter (vs. a payload) means the engine view doesn't
+//     need to know WHAT triggered the reset — it just captures the
+//     current effectivePositions and animates to the new auto-layout.
+//
+// Reduced-motion: the engine view checks
+// MediaQuery.disableAnimationsOf(context) — if true, it skips the
+// animation entirely (just lets the provider invalidation snap to
+// pure auto-layout as before).
+final resetAnimationTriggerProvider = StateProvider<int>((ref) => 0);

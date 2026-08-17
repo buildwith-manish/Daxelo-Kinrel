@@ -40,6 +40,10 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
     required this.pathFocusActive,
     this.coupleUnions = const [],
     this.edgeWaypoints = const {},
+    this.connectOnOpenActive = false,
+    this.connectOnOpenCurrentEdgeId,
+    this.connectOnOpenProgress = 0.0,
+    this.connectOnOpenRevealedEdgeIds = const <String>{},
   });
 
   final Map<String, Offset> positions;
@@ -59,6 +63,21 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
   /// must never call createRelationship/updateRelationship/
   /// deleteRelationship — see _handleRearrangeDragUpdate assertion.
   final Map<String, Offset> edgeWaypoints;
+
+  /// v5.27 Task 2: Connect-on-open animation state. While true, the
+  /// painter HIDES non-revealed edges (alpha=0) instead of dimming
+  /// them. The current edge fades in over its time slot using
+  /// connectOnOpenProgress. Revealed edges (in
+  /// connectOnOpenRevealedEdgeIds) are drawn at full alpha.
+  ///
+  /// Reuses the EXISTING GraphPathTraceController's state shape
+  /// (currentEdgeId + traceProgress + completedEdgeIds + traceActive)
+  /// — the painter interprets these with fade-in semantics instead of
+  /// the existing sweep semantics when this flag is true.
+  final bool connectOnOpenActive;
+  final String? connectOnOpenCurrentEdgeId;
+  final double connectOnOpenProgress;
+  final Set<String> connectOnOpenRevealedEdgeIds;
 
   /// v99 (Phase 6): Derived couple unions from the layout. The painter
   /// renders a subtle junction glyph at the midpoint between partners
@@ -286,6 +305,14 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
             : null,
         // v5.22 (PART 2): personal edge midpoint bow offsets.
         edgeWaypoints: widget.edgeWaypoints,
+        // v5.27 Task 2: connect-on-open animation state — propagated
+        // straight through to the painter. The painter branches on
+        // connectOnOpenActive to hide non-revealed edges + fade in
+        // the current edge over its time slot.
+        connectOnOpenActive: widget.connectOnOpenActive,
+        connectOnOpenCurrentEdgeId: widget.connectOnOpenCurrentEdgeId,
+        connectOnOpenProgress: widget.connectOnOpenProgress,
+        connectOnOpenRevealedEdgeIds: widget.connectOnOpenRevealedEdgeIds,
       ),
       child: const SizedBox.expand(),
     );

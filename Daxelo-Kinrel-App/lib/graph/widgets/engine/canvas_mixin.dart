@@ -98,6 +98,88 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           ..._rearrangeLiveEdgeWaypoints,
         };
 
+        // v5.27 Task 1: Reset animation lerp.
+        //
+        // If a reset animation is in progress (_animatingReset is true),
+        // lerp EVERY effective position + edge waypoint from its
+        // pre-reset value to its post-reset (auto-layout) value by
+        // _resetController.value (0.0→1.0 with Curves.easeOutCubic).
+        //
+        // The pre-reset snapshot (_preResetPositions +
+        // _preResetEdgeWaypoints) was captured by _onResetTrigger
+        // BEFORE the provider invalidation, so it includes the saved
+        // overrides + live drag overrides that were in effect at trigger
+        // time. The auto-layout positions are in `layout.positions`
+        // (which always reflects the pure auto-layout — the saved
+        // overrides are layered on top via savedOverrides.applyTo).
+        //
+        // Lerp math:
+        //   effectivePosition = lerp(preReset, autoLayout, progress)
+        //     = preReset * (1 - progress) + autoLayout * progress
+        //   effectiveEdgeWaypoint = lerp(preResetDelta, Offset.zero, progress)
+        //     = preResetDelta * (1 - progress)  (since (0,0) * progress = (0,0))
+        //
+        // Edges redraw automatically each frame since they derive paths
+        // from positions (no separate edge animation needed).
+        //
+        // When the animation completes (_onResetAnimationStatus), the
+        // state class clears _preResetPositions + _preResetEdgeWaypoints
+        // and sets _animatingReset=false, so this block becomes a
+        // no-op and effectivePositions falls back to pure auto-layout
+        // (which is the correct post-reset state — savedOverrides is
+        // empty after the provider invalidation).
+        if (_animatingReset &&
+            _preResetPositions != null &&
+            _resetController != null) {
+          // Convert the raw controller value through easeOutCubic so
+          // the lerp feels weighted, not linear. The controller's
+          // duration is already 350ms flat (not scaled per node count).
+          final rawProgress = _resetController!.value.clamp(0.0, 1.0);
+          // easeOutCubic: 1 - (1 - t)^3 — accelerates-decelerates.
+          final easedProgress = 1.0 - (1.0 - rawProgress) * (1.0 - rawProgress) * (1.0 - rawProgress);
+          // Lerp positions: for each personId, lerp from its pre-reset
+          // position (if captured) to its auto-layout position. Persons
+          // not in the pre-reset snapshot (rare — added between the
+          // capture and the rebuild) just use the auto-layout.
+          final lerpedPositions = <String, Offset>{};
+          for (final entry in layout.positions.entries) {
+            final pre = _preResetPositions![entry.key];
+            if (pre != null) {
+              lerpedPositions[entry.key] = Offset(
+                pre.dx * (1.0 - easedProgress) +
+                    entry.value.dx * easedProgress,
+                pre.dy * (1.0 - easedProgress) +
+                    entry.value.dy * easedProgress,
+              );
+            } else {
+              lerpedPositions[entry.key] = entry.value;
+            }
+          }
+          effectivePositions
+            ..clear()
+            ..addAll(lerpedPositions);
+          // Lerp edge waypoints: each pre-reset delta fades linearly
+          // toward (0,0) — i.e. effectiveDelta = preDelta * (1-progress).
+          // Edges NOT in the pre-reset snapshot just use their current
+          // value (which would be the auto-layout's default midpoint,
+          // since savedOverrides is now empty after invalidation).
+          if (_preResetEdgeWaypoints != null &&
+              _preResetEdgeWaypoints!.isNotEmpty) {
+            final lerpedWaypoints = <String, Offset>{};
+            for (final entry in _preResetEdgeWaypoints!.entries) {
+              lerpedWaypoints[entry.key] = Offset(
+                entry.value.dx * (1.0 - easedProgress),
+                entry.value.dy * (1.0 - easedProgress),
+              );
+            }
+            effectiveEdgeWaypoints
+              ..clear()
+              ..addAll(lerpedWaypoints);
+          } else {
+            effectiveEdgeWaypoints.clear();
+          }
+        }
+
         // v4.5: Push content bounds to the camera (bounding box of all
         // node positions + expanded node size including visual effects).
         // Uses 220×256 (base 140×176 + glow/shadow/badges/indicators)
@@ -625,6 +707,28 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     // unrelated edges dim.
                     pathFocusedEdgeIds: pathFocus?.orderedEdgeIds.toSet(),
                     pathFocusActive: pathFocus != null,
+                    // v5.27 Task 2: Connect-on-open animation state.
+                    // The engine view state's _connectOnOpenController
+                    // (a second GraphPathTraceController instance —
+                    // reuses the EXISTING pattern) drives a one-shot
+                    // sequential edge reveal on the FIRST render after
+                    // opening the graph screen. The painter uses these
+                    // values to:
+                    //   • Hide non-revealed edges (alpha=0) while
+                    //     connectOnOpenActive is true.
+                    //   • Fade in the current edge from alpha=0 to 1
+                    //     over its time slot (using connectOnOpenProgress).
+                    //   • Show revealed edges (connectOnOpenRevealedEdgeIds)
+                    //     at full alpha.
+                    connectOnOpenActive: _connectOnOpenController != null &&
+                        _connectOnOpenController!.state.traceActive,
+                    connectOnOpenCurrentEdgeId:
+                        _connectOnOpenController?.state.currentEdgeId,
+                    connectOnOpenProgress:
+                        _connectOnOpenController?.state.traceProgress ?? 0.0,
+                    connectOnOpenRevealedEdgeIds:
+                        _connectOnOpenController?.state.completedEdgeIds ??
+                            const <String>{},
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
