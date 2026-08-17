@@ -713,9 +713,18 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             onLongPressEnd: (details) => _handleCompareDragEnd(details, layout, flat, viewerPersonId),
             // v62: Double-tap to zoom in 2× toward the focal point,
             // toggles back to 1× on second double-tap.
+            //
+            // v5.23 (PART 2.5 reset): In Rearrange mode, a double-tap
+            // on a midpoint dot resets that edge's custom bow override
+            // (calls LayoutOverridesService.removeEdgeWaypoint) and
+            // snaps the curve back to the true computed t=0.5 bezier
+            // midpoint. Matches the pattern already used for the node's
+            // "Reset to auto layout" option in graph_quick_actions.dart.
+            // Double-tap NOT on a dot still zooms (so users in Rearrange
+            // mode can still zoom — only double-tap ON A DOT resets).
             onDoubleTapDown: (details) =>
                 _doubleTapPosition = details.localPosition,
-            onDoubleTap: _handleDoubleTapZoom,
+            onDoubleTap: () => _handleDoubleTap(layout, flat, viewerPersonId),
             child: Stack(
               clipBehavior: Clip.none, // v4.7: Stack doesn't clip; the _OverscanClipper below handles clipping
               children: [

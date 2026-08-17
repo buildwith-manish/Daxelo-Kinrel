@@ -113,6 +113,88 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     );
   }
 
+  /// v5.23 (PART 2.5 reset): Double-tap dispatcher.
+  ///
+  /// In Rearrange mode, a double-tap whose captured position is within
+  /// the 48px hit-radius of an edge midpoint dot resets that edge's
+  /// custom bow override — calls
+  /// `LayoutOverridesService.removeEdgeWaypoint(familyId, edgeId)`,
+  /// which removes the entry from GraphLayoutState.edgeWaypoints. The
+  /// provider invalidation triggers a rebuild, the effective edge
+  /// waypoints map no longer contains this edgeId, and the painter
+  /// falls back to the EXISTING `_bezier` + PathMetric t=0.5 midpoint
+  /// calculation. The curve snaps back to the true computed midpoint.
+  ///
+  /// Double-tap NOT on a dot (or outside Rearrange mode) falls through
+  /// to the existing [_handleDoubleTapZoom] zoom-toggle behaviour, so
+  /// users in Rearrange mode can still double-tap-to-zoom anywhere
+  /// there isn't a midpoint dot.
+  ///
+  /// This mirrors the pattern already used for the node's per-element
+  /// "Reset to auto layout" action in `graph_quick_actions.dart` (which
+  /// calls `LayoutOverridesService.removeNodeOverride`).
+  void _handleDoubleTap(
+    GraphLayoutResult layout,
+    FlatGraphResult flat,
+    String? viewerPersonId,
+  ) {
+    final isRearranging = ref.read(rearrangeModeProvider);
+    if (isRearranging) {
+      final edgeId = _hitTestEdge(_doubleTapPosition);
+      if (edgeId != null) {
+        // Reset this edge's custom bow override. The provider
+        // invalidation triggered inside removeEdgeWaypoint causes
+        // personalLayoutOverridesProvider to re-read the fresh row,
+        // so the canvas rebuilds without this edgeId in
+        // effectiveEdgeWaypoints → the painter falls back to the
+        // default t=0.5 midpoint.
+        //
+        // Also clear any LIVE drag override for this edge in case the
+        // user was mid-drag and double-tapped to reset (rare but
+        // possible — the live override would otherwise re-assert
+        // itself on the next rebuild).
+        final newLiveEdge = Map<String, Offset>.from(_rearrangeLiveEdgeWaypoints);
+        newLiveEdge.remove(edgeId);
+        _rearrangeLiveEdgeWaypoints = newLiveEdge;
+        _rearrangeDragRevision++;
+        setState(() {});
+
+        // Fire-and-forget the persist — the local state already
+        // reflects the reset so the UI snaps immediately. The persist
+        // updates the GraphLayoutState row so the reset survives a
+        // reload.
+        LayoutOverridesService.removeEdgeWaypoint(
+          ref,
+          widget.familyId,
+          edgeId,
+        ).then((_) {
+          // Provider invalidation handles the rebuild. Show a brief
+          // snackbar so the user knows the reset was committed.
+          if (!mounted) return;
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            const SnackBar(
+              content: Text('Reset curve to center'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }).catchError((Object e) {
+          if (!mounted) return;
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(
+              content: Text('Failed to reset curve: $e'),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        });
+        return;
+      }
+    }
+    // No midpoint dot hit (or not in Rearrange mode) → zoom toggle.
+    _handleDoubleTapZoom();
+  }
+
   // ── v72: Geometric Node Hit-Testing ────────────────────────────────────
   //
   // The parent GestureDetector's ScaleGestureRecognizer competes with
