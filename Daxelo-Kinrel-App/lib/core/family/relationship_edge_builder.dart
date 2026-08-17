@@ -12,6 +12,8 @@
 // IDENTICAL edges for the same semantic input. They are also used
 // by tests to verify cross-flow consistency without mocking I/O.
 
+import 'family_provider.dart' show getGenderAwareInverseKey;
+
 /// Input for createRelationship() — constructed by
 /// [buildCanonicalRelationshipEdge] and passed to createRelationship.
 class RelationshipEdgeInput {
@@ -151,51 +153,10 @@ String? resolveEdgeLabelForViewer({
   //   WHEN r.toPersonId = p_viewer_id THEN r.labelBtoA
   if (toPersonId == viewerId) {
     if (labelBtoA != null) return labelBtoA;
-    // Compute the inverse if not provided
-    // getGenderAwareInverseKey(labelAtoB, fromPersonGender) — the
-    // fromPersonGender is the gender of the person who will be the
-    // toPerson in the inverse direction (i.e. the original fromPerson).
-    return _computeInverseLabel(labelAtoB, fromPersonGender);
+    // v5.20: Use the REAL getGenderAwareInverseKey — no local copy.
+    // fromPersonGender is the gender of the fromPerson (the person
+    // whose role we're computing the inverse of).
+    return getGenderAwareInverseKey(labelAtoB, fromPersonGender);
   }
   return null;
-}
-
-/// Computes the inverse label using the same logic as
-/// getGenderAwareInverseKey in family_provider.dart.
-/// This is a local copy to avoid circular imports — it must be kept
-/// in sync with the original. Tests verify this.
-String _computeInverseLabel(String labelAtoB, String? fromPersonGender) {
-  final key = labelAtoB.toLowerCase().trim();
-  final gender = fromPersonGender?.toLowerCase();
-
-  if (key == 'father' || key == 'mother' || key == 'parent') {
-    if (gender == 'female') return 'daughter';
-    if (gender == 'male') return 'son';
-    return 'child';
-  }
-  if (key == 'son' || key == 'daughter' || key == 'child') {
-    if (gender == 'female') return 'mother';
-    if (gender == 'male') return 'father';
-    return 'parent';
-  }
-  if (key == 'husband') return 'wife';
-  if (key == 'wife') return 'husband';
-  if (key == 'spouse') return 'spouse';
-  if (key == 'brother' || key == 'sister' || key == 'sibling') {
-    if (gender == 'female') return 'sister';
-    if (gender == 'male') return 'brother';
-    return 'sibling';
-  }
-  if (key == 'grandfather' || key == 'grandmother' || key == 'grandparent') {
-    if (gender == 'female') return 'granddaughter';
-    if (gender == 'male') return 'grandson';
-    return 'grandchild';
-  }
-  if (key == 'uncle' || key == 'aunt') {
-    if (gender == 'female') return 'niece';
-    if (gender == 'male') return 'nephew';
-    return 'nephew_or_niece';
-  }
-  // Fallback: return the same label (symmetric relationships)
-  return key;
 }

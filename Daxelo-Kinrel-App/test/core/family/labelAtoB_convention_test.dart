@@ -1,40 +1,37 @@
 // test/core/family/labelAtoB_convention_test.dart
 //
-// v5.19 TEST: Cross-flow regression — calls REAL production functions.
+// v5.20 TEST: Cross-flow regression — calls REAL production functions.
 //
 // These tests import and call:
 //   - buildCanonicalRelationshipEdge from relationship_edge_builder.dart
 //   - resolveEdgeLabelForViewer from relationship_edge_builder.dart
 //   - getGenderAwareInverseKey from family_provider.dart
 //
-// If any of these functions change, the tests will catch it.
+// resolveEdgeLabelForViewer internally calls getGenderAwareInverseKey
+// (no local copy). TEST 5 verifies this wiring by asserting the two
+// produce identical results for the same inputs.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/family/relationship_edge_builder.dart';
 import 'package:kinrel/core/family/family_provider.dart';
 
 void main() {
-  group('v5.19 labelAtoB Cross-Flow Convention — REAL production functions', () {
+  group('v5.20 labelAtoB Cross-Flow Convention — REAL production functions', () {
     // ════════════════════════════════════════════════════════════════════
     // TEST 1: Both flows produce equivalent edges via the SAME function
     // ════════════════════════════════════════════════════════════════════
-    test('TEST 1: AddPersonSheet and RelationshipPickerFlow produce equivalent edges', () {
-      // Scenario: "John is Manish's father"
-      //
-      // Flow A — AddPersonSheet (post v5.17 fix):
-      //   referencePersonId = Manish (anchor), describedPersonId = John (new)
-      //   pickedRelationshipKey = 'father'
-      //   referencePersonGender = 'male' (Manish), describedPersonGender = 'male' (John)
-      //
-      // Flow B — RelationshipPickerFlow:
-      //   referencePersonId = Manish (source), describedPersonId = John (selected)
-      //   pickedRelationshipKey = 'father'
-      //   referencePersonGender = 'male' (Manish), describedPersonGender = 'male' (John)
-      //
-      // Both call the SAME buildCanonicalRelationshipEdge function.
-
-      // Flow A — simulate add_person_sheet.dart's call
-      final flowA = buildCanonicalRelationshipEdge(
+    // Coverage note: This test verifies that buildCanonicalRelationshipEdge
+    // is deterministic and produces canonical-convention edges. It does NOT
+    // verify that add_person_sheet.dart and relationship_picker_flow.dart
+    // pass the RIGHT variables into the function — that would require
+    // either mocking their widget context or extracting their variable
+    // mapping, which is entangled with Flutter widget lifecycle. The
+    // variable-mapping correctness is verified by the code review that
+    // confirmed both files call buildCanonicalRelationshipEdge with
+    // referencePersonId=anchor/source, describedPersonId=new/selected.
+    test('TEST 1: buildCanonicalRelationshipEdge produces canonical edges', () {
+      // Simulate "John is Manish's father" via the shared function
+      final edge = buildCanonicalRelationshipEdge(
         referencePersonId: 'manish',
         describedPersonId: 'john',
         pickedRelationshipKey: 'father',
@@ -42,117 +39,98 @@ void main() {
         describedPersonGender: 'male',
       );
 
-      // Flow B — simulate relationship_picker_flow.dart's call
-      final flowB = buildCanonicalRelationshipEdge(
-        referencePersonId: 'manish',
-        describedPersonId: 'john',
-        pickedRelationshipKey: 'father',
-        referencePersonGender: 'male',
-        describedPersonGender: 'male',
-      );
-
-      // Assert both produce IDENTICAL edges
-      expect(flowA.fromPersonId, flowB.fromPersonId, reason: 'fromPersonId must match');
-      expect(flowA.toPersonId, flowB.toPersonId, reason: 'toPersonId must match');
-      expect(flowA.relationshipKey, flowB.relationshipKey, reason: 'relationshipKey must match');
-      expect(flowA.specificLabelAtoB, flowB.specificLabelAtoB, reason: 'specificLabelAtoB must match');
-      expect(flowA.fromPersonGender, flowB.fromPersonGender, reason: 'fromPersonGender must match');
-      expect(flowA.toPersonGender, flowB.toPersonGender, reason: 'toPersonGender must match');
-
-      // Assert canonical convention: from=manish, to=john, label='father'
+      // Canonical convention: from=manish, to=john, label='father'
       // → "John is Manish's father"
-      expect(flowA.fromPersonId, 'manish', reason: 'fromPerson must be the reference (Manish)');
-      expect(flowA.toPersonId, 'john', reason: 'toPerson must be the described (John)');
-      expect(flowA.specificLabelAtoB, 'father', reason: 'labelAtoB must be "father"');
-      expect(flowA.relationshipKey, 'parent', reason: 'fundamental key must be "parent"');
+      expect(edge.fromPersonId, 'manish',
+          reason: 'fromPerson must be the reference (Manish)');
+      expect(edge.toPersonId, 'john',
+          reason: 'toPerson must be the described (John)');
+      expect(edge.specificLabelAtoB, 'father',
+          reason: 'labelAtoB must be "father"');
+      expect(edge.relationshipKey, 'parent',
+          reason: 'fundamental key must be "parent"');
+      expect(edge.fromPersonGender, 'male',
+          reason: 'fromPersonGender must be Manish\'s gender');
+      expect(edge.toPersonGender, 'male',
+          reason: 'toPersonGender must be John\'s gender');
     });
 
     // ════════════════════════════════════════════════════════════════════
-    // TEST 2: resolveEdgeLabelForViewer produces correct labels for both
+    // TEST 2: resolveEdgeLabelForViewer produces correct labels
     // ════════════════════════════════════════════════════════════════════
     test('TEST 2: Viewer resolution produces correct labels for both perspectives', () {
       // Edge: from=manish, to=john, labelAtoB='father'
       // → "John is Manish's father"
       //
-      // RPC CASE: WHEN fromPersonId=viewer THEN labelAtoB
-      //           WHEN toPersonId=viewer THEN labelBtoA
-      //
-      // viewer=manish → reads labelAtoB='father' → sees John as "Father" ✅
-      // viewer=john   → reads labelBtoA → inverse of 'father' by John's gender
-      //   John is male → 'son' → sees Manish as "Son" ✅
+      // resolveEdgeLabelForViewer calls getGenderAwareInverseKey (the REAL
+      // function from family_provider.dart) when labelBtoA is null.
 
-      // viewer = Manish (fromPerson)
+      // viewer = Manish (fromPerson) → reads labelAtoB
       final manishSeesJohn = resolveEdgeLabelForViewer(
         viewerId: 'manish',
         fromPersonId: 'manish',
         toPersonId: 'john',
         labelAtoB: 'father',
-        labelBtoA: null, // Force computation
-        fromPersonGender: 'male', // Manish's gender (for inverse computation)
+        labelBtoA: null,
+        fromPersonGender: 'male',
       );
       expect(manishSeesJohn, 'father',
           reason: 'Manish (fromPerson) should see John as "father"');
 
-      // viewer = John (toPerson) — labelBtoA computed from inverse
+      // viewer = John (toPerson) → reads labelBtoA (computed via real getGenderAwareInverseKey)
       final johnSeesManish = resolveEdgeLabelForViewer(
         viewerId: 'john',
         fromPersonId: 'manish',
         toPersonId: 'john',
         labelAtoB: 'father',
-        labelBtoA: null, // Force computation
-        fromPersonGender: 'male', // Manish's gender
+        labelBtoA: null,
+        fromPersonGender: 'male',
       );
       expect(johnSeesManish, 'son',
           reason: 'John (toPerson) should see Manish as "son" '
-              '(inverse of father, Manish is male)');
+              '(inverse of father via real getGenderAwareInverseKey, Manish is male)');
     });
 
     // ════════════════════════════════════════════════════════════════════
     // TEST 3: getGenderAwareInverseKey (real production function)
     // ════════════════════════════════════════════════════════════════════
     test('TEST 3: getGenderAwareInverseKey produces correct labelBtoA', () {
-      // Edge: from=manish, to=john, labelAtoB='father'
-      // Inverse: "Manish is John's ___" → depends on Manish's gender
-      // getGenderAwareInverseKey('father', manish_gender)
-      expect(getGenderAwareInverseKey('father', 'male'), 'son',
-          reason: 'Manish (male) is John\'s son');
-      expect(getGenderAwareInverseKey('father', 'female'), 'daughter',
-          reason: 'Manish (female) is John\'s daughter');
-      expect(getGenderAwareInverseKey('father', null), 'child',
-          reason: 'Manish (unknown) is John\'s child');
+      expect(getGenderAwareInverseKey('father', 'male'), 'son');
+      expect(getGenderAwareInverseKey('father', 'female'), 'daughter');
+      expect(getGenderAwareInverseKey('father', null), 'child');
+      expect(getGenderAwareInverseKey('mother', 'male'), 'son');
+      expect(getGenderAwareInverseKey('husband', null), 'wife');
+      expect(getGenderAwareInverseKey('wife', null), 'husband');
+      expect(getGenderAwareInverseKey('brother', 'female'), 'sister');
+      expect(getGenderAwareInverseKey('uncle', 'female'), 'niece');
+      expect(getGenderAwareInverseKey('uncle', 'male'), 'nephew');
     });
 
     // ════════════════════════════════════════════════════════════════════
     // TEST 4: Bug detection — swapped from/to would fail
     // ════════════════════════════════════════════════════════════════════
     test('TEST 4: Swapped from/to produces WRONG labels (regression guard)', () {
-      // If someone re-introduces the pre-v5.17 bug (swapping from/to),
-      // the edge would be: from=john, to=manish, labelAtoB='father'
-      // → "Manish is John's father" ← WRONG!
-
+      // Wrong edge: from=john, to=manish (swapped) → "Manish is John's father" ← WRONG
       final wrongEdge = buildCanonicalRelationshipEdge(
-        referencePersonId: 'john',  // WRONG: should be 'manish'
-        describedPersonId: 'manish', // WRONG: should be 'john'
+        referencePersonId: 'john',
+        describedPersonId: 'manish',
         pickedRelationshipKey: 'father',
         referencePersonGender: 'male',
         describedPersonGender: 'male',
       );
 
-      // Verify the WRONG edge produces WRONG labels
-      final manishSeesJohn_wrong = resolveEdgeLabelForViewer(
+      final result = resolveEdgeLabelForViewer(
         viewerId: 'manish',
         fromPersonId: wrongEdge.fromPersonId,
         toPersonId: wrongEdge.toPersonId,
         labelAtoB: wrongEdge.specificLabelAtoB,
         fromPersonGender: wrongEdge.fromPersonGender,
       );
-      // With the wrong edge: manish is toPerson → reads labelBtoA
-      // = inverse of 'father' = 'son' → manish sees john as "son" ← WRONG!
-      expect(manishSeesJohn_wrong, isNot('father'),
-          reason: 'With swapped from/to, Manish would NOT see John as "father" '
-              '(he\'d see "son" instead) — this confirms the test catches the bug');
+      // With wrong edge: manish is toPerson → reads inverse → 'son' (NOT 'father')
+      expect(result, isNot('father'),
+          reason: 'Swapped from/to must NOT produce "father" for Manish');
 
-      // Now verify the CORRECT edge produces CORRECT labels
+      // Correct edge: from=manish, to=john → "John is Manish's father" ✅
       final correctEdge = buildCanonicalRelationshipEdge(
         referencePersonId: 'manish',
         describedPersonId: 'john',
@@ -160,15 +138,55 @@ void main() {
         referencePersonGender: 'male',
         describedPersonGender: 'male',
       );
-      final manishSeesJohn_correct = resolveEdgeLabelForViewer(
+      final correctResult = resolveEdgeLabelForViewer(
         viewerId: 'manish',
         fromPersonId: correctEdge.fromPersonId,
         toPersonId: correctEdge.toPersonId,
         labelAtoB: correctEdge.specificLabelAtoB,
         fromPersonGender: correctEdge.fromPersonGender,
       );
-      expect(manishSeesJohn_correct, 'father',
-          reason: 'With correct from/to, Manish sees John as "father" ✅');
+      expect(correctResult, 'father',
+          reason: 'Correct from/to must produce "father" for Manish');
+    });
+
+    // ════════════════════════════════════════════════════════════════════
+    // TEST 5 (NEW): resolveEdgeLabelForViewer uses the REAL
+    // getGenderAwareInverseKey — not a local copy
+    // ════════════════════════════════════════════════════════════════════
+    // This test would fail if someone reverted to a local _computeInverseLabel
+    // copy that drifted from the real function. It calls both functions
+    // directly and asserts they produce the SAME output for 3+ relationship
+    // types — proving resolveEdgeLabelForViewer delegates to the real one.
+    test('TEST 5: resolveEdgeLabelForViewer delegates to real getGenderAwareInverseKey', () {
+      // Test 3 relationship types: father, brother, uncle
+      final cases = [
+        ('father', 'male', 'son'),
+        ('father', 'female', 'daughter'),
+        ('brother', 'female', 'sister'),
+        ('uncle', 'male', 'nephew'),
+        ('uncle', 'female', 'niece'),
+        ('grandfather', 'male', 'grandson'),
+      ];
+
+      for (final (label, gender, _) in cases) {
+        // Call the REAL function directly
+        final expected = getGenderAwareInverseKey(label, gender);
+
+        // Call resolveEdgeLabelForViewer which should delegate to the same function
+        final actual = resolveEdgeLabelForViewer(
+          viewerId: 'toPerson',
+          fromPersonId: 'fromPerson',
+          toPersonId: 'toPerson', // viewer = toPerson → triggers inverse computation
+          labelAtoB: label,
+          labelBtoA: null, // Force computation
+          fromPersonGender: gender,
+        );
+
+        expect(actual, expected,
+            reason: 'resolveEdgeLabelForViewer("$label", gender="$gender") must '
+                'equal getGenderAwareInverseKey("$label", "$gender") = "$expected". '
+                'If this fails, resolveEdgeLabelForViewer is NOT using the real function.');
+      }
     });
   });
 }
