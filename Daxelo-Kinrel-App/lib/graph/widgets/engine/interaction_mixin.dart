@@ -1093,6 +1093,24 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       ref.read(rearrangeModeProvider.notifier).state = false;
       return;
     }
+
+    // v5.31 Issue 2: The anchor node ("You" / root node) must be
+    // completely immovable. The entire graph layout is computed
+    // relative to this anchor — moving it produces visually unstable
+    // results and breaks the spatial reference point for all other
+    // nodes. If the hit-tested node is the anchor, silently cancel
+    // the drag — no pill shown, no override written, no visual
+    // change. The anchor stays fixed at its computed center.
+    final personData = flat.persons
+        .where((p) => p['id'] == nodeId)
+        .firstOrNull;
+    final isAnchorNode = (personData?['isAnchor'] as bool?) ?? false;
+    if (isAnchorNode) {
+      // Silently cancel — the anchor is immovable.
+      debugPrint('[v5.31 Rearrange] anchor node hit — drag cancelled (anchor is immovable)');
+      return;
+    }
+
     _rearrangeDragKind = 'node';
     _rearrangeDragId = nodeId;
     // Snapshot the pre-drag position. If a saved override exists for

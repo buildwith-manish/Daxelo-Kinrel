@@ -789,8 +789,15 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
+                // v5.31 Issue 1: Pass effectivePositions (merged map)
+                // to the node layer so node widgets are positioned at the
+                // SAME coordinates the edge layer uses. Previously the node
+                // layer received only `layout` and read layout.positions
+                // (auto-layout only), causing nodes to stay at their
+                // auto-layout positions while edges used the overridden
+                // positions — creating "detached" connections.
                 ..._buildNodeLayer(
-                    layout, visible, personById, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId, flat),
+                    layout, effectivePositions, visible, personById, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId, flat),
                 // v102 (BUG-2 FIX): Collapsed-branch affordances.
                 // Render a chip near each collapsed branch root showing
                 // the branch label (e.g. "Mother's branch · 38").

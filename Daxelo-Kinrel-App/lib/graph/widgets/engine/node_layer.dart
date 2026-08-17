@@ -12,8 +12,20 @@ part of '../family_graph_engine_view.dart';
 /// _FamilyGraphEngineViewState.
 extension _NodeLayerMethods on _FamilyGraphEngineViewState {
   /// Builds the node layer for the current LOD tier.
+  ///
+  /// [effectivePositions] is the MERGED position map (auto-layout ⊕
+  /// saved overrides ⊕ live drag overrides) — the SAME map the edge
+  /// layer uses. This ensures nodes and edges are always in sync:
+  /// when a node is dragged/saved, its edges follow because both
+  /// layers read from the same position map.
+  ///
+  /// v5.31 Issue 1: Previously this method received only `layout`
+  /// and read `layout.positions[id]` (auto-layout only). This meant
+  /// nodes stayed at their auto-layout positions while edges used
+  /// the overridden positions — creating "detached" connections.
   List<Widget> _buildNodeLayer(
     GraphLayoutResult layout,
+    Map<String, Offset> effectivePositions,
     Set<String> visible,
     Map<String, Map<String, dynamic>> personById,
     Map<String, String> relationLabelById,
@@ -28,7 +40,9 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
     if (lod == Lod.dot) {
       final dots = <Dot>[];
       for (final String id in visible) {
-        final pos = layout.positions[id];
+        // v5.31 Issue 1: use effectivePositions (merged) instead of
+        // layout.positions (auto-layout only) so dots follow overrides.
+        final pos = effectivePositions[id];
         final p = personById[id];
         if (pos == null || p == null) continue;
 
@@ -77,7 +91,10 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
     final widgets = <Widget>[];
     final highlightedGen = widget.highlightedGeneration;
     for (final String id in visible) {
-      final pos = layout.positions[id];
+      // v5.31 Issue 1: use effectivePositions (merged) instead of
+      // layout.positions (auto-layout only) so node widgets follow
+      // overrides — edges and nodes stay in sync.
+      final pos = effectivePositions[id];
       final p = personById[id];
       if (pos == null || p == null) continue;
       final Widget node = lod == Lod.full
