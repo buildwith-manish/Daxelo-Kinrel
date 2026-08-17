@@ -871,27 +871,26 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       // Outside Rearrange mode: just the toggle (no reset button).
       return _buildRearrangeToggleButton();
     }
-    // Rearrange mode is ON — check if the viewer has any saved
-    // overrides. If yes, also show the Reset All button next to the
-    // toggle.
+    // v5.33 Issue 1: The reset button's visibility is now tied
+    // EXCLUSIVELY to whether Rearrange mode is active. Previously it
+    // was also gated on `!saved.isEmpty` — but saved comes from
+    // personalLayoutOverridesProvider which returns PersonalLayoutOverrides.empty
+    // during async re-fetch (after a save triggers invalidation).
+    // During that brief loading window, saved.isEmpty is true and the
+    // button vanishes. When the re-fetch completes, the button
+    // reappears — an intermittent flicker.
     //
-    // NOTE: PersonalLayoutOverrides.empty is a static const FIELD on
-    // the PersonalLayoutOverrides class (declared as
-    // `static const empty = PersonalLayoutOverrides();`), not a
-    // constructor. So we use it WITHOUT parens.
-    final saved = ref
-            .watch(personalLayoutOverridesProvider(widget.familyId))
-            .valueOrNull ??
-        PersonalLayoutOverrides.empty;
+    // Now: always show the reset button when Rearrange mode is ON.
+    // If there are no saved overrides, the reset is a no-op (the
+    // service method is idempotent — it upserts '{}' to both maps,
+    // which is what they already are by default).
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _buildRearrangeToggleButton(),
-        if (!saved.isEmpty) ...[
-          const SizedBox(width: 8),
-          _buildResetAllButton(),
-        ],
+        const SizedBox(width: 8),
+        _buildResetAllButton(),
       ],
     );
   }

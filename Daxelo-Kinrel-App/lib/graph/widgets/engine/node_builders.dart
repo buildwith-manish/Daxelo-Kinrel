@@ -144,7 +144,20 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       // v62.2 FIX: Long-press shows the quick-actions sheet (matching
       // the v40 FamilyGraphWidget behavior) instead of toggling the
       // subtree (which was hiding nodes — confusing and unexpected).
+      // v5.33 Issue 3: Guard with rearrangeModeProvider — if Rearrange
+      // mode is active, this per-node onLongPress MUST no-op completely.
+      // The canvas-level GestureDetector already handles rearrange long-
+      // press routing (→ _handleRearrangeLongPressStart). Without this
+      // guard, the per-node handler fires INDEPENDENTLY (because the
+      // canvas GestureDetector uses HitTestBehavior.translucent which
+      // allows child gesture detectors to also receive events) and opens
+      // QuickActions even in Rearrange mode — the exact bug the user
+      // reported ("long-press on non-spouse nodes still opens the
+      // QuickActions sheet instead of initiating a drag").
       onLongPress: () {
+        // v5.33: If Rearrange mode is active, suppress the per-node
+        // long-press completely — the canvas-level handler takes over.
+        if (ref.read(rearrangeModeProvider)) return;
         final personData = GraphPersonData(
           id: id,
           name: (p['name'] as String?) ?? '',
