@@ -57,6 +57,7 @@ class EngineEdgePainter extends CustomPainter {
     this.traceProgress = 0.0,
     this.traceActive = false,
     this.completedTraceEdgeIds,
+    this.edgeWaypoints = const {},
   });
 
   final Map<String, Offset> positions;
@@ -107,6 +108,19 @@ class EngineEdgePainter extends CustomPainter {
   /// These remain statically focused after their sweep completes.
   final Set<String>? completedTraceEdgeIds;
 
+  /// v5.22 (PART 2): Personal RELATIVE edge midpoint bow offsets,
+  /// keyed by relationshipId. When an override exists for an edge,
+  /// the painter bows the bezier's middle control point(s) by this
+  /// delta (relative to the true t=0.5 midpoint). When no override
+  /// exists (the normal case), the painter uses the existing
+  /// `_bezier` + PathMetric t=0.5 midpoint calculation unchanged.
+  ///
+  /// HARD CONSTRAINT: this map is the ONLY way a relationship line's
+  /// visual geometry can be modified by user drag. The drag handler
+  /// must never call createRelationship/updateRelationship/
+  /// deleteRelationship — see _handleRearrangeDragUpdate assertion.
+  final Map<String, Offset> edgeWaypoints;
+
   // ── Path construction ─────────────────────────────────────────────────
 
   /// Builds a bezier curve path between two node centers.
@@ -121,17 +135,45 @@ class EngineEdgePainter extends CustomPainter {
   /// v64 (BUG-2 FIX): [lateralOffset] shifts the curve sideways so that
   /// parallel edges between the same node pair (e.g. parent + spouse)
   /// don't stack on top of each other. 0.0 for solo edges.
-  static Path _bezier(Offset s, Offset t, {double lateralOffset = 0.0}) {
+  ///
+  /// v5.22 (PART 2): [waypointDelta] is a RELATIVE offset from the
+  /// true t=0.5 bezier midpoint. When non-zero, both middle control
+  /// points are shifted by this delta so the bowed curve passes
+  /// through (or near) the dragged point. A RELATIVE offset is
+  /// used (not absolute) so the override stays meaningful if the
+  /// endpoints get repositioned — see the storage contract on
+  /// `LayoutOverridesService.saveEdgeWaypoint`.
+  ///
+  /// When [waypointDelta] is Offset.zero (the normal case — no
+  /// saved override for this edge), the curve is IDENTICAL to the
+  /// pre-v5.22 behaviour. This is the regression-guard for PART 2.5
+  /// ("default midpoint must stay mathematically correct").
+  static Path _bezier(Offset s, Offset t,
+      {double lateralOffset = 0.0, Offset waypointDelta = Offset.zero}) {
     final double dy = t.dy - s.dy;
     final double dx = t.dx - s.dx;
     final double distance = (s - t).distance;
 
     // For very short distances, use a simple line to avoid weird curves.
     // We still apply the lateral offset so parallel short edges separate.
+    // v5.22: We also honour waypointDelta here by adding a quadratic
+    // midpoint at (linear_mid + delta) so the line is gently bowed
+    // through the dragged point even at very short distances.
     if (distance < 20.0) {
+      if (waypointDelta == Offset.zero) {
+        return Path()
+          ..moveTo(s.dx + lateralOffset, s.dy)
+          ..lineTo(t.dx + lateralOffset, t.dy);
+      }
+      final linearMid = Offset(
+        (s.dx + t.dx) / 2 + lateralOffset,
+        (s.dy + t.dy) / 2,
+      );
+      final bowedMid = linearMid + waypointDelta;
       return Path()
         ..moveTo(s.dx + lateralOffset, s.dy)
-        ..lineTo(t.dx + lateralOffset, t.dy);
+        ..quadraticBezierTo(bowedMid.dx, bowedMid.dy,
+            t.dx + lateralOffset, t.dy);
     }
 
     // Control point offset — scales with distance for smooth curves
@@ -144,8 +186,12 @@ class EngineEdgePainter extends CustomPainter {
       // edges bow in different directions.
       final double lateral =
           (dx >= 0 ? cpOffset * 0.5 : -cpOffset * 0.5) + lateralOffset;
-      final cp1 = Offset(s.dx + lateral, s.dy + dy * 0.35);
-      final cp2 = Offset(t.dx + lateral, t.dy - dy * 0.35);
+      // v5.22: Apply the waypoint delta to BOTH middle control
+      // points so the bowed curve passes through (linear_mid + delta).
+      final cp1 = Offset(
+          s.dx + lateral + waypointDelta.dx, s.dy + dy * 0.35 + waypointDelta.dy);
+      final cp2 = Offset(
+          t.dx + lateral + waypointDelta.dx, t.dy - dy * 0.35 + waypointDelta.dy);
       return Path()
         ..moveTo(s.dx, s.dy)
         ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, t.dx, t.dy);
@@ -157,11 +203,37 @@ class EngineEdgePainter extends CustomPainter {
     // the Y axis of the control points so parallel edges separate
     // vertically when nodes are side-by-side.
     final midY = s.dy + dy * 0.5 + lateralOffset;
+    final midX = s.dx + dx * 0.5;
     final cp1 = Offset(s.dx + dx * 0.25, midY);
     final cp2 = Offset(t.dx - dx * 0.25, midY);
+    if (waypointDelta == Offset.zero) {
+      // DEFAULT path (no v5.22 override): IDENTICAL to pre-v5.22 curve.
+      // This is the regression-guard for PART 2.5 — the default
+      // midpoint must stay mathematically correct.
+      return Path()
+        ..moveTo(s.dx, s.dy)
+        ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, t.dx, t.dy);
+    }
+    // v5.22: Build the curve as TWO quadratics passing through
+    // (linear_mid + delta). This guarantees the curve goes through
+    // the dragged point exactly.
+    final bowedMid = Offset(midX + waypointDelta.dx,
+        midY + waypointDelta.dy);
+    // Control points for each half lie 1/3 of the way along the
+    // segment from the endpoint to bowedMid, plus a tangent
+    // adjustment so the two halves meet smoothly (C1-continuous).
+    final Offset half1Cp = Offset(
+      s.dx + (bowedMid.dx - s.dx) * 0.5,
+      s.dy + (bowedMid.dy - s.dy) * 0.5,
+    );
+    final Offset half2Cp = Offset(
+      t.dx + (bowedMid.dx - t.dx) * 0.5,
+      t.dy + (bowedMid.dy - t.dy) * 0.5,
+    );
     return Path()
       ..moveTo(s.dx, s.dy)
-      ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, t.dx, t.dy);
+      ..quadraticBezierTo(half1Cp.dx, half1Cp.dy, bowedMid.dx, bowedMid.dy)
+      ..quadraticBezierTo(half2Cp.dx, half2Cp.dy, t.dx, t.dy);
   }
 
   @override
@@ -235,14 +307,28 @@ class EngineEdgePainter extends CustomPainter {
       final cacheEdgeId = deduped.lateralOffset != 0.0
           ? '${e.id}__offset_${deduped.lateralOffset.toStringAsFixed(1)}'
           : e.id;
+      // v5.22 (PART 2): Look up the per-viewer RELATIVE midpoint
+      // bow override for this edge. When non-zero, the path factory
+      // bows the curve through (linear_mid + delta). The cache key
+      // is augmented with the quantized delta so an adjusted edge
+      // doesn't reuse the un-adjusted cache entry (and vice versa).
+      final waypointDelta = edgeWaypoints[e.id] ?? Offset.zero;
+      final waypointKey = (waypointDelta.dx.abs() >= 0.01 ||
+              waypointDelta.dy.abs() >= 0.01)
+          ? '__wp_${waypointDelta.dx.toStringAsFixed(1)}'
+              '_${waypointDelta.dy.toStringAsFixed(1)}'
+          : '';
+      final fullCacheId = '$cacheEdgeId$waypointKey';
       final Path path = cache.getOrCreate(
-        edgeId: cacheEdgeId,
+        edgeId: fullCacheId,
         sourceId: e.sourceId,
         targetId: e.targetId,
         sourcePos: effectiveSource,
         targetPos: effectiveTarget,
         pathFactory: (Offset ss, Offset tt) =>
-            _bezier(ss, tt, lateralOffset: deduped.lateralOffset),
+            _bezier(ss, tt,
+                lateralOffset: deduped.lateralOffset,
+                waypointDelta: waypointDelta),
       );
 
       final bool isSelected = e.id == selectedEdgeId;

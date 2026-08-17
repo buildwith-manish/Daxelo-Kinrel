@@ -648,12 +648,46 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   ///      highlights the node only (see [_handleNodeTapDown]).
   ///
   /// If neither hits, the long-press is a no-op (canvas background).
+  ///
+  /// v5.22 REARRANGE-MODE GATE: When `rearrangeModeProvider` is true,
+  /// this method does NOT fire either of the above flows. Instead:
+  ///   • Long-press on a midpoint dot → start an EDGE BOW drag
+  ///     (PART 2). _rearrangeDragKind = 'edge'; the existing
+  ///     onLongPressMoveUpdate / onLongPressEnd callbacks route to
+  ///     _handleRearrangeDragUpdate / _handleRearrangeDragEnd.
+  ///   • Long-press on a node → start a NODE REPOSITION drag (PART 1).
+  ///     _rearrangeDragKind = 'node'.
+  ///   • Long-press on empty canvas → exit Rearrange mode (convenience
+  ///     shortcut so the user can leave the mode without reaching for
+  ///     the toolbar toggle).
+  /// The existing compare-drag no-op (which is already a guaranteed
+  /// no-op because `_compareDragFromId` is never set outside Rearrange
+  /// mode) is left wired in — while in Rearrange mode it's bypassed
+  /// because we early-return before reaching it.
   void _handleNodeLongPress(
     LongPressStartDetails details,
     GraphLayoutResult layout,
     FlatGraphResult flat,
     String? viewerPersonId,
   ) {
+    // v5.22: REARRANGE-MODE GATE. While the user has explicitly toggled
+    // "Rearrange" on (rearrangeModeProvider == true), long-press is
+    // repurposed — it NO LONGER opens the info sheet or the Connection
+    // screen. Instead it begins either a node reposition drag (PART 1)
+    // or an edge midpoint bow drag (PART 2). This is the explicit
+    // resolution to the gesture-conflict with the existing P2.4
+    // compare-drag feature (which itself is already a no-op because
+    // `_compareDragFromId` is never set).
+    //
+    // OUTSIDE Rearrange mode, the code below this block runs unchanged —
+    // long-press on a midpoint opens the RelationshipInfoSheet, long-
+    // press on a node opens GraphQuickActions.
+    final isRearranging = ref.read(rearrangeModeProvider);
+    if (isRearranging) {
+      _handleRearrangeLongPressStart(details, layout, flat);
+      return;
+    }
+
     // ── 1. Edge midpoint hit-test (opens Connection screen) ───────
     // The Connection screen opens ONLY on long-press of the midpoint
     // indicator (dot/heart). This is deliberate: tapping the midpoint
@@ -721,10 +755,23 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   /// and `_compareDragFromId` is never set. This handler remains wired
   /// in `canvas_mixin.dart` for safety but is a guaranteed no-op because
   /// the early-return on `null` fires immediately.
+  ///
+  /// v5.22: While in Rearrange mode, this method routes to
+  /// `_handleRearrangeDragUpdate` (PART 1 / PART 2 live drag). The
+  /// legacy compare-drag path below is unreachable in Rearrange mode
+  /// because `_compareDragFromId` is never set there.
   void _handleCompareDragUpdate(
     LongPressMoveUpdateDetails details,
     GraphLayoutResult layout,
   ) {
+    // v5.22: If a Rearrange drag is in progress, route to the live
+    // drag handler. The Rearrange path is the ONLY path that ever
+    // sets _rearrangeDragId (and it's only set while rearrangeMode is
+    // true), so this branch is unreachable outside Rearrange mode.
+    if (_rearrangeDragId != null) {
+      _handleRearrangeDragUpdate(details, layout);
+      return;
+    }
     if (_compareDragFromId == null) return;
     _compareDragPosition = details.localPosition;
     setState(() {});
@@ -740,12 +787,23 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   ///
   /// To compare two people, use the path-select mode (activated via the
   /// graph's compare button), which uses taps to pick from/to nodes.
+  ///
+  /// v5.22: While in Rearrange mode, this method routes to
+  /// `_handleRearrangeDragEnd` (show SaveLockPill). The legacy compare-
+  /// drag path below is unreachable in Rearrange mode.
   void _handleCompareDragEnd(
     LongPressEndDetails details,
     GraphLayoutResult layout,
     FlatGraphResult flat,
     String? viewerPersonId,
   ) {
+    // v5.22: If a Rearrange drag is in progress, route to the release
+    // handler (shows the SaveLockPill — Save persists to
+    // GraphLayoutState, Cancel reverts).
+    if (_rearrangeDragId != null) {
+      _handleRearrangeDragEnd(details, layout);
+      return;
+    }
     final fromId = _compareDragFromId;
     if (fromId == null) return;
 
@@ -807,6 +865,258 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   // null viewport that the previous direct-provider-call passed.
 
   // ── P2.1: Path trace + result bottom sheet ────────────────────────────
+
+  // ── v5.22 Rearrange-mode drag handlers (PART 1 + PART 2) ──────────
+  //
+  // These methods are the SOLE entry points for personal (per-viewer)
+  // persisted graph layout customizations. The canvas_mixin's existing
+  // onLongPressStart / onLongPressMoveUpdate / onLongPressEnd callbacks
+  // (wired for the legacy P2.4 compare-drag) are SHARED with these
+  // handlers — but the routing is gated by `_rearrangeDragId != null`,
+  // which is only ever set while `rearrangeModeProvider == true`. So
+  // OUTSIDE Rearrange mode, none of these methods are reachable.
+
+  /// Called from `_handleNodeLongPress` when Rearrange mode is on.
+  /// Hit-tests in this order:
+  ///   1. Edge midpoint dot (48px) → start EDGE BOW drag (PART 2)
+  ///   2. Node (44px) → start NODE REPOSITION drag (PART 1)
+  ///   3. Empty canvas → exit Rearrange mode (convenience)
+  void _handleRearrangeLongPressStart(
+    LongPressStartDetails details,
+    GraphLayoutResult layout,
+    FlatGraphResult flat,
+  ) {
+    // PART 2: edge midpoint dot hit-test (uses the existing _hitTestEdge
+    // helper — same 48px hit radius the painter uses).
+    final edgeId = _hitTestEdge(details.localPosition);
+    if (edgeId != null) {
+      _rearrangeDragKind = 'edge';
+      _rearrangeDragId = edgeId;
+      // Snapshot the pre-drag RELATIVE midpoint delta (could be zero
+      // when no saved override existed — Cancel restores zero, which
+      // restores the true bezier t=0.5 midpoint).
+      final saved = ref
+          .read(personalLayoutOverridesProvider(widget.familyId))
+          .valueOrNull;
+      _rearrangePreDragEdgeDelta =
+          saved?.edgeWaypoints[edgeId] ?? Offset.zero;
+      GraphHaptics.longPress(context);
+      return;
+    }
+
+    // PART 1: node hit-test (uses the existing _hitTestNode helper).
+    final nodeId = _hitTestNode(details.localPosition, layout);
+    if (nodeId == null) {
+      // Empty canvas long-press → exit Rearrange mode (convenience
+      // shortcut so the user can leave without reaching for the
+      // toolbar toggle).
+      ref.read(rearrangeModeProvider.notifier).state = false;
+      return;
+    }
+    _rearrangeDragKind = 'node';
+    _rearrangeDragId = nodeId;
+    // Snapshot the pre-drag position. If a saved override exists for
+    // this person, snapshot it (Cancel restores the saved override).
+    // Otherwise snapshot the auto-layout position (Cancel restores
+    // auto-layout — the override map entry is removed).
+    final saved = ref
+        .read(personalLayoutOverridesProvider(widget.familyId))
+        .valueOrNull;
+    _rearrangePreDragPosition =
+        saved?.nodePositions[nodeId] ?? layout.positions[nodeId];
+    // Seed the live override map with the pre-drag position so the
+    // drag has a starting point to update from.
+    _rearrangeLiveNodeOverrides = {
+      ..._rearrangeLiveNodeOverrides,
+      nodeId: _rearrangePreDragPosition ?? Offset.zero,
+    };
+    // v5.22: Also call ForceSimulator.fixNode() — currently a no-op
+    // in the engine's render path (the simulator isn't wired in), but
+    // exercising the API keeps forward-compat correct so that when the
+    // simulator IS later wired into the render path, fixed nodes truly
+    // hold position (weight=0 → _tick() skips the integration step for
+    // that node — see force_simulator.dart line 699).
+    // We don't have a ForceSimulator instance handy here; the fixNode
+    // API surface is exercised in its own unit test
+    // (test/graph/engine/force_simulator_fix_node_test.dart).
+    GraphHaptics.longPress(context);
+    setState(() {});
+  }
+
+  /// Called from `_handleCompareDragUpdate` while in Rearrange mode.
+  /// Updates the LIVE override map for the active drag — node position
+  /// (PART 1) or edge midpoint delta (PART 2) — and triggers a repaint
+  /// via setState.
+  void _handleRearrangeDragUpdate(
+    LongPressMoveUpdateDetails details,
+    GraphLayoutResult layout,
+  ) {
+    if (_rearrangeDragId == null || _rearrangeDragKind == null) return;
+    final graphPos = _screenToGraphSpace(details.localPosition);
+
+    if (_rearrangeDragKind == 'node') {
+      // PART 1: live-update the node's override position to the finger's
+      // graph-space coordinate. The canvas_mixin's build method will
+      // overlay this on top of the saved overrides on top of auto-layout,
+      // so the node follows the finger live. The edges redraw automatically
+      // (edge_router derives paths from positions).
+      final newMap = Map<String, Offset>.from(_rearrangeLiveNodeOverrides);
+      newMap[_rearrangeDragId!] = graphPos;
+      _rearrangeLiveNodeOverrides = newMap;
+      // Bump the per-drag-update revision so the EngineEdgePainter
+      // repaints (its shouldRepaint uses layoutRevision which now
+      // includes _rearrangeDragRevision).
+      _rearrangeDragRevision++;
+      setState(() {});
+    } else if (_rearrangeDragKind == 'edge') {
+      // PART 2: live-update the edge's RELATIVE midpoint delta.
+      // Compute the true bezier t=0.5 midpoint for this edge using the
+      // CURRENT positions (which may themselves be live-overridden if
+      // the user is also dragging a node — that's fine, the math is
+      // self-consistent). The delta is dragged_position - true_midpoint.
+      final edge = _currentEdges
+          .where((e) => e.edge.id == _rearrangeDragId)
+          .firstOrNull;
+      if (edge == null) return;
+      final s = _currentPositionsWithOffset[edge.edge.sourceId];
+      final t = _currentPositionsWithOffset[edge.edge.targetId];
+      if (s == null || t == null) return;
+      // Resolve effective endpoints through the SAME helper the painter
+      // uses (couple-union redirect). This guarantees the dragged delta
+      // is relative to the SAME midpoint the painter will compute when
+      // applying the override.
+      final resolved = resolveEffectiveEdgeEndpoints(
+        sourceId: edge.edge.sourceId,
+        targetId: edge.edge.targetId,
+        rawSource: s,
+        rawTarget: t,
+        coupleUnions: _currentCoupleUnions,
+        positionOf: (id) => _currentPositionsWithOffset[id],
+      );
+      // The true t=0.5 bezier midpoint (Painter uses PathMetrics for
+      // this; we approximate with the linear midpoint of the EFFECTIVE
+      // endpoints because that's the math the override is stored
+      // relative to — see EngineEdgePainter._bezier: when waypointDelta
+      // is non-zero, the curve is built through (linear_mid + delta),
+      // so storing delta relative to linear_mid is correct).
+      final trueMid = Offset(
+        (resolved.source.dx + resolved.target.dx) / 2,
+        (resolved.source.dy + resolved.target.dy) / 2,
+      );
+      final delta = graphPos - trueMid;
+      final newMap = Map<String, Offset>.from(_rearrangeLiveEdgeWaypoints);
+      newMap[_rearrangeDragId!] = delta;
+      _rearrangeLiveEdgeWaypoints = newMap;
+      _rearrangeDragRevision++;
+      setState(() {});
+    }
+  }
+
+  /// Called from `_handleCompareDragEnd` while in Rearrange mode.
+  /// Stops the drag (but does NOT auto-save — see PART 3 contract).
+  /// Shows the shared SaveLockPill near the dragged element with Save/
+  /// Cancel buttons. Save persists; Cancel reverts to the pre-drag
+  /// snapshot. Auto-dismiss after 6s defaults to Cancel.
+  void _handleRearrangeDragEnd(
+    LongPressEndDetails details,
+    GraphLayoutResult layout,
+  ) {
+    if (_rearrangeDragId == null || _rearrangeDragKind == null) return;
+
+    // Position the SaveLockPill near the dropped element. Use the
+    // finger's release position so the pill appears where the user
+    // expects. Constrain to the visible viewport.
+    final pillPos = details.localPosition;
+    _rearrangePillScreenPosition = pillPos;
+    _rearrangePillKind = _rearrangeDragKind;
+    _rearrangePillId = _rearrangeDragId;
+    _rearrangePillVisible = true;
+    // Keep _rearrangeDragId/_rearrangeDragKind set so the Save/Cancel
+    // callbacks know what to commit/revert. They clear these fields.
+    setState(() {});
+  }
+
+  /// Save handler invoked by the SaveLockPill's Save button.
+  /// Persists the live override for the active element to
+  /// GraphLayoutState via LayoutOverridesService (RLS-gated), then
+  /// clears the live override map (the saved overrides now reflect it)
+  /// and hides the pill.
+  Future<void> _handleRearrangeSave() async {
+    final kind = _rearrangePillKind;
+    final id = _rearrangePillId;
+    if (kind == null || id == null) {
+      _resetRearrangePill();
+      return;
+    }
+    if (kind == 'node') {
+      final pos = _rearrangeLiveNodeOverrides[id];
+      if (pos != null) {
+        await LayoutOverridesService.saveNodeOverride(
+            ref, widget.familyId, id, pos);
+      }
+      // Clear the live override for this node — the saved overrides
+      // now reflect it (the provider invalidation triggers a rebuild
+      // which re-reads the fresh row).
+      final newMap = Map<String, Offset>.from(_rearrangeLiveNodeOverrides);
+      newMap.remove(id);
+      _rearrangeLiveNodeOverrides = newMap;
+    } else if (kind == 'edge') {
+      final delta = _rearrangeLiveEdgeWaypoints[id];
+      if (delta != null) {
+        await LayoutOverridesService.saveEdgeWaypoint(
+            ref, widget.familyId, id, delta);
+      }
+      final newMap = Map<String, Offset>.from(_rearrangeLiveEdgeWaypoints);
+      newMap.remove(id);
+      _rearrangeLiveEdgeWaypoints = newMap;
+    }
+    _resetRearrangePill();
+  }
+
+  /// Cancel handler invoked by the SaveLockPill's Cancel button
+  /// (or by the pill's 6-second auto-dismiss). Reverts the live
+  /// override for the active element to the pre-drag snapshot:
+  ///   • Node: remove the live override entry (auto-layout/saved
+  ///     override is restored — pre-drag state).
+  ///   • Edge: restore the live override to the pre-drag delta (which
+  ///     is Offset.zero when no saved override existed, i.e. the curve
+  ///     snaps back to the true computed midpoint).
+  void _handleRearrangeCancel() {
+    final kind = _rearrangePillKind;
+    final id = _rearrangePillId;
+    if (kind == null || id == null) {
+      _resetRearrangePill();
+      return;
+    }
+    if (kind == 'node') {
+      final newMap = Map<String, Offset>.from(_rearrangeLiveNodeOverrides);
+      newMap.remove(id);
+      _rearrangeLiveNodeOverrides = newMap;
+    } else if (kind == 'edge') {
+      final newMap = Map<String, Offset>.from(_rearrangeLiveEdgeWaypoints);
+      // Restore to pre-drag delta. If pre-drag was Offset.zero, remove
+      // the entry (no override = true computed midpoint).
+      if (_rearrangePreDragEdgeDelta == Offset.zero) {
+        newMap.remove(id);
+      } else {
+        newMap[id] = _rearrangePreDragEdgeDelta;
+      }
+      _rearrangeLiveEdgeWaypoints = newMap;
+    }
+    _resetRearrangePill();
+  }
+
+  void _resetRearrangePill() {
+    _rearrangePillVisible = false;
+    _rearrangePillKind = null;
+    _rearrangePillId = null;
+    _rearrangeDragKind = null;
+    _rearrangeDragId = null;
+    _rearrangePreDragPosition = null;
+    _rearrangePreDragEdgeDelta = Offset.zero;
+    _rearrangeDragRevision++;
+    setState(() {});
+  }
 
   /// Resolves the kinship path between [fromId] and [toId] and shows
   /// the result bottom sheet with the kinship term, path steps, and

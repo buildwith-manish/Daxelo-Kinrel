@@ -42,6 +42,9 @@ import '../../../graph/widgets/search_bar.dart';
 import '../../../graph/widgets/unlinked_members_sheet.dart'; // v5.9
 import '../../../graph/widgets/relationship_picker_flow.dart'; // v5.10
 import '../../../graph/widgets/graph_relationship_labels.dart' show GraphPersonData; // v5.10
+// v5.22: Rearrange-mode toggle (personal layout overrides + edge midpoint bow).
+import '../../../graph/rearrange/layout_overrides_service.dart'
+    show rearrangeModeProvider;
 import 'add_member_options_sheet.dart';
 import 'providers/family_graph_provider.dart'
     show
@@ -554,6 +557,25 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             child: _buildHowConnectedFab(),
           ),
 
+        // v5.22: Rearrange-mode toggle FAB + (when active) status banner.
+        // Positioned TOP-LEFT (away from the bottom Share/HowConnected FABs).
+        // While Rearrange mode is ON, long-press on a node repositions it
+        // (PART 1), long-press on a midpoint dot bows the curve (PART 2),
+        // and the existing long-press → info-sheet gesture is suspended.
+        // Outside Rearrange mode, all existing gestures work unchanged.
+        Positioned(
+          top: MediaQuery.of(context).padding.top + 60,
+          left: 16,
+          child: _buildRearrangeToggleButton(),
+        ),
+        if (ref.watch(rearrangeModeProvider))
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 110,
+            left: 16,
+            right: 16,
+            child: _buildRearrangeBanner(),
+          ),
+
         // v5.9: "Unlinked Members" button — only visible when there are
         // members with zero relationship edges. Shows a count badge.
         // Positioned top-right so it doesn't overlap other FABs.
@@ -719,6 +741,64 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           inPathSelectMode ? Icons.close : Icons.timeline,
           size: 24,
         ),
+      ),
+    );
+  }
+
+  // v5.22: Rearrange-mode toggle FAB. While ON, long-press on a node
+  // repositions it (PART 1) and long-press on a midpoint dot bows the
+  // curve (PART 2). The existing long-press → info-sheet gesture is
+  // suspended while active. Tap the FAB again (or long-press empty
+  // canvas) to exit.
+  Widget _buildRearrangeToggleButton() {
+    final isOn = ref.watch(rearrangeModeProvider);
+    return Semantics(
+      label: isOn
+          ? 'Exit rearrange mode'
+          : 'Enter rearrange mode — drag nodes and curve dots',
+      button: true,
+      child: FloatingActionButton.small(
+        heroTag: 'rearrange_toggle',
+        backgroundColor:
+            isOn ? KinrelColors.tealAccent : KinrelColors.darkCard,
+        foregroundColor: isOn ? Colors.black : KinrelColors.textWhite,
+        elevation: 4,
+        onPressed: () {
+          ref.read(rearrangeModeProvider.notifier).state = !isOn;
+        },
+        child: Icon(isOn ? Icons.check : Icons.open_with, size: 20),
+      ),
+    );
+  }
+
+  Widget _buildRearrangeBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: KinrelColors.tealAccent.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: KinrelColors.tealAccent.withValues(alpha: 0.6),
+            width: 1),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.open_with,
+              size: 16, color: KinrelColors.tealAccent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Rearrange mode — drag nodes / curve dots. '
+              'Long-press empty canvas to exit.',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: KinrelColors.textWhite,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

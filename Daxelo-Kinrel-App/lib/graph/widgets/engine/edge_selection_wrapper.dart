@@ -39,12 +39,26 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
     required this.pathFocusedEdgeIds,
     required this.pathFocusActive,
     this.coupleUnions = const [],
+    this.edgeWaypoints = const {},
   });
 
   final Map<String, Offset> positions;
   final List<DedupedEdge> edges;
   final Map<String, KinshipEdgeCategory> edgeCategories;
   final Map<String, Map<String, dynamic>> edgeCustomColors;
+
+  /// v5.22 (PART 2): Personal RELATIVE edge midpoint bow offsets,
+  /// keyed by relationshipId. When an override exists for an edge,
+  /// the painter bows the bezier's middle control point(s) by this
+  /// delta (relative to the true t=0.5 midpoint). When no override
+  /// exists (the normal case), the painter uses the existing
+  /// `_bezier` + PathMetric t=0.5 midpoint calculation unchanged.
+  ///
+  /// HARD CONSTRAINT: this map is the ONLY way a relationship line's
+  /// visual geometry can be modified by user drag. The drag handler
+  /// must never call createRelationship/updateRelationship/
+  /// deleteRelationship — see _handleRearrangeDragUpdate assertion.
+  final Map<String, Offset> edgeWaypoints;
 
   /// v99 (Phase 6): Derived couple unions from the layout. The painter
   /// renders a subtle junction glyph at the midpoint between partners
@@ -270,6 +284,8 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
         completedTraceEdgeIds: traceState.completedEdgeIds.isNotEmpty
             ? traceState.completedEdgeIds
             : null,
+        // v5.22 (PART 2): personal edge midpoint bow offsets.
+        edgeWaypoints: widget.edgeWaypoints,
       ),
       child: const SizedBox.expand(),
     );

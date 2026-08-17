@@ -25,6 +25,9 @@ import '../../core/family/family_provider.dart';
 import '../../core/services/supabase_service.dart';
 import '../../features/family/presentation/add_person_sheet.dart';
 import '../interaction/graph_focus_state.dart';
+// v5.22: Personal layout overrides (for the per-node "Reset to auto layout" action).
+import '../rearrange/layout_overrides_service.dart'
+    show LayoutOverridesService, personalLayoutOverridesProvider;
 import 'graph_relationship_labels.dart';
 import 'relationship_picker_flow.dart'; // v5.10: shared picker flow
 
@@ -195,6 +198,45 @@ class GraphQuickActions {
                 onTap: () {
                   Navigator.pop(sheetContext);
                   context.push('/memorials?familyId=$familyId');
+                },
+              ),
+            // v5.22 (PART 1.5): "Reset to auto layout" — only shown when
+            // the current viewer has a saved node-position override for
+            // this person. Removes the override and re-runs auto-layout
+            // for this specific node. The reset is personal-only — it
+            // never affects another viewer's saved overrides for the
+            // same node.
+            if (familyId != null && ref != null)
+              FutureBuilder<PersonalLayoutOverrides>(
+                future: ref!.read(personalLayoutOverridesProvider(familyId!).future),
+                builder: (context, snapshot) {
+                  final hasOverride = snapshot.data?.nodePositions
+                          .containsKey(person.id) ??
+                      false;
+                  if (!hasOverride) return const SizedBox.shrink();
+                  return ListTile(
+                    leading: const Icon(Icons.center_focus_strong_outlined,
+                        color: KinrelColors.tealAccent),
+                    title: const Text(
+                      'Reset to auto layout',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                    onTap: () async {
+                      Navigator.pop(sheetContext);
+                      await LayoutOverridesService.removeNodeOverride(
+                          ref!, familyId!, person.id);
+                      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                        const SnackBar(
+                          content: Text('Reset to auto-layout'),
+                          behavior: SnackBarBehavior.floating,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                  );
                 },
               ),
             // Edit

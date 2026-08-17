@@ -169,6 +169,16 @@ import 'engine/empty_graph.dart' show EmptyGraph, ErrorRetry;
 import 'engine/claim_profile_banner.dart' show ClaimProfileBanner;
 import 'engine/viewer_linked_provider.dart' show isViewerLinkedProvider;
 
+// v5.22: Personal layout overrides + Rearrange-mode toggle.
+// Both consumed by the canvas mixin and the interaction mixin.
+import '../rearrange/layout_overrides_service.dart'
+    show
+        LayoutOverridesService,
+        PersonalLayoutOverrides,
+        personalLayoutOverridesProvider,
+        rearrangeModeProvider;
+import '../rearrange/save_lock_pill.dart' show SaveLockPill;
+
 // ── P0.4: Extracted parts (MUST come after all imports) ────────────────
 part 'engine/canvas_mixin.dart';
 part 'engine/interaction_mixin.dart';
@@ -363,6 +373,76 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// The current screen-space position of the drag finger, for drawing
   /// the visual connection line.
   Offset _compareDragPosition = Offset.zero;
+
+  // ── v5.22 Rearrange mode drag state ───────────────────────────────────
+  //
+  // Personal (per-viewer), persisted node position + edge midpoint bow
+  // overrides. These state fields hold LIVE drag deltas while the
+  // finger is down (NOT yet persisted). After release, a SaveLockPill
+  // is shown; Save persists via LayoutOverridesService, Cancel reverts
+  // to the pre-drag state.
+  //
+  // Outside Rearrange mode, all these fields stay null/empty — no
+  // existing gesture is overloaded.
+
+  /// Active drag kind when in Rearrange mode: 'node' or 'edge' (or null).
+  /// Disambiguates what the same onLongPressMoveUpdate / onLongPressEnd
+  /// should do — see _handleRearrangeDragUpdate / _handleRearrangeDragEnd.
+  String? _rearrangeDragKind;
+
+  /// When _rearrangeDragKind == 'node', the personId being dragged.
+  /// When _rearrangeDragKind == 'edge', the relationshipId whose
+  /// midpoint dot is being dragged.
+  String? _rearrangeDragId;
+
+  /// Snapshot of the node's position BEFORE the drag started. Cancel
+  /// reverts to this. If the node already had a saved override, this
+  /// is that override's last value. If not, this is the auto-layout
+  /// position (Cancel restores auto-layout).
+  Offset? _rearrangePreDragPosition;
+
+  /// Snapshot of the edge's RELATIVE midpoint delta BEFORE the drag
+  /// started (could be Offset.zero when no override existed — Cancel
+  /// restores zero = true computed midpoint).
+  Offset _rearrangePreDragEdgeDelta = Offset.zero;
+
+  /// LIVE per-node position overrides (graph space). Applied on top of
+  /// the saved overrides on top of auto-layout while dragging. Cleared
+  /// on Save (persisted into the saved overrides) or Cancel (reverted).
+  Map<String, Offset> _rearrangeLiveNodeOverrides = const {};
+
+  /// LIVE per-edge midpoint delta overrides (graph space, RELATIVE to
+  /// the true bezier t=0.5 midpoint). Applied on top of saved edge
+  /// waypoints. Cleared on Save / Cancel.
+  Map<String, Offset> _rearrangeLiveEdgeWaypoints = const {};
+
+  /// Whether the SaveLockPill is currently visible. When true, the
+  /// canvas renders a floating pill near the dragged element with
+  /// Save/Cancel buttons. Auto-dismisses after 6s (defaulting to
+  /// Cancel/revert) so unconfirmed changes never silently persist.
+  bool _rearrangePillVisible = false;
+
+  /// Screen-space position where the SaveLockPill should appear
+  /// (near the dragged element). Updated on drag end.
+  Offset _rearrangePillScreenPosition = Offset.zero;
+
+  /// Which kind the pill is confirming — drives the pill's label
+  /// ("Save this position?" for nodes, "Save this curve?" for edges)
+  /// and which callback runs on Save vs Cancel.
+  String? _rearrangePillKind;
+
+  /// The element ID the pill is confirming (personId or relationshipId).
+  String? _rearrangePillId;
+
+  /// v5.22: Per-drag-update revision counter. Bumped on every
+  /// onLongPressMoveUpdate during a Rearrange drag and on Save/Cancel.
+  /// Included in the EdgeSelectionWrapper's `layoutRevision` so the
+  /// painter repaints with the new live override position each frame.
+  /// Without this, the painter's shouldRepaint would skip repainting
+  /// because none of the existing revision counters (edge count,
+  /// position count, canvas dimensions) change during a drag —
+  /// only the VALUES of overridden positions change.
+  int _rearrangeDragRevision = 0;
 
   @override
   void initState() {
@@ -596,6 +676,17 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // v4.9: viewerIsUnlinked removed — was only used by the ClaimProfileBanner
     // which is no longer rendered. Left viewerIsLinked in case it's needed later.
 
+    // v5.22: Personal layout overrides (saved per-viewer node positions +
+    // edge midpoint bow offsets) and the Rearrange-mode toggle. Both are
+    // watched here so the canvas rebuilds when (a) the user toggles
+    // Rearrange mode, or (b) the saved overrides row changes (e.g. after
+    // a Save in the SaveLockPill — the LayoutOverridesService invalidates
+    // the provider so the engine view re-reads the fresh row).
+    final savedOverrides =
+        ref.watch(personalLayoutOverridesProvider(widget.familyId)).valueOrNull ??
+            PersonalLayoutOverrides.empty;
+    final rearrangeMode = ref.watch(rearrangeModeProvider);
+
     return layoutAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (Object e, _) => ErrorRetry(
@@ -641,7 +732,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                     child: RepaintBoundary(
                       key: _graphBoundaryKey,
                       child: _buildCanvas(
-                          layout, flat, viewerPersonId),
+                          layout, flat, viewerPersonId,
+                          savedOverrides: savedOverrides,
+                          rearrangeMode: rearrangeMode),
                     ),
                   ),
                   if (!isOnline)

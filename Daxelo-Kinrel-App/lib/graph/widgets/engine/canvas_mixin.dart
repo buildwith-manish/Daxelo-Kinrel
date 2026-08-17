@@ -8,7 +8,9 @@ part of '../family_graph_engine_view.dart';
 /// Extracted to keep the main file under 1,500 lines.
 extension _CanvasMethods on _FamilyGraphEngineViewState {
   Widget _buildCanvas(
-      GraphLayoutResult layout, FlatGraphResult flat, String? viewerPersonId) {
+      GraphLayoutResult layout, FlatGraphResult flat, String? viewerPersonId,
+      {required PersonalLayoutOverrides savedOverrides,
+      required bool rearrangeMode}) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         // v109.8: Fix keyboard/half-screen layout break.
@@ -61,14 +63,14 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // Uses 220×256 (base 140×176 + glow/shadow/badges/indicators)
         // so pan clamping accounts for ALL visual elements, not just the
         // node circle. This ensures nodes are never partially clipped.
-        if (layout.positions.isNotEmpty) {
+        if (effectivePositions.isNotEmpty) {
           const nodeWidth = 220.0;   // 140 base + 40 glow/shadow + 40 indicators
           const nodeHeight = 256.0;  // 176 base + 40 glow/shadow + 40 badges
           double minX = double.infinity;
           double minY = double.infinity;
           double maxX = double.negativeInfinity;
           double maxY = double.negativeInfinity;
-          for (final pos in layout.positions.values) {
+          for (final pos in effectivePositions.values) {
             if (pos.dx < minX) minX = pos.dx;
             if (pos.dy < minY) minY = pos.dy;
             if (pos.dx + nodeWidth > maxX) maxX = pos.dx + nodeWidth;
@@ -85,6 +87,40 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // avoids the historical setState-during-build crash.
         WidgetsBinding.instance
             .addPostFrameCallback((_) => _maybeFrame(layout));
+
+        // v5.22 (PART 1 + PART 2): Apply the viewer's saved personal
+        // overrides (saved nodePositions + saved edgeWaypoints) on top
+        // of the auto-computed layout positions, then layer any LIVE
+        // drag deltas on top of THAT. The order is:
+        //
+        //   effectivePositions =
+        //     autoLayout ⊕ savedOverrides.nodePositions ⊕ _rearrangeLiveNodeOverrides
+        //
+        //   effectiveEdgeWaypoints =
+        //     savedOverrides.edgeWaypoints ⊕ _rearrangeLiveEdgeWaypoints
+        //
+        // LIVE overrides take precedence (the user is actively dragging
+        // — the finger position is the truth). SAVED overrides come next
+        // (last committed drag). Auto-layout fills in everything else.
+        //
+        // When NOT in Rearrange mode, the live maps are guaranteed
+        // empty (see _handleRearrangeDragEnd's cleanup), so this
+        // reduces to `autoLayout ⊕ savedOverrides`.
+        //
+        // When the viewer has no saved overrides at all (the normal
+        // case — most viewers never customize their graph layout),
+        // this reduces to `autoLayout` unchanged — no regression.
+        final Map<String, Offset> effectivePositions =
+            savedOverrides.applyTo(layout.positions);
+        // Layer the live drag deltas on top (only non-empty while a
+        // drag is in progress in Rearrange mode).
+        if (_rearrangeLiveNodeOverrides.isNotEmpty) {
+          effectivePositions.addAll(_rearrangeLiveNodeOverrides);
+        }
+        final Map<String, Offset> effectiveEdgeWaypoints = {
+          ...savedOverrides.edgeWaypoints,
+          ..._rearrangeLiveEdgeWaypoints,
+        };
 
         final personById = <String, Map<String, dynamic>>{
           for (final Map<String, dynamic> p in flat.persons)
@@ -141,7 +177,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // Expand/collapse filter — empty visible set means "show everything".
         final Set<String> allowed =
             _expandCollapse.state.visibleNodeIds.isEmpty
-                ? layout.positions.keys.toSet()
+                ? effectivePositions.keys.toSet()
                 : _expandCollapse.state.visibleNodeIds;
 
         // v99: Build RAW edge tuples from flat.relationships BEFORE
@@ -224,12 +260,12 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           zoom: _camera.zoomLevel,
         );
         final nodeSizes = <String, Size>{
-          for (final String id in layout.positions.keys)
+          for (final String id in effectivePositions.keys)
             id: metrics.cullSize,
         };
         final Rect vp = _graphSpaceViewport();
         final Set<String> culled =
-            _culler.cull(layout.positions, nodeSizes, vp);
+            _culler.cull(effectivePositions, nodeSizes, vp);
         // v99: Subtract branch-collapse hidden member IDs — now uses
         // the CURRENT collapse state (computed above, not stale).
         final Set<String> visible = hiddenIds.isEmpty
@@ -287,8 +323,8 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           final s = r['fromPersonId'] as String?;
           final t = r['toPersonId'] as String?;
           if (s == null || t == null) continue;
-          final sPos = layout.positions[s];
-          final tPos = layout.positions[t];
+          final sPos = effectivePositions[s];
+          final tPos = effectivePositions[t];
           if (sPos == null || tPos == null) {
             // Position unknown — fall back to the conservative
             // both-endpoints-visible test so we don't crash. This also
@@ -415,7 +451,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         _currentEdgeCustomColors = edgeCustomColors;
         _currentCoupleUnions = coupleUnions;
         _currentPositionsWithOffset = {
-          for (final entry in layout.positions.entries)
+          for (final entry in effectivePositions.entries)
             entry.key: Offset(
               entry.value.dx,
               entry.value.dy + _FamilyGraphEngineViewState._kCircleCenterYOffset,
@@ -475,19 +511,40 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                   // actual edge/position DATA changes, not when the
                   // zoom-driven presentation tier changes.
                   child: EdgeSelectionWrapper(
-                    key: ValueKey('edge_layer_${edges.length}_${layout.positions.length}'),
+                    key: ValueKey('edge_layer_${edges.length}_${effectivePositions.length}'),
                     // BUG 1 FIX: Apply Y offset so edge endpoints connect
                     // to the visual circle center, not the Positioned box
                     // center. The circle is at the TOP of the Column
                     // (72px diameter in a 120px tall box), so the visual
                     // circle center is 24px above the box center.
                     positions: {
-                      for (final entry in layout.positions.entries)
+                      for (final entry in effectivePositions.entries)
                         entry.key: Offset(
                           entry.value.dx,
                           entry.value.dy + _FamilyGraphEngineViewState._kCircleCenterYOffset,
                         ),
                     },
+                    // v5.22 (PART 2): Personal RELATIVE edge midpoint
+                    // bow offsets, keyed by relationshipId. The painter
+                    // applies these to the bezier's middle control
+                    // point(s) for that edge, bowing the curve through
+                    // the dragged point instead of the default
+                    // computed midpoint.
+                    //
+                    // HARD CONSTRAINT: dragging the dot may ONLY change
+                    // the visual path geometry. The drag handler MUST
+                    // NOT modify the underlying Relationship row's
+                    // fromPersonId, toPersonId, relationshipKey, or
+                    // labelAtoB. See the assertion comment at
+                    // _handleRearrangeDragUpdate.
+                    //
+                    // When this map is empty (the normal case for an
+                    // edge that hasn't been manually adjusted), the
+                    // painter falls back to the EXISTING _bezier +
+                    // PathMetric t=0.5 midpoint calculation — the
+                    // default "always correctly centered" behavior
+                    // is unchanged for every non-adjusted edge.
+                    edgeWaypoints: effectiveEdgeWaypoints,
                     edges: edges,
                     edgeCategories: edgeCategories,
                     edgeCustomColors: edgeCustomColors,
@@ -538,12 +595,17 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     // every real mutation that affects rendering.
                     graphRevision:
                         edges.length * 100003 +
-                            layout.positions.length +
+                            effectivePositions.length +
                             coupleUnions.length * 17,
                     layoutRevision:
                         (layout.canvasWidth * 1000).round() +
                             (layout.canvasHeight).round() +
-                            layout.positions.length,
+                            effectivePositions.length +
+                            // v5.22: Include the per-drag-update revision
+                            // so the painter repaints while a Rearrange
+                            // drag is in progress (position VALUES are
+                            // changing even though counts aren't).
+                            _rearrangeDragRevision,
                     edgeVisualRevision:
                         edgeCategories.length * 100003 +
                             edgeCustomColors.length,
@@ -606,7 +668,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                       .toList(),
                   onFocusNode: (nodeId) {
                     // Treat Enter as a tap on the keyboard-focused node.
-                    final graphPos = layout.positions[nodeId];
+                    final graphPos = effectivePositions[nodeId];
                     if (graphPos == null) return;
                     // Convert graph-space to screen-space via camera transform.
                     final screenPos = Offset(
@@ -731,11 +793,31 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     child: CustomPaint(
                       painter: _CompareDragLinePainter(
                         fromPosition: _cameraTransformToScreen(
-                          layout.positions[_compareDragFromId] ?? Offset.zero,
+                          effectivePositions[_compareDragFromId] ?? Offset.zero,
                           layout,
                         ),
                         toPosition: _compareDragPosition,
                       ),
+                    ),
+                  ),
+                // v5.22 (PART 3): Shared SaveLockPill, shown after a
+                // Rearrange drag release. Rendered as a screen-space
+                // overlay so it sits above the camera-transformed graph
+                // content (the pill should NOT pan/zoom with the graph).
+                // Auto-dismiss after 6 seconds defaults to Cancel/revert
+                // so unconfirmed changes never silently persist.
+                if (_rearrangePillVisible)
+                  Positioned(
+                    left: (_rearrangePillScreenPosition.dx)
+                        .clamp(8.0, _viewportSize.width - 240.0),
+                    top: (_rearrangePillScreenPosition.dy - 60.0)
+                        .clamp(8.0, _viewportSize.height - 80.0),
+                    child: SaveLockPill(
+                      message: _rearrangePillKind == 'edge'
+                          ? 'Save this curve?'
+                          : 'Save this position?',
+                      onSave: _handleRearrangeSave,
+                      onCancel: _handleRearrangeCancel,
                     ),
                   ),
               ],
@@ -787,7 +869,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         )['id']
         ?.toString();
     if (anchorId == null) return const [];
-    final anchorPosition = layout.positions[anchorId];
+    final anchorPosition = effectivePositions[anchorId];
     if (anchorPosition == null) return const [];
 
     // Buffer-expanded graph-space viewport for the painter's cull test.
