@@ -233,7 +233,29 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     final graphHitRadius = metrics.graphHitRadius;
     String? bestId;
     double bestDist = double.infinity;
-    for (final entry in layout.positions.entries) {
+    // v5.25 (Bug 3 fix): Prefer _currentPositionsWithOffset when it's
+    // populated — it's the SAME map the canvas_mixin computes for the
+    // painter (effectivePositions = autoLayout ⊕ savedOverrides ⊕
+    // liveDragOverrides) with the visual-circle Y offset applied.
+    //
+    // Why this matters: in Rearrange mode (and after a node has been
+    // dragged+served), the on-screen positions DIVERGE from
+    // layout.positions (which is the auto-layout only). Hit-testing
+    // against layout.positions means long-pressing a VISUALLY-MOVED
+    // node silently misses — the user reports "can drag dots but not
+    // nodes". _currentPositionsWithOffset is populated by the
+    // canvas_mixin on every build (lines 454-461) and includes the
+    // viewer's saved overrides + any in-progress drag, so it always
+    // matches what's actually on screen.
+    //
+    // _currentPositionsWithOffset may be empty on the very first
+    // frame (before the canvas_mixin has run its build). Fall back to
+    // layout.positions in that case so the existing non-Rearrange
+    // behaviour is unchanged.
+    final positions = _currentPositionsWithOffset.isNotEmpty
+        ? _currentPositionsWithOffset
+        : layout.positions;
+    for (final entry in positions.entries) {
       final dist = (entry.value - graphPos).distance;
       if (dist < graphHitRadius && dist < bestDist) {
         bestDist = dist;
@@ -968,6 +990,38 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     GraphLayoutResult layout,
     FlatGraphResult flat,
   ) {
+    // v5.25 (Bug 3): Debug logging — log every Rearrange long-press
+    // hit-test result (edge vs node vs none) so we can diagnose why
+    // users can drag edge midpoint dots but not nodes themselves.
+    // The hypothesis is that the edge hit-test (48px radius) is
+    // intercepting presses meant for nearby nodes — this log will
+    // confirm whether node hits are silently failing OR the edge
+    // hit-test is winning the tie.
+    //
+    // The hit-test order is: edge midpoint FIRST, then node. So when
+    // both an edge midpoint AND a node are within hit-radius of the
+    // press position, the edge wins. This log exposes that overlap so
+    // the user's report ("can drag dots but not nodes") becomes
+    // diagnosable.
+    //
+    // Remove this debugPrint once the diagnosis is confirmed and the
+    // fix (if any) is shipped.
+    final debugScreenPos = details.localPosition;
+    final debugGraphPos = _screenToGraphSpace(debugScreenPos);
+    final debugEdgeHit = _hitTestEdge(debugScreenPos);
+    final debugNodeHit = _hitTestNode(debugScreenPos, layout);
+    debugPrint('[v5.25 Rearrange] long-press @ screen=(${debugScreenPos.dx.toStringAsFixed(1)}, ${debugScreenPos.dy.toStringAsFixed(1)}) '
+        'graph=(${debugGraphPos.dx.toStringAsFixed(1)}, ${debugGraphPos.dy.toStringAsFixed(1)}) '
+        '| edgeHit=${debugEdgeHit ?? 'null'} '
+        '| nodeHit=${debugNodeHit ?? 'null'} '
+        '| zoom=${_camera.zoomLevel.toStringAsFixed(2)} '
+        '| visibleEdges=${_currentEdges.length} '
+        '| positions=${layout.positions.length}');
+    if (debugEdgeHit != null && debugNodeHit != null) {
+      debugPrint('[v5.25 Rearrange] BOTH edge AND node hit — edge wins (returned before node hit-test branch). '
+          'If the user intended to drag the node, they should long-press further from the midpoint dot.');
+    }
+
     // PART 2: edge midpoint dot hit-test (uses the existing _hitTestEdge
     // helper — same 48px hit radius the painter uses).
     final edgeId = _hitTestEdge(details.localPosition);

@@ -821,10 +821,26 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 // content (the pill should NOT pan/zoom with the graph).
                 // Auto-dismiss after 6 seconds defaults to Cancel/revert
                 // so unconfirmed changes never silently persist.
+                //
+                // v5.25 (PART 3 fix): Clamp `left` against the pill's
+                // ACTUAL max width (SaveLockPill.kMaxPillWidth = 280.0),
+                // not a guessed 240.0. The previous constant under-
+                // corrected — the pill's actual rendered width (icon +
+                // "Save this curve?" text + two buttons + padding)
+                // exceeded 240px, so the right edge (Save/Cancel
+                // buttons) rendered off-screen near the right edge.
+                // Now: left ∈ [8, viewportWidth - kMaxPillWidth - 8]
+                // guarantees the pill is fully on-screen + has 8px
+                // margin on both sides. When the drag release position
+                // would push the pill past the right edge, the clamp
+                // shifts it left so the right edge aligns to
+                // viewportWidth - 8.
                 if (_rearrangePillVisible)
                   Positioned(
                     left: (_rearrangePillScreenPosition.dx)
-                        .clamp(8.0, _viewportSize.width - 240.0),
+                        .clamp(8.0,
+                            (_viewportSize.width - SaveLockPill.kMaxPillWidth - 8.0)
+                                .clamp(8.0, double.infinity)),
                     top: (_rearrangePillScreenPosition.dy - 60.0)
                         .clamp(8.0, _viewportSize.height - 80.0),
                     child: SaveLockPill(

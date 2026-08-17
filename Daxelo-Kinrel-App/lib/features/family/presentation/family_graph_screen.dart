@@ -284,34 +284,41 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           fontSize: 18,
         ),
       ),
-      actions: [
-        // Map toggle — opens the family map view (MapLibre).
-        IconButton(
-          icon: const Icon(Icons.map_outlined, size: 22),
-          tooltip: 'Family map',
-          onPressed: () => context.push('/family/${widget.familyId}/map'),
-        ),
-        // Search button — opens the graph search overlay.
-        IconButton(
-          icon: const Icon(Icons.search_rounded, size: 22),
-          tooltip: 'Search family',
-          onPressed: () => setState(() => _showSearch = true),
-        ),
-        // Add Member button — primary action, always visible
-        Padding(
-          padding: const EdgeInsetsDirectional.only(end: 8),
-          child: TextButton.icon(
-            onPressed: _openAddMember,
-            icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-            label: const Text('Add'),
-            style: TextButton.styleFrom(
-              foregroundColor: KinrelColors.orange,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+      // v5.25 (distraction-free Rearrange): Hide AppBar actions during
+      // Rearrange mode. Only the back arrow + family name title stay
+      // visible for orientation. The map/search/Add actions clutter
+      // the screen mid-drag and risk accidental taps.
+      actions: ref.watch(rearrangeModeProvider)
+          ? const []
+          : [
+              // Map toggle — opens the family map view (MapLibre).
+              IconButton(
+                icon: const Icon(Icons.map_outlined, size: 22),
+                tooltip: 'Family map',
+                onPressed: () => context.push('/family/${widget.familyId}/map'),
               ),
-            ),
-          ),
+              // Search button — opens the graph search overlay.
+              IconButton(
+                icon: const Icon(Icons.search_rounded, size: 22),
+                tooltip: 'Search family',
+                onPressed: () => setState(() => _showSearch = true),
+              ),
+              // Add Member button — primary action, always visible
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                child: TextButton.icon(
+                  onPressed: _openAddMember,
+                  icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                  label: const Text('Add'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: KinrelColors.orange,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
         ),
       ],
     );
@@ -545,11 +552,12 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ],
         ),
 
-        // P2.1: "How We're Connected" FAB — visible when family has ≥2 members.
+        // P2.1: "How We're Connected" FAB — visible when family has ≥2 members
+        // AND NOT in Rearrange mode (v5.25 distraction-free gate).
         // Premium: neutral dark (NOT orange — orange is reserved for the
         // single primary action). Positioned bottom-left to balance the
         // orange Share FAB on bottom-right.
-        if (graph.persons.length >= 2)
+        if (graph.persons.length >= 2 && !ref.watch(rearrangeModeProvider))
           Positioned(
             right: Directionality.of(context) == TextDirection.rtl ? null : 20,
             left: Directionality.of(context) == TextDirection.rtl ? 20 : null,
@@ -577,9 +585,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ),
 
         // v5.9: "Unlinked Members" button — only visible when there are
-        // members with zero relationship edges. Shows a count badge.
+        // members with zero relationship edges AND NOT in Rearrange mode
+        // (v5.25 distraction-free gate).
         // Positioned top-right so it doesn't overlap other FABs.
-        if (ref.watch(unlinkedPersonIdsProvider(widget.familyId)).isNotEmpty)
+        if (ref.watch(unlinkedPersonIdsProvider(widget.familyId)).isNotEmpty &&
+            !ref.watch(rearrangeModeProvider))
           Positioned(
             top: MediaQuery.of(context).padding.top + 60,
             right: 16,
@@ -594,17 +604,19 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         // V2.1 Stats panel (bottom-start, above bottom toolbar)
         // Directional positioning: bottom-left in LTR, bottom-right in RTL
         // so the stats panel mirrors to the leading edge of the layout.
-        Positioned(
-          right: Directionality.of(context) == TextDirection.rtl ? 16 : null,
-          left: Directionality.of(context) == TextDirection.rtl ? null : 16,
-          bottom: fabBottomOffset,
-          child: StatsPanel(
-            totalMembers: graph.persons.length,
-            totalConnections: graph.relationships.length,
-            totalGenerations: presentGenerations.length,
-            isTruncated: graph.isTruncated,
+        // v5.25 (distraction-free Rearrange): hide during Rearrange mode.
+        if (!ref.watch(rearrangeModeProvider))
+          Positioned(
+            right: Directionality.of(context) == TextDirection.rtl ? 16 : null,
+            left: Directionality.of(context) == TextDirection.rtl ? null : 16,
+            bottom: fabBottomOffset,
+            child: StatsPanel(
+              totalMembers: graph.persons.length,
+              totalConnections: graph.relationships.length,
+              totalGenerations: presentGenerations.length,
+              isTruncated: graph.isTruncated,
+            ),
           ),
-        ),
 
         // Bottom toolbar — Center, Add Member, Filter, Help
         // v42 FIX: Removed PhysicalModel(transparent) and IgnorePointer
@@ -612,16 +624,18 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         // _buildBottomToolbar() already returns a Container with its own
         // BoxShadow, so no wrapper is needed.
         // v62: Show multi-select bar instead when in multi-select mode.
-        Positioned(
-          bottom: bottomPadding + 24,
-          left: 0,
-          right: 0,
-          child: Center(
-            child: _isMultiSelect
-                ? _buildMultiSelectBar()
-                : _buildBottomToolbar(),
+        // v5.25 (distraction-free Rearrange): hide during Rearrange mode.
+        if (!ref.watch(rearrangeModeProvider))
+          Positioned(
+            bottom: bottomPadding + 24,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _isMultiSelect
+                  ? _buildMultiSelectBar()
+                  : _buildBottomToolbar(),
+            ),
           ),
-        ),
       ],
     );
   }

@@ -61,6 +61,21 @@ class SaveLockPill extends StatefulWidget {
 
   static const int _kAutoDismissSeconds = 6;
 
+  /// v5.25 (PART 3 fix): The MAX width the pill may grow to. Exposed
+  /// as a public constant so callers (canvas_mixin.dart's Positioned)
+  /// can clamp the pill's `left` coordinate against this EXACT value
+  /// rather than a guessed constant — preventing the right-edge
+  /// overflow bug where the Save/Cancel buttons render off-screen.
+  ///
+  /// The pill's actual rendered width can be smaller (when the
+  /// message is short) but never larger than this. The internal Row
+  /// uses MainAxisSize.min so an unconstrained pill hugs its content;
+  /// wrapping in ConstrainedBox(maxWidth: kMaxPillWidth) ensures that
+  /// when the content exceeds this width, the message Text wraps to
+  /// a second line instead of forcing the Row to expand horizontally
+  /// past the clamp bound.
+  static const double kMaxPillWidth = 280.0;
+
   @override
   State<SaveLockPill> createState() => _SaveLockPillState();
 }
@@ -108,60 +123,79 @@ class _SaveLockPillState extends State<SaveLockPill> {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: KinrelColors.darkCard,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: KinrelColors.tealAccent.withValues(alpha: 0.4),
-            width: 1,
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x66000000),
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
-          ],
+      child: ConstrainedBox(
+        // v5.25 (PART 3 fix): cap the pill's rendered width at
+        // kMaxPillWidth so the canvas_mixin.dart's Positioned clamp
+        // (which uses this same constant) can correctly keep the
+        // right edge (Save/Cancel buttons) fully on-screen, even when
+        // the message text would otherwise push the pill wider.
+        // The Text inside the Row wraps to a second line if needed.
+        constraints: const BoxConstraints(
+          maxWidth: SaveLockPill.kMaxPillWidth,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Icon(
-                Icons.lock_outline,
-                size: 14,
-                color: KinrelColors.tealAccent,
-              ),
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkCard,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: KinrelColors.tealAccent.withValues(alpha: 0.4),
+              width: 1,
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                widget.message,
-                style: const TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: KinrelColors.textWhite,
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x66000000),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Icon(
+                  Icons.lock_outline,
+                  size: 14,
+                  color: KinrelColors.tealAccent,
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            _PillButton(
-              label: 'Save',
-              color: KinrelColors.tealAccent,
-              onTap: _handleSave,
-            ),
-            const SizedBox(width: 6),
-            _PillButton(
-              label: 'Cancel',
-              color: KinrelColors.textDim,
-              onTap: _handleCancel,
-            ),
-          ],
+              // Flexible so the message wraps (not ellipsized) when
+              // the row would exceed kMaxPillWidth. The buttons
+              // always stay on the same row.
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    widget.message,
+                    softWrap: true,
+                    overflow: TextOverflow.visible,
+                    style: const TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: KinrelColors.textWhite,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _PillButton(
+                label: 'Save',
+                color: KinrelColors.tealAccent,
+                onTap: _handleSave,
+              ),
+              const SizedBox(width: 6),
+              _PillButton(
+                label: 'Cancel',
+                color: KinrelColors.textDim,
+                onTap: _handleCancel,
+              ),
+            ],
+          ),
         ),
       ),
     );

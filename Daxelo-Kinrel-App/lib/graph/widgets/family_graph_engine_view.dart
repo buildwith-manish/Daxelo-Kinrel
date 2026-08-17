@@ -741,7 +741,15 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                     const Positioned(
                         left: 0, right: 0, top: 0, child: OfflineBanner()),
                   // v99 (Phase 1): Focus Back control
-                  if (ref.watch(graphFocusProvider.select((s) => s.history)).isNotEmpty)
+                  // v5.25 (distraction-free Rearrange): hide during
+                  // Rearrange mode — its top-left position would
+                  // visually conflict with the Rearrange toggle FAB
+                  // (also top-left) and the focus-back action isn't
+                  // relevant mid-drag.
+                  if (ref
+                      .watch(graphFocusProvider.select((s) => s.history))
+                      .isNotEmpty &&
+                      !rearrangeMode)
                     Positioned(
                       top: MediaQuery.of(context).padding.top + 8,
                       left: 8,
@@ -755,7 +763,13 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                       ),
                     ),
                   // P4.1: Mini-map
-                  if (flat.persons.length > 30)
+                  // v5.25 (distraction-free Rearrange): hide during
+                  // Rearrange mode — its bottom-right position would
+                  // visually conflict with the SaveLockPill (when a
+                  // drag release happens near the right edge) and the
+                  // mini-map tap-to-pan feature is not relevant
+                  // mid-drag.
+                  if (flat.persons.length > 30 && !rearrangeMode)
                     Positioned(
                       right: 8,
                       bottom: 8,
@@ -779,7 +793,10 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                       ),
                     ),
                   // Share FAB
-                  if (kEnableGraphShareExport)
+                  // v5.25 (distraction-free Rearrange): hide during
+                  // Rearrange mode so it doesn't clutter the screen
+                  // mid-drag and risk accidental taps.
+                  if (kEnableGraphShareExport && !rearrangeMode)
                     Positioned(
                       right: 16,
                       bottom: flat.persons.length > 30 ? 80 : 16,
