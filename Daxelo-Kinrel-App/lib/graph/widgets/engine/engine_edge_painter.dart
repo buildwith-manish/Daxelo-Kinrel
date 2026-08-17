@@ -966,36 +966,54 @@ class EngineEdgePainter extends CustomPainter {
     // radius renders at ~2.8px on screen — small but visible against
     // the dot-tier node markers which are themselves ~6px screen).
     if (edgeQuality == EdgeQuality.dot) {
-      // ── DOT-tier midpoint tuning knobs ──────────────────────────
-      // Heart radius (graph space). Slightly larger than the bead so
-      // spouse connections are distinguishable from parent/child at
-      // a glance when zoomed out.
-      const double kDotHeartRadius = 7.0;
-      // Bead radius (graph space) for non-spouse edges.
-      const double kDotBeadRadius = 4.5;
-      // Alpha multiplier for dimmed edges at DOT LOD. Kept a touch
-      // higher than the full-LOD dim factor so the midpoint stays
-      // legible against the dimmed edge body at small scale.
-      const double kDotDimAlphaFloor = 0.5;
+      // v5.26 (Task 3): Skip the DOT LOD simplification for
+      // spouse/heart-symbol edges — fall through to the real
+      // HeartShape.drawHeart code below so spouse connections always
+      // render the actual heart shape at any zoom level (instead of a
+      // slightly-larger-but-still-circle dot).
+      //
+      // The original v105 simplification drew a CIRCLE for both hearts
+      // and dots at DOT LOD (just with a larger radius for hearts).
+      // That kept hearts "present" at low zoom but not visually
+      // legible as hearts — zooming all the way out on a tree with
+      // several spouse pairs reduced them all to indistinguishable
+      // circles. The real heart shape stays visually legible at any
+      // zoom because the heart silhouette is recognisable even at
+      // ~5px screen size.
+      //
+      // Non-heart midpoint symbols (regular relationship dots) still
+      // use the DOT LOD simplification below — they have no special
+      // silhouette to preserve, so a circle is fine.
+      if (midpointSymbol == KinshipMidpointSymbol.heart) {
+        // Fall through to the real heart-drawing code at line
+        // `if (midpointSymbol == KinshipMidpointSymbol.heart)` below.
+        // DO NOT early-return here.
+      } else {
+        // ── DOT-tier midpoint tuning knobs ──────────────────────────
+        // Bead radius (graph space) for non-spouse edges.
+        const double kDotBeadRadius = 4.5;
+        // Alpha multiplier for dimmed edges at DOT LOD. Kept a touch
+        // higher than the full-LOD dim factor so the midpoint stays
+        // legible against the dimmed edge body at small scale.
+        const double kDotDimAlphaFloor = 0.5;
 
-      final bool isHeart = midpointSymbol == KinshipMidpointSymbol.heart;
-      final double dotR = isHeart ? kDotHeartRadius : kDotBeadRadius;
-      // v105.1: floor the dim alpha so the DOT-tier midpoint never
-      // drops below kDotDimAlphaFloor — at small scale a very low
-      // alpha would make it invisible.
-      final double dotAlpha = isDimmed
-          ? (midpointAlpha * (1.0 - kDotDimAlphaFloor) + kDotDimAlphaFloor)
-              .clamp(0.0, 1.0)
-          : 1.0;
-      canvas.drawCircle(
-        midPoint,
-        dotR,
-        Paint()
-          ..color =
-              effectiveMidpointColor.withValues(alpha: dotAlpha)
-          ..style = PaintingStyle.fill,
-      );
-      return;
+        // v105.1: floor the dim alpha so the DOT-tier midpoint never
+        // drops below kDotDimAlphaFloor — at small scale a very low
+        // alpha would make it invisible.
+        final double dotAlpha = isDimmed
+            ? (midpointAlpha * (1.0 - kDotDimAlphaFloor) + kDotDimAlphaFloor)
+                .clamp(0.0, 1.0)
+            : 1.0;
+        canvas.drawCircle(
+          midPoint,
+          kDotBeadRadius,
+          Paint()
+            ..color =
+                effectiveMidpointColor.withValues(alpha: dotAlpha)
+            ..style = PaintingStyle.fill,
+        );
+        return;
+      }
     }
 
     if (midpointSymbol == KinshipMidpointSymbol.heart) {

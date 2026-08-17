@@ -338,6 +338,58 @@ class LayoutOverridesService {
     ref.invalidate(personalLayoutOverridesProvider(familyId));
   }
 
+  // ── v5.26 (Task 2a) — reset-all ─────────────────────────────────
+
+  /// Clears EVERY saved override for the current viewer + family in
+  /// one write. Sets both `nodePositions` AND `edgeWaypoints` to
+  /// `'{}'::jsonb` — empty maps — using the same upsert-on-
+  /// (familyId, auth.uid()) pattern already used by saveNodeOverride /
+  /// saveEdgeWaypoint. Other columns on the row (zoom, pan, filters,
+  /// collapsedNodes, hiddenNodes, layoutMode) are PRESERVED via
+  /// _preserveOtherColumns so the user's other view state survives.
+  ///
+  /// After the write succeeds, invalidates
+  /// personalLayoutOverridesProvider(familyId) so the graph
+  /// immediately re-renders using pure auto-layout for every node
+  /// and edge.
+  ///
+  /// Personal-only — same as every other method in this service:
+  /// the WHERE clauses everywhere use `userId = auth.id` and the RLS
+  /// policies on GraphLayoutState explicitly compare
+  /// `userId = auth.uid()::text`. A user literally CANNOT clear
+  /// another user's row. No other user's saved layout is touched.
+  ///
+  /// Idempotent — calling this when there are zero saved overrides
+  /// is a no-op upsert (sets both maps to '{}', which is what they
+  /// already are by default). Safe to call repeatedly.
+  static Future<void> resetAllOverrides(
+    WidgetRef ref,
+    String familyId,
+  ) async {
+    final client = ref.read(supabaseProvider);
+    if (client == null) return;
+    final auth = client.auth.currentUser;
+    if (auth == null) return;
+
+    // Read the existing row so we can preserve the other columns
+    // (zoom/pan/filters/etc). If no row exists yet, this is a no-op
+    // (the upsert will create a row with the defaults, which already
+    // has both maps as '{}'). We still do the upsert for the case
+    // where a row exists with overrides — we need to clear them.
+    final existing = await _readRow(client, familyId, auth.id);
+
+    await client.from('GraphLayoutState').upsert({
+      'familyId': familyId,
+      'userId': auth.id,
+      // Both maps reset to empty JSONB objects.
+      'nodePositions': <String, dynamic>{},
+      'edgeWaypoints': <String, dynamic>{},
+      if (existing != null) ..._preserveOtherColumns(existing),
+    }, onConflict: 'familyId, userId');
+
+    ref.invalidate(personalLayoutOverridesProvider(familyId));
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────
 
   /// Read the viewer's own GraphLayoutState row. Returns null when no

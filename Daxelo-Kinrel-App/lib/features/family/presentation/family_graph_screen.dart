@@ -25,6 +25,8 @@
 //   - Immediate graph refresh after adding members
 //   - Direct Supabase query as primary source (always fetches ALL members)
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,7 +46,11 @@ import '../../../graph/widgets/relationship_picker_flow.dart'; // v5.10
 import '../../../graph/widgets/graph_relationship_labels.dart' show GraphPersonData; // v5.10
 // v5.22: Rearrange-mode toggle (personal layout overrides + edge midpoint bow).
 import '../../../graph/rearrange/layout_overrides_service.dart'
-    show rearrangeModeProvider;
+    show
+        LayoutOverridesService,
+        PersonalLayoutOverrides,
+        personalLayoutOverridesProvider,
+        rearrangeModeProvider;
 import 'add_member_options_sheet.dart';
 import 'providers/family_graph_provider.dart'
     show
@@ -103,12 +109,53 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   /// v60: Incremented to trigger re-centering in FamilyGraphWidget.
   int _recenterKey = 0;
 
+  // v5.26 (Task 1b): Auto-hide the Rearrange-mode instructional banner
+  // after 4 seconds. The banner appears when rearrangeModeProvider
+  // flips true->ON, then auto-hides (no interaction needed). The
+  // exit-X toggle stays visible separately so the user can still exit.
+  // To re-summon the banner later, a small "?" icon next to the exit
+  // button could be added (deferred — not needed today).
+  bool _showRearrangeBanner = false;
+  Timer? _rearrangeBannerTimer;
+
   // v60: Removed _transformPrefsPrefix — no longer saving transform state.
 
   @override
   void initState() {
     super.initState();
     _restoreTransformState();
+    // v5.26 (Task 1b): listen for rearrangeModeProvider true->ON
+    // transitions to (re)show the banner + arm the 4s auto-hide timer.
+    // We do this in initState via ref.listenToSelf so the listener
+    // is wired once and survives rebuilds. The listener callback runs
+    // AFTER the provider changes — `previous` is the prior value.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.listenManual(rearrangeModeProvider, (previous, next) {
+        if (next && !previous) {
+          // Just turned ON — show banner + arm auto-hide.
+          _showRearrangeBanner = true;
+          _rearrangeBannerTimer?.cancel();
+          _rearrangeBannerTimer = Timer(
+            const Duration(seconds: 4),
+            () {
+              if (mounted) {
+                setState(() => _showRearrangeBanner = false);
+              }
+            },
+          );
+          // Trigger a rebuild so the banner appears immediately.
+          setState(() {});
+        } else if (!next) {
+          // Turned OFF — cancel any pending auto-hide + hide banner
+          // immediately (so it doesn't linger if the user exits
+          // before the 4s timer fires).
+          _rearrangeBannerTimer?.cancel();
+          _rearrangeBannerTimer = null;
+          _showRearrangeBanner = false;
+        }
+      });
+    });
   }
 
   @override
@@ -117,6 +164,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     // _restoreTransformState() never reads the saved values (it always
     // resets to identity). Wasted I/O on every screen exit.
     _graphTransformController.dispose();
+    _rearrangeBannerTimer?.cancel();
     super.dispose();
   }
 
@@ -571,12 +619,21 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         // (PART 1), long-press on a midpoint dot bows the curve (PART 2),
         // and the existing long-press → info-sheet gesture is suspended.
         // Outside Rearrange mode, all existing gestures work unchanged.
+        //
+        // v5.26 (Task 1b): The banner now auto-hides 4 seconds after
+        // Rearrange mode is toggled ON (uses _showRearrangeBanner state
+        // driven by a Timer in initState, NOT directly tied to
+        // rearrangeModeProvider). The exit toggle stays visible the
+        // whole time — only the instructional banner disappears.
+        // v5.26 (Task 2b): When Rearrange is ON AND the viewer has
+        // saved overrides, also show a "Reset all my custom positions"
+        // button next to the toggle (Row wraps both buttons + resets).
         Positioned(
           top: MediaQuery.of(context).padding.top + 60,
           left: 16,
-          child: _buildRearrangeToggleButton(),
+          child: _buildRearrangeControlsCluster(),
         ),
-        if (ref.watch(rearrangeModeProvider))
+        if (_showRearrangeBanner)
           Positioned(
             top: MediaQuery.of(context).padding.top + 110,
             left: 16,
@@ -764,6 +821,14 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   // curve (PART 2). The existing long-press → info-sheet gesture is
   // suspended while active. Tap the FAB again (or long-press empty
   // canvas) to exit.
+  //
+  // v5.26 (Task 1a): Changed the active-state icon from Icons.check
+  // (which read as "Save" and got confused with the per-drag
+  // SaveLockPill) to Icons.close (X) — unambiguously means "exit
+  // Rearrange mode", distinct from the per-drag Save/Cancel pill which
+  // commits one specific change. Both are needed: the X exits the
+  // whole Rearrange MODE (session scope), the SaveLockPill commits a
+  // single EDIT (per-drag scope).
   Widget _buildRearrangeToggleButton() {
     final isOn = ref.watch(rearrangeModeProvider);
     return Semantics(
@@ -780,9 +845,154 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         onPressed: () {
           ref.read(rearrangeModeProvider.notifier).state = !isOn;
         },
-        child: Icon(isOn ? Icons.check : Icons.open_with, size: 20),
+        child: Icon(isOn ? Icons.close : Icons.open_with, size: 20),
       ),
     );
+  }
+
+  // v5.26 (Task 2b): Cluster that wraps the Rearrange toggle + (when
+  // the viewer has at least one saved override) a "Reset all" button
+  // next to it. Both buttons live in a Row so they share the same
+  // top-left Positioned slot.
+  Widget _buildRearrangeControlsCluster() {
+    final isOn = ref.watch(rearrangeModeProvider);
+    if (!isOn) {
+      // Outside Rearrange mode: just the toggle (no reset button).
+      return _buildRearrangeToggleButton();
+    }
+    // Rearrange mode is ON — check if the viewer has any saved
+    // overrides. If yes, also show the Reset All button next to the
+    // toggle.
+    final saved = ref
+            .watch(personalLayoutOverridesProvider(widget.familyId))
+            .valueOrNull ??
+        const PersonalLayoutOverrides.empty();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        _buildRearrangeToggleButton(),
+        if (!saved.isEmpty) ...[
+          const SizedBox(width: 8),
+          _buildResetAllButton(),
+        ],
+      ],
+    );
+  }
+
+  // v5.26 (Task 2b): "Reset all my custom positions" button — small
+  // pill-style button with the "restart" icon. Tapping shows a confirm
+  // dialog (reusing the SaveLockPill pattern). On confirm: calls
+  // LayoutOverridesService.resetAllOverrides(familyId) which clears
+  // every saved nodePositions + edgeWaypoints entry for this viewer +
+  // family in one upsert. The provider is invalidated so the graph
+  // re-renders using pure auto-layout for every node and edge.
+  Widget _buildResetAllButton() {
+    return Semantics(
+      label: 'Reset all my custom positions and curves',
+      button: true,
+      child: FloatingActionButton.small(
+        heroTag: 'rearrange_reset_all',
+        backgroundColor: KinrelColors.darkCard,
+        foregroundColor: KinrelColors.orange,
+        elevation: 4,
+        onPressed: _showResetAllConfirmDialog,
+        child: const Icon(Icons.restart_alt_outlined, size: 20),
+      ),
+    );
+  }
+
+  // v5.26 (Task 2c): Confirm dialog for "Reset all my custom positions".
+  // Reuses the SaveLockPill visual language (dark card + teal border +
+  // Save/Cancel-style buttons) but as a centered AlertDialog (because
+  // this is a session-scope reset, not a per-drag commit — and the
+  // user might tap this button while NOT mid-drag, so a floating pill
+  // wouldn't have a natural anchor point).
+  Future<void> _showResetAllConfirmDialog() async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: KinrelColors.darkCard,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.restart_alt_outlined,
+                  color: KinrelColors.orange, size: 22),
+              SizedBox(width: 8),
+              Text(
+                'Reset all positions?',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 18.0,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'This clears every custom node position and curve you\'ve '
+                'saved for this tree. Auto-layout will be restored for '
+                'every node and edge. This only affects YOUR view — '
+                'other family members\' saved layouts are not touched.',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 14.0,
+              color: KinrelColors.textSilver,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: KinrelColors.textDim),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text(
+                'Reset',
+                style: TextStyle(
+                  color: KinrelColors.orange,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (result != true) return;
+
+    // User confirmed — call the reset service. The service handles
+    // provider invalidation so the graph re-renders using pure
+    // auto-layout immediately.
+    try {
+      await LayoutOverridesService.resetAllOverrides(
+        ref,
+        widget.familyId,
+      );
+      messenger?.showSnackBar(
+        const SnackBar(
+          content: Text('Reset to auto-layout for all nodes and curves'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text('Failed to reset: $e'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   Widget _buildRearrangeBanner() {
