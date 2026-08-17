@@ -22,7 +22,11 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart' show Offset;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' show
+    FutureProvider,
+    FutureProviderFamily,
+    StateProvider,
+    WidgetRef;
 
 import '../../core/services/supabase_service.dart';
 
@@ -216,7 +220,7 @@ class LayoutOverridesService {
   /// current viewer + family. Read-modify-writes the JSONB map so
   /// other saved overrides for the same family are preserved.
   static Future<void> saveNodeOverride(
-    Ref ref,
+    WidgetRef ref,
     String familyId,
     String personId,
     Offset position,
@@ -247,7 +251,7 @@ class LayoutOverridesService {
   /// Remove a single node's saved override and let it fall back to
   /// auto-layout. Read-modify-writes the JSONB.
   static Future<void> removeNodeOverride(
-    Ref ref,
+    WidgetRef ref,
     String familyId,
     String personId,
   ) async {
@@ -281,7 +285,7 @@ class LayoutOverridesService {
   /// computed t=0.5 bezier midpoint — NOT an absolute coordinate —
   /// so the offset stays meaningful if the endpoints get repositioned.
   static Future<void> saveEdgeWaypoint(
-    Ref ref,
+    WidgetRef ref,
     String familyId,
     String relationshipId,
     Offset delta,
@@ -309,7 +313,7 @@ class LayoutOverridesService {
   /// Remove a single edge's saved midpoint offset — the dot snaps
   /// back to the true computed t=0.5 bezier midpoint.
   static Future<void> removeEdgeWaypoint(
-    Ref ref,
+    WidgetRef ref,
     String familyId,
     String relationshipId,
   ) async {

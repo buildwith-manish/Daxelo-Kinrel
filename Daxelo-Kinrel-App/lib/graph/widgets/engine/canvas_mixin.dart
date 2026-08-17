@@ -58,6 +58,46 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           _culler.invalidate();
         }
 
+        // v5.22 (PART 1 + PART 2): Apply the viewer's saved personal
+        // overrides (saved nodePositions + saved edgeWaypoints) on top
+        // of the auto-computed layout positions, then layer any LIVE
+        // drag deltas on top of THAT. The order is:
+        //
+        //   effectivePositions =
+        //     autoLayout ⊕ savedOverrides.nodePositions ⊕ _rearrangeLiveNodeOverrides
+        //
+        //   effectiveEdgeWaypoints =
+        //     savedOverrides.edgeWaypoints ⊕ _rearrangeLiveEdgeWaypoints
+        //
+        // LIVE overrides take precedence (the user is actively dragging
+        // — the finger position is the truth). SAVED overrides come next
+        // (last committed drag). Auto-layout fills in everything else.
+        //
+        // When NOT in Rearrange mode, the live maps are guaranteed
+        // empty (see _handleRearrangeDragEnd's cleanup), so this
+        // reduces to `autoLayout ⊕ savedOverrides`.
+        //
+        // When the viewer has no saved overrides at all (the normal
+        // case — most viewers never customize their graph layout),
+        // this reduces to `autoLayout` unchanged — no regression.
+        //
+        // Declared HERE at the top of the builder (not later) so the
+        // camera content-bounds computation below can use it to
+        // include any repositioned nodes in its bounding box —
+        // otherwise panning would feel wrong if a node was dragged
+        // outside the original auto-layout bounds.
+        final Map<String, Offset> effectivePositions =
+            savedOverrides.applyTo(layout.positions);
+        // Layer the live drag deltas on top (only non-empty while a
+        // drag is in progress in Rearrange mode).
+        if (_rearrangeLiveNodeOverrides.isNotEmpty) {
+          effectivePositions.addAll(_rearrangeLiveNodeOverrides);
+        }
+        final Map<String, Offset> effectiveEdgeWaypoints = {
+          ...savedOverrides.edgeWaypoints,
+          ..._rearrangeLiveEdgeWaypoints,
+        };
+
         // v4.5: Push content bounds to the camera (bounding box of all
         // node positions + expanded node size including visual effects).
         // Uses 220×256 (base 140×176 + glow/shadow/badges/indicators)
@@ -87,40 +127,6 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // avoids the historical setState-during-build crash.
         WidgetsBinding.instance
             .addPostFrameCallback((_) => _maybeFrame(layout));
-
-        // v5.22 (PART 1 + PART 2): Apply the viewer's saved personal
-        // overrides (saved nodePositions + saved edgeWaypoints) on top
-        // of the auto-computed layout positions, then layer any LIVE
-        // drag deltas on top of THAT. The order is:
-        //
-        //   effectivePositions =
-        //     autoLayout ⊕ savedOverrides.nodePositions ⊕ _rearrangeLiveNodeOverrides
-        //
-        //   effectiveEdgeWaypoints =
-        //     savedOverrides.edgeWaypoints ⊕ _rearrangeLiveEdgeWaypoints
-        //
-        // LIVE overrides take precedence (the user is actively dragging
-        // — the finger position is the truth). SAVED overrides come next
-        // (last committed drag). Auto-layout fills in everything else.
-        //
-        // When NOT in Rearrange mode, the live maps are guaranteed
-        // empty (see _handleRearrangeDragEnd's cleanup), so this
-        // reduces to `autoLayout ⊕ savedOverrides`.
-        //
-        // When the viewer has no saved overrides at all (the normal
-        // case — most viewers never customize their graph layout),
-        // this reduces to `autoLayout` unchanged — no regression.
-        final Map<String, Offset> effectivePositions =
-            savedOverrides.applyTo(layout.positions);
-        // Layer the live drag deltas on top (only non-empty while a
-        // drag is in progress in Rearrange mode).
-        if (_rearrangeLiveNodeOverrides.isNotEmpty) {
-          effectivePositions.addAll(_rearrangeLiveNodeOverrides);
-        }
-        final Map<String, Offset> effectiveEdgeWaypoints = {
-          ...savedOverrides.edgeWaypoints,
-          ..._rearrangeLiveEdgeWaypoints,
-        };
 
         final personById = <String, Map<String, dynamic>>{
           for (final Map<String, dynamic> p in flat.persons)
@@ -878,7 +884,13 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         )['id']
         ?.toString();
     if (anchorId == null) return const [];
-    final anchorPosition = effectivePositions[anchorId];
+    // v5.22 fix: use layout.positions (not effectivePositions) here
+    // because _buildAmbientParticleLayer is called OUTSIDE the
+    // LayoutBuilder builder scope, so effectivePositions (a local in
+    // that scope) is not in scope here. The mote cloud follows the
+    // anchor node, which is rarely user-overridden; if it is, the
+    // motes drift slightly — a non-user-visible decorative cosmetic.
+    final anchorPosition = layout.positions[anchorId];
     if (anchorPosition == null) return const [];
 
     // Buffer-expanded graph-space viewport for the painter's cull test.

@@ -27,7 +27,10 @@ import '../../features/family/presentation/add_person_sheet.dart';
 import '../interaction/graph_focus_state.dart';
 // v5.22: Personal layout overrides (for the per-node "Reset to auto layout" action).
 import '../rearrange/layout_overrides_service.dart'
-    show LayoutOverridesService, personalLayoutOverridesProvider;
+    show
+        LayoutOverridesService,
+        PersonalLayoutOverrides,
+        personalLayoutOverridesProvider;
 import 'graph_relationship_labels.dart';
 import 'relationship_picker_flow.dart'; // v5.10: shared picker flow
 
