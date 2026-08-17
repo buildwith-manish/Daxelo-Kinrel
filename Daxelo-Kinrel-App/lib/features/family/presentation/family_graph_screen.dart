@@ -45,12 +45,15 @@ import '../../../graph/widgets/unlinked_members_sheet.dart'; // v5.9
 import '../../../graph/widgets/relationship_picker_flow.dart'; // v5.10
 import '../../../graph/widgets/graph_relationship_labels.dart' show GraphPersonData; // v5.10
 // v5.22: Rearrange-mode toggle (personal layout overrides + edge midpoint bow).
+// v5.34: also imports saveAllOverridesTriggerProvider + resetUnsavedOverridesTriggerProvider.
 import '../../../graph/rearrange/layout_overrides_service.dart'
     show
         LayoutOverridesService,
         PersonalLayoutOverrides,
         personalLayoutOverridesProvider,
-        rearrangeModeProvider;
+        rearrangeModeProvider,
+        saveAllOverridesTriggerProvider,
+        resetUnsavedOverridesTriggerProvider;
 import 'add_member_options_sheet.dart';
 import 'providers/family_graph_provider.dart'
     show
@@ -868,66 +871,74 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   Widget _buildRearrangeControlsCluster() {
     final isOn = ref.watch(rearrangeModeProvider);
     if (!isOn) {
-      // Outside Rearrange mode: just the toggle (no reset button).
+      // Outside Rearrange mode: just the toggle (no Save/Reset buttons).
       return _buildRearrangeToggleButton();
     }
-    // v5.33 Issue 1: The reset button's visibility is now tied
-    // EXCLUSIVELY to whether Rearrange mode is active. Previously it
-    // was also gated on `!saved.isEmpty` — but saved comes from
-    // personalLayoutOverridesProvider which returns PersonalLayoutOverrides.empty
-    // during async re-fetch (after a save triggers invalidation).
-    // During that brief loading window, saved.isEmpty is true and the
-    // button vanishes. When the re-fetch completes, the button
-    // reappears — an intermittent flicker.
-    //
-    // Now: always show the reset button when Rearrange mode is ON.
-    // If there are no saved overrides, the reset is a no-op (the
-    // service method is idempotent — it upserts '{}' to both maps,
-    // which is what they already are by default).
+    // v5.34: New workflow — persistent Save + Reset buttons in the
+    // top toolbar. Users move multiple nodes freely (no per-drag
+    // SaveLockPill), then click Save once to commit ALL changes.
+    // Reset discards all unsaved moves (restores to the last saved
+    // layout). Both buttons are ALWAYS visible while Rearrange mode
+    // is active — they never hide.
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _buildRearrangeToggleButton(),
         const SizedBox(width: 8),
+        _buildSaveAllButton(),
+        const SizedBox(width: 8),
         _buildResetAllButton(),
       ],
     );
   }
 
-  // v5.26 (Task 2b): "Reset all my custom positions" button — small
-  // pill-style button with the "restart" icon.
-  // v5.29 Fix 2: Removed the confirm dialog. Reset is always safe (the
-  // DB overrides are wiped too, so there's no destructive action to
-  // confirm). One tap, instant, no dialog.
+  // v5.34: Persistent Save button — commits ALL unsaved node positions
+  // + edge waypoints in one operation. Increments
+  // saveAllOverridesTriggerProvider; the engine view watches this and
+  // iterates over _rearrangeLiveNodeOverrides + _rearrangeLiveEdgeWaypoints,
+  // saving each entry via LayoutOverridesService.
+  Widget _buildSaveAllButton() {
+    return Semantics(
+      label: 'Save all rearranged positions',
+      button: true,
+      child: FloatingActionButton.small(
+        heroTag: 'rearrange_save_all',
+        backgroundColor: KinrelColors.tealAccent,
+        foregroundColor: Colors.black,
+        elevation: 4,
+        onPressed: () {
+          ref.read(saveAllOverridesTriggerProvider.notifier).state++;
+        },
+        child: const Icon(Icons.check_rounded, size: 20),
+      ),
+    );
+  }
+
+  // v5.34: Reset button — discards ALL unsaved moves made during the
+  // current Rearrange session. Restores to the LAST SAVED layout (whatever
+  // was in the DB when Rearrange mode was entered). Does NOT wipe the DB
+  // — saved overrides are preserved, only unsaved live changes are
+  // discarded.
   Widget _buildResetAllButton() {
     return Semantics(
-      label: 'Reset all my custom positions and curves',
+      label: 'Discard unsaved rearrangements',
       button: true,
       child: FloatingActionButton.small(
         heroTag: 'rearrange_reset_all',
         backgroundColor: KinrelColors.darkCard,
         foregroundColor: KinrelColors.orange,
         elevation: 4,
-        onPressed: _resetAllImmediate,
+        onPressed: () {
+          // v5.34: Increment the reset-unsaved trigger. The engine
+          // view watches this and clears _rearrangeLiveNodeOverrides +
+          // _rearrangeLiveEdgeWaypoints (the unsaved changes). The
+          // graph snaps back to the saved layout.
+          ref.read(resetUnsavedOverridesTriggerProvider.notifier).state++;
+        },
         child: const Icon(Icons.restart_alt_outlined, size: 20),
       ),
     );
-  }
-
-  // v5.29 Fix 2: One-tap instant reset — no dialog. Clears live
-  // overrides in the engine instantly (the DB overrides are wiped by
-  // resetAllOverrides which also invalidates the provider so the
-  // graph re-renders using pure auto-layout). Bumps _recenterKey so
-  // the camera snaps back to the anchor node.
-  Future<void> _resetAllImmediate() async {
-    // Clear live overrides in the engine instantly (no dialog needed —
-    // reset is always safe since the DB overrides are wiped too).
-    try {
-      await LayoutOverridesService.resetAllOverrides(ref, widget.familyId);
-      // Increment recenterKey so the camera snaps back to the anchor node.
-      setState(() => _recenterKey++);
-    } catch (_) {}
   }
 
   Widget _buildRearrangeBanner() {

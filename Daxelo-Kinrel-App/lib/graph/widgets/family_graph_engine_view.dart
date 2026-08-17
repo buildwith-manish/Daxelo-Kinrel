@@ -172,13 +172,16 @@ import 'engine/viewer_linked_provider.dart' show isViewerLinkedProvider;
 // v5.22: Personal layout overrides + Rearrange-mode toggle.
 // Both consumed by the canvas mixin and the interaction mixin.
 // v5.27 Task 1: also imports resetAnimationTriggerProvider.
+// v5.34: also imports saveAllOverridesTriggerProvider + resetUnsavedOverridesTriggerProvider.
 import '../rearrange/layout_overrides_service.dart'
     show
         LayoutOverridesService,
         PersonalLayoutOverrides,
         personalLayoutOverridesProvider,
         rearrangeModeProvider,
-        resetAnimationTriggerProvider;
+        resetAnimationTriggerProvider,
+        saveAllOverridesTriggerProvider,
+        resetUnsavedOverridesTriggerProvider;
 import '../rearrange/save_lock_pill.dart' show SaveLockPill;
 
 // ── P0.4: Extracted parts (MUST come after all imports) ────────────────
@@ -485,6 +488,13 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   bool _animatingReset = false;
   int _lastResetTriggerValue = 0;
 
+  // v5.34: Trigger counters for the new Save-All + Reset-Unsaved
+  // workflow. The engine view watches saveAllOverridesTriggerProvider
+  // and resetUnsavedOverridesTriggerProvider; on increment, it does
+  // the actual work (iterate over live overrides, save/clear).
+  int _lastSaveAllTriggerValue = 0;
+  int _lastResetUnsavedTriggerValue = 0;
+
   // ── v5.27 Task 2 — Connect-on-open animation state ───────────────
   //
   // On first graph load for a session, we animate edges appearing
@@ -569,6 +579,20 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         if (next != null && next > _lastResetTriggerValue) {
           _lastResetTriggerValue = next;
           _onResetTrigger();
+        }
+      });
+      // v5.34: Listen for the Save-All trigger (persistent Save button).
+      ref.listenManual(saveAllOverridesTriggerProvider, (previous, next) {
+        if (next != null && next > _lastSaveAllTriggerValue) {
+          _lastSaveAllTriggerValue = next;
+          _onSaveAllTrigger();
+        }
+      });
+      // v5.34: Listen for the Reset-Unsaved trigger (Reset button).
+      ref.listenManual(resetUnsavedOverridesTriggerProvider, (previous, next) {
+        if (next != null && next > _lastResetUnsavedTriggerValue) {
+          _lastResetUnsavedTriggerValue = next;
+          _onResetUnsavedTrigger();
         }
       });
     });
@@ -777,6 +801,59 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _resetController?.forward(from: 0.0);
     // Trigger an immediate rebuild so the canvas_mixin sees
     // _animatingReset=true + _preResetPositions and starts lerping.
+    setState(() {});
+  }
+
+  // ── v5.34 — Save-All + Reset-Unsaved handlers ─────────────────────
+
+  /// v5.34: Called when the user taps the persistent Save button.
+  /// Iterates over _rearrangeLiveNodeOverrides and
+  /// _rearrangeLiveEdgeWaypoints, saves each entry via
+  /// LayoutOverridesService, waits for the provider to resolve, then
+  /// clears both maps. All changes committed in one operation.
+  Future<void> _onSaveAllTrigger() async {
+    if (!mounted) return;
+    // Save all node overrides.
+    for (final entry in _rearrangeLiveNodeOverrides.entries) {
+      await LayoutOverridesService.saveNodeOverride(
+          ref, widget.familyId, entry.key, entry.value);
+    }
+    // Save all edge waypoint overrides.
+    for (final entry in _rearrangeLiveEdgeWaypoints.entries) {
+      await LayoutOverridesService.saveEdgeWaypoint(
+          ref, widget.familyId, entry.key, entry.value);
+    }
+    // Wait for the provider to resolve with the new persisted values
+    // BEFORE clearing the live overrides (same fix as v5.30 Issue 1 —
+    // prevents the one-frame gap where neither saved nor live overrides
+    // are present).
+    if (_rearrangeLiveNodeOverrides.isNotEmpty ||
+        _rearrangeLiveEdgeWaypoints.isNotEmpty) {
+      await ref.read(
+          personalLayoutOverridesProvider(widget.familyId).future);
+    }
+    // Clear the live override maps — the saved overrides now reflect
+    // all the changes.
+    _rearrangeLiveNodeOverrides = const {};
+    _rearrangeLiveEdgeWaypoints = const {};
+    _rearrangeDragRevision++;
+    if (mounted) setState(() {});
+  }
+
+  /// v5.34: Called when the user taps the Reset button.
+  /// Discards ALL unsaved changes (clears _rearrangeLiveNodeOverrides +
+  /// _rearrangeLiveEdgeWaypoints). The graph snaps back to the LAST
+  /// SAVED layout (whatever was in the DB when Rearrange mode was
+  /// entered). Does NOT touch the DB — saved overrides are preserved.
+  void _onResetUnsavedTrigger() {
+    if (!mounted) return;
+    _rearrangeLiveNodeOverrides = const {};
+    _rearrangeLiveEdgeWaypoints = const {};
+    _rearrangeDragKind = null;
+    _rearrangeDragId = null;
+    _rearrangePreDragPosition = null;
+    _rearrangePreDragEdgeDelta = Offset.zero;
+    _rearrangeDragRevision++;
     setState(() {});
   }
 

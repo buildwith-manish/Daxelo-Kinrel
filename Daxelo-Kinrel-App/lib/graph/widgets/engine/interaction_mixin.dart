@@ -45,17 +45,19 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   }
 
   void _onScaleEnd(ScaleEndDetails d) {
-    // v5.29 Fix 4: If we were dragging a node in rearrange mode, show
-    // the SaveLockPill on finger lift instead of applying camera fling
-    // momentum.
+    // v5.34: New workflow — NO SaveLockPill after each drag. The live
+    // override stays in _rearrangeLiveNodeOverrides as an unsaved
+    // change. The user clicks the persistent Save button in the top
+    // toolbar to commit ALL changes at once.
+    //
+    // Just clear the drag state so the next gesture can start fresh.
+    // The live override map entry persists (it's the unsaved change).
     if (_rearrangeDragId != null && _rearrangeDragKind == 'node') {
-      // Build a synthetic LongPressEndDetails-equivalent by using the
-      // last known focal point as the release position.
-      _rearrangePillScreenPosition = _lastFocal;
-      _rearrangePillKind = _rearrangeDragKind;
-      _rearrangePillId = _rearrangeDragId;
-      _rearrangePillVisible = true;
-      // Keep _rearrangeDragId set — Save/Cancel callbacks clear it.
+      _rearrangeDragKind = null;
+      _rearrangeDragId = null;
+      _rearrangePreDragPosition = null;
+      _rearrangePreDragEdgeDelta = Offset.zero;
+      _rearrangeDragRevision++;
       setState(() {});
       _isPinching = false;
       return;
@@ -1228,26 +1230,22 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   }
 
   /// Called from `_handleCompareDragEnd` while in Rearrange mode.
-  /// Stops the drag (but does NOT auto-save — see PART 3 contract).
-  /// Shows the shared SaveLockPill near the dragged element with Save/
-  /// Cancel buttons. Save persists; Cancel reverts to the pre-drag
-  /// snapshot. Auto-dismiss after 6s defaults to Cancel.
+  /// v5.34: New workflow — just clears drag state. NO SaveLockPill.
+  /// The live override stays as an unsaved change until the user
+  /// clicks the persistent Save button in the top toolbar.
   void _handleRearrangeDragEnd(
     LongPressEndDetails details,
     GraphLayoutResult layout,
   ) {
     if (_rearrangeDragId == null || _rearrangeDragKind == null) return;
 
-    // Position the SaveLockPill near the dropped element. Use the
-    // finger's release position so the pill appears where the user
-    // expects. Constrain to the visible viewport.
-    final pillPos = details.localPosition;
-    _rearrangePillScreenPosition = pillPos;
-    _rearrangePillKind = _rearrangeDragKind;
-    _rearrangePillId = _rearrangeDragId;
-    _rearrangePillVisible = true;
-    // Keep _rearrangeDragId/_rearrangeDragKind set so the Save/Cancel
-    // callbacks know what to commit/revert. They clear these fields.
+    // v5.34: Clear drag state so the next gesture can start fresh.
+    // The live override map entry persists (it's the unsaved change).
+    _rearrangeDragKind = null;
+    _rearrangeDragId = null;
+    _rearrangePreDragPosition = null;
+    _rearrangePreDragEdgeDelta = Offset.zero;
+    _rearrangeDragRevision++;
     setState(() {});
   }
 

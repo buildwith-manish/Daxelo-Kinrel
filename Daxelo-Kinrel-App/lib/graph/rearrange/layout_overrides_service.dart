@@ -500,3 +500,35 @@ final rearrangeModeProvider = StateProvider<bool>((ref) => false);
 // animation entirely (just lets the provider invalidation snap to
 // pure auto-layout as before).
 final resetAnimationTriggerProvider = StateProvider<int>((ref) => 0);
+
+// ────────────────────────────────────────────────────────────────────
+// v5.34 — New workflow: persistent Save + Reset buttons
+// ────────────────────────────────────────────────────────────────────
+//
+// The old workflow showed a SaveLockPill after every single node drag,
+// forcing the user to click Save after each move. The new workflow:
+//   1. Enter Rearrange mode.
+// 2. Move as many nodes as needed (no pill after each move).
+// 3. Use Reset at any time to discard ALL unsaved moves (restore to
+//    the last saved layout — not auto-layout, but whatever was in the
+//    DB when Rearrange mode was entered).
+// 4. Click Save once → all node positions saved together.
+//
+// These two trigger counters follow the same pattern as
+// resetAnimationTriggerProvider above — the engine view watches them
+// and does the actual work (it has access to the private
+// _rearrangeLiveNodeOverrides + _rearrangeLiveEdgeWaypoints maps).
+
+/// Incremented when the user taps the persistent Save button in the
+/// top toolbar. The engine view iterates over _rearrangeLiveNodeOverrides
+/// and _rearrangeLiveEdgeWaypoints, saves each entry via the service,
+/// then clears both maps.
+final saveAllOverridesTriggerProvider = StateProvider<int>((ref) => 0);
+
+/// Incremented when the user taps the Reset button. The engine view
+/// clears _rearrangeLiveNodeOverrides + _rearrangeLiveEdgeWaypoints
+/// (the unsaved changes). The graph snaps back to the SAVED layout
+/// (whatever was in the DB when Rearrange mode was entered). This does
+/// NOT touch the DB — saved overrides are preserved, only unsaved moves
+/// are discarded.
+final resetUnsavedOverridesTriggerProvider = StateProvider<int>((ref) => 0);

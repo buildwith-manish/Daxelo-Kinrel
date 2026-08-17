@@ -1013,22 +1013,12 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 // would push the pill past the right edge, the clamp
                 // shifts it left so the right edge aligns to
                 // viewportWidth - 8.
-                if (_rearrangePillVisible)
-                  Positioned(
-                    left: (_rearrangePillScreenPosition.dx)
-                        .clamp(8.0,
-                            (_viewportSize.width - SaveLockPill.kMaxPillWidth - 8.0)
-                                .clamp(8.0, double.infinity)),
-                    top: (_rearrangePillScreenPosition.dy - 60.0)
-                        .clamp(8.0, _viewportSize.height - 80.0),
-                    child: SaveLockPill(
-                      message: _rearrangePillKind == 'edge'
-                          ? 'Save this curve?'
-                          : 'Save this position?',
-                      onSave: _handleRearrangeSave,
-                      onCancel: _handleRearrangeCancel,
-                    ),
-                  ),
+                // v5.34: SaveLockPill REMOVED from the per-drag flow.
+                // The new workflow uses a persistent Save button in the
+                // top toolbar (family_graph_screen.dart's
+                // _buildRearrangeControlsCluster). Users can move
+                // multiple nodes freely, then click Save once to commit
+                // all changes. No per-drag interruption.
               ],
             ),
           ), // GestureDetector close
