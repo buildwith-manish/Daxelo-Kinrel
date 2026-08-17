@@ -949,7 +949,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           Expanded(
             child: Text(
               'Rearrange mode — drag nodes / curve dots. '
-              'Long-press empty canvas to exit.',
+              'Tap the X button to exit.',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
                 fontSize: 12,

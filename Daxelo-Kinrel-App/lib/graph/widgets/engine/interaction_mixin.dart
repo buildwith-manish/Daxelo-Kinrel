@@ -1087,10 +1087,27 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // PART 1: node hit-test (uses the existing _hitTestNode helper).
     final nodeId = _hitTestNode(details.localPosition, layout);
     if (nodeId == null) {
-      // Empty canvas long-press → exit Rearrange mode (convenience
-      // shortcut so the user can leave without reaching for the
-      // toolbar toggle).
-      ref.read(rearrangeModeProvider.notifier).state = false;
+      // v5.32 FIX: Previously this block EXITED Rearrange mode
+      // (ref.read(rearrangeModeProvider.notifier).state = false)
+      // as a "convenience shortcut" so the user could leave without
+      // reaching for the toolbar toggle. But this was the ROOT CAUSE
+      // of the context menu reappearing after repeated interactions:
+      //
+      // When a node was dragged to a new position (via a previous
+      // drag+Save), the user's NEXT long-press might miss the node
+      // (pressing where the node USED to be, or the hit-test radius
+      // being too small for the new position). The miss triggered
+      // this "empty canvas → exit" path, setting rearrangeModeProvider
+      // to false. Then the NEXT long-press went through
+      // _handleNodeLongPress WITHOUT the rearrange gate (because the
+      // mode was now off), and opened GraphQuickActions — the context
+      // menu the user reported seeing "after some time".
+      //
+      // The fix: DON'T exit Rearrange mode on empty canvas long-press.
+      // The user exits via the explicit X toggle button. This is more
+      // predictable and prevents unintentional mode exits from hit-test
+      // misses. Just silently ignore the press.
+      debugPrint('[v5.32 Rearrange] long-press missed all nodes — ignoring (not exiting rearrange mode)');
       return;
     }
 
