@@ -636,14 +636,16 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         // v5.26 (Task 2b): When Rearrange is ON AND the viewer has
         // saved overrides, also show a "Reset all my custom positions"
         // button next to the toggle (Row wraps both buttons + resets).
+        // v5.29 Fix 3: Moved up from top+60 to top+8 so the buttons sit
+        // just below the AppBar (right under the Add button area).
         Positioned(
-          top: MediaQuery.of(context).padding.top + 60,
+          top: MediaQuery.of(context).padding.top + 8,
           left: 16,
           child: _buildRearrangeControlsCluster(),
         ),
         if (_showRearrangeBanner)
           Positioned(
-            top: MediaQuery.of(context).padding.top + 110,
+            top: MediaQuery.of(context).padding.top + 58,
             left: 16,
             right: 16,
             child: _buildRearrangeBanner(),
@@ -653,10 +655,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         // members with zero relationship edges AND NOT in Rearrange mode
         // (v5.25 distraction-free gate).
         // Positioned top-right so it doesn't overlap other FABs.
+        // v5.29 Fix 3: Moved up from top+60 to top+8.
         if (ref.watch(unlinkedPersonIdsProvider(widget.familyId)).isNotEmpty &&
             !ref.watch(rearrangeModeProvider))
           Positioned(
-            top: MediaQuery.of(context).padding.top + 60,
+            top: MediaQuery.of(context).padding.top + 8,
             right: 16,
             child: _buildUnlinkedMembersButton(),
           ),
@@ -894,12 +897,10 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   }
 
   // v5.26 (Task 2b): "Reset all my custom positions" button — small
-  // pill-style button with the "restart" icon. Tapping shows a confirm
-  // dialog (reusing the SaveLockPill pattern). On confirm: calls
-  // LayoutOverridesService.resetAllOverrides(familyId) which clears
-  // every saved nodePositions + edgeWaypoints entry for this viewer +
-  // family in one upsert. The provider is invalidated so the graph
-  // re-renders using pure auto-layout for every node and edge.
+  // pill-style button with the "restart" icon.
+  // v5.29 Fix 2: Removed the confirm dialog. Reset is always safe (the
+  // DB overrides are wiped too, so there's no destructive action to
+  // confirm). One tap, instant, no dialog.
   Widget _buildResetAllButton() {
     return Semantics(
       label: 'Reset all my custom positions and curves',
@@ -909,103 +910,25 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         backgroundColor: KinrelColors.darkCard,
         foregroundColor: KinrelColors.orange,
         elevation: 4,
-        onPressed: _showResetAllConfirmDialog,
+        onPressed: _resetAllImmediate,
         child: const Icon(Icons.restart_alt_outlined, size: 20),
       ),
     );
   }
 
-  // v5.26 (Task 2c): Confirm dialog for "Reset all my custom positions".
-  // Reuses the SaveLockPill visual language (dark card + teal border +
-  // Save/Cancel-style buttons) but as a centered AlertDialog (because
-  // this is a session-scope reset, not a per-drag commit — and the
-  // user might tap this button while NOT mid-drag, so a floating pill
-  // wouldn't have a natural anchor point).
-  Future<void> _showResetAllConfirmDialog() async {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: KinrelColors.darkCard,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.restart_alt_outlined,
-                  color: KinrelColors.orange, size: 22),
-              SizedBox(width: 8),
-              Text(
-                'Reset all positions?',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 18.0,
-                  fontWeight: FontWeight.w700,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-            ],
-          ),
-          content: const Text(
-            'This clears every custom node position and curve you\'ve '
-                'saved for this tree. Auto-layout will be restored for '
-                'every node and edge. This only affects YOUR view — '
-                'other family members\' saved layouts are not touched.',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 14.0,
-              color: KinrelColors.textSilver,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: KinrelColors.textDim),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text(
-                'Reset',
-                style: TextStyle(
-                  color: KinrelColors.orange,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-    if (result != true) return;
-
-    // User confirmed — call the reset service. The service handles
-    // provider invalidation so the graph re-renders using pure
-    // auto-layout immediately.
+  // v5.29 Fix 2: One-tap instant reset — no dialog. Clears live
+  // overrides in the engine instantly (the DB overrides are wiped by
+  // resetAllOverrides which also invalidates the provider so the
+  // graph re-renders using pure auto-layout). Bumps _recenterKey so
+  // the camera snaps back to the anchor node.
+  Future<void> _resetAllImmediate() async {
+    // Clear live overrides in the engine instantly (no dialog needed —
+    // reset is always safe since the DB overrides are wiped too).
     try {
-      await LayoutOverridesService.resetAllOverrides(
-        ref,
-        widget.familyId,
-      );
-      messenger?.showSnackBar(
-        const SnackBar(
-          content: Text('Reset to auto-layout for all nodes and curves'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 3),
-        ),
-      );
-    } catch (e) {
-      messenger?.showSnackBar(
-        SnackBar(
-          content: Text('Failed to reset: $e'),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
+      await LayoutOverridesService.resetAllOverrides(ref, widget.familyId);
+      // Increment recenterKey so the camera snaps back to the anchor node.
+      setState(() => _recenterKey++);
+    } catch (_) {}
   }
 
   Widget _buildRearrangeBanner() {

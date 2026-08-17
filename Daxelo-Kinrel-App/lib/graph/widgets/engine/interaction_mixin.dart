@@ -39,11 +39,30 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     _lastFocal = d.focalPoint;
     _baseZoom = _camera.zoomLevel;
     _isPinching = false; // reset; will be set true on first multi-touch update
+    // v5.29 Fix 4: In rearrange mode, a new scale gesture starting
+    // (finger down after a prior long-press) should NOT reset the drag
+    // — it IS the drag. Do not clear _rearrangeDragId here.
   }
 
   void _onScaleEnd(ScaleEndDetails d) {
-    // v97: Only fling on a single-finger pan release.
-    // Never fling after a pinch — the velocity is unreliable
+    // v5.29 Fix 4: If we were dragging a node in rearrange mode, show
+    // the SaveLockPill on finger lift instead of applying camera fling
+    // momentum.
+    if (_rearrangeDragId != null && _rearrangeDragKind == 'node') {
+      // Build a synthetic LongPressEndDetails-equivalent by using the
+      // last known focal point as the release position.
+      _rearrangePillScreenPosition = _lastFocal;
+      _rearrangePillKind = _rearrangeDragKind;
+      _rearrangePillId = _rearrangeDragId;
+      _rearrangePillVisible = true;
+      // Keep _rearrangeDragId set — Save/Cancel callbacks clear it.
+      setState(() {});
+      _isPinching = false;
+      return;
+    }
+
+    // Normal camera fling — only on single-finger pan release.
+    // v97: Never fling after a pinch — the velocity is unreliable
     // (pinch-release jitter produces large fake velocities).
     if (!_isPinching) {
       final v = d.velocity.pixelsPerSecond;
@@ -62,6 +81,27 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   }
 
   void _onScaleUpdate(ScaleUpdateDetails d) {
+    // v5.29 Fix 4: REARRANGE NODE DRAG. When rearrange mode is active
+    // and a node drag has been started (via onLongPressStart), the
+    // Scale recognizer wins the gesture arena and fires onScaleUpdate
+    // instead of onLongPressMoveUpdate. We intercept it here and
+    // route finger movement to the node reposition logic instead of
+    // panning the camera. Only single-finger movement routes to node
+    // drag — a two-finger pinch still zooms normally even in
+    // rearrange mode.
+    if (_rearrangeDragId != null &&
+        _rearrangeDragKind == 'node' &&
+        d.pointerCount == 1) {
+      final graphPos = _screenToGraphSpace(d.focalPoint);
+      final newMap = Map<String, Offset>.from(_rearrangeLiveNodeOverrides);
+      newMap[_rearrangeDragId!] = graphPos;
+      _rearrangeLiveNodeOverrides = newMap;
+      _rearrangeDragRevision++;
+      _lastFocal = d.focalPoint;
+      setState(() {});
+      return;
+    }
+
     // v97: Determine if this is a pinch (multi-pointer) or a pan.
     // pointerCount > 1 OR a meaningful scale delta indicates pinch.
     final isPinch = d.pointerCount > 1 || (d.scale - 1.0).abs() > 0.01;
@@ -1182,28 +1222,28 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   /// clears the live override map (the saved overrides now reflect it)
   /// and hides the pill.
   Future<void> _handleRearrangeSave() async {
-    // v5.28 Fix 3: Hide the pill immediately so the user gets instant
-    // feedback and can't double-tap Save. The actual persist is async
-    // below — but the UI already dismisses the pill so there's no
-    // temptation to tap again, and no race window where a second tap
-    // could trigger a duplicate save.
-    _rearrangePillVisible = false;
-    setState(() {});
     final kind = _rearrangePillKind;
     final id = _rearrangePillId;
     if (kind == null || id == null) {
       _resetRearrangePill();
       return;
     }
+    // v5.29 Fix 1: Hide the pill IMMEDIATELY before any async work so
+    // the user gets instant feedback and a mid-save rebuild can't
+    // re-show it. Also clear _rearrangePillKind + _rearrangePillId so
+    // a rebuild during the await doesn't see a stale pill kind/id
+    // and re-render the pill (which would let the user tap Save again).
+    _rearrangePillVisible = false;
+    _rearrangePillKind = null;
+    _rearrangePillId = null;
+    setState(() {});
+
     if (kind == 'node') {
       final pos = _rearrangeLiveNodeOverrides[id];
       if (pos != null) {
         await LayoutOverridesService.saveNodeOverride(
             ref, widget.familyId, id, pos);
       }
-      // Clear the live override for this node — the saved overrides
-      // now reflect it (the provider invalidation triggers a rebuild
-      // which re-reads the fresh row).
       final newMap = Map<String, Offset>.from(_rearrangeLiveNodeOverrides);
       newMap.remove(id);
       _rearrangeLiveNodeOverrides = newMap;
@@ -1217,7 +1257,13 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       newMap.remove(id);
       _rearrangeLiveEdgeWaypoints = newMap;
     }
-    _resetRearrangePill();
+    // Clear drag state after DB write completes.
+    _rearrangeDragKind = null;
+    _rearrangeDragId = null;
+    _rearrangePreDragPosition = null;
+    _rearrangePreDragEdgeDelta = Offset.zero;
+    _rearrangeDragRevision++;
+    if (mounted) setState(() {});
   }
 
   /// Cancel handler invoked by the SaveLockPill's Cancel button
