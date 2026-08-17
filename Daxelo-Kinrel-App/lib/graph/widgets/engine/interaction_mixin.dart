@@ -100,6 +100,10 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       _rearrangeLiveNodeOverrides = newMap;
       _rearrangeDragRevision++;
       _lastFocal = d.focalPoint;
+      // v5.35: Debug logging (first move only — too noisy per frame otherwise).
+      if (newMap.length == 1) {
+        debugPrint('[v5.35 Drag] first move — node ${_rearrangeDragId} → $graphPos, liveMap size=${newMap.length}');
+      }
       setState(() {});
       return;
     }

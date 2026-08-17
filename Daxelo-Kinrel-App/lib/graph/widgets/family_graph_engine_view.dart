@@ -813,13 +813,19 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// clears both maps. All changes committed in one operation.
   Future<void> _onSaveAllTrigger() async {
     if (!mounted) return;
+    // v5.35: Debug logging to trace why Save might not be working.
+    debugPrint('[v5.35 Save] triggered — '
+        'liveNodes=${_rearrangeLiveNodeOverrides.length} '
+        'liveEdges=${_rearrangeLiveEdgeWaypoints.length}');
     // Save all node overrides.
     for (final entry in _rearrangeLiveNodeOverrides.entries) {
+      debugPrint('[v5.35 Save] saving node ${entry.key} at ${entry.value}');
       await LayoutOverridesService.saveNodeOverride(
           ref, widget.familyId, entry.key, entry.value);
     }
     // Save all edge waypoint overrides.
     for (final entry in _rearrangeLiveEdgeWaypoints.entries) {
+      debugPrint('[v5.35 Save] saving edge ${entry.key} at ${entry.value}');
       await LayoutOverridesService.saveEdgeWaypoint(
           ref, widget.familyId, entry.key, entry.value);
     }
@@ -847,6 +853,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// entered). Does NOT touch the DB — saved overrides are preserved.
   void _onResetUnsavedTrigger() {
     if (!mounted) return;
+    debugPrint('[v5.35 Reset] triggered — clearing '
+        '${_rearrangeLiveNodeOverrides.length} node overrides + '
+        '${_rearrangeLiveEdgeWaypoints.length} edge overrides');
     _rearrangeLiveNodeOverrides = const {};
     _rearrangeLiveEdgeWaypoints = const {};
     _rearrangeDragKind = null;
