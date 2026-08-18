@@ -44,6 +44,9 @@ import '../../../graph/widgets/search_bar.dart';
 import '../../../graph/widgets/unlinked_members_sheet.dart'; // v5.9
 import '../../../graph/widgets/relationship_picker_flow.dart'; // v5.10
 import '../../../graph/widgets/graph_relationship_labels.dart' show GraphPersonData; // v5.10
+// v5.41: Pending Invitations sheet (graph-originated invites).
+import '../../../graph/widgets/pending_invitations_sheet.dart';
+import '../../family/presentation/providers/graph_pending_invitations_provider.dart';
 // v5.22: Rearrange-mode toggle (personal layout overrides + edge midpoint bow).
 // v5.34: also imports saveAllOverridesTriggerProvider + resetUnsavedOverridesTriggerProvider.
 // v5.38: also imports hasUnsavedChangesProvider + saveCompletedTriggerProvider.
@@ -218,8 +221,15 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   }
 
   /// Opens the Add Member sheet and refreshes graph data when it closes.
+  /// v5.41: Passes `fromGraph: true` so that graph-originated invites
+  /// (with phone/email) are routed to the pending invitations system
+  /// instead of creating an unlinked Person node immediately.
   Future<void> _openAddMember() async {
-    await showAddMemberOptions(context, familyId: widget.familyId);
+    await showAddMemberOptions(
+      context,
+      familyId: widget.familyId,
+      fromGraph: true,
+    );
 
     if (mounted) {
       // v60: Single cache clear + invalidation. Removed the 1500ms
@@ -228,6 +238,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       // handles delayed propagation automatically.
       FamilyGraphNotifier.clearCache(widget.familyId);
       ref.invalidate(familyGraphProvider(widget.familyId));
+      // v5.41: Also refresh pending invitations in case an invite was sent.
+      ref.invalidate(graphPendingInvitationsProvider(widget.familyId));
     }
   }
 
@@ -682,6 +694,20 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             child: _buildUnlinkedMembersButton(),
           ),
 
+        // v5.41: "Pending Invitations" button — shows count of graph-originated
+        // invitations that haven't been accepted yet. Visible when there are
+        // pending invitations AND NOT in Rearrange mode.
+        // Positioned BELOW the unlinked members button (or top-right when
+        // there are no unlinked members).
+        if (ref.watch(pendingGraphInvitationCountProvider(widget.familyId)) > 0 &&
+            !ref.watch(rearrangeModeProvider))
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8 +
+                (ref.watch(unlinkedPersonIdsProvider(widget.familyId)).isNotEmpty ? 48 : 0),
+            right: 16,
+            child: _buildPendingInvitationsButton(),
+          ),
+
         // REMOVED: Floating legend button (top-right).
         // The legend is now triggered from the bottom dock's Help/Legend
         // button — one entry point, not two. The legend card still appears
@@ -1098,6 +1124,88 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                 decoration: BoxDecoration(
                   color: KinrelColors.amber,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.monoFont,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.darkCard,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // v5.41: Pending Invitations button — shows count badge, opens bottom sheet
+  // that lists graph-originated invitations (people invited from the graph
+  // who haven't accepted yet). The graph itself does NOT show these as
+  // nodes — only confirmed members appear in the graph.
+  Widget _buildPendingInvitationsButton() {
+    final count = ref.watch(pendingGraphInvitationCountProvider(widget.familyId));
+
+    return Semantics(
+      label: '$count pending invitations. Tap to see the list.',
+      button: true,
+      child: GestureDetector(
+        onTap: () {
+          showPendingInvitationsSheet(
+            context,
+            ref,
+            widget.familyId,
+            onInvitationCancelled: () {
+              // The provider auto-refreshes via realtime, but we
+              // invalidate to force an immediate refresh.
+              ref.invalidate(graphPendingInvitationsProvider(widget.familyId));
+            },
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkCard,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: KinrelColors.tealAccent.withValues(alpha: 0.4),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.mail_outline,
+                size: 16,
+                color: KinrelColors.tealAccent,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Invites',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: KinrelColors.tealAccent,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(

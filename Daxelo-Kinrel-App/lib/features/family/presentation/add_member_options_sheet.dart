@@ -27,9 +27,17 @@ import 'kinrel_user_search_screen.dart';
 /// Each option leads to the same AddPersonSheet but with different
 /// pre-filled data and a different [AddMemberSource] that controls
 /// which step the flow starts on.
+///
+/// [fromGraph] — v5.41: When true, the AddPersonSheet is opened with
+/// `fromGraph: true`, which routes graph-originated invites (with
+/// phone/email) to the pending invitations system instead of creating
+/// a Person node immediately. Set this to true when the sheet is
+/// opened from the Family Graph screen; false (default) when opened
+/// from the Family Space / detail screen.
 Future<void> showAddMemberOptions(
   BuildContext context, {
   required String familyId,
+  bool fromGraph = false,
 }) {
   return showModalBottomSheet(
     context: context,
@@ -41,13 +49,20 @@ Future<void> showAddMemberOptions(
         top: Radius.circular(KinrelRadius.xxl),
       ),
     ),
-    builder: (context) => _AddMemberOptionsSheet(familyId: familyId),
+    builder: (context) => _AddMemberOptionsSheet(
+      familyId: familyId,
+      fromGraph: fromGraph,
+    ),
   );
 }
 
 class _AddMemberOptionsSheet extends ConsumerWidget {
-  const _AddMemberOptionsSheet({required this.familyId});
+  const _AddMemberOptionsSheet({
+    required this.familyId,
+    this.fromGraph = false,
+  });
   final String familyId;
+  final bool fromGraph;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -146,6 +161,7 @@ class _AddMemberOptionsSheet extends ConsumerWidget {
       context,
       familyId: familyId,
       source: AddMemberSource.manual,
+      fromGraph: fromGraph,
     );
   }
 
@@ -176,6 +192,7 @@ class _AddMemberOptionsSheet extends ConsumerWidget {
           context,
           familyId: familyId,
           source: AddMemberSource.manual,
+          fromGraph: fromGraph,
         );
       }
       return;
@@ -205,6 +222,7 @@ class _AddMemberOptionsSheet extends ConsumerWidget {
           prefilledName: contactData.name,
           prefilledPhone: contactData.phone,
           prefilledEmail: contactData.email,
+          fromGraph: fromGraph,
         );
       }
     } catch (e) {
@@ -221,6 +239,7 @@ class _AddMemberOptionsSheet extends ConsumerWidget {
           context,
           familyId: familyId,
           source: AddMemberSource.manual,
+          fromGraph: fromGraph,
         );
       }
     }
@@ -244,6 +263,7 @@ class _AddMemberOptionsSheet extends ConsumerWidget {
               familyId: familyId,
               source: AddMemberSource.findOnKinrel,
               preselectedKinrelUser: user,
+              fromGraph: fromGraph,
             );
           },
         ),

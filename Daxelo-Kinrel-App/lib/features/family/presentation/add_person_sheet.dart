@@ -15,6 +15,8 @@ import '../../../core/family/optimistic_actions.dart';
 import '../../../core/family/relationship_edge_builder.dart'; // v5.19
 import '../../../core/widgets/person_avatar.dart'; // v5.15
 import '../../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider; // v5.13
+// v5.41: Graph pending invitations provider (for fromGraph routing).
+import 'providers/graph_pending_invitations_provider.dart';
 import 'dart:typed_data';
 
 import 'package:image_picker/image_picker.dart' show XFile;
@@ -51,6 +53,7 @@ class AddPersonSheet extends ConsumerStatefulWidget {
     this.prefilledPhone,
     this.prefilledEmail,
     this.preselectedKinrelUser,
+    this.fromGraph = false,
   });
 
   final String familyId;
@@ -83,6 +86,17 @@ class AddPersonSheet extends ConsumerStatefulWidget {
   /// to this Kinrel user's auth account via `linkedUserId`.
   final KinrelUser? preselectedKinrelUser;
 
+  /// v5.41: When true, the sheet was opened from the Family Graph
+  /// (e.g. long-press a node → "Invite"). If the user provides a phone
+  /// OR email on Step 2 (More Details), the submit logic routes to
+  /// `fn_create_graph_pending_invitation` instead of creating a Person
+  /// node. This keeps the graph clean — only confirmed members appear.
+  ///
+  /// When false (the default — Family Space origin), the sheet creates
+  /// a Person node as before. The new member appears as an "unlinked"
+  /// node in the graph until a relationship is assigned.
+  final bool fromGraph;
+
   /// Show as a full-screen bottom sheet.
   static Future<void> show(
     BuildContext context, {
@@ -94,6 +108,7 @@ class AddPersonSheet extends ConsumerStatefulWidget {
     String? prefilledPhone,
     String? prefilledEmail,
     KinrelUser? preselectedKinrelUser,
+    bool fromGraph = false,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -113,6 +128,7 @@ class AddPersonSheet extends ConsumerStatefulWidget {
         prefilledPhone: prefilledPhone,
         prefilledEmail: prefilledEmail,
         preselectedKinrelUser: preselectedKinrelUser,
+        fromGraph: fromGraph,
       ),
     );
   }
@@ -171,6 +187,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   bool _contactExpanded = false;
   bool _personalExpanded = false;
   bool _showSuccess = false;
+  // v5.41: Custom success message for the graph-invitation flow
+  // (overrides the default "Welcome to the family!" message).
+  String? _successMessage;
 
   // ── Confetti particles ─────────────────────────────────────────
   final _confettiParticles = <_ConfettiParticle>[];
@@ -949,6 +968,85 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     }
   }
 
+  // v5.41: Creates a pending graph invitation via the
+  // fn_create_graph_pending_invitation RPC. This stores the invitation
+  // WITHOUT creating a Person node — the graph stays clean until the
+  // invitee accepts.
+  //
+  // Called from _submit() when widget.fromGraph is true AND the user
+  // provided phone/email AND a relationship was selected.
+  Future<void> _createGraphPendingInvitation({
+    required String targetPersonId,
+    required String relationshipKey,
+    required String specificLabel,
+  }) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      final notifier = ref.read(
+        graphPendingInvitationsProvider(widget.familyId).notifier,
+      );
+      final invitationId = await notifier.createInvitation(
+        familyId: widget.familyId,
+        targetPersonId: targetPersonId,
+        relationshipKey: relationshipKey,
+        specificLabel: specificLabel,
+        recipientName: _nameController.text.trim(),
+        recipientEmail: _emailController.text.trim().isEmpty
+            ? null
+            : _emailController.text.trim(),
+        recipientPhone: _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
+      );
+
+      if (invitationId != null) {
+        // Success — show confirmation and close the sheet.
+        if (mounted) {
+          setState(() {
+            _showSuccess = true;
+            _successMessage = 'Invitation sent! They\'ll appear in the '
+                'graph once they accept.';
+          });
+          // Refresh the pending invitations list.
+          ref.invalidate(graphPendingInvitationsProvider(widget.familyId));
+        }
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text('Invitation sent to ${_nameController.text.trim()}'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else {
+        // Failure — the RPC returned success=false or threw.
+        if (mounted) {
+          setState(() => _isSubmitting = false);
+        }
+        messenger?.showSnackBar(
+          const SnackBar(
+            content: Text('Could not send invitation. A pending invitation '
+                'may already exist for this person.'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text('Could not send invitation: $e'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
   // ── Submit ─────────────────────────────────────────────────────
 
   Future<void> _submit() async {
@@ -959,6 +1057,34 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     }
 
     try {
+      // v5.41: Graph-originated invitation routing.
+      // When fromGraph is true AND the user provided a phone OR email
+      // AND a relationship was selected, create a pending graph
+      // invitation INSTEAD of a Person node. The graph stays clean —
+      // the invitee appears only after they accept.
+      //
+      // If fromGraph is true but NO phone/email was provided, fall
+      // through to the normal Person-creation flow (the user is just
+      // adding a family member manually without inviting them).
+      if (widget.fromGraph && !_isEditMode) {
+        final hasContactInfo = _phoneController.text.trim().isNotEmpty ||
+            _emailController.text.trim().isNotEmpty;
+        final relKey = _effectiveRelationshipKey;
+        final targetPerson = _selectedTargetPerson ?? widget.anchorPerson;
+
+        if (hasContactInfo && relKey != null && targetPerson != null) {
+          // Route to the pending invitation system.
+          await _createGraphPendingInvitation(
+            targetPersonId: targetPerson.id,
+            relationshipKey: _mapToFundamentalEdge(relKey),
+            specificLabel: relKey,
+          );
+          return; // Don't fall through to Person creation.
+        }
+        // If we get here, either there's no contact info (manual add)
+        // or no relationship was selected. Fall through to normal flow.
+      }
+
       Person? result;
 
       // v94 (EDGE BUG FIX): Track whether the relationship creation
@@ -1467,7 +1593,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         context.showSnackBar(
           _isEditMode
               ? 'Person updated successfully'
-              : 'Welcome to the family, ${result?.name ?? 'New member'}!',
+              : (_successMessage ?? 'Welcome to the family, ${result?.name ?? 'New member'}!'),
         );
       }
 
@@ -3054,7 +3180,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           ),
           SizedBox(height: 20),
           Text(
-            'Welcome to the family!',
+            _successMessage ?? 'Welcome to the family!',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 20,
