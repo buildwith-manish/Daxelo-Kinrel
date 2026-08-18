@@ -1035,19 +1035,48 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     }
   }
 
-  // v5.41: Creates a pending graph invitation via the
+  // v5.43: Creates a pending graph invitation via the
   // fn_create_graph_pending_invitation RPC. This stores the invitation
   // WITHOUT creating a Person node — the graph stays clean until the
   // invitee accepts.
   //
-  // Called from _submit() when widget.fromGraph is true AND the user
-  // provided phone/email AND a relationship was selected.
+  // Called from _submit() when widget.fromGraph is true AND a relationship
+  // was selected. Handles both the "Find on Kinrel" flow (recipientUserId
+  // is set) and the "Add Manually" flow (phone/email is set).
   Future<void> _createGraphPendingInvitation({
     required String targetPersonId,
     required String relationshipKey,
     required String specificLabel,
   }) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
+
+    // v5.43: Determine the recipient. For Find on Kinrel, use the
+    // preselectedKinrelUser's ID. For manual adds, use phone/email.
+    final String? recipientUserId = widget.preselectedKinrelUser?.id;
+    final String? recipientEmail = _emailController.text.trim().isEmpty
+        ? null
+        : _emailController.text.trim();
+    final String? recipientPhone = _phoneController.text.trim().isEmpty
+        ? null
+        : _phoneController.text.trim();
+
+    // Validate that we have at least one way to reach the recipient.
+    if (recipientUserId == null &&
+        (recipientEmail == null || recipientEmail.isEmpty) &&
+        (recipientPhone == null || recipientPhone.isEmpty)) {
+      if (mounted) setState(() => _isSubmitting = false);
+      messenger?.showSnackBar(
+        const SnackBar(
+          content: Text('Please provide an email, phone number, or use '
+              '"Find on Kinrel" to send an invitation.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
     try {
       final notifier = ref.read(
         graphPendingInvitationsProvider(widget.familyId).notifier,
@@ -1058,12 +1087,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         relationshipKey: relationshipKey,
         specificLabel: specificLabel,
         recipientName: _nameController.text.trim(),
-        recipientEmail: _emailController.text.trim().isEmpty
-            ? null
-            : _emailController.text.trim(),
-        recipientPhone: _phoneController.text.trim().isEmpty
-            ? null
-            : _phoneController.text.trim(),
+        recipientEmail: recipientEmail,
+        recipientPhone: recipientPhone,
+        recipientUserId: recipientUserId,
       );
 
       if (invitationId != null) {
@@ -1124,25 +1150,65 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     }
 
     try {
-      // v5.42: Revised unlinked-node logic.
+      // v5.43: Graph-originated adds ALWAYS send an invitation.
       //
-      // PER THE NEW REQUIREMENTS:
-      //   • Graph origin + relationship selected → create a LINKED node
-      //     (Person + Relationship edge). NO unlinked node.
+      // PER THE LATEST REQUIREMENTS:
+      //   • Graph origin + relationship selected → send a PENDING
+      //     INVITATION. Do NOT create a Person node. The node only
+      //     appears after the invitee accepts.
       //   • Family Space origin → create an UNLINKED Person node (no
       //     relationship edge). The user assigns a relationship later
       //     via the unlinked-members sheet.
-      //   • Invitation flow (pending invitations) is a SEPARATE path
-      //     that does NOT go through AddPersonSheet. The v5.41 routing
-      //     that diverted graph-originated adds to the pending
-      //     invitation system has been REMOVED because it violated
-      //     the new spec.
       //
-      // The `fromGraph` flag now controls ONLY whether the relationship
-      // creation block runs:
-      //   • fromGraph == true → relationship block runs (linked node)
-      //   • fromGraph == false → relationship block is skipped (unlinked node)
+      // The invitation requires either:
+      //   • A Kinrel user ID (Find on Kinrel flow) → sends a notification
+      //     to that user's Notifications screen.
+      //   • A phone number OR email (Manual flow) → stores the contact
+      //     info for matching when the recipient later signs up.
+      //
+      // If neither is provided, show an error — the user must provide
+      // contact info or search on Kinrel to send an invitation.
+      if (widget.fromGraph && !_isEditMode) {
+        final relKey = _effectiveRelationshipKey;
+        final targetPerson = _selectedTargetPerson ?? widget.anchorPerson;
 
+        if (relKey == null) {
+          // No relationship selected — can't send an invitation without one.
+          if (mounted) setState(() => _isSubmitting = false);
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            const SnackBar(
+              content: Text('Please select a relationship to send an invitation.'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+
+        if (targetPerson == null) {
+          if (mounted) setState(() => _isSubmitting = false);
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            const SnackBar(
+              content: Text('Please select who they are related to.'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+
+        // Route to the pending invitation system.
+        await _createGraphPendingInvitation(
+          targetPersonId: targetPerson.id,
+          relationshipKey: _mapToFundamentalEdge(relKey),
+          specificLabel: relKey,
+        );
+        return; // Do NOT fall through to Person creation.
+      }
+
+      // Family Space origin (fromGraph == false): create a Person node.
+      // The relationship creation block below is skipped (v5.42 logic),
+      // so the Person appears as an UNLINKED node.
       Person? result;
 
       // v94 (EDGE BUG FIX): Track whether the relationship creation
@@ -1309,21 +1375,17 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
         final relKey = preComputedRelKey;
 
-        // v5.42: Gate the relationship-creation block on `widget.fromGraph`.
+        // v5.43: The relationship-creation block is ONLY for Family Space
+        // origin. Graph origin always routes to the pending invitation
+        // system (above) and returns early — it never reaches here.
         //
-        // PER THE NEW REQUIREMENTS:
-        //   • Graph origin (fromGraph == true) + relationship selected →
-        //     CREATE the relationship edge. The new member appears as a
-        //     LINKED graph node (not unlinked).
-        //   • Family Space origin (fromGraph == false) → SKIP the
-        //     relationship creation block entirely. The Person is created
-        //     as an UNLINKED node. The user assigns a relationship later
-        //     via the unlinked-members sheet → relationship picker flow,
-        //     which calls `createRelationship` separately.
+        // For Family Space origin (fromGraph == false), we intentionally
+        // SKIP relationship creation. The Person is created as an UNLINKED
+        // node. The user assigns a relationship later via the
+        // unlinked-members sheet → relationship picker flow.
         //
-        // This ensures:
-        //   - Graph adds → linked nodes (immediate connection lines)
-        //   - Family Space adds → unlinked nodes (connection later)
+        // The condition below will never be true for graph origin because
+        // of the early return. It's kept as a safety guard.
         if (relKey != null && !_isEditMode && result != null && widget.fromGraph) {
           // v94: Capture the non-null result in a local variable so
           // dart2js doesn't lose null-promotion across the await

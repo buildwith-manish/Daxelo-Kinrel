@@ -198,6 +198,10 @@ class GraphPendingInvitationsNotifier
 
   /// Creates a new pending graph invitation.
   /// Returns the invitation ID on success, or null on failure.
+  ///
+  /// v5.43: Added [recipientUserId] parameter for Find-on-Kinrel invites.
+  /// When set, a `graph_invite` notification is sent to that user so they
+  /// see the invitation in their Notifications screen.
   Future<String?> createInvitation({
     required String familyId,
     required String targetPersonId,
@@ -206,6 +210,7 @@ class GraphPendingInvitationsNotifier
     String? recipientName,
     String? recipientEmail,
     String? recipientPhone,
+    String? recipientUserId,
   }) async {
     final client = ref.read(supabaseProvider);
     if (client == null) return null;
@@ -221,6 +226,7 @@ class GraphPendingInvitationsNotifier
           'p_recipient_name': recipientName,
           'p_recipient_email': recipientEmail,
           'p_recipient_phone': recipientPhone,
+          'p_recipient_user_id': recipientUserId,
         },
       ).timeout(const Duration(seconds: 10));
 
@@ -229,6 +235,7 @@ class GraphPendingInvitationsNotifier
         ref.invalidateSelf();
         return result['invitationId'] as String;
       }
+      debugPrint('[graphPendingInvitations] create failed: ${result['error']}');
       return null;
     } catch (e) {
       debugPrint('[graphPendingInvitations] create error: $e');
