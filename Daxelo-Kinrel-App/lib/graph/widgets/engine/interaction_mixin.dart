@@ -551,6 +551,11 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     FlatGraphResult flat,
     String? viewerPersonId,
   ) {
+    // v5.37: In Rearrange mode, suppress ALL tap interactions.
+    // The only allowed interaction is dragging/repositioning nodes.
+    // Tapping should NOT trigger Focus Mode, open profile details,
+    // or perform any standard graph actions.
+    if (ref.read(rearrangeModeProvider)) return;
     _handleNodeTapDown(details, layout, flat, viewerPersonId);
   }
 
@@ -1117,22 +1122,13 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       return;
     }
 
-    // v5.31 Issue 2: The anchor node ("You" / root node) must be
-    // completely immovable. The entire graph layout is computed
-    // relative to this anchor — moving it produces visually unstable
-    // results and breaks the spatial reference point for all other
-    // nodes. If the hit-tested node is the anchor, silently cancel
-    // the drag — no pill shown, no override written, no visual
-    // change. The anchor stays fixed at its computed center.
-    final personData = flat.persons
-        .where((p) => p['id'] == nodeId)
-        .firstOrNull;
-    final isAnchorNode = (personData?['isAnchor'] as bool?) ?? false;
-    if (isAnchorNode) {
-      // Silently cancel — the anchor is immovable.
-      debugPrint('[v5.31 Rearrange] anchor node hit — drag cancelled (anchor is immovable)');
-      return;
-    }
+    // v5.37: Removed the anchor node guard (v5.31). The user reports
+    // "Every node should be draggable and movable independently."
+    // The anchor guard was preventing the grandfather node from being
+    // dragged (it had isAnchor=true in the DB). Now ALL nodes are
+    // draggable in Rearrange mode, including the anchor/self node.
+    // If the user later wants the anchor to be immovable again, this
+    // guard can be re-added.
 
     _rearrangeDragKind = 'node';
     _rearrangeDragId = nodeId;

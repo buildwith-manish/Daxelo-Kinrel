@@ -909,6 +909,17 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         elevation: 4,
         onPressed: () {
           ref.read(saveAllOverridesTriggerProvider.notifier).state++;
+          // v5.37: Show snackbar feedback so the user knows the Save
+          // button was tapped. The actual save happens in the engine
+          // view's _onSaveAllTrigger (async). The snackbar here is
+          // just visual feedback that the button was pressed.
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            const SnackBar(
+              content: Text('Saving layout...'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 1),
+            ),
+          );
         },
         child: const Icon(Icons.check_rounded, size: 20),
       ),
@@ -935,6 +946,15 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           // _rearrangeLiveEdgeWaypoints (the unsaved changes). The
           // graph snaps back to the saved layout.
           ref.read(resetUnsavedOverridesTriggerProvider.notifier).state++;
+          // v5.37: Show snackbar feedback so the user knows the Reset
+          // button was tapped.
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            const SnackBar(
+              content: Text('Resetting to saved layout...'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 1),
+            ),
+          );
         },
         child: const Icon(Icons.restart_alt_outlined, size: 20),
       ),

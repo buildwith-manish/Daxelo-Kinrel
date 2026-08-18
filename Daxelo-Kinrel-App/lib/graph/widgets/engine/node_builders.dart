@@ -145,7 +145,14 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       // the member information bottom sheet — that is reserved for
       // long-press (see onLongPress below). This mirrors the parent
       // canvas gesture handler in interaction_mixin.dart.
-      onTap: () => ref.read(selectedNodeProvider.notifier).state = id,
+      // v5.37: In Rearrange mode, suppress per-node tap completely.
+      // Tapping a node should NOT trigger Focus Mode, select the node,
+      // or perform any standard graph action. The only allowed
+      // interaction in Rearrange mode is dragging/repositioning.
+      onTap: () {
+        if (ref.read(rearrangeModeProvider)) return;
+        ref.read(selectedNodeProvider.notifier).state = id;
+      },
       // Long-press = open the member information bottom sheet. This is
       // the ONLY gesture that opens the info panel from a node.
       // v62.2 FIX: Long-press shows the quick-actions sheet (matching
