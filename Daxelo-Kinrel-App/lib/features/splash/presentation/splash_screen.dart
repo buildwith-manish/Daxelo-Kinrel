@@ -424,7 +424,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     if (!mounted || _navigated) return;
 
-    _navigated = true;
+    // NOTE: _navigated is intentionally NOT set here. Previously it was set
+    // to true at this point, which caused the `if (!mounted || _navigated)
+    // return;` check below (after `await getLastRoute()`) to ALWAYS return
+    // — skipping the route restoration logic AND the fallback
+    // context.go('/home'). That left authenticated users stuck on the
+    // splash screen indefinitely (the 12s safety timeout also failed
+    // because its `!_navigated` guard saw true). _navigated is now set
+    // immediately before each context.go() call so re-entrant navigation
+    // is still prevented, but the restoration logic actually runs.
 
     if (isAuthenticated) {
       // ── CRITICAL FIX: Invalidate familyListProvider before navigating ──
@@ -457,6 +465,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             ['/home', '/search', '/families', '/notifications', '/profile'];
         if (safeRoutes.contains(lastRoute)) {
           debugPrint('🧭 Splash → $lastRoute (restored last route)');
+          _navigated = true;
           context.go(lastRoute);
           return;
         }
@@ -492,6 +501,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
           if (ok) {
             debugPrint('🧭 Splash → $lastRoute (verified deep route)');
+            _navigated = true;
             context.go(lastRoute);
             return;
           }
@@ -504,6 +514,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         debugPrint('🧭 Splash: skipping unsafe route restore: $lastRoute');
       }
       debugPrint('🧭 Splash → /home (authenticated: $isAuthenticated)');
+      _navigated = true;
       context.go('/home');
     } else {
       // v2.2 FIX: No real Supabase session — ALWAYS go to sign-in.
@@ -511,6 +522,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       // the Drift cache (IndexedDB) persists from previous visits, causing
       // the app to auto-open a "demo" account without real auth.
       debugPrint('🧭 Splash → /sign-in (not authenticated, login required)');
+      _navigated = true;
       context.go('/sign-in');
     }
   }
