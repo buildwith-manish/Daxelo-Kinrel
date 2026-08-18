@@ -546,6 +546,19 @@ final resetUnsavedOverridesTriggerProvider = StateProvider<int>((ref) => 0);
 // populates _rearrangeLiveNodeOverrides or _rearrangeLiveEdgeWaypoints.
 // Set to false after Save or Reset clears the maps.
 //
+// v5.39: The flag is now set in BOTH drag-update code paths
+// (_onScaleUpdate AND _handleRearrangeDragUpdate) so it flips true
+// regardless of which gesture recognizer wins the arena on the host
+// platform (mobile vs Flutter Web). It is also reset to false on
+// every Rearrange-mode ON↔OFF transition (see the listener in
+// family_graph_engine_view.dart's initState), so:
+//   • Entering Rearrange mode → button starts disabled.
+//   • Dragging any node or curve dot → button enables.
+//   • Clicking Save (✓) → button disables (changes committed).
+//   • Clicking Reset → button disables (changes discarded).
+//   • Exiting Rearrange mode → unsaved changes are discarded and
+//     the button disables. Re-entering starts from a clean slate.
+//
 // saveCompletedTriggerProvider: incremented by the engine view after
 // _onSaveAllTrigger completes. The screen watches this to show the
 // "Layout saved successfully" snackbar.

@@ -1190,6 +1190,16 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       // repaints (its shouldRepaint uses layoutRevision which now
       // includes _rearrangeDragRevision).
       _rearrangeDragRevision++;
+      // v5.39: Mark that there are unsaved changes so the Save (✓)
+      // button enables. This is the path used by
+      // onLongPressMoveUpdate (LongPressGestureRecognizer wins the
+      // arena on mobile and some Flutter Web configs). The sibling
+      // setter in _onScaleUpdate covers the alternate path where
+      // ScaleGestureRecognizer wins. Setting both ensures the flag
+      // flips to true regardless of which recognizer fires.
+      if (!ref.read(hasUnsavedChangesProvider)) {
+        ref.read(hasUnsavedChangesProvider.notifier).state = true;
+      }
       setState(() {});
     } else if (_rearrangeDragKind == 'edge') {
       // PART 2: live-update the edge's RELATIVE midpoint delta.
@@ -1231,6 +1241,13 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       newMap[_rearrangeDragId!] = delta;
       _rearrangeLiveEdgeWaypoints = newMap;
       _rearrangeDragRevision++;
+      // v5.39: Mark unsaved changes for edge-midpoint drags too —
+      // previously only node drags flipped this flag (and only via
+      // _onScaleUpdate). Edge drags are equally real layout changes
+      // and must enable the Save button.
+      if (!ref.read(hasUnsavedChangesProvider)) {
+        ref.read(hasUnsavedChangesProvider.notifier).state = true;
+      }
       setState(() {});
     }
   }

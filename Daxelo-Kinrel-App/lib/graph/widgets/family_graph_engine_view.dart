@@ -598,6 +598,49 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
           _onResetUnsavedTrigger();
         }
       });
+      // v5.39: Listen for Rearrange-mode ON/OFF transitions so the
+      // Save (✓) button state always reflects whether there are
+      // unsaved node/edge position changes — never stale, never
+      // orphaned from a prior session.
+      //
+      //   • Turn ON  → defensively reset hasUnsavedChangesProvider to
+      //                false and clear the live override maps. The
+      //                button starts disabled; it only enables when
+      //                the user actually drags a node or curve dot.
+      //   • Turn OFF → discard any unsaved live overrides (the user
+      //                chose to exit without saving) and reset
+      //                hasUnsavedChangesProvider to false. Re-entering
+      //                Rearrange mode now starts from a clean slate.
+      //
+      // This listener is the single source of truth for "session
+      // scope" cleanup; per-drag cleanup remains in
+      // _handleRearrangeDragEnd and per-save cleanup in
+      // _onSaveAllTrigger.
+      ref.listenManual(rearrangeModeProvider, (previous, next) {
+        final turnedOn = next == true && previous != true;
+        final turnedOff = next != true && previous == true;
+        if (!turnedOn && !turnedOff) return;
+        if (!mounted) return;
+        // Clear any in-flight drag state — defensive (the drag-end
+        // handlers normally do this, but an exit mid-drag could leave
+        // stale state).
+        _rearrangeDragKind = null;
+        _rearrangeDragId = null;
+        _rearrangePreDragPosition = null;
+        _rearrangePreDragEdgeDelta = Offset.zero;
+        // Discard live overrides on BOTH transitions:
+        //   - On turn-OFF: discard unsaved changes (the user exited).
+        //   - On turn-ON: clear any stale state from a prior session
+        //     that might have leaked (e.g. process restart, hot
+        //     reload, or a previous turn-OFF that didn't run).
+        // After clearing, the only positions in effect are auto-layout
+        // ⊕ savedOverrides — i.e. the last committed layout.
+        _rearrangeLiveNodeOverrides = const {};
+        _rearrangeLiveEdgeWaypoints = const {};
+        _rearrangeDragRevision++;
+        ref.read(hasUnsavedChangesProvider.notifier).state = false;
+        setState(() {});
+      });
     });
 
     // v5.27 Task 2: connect-on-open animation controller. Reuses
