@@ -482,6 +482,31 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
   // ── Log navigation breadcrumb for crash context ──────────────────
   logNavigationBreadcrumb(currentLocation);
 
+  // ── Persist the current route on every navigation ───────────────────
+  // This is the PRIMARY save mechanism on Flutter Web — a browser refresh
+  // does NOT reliably fire AppLifecycleState.paused with enough time to
+  // flush a SharedPreferences write, and GoRouter's declarative page
+  // reconciliation does NOT reliably trigger NavigatorObserver.didPush /
+  // didReplace / didPop / didRemove (which is why the LastRoutePersistence
+  // Observer alone was insufficient — see commit history).
+  //
+  // The redirect callback, by contrast, fires on EVERY navigation,
+  // declarative or imperative, so it is the correct hook point.
+  //
+  // Skip the splash route itself (we never want to restore /splash) and
+  // any in-flight sign-in flow routes (restoring those mid-flow would
+  // bypass auth on the next cold start). saveLastRoute swallows errors
+  // internally and we fire-and-forget so navigation is never blocked.
+  if (currentLocation != '/splash' &&
+      currentLocation != '/sign-in' &&
+      currentLocation != '/sign-up' &&
+      currentLocation != '/create-username' &&
+      currentLocation != '/2fa-verify' &&
+      currentLocation != '/onboarding' &&
+      !currentLocation.startsWith('/join/')) {
+    unawaited(saveLastRoute(currentLocation));
+  }
+
   // Don't redirect away from splash — it handles its own navigation
   if (currentLocation == '/splash') {
     _visitedRoutes.clear();
@@ -660,13 +685,12 @@ final routerProvider = Provider<GoRouter>((ref) {
     observers: [
       // P5-F1: Track every route change for analytics
       AnalyticsNavigatorObserver(),
-      // ── Route persistence (primary mechanism) ─────────────────────────
-      // Saves the *current* matched route on every navigation event so a
-      // browser refresh (which on Flutter Web does NOT reliably fire
-      // AppLifecycleState.paused in time) still has the user's actual
-      // last route available when the splash screen restores the session.
-      // The pause-based save in RoutePersistenceShell remains as a
-      // secondary safeguard for native backgrounding.
+      // ── Route persistence (SECONDARY mechanism) ────────────────────────
+      // Persists the current route on imperative Navigator events. The
+      // PRIMARY save mechanism is in _handleRedirect, which fires on
+      // every navigation including GoRouter's declarative page
+      // reconciliations that this observer does not see. Kept here as
+      // defense-in-depth for the rarer cases noted in the class docstring.
       LastRoutePersistenceObserver(),
     ],
     redirect: (context, state) {
@@ -2303,12 +2327,20 @@ class _RoutePersistenceShellState extends State<RoutePersistenceShell>
   }
 }
 
-/// NavigatorObserver that persists the *current* matched route on every
-/// navigation event (push / replace / pop / remove), so a Flutter Web
-/// refresh — which does NOT reliably fire AppLifecycleState.paused with
-/// enough time to flush a SharedPreferences write before the page unloads
-/// — still has the user's actual last route available to the splash
-/// screen's restoration logic.
+/// SECONDARY route-persistence mechanism.
+///
+/// Persists the *current* matched route on imperative Navigator events
+/// (push / replace / pop / remove). On Flutter Web, GoRouter's declarative
+/// page reconciliation does NOT reliably fire these callbacks for
+/// `context.go()` style navigations, so this observer alone is not
+/// sufficient to capture every navigation.
+///
+/// The PRIMARY save mechanism lives in [_handleRedirect], which fires on
+/// every navigation regardless of declarative vs imperative style. This
+/// observer is retained as a defense-in-depth for the (rare on web, more
+/// common on mobile) cases where a navigation event bypasses the redirect
+/// callback (e.g., programmatic imperative pushes that don't change the
+/// matched location, or rapid push/pop sequences).
 ///
 /// Behavior:
 ///   • On push / replace / remove: persist the *new* top-of-stack route.
@@ -2357,7 +2389,6 @@ class LastRoutePersistenceObserver extends NavigatorObserver {
     _persist(previousRoute?.settings.name);
   }
 }
-
 /// Main shell with 5-tab bottom navigation + global notification bell.
 /// The bell is visible on ALL main screens (top-right corner) with a
 /// red unread-count badge.
