@@ -60,19 +60,41 @@ class DeepRouteRestoreRule {
   final DeepRouteVerifier verify;
 }
 
-/// Verifier for /family/:id/graph.
-///
-/// Issues the cheapest possible query that confirms both (a) the family
-/// row exists and (b) the current user can read it (RLS will otherwise
-/// return null/empty). Members and relationships are NOT loaded here —
-/// the graph screen will fetch them itself once the user lands on it.
-Future<bool> _verifyFamilyGraphRoute(Map<String, String> params) async {
-  final familyId = params['id'];
-  if (familyId == null || familyId.isEmpty) return false;
-  if (!isSupabaseInitialized) return false;
+// ─────────────────────────────────────────────────────────────────────
+// Deep-route verifiers
+// ─────────────────────────────────────────────────────────────────────
+// Each verifier performs the *cheapest possible* query that confirms the
+// referenced resource still exists AND is accessible to the current user
+// (RLS will otherwise return null/empty for rows the user can't read).
+// Verifiers MUST be resilient to network/auth errors, MUST impose their
+// own internal timeout (the splash screen also enforces an outer backstop
+// timeout), and MUST NOT load the full screen data — the destination
+// screen will fetch that itself once the user lands on it.
+// ─────────────────────────────────────────────────────────────────────
+
+/// Common guard: ensures Supabase + an authenticated session are
+/// available before issuing a verification query. Returns the live
+/// [SupabaseClient] when ready, otherwise null.
+SupabaseClient? _verifiedSupabaseClient() {
+  if (!isSupabaseInitialized) return null;
   try {
     final client = Supabase.instance.client;
-    if (client.auth.currentSession == null) return false;
+    if (client.auth.currentSession == null) return null;
+    return client;
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Minimal existence + RLS-accessibility check for a Family row.
+///
+/// Used by every /family/:id/* deep route (graph, chat, map, …) so the
+/// shared "is this family still readable by me?" logic has one home.
+Future<bool> _verifyFamilyAccessible(String? familyId) async {
+  if (familyId == null || familyId.isEmpty) return false;
+  final client = _verifiedSupabaseClient();
+  if (client == null) return false;
+  try {
     final response = await client
         .from('Family')
         .select('id')
@@ -81,12 +103,79 @@ Future<bool> _verifyFamilyGraphRoute(Map<String, String> params) async {
         .timeout(const Duration(seconds: 4));
     return response != null && response['id'] == familyId;
   } on TimeoutException {
-    debugPrint('⚠️ Splash: family graph restore check timed out for family $familyId');
+    debugPrint('⚠️ Splash: family access check timed out for family $familyId');
     return false;
   } catch (e) {
-    debugPrint('⚠️ Splash: family graph restore check failed for family $familyId: $e');
+    debugPrint('⚠️ Splash: family access check failed for family $familyId: $e');
     return false;
   }
+}
+
+/// Minimal existence + RLS-accessibility check for a Person row.
+///
+/// Used by /member/:id and /member/:id/timeline. Excludes soft-deleted
+/// rows (deletedAt != null) — those are not renderable and restoring to
+/// one would reproduce the original black-screen failure mode.
+Future<bool> _verifyPersonAccessible(String? personId) async {
+  if (personId == null || personId.isEmpty) return false;
+  final client = _verifiedSupabaseClient();
+  if (client == null) return false;
+  try {
+    final response = await client
+        .from('Person')
+        .select('id')
+        .eq('id', personId)
+        .filter('deletedAt', 'is', null)
+        .maybeSingle()
+        .timeout(const Duration(seconds: 4));
+    return response != null && response['id'] == personId;
+  } on TimeoutException {
+    debugPrint('⚠️ Splash: person access check timed out for person $personId');
+    return false;
+  } catch (e) {
+    debugPrint('⚠️ Splash: person access check failed for person $personId: $e');
+    return false;
+  }
+}
+
+// ── Per-route verifiers (thin wrappers around the shared helpers above) ──
+
+/// Verifier for /family/:id/graph.
+Future<bool> _verifyFamilyGraphRoute(Map<String, String> params) async {
+  return _verifyFamilyAccessible(params['id']);
+}
+
+/// Verifier for /family/:id/chat.
+///
+/// The chat screen only needs the family row to be readable so it can
+/// load the group conversation + DM list. Reuses the family-access helper.
+Future<bool> _verifyFamilyChatRoute(Map<String, String> params) async {
+  return _verifyFamilyAccessible(params['id']);
+}
+
+/// Verifier for /family/:id/map.
+///
+/// The map screen takes a concrete familyId (no fallback to
+/// familyListProvider.first), so the only failure mode is "family gone
+/// or not readable" — same check as the graph route.
+Future<bool> _verifyFamilyMapRoute(Map<String, String> params) async {
+  return _verifyFamilyAccessible(params['id']);
+}
+
+/// Verifier for /member/:id (person detail).
+///
+/// /profile/:id does not exist as a route in this codebase — the
+/// closest data-dependent deep route is /member/:id, which is what
+/// users navigate to from the family graph to view a person. Restoring
+/// it after refresh requires the Person row to still exist, be
+/// non-deleted, and be readable under RLS.
+Future<bool> _verifyMemberDetailRoute(Map<String, String> params) async {
+  return _verifyPersonAccessible(params['id']);
+}
+
+/// Verifier for /member/:id/timeline.
+Future<bool> _verifyMemberTimelineRoute(Map<String, String> params) async {
+  return _verifyPersonAccessible(params['id']);
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -124,11 +213,43 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   /// To make another deep route restorable, append a [DeepRouteRestoreRule]
   /// here — the splash screen will verify data availability before
   /// restoring it and fall back to /home on any failure/timeout.
+  ///
+  /// Pattern is intentionally generic and table-driven: each rule is a
+  /// (regex, param-names, verifier) triple, and verifiers share a small
+  /// set of helpers (_verifyFamilyAccessible, _verifyPersonAccessible, …)
+  /// so adding a new family-scoped route is a one-line change.
   static final List<DeepRouteRestoreRule> _deepRouteRules = [
+    // ── Family-scoped deep routes ────────────────────────────────────
+    // All of these only need the Family row to exist + be readable, so
+    // they share _verifyFamilyAccessible via a thin per-route wrapper.
     DeepRouteRestoreRule(
       pattern: RegExp(r'^/family/([^/]+)/graph$'),
       paramNames: const ['id'],
       verify: _verifyFamilyGraphRoute,
+    ),
+    DeepRouteRestoreRule(
+      pattern: RegExp(r'^/family/([^/]+)/chat$'),
+      paramNames: const ['id'],
+      verify: _verifyFamilyChatRoute,
+    ),
+    DeepRouteRestoreRule(
+      pattern: RegExp(r'^/family/([^/]+)/map$'),
+      paramNames: const ['id'],
+      verify: _verifyFamilyMapRoute,
+    ),
+    // ── Person-scoped deep routes ────────────────────────────────────
+    // /profile/:id does not exist as a route in this codebase; the
+    // closest data-dependent deep route is /member/:id, which is what
+    // users navigate to from the family graph.
+    DeepRouteRestoreRule(
+      pattern: RegExp(r'^/member/([^/]+)$'),
+      paramNames: const ['id'],
+      verify: _verifyMemberDetailRoute,
+    ),
+    DeepRouteRestoreRule(
+      pattern: RegExp(r'^/member/([^/]+)/timeline$'),
+      paramNames: const ['id'],
+      verify: _verifyMemberTimelineRoute,
     ),
   ];
 
