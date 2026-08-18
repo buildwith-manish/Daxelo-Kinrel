@@ -660,6 +660,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     observers: [
       // P5-F1: Track every route change for analytics
       AnalyticsNavigatorObserver(),
+      // ── Route persistence (primary mechanism) ─────────────────────────
+      // Saves the *current* matched route on every navigation event so a
+      // browser refresh (which on Flutter Web does NOT reliably fire
+      // AppLifecycleState.paused in time) still has the user's actual
+      // last route available when the splash screen restores the session.
+      // The pause-based save in RoutePersistenceShell remains as a
+      // secondary safeguard for native backgrounding.
+      LastRoutePersistenceObserver(),
     ],
     redirect: (context, state) {
       // ── SAFETY: Never throw in redirect — always return a route or null ──
@@ -2267,7 +2275,16 @@ class _RoutePersistenceShellState extends State<RoutePersistenceShell>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Save current route when app goes to background
+    // Save current route when app goes to background.
+    //
+    // SECONDARY SAFEGUARD: on Flutter Web, a browser refresh does NOT
+    // reliably fire this callback in time to complete the SharedPreferences
+    // write before the page is torn down. The primary save mechanism is
+    // now LastRoutePersistenceObserver (registered on GoRouter), which
+    // records every navigation change immediately. This pause-based save
+    // remains useful for native mobile backgrounding where the observer
+    // has already captured the right route and the extra write is a
+    // no-op (same value) and harmless.
     if (state == AppLifecycleState.paused) {
       _saveCurrentRoute();
     }
@@ -2283,6 +2300,61 @@ class _RoutePersistenceShellState extends State<RoutePersistenceShell>
   @override
   Widget build(BuildContext context) {
     return MainShell(child: widget.child);
+  }
+}
+
+/// NavigatorObserver that persists the *current* matched route on every
+/// navigation event (push / replace / pop / remove), so a Flutter Web
+/// refresh — which does NOT reliably fire AppLifecycleState.paused with
+/// enough time to flush a SharedPreferences write before the page unloads
+/// — still has the user's actual last route available to the splash
+/// screen's restoration logic.
+///
+/// Behavior:
+///   • On push / replace / remove: persist the *new* top-of-stack route.
+///   • On pop: persist the route we're returning to (previousRoute).
+///   • Skips null / empty names and the /splash route itself (we never
+///     want to restore the splash screen).
+///   • All saves are fire-and-forget — saveLastRoute already swallows
+///     errors and the await must not block the navigation frame.
+class LastRoutePersistenceObserver extends NavigatorObserver {
+  static const Set<String> _skippedRoutes = {'/splash', ''};
+
+  void _persist(String? name) {
+    if (name == null) return;
+    if (_skippedRoutes.contains(name)) return;
+    // Fire-and-forget: saveLastRoute is async (SharedPreferences) but we
+    // must not await it inside the navigation callback.
+    unawaited(saveLastRoute(name));
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _persist(route.settings.name);
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    if (newRoute != null) {
+      _persist(newRoute.settings.name);
+    } else if (oldRoute != null) {
+      // If we somehow replaced into an unknown target, fall back to the
+      // previous route — that's the route currently visible to the user.
+      _persist(oldRoute.settings.name);
+    }
+  }
+
+  @override
+  void didPop(Route<dynamic>? route, Route<dynamic>? previousRoute) {
+    // After a pop, the screen the user sees is previousRoute.
+    _persist(previousRoute?.settings.name);
+  }
+
+  @override
+  void didRemove(Route<dynamic>? route, Route<dynamic>? previousRoute) {
+    // After a remove, the visible screen is previousRoute (whatever is
+    // now on top of the stack).
+    _persist(previousRoute?.settings.name);
   }
 }
 
