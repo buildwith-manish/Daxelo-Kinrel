@@ -23,7 +23,8 @@ import 'package:image_picker/image_picker.dart' show XFile;
 
 import '../../../core/services/supabase_service.dart';
 import 'services/photo_picker_service.dart';
-import 'providers/family_graph_provider.dart' show FamilyGraphNotifier, familyGraphProvider;
+import 'providers/family_graph_provider.dart'
+    show FamilyGraphNotifier, familyGraphProvider, unlinkedPersonIdsProvider;
 import '../../../graph/interaction/relationship_validation.dart' show graphUndoProvider;
 import '../../../core/utils/form_validators.dart';
 import '../../../core/utils/api_error_mapper.dart';
@@ -311,7 +312,71 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         // Skip Step 0 (Basic Info) — jump directly to Step 1 (Relationship)
         // because the person already exists on Kinrel.
         _currentStep = 1;
+
+        // v5.42: Duplicate-member guard. Schedule a post-frame check
+        // to see if this Kinrel user is already a member of this family.
+        // If so, show an error dialog and pop the sheet — the user
+        // cannot re-add an existing member.
+        //
+        // This is a defense-in-depth check: the Find on Kinrel search
+        // screen already shows an "Already Added" badge and disables
+        // the Add button, but a race condition or direct navigation
+        // could still land the user here.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _checkDuplicateKinrelUser(user);
+        });
       }
+    }
+  }
+
+  /// v5.42: Checks if the given Kinrel user is already a member of this
+  /// family. If so, shows an error dialog and pops the sheet.
+  void _checkDuplicateKinrelUser(KinrelUser user) {
+    final existingIds = ref.read(familyLinkedUserIdsProvider(widget.familyId));
+    if (existingIds.contains(user.id)) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: KinrelColors.darkCard,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(KinrelSpacing.radiusLg),
+          ),
+          title: Text(
+            'Already in family',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textWhite,
+            ),
+          ),
+          content: Text(
+            '${user.name} is already a member of this family. '
+            'You cannot add them again.',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 14,
+              color: KinrelColors.textSilver,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                if (mounted) {
+                  Navigator.of(context).pop();
+                }
+              },
+              child: Text(
+                'OK',
+                style: TextStyle(color: KinrelColors.orange),
+              ),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -339,25 +404,27 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       case 0:
         return nameValidator(_nameController.text) == null;
       case 1:
-        // v5.40: Relationship is the only hard requirement on Step 1.
-        // The target person is RECOMMENDED but no longer blocking —
-        // the submit logic (around line 1103) already falls back to
-        // the family's anchorPersonId when no explicit target was
-        // picked, so the validation here now matches that fallback.
+        // v5.42: The relationship requirement depends on the origin:
         //
-        // Previously the validation required BOTH hasTarget AND
-        // _effectiveRelationshipKey != null, which was inconsistent
-        // with the submit logic and caused the Next button to stay
-        // disabled even after the user picked Parent / Child /
-        // Spouse / Sibling — because they hadn't (yet) tapped the
-        // "Related to" picker to choose a specific target.
+        //   • Graph origin (fromGraph == true): A relationship IS
+        //     required — the new member must be connected to the graph
+        //     immediately (linked node). The user cannot proceed to
+        //     Step 2 without selecting a relationship type.
         //
-        // Now: as soon as a relationship type is selected, the user
-        // can proceed. If they also pick a target, that's preferred;
-        // if not, the family anchor is used (same as the submit path).
-        if (_familyHasExistingMembers) {
+        //   • Family Space origin (fromGraph == false): A relationship
+        //     is NOT required. The user can skip Step 1's relationship
+        //     picker entirely and the Person will be created as an
+        //     UNLINKED node. They can assign a relationship later via
+        //     the unlinked-members sheet.
+        //
+        // This matches the new spec:
+        //   "Member Added From Family Graph + kinship selected → linked node"
+        //   "Member Added From Family Space → unlinked member"
+        if (_familyHasExistingMembers && widget.fromGraph) {
           return _effectiveRelationshipKey != null;
         }
+        // Family Space origin OR family has no existing members:
+        // relationship is optional, user can always proceed.
         return true;
       case 2:
         return true; // Additional details are optional
@@ -1057,33 +1124,24 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     }
 
     try {
-      // v5.41: Graph-originated invitation routing.
-      // When fromGraph is true AND the user provided a phone OR email
-      // AND a relationship was selected, create a pending graph
-      // invitation INSTEAD of a Person node. The graph stays clean —
-      // the invitee appears only after they accept.
+      // v5.42: Revised unlinked-node logic.
       //
-      // If fromGraph is true but NO phone/email was provided, fall
-      // through to the normal Person-creation flow (the user is just
-      // adding a family member manually without inviting them).
-      if (widget.fromGraph && !_isEditMode) {
-        final hasContactInfo = _phoneController.text.trim().isNotEmpty ||
-            _emailController.text.trim().isNotEmpty;
-        final relKey = _effectiveRelationshipKey;
-        final targetPerson = _selectedTargetPerson ?? widget.anchorPerson;
-
-        if (hasContactInfo && relKey != null && targetPerson != null) {
-          // Route to the pending invitation system.
-          await _createGraphPendingInvitation(
-            targetPersonId: targetPerson.id,
-            relationshipKey: _mapToFundamentalEdge(relKey),
-            specificLabel: relKey,
-          );
-          return; // Don't fall through to Person creation.
-        }
-        // If we get here, either there's no contact info (manual add)
-        // or no relationship was selected. Fall through to normal flow.
-      }
+      // PER THE NEW REQUIREMENTS:
+      //   • Graph origin + relationship selected → create a LINKED node
+      //     (Person + Relationship edge). NO unlinked node.
+      //   • Family Space origin → create an UNLINKED Person node (no
+      //     relationship edge). The user assigns a relationship later
+      //     via the unlinked-members sheet.
+      //   • Invitation flow (pending invitations) is a SEPARATE path
+      //     that does NOT go through AddPersonSheet. The v5.41 routing
+      //     that diverted graph-originated adds to the pending
+      //     invitation system has been REMOVED because it violated
+      //     the new spec.
+      //
+      // The `fromGraph` flag now controls ONLY whether the relationship
+      // creation block runs:
+      //   • fromGraph == true → relationship block runs (linked node)
+      //   • fromGraph == false → relationship block is skipped (unlinked node)
 
       Person? result;
 
@@ -1251,7 +1309,22 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
         final relKey = preComputedRelKey;
 
-        if (relKey != null && !_isEditMode && result != null) {
+        // v5.42: Gate the relationship-creation block on `widget.fromGraph`.
+        //
+        // PER THE NEW REQUIREMENTS:
+        //   • Graph origin (fromGraph == true) + relationship selected →
+        //     CREATE the relationship edge. The new member appears as a
+        //     LINKED graph node (not unlinked).
+        //   • Family Space origin (fromGraph == false) → SKIP the
+        //     relationship creation block entirely. The Person is created
+        //     as an UNLINKED node. The user assigns a relationship later
+        //     via the unlinked-members sheet → relationship picker flow,
+        //     which calls `createRelationship` separately.
+        //
+        // This ensures:
+        //   - Graph adds → linked nodes (immediate connection lines)
+        //   - Family Space adds → unlinked nodes (connection later)
+        if (relKey != null && !_isEditMode && result != null && widget.fromGraph) {
           // v94: Capture the non-null result in a local variable so
           // dart2js doesn't lose null-promotion across the await
           // boundaries below. Without this, `result.id` triggers
@@ -1514,6 +1587,25 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             FamilyGraphNotifier.clearCache(widget.familyId);
             ref.invalidate(familyGraphProvider(widget.familyId));
           }
+        } else if (!widget.fromGraph && relKey != null) {
+          // v5.42: Family Space origin — the user picked a relationship
+          // in Step 1, but we intentionally SKIP creating it here.
+          // The Person is created as an UNLINKED node. The user will
+          // assign the relationship later via the unlinked-members
+          // sheet → relationship picker flow.
+          //
+          // This matches the new spec:
+          //   "Member Added From Family Space → Add them as a family
+          //    member. Show them as an unlinked member. Do not create
+          //    relationship lines."
+          debugPrint('[ADD-MEMBER] v5.42: Family Space origin — skipping '
+              'relationship creation. Person will appear as unlinked.');
+          // Refresh the graph so the new unlinked node appears.
+          FamilyGraphNotifier.clearCache(widget.familyId);
+          ref.invalidate(familyGraphProvider(widget.familyId));
+          // Invalidate the unlinked-person-ids provider so the "Link"
+          // pill button appears with the updated count.
+          ref.invalidate(unlinkedPersonIdsProvider(widget.familyId));
         }
       }
 
@@ -1590,11 +1682,17 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           ),
         );
       } else {
-        context.showSnackBar(
-          _isEditMode
-              ? 'Person updated successfully'
-              : (_successMessage ?? 'Welcome to the family, ${result?.name ?? 'New member'}!'),
-        );
+        // v5.42: For Family Space origin, use a different success message
+        // that tells the user the member was added as unlinked and they
+        // can assign a relationship later.
+        final successMsg = _isEditMode
+            ? 'Person updated successfully'
+            : (_successMessage ??
+                (widget.fromGraph
+                    ? 'Welcome to the family, ${result?.name ?? 'New member'}!'
+                    : '${result?.name ?? 'New member'} added. Tap "Link" on '
+                      'the graph to connect them to a family member.'));
+        context.showSnackBar(successMsg);
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -2698,32 +2796,43 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           ],
 
           // Mandatory hint when no relationship selected but family has existing members
+          // v5.42: Only show the "required" hint for graph origin. For Family Space
+          // origin, show a softer "optional" hint instead.
           if (_familyHasExistingMembers && _effectiveRelationshipKey == null) ...[
             SizedBox(height: 16),
             Container(
               padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: KinrelColors.orange.withValues(alpha: 0.06),
+                color: (widget.fromGraph ? KinrelColors.orange : KinrelColors.tealAccent)
+                    .withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
                 border: Border.all(
-                  color: KinrelColors.orange.withValues(alpha: 0.15),
+                  color: (widget.fromGraph ? KinrelColors.orange : KinrelColors.tealAccent)
+                      .withValues(alpha: 0.15),
                 ),
               ),
               child: Row(
                 children: [
                   Icon(
-                    Icons.info_outline,
-                    color: KinrelColors.orange,
+                    widget.fromGraph ? Icons.info_outline : Icons.link_off,
                     size: 16,
+                    color: widget.fromGraph
+                        ? KinrelColors.orange
+                        : KinrelColors.tealAccent,
                   ),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Please select how they are related to proceed',
+                      widget.fromGraph
+                          ? 'Please select how they are related to proceed'
+                          : 'Optional: pick a relationship now, or skip and '
+                            'link them later from the graph\'s "Link" button.',
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 13,
-                        color: KinrelColors.orange,
+                        color: widget.fromGraph
+                            ? KinrelColors.orange
+                            : KinrelColors.tealAccent,
                         fontWeight: FontWeight.w500,
                       ),
                     ),

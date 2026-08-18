@@ -1186,6 +1186,40 @@ final familyMemberCountProvider = Provider.family<int, String>((ref, familyId) {
   return membersAsync.valueOrNull?.length ?? 0;
 });
 
+/// v5.42: Returns the set of Kinrel user IDs (auth.uid()) that are
+/// already members of the given family — either as a Person with
+/// `linkedUserId` set, or as a FamilyMember row.
+///
+/// Used by the "Find on Kinrel" search screen to EXCLUDE existing
+/// family members from search results, and by AddPersonSheet to
+/// guard against duplicate adds.
+///
+/// The union of both sources is important:
+///   • `familyMembersProvider` covers Person nodes that have been
+///     linked to a Kinrel account (e.g. via the findOnKinrel flow).
+///   • `familyMembershipsProvider` covers users who joined the family
+///     space via an invitation but may not yet have a Person node
+///     (e.g. they accepted a family invite but haven't been added
+///     to the graph).
+///
+/// A user in either set is "already in the family" and must NOT be
+/// re-added or re-invited.
+final familyLinkedUserIdsProvider =
+    Provider.family<Set<String>, String>((ref, familyId) {
+  final persons = ref.watch(familyMembersProvider(familyId)).valueOrNull ?? [];
+  final memberships =
+      ref.watch(familyMembershipsProvider(familyId)).valueOrNull ?? [];
+  return {
+    ...persons
+        .where((p) =>
+            p.linkedUserId != null && p.linkedUserId!.trim().isNotEmpty)
+        .map((p) => p.linkedUserId!.trim()),
+    ...memberships
+        .where((m) => m.userId.trim().isNotEmpty)
+        .map((m) => m.userId.trim()),
+  };
+});
+
 /// Fetches FamilyMember rows for a given family — used to determine user roles.
 /// Returns a list of [FamilyMembership] objects with userId and role.
 final familyMembershipsProvider =

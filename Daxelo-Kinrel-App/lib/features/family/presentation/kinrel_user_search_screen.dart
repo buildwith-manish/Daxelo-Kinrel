@@ -17,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../../core/family/family_provider.dart' show familyLinkedUserIdsProvider;
 import '../../../data/repositories/search_repository.dart';
 import 'add_member_source.dart';
 import 'package:go_router/go_router.dart';
@@ -224,9 +225,16 @@ class _KinrelUserSearchScreenState
       itemCount: _results.length,
       itemBuilder: (context, index) {
         final user = _results[index];
+        // v5.42: Check if this user is already a family member.
+        // If so, render the card with an "Already Added" badge and
+        // disable the tap action.
+        final existingIds =
+            ref.watch(familyLinkedUserIdsProvider(widget.familyId));
+        final isAlreadyAdded = existingIds.contains(user.id);
         return _KinrelUserCard(
           user: user,
-          onTap: () => _selectUser(user),
+          isAlreadyAdded: isAlreadyAdded,
+          onTap: isAlreadyAdded ? null : () => _selectUser(user),
         );
       },
     );
@@ -285,19 +293,30 @@ class _KinrelUserSearchScreenState
 // ═══════════════════════════════════════════════════════════════════════
 
 class _KinrelUserCard extends StatelessWidget {
-  const _KinrelUserCard({required this.user, required this.onTap});
+  const _KinrelUserCard({
+    required this.user,
+    required this.onTap,
+    this.isAlreadyAdded = false,
+  });
 
   final KinrelUser user;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool isAlreadyAdded;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
+        color: isAlreadyAdded
+            ? KinrelColors.darkCard.withValues(alpha: 0.5)
+            : KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.darkElevated),
+        border: Border.all(
+          color: isAlreadyAdded
+              ? KinrelColors.textDim.withValues(alpha: 0.2)
+              : KinrelColors.darkElevated,
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -380,24 +399,59 @@ class _KinrelUserCard extends StatelessWidget {
 
                 const SizedBox(width: 8),
 
-                // Add button
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: KinrelColors.orange,
-                    borderRadius: BorderRadius.circular(KinrelRadius.md),
-                  ),
-                  child: Text(
-                    'Add',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: KinrelColors.textWhite,
+                // Add button or "Already Added" badge
+                if (isAlreadyAdded)
+                  // v5.42: Disabled state for existing family members.
+                  // The user cannot accidentally re-add them.
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: KinrelColors.textDim.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(KinrelRadius.md),
+                      border: Border.all(
+                        color: KinrelColors.textDim.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.check_circle,
+                          size: 14,
+                          color: KinrelColors.textDim,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Already Added',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: KinrelColors.textDim,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: KinrelColors.orange,
+                      borderRadius: BorderRadius.circular(KinrelRadius.md),
+                    ),
+                    child: Text(
+                      'Add',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textWhite,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
