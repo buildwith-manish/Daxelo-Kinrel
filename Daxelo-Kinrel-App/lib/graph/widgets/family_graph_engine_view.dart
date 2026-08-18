@@ -173,6 +173,7 @@ import 'engine/viewer_linked_provider.dart' show isViewerLinkedProvider;
 // Both consumed by the canvas mixin and the interaction mixin.
 // v5.27 Task 1: also imports resetAnimationTriggerProvider.
 // v5.34: also imports saveAllOverridesTriggerProvider + resetUnsavedOverridesTriggerProvider.
+// v5.38: also imports hasUnsavedChangesProvider + saveCompletedTriggerProvider.
 import '../rearrange/layout_overrides_service.dart'
     show
         LayoutOverridesService,
@@ -181,7 +182,9 @@ import '../rearrange/layout_overrides_service.dart'
         rearrangeModeProvider,
         resetAnimationTriggerProvider,
         saveAllOverridesTriggerProvider,
-        resetUnsavedOverridesTriggerProvider;
+        resetUnsavedOverridesTriggerProvider,
+        hasUnsavedChangesProvider,
+        saveCompletedTriggerProvider;
 import '../rearrange/save_lock_pill.dart' show SaveLockPill;
 
 // ── P0.4: Extracted parts (MUST come after all imports) ────────────────
@@ -843,6 +846,11 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _rearrangeLiveNodeOverrides = const {};
     _rearrangeLiveEdgeWaypoints = const {};
     _rearrangeDragRevision++;
+    // v5.38: Clear the unsaved-changes flag so the Save button
+    // disables. Also increment saveCompletedTriggerProvider so the
+    // screen shows the "Layout saved successfully" snackbar.
+    ref.read(hasUnsavedChangesProvider.notifier).state = false;
+    ref.read(saveCompletedTriggerProvider.notifier).state++;
     if (mounted) setState(() {});
   }
 
@@ -863,6 +871,8 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _rearrangePreDragPosition = null;
     _rearrangePreDragEdgeDelta = Offset.zero;
     _rearrangeDragRevision++;
+    // v5.38: Clear the unsaved-changes flag so the Save button disables.
+    ref.read(hasUnsavedChangesProvider.notifier).state = false;
     setState(() {});
   }
 

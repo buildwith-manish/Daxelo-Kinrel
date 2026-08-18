@@ -532,3 +532,28 @@ final saveAllOverridesTriggerProvider = StateProvider<int>((ref) => 0);
 /// NOT touch the DB — saved overrides are preserved, only unsaved moves
 /// are discarded.
 final resetUnsavedOverridesTriggerProvider = StateProvider<int>((ref) => 0);
+
+// ────────────────────────────────────────────────────────────────────
+// v5.38 — Save button state tracking
+// ────────────────────────────────────────────────────────────────────
+//
+// The Save (✓) button should ONLY be enabled when there are unsaved
+// changes (live overrides are non-empty). When there are no changes,
+// the button should be disabled/dimmed and non-clickable. After saving,
+// the button should automatically become disabled again.
+//
+// hasUnsavedChangesProvider: set to true by the engine view when a drag
+// populates _rearrangeLiveNodeOverrides or _rearrangeLiveEdgeWaypoints.
+// Set to false after Save or Reset clears the maps.
+//
+// saveCompletedTriggerProvider: incremented by the engine view after
+// _onSaveAllTrigger completes. The screen watches this to show the
+// "Layout saved successfully" snackbar.
+
+/// True when there are unsaved node/edge position changes in the
+/// live override maps. The Save button enables/disables based on this.
+final hasUnsavedChangesProvider = StateProvider<bool>((ref) => false);
+
+/// Incremented by the engine view after a successful save. The screen
+/// listens for this to show the "Layout saved successfully" snackbar.
+final saveCompletedTriggerProvider = StateProvider<int>((ref) => 0);

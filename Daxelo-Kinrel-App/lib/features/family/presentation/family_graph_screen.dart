@@ -46,6 +46,7 @@ import '../../../graph/widgets/relationship_picker_flow.dart'; // v5.10
 import '../../../graph/widgets/graph_relationship_labels.dart' show GraphPersonData; // v5.10
 // v5.22: Rearrange-mode toggle (personal layout overrides + edge midpoint bow).
 // v5.34: also imports saveAllOverridesTriggerProvider + resetUnsavedOverridesTriggerProvider.
+// v5.38: also imports hasUnsavedChangesProvider + saveCompletedTriggerProvider.
 import '../../../graph/rearrange/layout_overrides_service.dart'
     show
         LayoutOverridesService,
@@ -53,7 +54,9 @@ import '../../../graph/rearrange/layout_overrides_service.dart'
         personalLayoutOverridesProvider,
         rearrangeModeProvider,
         saveAllOverridesTriggerProvider,
-        resetUnsavedOverridesTriggerProvider;
+        resetUnsavedOverridesTriggerProvider,
+        hasUnsavedChangesProvider,
+        saveCompletedTriggerProvider;
 import 'add_member_options_sheet.dart';
 import 'providers/family_graph_provider.dart'
     show
@@ -164,6 +167,18 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           _rearrangeBannerTimer?.cancel();
           _rearrangeBannerTimer = null;
           _showRearrangeBanner = false;
+        }
+      });
+      // v5.38: Listen for save completion to show the success snackbar.
+      ref.listenManual(saveCompletedTriggerProvider, (previous, next) {
+        if (next != null && next > (previous ?? 0)) {
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            const SnackBar(
+              content: Text('Layout saved successfully'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
         }
       });
     });
@@ -898,29 +913,40 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   // saveAllOverridesTriggerProvider; the engine view watches this and
   // iterates over _rearrangeLiveNodeOverrides + _rearrangeLiveEdgeWaypoints,
   // saving each entry via LayoutOverridesService.
+  // v5.38: Save button — enabled ONLY when there are unsaved changes
+  // (hasUnsavedChangesProvider is true). Disabled/dimmed when there
+  // are no changes. Shows "Saving layout..." on tap, then the engine
+  // view's _onSaveAllTrigger runs async and increments
+  // saveCompletedTriggerProvider — the screen listens for that and
+  // shows "Layout saved successfully".
   Widget _buildSaveAllButton() {
+    final hasChanges = ref.watch(hasUnsavedChangesProvider);
     return Semantics(
       label: 'Save all rearranged positions',
       button: true,
+      enabled: hasChanges,
       child: FloatingActionButton.small(
         heroTag: 'rearrange_save_all',
-        backgroundColor: KinrelColors.tealAccent,
-        foregroundColor: Colors.black,
-        elevation: 4,
-        onPressed: () {
-          ref.read(saveAllOverridesTriggerProvider.notifier).state++;
-          // v5.37: Show snackbar feedback so the user knows the Save
-          // button was tapped. The actual save happens in the engine
-          // view's _onSaveAllTrigger (async). The snackbar here is
-          // just visual feedback that the button was pressed.
-          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-            const SnackBar(
-              content: Text('Saving layout...'),
-              behavior: SnackBarBehavior.floating,
-              duration: Duration(seconds: 1),
-            ),
-          );
-        },
+        backgroundColor: hasChanges
+            ? KinrelColors.tealAccent
+            : KinrelColors.darkCard.withValues(alpha: 0.5),
+        foregroundColor: hasChanges ? Colors.black : KinrelColors.textDim,
+        elevation: hasChanges ? 4 : 0,
+        // v5.38: onPressed is null when disabled (no unsaved changes).
+        // This makes the button non-clickable + Flutter applies the
+        // disabled visual style automatically.
+        onPressed: hasChanges
+            ? () {
+                ref.read(saveAllOverridesTriggerProvider.notifier).state++;
+                ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                  const SnackBar(
+                    content: Text('Saving layout...'),
+                    behavior: SnackBarBehavior.floating,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            : null,
         child: const Icon(Icons.check_rounded, size: 20),
       ),
     );

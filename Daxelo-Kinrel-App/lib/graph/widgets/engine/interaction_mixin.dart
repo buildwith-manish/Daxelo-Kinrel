@@ -100,6 +100,12 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       _rearrangeLiveNodeOverrides = newMap;
       _rearrangeDragRevision++;
       _lastFocal = d.focalPoint;
+      // v5.38: Mark that there are unsaved changes so the Save button
+      // enables. Only set on the first move (avoid per-frame provider
+      // writes — setting the same value is a no-op anyway).
+      if (!ref.read(hasUnsavedChangesProvider)) {
+        ref.read(hasUnsavedChangesProvider.notifier).state = true;
+      }
       // v5.35: Debug logging (first move only — too noisy per frame otherwise).
       if (newMap.length == 1) {
         debugPrint('[v5.35 Drag] first move — node ${_rearrangeDragId} → $graphPos, liveMap size=${newMap.length}');
