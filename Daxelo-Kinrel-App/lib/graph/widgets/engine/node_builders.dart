@@ -130,6 +130,13 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       memberCount: _currentMemberCount,
       focusActive:
           ref.read(graphFocusProvider).focusedPersonId != null,
+      // v5.36: Pass rearrangeMode to GraphNode so it can OMIT the
+      // per-node LongPressGestureRecognizer entirely when Rearrange
+      // mode is ON. This prevents the per-node recognizer from
+      // competing with the canvas-level drag handler in the gesture
+      // arena — which was the root cause of unreliable dragging +
+      // Save/Reset appearing to do nothing.
+      rearrangeMode: ref.read(rearrangeModeProvider),
       // v93 (ZOOM FIX) legacy fallback — still computed for the
       // camera-null case (e.g. tests). When [camera] is non-null this
       // flag is ignored by GraphNode.

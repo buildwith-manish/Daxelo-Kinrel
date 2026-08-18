@@ -185,6 +185,15 @@ class GraphNode extends ConsumerStatefulWidget {
     this.camera,
     this.memberCount,
     this.focusActive = false,
+    // v5.36: When true, the per-node LongPressGestureRecognizer is
+    // OMITTED entirely from the RawGestureDetector's gestures map.
+    // This prevents it from competing with the canvas-level gesture
+    // handler for the long-press gesture in Rearrange mode. Without
+    // this, the per-node recognizer intermittently wins the gesture
+    // arena, absorbing the touch before the canvas-level handler can
+    // start a node drag — which is why dragging was unreliable and
+    // Save/Reset appeared to do nothing (no drag data was registered).
+    this.rearrangeMode = false,
     required this.onTap,
     required this.onLongPress,
     this.onDoubleTap,
@@ -322,6 +331,11 @@ class GraphNode extends ConsumerStatefulWidget {
   /// label opacity is forced to 1.0 (matching computeSemanticTier's
   /// MEDIUM floor during focus). Ignored when [camera] is null.
   final bool focusActive;
+
+  /// v5.36: When true, the per-node LongPressGestureRecognizer is
+  /// omitted entirely from the RawGestureDetector. See constructor
+  /// doc for details.
+  final bool rearrangeMode;
 
   /// Callback when the node is tapped.
   final VoidCallback onTap;
@@ -552,7 +566,23 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                     instance.onTap = widget.onTap;
                   },
                 ),
-            LongPressGestureRecognizer:
+            // v5.36: When Rearrange mode is ON, OMIT the
+            // LongPressGestureRecognizer entirely. Its presence as a
+            // competing gesture recognizer was interfering with the
+            // canvas-level drag handler — even with its callback
+            // suppressed (v5.33 fix), the recognizer still
+            // participated in the gesture arena and intermittently
+            // won the gesture before the canvas-level handler could
+            // start a node drag. This is why dragging was unreliable
+            // and why Save/Reset appeared to do nothing (no drag
+            // data was registered because the drag never started).
+            //
+            // By omitting the recognizer entirely when
+            // rearrangeMode is true, the gesture arena has no
+            // competing long-press recognizer — the canvas-level
+            // handler gets the gesture reliably every time.
+            if (!widget.rearrangeMode)
+              LongPressGestureRecognizer:
                 GestureRecognizerFactoryWithHandlers<
                   LongPressGestureRecognizer
                 >(() => LongPressGestureRecognizer(), (instance) {
