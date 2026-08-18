@@ -15,6 +15,81 @@ import '../../../core/services/supabase_service.dart';
 import '../../../main.dart' show appInitCompleteProvider;
 
 // ─────────────────────────────────────────────────────────────────────
+// Deep-route restoration safeguard
+// ─────────────────────────────────────────────────────────────────────
+// The splash screen previously restored only a hard-coded allowlist of
+// top-level routes (/home, /search, /families, …). Deep, parameterized
+// routes such as /family/:id/graph were intentionally excluded because
+// they can produce a black screen if the referenced data has not loaded
+// yet, has been deleted, or is hidden by RLS.
+//
+// To make such routes restorable *without* re-introducing that failure
+// mode, each restorable deep route is described by a [DeepRouteRestoreRule]
+// whose [verify] callback loads the *minimal* data the destination screen
+// needs (a single row, a count, …) under a short internal timeout. The
+// splash screen only restores the route when the verifier returns true.
+// Any failure, timeout, or null response falls back to /home as before,
+// preserving the original protection.
+//
+// To make additional deep, data-dependent routes restorable in the
+// future, append a new [DeepRouteRestoreRule] to [_deepRouteRules] below —
+// do NOT special-case individual screens inside _initialize().
+// ─────────────────────────────────────────────────────────────────────
+
+/// Verifier for a single restorable deep route.
+///
+/// [pattern] is matched against the saved route's *path* (query string
+/// stripped). Capture groups in [pattern] map to [paramNames], in order.
+///
+/// [verify] receives those captured values and MUST return `true` only
+/// when the data needed to render the destination screen is confirmed
+/// accessible to the current user. Implementations MUST be resilient to
+/// network/auth errors and SHOULD impose their own internal timeout
+/// (the splash screen also enforces an outer backstop timeout).
+typedef DeepRouteVerifier = Future<bool> Function(Map<String, String> params);
+
+class DeepRouteRestoreRule {
+  const DeepRouteRestoreRule({
+    required this.pattern,
+    required this.paramNames,
+    required this.verify,
+  });
+
+  final RegExp pattern;
+  final List<String> paramNames;
+  final DeepRouteVerifier verify;
+}
+
+/// Verifier for /family/:id/graph.
+///
+/// Issues the cheapest possible query that confirms both (a) the family
+/// row exists and (b) the current user can read it (RLS will otherwise
+/// return null/empty). Members and relationships are NOT loaded here —
+/// the graph screen will fetch them itself once the user lands on it.
+Future<bool> _verifyFamilyGraphRoute(Map<String, String> params) async {
+  final familyId = params['id'];
+  if (familyId == null || familyId.isEmpty) return false;
+  if (!isSupabaseInitialized) return false;
+  try {
+    final client = Supabase.instance.client;
+    if (client.auth.currentSession == null) return false;
+    final response = await client
+        .from('Family')
+        .select('id')
+        .eq('id', familyId)
+        .maybeSingle()
+        .timeout(const Duration(seconds: 4));
+    return response != null && response['id'] == familyId;
+  } on TimeoutException {
+    debugPrint('⚠️ Splash: family graph restore check timed out for family $familyId');
+    return false;
+  } catch (e) {
+    debugPrint('⚠️ Splash: family graph restore check failed for family $familyId: $e');
+    return false;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // KINREL Splash Screen — Animated K-Graph Experience
 //
 // Animation sequence (1.5–2.0 s total):
@@ -42,6 +117,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   bool _navigated = false;
   bool _initComplete = false;
   bool _hasCachedProfile = false;
+
+  /// Deep, data-dependent routes that may be restored after refresh, but
+  /// only when their verifier confirms the referenced data is accessible.
+  ///
+  /// To make another deep route restorable, append a [DeepRouteRestoreRule]
+  /// here — the splash screen will verify data availability before
+  /// restoring it and fall back to /home on any failure/timeout.
+  static final List<DeepRouteRestoreRule> _deepRouteRules = [
+    DeepRouteRestoreRule(
+      pattern: RegExp(r'^/family/([^/]+)/graph$'),
+      paramNames: const ['id'],
+      verify: _verifyFamilyGraphRoute,
+    ),
+  ];
 
   // ── Animation Controllers ────────────────────────────────────────
   late final AnimationController _introController; // 1 500 ms – main sequence
@@ -235,16 +324,61 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         lastRoute = await getLastRoute();
       } catch (_) {}
       if (!mounted || _navigated) return;
-      // Only restore safe top-level routes — never deep/parameterized routes
-      // that need data to render. Parameterized routes like /family/abc123
-      // or /member/xyz can cause a black screen if the data hasn't loaded yet
-      // or the route fails silently, putting GoRouter in an undefined state.
+
+      // Only restore routes that are known-safe. Top-level routes in the
+      // allowlist below can always be restored (they have no external data
+      // dependency). Deep, parameterized routes (/family/:id/graph, etc.)
+      // are restored ONLY when a verifier confirms the referenced data is
+      // still accessible to the current user — otherwise we fall back to
+      // /home so the original black-screen failure mode cannot reoccur.
       if (lastRoute != null && lastRoute != '/splash' && mounted) {
-        final safeRoutes = ['/home', '/search', '/families', '/notifications', '/profile'];
+        final safeRoutes =
+            ['/home', '/search', '/families', '/notifications', '/profile'];
         if (safeRoutes.contains(lastRoute)) {
           debugPrint('🧭 Splash → $lastRoute (restored last route)');
           context.go(lastRoute);
           return;
+        }
+
+        // Deep, data-dependent routes: verify before restoring.
+        // Strip the query string (matchedLocation never carries one, but
+        // be defensive in case a future caller saves the full URL).
+        final pathOnly = Uri.tryParse(lastRoute)?.path ?? lastRoute;
+        for (final rule in _deepRouteRules) {
+          final match = rule.pattern.firstMatch(pathOnly);
+          if (match == null) continue;
+
+          final params = <String, String>{};
+          for (var i = 0; i < rule.paramNames.length; i++) {
+            params[rule.paramNames[i]] = match.group(i + 1) ?? '';
+          }
+
+          debugPrint('🧭 Splash: verifying deep route $lastRoute (params=$params)');
+          bool ok = false;
+          try {
+            // Outer backstop timeout: even a well-behaved verifier that
+            // hangs on a stuck socket must not block the splash screen.
+            ok = await rule.verify(params)
+                .timeout(const Duration(seconds: 6));
+          } on TimeoutException {
+            debugPrint('🧭 Splash: deep route verifier backstop timeout for $lastRoute');
+            ok = false;
+          } catch (e) {
+            debugPrint('🧭 Splash: deep route verifier failed for $lastRoute: $e');
+            ok = false;
+          }
+          if (!mounted || _navigated) return;
+
+          if (ok) {
+            debugPrint('🧭 Splash → $lastRoute (verified deep route)');
+            context.go(lastRoute);
+            return;
+          }
+
+          debugPrint(
+              '🧭 Splash: deep route $lastRoute not restorable (data unavailable) — falling back to /home');
+          // Only one rule can match a given route; stop scanning.
+          break;
         }
         debugPrint('🧭 Splash: skipping unsafe route restore: $lastRoute');
       }
