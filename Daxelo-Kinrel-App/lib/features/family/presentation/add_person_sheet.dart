@@ -320,14 +320,24 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       case 0:
         return nameValidator(_nameController.text) == null;
       case 1:
-        // v5.13: Relationship + target person are both mandatory when
-        // there are existing family members.
+        // v5.40: Relationship is the only hard requirement on Step 1.
+        // The target person is RECOMMENDED but no longer blocking —
+        // the submit logic (around line 1103) already falls back to
+        // the family's anchorPersonId when no explicit target was
+        // picked, so the validation here now matches that fallback.
+        //
+        // Previously the validation required BOTH hasTarget AND
+        // _effectiveRelationshipKey != null, which was inconsistent
+        // with the submit logic and caused the Next button to stay
+        // disabled even after the user picked Parent / Child /
+        // Spouse / Sibling — because they hadn't (yet) tapped the
+        // "Related to" picker to choose a specific target.
+        //
+        // Now: as soon as a relationship type is selected, the user
+        // can proceed. If they also pick a target, that's preferred;
+        // if not, the family anchor is used (same as the submit path).
         if (_familyHasExistingMembers) {
-          // Must have a target person (either user-selected or anchorPerson passed)
-          final hasTarget = _selectedTargetPerson != null ||
-              widget.anchorPerson != null;
-          // Must have a relationship type selected
-          return hasTarget && _effectiveRelationshipKey != null;
+          return _effectiveRelationshipKey != null;
         }
         return true;
       case 2:
@@ -2356,6 +2366,36 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               ),
             ),
             SizedBox(height: 20),
+          ] else ...[
+            // v5.40: familyHasMembers == true && anchor == null.
+            // The user opened Add Member from a generic entry point
+            // (no anchorPerson passed) and hasn't yet picked a target
+            // from the "Related to" picker above. Show a placeholder
+            // question + hint so they understand the relationship
+            // cards below will relate the new person to whoever they
+            // pick as the target (or to the family anchor if they
+            // skip the picker).
+            Text(
+              'How is $newName related to a family member?',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 16,
+                color: KinrelColors.textSilver,
+                height: 1.5,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Tip: pick "Related to" above to choose a specific person, '
+              'or skip to use the family anchor.',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: KinrelColors.textDim,
+                height: 1.4,
+              ),
+            ),
+            SizedBox(height: 20),
           ],
 
           // Relationship type cards
@@ -3116,9 +3156,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   )
                 : _buildIgniteButton(
                     label: _currentStep == 1 && !_canProceed()
-                        ? (_selectedTargetPerson == null && widget.anchorPerson == null
-                            ? 'Next (select target & relationship)'
-                            : 'Next (select relationship)')
+                        // v5.40: Simpler hint — only the relationship is
+                        // required to proceed; the target is optional.
+                        ? 'Next (select relationship)'
                         : _currentStep == 0 && !_canProceed()
                             ? 'Next (name required)'
                             : 'Next',
