@@ -172,44 +172,26 @@ class EngineEdgePainter extends CustomPainter {
     final double dx = t.dx - s.dx;
     final double distance = (s - t).distance;
 
-    // For very short distances, use a simple line to avoid weird curves.
-    // We still apply the lateral offset so parallel short edges separate.
-    // v5.22: We also honour waypointDelta here by adding a quadratic
-    // midpoint at (linear_mid + delta) so the line is gently bowed
-    // through the dragged point even at very short distances.
-    if (distance < 20.0) {
-      if (waypointDelta == Offset.zero) {
-        return Path()
-          ..moveTo(s.dx + lateralOffset, s.dy)
-          ..lineTo(t.dx + lateralOffset, t.dy);
-      }
-      final linearMid = Offset(
-        (s.dx + t.dx) / 2 + lateralOffset,
-        (s.dy + t.dy) / 2,
-      );
-      final bowedMid = linearMid + waypointDelta;
-      return Path()
-        ..moveTo(s.dx + lateralOffset, s.dy)
-        ..quadraticBezierTo(bowedMid.dx, bowedMid.dy,
-            t.dx + lateralOffset, t.dy);
+    // v5.45: NO straight-line fallback. ALL edges get a visible curve.
+    // Even very short edges get a minimum bow of 15px.
+    // The only exception is when source == target (distance == 0).
+    if (distance < 1.0) {
+      return Path()..moveTo(s.dx, s.dy);
     }
 
-    // v5.44: Unified curve logic — ALL edges get a visible perpendicular
-    // bow. The previous v5.43 code had a bug where the "horizontally
-    // aligned" branch placed control points collinear with the endpoints
-    // (midY = s.dy when dy ≈ 0), producing a straight line.
-    //
-    // Now EVERY edge (horizontal, vertical, diagonal) gets control points
-    // offset perpendicular to the connecting line. The bow magnitude
-    // scales with distance and is always non-zero for solo edges.
+    // v5.45: Compute the perpendicular direction to the connecting line.
+    // This is used to bow the curve away from the straight line.
     final double angle = (t - s).direction;
     final double perpAngle = angle + math.pi / 2;
     final Offset perp = Offset(math.cos(perpAngle), math.sin(perpAngle));
 
-    // v5.44: Bow magnitude — guaranteed non-zero. For solo edges
-    // (lateralOffset == 0), the bow is (distance * 0.18).clamp(20, 80).
+    // v5.45: Bow magnitude — aggressive and unmistakably visible.
+    // 25% of the distance, clamped to [15, 100]. This guarantees a
+    // clearly visible curve at any zoom level and any distance.
+    // The lateralOffset (for parallel edges) adds extra separation.
     final double bowMagnitude =
-        (distance * 0.18).clamp(20.0, 80.0) + lateralOffset.abs();
+        (distance * 0.25).clamp(15.0, 100.0) + lateralOffset.abs();
+    // Bow direction: solo edges bow in +perp; parallel edges alternate.
     final Offset bow = perp * (lateralOffset >= 0 ? bowMagnitude : -bowMagnitude);
 
     // v5.22: If the user dragged the midpoint, use the two-quadratic
@@ -233,9 +215,10 @@ class EngineEdgePainter extends CustomPainter {
         ..quadraticBezierTo(half2Cp.dx, half2Cp.dy, t.dx, t.dy);
     }
 
-    // v5.44: Default perpendicular-bow cubic bezier for ALL edges.
+    // v5.45: Default perpendicular-bow cubic bezier for ALL edges.
     // Control points at 1/3 and 2/3 along the connecting line,
-    // shifted perpendicular by `bow`.
+    // shifted perpendicular by `bow`. This produces a smooth, natural
+    // curve that is ALWAYS visible — no straight lines anywhere.
     final Offset cp1 = Offset(
       s.dx + dx * 0.33 + bow.dx,
       s.dy + dy * 0.33 + bow.dy,
