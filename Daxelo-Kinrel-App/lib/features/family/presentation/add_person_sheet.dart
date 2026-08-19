@@ -1144,7 +1144,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       final notifier = ref.read(
         graphPendingInvitationsProvider(widget.familyId).notifier,
       );
-      final invitationId = await notifier.createInvitation(
+      final result = await notifier.createInvitation(
         familyId: widget.familyId,
         targetPersonId: targetPersonId,
         relationshipKey: relationshipKey,
@@ -1155,8 +1155,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         recipientUserId: recipientUserId,
       );
 
-      if (invitationId != null) {
-        // Success — show confirmation and close the sheet.
+      if (result.success) {
+        // v5.46: Success — show a clear success message, NOT an error.
         if (mounted) {
           setState(() {
             _showSuccess = true;
@@ -1168,23 +1168,47 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         }
         messenger?.showSnackBar(
           SnackBar(
-            content: Text('Invitation sent to ${_nameController.text.trim()}'),
+            content: Text('Invitation sent to ${_nameController.text.trim()}. '
+                'Waiting for them to accept.'),
+            backgroundColor: KinrelColors.tealAccent,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 3),
           ),
         );
-      } else {
-        // Failure — the RPC returned success=false or threw.
-        if (mounted) {
-          setState(() => _isSubmitting = false);
-        }
+      } else if (result.isDuplicateInvitation) {
+        // v5.46: Pending invitation already exists — show amber status,
+        // NOT a red error.
+        if (mounted) setState(() => _isSubmitting = false);
         messenger?.showSnackBar(
-          const SnackBar(
-            content: Text('Could not send invitation. A pending invitation '
-                'may already exist for this person.'),
+          SnackBar(
+            content: Text('Invitation already pending for ${_nameController.text.trim()}. '
+                'Tap "Invites" on the graph to cancel or resend.'),
+            backgroundColor: KinrelColors.amber,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      } else if (result.isDuplicateMember) {
+        // v5.46: The recipient is already a family member.
+        if (mounted) setState(() => _isSubmitting = false);
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text('${_nameController.text.trim()} is already a member '
+                'of this family.'),
+            backgroundColor: KinrelColors.amber,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      } else {
+        // v5.46: Genuine failure (network error, validation error, etc.)
+        if (mounted) setState(() => _isSubmitting = false);
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text('Could not send invitation: ${result.message}'),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 4),
+            duration: const Duration(seconds: 4),
           ),
         );
       }

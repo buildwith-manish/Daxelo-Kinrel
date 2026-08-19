@@ -119,6 +119,34 @@ class GraphPendingInvitation {
   }
 }
 
+/// v5.46: Result of creating a graph invitation. Distinguishes between
+/// success, duplicate invitation, duplicate member, and other errors
+/// so the caller can show the appropriate message.
+class InvitationResult {
+  final bool success;
+  final String? invitationId;
+  final String? errorCode;
+  final String message;
+
+  const InvitationResult({
+    required this.success,
+    this.invitationId,
+    this.errorCode,
+    required this.message,
+  });
+
+  /// Returns true if this is a duplicate-invitation error.
+  bool get isDuplicateInvitation => errorCode == 'duplicate_invitation';
+
+  /// Returns true if the recipient is already a family member.
+  bool get isDuplicateMember => errorCode == 'duplicate_member';
+
+  /// Returns true if the failure was due to a network/RPC error
+  /// (not a business-logic rejection).
+  bool get isNetworkError =>
+      errorCode == 'network_error' || errorCode == 'no_client';
+}
+
 /// AsyncNotifier that fetches + caches pending graph invitations for a family.
 class GraphPendingInvitationsNotifier
     extends FamilyAsyncNotifier<List<GraphPendingInvitation>, String> {
@@ -200,12 +228,20 @@ class GraphPendingInvitationsNotifier
   }
 
   /// Creates a new pending graph invitation.
-  /// Returns the invitation ID on success, or null on failure.
+  ///
+  /// v5.46: Returns a [InvitationResult] with detailed status instead of
+  /// a bare String?. This lets the caller distinguish between:
+  ///   • Success (invitationId is non-null)
+  ///   • Duplicate invitation (errorCode = 'duplicate_invitation')
+  ///   • Duplicate member (errorCode = 'duplicate_member')
+  ///   • No recipient (errorCode = 'no_recipient')
+  ///   • Not a family member (errorCode = 'not_member')
+  ///   • Network/RPC error (errorCode = 'network_error')
   ///
   /// v5.43: Added [recipientUserId] parameter for Find-on-Kinrel invites.
   /// When set, a `graph_invite` notification is sent to that user so they
   /// see the invitation in their Notifications screen.
-  Future<String?> createInvitation({
+  Future<InvitationResult> createInvitation({
     required String familyId,
     required String targetPersonId,
     required String relationshipKey,
@@ -216,7 +252,13 @@ class GraphPendingInvitationsNotifier
     String? recipientUserId,
   }) async {
     final client = ref.read(supabaseProvider);
-    if (client == null) return null;
+    if (client == null) {
+      return InvitationResult(
+        success: false,
+        errorCode: 'no_client',
+        message: 'Not connected to the server',
+      );
+    }
 
     try {
       final response = await client.rpc(
@@ -231,18 +273,34 @@ class GraphPendingInvitationsNotifier
           'p_recipient_phone': recipientPhone,
           'p_recipient_user_id': recipientUserId,
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 15));
 
       final result = response as Map<String, dynamic>;
-      if (result['success'] == true) {
+      final success = result['success'] == true;
+      if (success) {
         ref.invalidateSelf();
-        return result['invitationId'] as String;
+        return InvitationResult(
+          success: true,
+          invitationId: result['invitationId'] as String?,
+          message: 'Invitation sent successfully',
+        );
       }
-      debugPrint('[graphPendingInvitations] create failed: ${result['error']}');
-      return null;
+      // RPC returned success=false — extract the error code + message
+      final errorCode = result['error'] as String? ?? 'unknown';
+      final message = result['message'] as String? ?? 'Could not send invitation';
+      debugPrint('[graphPendingInvitations] create failed: $errorCode — $message');
+      return InvitationResult(
+        success: false,
+        errorCode: errorCode,
+        message: message,
+      );
     } catch (e) {
       debugPrint('[graphPendingInvitations] create error: $e');
-      return null;
+      return InvitationResult(
+        success: false,
+        errorCode: 'network_error',
+        message: 'Network error: $e',
+      );
     }
   }
 

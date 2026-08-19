@@ -124,7 +124,7 @@ class _PendingInvitationsSheetState
         return;
       }
       // Create a new invitation with the same parameters
-      final newId = await notifier.createInvitation(
+      final result = await notifier.createInvitation(
         familyId: invitation.familyId,
         targetPersonId: invitation.targetPersonId,
         relationshipKey: invitation.relationshipKey,
@@ -134,18 +134,19 @@ class _PendingInvitationsSheetState
         recipientPhone: invitation.recipientPhone,
         recipientUserId: invitation.recipientUserId,
       );
-      if (newId != null && mounted) {
+      if (result.success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Invitation resent to ${invitation.recipientDisplayName}'),
+            backgroundColor: KinrelColors.tealAccent,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
           ),
         );
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not resend invitation. Please try again.'),
+          SnackBar(
+            content: Text('Could not resend: ${result.message}'),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
           ),
