@@ -66,6 +66,7 @@ class _PendingInvitationsSheet extends ConsumerStatefulWidget {
 class _PendingInvitationsSheetState
     extends ConsumerState<_PendingInvitationsSheet> {
   final Set<String> _cancellingIds = {};
+  final Set<String> _resendingIds = {};
 
   Future<void> _cancelInvitation(GraphPendingInvitation invitation) async {
     setState(() => _cancellingIds.add(invitation.id));
@@ -95,6 +96,64 @@ class _PendingInvitationsSheetState
     } finally {
       if (mounted) {
         setState(() => _cancellingIds.remove(invitation.id));
+      }
+    }
+  }
+
+  /// v5.44: Resends a pending invitation by cancelling the old one and
+  /// creating a new one with the same parameters. This resets the
+  /// expiry timer and re-sends the notification to the recipient.
+  Future<void> _resendInvitation(GraphPendingInvitation invitation) async {
+    setState(() => _resendingIds.add(invitation.id));
+    try {
+      final notifier = ref.read(
+        graphPendingInvitationsProvider(widget.familyId).notifier,
+      );
+      // Cancel the existing invitation
+      final cancelled = await notifier.cancelInvitation(invitation.id);
+      if (!cancelled) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not resend invitation. Please try again.'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+      // Create a new invitation with the same parameters
+      final newId = await notifier.createInvitation(
+        familyId: invitation.familyId,
+        targetPersonId: invitation.targetPersonId,
+        relationshipKey: invitation.relationshipKey,
+        specificLabel: invitation.specificLabelAtoB,
+        recipientName: invitation.recipientName,
+        recipientEmail: invitation.recipientEmail,
+        recipientPhone: invitation.recipientPhone,
+        recipientUserId: invitation.recipientUserId,
+      );
+      if (newId != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Invitation resent to ${invitation.recipientDisplayName}'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not resend invitation. Please try again.'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _resendingIds.remove(invitation.id));
       }
     }
   }
@@ -228,10 +287,13 @@ class _PendingInvitationsSheetState
                     itemBuilder: (ctx, i) {
                       final inv = invitations[i];
                       final isCancelling = _cancellingIds.contains(inv.id);
+                      final isResending = _resendingIds.contains(inv.id);
                       return _InvitationTile(
                         invitation: inv,
                         isCancelling: isCancelling,
+                        isResending: isResending,
                         onCancel: () => _cancelInvitation(inv),
+                        onResend: () => _resendInvitation(inv),
                       );
                     },
                   );
@@ -250,12 +312,16 @@ class _InvitationTile extends StatelessWidget {
   const _InvitationTile({
     required this.invitation,
     required this.isCancelling,
+    required this.isResending,
     required this.onCancel,
+    required this.onResend,
   });
 
   final GraphPendingInvitation invitation;
   final bool isCancelling;
+  final bool isResending;
   final VoidCallback onCancel;
+  final VoidCallback onResend;
 
   @override
   Widget build(BuildContext context) {
@@ -317,21 +383,43 @@ class _InvitationTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            isCancelling
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: KinrelColors.textDim,
+            // v5.44: Show both Cancel and Resend buttons.
+            // If an action is in progress, show a spinner instead.
+            if (isCancelling || isResending)
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: KinrelColors.textDim,
+                ),
+              )
+            else
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton(
+                    onPressed: onResend,
+                    style: TextButton.styleFrom(
+                      foregroundColor: KinrelColors.tealAccent,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 6),
+                      minimumSize: const Size(0, 0),
                     ),
-                  )
-                : TextButton(
+                    child: const Text(
+                      'Resend',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  TextButton(
                     onPressed: onCancel,
                     style: TextButton.styleFrom(
                       foregroundColor: Colors.redAccent,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                          horizontal: 8, vertical: 6),
                       minimumSize: const Size(0, 0),
                     ),
                     child: const Text(
@@ -342,6 +430,8 @@ class _InvitationTile extends StatelessWidget {
                       ),
                     ),
                   ),
+                ],
+              ),
           ],
         ),
       ),

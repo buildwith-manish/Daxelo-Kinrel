@@ -328,6 +328,44 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         });
       }
     }
+
+    // v5.44: Auto-select the logged-in user as the default "Related To"
+    // target when the sheet is opened from the Family Graph (fromGraph=true)
+    // and no anchorPerson was explicitly passed.
+    //
+    // This eliminates the friction of requiring the user to manually
+    // select themselves as the relationship target. The picker remains
+    // editable — the user can still tap it to choose a different family
+    // member if needed.
+    if (widget.fromGraph && widget.anchorPerson == null && !_isEditMode) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _autoSelectViewerAsTarget();
+      });
+    }
+  }
+
+  /// v5.44: Auto-selects the currently logged-in user's Person as the
+  /// default "Related To" target. Called from initState when the sheet
+  /// is opened from the Family Graph.
+  void _autoSelectViewerAsTarget() {
+    // Only auto-select if the user hasn't already picked a target
+    if (_selectedTargetPerson != null) return;
+
+    final viewerId = ref.read(viewerPersonIdProvider(widget.familyId)).valueOrNull;
+    if (viewerId == null) return;
+
+    final members = ref.read(familyMembersProvider(widget.familyId)).valueOrNull;
+    if (members == null || members.isEmpty) return;
+
+    final viewerPerson = members.where((m) => m.id == viewerId).firstOrNull;
+    if (viewerPerson != null) {
+      setState(() {
+        _selectedTargetPerson = viewerPerson;
+      });
+      debugPrint('[ADD-MEMBER] v5.44: Auto-selected viewer as target: '
+          '${viewerPerson.name} (${viewerPerson.id})');
+    }
   }
 
   /// v5.42: Checks if the given Kinrel user is already a member of this
@@ -1072,6 +1110,31 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
           duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
+    // v5.44: Check for existing pending invitation BEFORE calling the RPC.
+    // This prevents the generic "Could not send invitation" error and
+    // shows a clear "Invitation already pending" message instead.
+    final pendingInvitations =
+        ref.read(graphPendingInvitationsProvider(widget.familyId)).valueOrNull ?? [];
+    final existingInvitation = findPendingInvitationForRecipient(
+      pendingInvitations,
+      recipientUserId: recipientUserId,
+      recipientEmail: recipientEmail,
+      recipientPhone: recipientPhone,
+    );
+    if (existingInvitation != null) {
+      if (mounted) setState(() => _isSubmitting = false);
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text('Invitation already pending for ${_nameController.text.trim()}. '
+              'Tap "Invites" on the graph to cancel or resend.'),
+          backgroundColor: KinrelColors.amber,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
         ),
       );
       return;

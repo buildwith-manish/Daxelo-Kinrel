@@ -20,6 +20,8 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart' show familyLinkedUserIdsProvider;
 import '../../../data/repositories/search_repository.dart';
 import 'add_member_source.dart';
+import 'providers/graph_pending_invitations_provider.dart'
+    show pendingInvitationRecipientUserIdsProvider;
 import 'package:go_router/go_router.dart';
 
 /// A full-screen search screen that queries ALL Kinrel users.
@@ -225,16 +227,23 @@ class _KinrelUserSearchScreenState
       itemCount: _results.length,
       itemBuilder: (context, index) {
         final user = _results[index];
-        // v5.42: Check if this user is already a family member.
-        // If so, render the card with an "Already Added" badge and
-        // disable the tap action.
+        // v5.44: Check three states for each search result:
+        //   1. Already Added — user is already a family member
+        //   2. Invitation Pending — a pending graph invitation exists
+        //   3. Available — user can be invited
         final existingIds =
             ref.watch(familyLinkedUserIdsProvider(widget.familyId));
+        final pendingIds =
+            ref.watch(pendingInvitationRecipientUserIdsProvider(widget.familyId));
         final isAlreadyAdded = existingIds.contains(user.id);
+        final isPendingInvite = pendingIds.contains(user.id);
         return _KinrelUserCard(
           user: user,
           isAlreadyAdded: isAlreadyAdded,
-          onTap: isAlreadyAdded ? null : () => _selectUser(user),
+          isPendingInvite: isPendingInvite,
+          onTap: (isAlreadyAdded || isPendingInvite)
+              ? null
+              : () => _selectUser(user),
         );
       },
     );
@@ -297,25 +306,40 @@ class _KinrelUserCard extends StatelessWidget {
     required this.user,
     required this.onTap,
     this.isAlreadyAdded = false,
+    this.isPendingInvite = false,
   });
 
   final KinrelUser user;
   final VoidCallback? onTap;
   final bool isAlreadyAdded;
+  final bool isPendingInvite; // v5.44: Invitation Pending state
 
   @override
   Widget build(BuildContext context) {
+    // v5.44: Determine the card's visual state.
+    //   isAlreadyAdded → dimmed, grey border
+    //   isPendingInvite → amber tint, amber border
+    //   available → normal
+    final bool isDisabled = isAlreadyAdded || isPendingInvite;
+    final Color? badgeColor = isAlreadyAdded
+        ? KinrelColors.textDim
+        : isPendingInvite
+            ? KinrelColors.amber
+            : null;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: isAlreadyAdded
+        color: isDisabled
             ? KinrelColors.darkCard.withValues(alpha: 0.5)
             : KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
         border: Border.all(
-          color: isAlreadyAdded
-              ? KinrelColors.textDim.withValues(alpha: 0.2)
-              : KinrelColors.darkElevated,
+          color: isPendingInvite
+              ? KinrelColors.amber.withValues(alpha: 0.3)
+              : isAlreadyAdded
+                  ? KinrelColors.textDim.withValues(alpha: 0.2)
+                  : KinrelColors.darkElevated,
         ),
       ),
       child: Material(
@@ -399,40 +423,21 @@ class _KinrelUserCard extends StatelessWidget {
 
                 const SizedBox(width: 8),
 
-                // Add button or "Already Added" badge
+                // v5.44: Status badge — 3 states:
+                //   1. Already Added (grey check)
+                //   2. Invitation Pending (amber clock)
+                //   3. Available (orange "Add")
                 if (isAlreadyAdded)
-                  // v5.42: Disabled state for existing family members.
-                  // The user cannot accidentally re-add them.
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: KinrelColors.textDim.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(KinrelRadius.md),
-                      border: Border.all(
-                        color: KinrelColors.textDim.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.check_circle,
-                          size: 14,
-                          color: KinrelColors.textDim,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Already Added',
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: KinrelColors.textDim,
-                          ),
-                        ),
-                      ],
-                    ),
+                  _StatusBadge(
+                    icon: Icons.check_circle,
+                    label: 'Already Added',
+                    color: KinrelColors.textDim,
+                  )
+                else if (isPendingInvite)
+                  _StatusBadge(
+                    icon: Icons.schedule,
+                    label: 'Invitation Pending',
+                    color: KinrelColors.amber,
                   )
                 else
                   Container(
@@ -491,6 +496,52 @@ class _KinrelUserCard extends StatelessWidget {
           fontWeight: FontWeight.w700,
           color: KinrelColors.orange,
         ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// _StatusBadge — reusable badge for Already Added / Invitation Pending
+// ═══════════════════════════════════════════════════════════════════════
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }

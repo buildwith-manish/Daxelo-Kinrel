@@ -44,6 +44,7 @@ class GraphPendingInvitation {
   final String? recipientName;
   final String? recipientEmail;
   final String? recipientPhone;
+  final String? recipientUserId; // v5.44: Kinrel user ID (for Find on Kinrel invites)
   final String status; // 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired'
   final DateTime? expiresAt;
   final DateTime? createdAt;
@@ -61,6 +62,7 @@ class GraphPendingInvitation {
     this.recipientName,
     this.recipientEmail,
     this.recipientPhone,
+    this.recipientUserId,
     required this.status,
     this.expiresAt,
     this.createdAt,
@@ -80,6 +82,7 @@ class GraphPendingInvitation {
       recipientName: json['recipientName'] as String?,
       recipientEmail: json['recipientEmail'] as String?,
       recipientPhone: json['recipientPhone'] as String?,
+      recipientUserId: json['recipientUserId'] as String?,
       status: json['status'] as String,
       expiresAt: json['expiresAt'] != null
           ? DateTime.parse(json['expiresAt'] as String)
@@ -325,4 +328,57 @@ final pendingGraphInvitationCountProvider =
     Provider.family<int, String>((ref, familyId) {
   final async = ref.watch(graphPendingInvitationsProvider(familyId));
   return async.valueOrNull?.length ?? 0;
+});
+
+/// v5.44: Checks whether a pending invitation exists for a given
+/// recipient identifier (Kinrel user ID, email, or phone).
+///
+/// Returns the matching [GraphPendingInvitation] if one exists, or null.
+///
+/// Used by:
+///   • AddPersonSheet — to block submission and show "Invitation already
+///     pending" before the user completes the full flow.
+///   • KinrelUserSearchScreen — to show the "Invitation Pending" badge
+///     on search results.
+GraphPendingInvitation? findPendingInvitationForRecipient(
+  List<GraphPendingInvitation> invitations, {
+  String? recipientUserId,
+  String? recipientEmail,
+  String? recipientPhone,
+}) {
+  if (recipientUserId != null && recipientUserId.isNotEmpty) {
+    final match = invitations.where(
+      (i) => i.recipientUserId == recipientUserId && i.status == 'pending',
+    );
+    if (match.isNotEmpty) return match.first;
+  }
+  if (recipientEmail != null && recipientEmail.isNotEmpty) {
+    final match = invitations.where(
+      (i) => i.recipientEmail == recipientEmail && i.status == 'pending',
+    );
+    if (match.isNotEmpty) return match.first;
+  }
+  if (recipientPhone != null && recipientPhone.isNotEmpty) {
+    final match = invitations.where(
+      (i) => i.recipientPhone == recipientPhone && i.status == 'pending',
+    );
+    if (match.isNotEmpty) return match.first;
+  }
+  return null;
+}
+
+/// v5.44: Provider that returns the set of recipient user IDs that have
+/// pending invitations in a family. Used by the Find on Kinrel search
+/// screen to show the "Invitation Pending" badge.
+final pendingInvitationRecipientUserIdsProvider =
+    Provider.family<Set<String>, String>((ref, familyId) {
+  final async = ref.watch(graphPendingInvitationsProvider(familyId));
+  final invitations = async.valueOrNull ?? [];
+  return invitations
+      .where((i) =>
+          i.status == 'pending' &&
+          i.recipientUserId != null &&
+          i.recipientUserId!.isNotEmpty)
+      .map((i) => i.recipientUserId!)
+      .toSet();
 });

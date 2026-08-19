@@ -194,75 +194,31 @@ class EngineEdgePainter extends CustomPainter {
             t.dx + lateralOffset, t.dy);
     }
 
-    // v5.43: Improved curve logic — dynamically adapt the curve based
-    // on the angle between the two nodes.
+    // v5.44: Unified curve logic — ALL edges get a visible perpendicular
+    // bow. The previous v5.43 code had a bug where the "horizontally
+    // aligned" branch placed control points collinear with the endpoints
+    // (midY = s.dy when dy ≈ 0), producing a straight line.
     //
-    // • Perfectly horizontal (dy ≈ 0) or vertical (dx ≈ 0) alignment →
-    //   straight line (or very subtle curve for parallel edge separation).
-    // • Diagonal alignment → smooth cubic bezier that bows perpendicular
-    //   to the connecting line, creating a natural, organic curve.
-    //
-    // The curve magnitude scales with distance but is clamped to keep
-    // it visually clean. The perpendicular bow direction is determined
-    // by the sign of the lateral offset (for parallel edge separation)
-    // and the waypoint delta (for user-dragged curves).
+    // Now EVERY edge (horizontal, vertical, diagonal) gets control points
+    // offset perpendicular to the connecting line. The bow magnitude
+    // scales with distance and is always non-zero for solo edges.
     final double angle = (t - s).direction;
     final double perpAngle = angle + math.pi / 2;
     final Offset perp = Offset(math.cos(perpAngle), math.sin(perpAngle));
 
-    // Control point offset — scales with distance for smooth curves
-    // at any zoom level. Clamped to prevent extreme curves.
-    final double cpOffset = (distance * 0.3).clamp(30.0, 120.0);
+    // v5.44: Bow magnitude — guaranteed non-zero. For solo edges
+    // (lateralOffset == 0), the bow is (distance * 0.18).clamp(20, 80).
+    final double bowMagnitude =
+        (distance * 0.18).clamp(20.0, 80.0) + lateralOffset.abs();
+    final Offset bow = perp * (lateralOffset >= 0 ? bowMagnitude : -bowMagnitude);
 
-    // v5.43: Check if nodes are "aligned" (within 8% of distance on the
-    // perpendicular axis). If so, use a near-straight line with just
-    // enough lateral offset for parallel edge separation.
-    final bool isHorizontallyAligned = dy.abs() < distance * 0.08;
-    final bool isVerticallyAligned = dx.abs() < distance * 0.08;
-
-    if (isVerticallyAligned) {
-      // Vertically aligned nodes: S-curve with lateral offset.
-      // Add the parallel offset to the lateral shift so parallel
-      // edges bow in different directions.
-      final double lateral =
-          (dx >= 0 ? cpOffset * 0.5 : -cpOffset * 0.5) + lateralOffset;
-      // v5.22: Apply the waypoint delta to BOTH middle control
-      // points so the bowed curve passes through (linear_mid + delta).
-      final cp1 = Offset(
-          s.dx + lateral + waypointDelta.dx, s.dy + dy * 0.35 + waypointDelta.dy);
-      final cp2 = Offset(
-          t.dx + lateral + waypointDelta.dx, t.dy - dy * 0.35 + waypointDelta.dy);
-      return Path()
-        ..moveTo(s.dx, s.dy)
-        ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, t.dx, t.dy);
-    }
-
-    if (isHorizontallyAligned) {
-      // Horizontally aligned nodes: gentle vertical bezier.
-      // Control points are placed along the vertical midpoint to create
-      // a smooth, non-overlapping curve. Apply the parallel offset to
-      // the Y axis of the control points so parallel edges separate
-      // vertically when nodes are side-by-side.
-      final midY = s.dy + dy * 0.5 + lateralOffset;
+    // v5.22: If the user dragged the midpoint, use the two-quadratic
+    // approach that passes through (linear_mid + delta) exactly.
+    if (waypointDelta != Offset.zero) {
       final midX = s.dx + dx * 0.5;
-      final cp1 = Offset(s.dx + dx * 0.25, midY);
-      final cp2 = Offset(t.dx - dx * 0.25, midY);
-      if (waypointDelta == Offset.zero) {
-        // DEFAULT path (no v5.22 override): IDENTICAL to pre-v5.22 curve.
-        // This is the regression-guard for PART 2.5 — the default
-        // midpoint must stay mathematically correct.
-        return Path()
-          ..moveTo(s.dx, s.dy)
-          ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, t.dx, t.dy);
-      }
-      // v5.22: Build the curve as TWO quadratics passing through
-      // (linear_mid + delta). This guarantees the curve goes through
-      // the dragged point exactly.
+      final midY = s.dy + dy * 0.5;
       final bowedMid = Offset(midX + waypointDelta.dx,
           midY + waypointDelta.dy);
-      // Control points for each half lie 1/3 of the way along the
-      // segment from the endpoint to bowedMid, plus a tangent
-      // adjustment so the two halves meet smoothly (C1-continuous).
       final Offset half1Cp = Offset(
         s.dx + (bowedMid.dx - s.dx) * 0.5,
         s.dy + (bowedMid.dy - s.dy) * 0.5,
@@ -277,47 +233,20 @@ class EngineEdgePainter extends CustomPainter {
         ..quadraticBezierTo(half2Cp.dx, half2Cp.dy, t.dx, t.dy);
     }
 
-    // v5.43: Diagonal alignment — use a perpendicular bow curve.
-    // The control points are offset perpendicular to the connecting
-    // line, creating a smooth, natural curve that doesn't look rigid.
-    // The bow magnitude is proportional to the distance (clamped).
-    final double bowMagnitude = (distance * 0.15).clamp(15.0, 60.0) + lateralOffset.abs();
-    final Offset bow = perp * (lateralOffset >= 0 ? bowMagnitude : -bowMagnitude);
-
-    if (waypointDelta == Offset.zero) {
-      // Default diagonal curve: cubic bezier with perpendicular bow.
-      // Control points at 1/3 and 2/3 along the line, shifted perpendicular.
-      final Offset cp1 = Offset(
-        s.dx + dx * 0.33 + bow.dx,
-        s.dy + dy * 0.33 + bow.dy,
-      );
-      final Offset cp2 = Offset(
-        s.dx + dx * 0.67 + bow.dx,
-        s.dy + dy * 0.67 + bow.dy,
-      );
-      return Path()
-        ..moveTo(s.dx, s.dy)
-        ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, t.dx, t.dy);
-    }
-
-    // v5.22: For diagonal nodes with waypoint delta, use the two-quadratic
-    // approach passing through (linear_mid + delta).
-    final midX = s.dx + dx * 0.5;
-    final midY = s.dy + dy * 0.5;
-    final bowedMid = Offset(midX + waypointDelta.dx,
-        midY + waypointDelta.dy);
-    final Offset half1Cp = Offset(
-      s.dx + (bowedMid.dx - s.dx) * 0.5,
-      s.dy + (bowedMid.dy - s.dy) * 0.5,
+    // v5.44: Default perpendicular-bow cubic bezier for ALL edges.
+    // Control points at 1/3 and 2/3 along the connecting line,
+    // shifted perpendicular by `bow`.
+    final Offset cp1 = Offset(
+      s.dx + dx * 0.33 + bow.dx,
+      s.dy + dy * 0.33 + bow.dy,
     );
-    final Offset half2Cp = Offset(
-      t.dx + (bowedMid.dx - t.dx) * 0.5,
-      t.dy + (bowedMid.dy - t.dy) * 0.5,
+    final Offset cp2 = Offset(
+      s.dx + dx * 0.67 + bow.dx,
+      s.dy + dy * 0.67 + bow.dy,
     );
     return Path()
       ..moveTo(s.dx, s.dy)
-      ..quadraticBezierTo(half1Cp.dx, half1Cp.dy, bowedMid.dx, bowedMid.dy)
-      ..quadraticBezierTo(half2Cp.dx, half2Cp.dy, t.dx, t.dy);
+      ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, t.dx, t.dy);
   }
 
   @override
