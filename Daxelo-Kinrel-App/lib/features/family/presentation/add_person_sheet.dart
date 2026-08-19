@@ -1618,6 +1618,14 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 // Riverpod rebuilds dependents IMMEDIATELY. The edge
                 // appears in the graph BEFORE the authoritative refetch
                 // lands, and is robust to a null cache.
+                //
+                // v5.48: Pass the FUNDAMENTAL edge key (not the specific
+                // label) so the optimistic state matches what the DB will
+                // return after the authoritative refresh. Previously,
+                // passing 'father' (specific) instead of 'parent'
+                // (fundamental) caused the edge to be deduplicated
+                // incorrectly or disappear when the refresh replaced
+                // the optimistic state.
                 try {
                   ref
                       .read(familyGraphProvider(widget.familyId).notifier)
@@ -1625,11 +1633,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                         personId: resultId,
                         personName: resultName,
                         gender: resultGender,
-                        relationshipKey: relKey,
+                        relationshipKey: edgeInput.relationshipKey,
                         targetPersonId: linkToPersonId,
                         photoUrl: resultPhotoUrl,
                         isDeceased: resultIsDeceased,
                       );
+                  debugPrint('[ADD-MEMBER] v5.48: ✅ Optimistic upsert done — '
+                      'key=${edgeInput.relationshipKey}, label=${edgeInput.specificLabelAtoB}');
                 } catch (e) {
                   debugPrint('[ADD-MEMBER] v94: Optimistic upsert failed (non-fatal — refetch will recover): $e');
                 }
@@ -1655,15 +1665,22 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   if (edgeExists) {
                     debugPrint('[ADD-MEMBER] v94: ✅ Edge verified in refreshed graph');
                   } else {
-                    // The edge wasn't in the refreshed graph. The INSERT
-                    // succeeded (createRelationship would have thrown
-                    // otherwise), so this is likely an eventual-
-                    // consistency delay. Invalidate once more so the
-                    // next read picks it up. The optimistic upsert above
-                    // keeps the edge visible in the interim.
-                    debugPrint('[ADD-MEMBER] v94: ⚠️ Edge not yet in refreshed graph — invalidating for retry');
+                    // v5.48: The edge wasn't in the refreshed graph.
+                    // The INSERT succeeded (createRelationship would have
+                    // thrown otherwise), so this is an eventual-consistency
+                    // delay. Schedule a RETRY after 2 seconds so the edge
+                    // appears without requiring a manual refresh.
+                    debugPrint('[ADD-MEMBER] v5.48: ⚠️ Edge not yet in refreshed graph — scheduling retry in 2s');
                     FamilyGraphNotifier.clearCache(widget.familyId);
                     ref.invalidate(familyGraphProvider(widget.familyId));
+                    // v5.48: Schedule a delayed retry to catch up with
+                    // Supabase's eventual consistency.
+                    Future.delayed(const Duration(seconds: 2), () {
+                      if (!mounted) return;
+                      debugPrint('[ADD-MEMBER] v5.48: Retrying graph refresh (2s delay)');
+                      FamilyGraphNotifier.clearCache(widget.familyId);
+                      ref.invalidate(familyGraphProvider(widget.familyId));
+                    });
                   }
                 } catch (e) {
                   debugPrint('[ADD-MEMBER] v94: Authoritative refresh failed (non-fatal — optimistic state holds): $e');
