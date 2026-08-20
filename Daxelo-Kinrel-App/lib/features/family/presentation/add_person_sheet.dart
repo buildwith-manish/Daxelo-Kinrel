@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -1753,12 +1754,21 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               ref.invalidate(familyGraphProvider(widget.familyId));
               ref.invalidate(familyMembersProvider(widget.familyId));
 
-              // v5.12: Show the ACTUAL error to the user, not just a generic
-              // message. Silent failure of a core feature is not acceptable.
-              final errorStr = e.toString();
-              final shortError = errorStr.length > 100
-                  ? errorStr.substring(0, 100) + '...'
-                  : errorStr;
+              // v5.50: Show the ACTUAL error to the user with full details.
+              // The previous code used e.toString() which returned an empty
+              // string for PostgrestException — now we extract .message,
+              // .code, .details, .hint explicitly.
+              String errorDetail;
+              if (e is PostgrestException) {
+                errorDetail = 'code=${e.code}, message=${e.message}, '
+                    'details=${e.details}, hint=${e.hint}';
+              } else {
+                errorDetail = e.toString();
+              }
+              final shortError = errorDetail.length > 200
+                  ? errorDetail.substring(0, 200) + '...'
+                  : errorDetail;
+              debugPrint('[ADD-MEMBER] v5.50: Relationship error detail: $errorDetail');
               context.showSnackBar(
                 'Could not save the relationship: $shortError. '
                 'The member was not added — please try again.',

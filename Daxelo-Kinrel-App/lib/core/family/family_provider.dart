@@ -2644,6 +2644,12 @@ Future<FamilyRelationship> createRelationship({
           'customColors': customColors, // v83: null for standard, JSON for custom
           'createdAt': now,
           'updatedAt': now,
+          // v5.50: Explicitly set edgeType to match relationshipKey.
+          // The no_duplicate_fundamental_edge UNIQUE constraint uses
+          // edgeType (not relationshipKey), so it MUST be set correctly
+          // to match the fundamental edge type. The column is an enum
+          // (PARENT, SPOUSE, ADOPTIVE_PARENT, STEP_PARENT) — uppercase.
+          'edgeType': relationshipKey.toUpperCase(),
         })
         .select()
         .maybeSingle()
@@ -2729,12 +2735,20 @@ Future<FamilyRelationship> createRelationship({
         'familyId': familyId,
         'fromPersonId': toPersonId,
         'toPersonId': fromPersonId,
-        'relationshipKey': inverseKey,
-        'relationshipType': inverseKey,
+        // v5.50: Use the SAME fundamental relationshipKey as the forward
+        // edge (not the specific inverse label like 'son'/'daughter').
+        // The relationship_fundamental_edge_check constraint ONLY allows
+        // 'parent', 'spouse', 'adoptive_parent', 'step_parent' — so the
+        // inverse key must also be a fundamental type. The specific
+        // inverse label goes in labelAtoB.
+        'relationshipKey': relationshipKey,
+        'relationshipType': relationshipKey,
+        'labelAtoB': inverseKey,
         'direction': 'inverse',
         'isActive': true,
         'createdAt': now,
         'updatedAt': now,
+        'edgeType': relationshipKey.toUpperCase(),
       }).select().maybeSingle().timeout(const Duration(seconds: 10));
       debugPrint('[CREATE-REL] ✅ Inverse relationship created (key=$inverseKey, direction=inverse)');
     } on PostgrestException catch (e) {
