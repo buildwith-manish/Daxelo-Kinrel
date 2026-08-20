@@ -1996,25 +1996,19 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 _buildHandleBar(),
                 SizedBox(height: 16),
 
-                // Title + step indicator
+                // Title (no step indicators for quick-add)
                 _buildHeader(),
                 SizedBox(height: 16),
-
-                // Step indicators (wizard mode only)
-                if (!_isEditMode) ...[
-                  _buildStepIndicators(),
-                  SizedBox(height: 20),
-                ],
 
                 // Content
                 Expanded(
                   child: _isEditMode
                       ? _buildEditModeContent()
-                      : _buildStepContent(),
+                      : _buildQuickAddContent(),
                 ),
 
-                // Bottom actions
-                if (!_showSuccess) _buildBottomActions(),
+                // Bottom action — single "Add to Family" button
+                if (!_showSuccess && !_isEditMode) _buildQuickAddButton(),
               ],
             ),
           ),
@@ -2059,34 +2053,324 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   // ── Header ─────────────────────────────────────────────────────
 
   Widget _buildHeader() {
+    // v5.52: Simplified header — no step title, no back button
     final title = _isEditMode
         ? 'Edit Person'
         : _showSuccess
         ? 'Welcome! 🎉'
-        : _stepTitle;
+        : 'Add Family Member';
 
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            title,
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: KinrelColors.textWhite,
+    return Text(
+      title,
+      style: TextStyle(
+        fontFamily: KinrelTypography.displayFont,
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+        color: KinrelColors.textWhite,
+      ),
+    );
+  }
+
+  // ── v5.52: Single-screen Quick Add ─────────────────────────────
+
+  /// Builds the single-screen quick-add content: photo, name, gender,
+  /// relationship type, target person selector — all on ONE screen.
+  Widget _buildQuickAddContent() {
+    if (_showSuccess) return _buildSuccessView();
+    final anchor = _effectiveAnchorPerson;
+    final newName = _nameController.text.trim().isNotEmpty
+        ? _nameController.text.trim()
+        : 'New Member';
+    final bool showTargetPicker = widget.anchorPerson == null && !_isEditMode;
+    final bool familyHasMembers = _familyHasExistingMembers;
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Photo picker (small, optional) ──
+          if (kEnablePhotoPicker) ...[
+            Center(child: _buildPhotoPicker()),
+            SizedBox(height: 16),
+          ],
+
+          // ── Full Name (required) ──
+          _SectionLabel('Full Name *'),
+          SizedBox(height: 6),
+          _buildTextField(
+            controller: _nameController,
+            hint: 'Enter full name',
+            isLarge: true,
+            keyboardType: TextInputType.name,
+            textInputAction: TextInputAction.next,
+            validator: (v) => nameValidator(v),
+          ),
+          SizedBox(height: 20),
+
+          // ── Gender ──
+          _SectionLabel('Gender'),
+          SizedBox(height: 10),
+          _buildGenderCards(),
+          SizedBox(height: 20),
+
+          // ── Related to (anchor selector) ──
+          if (familyHasMembers && showTargetPicker) ...[
+            _SectionLabel('Related to'),
+            SizedBox(height: 8),
+            _buildTargetPersonPicker(),
+            SizedBox(height: 20),
+          ] else if (widget.anchorPerson != null) ...[
+            _SectionLabel('Related to'),
+            SizedBox(height: 8),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: KinrelColors.darkCard,
+                borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+                border: Border.all(
+                  color: KinrelColors.orange.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.person, color: KinrelColors.orange, size: 20),
+                  SizedBox(width: 10),
+                  Text(
+                    widget.anchorPerson!.name,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.textWhite,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
-        if (_currentStep > 0 && !_isEditMode && !_showSuccess)
-          IconButton(
-            onPressed: _prevStep,
-            icon: Icon(Icons.arrow_back_ios_new, size: 18),
-            color: KinrelColors.textSilver,
-            padding: EdgeInsets.zero,
-            constraints: BoxConstraints(minWidth: 36, minHeight: 36),
-          ),
-      ],
+            SizedBox(height: 20),
+          ],
+
+          // ── Relationship Type ──
+          if (familyHasMembers || widget.anchorPerson != null) ...[
+            _SectionLabel('Relationship Type'),
+            SizedBox(height: 8),
+            if (anchor != null)
+              Text(
+                'How is $newName related to ${anchor.name}?',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 14,
+                  color: KinrelColors.textSilver,
+                  height: 1.4,
+                ),
+              ),
+            SizedBox(height: 12),
+            _buildRelationshipTypeCards(),
+            SizedBox(height: 16),
+
+            // Sibling sub-type
+            if (_selectedRelType == 'sibling') ...[
+              _SectionLabel('Elder or Younger?'),
+              SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _SelectableCard(
+                      label: 'Elder',
+                      subtitle: 'Older sibling',
+                      icon: Icons.arrow_upward,
+                      selected: _selectedSubType == 'elder',
+                      onTap: () => setState(() => _selectedSubType = 'elder'),
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: _SelectableCard(
+                      label: 'Younger',
+                      subtitle: 'Younger sibling',
+                      icon: Icons.arrow_downward,
+                      selected: _selectedSubType == 'younger',
+                      onTap: () => setState(() => _selectedSubType = 'younger'),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 16),
+            ],
+
+            // Detailed kinship picker
+            _SectionLabel('Or pick a specific kinship term'),
+            SizedBox(height: 8),
+            GestureDetector(
+              onTap: _pickDetailedRelationship,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: KinrelColors.darkCard,
+                  borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+                  border: Border.all(
+                    color: KinrelColors.textDim.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.search, color: KinrelColors.orange, size: 20),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _selectedRelationshipLabel ?? 'Search all kinship terms…',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 14,
+                          color: _selectedRelationshipLabel != null
+                              ? KinrelColors.textWhite
+                              : KinrelColors.textDim,
+                        ),
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: KinrelColors.textDim, size: 18),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 8),
+
+            // Custom kinship
+            GestureDetector(
+              onTap: _showCustomKinshipDialog,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: KinrelColors.darkCard,
+                  borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+                  border: Border.all(
+                    color: _customKinshipName != null
+                        ? KinrelColors.orange.withValues(alpha: 0.4)
+                        : KinrelColors.textDim.withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.palette_outlined, color: KinrelColors.purple, size: 20),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _customKinshipName ?? 'Add Your Own Kinship',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 14,
+                          color: _customKinshipName != null
+                              ? KinrelColors.textWhite
+                              : KinrelColors.textDim,
+                        ),
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: KinrelColors.textDim, size: 18),
+                  ],
+                ),
+              ),
+            ),
+
+            // Visual preview
+            if (_relationshipPreview.isNotEmpty) ...[
+              SizedBox(height: 16),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: KinrelColors.orange.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+                  border: Border.all(
+                    color: KinrelColors.orange.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.visibility_outlined, color: KinrelColors.orange, size: 18),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _relationshipPreview,
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 14,
+                          color: KinrelColors.textWhite,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // Hint when no relationship selected
+            if (_familyHasExistingMembers && _effectiveRelationshipKey == null) ...[
+              SizedBox(height: 16),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: (widget.fromGraph ? KinrelColors.orange : KinrelColors.tealAccent)
+                      .withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+                  border: Border.all(
+                    color: (widget.fromGraph ? KinrelColors.orange : KinrelColors.tealAccent)
+                        .withValues(alpha: 0.15),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      widget.fromGraph ? Icons.info_outline : Icons.link_off,
+                      size: 16,
+                      color: widget.fromGraph ? KinrelColors.orange : KinrelColors.tealAccent,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        widget.fromGraph
+                            ? 'Please select how they are related to proceed'
+                            : 'Optional: pick a relationship now, or skip and link them later.',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 13,
+                          color: widget.fromGraph ? KinrelColors.orange : KinrelColors.tealAccent,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ] else if (!familyHasMembers) ...[
+            Text(
+              'This is the first member of the family. No relationship needed yet.',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 16,
+                color: KinrelColors.textSilver,
+              ),
+            ),
+          ],
+
+          SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  /// Single "Add to Family" button — no steps, no "Next".
+  Widget _buildQuickAddButton() {
+    final canSubmit = nameValidator(_nameController.text) == null &&
+        (!_familyHasExistingMembers || !widget.fromGraph || _effectiveRelationshipKey != null);
+
+    return Padding(
+      padding: EdgeInsets.only(top: 12),
+      child: _buildIgniteButton(
+        label: _isSubmitting ? '' : 'Add to Family',
+        onPressed: _isSubmitting || !canSubmit ? null : _submit,
+        isLoading: _isSubmitting,
+      ),
     );
   }
 
