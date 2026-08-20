@@ -1489,11 +1489,12 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             if (client != null && client.auth.currentSession != null) {
               debugPrint('[ADD-MEMBER] v94: Creating relationship with key=$relKey');
 
-              // v5.12: Target person resolution — USER-SELECTED first.
+              // v5.49: Target person resolution — USER-SELECTED first.
               // Priority:
               //   1. _selectedTargetPerson (user explicitly picked via UI)
               //   2. widget.anchorPerson (passed from node context menu)
-              //   3. DB anchor fallback (last resort — clearly indicated)
+              //   3. Viewer's own Person (await viewerPersonIdProvider)
+              //   4. DB anchor fallback (last resort)
               String? linkToPersonId;
 
               if (_selectedTargetPerson != null) {
@@ -1505,41 +1506,58 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 linkToPersonId = widget.anchorPerson!.id;
                 debugPrint('[ADD-MEMBER] v94: Using provided anchorPerson: ${widget.anchorPerson!.name} ($linkToPersonId)');
               } else {
-                // Query the Family to get anchorPersonId
-                final familyData = await client
-                    .from('Family')
-                    .select('anchorPersonId')
-                    .eq('id', widget.familyId)
-                    .maybeSingle()
-                    .timeout(const Duration(seconds: 5));
+                // v5.49: Try to resolve the VIEWER'S own Person first.
+                // This is the most common case — the user is adding a
+                // family member relative to themselves. The auto-selection
+                // in initState may have failed if viewerPersonIdProvider
+                // hadn't resolved yet, so we AWAIT it here.
+                try {
+                  final viewerId = await ref.read(
+                    viewerPersonIdProvider(widget.familyId).future,
+                  ).timeout(const Duration(seconds: 5));
+                  if (viewerId != null && viewerId.isNotEmpty) {
+                    linkToPersonId = viewerId;
+                    debugPrint('[ADD-MEMBER] v5.49: Using viewer Person as target: $linkToPersonId');
+                  }
+                } catch (e) {
+                  debugPrint('[ADD-MEMBER] v5.49: Viewer resolution failed: $e');
+                }
 
-                linkToPersonId = familyData?['anchorPersonId'] as String?;
-
-                // If no anchorPersonId, query ALL existing persons (not just first)
-                // and pick the anchor (isAnchor=true) or the oldest by createdAt
-                if (linkToPersonId == null || linkToPersonId.isEmpty || linkToPersonId == resultId) {
-                  debugPrint('[ADD-MEMBER] v94: No valid anchorPersonId, querying existing members...');
-                  final existingPersons = await client
-                      .from('Person')
-                      .select('id, name, gender, "isAnchor"')
-                      .eq('familyId', widget.familyId)
-                      .neq('id', resultId)
-                      .isFilter('deletedAt', null)
-                      .order('createdAt', ascending: true)
-                      .limit(10)
+                // If viewer resolution failed, fall back to DB anchor
+                if (linkToPersonId == null || linkToPersonId.isEmpty) {
+                  final familyData = await client
+                      .from('Family')
+                      .select('anchorPersonId')
+                      .eq('id', widget.familyId)
+                      .maybeSingle()
                       .timeout(const Duration(seconds: 5));
 
-                  if (existingPersons.isNotEmpty) {
-                    // Prefer isAnchor=true, else first
-                    final anchor = existingPersons.firstWhere(
-                      (p) => p['isAnchor'] == true,
-                      orElse: () => existingPersons.first,
-                    );
-                    linkToPersonId = anchor['id'] as String?;
-                    debugPrint('[ADD-MEMBER] v94: Found link target: ${anchor['name']} ($linkToPersonId)');
+                  linkToPersonId = familyData?['anchorPersonId'] as String?;
+
+                  // If no anchorPersonId, query ALL existing persons
+                  if (linkToPersonId == null || linkToPersonId.isEmpty || linkToPersonId == resultId) {
+                    debugPrint('[ADD-MEMBER] v94: No valid anchorPersonId, querying existing members...');
+                    final existingPersons = await client
+                        .from('Person')
+                        .select('id, name, gender, "isAnchor"')
+                        .eq('familyId', widget.familyId)
+                        .neq('id', resultId)
+                        .isFilter('deletedAt', null)
+                        .order('createdAt', ascending: true)
+                        .limit(10)
+                        .timeout(const Duration(seconds: 5));
+
+                    if (existingPersons.isNotEmpty) {
+                      final anchor = existingPersons.firstWhere(
+                        (p) => p['isAnchor'] == true,
+                        orElse: () => existingPersons.first,
+                      );
+                      linkToPersonId = anchor['id'] as String?;
+                      debugPrint('[ADD-MEMBER] v94: Found link target: ${anchor['name']} ($linkToPersonId)');
+                    }
+                  } else {
+                    debugPrint('[ADD-MEMBER] v94: Using family anchorPersonId: $linkToPersonId');
                   }
-                } else {
-                  debugPrint('[ADD-MEMBER] v94: Using family anchorPersonId: $linkToPersonId');
                 }
               }
 
@@ -1690,11 +1708,19 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   ref.invalidate(familyGraphProvider(widget.familyId));
                 }
               } else {
-                debugPrint('[ADD-MEMBER] v94: ⚠️ No existing member found to link to. '
-                    'This is the first member — no relationship needed.');
+                // v5.49: No target person found. The Person was created
+                // but has no relationship. Refresh the graph so the Person
+                // appears (even if unlinked — the user can link later).
+                debugPrint('[ADD-MEMBER] v5.49: ⚠️ No target person found — '
+                    'Person created without relationship. Refreshing graph.');
+                FamilyGraphNotifier.clearCache(widget.familyId);
+                ref.invalidate(familyGraphProvider(widget.familyId));
               }
             } else {
               debugPrint('[ADD-MEMBER] v94: ⚠️ Supabase client or session not available');
+              // v5.49: Still refresh the graph so the Person appears.
+              FamilyGraphNotifier.clearCache(widget.familyId);
+              ref.invalidate(familyGraphProvider(widget.familyId));
             }
           } catch (e, stackTrace) {
             debugPrint('[ADD-MEMBER] v94: ❌ Relationship creation failed: $e');
