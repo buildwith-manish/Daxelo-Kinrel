@@ -12,6 +12,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/feature_flags.dart' show kShowRelationshipDebugBanner;
@@ -400,7 +401,12 @@ Future<void> showRelationshipPickerFlow({
         friendlyError = 'Couldn\'t create this connection. ${e.message}';
       }
     } else {
-      friendlyError = 'Couldn\'t create this connection. Please try again.';
+      // v5.54: Log the FULL raw error before formatting the user message
+      debugPrint('[REL-PICKER-FLOW] ❌ createRelationship failed: $e');
+      if (e is PostgrestException) {
+        debugPrint('[REL-PICKER-FLOW] PostgrestException: code=${e.code} message=${e.message} details=${e.details} hint=${e.hint}');
+      }
+      friendlyError = 'Couldn\'t create this connection: $e';
     }
     messenger?.showSnackBar(
       SnackBar(

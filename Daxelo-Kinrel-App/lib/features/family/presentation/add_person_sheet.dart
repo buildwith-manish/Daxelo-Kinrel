@@ -1459,19 +1459,18 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
         final relKey = preComputedRelKey;
 
-        // v5.47: The relationship-creation block runs for:
-        //   • Manual adds from the graph (source == manual, fromGraph == true)
-        //     → creates Person + Relationship (linked node, no invitation)
-        //   • Any add where a relationship was selected and the invitation
-        //     routing didn't fire (i.e. not Find on Kinrel / From Contacts)
+        // v5.53: The relationship-creation block runs for ALL adds where
+        // a relationship was selected — regardless of fromGraph.
         //
-        // For Family Space origin (fromGraph == false), the relationship
-        // block is SKIPPED (condition requires widget.fromGraph). The Person
-        // is created as an UNLINKED node. The user assigns a relationship
-        // later via the unlinked-members sheet.
+        // PREVIOUSLY, this was gated on `widget.fromGraph` which meant
+        // adds from the Family Space (family detail screen) would SKIP
+        // relationship creation, leaving the Person as an unlinked node.
+        // This was the root cause of "node appears but no connection line".
         //
-        // For Find on Kinrel / From Contacts from the graph, the invitation
-        // routing fires and returns early — this block is never reached.
+        // Now: if the user selected a relationship type AND the Person
+        // was created successfully, ALWAYS create the relationship edge.
+        // The `fromGraph` flag only controls the invitation routing
+        // (Find on Kinrel / From Contacts) above — not this block.
         if (relKey != null && !_isEditMode && result != null) {
           // v94: Capture the non-null result in a local variable so
           // dart2js doesn't lose null-promotion across the await
@@ -1604,70 +1603,6 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   describedPersonGender: _selectedGender,
                 );
 
-                // v5.55: TEMPORARY debug dialog — shows the actual runtime
-                // values right before createRelationship() is called.
-                // Gated behind kShowRelationshipDebugBanner so it can be
-                // turned off after diagnosis.
-                if (kShowRelationshipDebugBanner && mounted) {
-                  await showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (ctx) => AlertDialog(
-                      backgroundColor: KinrelColors.darkCard,
-                      title: Text('DEBUG: Relationship Inputs',
-                        style: TextStyle(
-                          color: KinrelColors.orange,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('relKey: "$relKey"',
-                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('result.id: "$resultId"',
-                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('result.name: "$resultName"',
-                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('linkToPersonId: "$linkToPersonId"',
-                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('widget.fromGraph: ${widget.fromGraph}',
-                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('edgeInput.from: "${edgeInput.fromPersonId}"',
-                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('edgeInput.to: "${edgeInput.toPersonId}"',
-                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('edgeInput.key: "${edgeInput.relationshipKey}"',
-                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('edgeInput.label: "${edgeInput.specificLabelAtoB}"',
-                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                          SizedBox(height: 6),
-                          Text('familyId: "${widget.familyId}"',
-                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
-                        ],
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(ctx).pop(),
-                          child: Text('Continue',
-                            style: TextStyle(color: KinrelColors.orange),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
                 await createRelationship(
                   ref: ref,
                   familyId: widget.familyId,
@@ -1788,8 +1723,14 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               ref.invalidate(familyGraphProvider(widget.familyId));
             }
           } catch (e, stackTrace) {
-            debugPrint('[ADD-MEMBER] v94: ❌ Relationship creation failed: $e');
-            debugPrint('[ADD-MEMBER] v94: Stack: $stackTrace');
+            // v5.54: Log the FULL raw error with type info + all fields
+            debugPrint('[ADD-MEMBER] v5.54: ❌ Relationship creation failed');
+            debugPrint('[ADD-MEMBER] v5.54: Error type: ${e.runtimeType}');
+            debugPrint('[ADD-MEMBER] v5.54: Error toString: $e');
+            if (e is PostgrestException) {
+              debugPrint('[ADD-MEMBER] v5.54: PostgrestException code=${e.code} message=${e.message} details=${e.details} hint=${e.hint}');
+            }
+            debugPrint('[ADD-MEMBER] v5.54: Stack: $stackTrace');
             relationshipFailed = true;
             if (mounted) {
               // v98 (Phase 0): Compensating rollback — soft-delete the
@@ -1841,41 +1782,15 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             }
           }
         } else if (relKey == null) {
-          // v5.55: No relationship selected — create the Person as an
-          // unlinked node. This is the ONLY case where a Person should
+          // v5.53: No relationship selected — create the Person as an
+          // unlinked node. This is the only case where a Person should
           // appear without a connection line.
-          debugPrint('[ADD-MEMBER] v5.55: No relationship selected — '
+          debugPrint('[ADD-MEMBER] v5.53: No relationship selected — '
               'creating unlinked node.');
           FamilyGraphNotifier.clearCache(widget.familyId);
           ref.invalidate(familyGraphProvider(widget.familyId));
           if (widget.fromGraph) {
             ref.invalidate(unlinkedPersonIdsProvider(widget.familyId));
-          }
-
-          // v5.55: Debug dialog — shows WHY the relationship block was skipped
-          if (kShowRelationshipDebugBanner && mounted) {
-            await showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (ctx) => AlertDialog(
-                backgroundColor: KinrelColors.darkCard,
-                title: Text('DEBUG: Relationship SKIPPED',
-                  style: TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.w700)),
-                content: Text(
-                  'relKey is NULL — no relationship was selected.\n\n'
-                  'result: ${result?.id ?? "NULL"}\n'
-                  'fromGraph: ${widget.fromGraph}\n\n'
-                  'The Person was created WITHOUT a relationship edge.',
-                  style: TextStyle(color: KinrelColors.textWhite, fontSize: 13),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    child: Text('OK', style: TextStyle(color: KinrelColors.orange)),
-                  ),
-                ],
-              ),
-            );
           }
         }
       }
