@@ -615,9 +615,6 @@ class QuickJumpNavRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch unread chat count for the badge.
-    final unreadCount = ref.watch(unreadCountProvider);
-
     // ── Ultra-compact floating pill dock ────────────────────────────
     // Fixed-size buttons — tapping only highlights, never expands.
     // All buttons remain evenly spaced and fully visible at all times.
@@ -692,15 +689,6 @@ class QuickJumpNavRow extends ConsumerWidget {
                     context,
                     MaterialPageRoute(builder: (_) => SharedListScreen(familyId: familyId)),
                   ),
-                ),
-              ),
-              Expanded(
-                child: _QuickJumpChip(
-                  icon: Icons.chat_bubble_outline,
-                  label: 'Chat',
-                  badgeCount: unreadCount,
-                  isAccent: unreadCount > 0,
-                  onTap: () => context.push('/family/$familyId/chat'),
                 ),
               ),
             ],
