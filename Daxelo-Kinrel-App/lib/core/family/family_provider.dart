@@ -2443,6 +2443,11 @@ Future<FamilyRelationship> createRelationship({
   /// The trigger will auto-fill `labelBtoA` from the RelationshipInverse
   /// table. If null, `labelAtoB` defaults to `relationshipKey`.
   String? specificLabelAtoB,
+  /// v5.56: Optional callback that receives a debug message string.
+  /// When provided, the caller shows an on-screen dialog with the message
+  /// at each internal step of createRelationship(). Used for diagnosing
+  /// why relationship creation fails. Pass null in production.
+  void Function(String message)? debugCallback,
 }) async {
   final skipValidation = isInverseEdge;
   final client = ref.read(supabaseProvider);
@@ -2494,22 +2499,32 @@ Future<FamilyRelationship> createRelationship({
       if (validation.isWarning) {
         debugPrint('[CREATE-REL] ⚠️ Validation warning: ${validation.message}');
       }
-    } on RelationshipValidationException catch (_) {
-      // v102 (BUG-3 FIX): Typed rethrow — validation determined this
-      // relationship is invalid (self-relationship, duplicate, circular
-      // ancestry, duplicate parent). Block the write by rethrowing.
+    } on RelationshipValidationException catch (e) {
+      // v5.56: Checkpoint 1 — validation FAILED
+      debugCallback?.call('CHECKPOINT 1: Validation FAILED\n'
+          'code: ${e.code}\n'
+          'message: ${e.message}\n\n'
+          'The relationship was rejected by validation.\n'
+          'No INSERT will be attempted.');
       rethrow;
     } catch (e) {
       // Network error fetching existing edges — log and continue
-      // (validation is best-effort when the network fails to fetch
-      // existing edges; only re-throw when validation ITSELF determined
-      // the relationship is invalid, which is handled by the typed
-      // catch above).
       debugPrint('[CREATE-REL] Validation fetch failed (non-blocking): $e');
+      debugCallback?.call('CHECKPOINT 1: Validation fetch FAILED (non-blocking)\n'
+          'Error: $e\n\n'
+          'Proceeding with INSERT anyway (best-effort).');
     }
   } else {
     debugPrint('[CREATE-REL] ⏭️ Skipping validation — this is an inverse edge');
   }
+
+  // v5.56: Checkpoint 1b — validation passed
+  debugCallback?.call('CHECKPOINT 1: Validation PASSED ✅\n'
+      'from: $fromPersonId\n'
+      'to: $toPersonId\n'
+      'key: $relationshipKey\n'
+      'label: ${specificLabelAtoB ?? relationshipKey}\n\n'
+      'Proceeding to INSERT...');
 
   // v83: If custom colors are provided, save them to CustomKinshipConfig
   if (customColors != null && customDisplayName != null) {
@@ -2652,6 +2667,13 @@ Future<FamilyRelationship> createRelationship({
         .select()
         .maybeSingle()
         .timeout(const Duration(seconds: 15));
+
+    // v5.56: Checkpoint 2 — raw INSERT response
+    debugCallback?.call('CHECKPOINT 2: INSERT completed ✅\n'
+        'Raw response: ${response?.toString() ?? "NULL"}\n\n'
+        'If response is NULL, the INSERT may have been silently\n'
+        'rejected by RLS (row-level security).');
+
     debugPrint('[CREATE-REL] ✅ Forward INSERT succeeded (id=$forwardRelId, response=$response)');
   } on PostgrestException catch (e) {
     debugPrint('[CREATE-REL] ❌ Forward INSERT PostgrestException: code=${e.code} message=${e.message} hint=${e.hint} details=${e.details}');
@@ -2670,8 +2692,12 @@ Future<FamilyRelationship> createRelationship({
   // rendered. Now we verify the row is readable via a targeted SELECT;
   // if it's not, we throw so the caller's error handling fires.
   if (response == null) {
-    debugPrint(
-        '[CREATE-REL] ⚠️ Forward INSERT returned null — verifying via SELECT');
+    // v5.56: Checkpoint 3 — response is NULL (possible RLS denial)
+    debugCallback?.call('CHECKPOINT 3: Response is NULL ⚠️\n'
+        'The INSERT returned null — this usually means RLS\n'
+        'silently rejected the row. Verifying via SELECT...');
+
+    debugPrint('[CREATE-REL] ⚠️ Forward INSERT returned null — verifying via SELECT');
     try {
       final verified = await client
           .from(_kRelationshipTable)
@@ -2709,6 +2735,13 @@ Future<FamilyRelationship> createRelationship({
     }
   }
   debugPrint('[CREATE-REL] ✅ Forward relationship created with id: ${response['id']}');
+
+  // v5.56: Checkpoint 4 — success!
+  debugCallback?.call('CHECKPOINT 4: Relationship created SUCCESSFULLY ✅\n'
+      'id: ${response['id']}\n'
+      'relationshipKey: ${response['relationshipKey']}\n\n'
+      'The edge row exists in the database.\n'
+      'Proceeding with inverse edge + graph refresh...');
 
   // 2. Create the inverse relationship (best-effort, only if known)
   //

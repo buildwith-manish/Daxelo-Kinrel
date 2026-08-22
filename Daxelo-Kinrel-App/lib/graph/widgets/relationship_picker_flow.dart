@@ -371,6 +371,30 @@ Future<void> showRelationshipPickerFlow({
       specificLabelAtoB: edgeInput.specificLabelAtoB,
       fromPersonGender: edgeInput.fromPersonGender,
       toPersonGender: edgeInput.toPersonGender,
+      // v5.56: Debug callback for Link button flow
+      debugCallback: kShowRelationshipDebugBanner && context.mounted
+          ? (String message) async {
+              await showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: KinrelColors.darkCard,
+                  title: Text('DEBUG: Link createRelationship()',
+                    style: TextStyle(color: KinrelColors.orange, fontSize: 14, fontWeight: FontWeight.w700)),
+                  content: SingleChildScrollView(
+                    child: Text(message,
+                      style: TextStyle(color: KinrelColors.textWhite, fontSize: 12, fontFamily: 'monospace')),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      child: Text('Continue', style: TextStyle(color: KinrelColors.orange)),
+                    ),
+                  ],
+                ),
+              );
+            }
+          : null,
     );
 
     final label = KinshipInferenceEngine.labelFor(relationshipKey);

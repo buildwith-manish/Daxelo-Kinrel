@@ -1669,6 +1669,30 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   // v94: Do NOT refresh the graph inside createRelationship
                   // — the compound mutation handles it below.
                   refreshGraph: false,
+                  // v5.56: Debug callback — shows checkpoint dialogs
+                  debugCallback: kShowRelationshipDebugBanner && mounted
+                      ? (String message) async {
+                          await showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (ctx) => AlertDialog(
+                              backgroundColor: KinrelColors.darkCard,
+                              title: Text('DEBUG: createRelationship()',
+                                style: TextStyle(color: KinrelColors.orange, fontSize: 14, fontWeight: FontWeight.w700)),
+                              content: SingleChildScrollView(
+                                child: Text(message,
+                                  style: TextStyle(color: KinrelColors.textWhite, fontSize: 12, fontFamily: 'monospace')),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(),
+                                  child: Text('Continue', style: TextStyle(color: KinrelColors.orange)),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      : null,
                 );
                 debugPrint('[ADD-MEMBER] v94: ✅ Relationship created successfully');
 
