@@ -1603,6 +1603,50 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   describedPersonGender: _selectedGender,
                 );
 
+                // v5.55: TEMPORARY debug dialog
+                if (kShowRelationshipDebugBanner && mounted) {
+                  await showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (ctx) => AlertDialog(
+                      backgroundColor: KinrelColors.darkCard,
+                      title: Text('DEBUG: Relationship Inputs',
+                        style: TextStyle(color: KinrelColors.orange, fontSize: 16, fontWeight: FontWeight.w700)),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('relKey: "$relKey"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('result.id: "$resultId"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('result.name: "$resultName"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('linkToPersonId: "$linkToPersonId"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('widget.fromGraph: ${widget.fromGraph}', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('edgeInput.from: "${edgeInput.fromPersonId}"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('edgeInput.to: "${edgeInput.toPersonId}"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('edgeInput.key: "${edgeInput.relationshipKey}"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('edgeInput.label: "${edgeInput.specificLabelAtoB}"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('familyId: "${widget.familyId}"', style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: Text('Continue', style: TextStyle(color: KinrelColors.orange)),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
                 await createRelationship(
                   ref: ref,
                   familyId: widget.familyId,
@@ -1791,6 +1835,31 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           ref.invalidate(familyGraphProvider(widget.familyId));
           if (widget.fromGraph) {
             ref.invalidate(unlinkedPersonIdsProvider(widget.familyId));
+          }
+          // v5.55: Debug dialog — shows WHY the relationship block was skipped
+          if (kShowRelationshipDebugBanner && mounted) {
+            await showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: KinrelColors.darkCard,
+                title: Text('DEBUG: Relationship SKIPPED',
+                  style: TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.w700)),
+                content: Text(
+                  'relKey is NULL — no relationship was selected.\n\n'
+                  'result: ${result?.id ?? "NULL"}\n'
+                  'fromGraph: ${widget.fromGraph}\n\n'
+                  'The Person was created WITHOUT a relationship edge.',
+                  style: TextStyle(color: KinrelColors.textWhite, fontSize: 13),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: Text('OK', style: TextStyle(color: KinrelColors.orange)),
+                  ),
+                ],
+              ),
+            );
           }
         }
       }
