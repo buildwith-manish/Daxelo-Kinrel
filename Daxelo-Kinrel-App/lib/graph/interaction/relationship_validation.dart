@@ -19,6 +19,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Severity of a validation result.
 enum ValidationSeverity {
+  /// Validation passed — no issues found. The mutation is allowed.
+  ok,
+
   /// Cannot save — blocks the mutation entirely.
   error,
 
@@ -85,11 +88,11 @@ class RelationshipValidationResult {
 
   bool get isError => severity == ValidationSeverity.error;
   bool get isWarning => severity == ValidationSeverity.warning;
-  bool get isOk => severity == ValidationSeverity.error && message.isEmpty;
+  bool get isOk => severity == ValidationSeverity.ok;
 
   /// A passing validation result (no issues found).
   static const ok = RelationshipValidationResult(
-    severity: ValidationSeverity.error,
+    severity: ValidationSeverity.ok,
     message: '',
   );
 

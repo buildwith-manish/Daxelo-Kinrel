@@ -87,4 +87,4 @@ const bool kEnableKinrel = true;
 /// the relationship edge is not being created.
 ///
 /// Set to `false` to remove the debug dialog after diagnosis is complete.
-const bool kShowRelationshipDebugBanner = true;
+const bool kShowRelationshipDebugBanner = false;
