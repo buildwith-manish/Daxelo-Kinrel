@@ -1459,20 +1459,19 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
         final relKey = preComputedRelKey;
 
-        // v5.47: The relationship-creation block runs for:
-        //   • Manual adds from the graph (source == manual, fromGraph == true)
-        //     → creates Person + Relationship (linked node, no invitation)
-        //   • Any add where a relationship was selected and the invitation
-        //     routing didn't fire (i.e. not Find on Kinrel / From Contacts)
+        // v5.53: The relationship-creation block runs for ALL adds where
+        // a relationship was selected — regardless of fromGraph.
         //
-        // For Family Space origin (fromGraph == false), the relationship
-        // block is SKIPPED (condition requires widget.fromGraph). The Person
-        // is created as an UNLINKED node. The user assigns a relationship
-        // later via the unlinked-members sheet.
+        // PREVIOUSLY, this was gated on `widget.fromGraph` which meant
+        // adds from the Family Space (family detail screen) would SKIP
+        // relationship creation, leaving the Person as an unlinked node.
+        // This was the root cause of "node appears but no connection line".
         //
-        // For Find on Kinrel / From Contacts from the graph, the invitation
-        // routing fires and returns early — this block is never reached.
-        if (relKey != null && !_isEditMode && result != null && widget.fromGraph) {
+        // Now: if the user selected a relationship type AND the Person
+        // was created successfully, ALWAYS create the relationship edge.
+        // The `fromGraph` flag only controls the invitation routing
+        // (Find on Kinrel / From Contacts) above — not this block.
+        if (relKey != null && !_isEditMode && result != null) {
           // v94: Capture the non-null result in a local variable so
           // dart2js doesn't lose null-promotion across the await
           // boundaries below. Without this, `result.id` triggers
@@ -1777,35 +1776,16 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             }
           }
         } else if (relKey == null) {
-          debugPrint('[ADD-MEMBER] v7: No relationship selected — skipping relationship creation');
-          // v94: If we skipped the graph refresh during Person creation
-          // (because we expected a relationship), but no relationship
-          // was selected, refresh the graph now so the new node appears.
-          if (willCreateRelationship) {
-            // willCreateRelationship was true but relKey is now null —
-            // shouldn't happen, but guard against it.
-            FamilyGraphNotifier.clearCache(widget.familyId);
-            ref.invalidate(familyGraphProvider(widget.familyId));
-          }
-        } else if (!widget.fromGraph && relKey != null) {
-          // v5.42: Family Space origin — the user picked a relationship
-          // in Step 1, but we intentionally SKIP creating it here.
-          // The Person is created as an UNLINKED node. The user will
-          // assign the relationship later via the unlinked-members
-          // sheet → relationship picker flow.
-          //
-          // This matches the new spec:
-          //   "Member Added From Family Space → Add them as a family
-          //    member. Show them as an unlinked member. Do not create
-          //    relationship lines."
-          debugPrint('[ADD-MEMBER] v5.42: Family Space origin — skipping '
-              'relationship creation. Person will appear as unlinked.');
-          // Refresh the graph so the new unlinked node appears.
+          // v5.53: No relationship selected — create the Person as an
+          // unlinked node. This is the only case where a Person should
+          // appear without a connection line.
+          debugPrint('[ADD-MEMBER] v5.53: No relationship selected — '
+              'creating unlinked node.');
           FamilyGraphNotifier.clearCache(widget.familyId);
           ref.invalidate(familyGraphProvider(widget.familyId));
-          // Invalidate the unlinked-person-ids provider so the "Link"
-          // pill button appears with the updated count.
-          ref.invalidate(unlinkedPersonIdsProvider(widget.familyId));
+          if (widget.fromGraph) {
+            ref.invalidate(unlinkedPersonIdsProvider(widget.familyId));
+          }
         }
       }
 
