@@ -1723,8 +1723,14 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               ref.invalidate(familyGraphProvider(widget.familyId));
             }
           } catch (e, stackTrace) {
-            debugPrint('[ADD-MEMBER] v94: ❌ Relationship creation failed: $e');
-            debugPrint('[ADD-MEMBER] v94: Stack: $stackTrace');
+            // v5.54: Log the FULL raw error with type info + all fields
+            debugPrint('[ADD-MEMBER] v5.54: ❌ Relationship creation failed');
+            debugPrint('[ADD-MEMBER] v5.54: Error type: ${e.runtimeType}');
+            debugPrint('[ADD-MEMBER] v5.54: Error toString: $e');
+            if (e is PostgrestException) {
+              debugPrint('[ADD-MEMBER] v5.54: PostgrestException code=${e.code} message=${e.message} details=${e.details} hint=${e.hint}');
+            }
+            debugPrint('[ADD-MEMBER] v5.54: Stack: $stackTrace');
             relationshipFailed = true;
             if (mounted) {
               // v98 (Phase 0): Compensating rollback — soft-delete the
