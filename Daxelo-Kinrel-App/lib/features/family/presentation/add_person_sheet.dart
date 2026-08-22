@@ -1472,7 +1472,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         //
         // For Find on Kinrel / From Contacts from the graph, the invitation
         // routing fires and returns early — this block is never reached.
-        if (relKey != null && !_isEditMode && result != null && widget.fromGraph) {
+        if (relKey != null && !_isEditMode && result != null) {
           // v94: Capture the non-null result in a local variable so
           // dart2js doesn't lose null-promotion across the await
           // boundaries below. Without this, `result.id` triggers
@@ -1603,6 +1603,70 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   referencePersonGender: widget.anchorPerson?.gender ?? _selectedTargetPerson?.gender,
                   describedPersonGender: _selectedGender,
                 );
+
+                // v5.55: TEMPORARY debug dialog — shows the actual runtime
+                // values right before createRelationship() is called.
+                // Gated behind kShowRelationshipDebugBanner so it can be
+                // turned off after diagnosis.
+                if (kShowRelationshipDebugBanner && mounted) {
+                  await showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (ctx) => AlertDialog(
+                      backgroundColor: KinrelColors.darkCard,
+                      title: Text('DEBUG: Relationship Inputs',
+                        style: TextStyle(
+                          color: KinrelColors.orange,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('relKey: "$relKey"',
+                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('result.id: "$resultId"',
+                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('result.name: "$resultName"',
+                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('linkToPersonId: "$linkToPersonId"',
+                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('widget.fromGraph: ${widget.fromGraph}',
+                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('edgeInput.from: "${edgeInput.fromPersonId}"',
+                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('edgeInput.to: "${edgeInput.toPersonId}"',
+                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('edgeInput.key: "${edgeInput.relationshipKey}"',
+                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('edgeInput.label: "${edgeInput.specificLabelAtoB}"',
+                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                          SizedBox(height: 6),
+                          Text('familyId: "${widget.familyId}"',
+                            style: TextStyle(color: KinrelColors.textWhite, fontSize: 13, fontFamily: 'monospace')),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: Text('Continue',
+                            style: TextStyle(color: KinrelColors.orange),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
 
                 await createRelationship(
                   ref: ref,
@@ -1777,35 +1841,42 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             }
           }
         } else if (relKey == null) {
-          debugPrint('[ADD-MEMBER] v7: No relationship selected — skipping relationship creation');
-          // v94: If we skipped the graph refresh during Person creation
-          // (because we expected a relationship), but no relationship
-          // was selected, refresh the graph now so the new node appears.
-          if (willCreateRelationship) {
-            // willCreateRelationship was true but relKey is now null —
-            // shouldn't happen, but guard against it.
-            FamilyGraphNotifier.clearCache(widget.familyId);
-            ref.invalidate(familyGraphProvider(widget.familyId));
-          }
-        } else if (!widget.fromGraph && relKey != null) {
-          // v5.42: Family Space origin — the user picked a relationship
-          // in Step 1, but we intentionally SKIP creating it here.
-          // The Person is created as an UNLINKED node. The user will
-          // assign the relationship later via the unlinked-members
-          // sheet → relationship picker flow.
-          //
-          // This matches the new spec:
-          //   "Member Added From Family Space → Add them as a family
-          //    member. Show them as an unlinked member. Do not create
-          //    relationship lines."
-          debugPrint('[ADD-MEMBER] v5.42: Family Space origin — skipping '
-              'relationship creation. Person will appear as unlinked.');
-          // Refresh the graph so the new unlinked node appears.
+          // v5.55: No relationship selected — create the Person as an
+          // unlinked node. This is the ONLY case where a Person should
+          // appear without a connection line.
+          debugPrint('[ADD-MEMBER] v5.55: No relationship selected — '
+              'creating unlinked node.');
           FamilyGraphNotifier.clearCache(widget.familyId);
           ref.invalidate(familyGraphProvider(widget.familyId));
-          // Invalidate the unlinked-person-ids provider so the "Link"
-          // pill button appears with the updated count.
-          ref.invalidate(unlinkedPersonIdsProvider(widget.familyId));
+          if (widget.fromGraph) {
+            ref.invalidate(unlinkedPersonIdsProvider(widget.familyId));
+          }
+
+          // v5.55: Debug dialog — shows WHY the relationship block was skipped
+          if (kShowRelationshipDebugBanner && mounted) {
+            await showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: KinrelColors.darkCard,
+                title: Text('DEBUG: Relationship SKIPPED',
+                  style: TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.w700)),
+                content: Text(
+                  'relKey is NULL — no relationship was selected.\n\n'
+                  'result: ${result?.id ?? "NULL"}\n'
+                  'fromGraph: ${widget.fromGraph}\n\n'
+                  'The Person was created WITHOUT a relationship edge.',
+                  style: TextStyle(color: KinrelColors.textWhite, fontSize: 13),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: Text('OK', style: TextStyle(color: KinrelColors.orange)),
+                  ),
+                ],
+              ),
+            );
+          }
         }
       }
 

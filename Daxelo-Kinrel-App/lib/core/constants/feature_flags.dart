@@ -80,3 +80,11 @@ const bool kEnableAutoKinshipInference = true;
 /// Backend (server/src/kinrel-intelligence/*) is already live; this flag controls only
 /// the Flutter UI surface.
 const bool kEnableKinrel = true;
+
+/// v5.55: TEMPORARY debug flag — shows an on-screen dialog with the actual
+/// runtime values of relKey, result.id, linkToPersonId, widget.fromGraph
+/// right before createRelationship() is called. This helps diagnose why
+/// the relationship edge is not being created.
+///
+/// Set to `false` to remove the debug dialog after diagnosis is complete.
+const bool kShowRelationshipDebugBanner = true;
