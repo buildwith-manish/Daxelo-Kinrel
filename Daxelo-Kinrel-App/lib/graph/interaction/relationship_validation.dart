@@ -418,28 +418,28 @@ RelationshipValidationResult validateRelationship({
   return RelationshipValidationResult.ok;
 }
 
-/// v5.70: Checks for the spouse-ancestor conflict.
+/// v5.81 (CO-PARENTING FIX): Rewritten to ONLY block TRUE incest cycles,
+/// not normal co-parenting (two married spouses both being parents of
+/// the same child).
 ///
-/// Returns a [RelationshipValidationResult] with error severity if a
-/// conflict is found, or null if no conflict.
+/// The previous logic (v5.70) blocked ANY case where a parent's spouse
+/// was an ancestor of the child — which incorrectly blocked the most
+/// common family structure: mother + father, married to each other,
+/// both parents of the same child.
 ///
-/// IMPORTANT: This check uses the EXISTING edges (minus the edge being
-/// updated, if this is an update). It does NOT consider the proposed
-/// edge itself as part of the graph when checking. This means:
-///   - If A and B are already spouses, and we're proposing a parent/
-///     child edge between A and C where B is an ancestor of C — that's
-///     blocked (A can't be C's parent while married to C's ancestor B).
-///   - But if A and B are NOT yet spouses, and we're proposing the
-///     spouse edge A-B where A is an ancestor of someone B is a parent
-///     of — that's NOT blocked by this check (the spouse edge is what
-///     we're proposing, so it's not in the existing-edges graph).
+/// The corrected rule blocks only when the proposed relationship would
+/// create a CYCLE through spouse edges:
+///   - Setting A as parent of B, where B's SPOUSE is an ANCESTOR of A.
+///     This creates a cycle: A → B → (spouse) → B's spouse → ... → A.
+///     Example: Setting Manish as HD's parent, where HD is married to
+///     JD, and JD is Manish's father → Manish becomes the parent of
+///     his own father's wife → incest.
 ///
-/// The audit function (auditFamilyRelationshipConflicts) catches
-/// conflicts that already exist in the DB — it checks ALL edges
-/// together. The validation check only prevents NEW conflicts from
-/// being created by a single new/changed edge.
-///
-/// See the comment above for the full explanation of the rule.
+/// It does NOT block:
+///   - Setting A as parent of B, where A's spouse is an ancestor of B.
+///     This is just co-parenting: A and A's spouse are both ancestors
+///     of B. Example: Setting JD as Manish's father, where JD is
+///     married to HD, and HD is Manish's mother → normal family.
 RelationshipValidationResult? _checkSpouseAncestorConflict({
   required String fromPersonId,
   required String toPersonId,
@@ -448,14 +448,9 @@ RelationshipValidationResult? _checkSpouseAncestorConflict({
   required Map<String, Set<String>> ancestorMap,
   Map<String, String>? personNames,
 }) {
-  // Helper: get a person's display name (or fall back to the ID).
   String nameOf(String id) => personNames?[id] ?? id;
-
-  // Helper: get the set of ancestors for a person (empty if unknown).
   Set<String> ancestorsOf(String id) => ancestorMap[id] ?? <String>{};
 
-  // Helper: find all spouses of a person from the existing edges.
-  // Returns a set of spouse person IDs.
   Set<String> spousesOf(String personId) {
     final spouses = <String>{};
     const spouseKeys = {'husband', 'wife', 'spouse'};
@@ -476,17 +471,8 @@ RelationshipValidationResult? _checkSpouseAncestorConflict({
   const spouseKeys = {'husband', 'wife', 'spouse'};
 
   // ── Case 1: Proposed PARENT/CHILD edge ──
-  // from=A, to=B, key in {father, mother, parent, son, daughter, child}
   if (parentKeys.contains(relationshipKey) ||
       childKeys.contains(relationshipKey)) {
-    // Determine who is the "parent" and who is the "child" in the
-    // proposed edge.
-    // key in {father, mother, parent} → from is the child, to is the
-    //   parent (labelAtoB = "toPerson is fromPerson's father/mother")
-    //   Wait — actually the convention is: from=A, to=B, key='father'
-    //   means "B is A's father" → A is the child, B is the parent.
-    // key in {son, daughter, child} → from is the parent, to is the
-    //   child ("B is A's son" → A is the parent, B is the child).
     final String childId;
     final String parentId;
     if (parentKeys.contains(relationshipKey)) {
@@ -497,60 +483,28 @@ RelationshipValidationResult? _checkSpouseAncestorConflict({
       parentId = fromPersonId;
     }
 
-    // Check: does the PARENT have a spouse who is an ancestor of the
-    // CHILD? (e.g. JD is Manish's father, HD is JD's spouse, HD is
-    // an ancestor of Manish → conflict)
-    final parentSpouses = spousesOf(parentId);
-    for (final spouse in parentSpouses) {
-      if (spouse == childId) continue; // same person, skip
-      // Is the spouse an ancestor of the child?
-      if (ancestorsOf(childId).contains(spouse)) {
-        return RelationshipValidationResult(
-          severity: ValidationSeverity.error,
-          message: 'This would make ${nameOf(parentId)} the parent of '
-              '${nameOf(childId)}, but ${nameOf(parentId)} is married to '
-              '${nameOf(spouse)} who is already an ancestor of '
-              '${nameOf(childId)}. A person cannot be both the spouse of '
-              'an ancestor and a parent of the descendant.',
-          code: 'spouse_ancestor_conflict',
-        );
-      }
-      // Is the child an ancestor of the spouse? (reverse direction)
-      if (ancestorsOf(spouse).contains(childId)) {
-        return RelationshipValidationResult(
-          severity: ValidationSeverity.error,
-          message: 'This would make ${nameOf(parentId)} the parent of '
-              '${nameOf(childId)}, but ${nameOf(parentId)} is married to '
-              '${nameOf(spouse)} who is a descendant of '
-              '${nameOf(childId)}. A person cannot be both the spouse of '
-              'a descendant and a parent of the ancestor.',
-          code: 'spouse_ancestor_conflict',
-        );
-      }
-    }
-
-    // Check: does the CHILD have a spouse who is an ancestor of the
-    // PARENT? (symmetric case)
+    // v5.81: ONLY check if the CHILD's spouse is an ANCESTOR of the
+    // PARENT. This catches the true incest cycle:
+    //   parentId → childId → (spouse) → childId's spouse → ... → parentId
+    //
+    // We do NOT check if the PARENT's spouse is an ancestor of the
+    // child — that's normal co-parenting (A and A's spouse are both
+    // ancestors of the child).
     final childSpouses = spousesOf(childId);
     for (final spouse in childSpouses) {
       if (spouse == parentId) continue;
+      // Is the child's spouse an ancestor of the parent?
+      // Cycle: parentId → childId → (spouse) → spouse → ... → parentId
       if (ancestorsOf(parentId).contains(spouse)) {
         return RelationshipValidationResult(
           severity: ValidationSeverity.error,
           message: 'This would make ${nameOf(parentId)} the parent of '
               '${nameOf(childId)}, but ${nameOf(childId)} is married to '
               '${nameOf(spouse)} who is an ancestor of '
-              '${nameOf(parentId)}. These relationships conflict.',
-          code: 'spouse_ancestor_conflict',
-        );
-      }
-      if (ancestorsOf(spouse).contains(parentId)) {
-        return RelationshipValidationResult(
-          severity: ValidationSeverity.error,
-          message: 'This would make ${nameOf(parentId)} the parent of '
-              '${nameOf(childId)}, but ${nameOf(childId)} is married to '
-              '${nameOf(spouse)} who is a descendant of '
-              '${nameOf(parentId)}. These relationships conflict.',
+              '${nameOf(parentId)}. This would create a circular family '
+              'structure — ${nameOf(parentId)} cannot be both the parent '
+              'of ${nameOf(childId)} and a descendant of '
+              "${nameOf(childId)}'s spouse.",
           code: 'spouse_ancestor_conflict',
         );
       }
@@ -558,42 +512,35 @@ RelationshipValidationResult? _checkSpouseAncestorConflict({
   }
 
   // ── Case 2: Proposed SPOUSE edge ──
-  // from=A, to=B, key in {husband, wife, spouse}
+  // Block if either person is already an ancestor/descendant of the
+  // other (via existing parent chains). This catches: A ↔ B (spouse,
+  // proposed) where A → ... → B (ancestor, existing) → A is both
+  // spouse and ancestor of B → incest.
   if (spouseKeys.contains(relationshipKey)) {
-    // Check: does A have an ancestor who is B's spouse?
-    // Or: does B have an ancestor who is A's spouse?
     final aAncestors = ancestorsOf(fromPersonId);
     final bAncestors = ancestorsOf(toPersonId);
-    final aSpouses = spousesOf(fromPersonId);
-    final bSpouses = spousesOf(toPersonId);
 
-    // Is any ancestor of A a spouse of B?
-    for (final ancestor in aAncestors) {
-      if (bSpouses.contains(ancestor)) {
-        return RelationshipValidationResult(
-          severity: ValidationSeverity.error,
-          message: 'This would make ${nameOf(fromPersonId)} and '
-              '${nameOf(toPersonId)} spouses, but ${nameOf(ancestor)} '
-              '(an ancestor of ${nameOf(fromPersonId)}) is already '
-              'married to ${nameOf(toPersonId)}. These relationships '
-              'conflict.',
-          code: 'spouse_ancestor_conflict',
-        );
-      }
+    // Is B an ancestor of A? (A would marry their own ancestor)
+    if (aAncestors.contains(toPersonId)) {
+      return RelationshipValidationResult(
+        severity: ValidationSeverity.error,
+        message: 'This would make ${nameOf(fromPersonId)} and '
+            '${nameOf(toPersonId)} spouses, but ${nameOf(toPersonId)} '
+            'is already an ancestor of ${nameOf(fromPersonId)}. '
+            'A person cannot marry their own ancestor.',
+        code: 'spouse_ancestor_conflict',
+      );
     }
-    // Is any ancestor of B a spouse of A?
-    for (final ancestor in bAncestors) {
-      if (aSpouses.contains(ancestor)) {
-        return RelationshipValidationResult(
-          severity: ValidationSeverity.error,
-          message: 'This would make ${nameOf(fromPersonId)} and '
-              '${nameOf(toPersonId)} spouses, but ${nameOf(ancestor)} '
-              '(an ancestor of ${nameOf(toPersonId)}) is already '
-              'married to ${nameOf(fromPersonId)}. These relationships '
-              'conflict.',
-          code: 'spouse_ancestor_conflict',
-        );
-      }
+    // Is A an ancestor of B? (A would marry their own descendant)
+    if (bAncestors.contains(fromPersonId)) {
+      return RelationshipValidationResult(
+        severity: ValidationSeverity.error,
+        message: 'This would make ${nameOf(fromPersonId)} and '
+            '${nameOf(toPersonId)} spouses, but ${nameOf(fromPersonId)} '
+            'is already an ancestor of ${nameOf(toPersonId)}. '
+            'A person cannot marry their own descendant.',
+        code: 'spouse_ancestor_conflict',
+      );
     }
   }
 
