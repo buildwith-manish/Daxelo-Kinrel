@@ -194,25 +194,54 @@ class EngineEdgePainter extends CustomPainter {
     // Bow direction: solo edges bow in +perp; parallel edges alternate.
     final Offset bow = perp * (lateralOffset >= 0 ? bowMagnitude : -bowMagnitude);
 
-    // v5.22: If the user dragged the midpoint, use the two-quadratic
-    // approach that passes through (linear_mid + delta) exactly.
+    // v5.58: If the user dragged the midpoint, use a SINGLE quadratic
+    // bezier with the dragged point as the control point.
+    //
+    // A quadratic bezier Q(controlPoint, endPoint) naturally produces a
+    // smooth curve that bows toward the control point. When the control
+    // point is collinear with the start and end points, the curve
+    // degenerates to a straight line — which is the desired behavior
+    // when the user drags the handle back to the midpoint.
+    //
+    // PREVIOUSLY (v5.22), this used a two-quadratic approach that split
+    // the curve at the midpoint and placed each half's control point at
+    // the midpoint of the half-segment — which was collinear with the
+    // half-segment's endpoints, producing nearly-straight halves and a
+    // sharp V-shaped angular bend instead of a smooth curve.
     if (waypointDelta != Offset.zero) {
       final midX = s.dx + dx * 0.5;
       final midY = s.dy + dy * 0.5;
-      final bowedMid = Offset(midX + waypointDelta.dx,
-          midY + waypointDelta.dy);
-      final Offset half1Cp = Offset(
-        s.dx + (bowedMid.dx - s.dx) * 0.5,
-        s.dy + (bowedMid.dy - s.dy) * 0.5,
+      // The control point is the linear midpoint + the user's drag delta.
+      final Offset controlPoint = Offset(
+        midX + waypointDelta.dx,
+        midY + waypointDelta.dy,
       );
-      final Offset half2Cp = Offset(
-        t.dx + (bowedMid.dx - t.dx) * 0.5,
-        t.dy + (bowedMid.dy - t.dy) * 0.5,
-      );
+
+      // v5.58: Check if the control point is collinear (or nearly
+      // collinear) with the start and end points. If so, render a
+      // straight line — a curve through a collinear point is visually
+      // indistinguishable from a straight line anyway, and rendering
+      // it as straight avoids sub-pixel rendering artifacts.
+      //
+      // Collinearity test: the cross product of (t-s) and (cp-s) should
+      // be near zero. We use a tolerance of 2px (the cross product
+      // magnitude equals the perpendicular distance from cp to line st).
+      final double crossProduct =
+          (t.dx - s.dx) * (controlPoint.dy - s.dy) -
+          (t.dy - s.dy) * (controlPoint.dx - s.dx);
+      final double perpDistance = crossProduct.abs() / distance;
+
+      if (perpDistance < 2.0) {
+        // Control point is (nearly) on the line → render straight.
+        return Path()
+          ..moveTo(s.dx, s.dy)
+          ..lineTo(t.dx, t.dy);
+      }
+
+      // Control point is off the line → render a smooth quadratic bezier.
       return Path()
         ..moveTo(s.dx, s.dy)
-        ..quadraticBezierTo(half1Cp.dx, half1Cp.dy, bowedMid.dx, bowedMid.dy)
-        ..quadraticBezierTo(half2Cp.dx, half2Cp.dy, t.dx, t.dy);
+        ..quadraticBezierTo(controlPoint.dx, controlPoint.dy, t.dx, t.dy);
     }
 
     // v5.45: Default perpendicular-bow cubic bezier for ALL edges.
