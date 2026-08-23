@@ -287,6 +287,13 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   Timer? _telemetryTimer;
   int _lastCullVisibleCount = 0;
 
+  /// v5.72 (ZOOM LOOP FIX): Auto-timeout timer for the Isolate Connections
+  /// feature. When the user isolates a person's connections, the focus
+  /// state + camera animation auto-clears after 18 seconds so the graph
+  /// returns to normal. This prevents the "keeps zooming in and out
+  /// forever" bug where the focus state persists indefinitely.
+  Timer? _focusTimeoutTimer;
+
   /// v62: Position of the last double-tap, for zoom-toward-focal-point.
   Offset _doubleTapPosition = Offset.zero;
 
@@ -748,6 +755,20 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _loadController?.removeListener(_onLoadAnimationTick);
     _loadController?.dispose();
     _loadController = null;
+    // v5.72 (ZOOM LOOP FIX): Clear focus state when the graph widget is
+    // disposed. The graphFocusProvider is a GLOBAL provider that survives
+    // screen exits — without this clear, the focused person ID persists
+    // after the user leaves the graph. When they return, the new widget
+    // instance has _lastFocusedPersonId = null, so the guard
+    // `focusState.focusedPersonId != _lastFocusedPersonId` is TRUE →
+    // _maybeFocusCameraOnNode re-fires → the camera re-animates → the
+    // user sees the zoom loop again. Clearing focus on dispose ensures
+    // the focus state doesn't survive screen exits.
+    //
+    // Also cancel the focus auto-timeout timer (see _focusTimeoutTimer
+    // in the _onFocusPerson handler).
+    _focusTimeoutTimer?.cancel();
+    ref.read(graphFocusProvider.notifier).clearAll();
     super.dispose();
   }
 
@@ -1336,6 +1357,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                           personName: ref.watch(graphFocusProvider.select(
                               (s) => s.focusedPersonName ?? '')),
                           onShowAll: () {
+                            // v5.72: Cancel the auto-timeout timer when
+                            // the user manually exits isolation.
+                            _focusTimeoutTimer?.cancel();
                             ref.read(graphFocusProvider.notifier).clearFocus();
                           },
                         ),

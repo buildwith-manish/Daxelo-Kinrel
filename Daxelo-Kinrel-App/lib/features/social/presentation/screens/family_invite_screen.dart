@@ -10,6 +10,7 @@ import '../../../../core/config/env_config.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../../data/repositories/search_repository.dart';
 import '../../../family/presentation/add_member_source.dart';
+import '../../../../core/family/optimistic_actions.dart' show createPersonOptimistic;
 import '../../data/models/family_invite_model.dart';
 import '../../data/repositories/family_invite_repository.dart';
 
@@ -167,6 +168,39 @@ class _FamilyInviteScreenState extends ConsumerState<FamilyInviteScreen> {
       }
 
       setState(() => _isSendingDirect = false);
+
+      // v5.72 (UNLINKED NODE FEATURE): After the invite is sent
+      // successfully, create a placeholder Person row so the invited
+      // member appears on the graph immediately as an unlinked node
+      // (dashed outline + badge). The inviter sees the new node right
+      // away, and can later use "Relate to another person" to connect
+      // it into the tree.
+      //
+      // The Person is created with linkedUserId set to the invited
+      // user's ID, so when the invitee accepts + logs in, they'll be
+      // automatically linked to this Person node (no duplicate created).
+      //
+      // If the Person creation fails (e.g. the invited user is already
+      // linked to a Person in this family), we silently ignore the
+      // error — the invite itself already succeeded, and the Person
+      // will be created when the invitee accepts via the
+      // fn_accept_family_invite RPC.
+      try {
+        await createPersonOptimistic(
+          ref: ref,
+          familyId: widget.familyId,
+          name: _selectedUser!.name,
+          gender: null, // gender unknown at invite time
+          isAnchor: false,
+          linkedUserId: _selectedUser!.id,
+          refreshGraph: true,
+        );
+      } catch (e) {
+        // Non-fatal — the invite succeeded, the Person creation is a
+        // best-effort enhancement. The Person will be created when the
+        // invitee accepts if this fails.
+        debugPrint('[INVITE] Could not create placeholder Person (non-fatal): $e');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
