@@ -658,11 +658,12 @@ class _RelationshipInfoContentState
     );
     if (confirmed != true) return;
 
-    // Close the info sheet.
-    navigator.pop();
+    // v5.82 (DISPOSE FIX): DON'T pop until after the delete completes.
+    // Same fix as the change-relationship flow — popping before the
+    // async operation disposes the widget, making `ref` invalid.
 
     // Before deleting, capture the inverse edge ID so the Undo can
-    // re-activate both rows.
+    // re-activate both rows. Use ref BEFORE any pop.
     String? inverseEdgeId;
     try {
       final client = ref.read(supabaseProvider);
@@ -688,6 +689,9 @@ class _RelationshipInfoContentState
         familyId: familyId,
       );
 
+      // v5.82: NOW pop the Connection sheet (after the delete succeeded).
+      navigator.pop();
+
       // Show confirmation with Undo.
       messenger?.showSnackBar(
         SnackBar(
@@ -701,9 +705,12 @@ class _RelationshipInfoContentState
             label: 'Undo',
             textColor: KinrelColors.tealAccent,
             onPressed: () async {
+              // v5.82: Widget is disposed by now. Use ProviderContainer.
               try {
-                await undoDeleteRelationship(
-                  ref: ref,
+                final undoContainer = ProviderScope.containerOf(
+                    navigator.context);
+                await undoDeleteRelationshipWithContainer(
+                  container: undoContainer,
                   familyId: familyId,
                   relationshipId: edgeId,
                   inverseRelationshipId: inverseEdgeId,

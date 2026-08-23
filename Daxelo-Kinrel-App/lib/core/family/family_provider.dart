@@ -3536,12 +3536,34 @@ Future<void> deleteRelationship({
     operationName: 'Deactivate relationship',
   );
 
-  // 3. Deactivate the inverse relationship (best-effort)
+  // 3. Deactivate ALL other active rows for the SAME pair (both directions)
+  // v5.82 (COMPREHENSIVE DELETE): Previously, only the inverse (swapped
+  // from/to) was deactivated. But if there were multiple stacked rows
+  // from earlier bugs (change-relationship attempts that didn't clean
+  // up properly), those extra active rows would remain — causing stale
+  // labels to appear after removal. Now we deactivate ALL active rows
+  // between the same two people, in BOTH directions, ensuring the pair
+  // is genuinely fully unlinked after removal.
   if (relData != null) {
     final fromPersonId = relData['fromPersonId'] as String?;
     final toPersonId = relData['toPersonId'] as String?;
     if (fromPersonId != null && toPersonId != null) {
       try {
+        // Deactivate ALL active rows: fromPersonId → toPersonId
+        await withRetry(
+          () => client
+              .from(_kRelationshipTable)
+              .update({
+                'isActive': false,
+                'updatedAt': now,
+              })
+              .eq('familyId', familyId)
+              .eq('fromPersonId', fromPersonId)
+              .eq('toPersonId', toPersonId)
+              .eq('isActive', true),
+          operationName: 'Deactivate ALL forward rows for pair',
+        );
+        // Deactivate ALL active rows: toPersonId → fromPersonId (inverse)
         await withRetry(
           () => client
               .from(_kRelationshipTable)
@@ -3552,11 +3574,11 @@ Future<void> deleteRelationship({
               .eq('familyId', familyId)
               .eq('fromPersonId', toPersonId)
               .eq('toPersonId', fromPersonId)
-              .neq('id', relationshipId),
-          operationName: 'Deactivate inverse relationship',
+              .eq('isActive', true),
+          operationName: 'Deactivate ALL inverse rows for pair',
         );
       } catch (e) {
-        debugPrint('⚠️ Could not deactivate inverse relationship: $e');
+        debugPrint('⚠️ Could not deactivate all rows for pair: $e');
       }
     }
   }
@@ -4129,6 +4151,62 @@ Future<void> undoDeleteRelationship({
   ref.invalidate(unifiedFamilyRosterProvider(familyId));
   FamilyGraphNotifier.clearCache(familyId);
   ref.invalidate(familyGraphProvider(familyId));
+  if (IsarDatabase.isInitialized) {
+    try {
+      await CacheInvalidation.invalidateFamily(familyId);
+    } catch (_) {}
+  }
+}
+
+/// v5.82: Wrapper for undoDeleteRelationship that accepts a
+/// ProviderContainer instead of WidgetRef. Used by the Undo
+/// snackbar callback after the widget is disposed.
+Future<void> undoDeleteRelationshipWithContainer({
+  required ProviderContainer container,
+  required String familyId,
+  required String relationshipId,
+  String? inverseRelationshipId,
+}) async {
+  final client = container.read(supabaseProvider);
+  if (client == null) {
+    throw Exception('Database is not connected.');
+  }
+  final now = DateTime.now().toIso8601String();
+
+  // 1. Re-activate the forward row.
+  try {
+    await withRetry(
+      () => client.from(_kRelationshipTable).update({
+        'isActive': true,
+        'updatedAt': now,
+      }).eq('id', relationshipId),
+      operationName: 'Re-activate relationship for undo delete (container)',
+    );
+  } catch (e) {
+    debugPrint('[UNDO-DELETE-REL] Could not re-activate $relationshipId: $e');
+  }
+
+  // 2. Re-activate the inverse row (if provided).
+  if (inverseRelationshipId != null) {
+    try {
+      await withRetry(
+        () => client.from(_kRelationshipTable).update({
+          'isActive': true,
+          'updatedAt': now,
+        }).eq('id', inverseRelationshipId),
+        operationName: 'Re-activate inverse for undo delete (container)',
+      );
+    } catch (e) {
+      debugPrint('[UNDO-DELETE-REL] Could not re-activate inverse (non-fatal): $e');
+    }
+  }
+
+  // 3. Invalidate providers + clear graph cache.
+  container.invalidate(familyRelationshipsProvider(familyId));
+  container.invalidate(familyDetailProvider(familyId));
+  container.invalidate(unifiedFamilyRosterProvider(familyId));
+  FamilyGraphNotifier.clearCache(familyId);
+  container.invalidate(familyGraphProvider(familyId));
   if (IsarDatabase.isInitialized) {
     try {
       await CacheInvalidation.invalidateFamily(familyId);
