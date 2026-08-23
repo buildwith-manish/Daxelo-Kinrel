@@ -1469,20 +1469,52 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     );
   }
 
-  Future<void> _maybeFrame(GraphLayoutResult layout) async {
+  /// v5.75: Centers the graph on the VIEWER'S OWN NODE on fresh load.
+  ///
+  /// Previously, _maybeFrame called _camera.initialFitOnce which centers on
+  /// the BOUNDING BOX of all nodes — putting the viewer's node off-center
+  /// (often in the top-left corner). The user reported "nodes appear
+  /// positioned toward the top-left corner instead of being centered."
+  ///
+  /// The fix: after the initial bounding-box fit (which sets a reasonable
+  /// zoom level), if the viewer's Person ID is resolved, re-center the
+  /// camera on the viewer's node position using _camera.resetView (the
+  /// same method used by the "Reset View" button). This puts the "You"
+  /// node dead-center on screen, with immediately-connected nodes
+  /// visible around it.
+  ///
+  /// If viewerPersonId is null (unlinked user), falls back to the
+  /// bounding-box fit (the existing behavior).
+  Future<void> _maybeFrame(
+    GraphLayoutResult layout,
+    FlatGraphResult flat,
+    String? viewerPersonId,
+  ) async {
     if (_framed) return;
     if (_viewportSize.width <= 0 || _viewportSize.height <= 0) return;
     if (layout.positions.isEmpty) return;
     _framed = true;
 
-    // FIX (blank-on-load): Always call initialFitOnce on the first frame.
-    // Previously, when a saved camera position existed from a previous
-    // session, initialFitOnce was skipped — but the saved pan/zoom was
-    // computed for a different viewport size, causing the camera to
-    // point at empty space (blank screen until the user manually zoomed).
-    // initialFitOnce has its own _didInitialFit guard so it's safe to
-    // call unconditionally.
+    // Step 1: Do the initial bounding-box fit to set a reasonable zoom
+    // level. This ensures all nodes are visible at a comfortable scale.
     _camera.initialFitOnce(layout.positions, _viewportSize);
+
+    // Step 2 (v5.75): If the viewer's Person ID is resolved, re-center
+    // on the viewer's node. This overrides the bounding-box center with
+    // the viewer's node position, putting "You" dead-center on screen.
+    if (viewerPersonId != null) {
+      final viewerPos = layout.positions[viewerPersonId];
+      if (viewerPos != null) {
+        final bool reduced = MediaQuery.disableAnimationsOf(context);
+        _camera.resetView(
+          focusNodePosition: viewerPos,
+          circleCenterYOffset: _kCircleCenterYOffset,
+          viewportSize: _viewportSize,
+          reducedMotion: reduced,
+        );
+      }
+    }
+
     _culler.invalidate();
     if (mounted) setState(() {});
   }

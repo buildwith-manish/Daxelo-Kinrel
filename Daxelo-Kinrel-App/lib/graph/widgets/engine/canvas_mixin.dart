@@ -264,8 +264,10 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
 
         // One-time framing AFTER the first frame — never during build, which
         // avoids the historical setState-during-build crash.
+        // v5.75: Pass flat + viewerPersonId so _maybeFrame can center on the
+        // viewer's own node instead of the bounding box center.
         WidgetsBinding.instance
-            .addPostFrameCallback((_) => _maybeFrame(layout));
+            .addPostFrameCallback((_) => _maybeFrame(layout, flat, viewerPersonId));
 
         final personById = <String, Map<String, dynamic>>{
           for (final Map<String, dynamic> p in flat.persons)

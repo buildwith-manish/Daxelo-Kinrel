@@ -138,56 +138,32 @@ final viewerPersonIdProvider =
       debugPrint('⚠️ viewerPersonIdProvider: linkedUserId query failed: $e');
     }
 
-    // v5.5: Step 2 — Try to find a Person by matching the user's email.
-    // This handles the case where a Person was added manually (e.g.
-    // "Yakshiii") but hasn't been linked to the auth user yet. We match
-    // the email from the auth user's metadata against the Person's
-    // linkedUserId or any email field.
-    // This is a BEST-EFFORT match — if it fails, we fall through to
-    // the anchor fallback.
-    try {
-      final userEmail = currentUser?.email;
-      if (userEmail != null && userEmail.isNotEmpty) {
-        // Extract the name part of the email (before @) and try to
-        // find a Person with that name in this family.
-        final namePart = userEmail.split('@').first.toLowerCase();
-        // Try exact name match (case-insensitive)
-        final nameMatch = await client
-            .from('Person')
-            .select('id, name')
-            .eq('familyId', familyId)
-            .filter('deletedAt', 'is', null)
-            .timeout(const Duration(seconds: 10));
-
-        for (final p in nameMatch as List) {
-          final personName = (p['name'] as String?)?.toLowerCase() ?? '';
-          // Check if the person's name matches the email name part
-          if (personName == namePart ||
-              personName.contains(namePart) ||
-              namePart.contains(personName)) {
-            final personId = p['id'] as String?;
-            if (personId != null) {
-              debugPrint('🔍 viewerPersonIdProvider: matched Person by email/name: $personName → $personId');
-              // Auto-link this Person to the current user so future
-              // resolutions use the fast path (Step 1).
-              try {
-                await client
-                    .from('Person')
-                    .update({'linkedUserId': userId})
-                    .eq('id', personId);
-                debugPrint('✅ Auto-linked Person $personId to user $userId');
-              } catch (e) {
-                debugPrint('⚠️ Auto-link failed (non-fatal): $e');
-              }
-              _cacheViewerPersonId(familyId, personId);
-              return personId;
-            }
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('⚠️ viewerPersonIdProvider: email/name match failed: $e');
-    }
+    // v5.75 (VIEWER FIX): Step 2 (email/name auto-link) has been REMOVED.
+    //
+    // Previously, if Step 1 didn't find a linked Person, Step 2 tried to
+    // match the user's email name-part against Person names using loose
+    // `contains()` matching. On match, it AUTO-WROTE linkedUserId to the
+    // DB. This was dangerous because:
+    //   - "yakshitha" in the email could match a Person named "Yakshitha"
+    //     in the WRONG family, silently linking the user to the wrong node.
+    //   - Once the bad link was written, Step 1 would keep returning the
+    //     wrong Person on every subsequent load.
+    //   - The `contains()` matching was too loose (e.g. "man" in
+    //     "manishnkotian11@gmail.com" would match any Person named "Man",
+    //     "Manish", "Manuela", etc.)
+    //
+    // With the v5.73 fix (dropping the global unique index on
+    // Person.linkedUserId), users can now have Person nodes in multiple
+    // families. The fn_accept_family_invite RPC correctly creates a
+    // Person with linkedUserId set when a user accepts an invite. So
+    // Step 1 should always find the correct Person if the user has
+    // properly joined the family.
+    //
+    // If Step 1 fails (no linked Person), we now go straight to Step 3
+    // (anchor fallback) which only returns the anchor if the anchor's
+    // linkedUserId matches the current user. If neither matches,
+    // viewerPersonId is null — the graph shows no "You" node, which is
+    // correct (the user hasn't been linked to a Person in this family).
 
     // Step 3: Fall back to anchor person (legacy)
     // v5.16: Use the pure resolution function for the decision logic.
