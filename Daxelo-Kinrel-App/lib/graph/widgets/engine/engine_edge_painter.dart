@@ -18,7 +18,7 @@ import '../../../core/kinship/kinship_category_map.dart';
 import '../../../core/kinship/heart_shape.dart' show HeartShape;
 import '../../engine/edge_dedup.dart' show DedupedEdge;
 import '../../interaction/couple_union_model.dart'
-    show CoupleUnion, unionMidpoint, resolveEffectiveEdgeEndpoints;
+    show CoupleUnion, resolveEffectiveEdgeEndpoints;
 import '../../rendering/edge_path_cache.dart' show EdgePathCache;
 import '../../rendering/edge_quality.dart' show EdgeQuality, EdgeQualityX;
 import '../../rendering/graph_lighting.dart' show GraphLighting;
@@ -194,54 +194,81 @@ class EngineEdgePainter extends CustomPainter {
     // Bow direction: solo edges bow in +perp; parallel edges alternate.
     final Offset bow = perp * (lateralOffset >= 0 ? bowMagnitude : -bowMagnitude);
 
-    // v5.58: If the user dragged the midpoint, use a SINGLE quadratic
-    // bezier with the dragged point as the control point.
+    // v5.62: If the user dragged the midpoint, use a CUBIC bezier
+    // whose t=0.5 point is EXACTLY at (linearMid + waypointDelta).
     //
-    // A quadratic bezier Q(controlPoint, endPoint) naturally produces a
-    // smooth curve that bows toward the control point. When the control
-    // point is collinear with the start and end points, the curve
-    // degenerates to a straight line — which is the desired behavior
-    // when the user drags the handle back to the midpoint.
+    // This is critical for drag/hit-test parity: the dot/heart marker
+    // is rendered at the PathMetric t=0.5 position of the rendered
+    // curve (see _paintMidpoint). For the marker to appear exactly
+    // where the user's finger is, the curve's t=0.5 must equal
+    // (linearMid + waypointDelta) — which is the position the drag
+    // handler stores the delta relative to (see
+    // _handleRearrangeDragUpdate: `delta = graphPos - linearMid`).
     //
-    // PREVIOUSLY (v5.22), this used a two-quadratic approach that split
-    // the curve at the midpoint and placed each half's control point at
-    // the midpoint of the half-segment — which was collinear with the
-    // half-segment's endpoints, producing nearly-straight halves and a
-    // sharp V-shaped angular bend instead of a smooth curve.
+    // Math: for a cubic bezier B(t) = (1-t)³s + 3(1-t)²t·cp1 +
+    // 3(1-t)t²·cp2 + t³·t, the parameter-t=0.5 point is
+    // (s + 3·cp1 + 3·cp2 + t) / 8. Setting cp1 = s + (1/3)(t-s) +
+    // (4/3)·delta and cp2 = s + (2/3)(t-s) + (4/3)·delta yields
+    // B(0.5) = (s+t)/2 + delta = linearMid + delta. The curve is
+    // symmetric around linearMid + (4/3)·delta (the midpoint of cp1
+    // and cp2), so arc-length t=0.5 == parameter t=0.5 — the
+    // PathMetric midpoint is also exactly linearMid + delta.
+    //
+    // v5.58 used a QUADRATIC bezier with control point at
+    // (linearMid + delta). That made the curve's t=0.5 point land at
+    // linearMid + delta/2 — i.e. the marker appeared only HALF as far
+    // from the linear midpoint as the user's finger. The hit-test
+    // checked linearMid + delta (the full delta), so the marker and
+    // the tap target were always offset by delta/2 — which is why
+    // dragging stopped working after zooming in (the 48px hit radius
+    // shrinks in graph space at high zoom, eventually failing to
+    // cover the delta/2 gap).
     if (waypointDelta != Offset.zero) {
       final midX = s.dx + dx * 0.5;
       final midY = s.dy + dy * 0.5;
-      // The control point is the linear midpoint + the user's drag delta.
-      final Offset controlPoint = Offset(
+      // The user's intended marker position.
+      final Offset targetMid = Offset(
         midX + waypointDelta.dx,
         midY + waypointDelta.dy,
       );
 
-      // v5.58: Check if the control point is collinear (or nearly
+      // v5.58: Check if the target midpoint is collinear (or nearly
       // collinear) with the start and end points. If so, render a
       // straight line — a curve through a collinear point is visually
       // indistinguishable from a straight line anyway, and rendering
       // it as straight avoids sub-pixel rendering artifacts.
       //
-      // Collinearity test: the cross product of (t-s) and (cp-s) should
-      // be near zero. We use a tolerance of 2px (the cross product
-      // magnitude equals the perpendicular distance from cp to line st).
+      // Collinearity test: the cross product of (t-s) and (target-s)
+      // should be near zero. We use a tolerance of 2px (the cross
+      // product magnitude equals the perpendicular distance from
+      // target to line st).
       final double crossProduct =
-          (t.dx - s.dx) * (controlPoint.dy - s.dy) -
-          (t.dy - s.dy) * (controlPoint.dx - s.dx);
+          (t.dx - s.dx) * (targetMid.dy - s.dy) -
+          (t.dy - s.dy) * (targetMid.dx - s.dx);
       final double perpDistance = crossProduct.abs() / distance;
 
       if (perpDistance < 2.0) {
-        // Control point is (nearly) on the line → render straight.
+        // Target midpoint is (nearly) on the line → render straight.
         return Path()
           ..moveTo(s.dx, s.dy)
           ..lineTo(t.dx, t.dy);
       }
 
-      // Control point is off the line → render a smooth quadratic bezier.
+      // v5.62: Cubic bezier with cp1/cp2 placed so B(0.5) == targetMid.
+      // See the math derivation in the comment above.
+      final double cpBiasX = waypointDelta.dx * 4.0 / 3.0;
+      final double cpBiasY = waypointDelta.dy * 4.0 / 3.0;
+      final Offset cp1 = Offset(
+        s.dx + dx * (1.0 / 3.0) + cpBiasX,
+        s.dy + dy * (1.0 / 3.0) + cpBiasY,
+      );
+      final Offset cp2 = Offset(
+        s.dx + dx * (2.0 / 3.0) + cpBiasX,
+        s.dy + dy * (2.0 / 3.0) + cpBiasY,
+      );
       return Path()
         ..moveTo(s.dx, s.dy)
-        ..quadraticBezierTo(controlPoint.dx, controlPoint.dy, t.dx, t.dy);
+        ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, t.dx, t.dy);
     }
 
     // v5.45: Default perpendicular-bow cubic bezier for ALL edges.
@@ -259,6 +286,61 @@ class EngineEdgePainter extends CustomPainter {
     return Path()
       ..moveTo(s.dx, s.dy)
       ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, t.dx, t.dy);
+  }
+
+  /// v5.62: SINGLE SOURCE OF TRUTH for the edge midpoint marker
+  /// position. Returns the visual midpoint of the rendered bezier
+  /// curve — i.e. the position where _paintMidpoint renders the
+  /// dot/heart marker.
+  ///
+  /// This is computed as the PathMetric t=0.5 (arc-length midpoint)
+  /// of the path returned by [_bezier] for the same (s, t,
+  /// lateralOffset, waypointDelta) inputs. Because [s] and [t] are
+  /// already the EFFECTIVE endpoints (post couple-union redirect —
+  /// see `resolveEffectiveEdgeEndpoints`), the caller MUST pass the
+  /// SAME effective endpoints the painter passes to [_bezier].
+  ///
+  /// Why this exists: the marker (dot/heart) is rendered at the
+  /// PathMetric t=0.5 of the rendered curve, but the hit-tester
+  /// previously checked `linearMid + waypointDelta` — a DIFFERENT
+  /// position. For the default perpendicular-bow curve, the visual
+  /// midpoint is `linearMid + 0.75·bow` (not `linearMid`), and for
+  /// the dragged case the visual midpoint is exactly `linearMid +
+  /// waypointDelta` (only because v5.62 changed the dragged curve
+  /// from a quadratic to a cubic specifically so this holds). The
+  /// hit-tester MUST call this same helper to compute the tap
+  /// target, otherwise the marker and the tap target silently drift
+  /// apart — which is the root cause of the "lines undraggable
+  /// after zoom" bug (the 48px hit radius shrinks in graph space at
+  /// high zoom, eventually failing to cover the drift).
+  ///
+  /// Performance: PathMetric computation is O(path length) — cheap
+  /// for a single edge, called once per edge per hit-test. The
+  /// painter calls this once per edge per frame (via _paintMidpoint);
+  /// the hit-tester calls it once per edge per tap. Both are
+  /// acceptable for graphs with up to ~hundreds of edges.
+  static Offset computeVisualMidpoint(
+    Offset s,
+    Offset t, {
+    double lateralOffset = 0.0,
+    Offset waypointDelta = Offset.zero,
+  }) {
+    final path = _bezier(
+      s,
+      t,
+      lateralOffset: lateralOffset,
+      waypointDelta: waypointDelta,
+    );
+    for (final metric in path.computeMetrics()) {
+      if (metric.length > 0) {
+        final tangent = metric.getTangentForOffset(metric.length * 0.5);
+        if (tangent != null) {
+          return tangent.position;
+        }
+      }
+    }
+    // PathMetric failed (degenerate path) — fall back to linear midpoint.
+    return Offset((s.dx + t.dx) / 2, (s.dy + t.dy) / 2);
   }
 
   @override
@@ -491,6 +573,9 @@ class EngineEdgePainter extends CustomPainter {
         // the heart / dot stays visible when zoomed out. _paintMidpoint
         // handles the DOT-LOD simplification internally (single filled
         // circle, no pseudo-3D passes).
+        //
+        // v5.62: lateralOffset + waypointDelta are now required so the
+        // marker is rendered at the SAME position the hit-tester checks.
         if (midpointSymbol != KinshipMidpointSymbol.none) {
           _paintMidpoint(
             canvas: canvas,
@@ -505,6 +590,8 @@ class EngineEdgePainter extends CustomPainter {
             isSelected: isSelected,
             isDimmed: isDimmed,
             dimAlpha: dimAlpha,
+            lateralOffset: deduped.lateralOffset,
+            waypointDelta: waypointDelta,
           );
         }
         continue;
@@ -611,6 +698,9 @@ class EngineEdgePainter extends CustomPainter {
       // No persistent kinship text is ever rendered on edges — the
       // relationship data remains available for accessibility, path
       // tracing, and the relationship info sheet (tap interaction).
+      //
+      // v5.62: lateralOffset + waypointDelta are now required so the
+      // marker is rendered at the SAME position the hit-tester checks.
       if (midpointSymbol != KinshipMidpointSymbol.none) {
         _paintMidpoint(
           canvas: canvas,
@@ -630,14 +720,31 @@ class EngineEdgePainter extends CustomPainter {
           isSelected: isSelected,
           isDimmed: isDimmed,
           dimAlpha: dimAlpha,
+          lateralOffset: deduped.lateralOffset,
+          waypointDelta: waypointDelta,
         );
       }
     }
 
-    // v99 (Phase 6): Paint union junction glyphs AFTER all edges +
-    // midpoints. These are subtle visual markers at the midpoint
-    // between confirmed partners, showing where a couple connects.
-    _paintUnionJunctions(canvas);
+    // v5.62 (BUG 1 FIX): The separate union-junction orange dot has
+    // been REMOVED. Previously _paintUnionJunctions drew a small
+    // filled orange circle at the LINEAR midpoint between confirmed
+    // partners — but the heart on the spouse edge is rendered at the
+    // curve's t=0.5 (which bows AWAY from the linear midpoint), so
+    // the two markers were at DIFFERENT positions, creating the
+    // "orphaned dot floating in empty space" the user reported.
+    //
+    // The heart on the spouse edge is now the SOLE visual marker for
+    // a couple connection. It is also the draggable control point
+    // (its hit area is the 48px radius enforced by _hitTestEdge using
+    // the same computeVisualMidpoint helper the painter uses). For
+    // non-spouse edges, the existing dot bead (rendered by
+    // _paintMidpoint with midpointSymbol == dot) is unchanged.
+    //
+    // Note: the couple-union ROUTING logic (parent→child edges
+    // redirecting through the union midpoint) is unchanged — only the
+    // visual glyph is removed. resolveEffectiveEdgeEndpoints continues
+    // to handle the routing in both the painter and the hit-tester.
   }
 
   // ── Physical paint helpers ───────────────────────────────────────────
@@ -952,6 +1059,20 @@ class EngineEdgePainter extends CustomPainter {
   /// Midpoint bead / heart (PART 6). Branches on `midpointSymbol`:
   ///   • heart → HeartShape.drawHeart (spouse pink, or custom-heart pink)
   ///   • dot   → pseudo-3D obsidian bead with effective midpoint colour
+  ///
+  /// v5.62: The marker position is computed via [computeVisualMidpoint]
+  /// — the SAME helper the hit-tester uses. This eliminates the
+  /// marker-vs-tap-target drift that caused "lines undraggable after
+  /// zoom" (the marker was rendered at PathMetric t=0.5 of the bowed
+  /// curve, but the hit-tester checked the linear midpoint, so at high
+  /// zoom the 48px hit radius couldn't cover the drift).
+  ///
+  /// v5.62: [lateralOffset] and [waypointDelta] are now required
+  /// parameters — the marker position depends on them (the curve
+  /// bows sideways by lateralOffset, and shifts by waypointDelta when
+  /// the user has dragged the midpoint). Passing them here ensures
+  /// the marker is rendered at the SAME position the curve passes
+  /// through, regardless of bow direction or drag state.
   void _paintMidpoint({
     required Canvas canvas,
     required Path path,
@@ -965,17 +1086,14 @@ class EngineEdgePainter extends CustomPainter {
     required bool isSelected,
     required bool isDimmed,
     required double dimAlpha,
+    required double lateralOffset,
+    required Offset waypointDelta,
   }) {
-    Offset midPoint = Offset((s.dx + t.dx) / 2, (s.dy + t.dy) / 2);
-    for (final metric in path.computeMetrics()) {
-      if (metric.length > 0) {
-        final tangent = metric.getTangentForOffset(metric.length * 0.5);
-        if (tangent != null) {
-          midPoint = tangent.position;
-          break;
-        }
-      }
-    }
+    // v5.62: Use the shared helper so the marker position is IDENTICAL
+    // to the position the hit-tester checks. This is the single source
+    // of truth — never recompute the midpoint inline.
+    final Offset midPoint =
+        computeVisualMidpoint(s, t, lateralOffset: lateralOffset, waypointDelta: waypointDelta);
 
     // Resolve the effective midpoint color.
     //   • Default relationship → style.midpointColor (pink for spouse,
@@ -1171,67 +1289,22 @@ class EngineEdgePainter extends CustomPainter {
     }
   }
 
-  /// v99 (Phase 6): Paints union junction glyphs at the midpoint
-  /// between partners for each derived CoupleUnion.
-  ///
-  /// The glyph is a small filled circle — subtle, NOT competing with
-  /// person nodes. It visually marks where a couple connects and
-  /// where children descend from. The glyph reuses the relationship
-  /// edge colour (spouse orange) for visual consistency.
-  ///
-  /// v105 (MIDPOINT ALWAYS VISIBLE): Painted at EVERY LOD tier,
-  /// including DOT (overview). At DOT LOD the glyph is drawn slightly
-  /// smaller and at reduced alpha so it matches the dot-tier aesthetic
-  /// without overpowering the nodes, but it is NEVER fully hidden —
-  /// the couple connection must remain discoverable at every zoom
-  /// level.
-  void _paintUnionJunctions(Canvas canvas) {
-    if (coupleUnions.isEmpty) return;
-    // v105 (MIDPOINT ALWAYS VISIBLE): Union junctions are NO LONGER
-    // skipped at DOT LOD. They are part of the connection rendering
-    // (a small filled circle at the midpoint between confirmed
-    // partners) and must remain visible at every zoom level so the
-    // couple connection is always discoverable. At DOT LOD the glyph
-    // is drawn slightly smaller to match the dot-tier aesthetic, but
-    // it is NEVER fully hidden.
-
-    for (final union in coupleUnions) {
-      final posA = positions[union.partnerAId];
-      final posB = positions[union.partnerBId];
-      if (posA == null || posB == null) continue;
-
-      final mid = unionMidpoint(posA, posB);
-
-      // Small filled circle — the junction glyph.
-      // v105: shrink the glyph at DOT LOD so it doesn't overpower the
-      // dot-tier nodes, but keep it visible.
-      final bool isDot = edgeQuality == EdgeQuality.dot;
-      const screenJunctionR = 4.0;
-      final double graphR =
-          isDot ? screenJunctionR * 0.7 : screenJunctionR;
-
-      // Use the spouse edge colour (orange) for visual consistency.
-      const junctionColor = Color(0xFFF97316); // KinshipEdgeColors.spouseEdge
-
-      // Outer ring (subtle).
-      canvas.drawCircle(
-        mid,
-        graphR + 2,
-        Paint()
-          ..color = junctionColor.withValues(alpha: isDot ? 0.18 : 0.25)
-          ..style = PaintingStyle.fill,
-      );
-
-      // Inner dot.
-      canvas.drawCircle(
-        mid,
-        graphR,
-        Paint()
-          ..color = junctionColor.withValues(alpha: isDot ? 0.45 : 0.6)
-          ..style = PaintingStyle.fill,
-      );
-    }
-  }
+  // v5.62 (BUG 1 FIX): _paintUnionJunctions has been REMOVED.
+  //
+  // It previously drew a separate orange dot at the LINEAR midpoint
+  // between confirmed partners. This competed with the heart on the
+  // spouse edge (which is rendered at the curve's t=0.5, a DIFFERENT
+  // position when the curve is bowed), creating the "orphaned dot
+  // floating in empty space" the user reported.
+  //
+  // For spouse relationships, the heart on the spouse edge is now the
+  // SOLE visual marker for the couple connection AND the draggable
+  // control point. For non-spouse edges, the existing dot bead (from
+  // _paintMidpoint with midpointSymbol == dot) is unchanged.
+  //
+  // The couple-union ROUTING logic (parent→child edges redirecting
+  // through the union midpoint via resolveEffectiveEdgeEndpoints) is
+  // UNCHANGED — only the visual glyph is removed.
 
   @override
   bool shouldRepaint(covariant EngineEdgePainter old) {

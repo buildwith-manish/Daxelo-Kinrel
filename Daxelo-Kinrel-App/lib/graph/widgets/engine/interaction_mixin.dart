@@ -591,7 +591,13 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // v97: Convert screen-space hit radius (48px) to graph space.
     final zoom = _camera.zoomLevel;
     final safeZoom = (zoom > 0.001 && zoom.isFinite) ? zoom : 1.0;
-    final hitRadius = 48.0 / safeZoom; // 48px screen-space touch target
+    // v5.62: 50px screen-space touch target. Bumped from 48px for a
+    // slightly more forgiving grab radius — the heart is visually
+    // smaller than a circular dot, so a touch extra padding helps
+    // mobile users grab it without having to pixel-aim. This is the
+    // "invisible circular touch target of roughly 40-44px" the user
+    // asked for (50px gives a small margin above that range).
+    final hitRadius = 50.0 / safeZoom;
 
     // v5.59: Read the saved edge waypoints so the hit-test accounts for
     // the user's dragged control point position. Without this, the
@@ -626,18 +632,33 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
         coupleUnions: _currentCoupleUnions,
         positionOf: (id) => _currentPositionsWithOffset[id],
       );
-      // v5.59: Compute the ACTUAL control point position — the linear
-      // midpoint PLUS the user's dragged waypoint delta (if any).
-      // This ensures the hit-test tracks the visible dot's current
-      // position, not the original geometric center.
-      final linearMid = Offset(
-        (resolved.source.dx + resolved.target.dx) / 2,
-        (resolved.source.dy + resolved.target.dy) / 2,
-      );
+      // v5.62: Compute the EXACT visual midpoint — the SAME position
+      // the painter renders the dot/heart marker at. This is the
+      // single source of truth (EngineEdgePainter.computeVisualMidpoint),
+      // shared between the painter and this hit-tester so they can
+      // NEVER drift apart.
+      //
+      // Previously (v5.59–v5.61) this computed `linearMid +
+      // waypointDelta`, which is the QUADRATIC BEZIER CONTROL POINT
+      // position — NOT the curve's visual midpoint. For the default
+      // (non-dragged) perpendicular-bow curve, the visual midpoint is
+      // `linearMid + 0.75·bow`, which differs from `linearMid` by up
+      // to 75px. At high zoom, the 50px screen hit radius shrinks in
+      // graph space (e.g. zoom=2 → 25 graph units), so the offset
+      // exceeded the radius and the dot became untouchable — the
+      // "lines undraggable after zoom" bug.
+      //
+      // By using the shared helper, the hit-test position is now
+      // IDENTICAL to the rendered marker position at every zoom level.
       final waypointDelta = allEdgeWaypoints[e.id] ?? Offset.zero;
-      final actualControlPoint = linearMid + waypointDelta;
+      final visualMid = EngineEdgePainter.computeVisualMidpoint(
+        resolved.source,
+        resolved.target,
+        lateralOffset: deduped.lateralOffset,
+        waypointDelta: waypointDelta,
+      );
 
-      final dist = (actualControlPoint - graphPos).distance;
+      final dist = (visualMid - graphPos).distance;
       if (dist < hitRadius && dist < bestDist) {
         bestDist = dist;
         bestId = e.id;
@@ -1253,12 +1274,26 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
         coupleUnions: _currentCoupleUnions,
         positionOf: (id) => _currentPositionsWithOffset[id],
       );
-      // The true t=0.5 bezier midpoint (Painter uses PathMetrics for
-      // this; we approximate with the linear midpoint of the EFFECTIVE
-      // endpoints because that's the math the override is stored
-      // relative to — see EngineEdgePainter._bezier: when waypointDelta
-      // is non-zero, the curve is built through (linear_mid + delta),
-      // so storing delta relative to linear_mid is correct).
+      // The LINEAR midpoint of the EFFECTIVE endpoints. The override
+      // is stored relative to this position (NOT the visual midpoint).
+      //
+      // v5.62: This is correct because the painter's _bezier (waypoint
+      // case) now uses a CUBIC bezier constructed so its t=0.5 point
+      // (the visual midpoint, where the dot/heart is rendered) equals
+      // EXACTLY `linearMid + waypointDelta`. So:
+      //   - User drags finger to position X.
+      //   - We store `delta = X - linearMid`.
+      //   - Painter renders the curve with `waypointDelta = delta`.
+      //   - The curve's visual midpoint = `linearMid + delta` = X.
+      //   - The dot/heart appears EXACTLY where the finger is.
+      //   - The hit-test (using computeVisualMidpoint) checks the same
+      //     position, so the dot stays grabbable at every zoom level.
+      //
+      // v5.58–v5.61 used a QUADRATIC bezier, where the visual midpoint
+      // was `linearMid + delta/2` — the dot lagged behind the finger
+      // by half the drag distance, and the hit-test (which checked
+      // `linearMid + delta`) was offset from the rendered dot by
+      // `delta/2`. The cubic bezier eliminates this drift entirely.
       final trueMid = Offset(
         (resolved.source.dx + resolved.target.dx) / 2,
         (resolved.source.dy + resolved.target.dy) / 2,
