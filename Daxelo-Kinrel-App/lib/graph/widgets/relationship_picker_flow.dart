@@ -421,6 +421,10 @@ Future<void> showRelationshipPickerFlow({
         friendlyError = 'This person already has a parent.';
       } else if (e.code == 'circular_parentage') {
         friendlyError = 'This connection would create a family cycle.';
+      } else if (e.code == 'spouse_ancestor_conflict') {
+        // v5.70: Show the specific conflict message from the validation.
+        // The message already names the people + the conflict.
+        friendlyError = e.message;
       } else {
         friendlyError = 'Couldn\'t create this connection. ${e.message}';
       }

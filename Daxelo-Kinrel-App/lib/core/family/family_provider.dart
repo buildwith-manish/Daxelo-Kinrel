@@ -17,7 +17,7 @@ import '../widgets/person_avatar.dart';
 import '../viewer/viewer_provider.dart' show viewerPersonIdProvider, invalidateViewerCache; // v5.10
 import '../kinship/automatic_kinship_inference.dart'
     show inferKinshipEdges, filterExistingEdges; // v5.11
-import '../../graph/interaction/relationship_validation.dart' show validateRelationship, RelationshipValidationException, GraphEditCommand, GraphEditType, graphUndoProvider;
+import '../../graph/interaction/relationship_validation.dart' show validateRelationship, RelationshipValidationException, GraphEditCommand, GraphEditType, graphUndoProvider, buildAncestorMap, auditFamilyRelationshipConflicts, RelationshipConflict;
 import '../database/isar_database.dart';
 import '../database/app_database.dart';
 import '../database/repositories/offline_family_repository.dart';
@@ -2468,6 +2468,7 @@ Future<FamilyRelationship> createRelationship({
           .from('Relationship')
           .select('id, "fromPersonId", "toPersonId", "relationshipKey"')
           .eq('familyId', familyId)
+          .eq('isActive', true)
           .timeout(const Duration(seconds: 10));
       final existingEdges = <({String fromId, String toId, String edgeId, String relationshipKey})>[
         for (final r in existingRels)
@@ -2478,11 +2479,33 @@ Future<FamilyRelationship> createRelationship({
             relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
           ),
       ];
+      // v5.70: Build the ancestor map for circular-parentage + spouse-
+      // ancestor-conflict checks. Uses the SAME BFS logic as the
+      // family-wide audit.
+      final ancestorMap = buildAncestorMap(existingEdges);
+      // v5.70: Fetch person names for human-readable error messages.
+      final personNames = <String, String>{};
+      try {
+        final personsData = await client
+            .from('Person')
+            .select('id, name')
+            .eq('familyId', familyId)
+            .isFilter('deletedAt', null)
+            .timeout(const Duration(seconds: 5));
+        for (final p in personsData) {
+          personNames[p['id'] as String? ?? ''] =
+              (p['name'] as String?) ?? 'Unknown';
+        }
+      } catch (_) {
+        // Non-fatal — error messages will use IDs instead of names.
+      }
       final validation = validateRelationship(
         fromPersonId: fromPersonId,
         toPersonId: toPersonId,
         relationshipKey: relationshipKey,
         existingEdges: existingEdges,
+        ancestorMap: ancestorMap,
+        personNames: personNames,
       );
       if (validation.isError) {
         // v102 (BUG-3 FIX): Throw a typed RelationshipValidationException
@@ -3683,6 +3706,70 @@ Future<RelationshipUpdateResult> updateRelationship({
     }
   } catch (e) {
     debugPrint('[UPDATE-REL] Could not look up inverse edge (non-fatal): $e');
+  }
+
+  // v5.70: VALIDATE the new relationship type before updating.
+  // This runs the SAME validation as createRelationship, including the
+  // new spouse_ancestor_conflict check. The validation uses the
+  // EXISTING edges (minus the edge being updated) to check if the new
+  // relationship type would create a logically impossible structure.
+  //
+  // We temporarily EXCLUDE the edge being updated from existingEdges
+  // so the validation doesn't see the OLD relationship as a duplicate
+  // of the NEW one (we're replacing it, not adding alongside).
+  {
+    final allRels = await withRetry(
+      () => client
+          .from(_kRelationshipTable)
+          .select('id, "fromPersonId", "toPersonId", "relationshipKey"')
+          .eq('familyId', familyId)
+          .eq('isActive', true)
+          .timeout(const Duration(seconds: 10)),
+      operationName: 'Fetch all edges for update validation',
+    );
+    // Exclude the edge being updated + its inverse (if any).
+    final excludeIds = {relationshipId, if (inverseRelationshipId != null) inverseRelationshipId!};
+    final existingEdgesForValidation = <({String fromId, String toId, String edgeId, String relationshipKey})>[
+      for (final r in allRels)
+        if (!excludeIds.contains(r['id']))
+          (
+            fromId: (r['fromPersonId'] ?? '').toString(),
+            toId: (r['toPersonId'] ?? '').toString(),
+            edgeId: (r['id'] ?? '').toString(),
+            relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
+          ),
+    ];
+    final ancestorMap = buildAncestorMap(existingEdgesForValidation);
+    // Fetch person names for human-readable error messages.
+    final personNames = <String, String>{};
+    try {
+      final personsData = await client
+          .from('Person')
+          .select('id, name')
+          .eq('familyId', familyId)
+          .isFilter('deletedAt', null)
+          .timeout(const Duration(seconds: 5));
+      for (final p in personsData) {
+        personNames[p['id'] as String? ?? ''] =
+            (p['name'] as String?) ?? 'Unknown';
+      }
+    } catch (_) {
+      // Non-fatal — error messages will use IDs instead of names.
+    }
+    final validation = validateRelationship(
+      fromPersonId: fromPersonId,
+      toPersonId: toPersonId,
+      relationshipKey: newSpecificLabelAtoB,
+      existingEdges: existingEdgesForValidation,
+      ancestorMap: ancestorMap,
+      personNames: personNames,
+    );
+    if (validation.isError) {
+      throw RelationshipValidationException(
+        validation.message,
+        validation.code ?? 'unknown',
+      );
+    }
   }
 
   // v5.68 (BUG A FIX): IN-PLACE UPDATE instead of deactivate+reinsert.

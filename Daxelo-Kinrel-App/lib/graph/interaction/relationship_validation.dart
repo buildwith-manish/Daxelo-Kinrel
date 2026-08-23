@@ -108,15 +108,19 @@ class RelationshipValidationResult {
 /// edgeId, relationshipKey) tuples. Used to detect duplicates +
 /// cycles.
 /// [ancestorMap] — optional map of personId → set of ancestor IDs.
-/// Used for circular parent ancestry detection. If null, cycle
-/// detection is skipped (the caller should build this from BFS if
-/// available).
+/// Used for circular parent ancestry detection AND for the
+/// spouse-ancestor-conflict check. If null, both checks are skipped
+/// (the caller should build this from BFS if available).
+/// [personNames] — optional map of personId → display name, used to
+/// build human-readable conflict messages. If null, IDs are used
+/// instead of names.
 RelationshipValidationResult validateRelationship({
   required String fromPersonId,
   required String toPersonId,
   required String relationshipKey,
   required List<({String fromId, String toId, String edgeId, String relationshipKey})> existingEdges,
   Map<String, Set<String>>? ancestorMap,
+  Map<String, String>? personNames,
 }) {
   // ── ERROR: Self-relationship ──
   if (fromPersonId == toPersonId) {
@@ -350,8 +354,398 @@ RelationshipValidationResult validateRelationship({
     }
   }
 
+  // ── ERROR: Spouse-ancestor conflict (v5.70) ──
+  // A person cannot simultaneously be:
+  //   (a) the spouse of person X, AND
+  //   (b) a parent/child (at any generational distance) of someone
+  //       who is ALSO a parent/child of person X.
+  //
+  // Concrete example: JD and HD are married. JD is Manish's father.
+  // If the user tries to set HD's relationship to Manish as "daughter"
+  // — this is BLOCKED, because it would mean HD is simultaneously
+  // Manish's daughter AND married to Manish's father (JD), which is
+  // logically impossible (HD would be her own father's spouse).
+  //
+  // This check uses the ancestorMap (the same BFS-built ancestor set
+  // used for circular-parentage detection). It checks:
+  //   - For a proposed parent/child edge between A and B:
+  //     Does A have a spouse S who is an ancestor of B (or a descendant
+  //     of B)? Does B have a spouse S who is an ancestor of A (or a
+  //     descendant of A)?
+  //   - For a proposed spouse edge between A and B:
+  //     Does A have an ancestor/descendant who is B's spouse? Does B
+  //     have an ancestor/descendant who is A's spouse?
+  //
+  // The check only applies when ancestorMap is available AND the
+  // proposed relationship is either a parent/child edge or a spouse
+  // edge. Sibling/extended/in-law edges are NOT checked (they don't
+  // create the impossible structure).
+  if (ancestorMap != null) {
+    final spouseConflict = _checkSpouseAncestorConflict(
+      fromPersonId: fromPersonId,
+      toPersonId: toPersonId,
+      relationshipKey: key,
+      existingEdges: existingEdges,
+      ancestorMap: ancestorMap,
+      personNames: personNames,
+    );
+    if (spouseConflict != null) {
+      return spouseConflict;
+    }
+  }
+
   // ── All checks passed ──
   return RelationshipValidationResult.ok;
+}
+
+/// v5.70: Checks for the spouse-ancestor conflict.
+///
+/// Returns a [RelationshipValidationResult] with error severity if a
+/// conflict is found, or null if no conflict.
+///
+/// IMPORTANT: This check uses the EXISTING edges (minus the edge being
+/// updated, if this is an update). It does NOT consider the proposed
+/// edge itself as part of the graph when checking. This means:
+///   - If A and B are already spouses, and we're proposing a parent/
+///     child edge between A and C where B is an ancestor of C — that's
+///     blocked (A can't be C's parent while married to C's ancestor B).
+///   - But if A and B are NOT yet spouses, and we're proposing the
+///     spouse edge A-B where A is an ancestor of someone B is a parent
+///     of — that's NOT blocked by this check (the spouse edge is what
+///     we're proposing, so it's not in the existing-edges graph).
+///
+/// The audit function (auditFamilyRelationshipConflicts) catches
+/// conflicts that already exist in the DB — it checks ALL edges
+/// together. The validation check only prevents NEW conflicts from
+/// being created by a single new/changed edge.
+///
+/// See the comment above for the full explanation of the rule.
+RelationshipValidationResult? _checkSpouseAncestorConflict({
+  required String fromPersonId,
+  required String toPersonId,
+  required String relationshipKey,
+  required List<({String fromId, String toId, String edgeId, String relationshipKey})> existingEdges,
+  required Map<String, Set<String>> ancestorMap,
+  Map<String, String>? personNames,
+}) {
+  // Helper: get a person's display name (or fall back to the ID).
+  String nameOf(String id) => personNames?[id] ?? id;
+
+  // Helper: get the set of ancestors for a person (empty if unknown).
+  Set<String> ancestorsOf(String id) => ancestorMap[id] ?? <String>{};
+
+  // Helper: find all spouses of a person from the existing edges.
+  // Returns a set of spouse person IDs.
+  Set<String> spousesOf(String personId) {
+    final spouses = <String>{};
+    const spouseKeys = {'husband', 'wife', 'spouse'};
+    for (final e in existingEdges) {
+      final k = e.relationshipKey.toLowerCase();
+      if (!spouseKeys.contains(k)) continue;
+      if (e.fromId == personId) {
+        spouses.add(e.toId);
+      } else if (e.toId == personId) {
+        spouses.add(e.fromId);
+      }
+    }
+    return spouses;
+  }
+
+  const parentKeys = {'father', 'mother', 'parent'};
+  const childKeys = {'son', 'daughter', 'child'};
+  const spouseKeys = {'husband', 'wife', 'spouse'};
+
+  // ── Case 1: Proposed PARENT/CHILD edge ──
+  // from=A, to=B, key in {father, mother, parent, son, daughter, child}
+  if (parentKeys.contains(relationshipKey) ||
+      childKeys.contains(relationshipKey)) {
+    // Determine who is the "parent" and who is the "child" in the
+    // proposed edge.
+    // key in {father, mother, parent} → from is the child, to is the
+    //   parent (labelAtoB = "toPerson is fromPerson's father/mother")
+    //   Wait — actually the convention is: from=A, to=B, key='father'
+    //   means "B is A's father" → A is the child, B is the parent.
+    // key in {son, daughter, child} → from is the parent, to is the
+    //   child ("B is A's son" → A is the parent, B is the child).
+    final String childId;
+    final String parentId;
+    if (parentKeys.contains(relationshipKey)) {
+      childId = fromPersonId;
+      parentId = toPersonId;
+    } else {
+      childId = toPersonId;
+      parentId = fromPersonId;
+    }
+
+    // Check: does the PARENT have a spouse who is an ancestor of the
+    // CHILD? (e.g. JD is Manish's father, HD is JD's spouse, HD is
+    // an ancestor of Manish → conflict)
+    final parentSpouses = spousesOf(parentId);
+    for (final spouse in parentSpouses) {
+      if (spouse == childId) continue; // same person, skip
+      // Is the spouse an ancestor of the child?
+      if (ancestorsOf(childId).contains(spouse)) {
+        return RelationshipValidationResult(
+          severity: ValidationSeverity.error,
+          message: 'This would make ${nameOf(parentId)} the parent of '
+              '${nameOf(childId)}, but ${nameOf(parentId)} is married to '
+              '${nameOf(spouse)} who is already an ancestor of '
+              '${nameOf(childId)}. A person cannot be both the spouse of '
+              'an ancestor and a parent of the descendant.',
+          code: 'spouse_ancestor_conflict',
+        );
+      }
+      // Is the child an ancestor of the spouse? (reverse direction)
+      if (ancestorsOf(spouse).contains(childId)) {
+        return RelationshipValidationResult(
+          severity: ValidationSeverity.error,
+          message: 'This would make ${nameOf(parentId)} the parent of '
+              '${nameOf(childId)}, but ${nameOf(parentId)} is married to '
+              '${nameOf(spouse)} who is a descendant of '
+              '${nameOf(childId)}. A person cannot be both the spouse of '
+              'a descendant and a parent of the ancestor.',
+          code: 'spouse_ancestor_conflict',
+        );
+      }
+    }
+
+    // Check: does the CHILD have a spouse who is an ancestor of the
+    // PARENT? (symmetric case)
+    final childSpouses = spousesOf(childId);
+    for (final spouse in childSpouses) {
+      if (spouse == parentId) continue;
+      if (ancestorsOf(parentId).contains(spouse)) {
+        return RelationshipValidationResult(
+          severity: ValidationSeverity.error,
+          message: 'This would make ${nameOf(parentId)} the parent of '
+              '${nameOf(childId)}, but ${nameOf(childId)} is married to '
+              '${nameOf(spouse)} who is an ancestor of '
+              '${nameOf(parentId)}. These relationships conflict.',
+          code: 'spouse_ancestor_conflict',
+        );
+      }
+      if (ancestorsOf(spouse).contains(parentId)) {
+        return RelationshipValidationResult(
+          severity: ValidationSeverity.error,
+          message: 'This would make ${nameOf(parentId)} the parent of '
+              '${nameOf(childId)}, but ${nameOf(childId)} is married to '
+              '${nameOf(spouse)} who is a descendant of '
+              '${nameOf(parentId)}. These relationships conflict.',
+          code: 'spouse_ancestor_conflict',
+        );
+      }
+    }
+  }
+
+  // ── Case 2: Proposed SPOUSE edge ──
+  // from=A, to=B, key in {husband, wife, spouse}
+  if (spouseKeys.contains(relationshipKey)) {
+    // Check: does A have an ancestor who is B's spouse?
+    // Or: does B have an ancestor who is A's spouse?
+    final aAncestors = ancestorsOf(fromPersonId);
+    final bAncestors = ancestorsOf(toPersonId);
+    final aSpouses = spousesOf(fromPersonId);
+    final bSpouses = spousesOf(toPersonId);
+
+    // Is any ancestor of A a spouse of B?
+    for (final ancestor in aAncestors) {
+      if (bSpouses.contains(ancestor)) {
+        return RelationshipValidationResult(
+          severity: ValidationSeverity.error,
+          message: 'This would make ${nameOf(fromPersonId)} and '
+              '${nameOf(toPersonId)} spouses, but ${nameOf(ancestor)} '
+              '(an ancestor of ${nameOf(fromPersonId)}) is already '
+              'married to ${nameOf(toPersonId)}. These relationships '
+              'conflict.',
+          code: 'spouse_ancestor_conflict',
+        );
+      }
+    }
+    // Is any ancestor of B a spouse of A?
+    for (final ancestor in bAncestors) {
+      if (aSpouses.contains(ancestor)) {
+        return RelationshipValidationResult(
+          severity: ValidationSeverity.error,
+          message: 'This would make ${nameOf(fromPersonId)} and '
+              '${nameOf(toPersonId)} spouses, but ${nameOf(ancestor)} '
+              '(an ancestor of ${nameOf(toPersonId)}) is already '
+              'married to ${nameOf(fromPersonId)}. These relationships '
+              'conflict.',
+          code: 'spouse_ancestor_conflict',
+        );
+      }
+    }
+  }
+
+  return null; // No conflict found.
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v5.70: ANCESTOR MAP BUILDER + FAMILY-WIDE CONFLICT AUDIT
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Builds an ancestor map from a list of existing edges.
+///
+/// Returns a map of personId → set of ancestor IDs (all persons the
+/// key person descends from, at any generational distance).
+///
+/// An edge from=A, to=B, key in {father, mother, parent} means
+/// "B is A's parent" → B is an ancestor of A.
+/// An edge from=A, to=B, key in {son, daughter, child} means
+/// "B is A's child" → A is an ancestor of B.
+///
+/// Uses BFS to traverse the parent chain transitively (grandparents,
+/// great-grandparents, etc. are all included).
+Map<String, Set<String>> buildAncestorMap(
+  List<({String fromId, String toId, String edgeId, String relationshipKey})> existingEdges,
+) {
+  // Step 1: Build a direct-parent adjacency map.
+  // parentOf[childId] = {parentId1, parentId2, ...}
+  final parentOf = <String, Set<String>>{};
+  const parentKeys = {'father', 'mother', 'parent'};
+  const childKeys = {'son', 'daughter', 'child'};
+
+  for (final e in existingEdges) {
+    final k = e.relationshipKey.toLowerCase();
+    if (parentKeys.contains(k)) {
+      // from=A (child), to=B (parent) → B is parent of A
+      parentOf.putIfAbsent(e.fromId, () => <String>{}).add(e.toId);
+    } else if (childKeys.contains(k)) {
+      // from=A (parent), to=B (child) → A is parent of B
+      parentOf.putIfAbsent(e.toId, () => <String>{}).add(e.fromId);
+    }
+  }
+
+  // Step 2: BFS to compute the transitive ancestor set for each person.
+  final ancestorMap = <String, Set<String>>{};
+  for (final personId in parentOf.keys) {
+    final ancestors = <String>{};
+    final queue = <String>[...parentOf[personId] ?? <String>{}];
+    while (queue.isNotEmpty) {
+      final current = queue.removeAt(0);
+      if (ancestors.contains(current)) continue; // already visited
+      ancestors.add(current);
+      // Add this ancestor's own parents to the queue.
+      queue.addAll(parentOf[current] ?? <String>{});
+    }
+    ancestorMap[personId] = ancestors;
+  }
+
+  return ancestorMap;
+}
+
+/// v5.70: Audit result for a single conflict detected in existing data.
+@immutable
+class RelationshipConflict {
+  const RelationshipConflict({
+    required this.personA,
+    required this.personB,
+    required this.personC,
+    required this.description,
+  });
+
+  /// The person who is caught in the conflicting structure.
+  final String personA;
+
+  /// The spouse of personA.
+  final String personB;
+
+  /// The ancestor/descendant of personA who is also personA's
+  /// parent/child.
+  final String personC;
+
+  /// Human-readable description of the conflict.
+  final String description;
+
+  @override
+  String toString() => 'RelationshipConflict($description)';
+}
+
+/// v5.70: Audits ALL existing relationships in a family for the
+/// spouse-ancestor conflict.
+///
+/// Returns a list of [RelationshipConflict]s, one per detected
+/// inconsistency. Returns an empty list if no conflicts are found.
+///
+/// This is used to surface existing data corruption (from earlier
+/// failed update attempts) to the family admin so they can manually
+/// resolve it. The validation check only runs on NEW/CHANGED
+/// relationships — this audit catches problems that already exist
+/// in the DB.
+///
+/// [existingEdges] — all current canonical edges.
+/// [personNames] — optional map of personId → display name, used to
+/// build human-readable conflict descriptions.
+List<RelationshipConflict> auditFamilyRelationshipConflicts({
+  required List<({String fromId, String toId, String edgeId, String relationshipKey})> existingEdges,
+  Map<String, String>? personNames,
+}) {
+  final conflicts = <RelationshipConflict>[];
+  final ancestorMap = buildAncestorMap(existingEdges);
+
+  String nameOf(String id) => personNames?[id] ?? id;
+
+  // Helper: find all spouses of a person.
+  Set<String> spousesOf(String personId) {
+    final spouses = <String>{};
+    const spouseKeys = {'husband', 'wife', 'spouse'};
+    for (final e in existingEdges) {
+      final k = e.relationshipKey.toLowerCase();
+      if (!spouseKeys.contains(k)) continue;
+      if (e.fromId == personId) {
+        spouses.add(e.toId);
+      } else if (e.toId == personId) {
+        spouses.add(e.fromId);
+      }
+    }
+    return spouses;
+  }
+
+  // Check each parent/child edge for the conflict.
+  const parentKeys = {'father', 'mother', 'parent'};
+  const childKeys = {'son', 'daughter', 'child'};
+  final checkedPairs = <String>{};
+
+  for (final e in existingEdges) {
+    final k = e.relationshipKey.toLowerCase();
+    if (!parentKeys.contains(k) && !childKeys.contains(k)) continue;
+
+    final String childId;
+    final String parentId;
+    if (parentKeys.contains(k)) {
+      childId = e.fromId;
+      parentId = e.toId;
+    } else {
+      childId = e.toId;
+      parentId = e.fromId;
+    }
+
+    // Dedup: only check each (parent, child) pair once.
+    final pairKey = [parentId, childId]..sort();
+    final pairKeyStr = '${pairKey[0]}|${pairKey[1]}';
+    if (checkedPairs.contains(pairKeyStr)) continue;
+    checkedPairs.add(pairKeyStr);
+
+    // Check: does the parent have a spouse who is an ancestor of the
+    // child?
+    final parentSpouses = spousesOf(parentId);
+    for (final spouse in parentSpouses) {
+      if (spouse == childId) continue;
+      final childAncestors = ancestorMap[childId] ?? <String>{};
+      if (childAncestors.contains(spouse)) {
+        conflicts.add(RelationshipConflict(
+          personA: parentId,
+          personB: spouse,
+          personC: childId,
+          description: '${nameOf(parentId)} is the parent of '
+              '${nameOf(childId)}, but is also married to ${nameOf(spouse)} '
+              'who is an ancestor of ${nameOf(childId)}.',
+        ));
+      }
+    }
+  }
+
+  return conflicts;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
