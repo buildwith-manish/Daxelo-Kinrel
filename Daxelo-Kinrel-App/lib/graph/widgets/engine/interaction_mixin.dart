@@ -887,64 +887,83 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       return;
     }
 
-    // ── 1. Edge midpoint hit-test (opens Connection screen) ───────
-    // The Connection screen opens ONLY on long-press of the midpoint
-    // indicator (dot/heart). This is deliberate: tapping the midpoint
-    // used to open it, but that caused accidental opens when users
-    // were trying to select a nearby node. Long-press is a more
-    // intentional gesture, and it works consistently on both touch
-    // (press + hold) and desktop (mouse down + hold) — Flutter's
-    // LongPressGestureRecognizer handles both uniformly.
+    // v5.63 (ISSUE 2 FIX): NODE HIT-TEST RUNS FIRST, THEN EDGES.
+    //
+    // Previously the edge midpoint hit-test ran FIRST (50px radius),
+    // which meant that long-pressing a node that happened to be near
+    // a relationship line would open the EDGE sheet (RelationshipInfo)
+    // instead of the NODE sheet (GraphQuickActions with "Relate to
+    // another person"). The user reported that "holding a node does
+    // not surface this 'relate to another person' action for all
+    // nodes — only some" — those "some" were the nodes NOT near a
+    // relationship line.
+    //
+    // The fix: check NODES first. If a node is under the finger,
+    // open the node menu (which always includes "Relate to another
+    // person" — see GraphQuickActions). Only when NO node is hit do
+    // we fall through to the edge midpoint hit-test.
+    //
+    // This ensures long-pressing ANY node always opens the node's
+    // context menu, regardless of how many relationship lines pass
+    // near it.
+
+    // ── 1. Node hit-test → open the member info bottom sheet ──────
+    // Long-press is the ONLY gesture that opens the member information
+    // bottom sheet. A normal tap selects / highlights the node only
+    // (see [_handleNodeTapDown]) and must never open the info panel.
+    final nodeId = _hitTestNode(details.localPosition, layout);
+    if (nodeId != null) {
+      // P3.2: clear "menu opening" haptic on long-press.
+      GraphHaptics.longPress(context);
+
+      // Select / highlight the node so the visual focus follows the
+      // long-pressed node before the sheet opens.
+      ref.read(selectedNodeProvider.notifier).state = nodeId;
+
+      // Resolve the person data and open the quick-actions sheet.
+      final personData = flat.persons
+          .where((p) => p['id'] == nodeId)
+          .firstOrNull;
+      if (personData == null) return;
+
+      final graphPersonData = GraphPersonData(
+        id: nodeId,
+        name: (personData['name'] as String?) ?? '',
+        gender: personData['gender'] as String?,
+        generationIndex:
+            (personData['generationIndex'] as num?)?.toInt() ?? 0,
+        isAnchor: (personData['isAnchor'] as bool?) ?? false,
+        photoUrl: personData['photoUrl'] as String?,
+        isDeceased: (personData['isDeceased'] as bool?) ?? false,
+      );
+      final isAnchor = (personData['isAnchor'] as bool?) ?? false;
+      // v99 (Phase 8): Resolve role from provider — not hardcoded.
+      final _role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
+      final _canRemove = _role == 'admin' || _role == 'owner';
+      GraphQuickActions.show(
+        context,
+        graphPersonData,
+        familyId: widget.familyId,
+        isOwner: _canRemove,
+        isSelf: isAnchor,
+        ref: ref,
+        onFocusPerson: _onFocusPerson,
+        onViewRelationship: _onViewRelationship,
+      );
+      return;
+    }
+
+    // ── 2. Edge midpoint hit-test (opens Connection screen) ───────
+    // Only reached when NO node was under the finger. The Connection
+    // screen opens ONLY on long-press of the midpoint indicator
+    // (dot/heart). This is deliberate: tapping the midpoint used to
+    // open it, but that caused accidental opens when users were trying
+    // to select a nearby node. Long-press is a more intentional gesture.
     final edgeId = _hitTestEdge(details.localPosition);
     if (edgeId != null) {
       _handleEdgeTap(edgeId, flat, viewerPersonId);
       return;
     }
-
-    // ── 2. Node hit-test → open the member info bottom sheet ──────
-    // Long-press is the ONLY gesture that opens the member information
-    // bottom sheet. A normal tap selects / highlights the node only
-    // (see [_handleNodeTapDown]) and must never open the info panel.
-    final nodeId = _hitTestNode(details.localPosition, layout);
-    if (nodeId == null) return;
-
-    // P3.2: clear "menu opening" haptic on long-press.
-    GraphHaptics.longPress(context);
-
-    // Select / highlight the node so the visual focus follows the
-    // long-pressed node before the sheet opens.
-    ref.read(selectedNodeProvider.notifier).state = nodeId;
-
-    // Resolve the person data and open the quick-actions sheet.
-    final personData = flat.persons
-        .where((p) => p['id'] == nodeId)
-        .firstOrNull;
-    if (personData == null) return;
-
-    final graphPersonData = GraphPersonData(
-      id: nodeId,
-      name: (personData['name'] as String?) ?? '',
-      gender: personData['gender'] as String?,
-      generationIndex:
-          (personData['generationIndex'] as num?)?.toInt() ?? 0,
-      isAnchor: (personData['isAnchor'] as bool?) ?? false,
-      photoUrl: personData['photoUrl'] as String?,
-      isDeceased: (personData['isDeceased'] as bool?) ?? false,
-    );
-    final isAnchor = (personData['isAnchor'] as bool?) ?? false;
-    // v99 (Phase 8): Resolve role from provider — not hardcoded.
-    final _role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
-    final _canRemove = _role == 'admin' || _role == 'owner';
-    GraphQuickActions.show(
-      context,
-      graphPersonData,
-      familyId: widget.familyId,
-      isOwner: _canRemove,
-      isSelf: isAnchor,
-      ref: ref,
-      onFocusPerson: _onFocusPerson,
-      onViewRelationship: _onViewRelationship,
-    );
   }
 
   /// Legacy P2.4 drag-update handler.

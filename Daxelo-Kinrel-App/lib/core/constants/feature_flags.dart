@@ -72,7 +72,30 @@ const bool kEnableAudioPronunciation = true;
 /// v5.18: Re-enabled after fixing the labelAtoB directional-convention
 /// bug (v5.17) and updating the inference engine to use the canonical
 /// convention (v5.18).
-const bool kEnableAutoKinshipInference = true;
+///
+/// v5.63: DISABLED. The user reported that creating a relationship
+/// (e.g. "JD is MA's father") silently auto-created an ADDITIONAL
+/// unrequested relationship (HD↔JD spouse edge) without confirmation.
+/// The user wants full control over which relationships get created —
+/// nothing should be added automatically.
+///
+/// The inference engine itself (inferKinshipEdges in
+/// automatic_kinship_inference.dart) is correct and useful — it
+/// identifies likely relationships. The problem is that
+/// _runKinshipInference() in family_provider.dart takes those
+/// suggestions and BULK-INSERTs them as Relationship rows without
+/// asking the user.
+///
+/// To re-enable as a SUGGESTION flow (option (b) from the user's
+/// request): refactor _runKinshipInference() to RETURN the inferred
+/// edges instead of inserting them, then surface them in the UI as
+/// "Based on this, HD and JD might be spouses — would you like to
+/// add this relationship?" prompts that the user can accept or
+/// dismiss. The SpouseInferenceEngine (v4) already follows this
+/// pattern — see lib/core/kinship/v4/spouse_inference_engine.dart.
+///
+/// For now, this flag is false — NO automatic edges are created.
+const bool kEnableAutoKinshipInference = false;
 
 /// Kinrel — Family Relationship Intelligence.
 /// Gates the Kinrel nav entry, the home-screen cover replacement, and the

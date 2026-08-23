@@ -119,6 +119,46 @@ class GraphQuickActions {
                 }
               },
             ),
+            // v5.63 (ISSUE 2 FIX): "Relate to another person" is now the
+            // SECOND item (right after View Profile) so it's immediately
+            // visible without scrolling. This option MUST be available for
+            // EVERY node — it is gated ONLY by `familyId != null &&
+            // ref != null` (both always passed by the caller). There is
+            // NO isSelf/isAnchor/role gate: even the viewer's own node
+            // can be related to another person (e.g. "add my spouse"),
+            // and non-admins can start the flow (the permission check is
+            // deferred to showRelationshipPickerFlow, which shows a
+            // snackbar if the user lacks permission for the specific
+            // pair they select).
+            //
+            // Opens a person picker, then either auto-creates a
+            // relationship (if the kinship engine can derive one from
+            // existing edges) or opens the full-featured
+            // RelationshipPickerSheet (v5.14: search bar + categories,
+            // 5,300+ terms). Then calls createRelationship().
+            if (familyId != null && ref != null)
+              ListTile(
+                leading: const Icon(Icons.link_rounded,
+                    color: KinrelColors.tealAccent),
+                title: const Text(
+                  'Relate to another person',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  // v5.10: Use the shared relationship picker flow
+                  // (extracted from _showPersonListAndAutoCreate).
+                  showRelationshipPickerFlow(
+                    context: context,
+                    ref: ref!,
+                    familyId: familyId!,
+                    sourcePerson: person,
+                  );
+                },
+              ),
             // v98 (Phase 2): "How are we related?" — resolves the
             // relationship path from the viewer to this person.
             if (onViewRelationship != null)
@@ -273,34 +313,6 @@ class GraphQuickActions {
                 }
               },
             ),
-            // v5.0: "Relate to another person" — opens a person picker,
-            // then either auto-creates a relationship (if the kinship
-            // engine can derive one from existing edges) or opens the
-            // full-featured RelationshipPickerSheet (v5.14: search bar +
-            // categories, 5,300+ terms). Then calls createRelationship()
-            if (familyId != null && ref != null)
-              ListTile(
-                leading: const Icon(Icons.link_rounded,
-                    color: KinrelColors.tealAccent),
-                title: const Text(
-                  'Relate to another person',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  // v5.10: Use the shared relationship picker flow
-                  // (extracted from _showPersonListAndAutoCreate).
-                  showRelationshipPickerFlow(
-                    context: context,
-                    ref: ref!,
-                    familyId: familyId!,
-                    sourcePerson: person,
-                  );
-                },
-              ),
             // Remove Member — shown for all non-self nodes (not just non-anchor)
             if (!isSelf && familyId != null) ...[
               const Divider(color: Color(0x1AFFFFFF), height: 1.0),
