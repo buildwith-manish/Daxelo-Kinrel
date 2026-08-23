@@ -592,6 +592,20 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     final zoom = _camera.zoomLevel;
     final safeZoom = (zoom > 0.001 && zoom.isFinite) ? zoom : 1.0;
     final hitRadius = 48.0 / safeZoom; // 48px screen-space touch target
+
+    // v5.59: Read the saved edge waypoints so the hit-test accounts for
+    // the user's dragged control point position. Without this, the
+    // hit-test always checks the LINEAR midpoint (the original center
+    // between the two nodes), even when the control point has been
+    // dragged far away from that center.
+    final savedOverrides = ref
+        .read(personalLayoutOverridesProvider(widget.familyId))
+        .valueOrNull;
+    final Map<String, Offset> allEdgeWaypoints = {
+      ...?savedOverrides?.edgeWaypoints,
+      ..._rearrangeLiveEdgeWaypoints,
+    };
+
     String? bestId;
     double bestDist = double.infinity;
     for (final deduped in _currentEdges) {
@@ -612,15 +626,18 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
         coupleUnions: _currentCoupleUnions,
         positionOf: (id) => _currentPositionsWithOffset[id],
       );
-      // The midpoint is the visual center of the edge. For Bézier
-      // curves the actual PathMetric 50% tangent position may differ
-      // slightly, but for hit-testing the geometric midpoint is a
-      // close-enough approximation and is O(1) per edge.
-      final mid = Offset(
+      // v5.59: Compute the ACTUAL control point position — the linear
+      // midpoint PLUS the user's dragged waypoint delta (if any).
+      // This ensures the hit-test tracks the visible dot's current
+      // position, not the original geometric center.
+      final linearMid = Offset(
         (resolved.source.dx + resolved.target.dx) / 2,
         (resolved.source.dy + resolved.target.dy) / 2,
       );
-      final dist = (mid - graphPos).distance;
+      final waypointDelta = allEdgeWaypoints[e.id] ?? Offset.zero;
+      final actualControlPoint = linearMid + waypointDelta;
+
+      final dist = (actualControlPoint - graphPos).distance;
       if (dist < hitRadius && dist < bestDist) {
         bestDist = dist;
         bestId = e.id;
