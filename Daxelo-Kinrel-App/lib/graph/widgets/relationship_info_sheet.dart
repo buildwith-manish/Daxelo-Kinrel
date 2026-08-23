@@ -450,6 +450,9 @@ class _RelationshipInfoContentState
     final familyId = widget.familyId!;
     final edgeId = widget.edgeId!;
 
+    // v5.80: We no longer pop before the update (see below).
+    // The WidgetRef `ref` stays valid until after the update completes.
+
     // v5.67: Capture navigator + messenger BEFORE pop — they remain
     // valid after the widget is disposed (Navigator and ScaffoldMessenger
     // are inherited widgets tied to the root, not to this sheet).
@@ -471,8 +474,19 @@ class _RelationshipInfoContentState
             .toList() ??
         const <String>[];
 
-    // Close the info sheet FIRST so the picker sheet can show on top.
-    navigator.pop();
+    // v5.80 (DISPOSE FIX): DON'T pop the sheet before the update.
+    // Previously, navigator.pop() was called here to close the
+    // Connection sheet so the picker could show on top. But after
+    // pop, the widget is disposed and `ref` becomes invalid —
+    // causing "Cannot use ref after the widget was disposed" crash
+    // when updateRelationship tries to use ref.
+    //
+    // Flutter supports stacked modals, so the picker sheet CAN show
+    // on top of this sheet. We pop THIS sheet AFTER the update
+    // completes (at the end of the try/catch block below).
+    //
+    // The picker uses navigator.context (captured before any pop),
+    // which remains valid because Navigator is a root-level widget.
 
     // Open the picker. The user picks a new relationship type for
     // the SAME pair of people (source → target).
@@ -482,7 +496,11 @@ class _RelationshipInfoContentState
       personBName: targetName,
       existingRelationshipTypes: existingRels,
     );
-    if (pickedKey == null) return; // User cancelled.
+    if (pickedKey == null) {
+      // User cancelled — pop the Connection sheet.
+      navigator.pop();
+      return;
+    }
 
     // Build the canonical edge input (maps the specific label to the
     // fundamental DB edge type — e.g. 'father' → 'parent').
@@ -505,6 +523,9 @@ class _RelationshipInfoContentState
         toPersonGender: targetGender,
       );
 
+      // v5.80: Now pop the Connection sheet (after the update succeeded).
+      navigator.pop();
+
       // Show a confirmation snackbar with an Undo action.
       final newLabel = _formatKey(edgeInput.specificLabelAtoB);
       messenger?.showSnackBar(
@@ -517,9 +538,15 @@ class _RelationshipInfoContentState
             label: 'Undo',
             textColor: KinrelColors.tealAccent,
             onPressed: () async {
+              // v5.80: The widget is disposed by now (we popped above).
+              // We can't use `ref` — the undo might fail. That's OK —
+              // the primary update already succeeded. The user can
+              // manually re-change the relationship if undo fails.
               try {
-                await undoUpdateRelationship(
-                  ref: ref,
+                final undoContainer = ProviderScope.containerOf(
+                    navigator.context);
+                await undoUpdateRelationshipWithContainer(
+                  container: undoContainer,
                   familyId: familyId,
                   updateResult: result,
                 );

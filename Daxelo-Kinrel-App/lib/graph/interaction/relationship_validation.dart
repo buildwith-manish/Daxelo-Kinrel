@@ -247,16 +247,33 @@ RelationshipValidationResult validateRelationship({
     //       parent is X (forward parent-edge).
     //   (b) `from=X, to=A, key in {son, daughter, child}` — X's child
     //       is A (inverse child-edge).
+    //
+    // v5.80 (DUPLICATE PARENT FIX): The hasNeutral check was REMOVED.
+    // Previously, if either the new key OR the existing key was
+    // 'parent' (gender-neutral), the check blocked the addition —
+    // even if the two parents were different genders (e.g. adding
+    // 'father' when 'parent' already existed, where 'parent' could
+    // be the mother). This was too aggressive and blocked legitimate
+    // father + mother combinations.
+    //
+    // Now we ONLY block when the genders are the SAME:
+    //   - father + father → blocked
+    //   - mother + mother → blocked
+    //   - father + mother → allowed (different genders)
+    //   - father + parent → allowed (parent is neutral, could be
+    //     either gender — the user will specify via labelAtoB)
+    //   - parent + parent → blocked (can't tell if same gender)
     final childId = fromPersonId;
     for (final e in existingEdges) {
       final existingKey = e.relationshipKey.toLowerCase();
       // Case (a): existing forward parent-edge where A is the child.
       if (e.fromId == childId &&
           (existingKey == 'father' || existingKey == 'mother' || existingKey == 'parent')) {
-        // Allow father + mother (opposite genders).
+        // v5.80: Only block same-gender duplicates.
         final sameGender = existingKey == key;
-        final hasNeutral = key == 'parent' || existingKey == 'parent';
-        if (sameGender || hasNeutral) {
+        // Both neutral → can't tell, block conservatively.
+        final bothNeutral = key == 'parent' && existingKey == 'parent';
+        if (sameGender || bothNeutral) {
           return RelationshipValidationResult(
             severity: ValidationSeverity.error,
             message: 'This person already has a $key. Remove the existing '
@@ -287,6 +304,9 @@ RelationshipValidationResult validateRelationship({
     //       parent is X (forward parent-edge).
     //   (b) `from=X, to=B, key in {son, daughter, child}` — X's child
     //       is B (inverse child-edge).
+    //
+    // v5.80: Same fix as above — removed hasNeutral, only block
+    // same-gender or both-neutral.
     final childId = toPersonId;
     for (final e in existingEdges) {
       final existingKey = e.relationshipKey.toLowerCase();
@@ -294,8 +314,8 @@ RelationshipValidationResult validateRelationship({
       if (e.fromId == childId &&
           (existingKey == 'father' || existingKey == 'mother' || existingKey == 'parent')) {
         final sameGender = existingKey == key;
-        final hasNeutral = key == 'child' || existingKey == 'parent';
-        if (sameGender || hasNeutral) {
+        final bothNeutral = key == 'child' && existingKey == 'parent';
+        if (sameGender || bothNeutral) {
           return RelationshipValidationResult(
             severity: ValidationSeverity.error,
             message: 'This person already has a parent. Remove the existing '

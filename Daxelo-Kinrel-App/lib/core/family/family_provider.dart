@@ -4014,7 +4014,68 @@ Future<void> undoUpdateRelationship({
   }
 }
 
-/// v5.64: Reverts a [deleteRelationship] call — re-activates the
+/// v5.80: Wrapper for undoUpdateRelationship that accepts a
+/// ProviderContainer instead of WidgetRef. Used by the Undo
+/// snackbar callback after the widget is disposed.
+Future<void> undoUpdateRelationshipWithContainer({
+  required ProviderContainer container,
+  required String familyId,
+  required RelationshipUpdateResult updateResult,
+}) async {
+  final client = container.read(supabaseProvider);
+  if (client == null) {
+    throw Exception('Database is not connected.');
+  }
+  final now = DateTime.now().toIso8601String();
+
+  // 1. Restore the forward row to its old values.
+  try {
+    await withRetry(
+      () => client.from(_kRelationshipTable).update({
+        'relationshipKey': updateResult.oldForwardRelationshipKey,
+        'relationshipType': updateResult.oldForwardRelationshipKey,
+        'labelAtoB': updateResult.oldForwardLabelAtoB,
+        'labelBtoA': updateResult.oldForwardLabelBtoA,
+        'updatedAt': now,
+      }).eq('id', updateResult.forwardId),
+      operationName: 'Restore forward relationship for undo (container)',
+    );
+  } catch (e) {
+    debugPrint('[UNDO-UPDATE-REL] Could not restore forward (non-fatal): $e');
+  }
+
+  // 2. Restore the inverse row (if it had old values).
+  if (updateResult.oldInverseLabelAtoB != null) {
+    try {
+      await withRetry(
+        () => client.from(_kRelationshipTable).update({
+          'relationshipKey': _mapToFundamentalDbType(
+              updateResult.oldInverseLabelAtoB!),
+          'relationshipType': _mapToFundamentalDbType(
+              updateResult.oldInverseLabelAtoB!),
+          'labelAtoB': updateResult.oldInverseLabelAtoB,
+          'labelBtoA': updateResult.oldInverseLabelBtoA,
+          'updatedAt': now,
+        }).eq('id', updateResult.inverseId),
+        operationName: 'Restore inverse relationship for undo (container)',
+      );
+    } catch (e) {
+      debugPrint('[UNDO-UPDATE-REL] Could not restore inverse (non-fatal): $e');
+    }
+  }
+
+  // 3. Invalidate providers + clear graph cache.
+  container.invalidate(familyRelationshipsProvider(familyId));
+  container.invalidate(familyDetailProvider(familyId));
+  container.invalidate(unifiedFamilyRosterProvider(familyId));
+  FamilyGraphNotifier.clearCache(familyId);
+  container.invalidate(familyGraphProvider(familyId));
+  if (IsarDatabase.isInitialized) {
+    try {
+      await CacheInvalidation.invalidateFamily(familyId);
+    } catch (_) {}
+  }
+}
 /// soft-deleted rows. Used by the Undo action on the "Relationship
 /// removed" snackbar.
 ///
