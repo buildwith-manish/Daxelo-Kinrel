@@ -1206,7 +1206,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         if (mounted) setState(() => _isSubmitting = false);
         messenger?.showSnackBar(
           SnackBar(
-            content: Text('Could not send invitation: ${result.message}'),
+            content: Text(result.message),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 4),
@@ -1219,7 +1219,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       }
       messenger?.showSnackBar(
         SnackBar(
-          content: Text('Could not send invitation: $e'),
+          content: Text('Invitation failed: $e'),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 4),

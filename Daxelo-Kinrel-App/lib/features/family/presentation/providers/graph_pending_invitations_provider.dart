@@ -287,7 +287,11 @@ class GraphPendingInvitationsNotifier
       }
       // RPC returned success=false — extract the error code + message
       final errorCode = result['error'] as String? ?? 'unknown';
-      final message = result['message'] as String? ?? 'Could not send invitation';
+      // v5.83: Use the RPC's 'message' field if available, otherwise
+      // fall back to the 'error' field (which is a shorter code/string).
+      // Previously defaulted to 'Could not send invitation' which caused
+      // the doubled message: "Could not send invitation: Could not send invitation".
+      final message = result['message'] as String? ?? result['error'] as String? ?? 'Unknown error';
       debugPrint('[graphPendingInvitations] create failed: $errorCode — $message');
       return InvitationResult(
         success: false,
@@ -295,11 +299,13 @@ class GraphPendingInvitationsNotifier
         message: message,
       );
     } catch (e) {
+      // v5.83: Log the full error for diagnosis.
       debugPrint('[graphPendingInvitations] create error: $e');
+      String errorMsg = 'Network error: $e';
       return InvitationResult(
         success: false,
         errorCode: 'network_error',
-        message: 'Network error: $e',
+        message: errorMsg,
       );
     }
   }
