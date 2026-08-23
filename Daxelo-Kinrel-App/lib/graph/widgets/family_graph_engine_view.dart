@@ -1314,6 +1314,33 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                         child: const Icon(Icons.arrow_back),
                       ),
                     ),
+                  // v5.65 (ISOLATE CONNECTIONS): Persistent "Showing: X's
+                  // connections — Show all" chip. Appears whenever a person
+                  // is focused (isolation active). Tapping "Show all" (or
+                  // the X icon) clears the focus and restores full opacity
+                  // to the entire graph.
+                  //
+                  // Positioned at top-center so it doesn't conflict with
+                  // the top-left Focus Back FAB or the top-right graph
+                  // controls. Hidden during Rearrange mode (the isolation
+                  // visual would interfere with drag feedback).
+                  if (ref.watch(graphFocusProvider.select(
+                          (s) => s.focusedPersonId != null)) &&
+                      !rearrangeMode)
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + 8,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: _IsolateConnectionsChip(
+                          personName: ref.watch(graphFocusProvider.select(
+                              (s) => s.focusedPersonName ?? '')),
+                          onShowAll: () {
+                            ref.read(graphFocusProvider.notifier).clearFocus();
+                          },
+                        ),
+                      ),
+                    ),
                   // P4.1: Mini-map
                   // v5.25 (distraction-free Rearrange): hide during
                   // Rearrange mode — its bottom-right position would
@@ -1631,3 +1658,98 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
 ///                        existing sweep paint pass from v91)
 ///   • future edges    — normal path-focus state
 /// Reduced motion → `revealAll()` instead of `startTrace()`.
+
+// ═══════════════════════════════════════════════════════════════════════
+// v5.65 (ISOLATE CONNECTIONS) — "Showing: X's connections" chip
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A persistent chip shown at the top of the graph when isolation mode
+/// is active. Displays the focused person's name + a "Show all" action
+/// that clears the focus and restores full opacity to the entire graph.
+///
+/// Styled as a rounded pill with a dark background + orange accent,
+/// matching the app's existing chip/badge design language. Tapping the
+/// whole chip OR the X icon clears the focus.
+class _IsolateConnectionsChip extends StatelessWidget {
+  const _IsolateConnectionsChip({
+    required this.personName,
+    required this.onShowAll,
+  });
+
+  final String personName;
+  final VoidCallback onShowAll;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onShowAll,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkCard,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: KinrelColors.orange.withValues(alpha: 0.5),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.filter_alt_rounded,
+                size: 16,
+                color: KinrelColors.orange,
+              ),
+              const SizedBox(width: 8),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.5,
+                ),
+                child: Text(
+                  "Showing: $personName's connections",
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    color: KinrelColors.textWhite,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // "Show all" text button — tapping anywhere on the chip
+              // (including this text) triggers onShowAll.
+              Text(
+                'Show all',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 13,
+                  color: KinrelColors.tealAccent,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 6),
+              // X icon — also triggers onShowAll (same action).
+              Icon(
+                Icons.close_rounded,
+                size: 16,
+                color: KinrelColors.textDim,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

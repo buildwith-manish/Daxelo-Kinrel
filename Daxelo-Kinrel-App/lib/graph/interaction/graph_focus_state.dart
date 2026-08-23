@@ -110,6 +110,11 @@ enum PathSelectPhase {
 class GraphFocusState {
   const GraphFocusState({
     this.focusedPersonId,
+    // v5.65: The name of the focused person. Stored alongside the ID so
+    // the "Showing: X's connections — Show all" chip can display the
+    // name without a separate lookup into the flat graph data (which
+    // may not be available at the overlay layer).
+    this.focusedPersonName,
     this.history = const <FocusHistoryEntry>[],
     this.firstDegreeIds = const <String>{},
     this.secondDegreeIds = const <String>{},
@@ -128,6 +133,11 @@ class GraphFocusState {
   /// The person currently defining graph context, or null when no
   /// person is focused (default state).
   final String? focusedPersonId;
+
+  /// v5.65: The display name of [focusedPersonId]. Used by the
+  /// "Showing: X's connections — Show all" chip overlay. Null when
+  /// no person is focused.
+  final String? focusedPersonName;
 
   /// Bounded focus history (max 20 entries). The last entry is the
   /// most recent focus. `back()` pops the last entry and restores
@@ -186,6 +196,9 @@ class GraphFocusState {
   GraphFocusState copyWith({
     String? focusedPersonId,
     bool clearFocusedPersonId = false,
+    // v5.65: focusedPersonName support for the "Showing: X's connections" chip.
+    String? focusedPersonName,
+    bool clearFocusedPersonName = false,
     List<FocusHistoryEntry>? history,
     Set<String>? firstDegreeIds,
     Set<String>? secondDegreeIds,
@@ -201,6 +214,8 @@ class GraphFocusState {
       // Use the explicit clear flag to allow setting focusedPersonId to null.
       // Without this, `null ?? this.focusedPersonId` would keep the old value.
       focusedPersonId: clearFocusedPersonId ? null : (focusedPersonId ?? this.focusedPersonId),
+      // v5.65: Mirror the clear-flag pattern for the name.
+      focusedPersonName: clearFocusedPersonName ? null : (focusedPersonName ?? this.focusedPersonName),
       history: history ?? this.history,
       firstDegreeIds: firstDegreeIds ?? this.firstDegreeIds,
       secondDegreeIds: secondDegreeIds ?? this.secondDegreeIds,
@@ -303,6 +318,9 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
 
     state = GraphFocusState(
       focusedPersonId: personId,
+      // v5.65: Store the name so the "Showing: X's connections" chip
+      // can display it without a flat-graph lookup.
+      focusedPersonName: personName,
       history: newHistory,
       firstDegreeIds: neighbours.first,
       secondDegreeIds: neighbours.second,
@@ -332,6 +350,8 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
       final previous = newHistory.last;
       state = GraphFocusState(
         focusedPersonId: previous.personId,
+        // v5.65: Restore the name from the history entry.
+        focusedPersonName: previous.personName,
         history: newHistory,
         firstDegreeIds: const {},
         secondDegreeIds: const {},
@@ -346,6 +366,8 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
     // No previous entry — clear focus.
     state = GraphFocusState(
       focusedPersonId: null,
+      // v5.65: Clear the name too.
+      focusedPersonName: null,
       history: newHistory,
       firstDegreeIds: const {},
       secondDegreeIds: const {},
@@ -359,6 +381,8 @@ class GraphFocusNotifier extends StateNotifier<GraphFocusState> {
     if (state.focusedPersonId == null) return;
     state = state.copyWith(
       clearFocusedPersonId: true,
+      // v5.65: Clear the name alongside the ID.
+      clearFocusedPersonName: true,
       firstDegreeIds: const {},
       secondDegreeIds: const {},
       revision: state.revision + 1,

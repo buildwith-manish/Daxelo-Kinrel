@@ -61,6 +61,29 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       nodeState = NodeState.normal;
     }
 
+    // v5.65 (ISOLATE CONNECTIONS): When isolation/focus is active, fade
+    // nodes that are NOT part of the isolated subgraph (the focused
+    // person + their direct 1st-degree connections) to 18% opacity.
+    // This matches the edge dimming (dimAlpha = 0.18 in the painter)
+    // so the whole graph fades uniformly — nodes AND lines — while
+    // the isolated person's immediate relationship circle stays fully
+    // visible.
+    //
+    // 2nd-degree relatives ARE faded (unlike the old v95 behavior which
+    // kept them bright). Only the focused person + 1st-degree neighbours
+    // remain at full opacity.
+    //
+    // When no focus is active, opacity stays at 1.0 (no change to the
+    // default rendering).
+    final double nodeOpacity;
+    if (focusedId != null) {
+      final bool isIsolated = id == focusedId ||
+          focusState.firstDegreeIds.contains(id);
+      nodeOpacity = isIsolated ? 1.0 : 0.18;
+    } else {
+      nodeOpacity = 1.0;
+    }
+
     return GraphNode(
       personId: id,
       name: (p['name'] as String?) ?? '',
@@ -69,6 +92,10 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       isAnchor: (p['isAnchor'] as bool?) ?? false,
       photoUrl: p['photoUrl'] as String?,
       isDeceased: (p['isDeceased'] as bool?) ?? false,
+      // v5.65 (ISOLATE CONNECTIONS): Pass the computed node opacity so
+      // non-isolated nodes fade to 18% when a person is focused. When
+      // no focus is active, this is 1.0 (no change).
+      opacity: nodeOpacity,
       // P3.3: birthday glow — compute isNearBirthday from dateOfBirth
       // (now included in the graph RPC) and pass the shared pulse value.
       // Reduced motion → pass -1.0 as a sentinel so the painter uses a

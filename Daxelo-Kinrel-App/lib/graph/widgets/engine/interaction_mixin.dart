@@ -325,12 +325,21 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   /// opacity by ~30%. The selected edge (if any) and any sweep edge
   /// are never dimmed.
   ///
-  /// v95 (Phase 1): When a person is FOCUSED (via graphFocusProvider),
-  /// uses the focus state's first-degree + second-degree neighbour
-  /// sets to keep more edges visible. Only truly unrelated edges
-  /// (neither first nor second degree) are dimmed. This creates a
-  /// richer focus experience: immediate family stays bright, near
-  /// relatives stay visible, distant branches dim softly.
+  /// v5.65 (ISOLATE CONNECTIONS): When a person is FOCUSED (via
+  /// graphFocusProvider), the dimming now uses ONLY the focused
+  /// person + their FIRST-DEGREE (direct) connections. Everything
+  /// else — including 2nd-degree relatives — is dimmed to a low
+  /// opacity (~18%). This is the "Isolate connections" feature:
+  /// the user picks a person, and only that person + their direct
+  /// relationships stay fully visible; the rest of the graph fades
+  /// into the background to reduce visual noise.
+  ///
+  /// Previously (v95 Phase 1), the dimming kept 1st+2nd degree
+  /// bright. The user found this too permissive — they wanted to
+  /// see ONLY the direct connections, with everything else faded.
+  /// The 2nd-degree set is still computed (used by GraphFocusState
+  /// for other purposes like path focus) but is no longer used for
+  /// dimming.
   ///
   /// When no person is focused, falls back to the selection-based
   /// first-degree dim (the v91 behavior).
@@ -365,14 +374,22 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     }
 
     if (focusedPerson != null) {
-      // Focus mode: use first + second degree neighbour sets.
-      // An edge is "connected" if EITHER endpoint is the focus person,
-      // a first-degree neighbour, or a second-degree neighbour.
+      // v5.65 (ISOLATE CONNECTIONS): Focus mode now uses ONLY the
+      // focused person + their FIRST-DEGREE (direct) connections.
+      // An edge is "connected" (stays bright) iff EITHER endpoint is
+      // the focused person OR a direct (1st-degree) neighbour.
+      //
+      // 2nd-degree neighbours are NO LONGER kept bright — they fade
+      // with the rest of the graph. This is the key behavior change
+      // from v95: the isolation is stricter, showing only the
+      // immediate relationship circle.
       final connected = <String>{};
       final emphasisedIds = <String>{
         focusedPerson,
         ...focusState.firstDegreeIds,
-        ...focusState.secondDegreeIds,
+        // v5.65: secondDegreeIds intentionally EXCLUDED — 2nd-degree
+        // relatives are NOT part of the isolated subgraph. They fade
+        // to the dim opacity along with unrelated nodes.
       };
       for (final deduped in edges) {
         final e = deduped.edge;

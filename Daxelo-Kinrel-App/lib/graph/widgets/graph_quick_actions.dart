@@ -177,15 +177,38 @@ class GraphQuickActions {
                   onViewRelationship(person.id);
                 },
               ),
-            // v98 (Phase 1): Focus on person — uses engine-owned callback
-            // that has access to real edges + camera viewport.
-            // Falls back to direct provider call if no callback (legacy).
+            // v5.65 (ISOLATE CONNECTIONS): Renamed from "Focus on person"
+            // to "Isolate connections". The old name was misleading — it
+            // sounded like a camera-zoom action (redundant with tapping a
+            // node). The new name clearly signals the actual behavior:
+            // a relationship FILTER that fades all nodes/lines NOT
+            // directly connected to this person to ~18% opacity, keeping
+            // only this person + their direct relationships fully visible.
+            //
+            // Icon changed from center_focus_strong_rounded (a focus-ring
+            // icon that implies camera/zoom) to filter_alt_rounded (a
+            // filter icon that implies filtering/isolation). The color
+            // stays orange for visual continuity with the previous
+            // "Focus on person" action.
+            //
+            // The underlying callback (`onFocusPerson`) and provider
+            // (`graphFocusProvider`) are unchanged — only the label + icon
+            // changed. The isolation behavior is implemented in
+            // _computeDimmedEdgeIds (interaction_mixin.dart) + node_builders
+            // opacity + engine_edge_painter dimAlpha.
+            //
+            // Auto-switch: if the user is ALREADY isolating a different
+            // person and selects "Isolate connections" on a new node, the
+            // graphFocusProvider.focus() call simply replaces the focused
+            // person — no manual "exit first" step needed. This is the
+            // existing behavior of GraphFocusNotifier.focus() (it
+            // overwrites focusedPersonId + recomputes neighbour sets).
             if (onFocusPerson != null || ref != null)
               ListTile(
-                leading: const Icon(Icons.center_focus_strong_rounded,
+                leading: const Icon(Icons.filter_alt_rounded,
                     color: KinrelColors.orange),
                 title: const Text(
-                  'Focus on person',
+                  'Isolate connections',
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     color: KinrelColors.textWhite,

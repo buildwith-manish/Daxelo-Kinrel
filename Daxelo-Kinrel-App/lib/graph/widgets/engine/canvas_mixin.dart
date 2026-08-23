@@ -933,47 +933,31 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                   // (focused node + first-degree neighbours) renders at
                   // full saturation via the GraphNode's own emphasis logic.
                   //
-                  // The desaturation is applied as a ColorFilter.matrix
-                  // over the whole canvas. Individual focus-subgraph nodes
-                  // compensate by boosting their own saturation back up
-                  // via their emphasis level (EmphasisLevel.focused /
-                  // EmphasisLevel.immediateRelative have full opacity).
+                  // v5.65 (ISOLATE CONNECTIONS): The canvas-wide desaturation
+                  // + blur has been REMOVED. The isolation effect is now
+                  // achieved purely through per-node + per-edge opacity
+                  // dimming (non-isolated nodes → 0.18 opacity, non-isolated
+                  // edges → 0.18 alpha). This is more precise than the old
+                  // whole-canvas ColorFilter matrix, which also desaturated
+                  // the isolated nodes themselves. With per-element dimming,
+                  // the isolated person + their direct connections stay at
+                  // full colour + full opacity, while everything else fades
+                  // to a uniform 18% — a cleaner, clearer isolation visual.
                   final isFocusActive = focusState.focusedPersonId != null;
-                  final reduced = MediaQuery.disableAnimationsOf(context);
 
                   Widget transformed = Transform(
                     transform: _camera.transformMatrix,
                     child: child,
                   );
 
-                  if (isFocusActive && !reduced) {
-                    // Desaturation matrix: 40% saturation
-                    // (0.299, 0.587, 0.114 are the luminance weights)
-                    final s = 0.4;
-                    final inv = 1.0 - s;
-                    transformed = ColorFiltered(
-                      colorFilter: ColorFilter.matrix([
-                        s + inv * 0.299, inv * 0.587, inv * 0.114, 0, 0,
-                        inv * 0.299, s + inv * 0.587, inv * 0.114, 0, 0,
-                        inv * 0.299, inv * 0.587, s + inv * 0.114, 0, 0,
-                        0, 0, 0, 1, 0,
-                      ]),
-                      child: transformed,
-                    );
-
-                    // P2.2: Subtle depth-of-field blur on mobile only.
-                    // ImageFilter.blur can be slow on web — skip it via kIsWeb.
-                    if (!kIsWeb) {
-                      transformed = BackdropFilter(
-                        filter: ImageFilter.blur(
-                          sigmaX: 2.0,
-                          sigmaY: 2.0,
-                          tileMode: TileMode.decal,
-                        ),
-                        child: transformed,
-                      );
-                    }
-                  }
+                  // v5.65: No canvas-wide ColorFilter / BackdropFilter when
+                  // focus is active. The per-node opacity (node_builders.dart)
+                  // + per-edge dimAlpha (engine_edge_painter.dart) handle the
+                  // isolation visual. The `isFocusActive` read is kept only
+                  // to avoid an unused-variable warning if future code needs
+                  // to query focus state here.
+                  // ignore: unused_local_variable
+                  final _ = isFocusActive;
 
                       return transformed;
                     },

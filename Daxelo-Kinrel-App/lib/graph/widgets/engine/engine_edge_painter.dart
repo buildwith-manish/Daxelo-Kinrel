@@ -360,11 +360,23 @@ class EngineEdgePainter extends CustomPainter {
     // `dimmedEdgeIds` get this alpha multiplier so unrelated threads
     // recede gently when a node is selected. The selected edge and
     // any sweep edge are never dimmed.
-    // Premium visual: reduced dimming from 0.70 to 0.85.
-    // Non-focused edges now retain 85% clarity instead of 70%, making
-    // the graph feel brighter and more connected. Focused edges still
-    // stand out via the boost below.
-    const double dimAlpha = 0.85; // ~15% reduction (was 30%)
+    //
+    // v5.65 (ISOLATE CONNECTIONS): Reduced from 0.85 to 0.18 for a
+    // much stronger fade. The user wants the "Isolate connections"
+    // feature to clearly de-emphasize non-related edges (fading them
+    // to ~18% opacity) so the focused person's direct relationships
+    // stand out. The previous 0.85 (15% reduction) was too subtle —
+    // users couldn't tell the isolation was active. At 0.18, dimmed
+    // edges are barely visible, preserving spatial context without
+    // competing for attention.
+    //
+    // NOTE: This dimAlpha applies to ALL dimmed edges — both the
+    // selection-based fallback (v91) and the focus-based isolation
+    // (v5.65). The selection fallback only dims when a node is
+    // selected without focus being active, which is a short-lived
+    // state (selection usually leads to opening the info sheet).
+    // The stronger 0.18 alpha is acceptable for both cases.
+    const double dimAlpha = 0.18; // v5.65: strong fade for isolation (was 0.85)
 
     for (final DedupedEdge deduped in edges) {
       final GraphEdgeData e = deduped.edge;
@@ -1164,10 +1176,14 @@ class EngineEdgePainter extends CustomPainter {
         // ── DOT-tier midpoint tuning knobs ──────────────────────────
         // Bead radius (graph space) for non-spouse edges.
         const double kDotBeadRadius = 4.5;
-        // Alpha multiplier for dimmed edges at DOT LOD. Kept a touch
-        // higher than the full-LOD dim factor so the midpoint stays
-        // legible against the dimmed edge body at small scale.
-        const double kDotDimAlphaFloor = 0.5;
+        // v5.65 (ISOLATE CONNECTIONS): Floor lowered from 0.5 to 0.18
+        // so dimmed midpoint dots at DOT LOD fade consistently with
+        // the new stronger isolation dimming. At 0.18, the dot is
+        // barely visible — matching the edge body's 0.18 alpha — so
+        // the isolation effect is uniform across all LOD tiers.
+        // (Previously 0.5, which kept dimmed dots too bright and
+        // undermined the isolation visual.)
+        const double kDotDimAlphaFloor = 0.18;
 
         // v105.1: floor the dim alpha so the DOT-tier midpoint never
         // drops below kDotDimAlphaFloor — at small scale a very low
