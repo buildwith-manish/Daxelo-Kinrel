@@ -3635,7 +3635,8 @@ Future<RelationshipUpdateResult> updateRelationship({
 
   final now = DateTime.now().toIso8601String();
 
-  // 1. Look up the existing relationship to find both endpoints + the inverse row.
+  // 1. Look up the existing relationship to find both endpoints + the
+  //    OLD relationshipKey/labelAtoB (needed for undo).
   final existingData = await withRetry(
     () => client
         .from(_kRelationshipTable)
@@ -3653,16 +3654,20 @@ Future<RelationshipUpdateResult> updateRelationship({
     throw Exception('Relationship data is incomplete (missing person IDs).');
   }
 
+  // Snapshot the OLD values for undo.
+  final oldRelationshipKey = existingData['relationshipKey'] as String? ?? 'parent';
+  final oldLabelAtoB = existingData['labelAtoB'] as String? ?? oldRelationshipKey;
+  final oldLabelBtoA = existingData['labelBtoA'] as String?;
+
   // 2. Find the inverse edge row (if one exists as a separate row).
-  //    The inverse is the row with from/to swapped. It MAY NOT EXIST
-  //    if the relationship was created with only a forward edge —
-  //    that's fine, we just skip deactivating it.
   String? inverseRelationshipId;
+  String? oldInverseLabelAtoB;
+  String? oldInverseLabelBtoA;
   try {
     final inverseData = await withRetry(
       () => client
           .from(_kRelationshipTable)
-          .select('id')
+          .select()
           .eq('familyId', familyId)
           .eq('fromPersonId', toPersonId)
           .eq('toPersonId', fromPersonId)
@@ -3670,84 +3675,99 @@ Future<RelationshipUpdateResult> updateRelationship({
           .maybeSingle(),
       operationName: 'Lookup inverse relationship for update',
     );
-    inverseRelationshipId = inverseData?['id'] as String?;
+    if (inverseData != null) {
+      inverseRelationshipId = inverseData['id'] as String?;
+      oldInverseLabelAtoB =
+          inverseData['labelAtoB'] as String? ?? oldLabelBtoA;
+      oldInverseLabelBtoA = inverseData['labelBtoA'] as String?;
+    }
   } catch (e) {
     debugPrint('[UPDATE-REL] Could not look up inverse edge (non-fatal): $e');
   }
 
-  // 3. Deactivate the OLD forward + inverse rows (soft-delete).
-  final deactivatedOldIds = <String>[relationshipId];
+  // v5.68 (BUG A FIX): IN-PLACE UPDATE instead of deactivate+reinsert.
+  //
+  // The old approach (deactivate old rows + INSERT new rows) failed
+  // with 'duplicate key value violates unique constraint
+  // no_duplicate_fundamental_edge' because the constraint is
+  // UNIQUE (familyId, fromPersonId, toPersonId, edgeType, edgeTemporal)
+  // and does NOT include isActive. Deactivated rows still hold the
+  // unique key, so INSERTing a new row with the same
+  // (familyId, from, to, edgeType) collides — even though the old
+  // row is inactive.
+  //
+  // The fix: UPDATE the existing rows in-place, changing
+  // relationshipKey + labelAtoB. The DB triggers
+  // (set_edge_type_from_relationship_key + fill_inverse_label) fire
+  // on UPDATE and recompute edgeType + labelBtoA automatically.
+  // Since it's the same row (same id), the unique constraint is NOT
+  // violated — the row keeps its unique key position.
+  //
+  // For the inverse row (if it exists), we UPDATE it with the
+  // gender-aware inverse label. If no inverse row exists, we INSERT
+  // one (safe because there's no existing row at that key to collide
+  // with — the only case where INSERT is needed).
+
+  // 3. UPDATE the forward edge in-place.
   await withRetry(
     () => client.from(_kRelationshipTable).update({
-      'isActive': false,
-      'updatedAt': now,
-    }).eq('id', relationshipId),
-    operationName: 'Deactivate old forward relationship',
-  );
-  if (inverseRelationshipId != null) {
-    deactivatedOldIds.add(inverseRelationshipId!);
-    try {
-      await withRetry(
-        () => client.from(_kRelationshipTable).update({
-          'isActive': false,
-          'updatedAt': now,
-        }).eq('id', inverseRelationshipId!),
-        operationName: 'Deactivate old inverse relationship',
-      );
-    } catch (e) {
-      debugPrint('[UPDATE-REL] Could not deactivate old inverse (non-fatal): $e');
-    }
-  }
-
-  // 4. INSERT the NEW forward edge with the updated relationship type.
-  //    Uses the SAME shape as createRelationship() so the DB trigger
-  //    fires correctly (auto-fills labelBtoA + edgeType).
-  final newForwardId = _generateId();
-  await withRetry(
-    () => client.from(_kRelationshipTable).insert({
-      'id': newForwardId,
-      'familyId': familyId,
-      'fromPersonId': fromPersonId,
-      'toPersonId': toPersonId,
       'relationshipKey': newRelationshipKey,
       'relationshipType': newRelationshipKey,
       'labelAtoB': newSpecificLabelAtoB,
-      'direction': 'forward',
-      'isActive': true,
-      'createdAt': now,
+      // Set labelBtoA to null so the fill_inverse_label trigger
+      // recomputes it from the new labelAtoB.
+      'labelBtoA': null,
       'updatedAt': now,
-    }).timeout(const Duration(seconds: 5)),
-    operationName: 'Insert new forward relationship',
+    }).eq('id', relationshipId),
+    operationName: 'Update forward relationship in-place',
   );
 
-  // 5. INSERT the NEW inverse edge (gender-aware).
-  //    Uses getGenderAwareInverseKey to compute the inverse label
-  //    (e.g. 'father' → 'son'/'daughter' depending on the child's gender).
+  // 4. Compute the inverse label for the inverse row.
   final inverseLabel = getGenderAwareInverseKey(newSpecificLabelAtoB, toPersonGender);
   final inverseFundamentalKey = _mapToFundamentalDbType(inverseLabel);
-  final newInverseId = _generateId();
-  try {
+
+  // 5. UPDATE or INSERT the inverse edge.
+  String newInverseId;
+  if (inverseRelationshipId != null) {
+    // Inverse row exists — UPDATE it in-place.
+    newInverseId = inverseRelationshipId!;
     await withRetry(
-      () => client.from(_kRelationshipTable).insert({
-        'id': newInverseId,
-        'familyId': familyId,
-        'fromPersonId': toPersonId,
-        'toPersonId': fromPersonId,
+      () => client.from(_kRelationshipTable).update({
         'relationshipKey': inverseFundamentalKey,
         'relationshipType': inverseFundamentalKey,
         'labelAtoB': inverseLabel,
-        'direction': 'inverse',
-        'isActive': true,
-        'createdAt': now,
+        'labelBtoA': null, // trigger recomputes
         'updatedAt': now,
-      }).timeout(const Duration(seconds: 5)),
-      operationName: 'Insert new inverse relationship',
+      }).eq('id', inverseRelationshipId!),
+      operationName: 'Update inverse relationship in-place',
     );
-  } catch (e) {
-    // Non-fatal: the forward edge is already inserted. The inverse
-    // failing just means the reverse-direction label won't show, but
-    // the relationship is still valid. Log + continue.
-    debugPrint('[UPDATE-REL] Could not insert new inverse edge (non-fatal): $e');
+  } else {
+    // No inverse row exists — INSERT one. This is safe because
+    // there's no existing row at (familyId, toPersonId, fromPersonId,
+    // edgeType) to collide with.
+    newInverseId = _generateId();
+    try {
+      await withRetry(
+        () => client.from(_kRelationshipTable).insert({
+          'id': newInverseId,
+          'familyId': familyId,
+          'fromPersonId': toPersonId,
+          'toPersonId': fromPersonId,
+          'relationshipKey': inverseFundamentalKey,
+          'relationshipType': inverseFundamentalKey,
+          'labelAtoB': inverseLabel,
+          'direction': 'inverse',
+          'isActive': true,
+          'createdAt': now,
+          'updatedAt': now,
+        }).timeout(const Duration(seconds: 5)),
+        operationName: 'Insert new inverse relationship (no existing row)',
+      );
+    } catch (e) {
+      // Non-fatal: the forward edge is already updated. The inverse
+      // failing just means the reverse-direction label won't show.
+      debugPrint('[UPDATE-REL] Could not insert new inverse edge (non-fatal): $e');
+    }
   }
 
   // 6. Update Family.lastActivityAt.
@@ -3780,52 +3800,73 @@ Future<RelationshipUpdateResult> updateRelationship({
   }
 
   return RelationshipUpdateResult(
-    deactivatedOldIds: deactivatedOldIds,
-    newForwardId: newForwardId,
-    newInverseId: newInverseId,
+    forwardId: relationshipId,
+    inverseId: newInverseId,
     fromPersonId: fromPersonId,
     toPersonId: toPersonId,
     newRelationshipKey: newRelationshipKey,
     newSpecificLabelAtoB: newSpecificLabelAtoB,
     inverseLabel: inverseLabel,
+    // Old values for undo:
+    oldForwardRelationshipKey: oldRelationshipKey,
+    oldForwardLabelAtoB: oldLabelAtoB,
+    oldForwardLabelBtoA: oldLabelBtoA,
+    oldInverseLabelAtoB: oldInverseLabelAtoB,
+    oldInverseLabelBtoA: oldInverseLabelBtoA,
   );
 }
 
 /// v5.64: Result of an [updateRelationship] call. Contains the IDs
-/// needed to undo the update (re-activate the old rows + deactivate
-/// the new rows).
+/// and old values needed to undo the update (restore the old
+/// relationshipKey/labelAtoB on both forward + inverse rows).
+///
+/// v5.68: Updated for in-place UPDATE approach. The old deactivate+
+/// reinsert approach needed deactivatedOldIds + newForwardId +
+/// newInverseId. The new in-place UPDATE approach just needs the
+/// row IDs (which don't change) + the old label values to restore.
 class RelationshipUpdateResult {
   const RelationshipUpdateResult({
-    required this.deactivatedOldIds,
-    required this.newForwardId,
-    required this.newInverseId,
+    required this.forwardId,
+    required this.inverseId,
     required this.fromPersonId,
     required this.toPersonId,
     required this.newRelationshipKey,
     required this.newSpecificLabelAtoB,
     required this.inverseLabel,
+    required this.oldForwardRelationshipKey,
+    required this.oldForwardLabelAtoB,
+    this.oldForwardLabelBtoA,
+    this.oldInverseLabelAtoB,
+    this.oldInverseLabelBtoA,
   });
 
-  /// IDs of the OLD rows that were deactivated (forward + inverse, if both existed).
-  final List<String> deactivatedOldIds;
+  /// ID of the forward row (unchanged by in-place UPDATE).
+  final String forwardId;
 
-  /// ID of the NEW forward row that was inserted.
-  final String newForwardId;
-
-  /// ID of the NEW inverse row that was inserted (may not have been
-  /// inserted if the inverse INSERT failed — check newInverseInserted).
-  final String newInverseId;
+  /// ID of the inverse row (unchanged if it existed; new ID if inserted).
+  final String inverseId;
 
   final String fromPersonId;
   final String toPersonId;
   final String newRelationshipKey;
   final String newSpecificLabelAtoB;
   final String inverseLabel;
+
+  // ── Old values for undo ──
+  final String oldForwardRelationshipKey;
+  final String oldForwardLabelAtoB;
+  final String? oldForwardLabelBtoA;
+  final String? oldInverseLabelAtoB;
+  final String? oldInverseLabelBtoA;
 }
 
-/// v5.64: Reverts an [updateRelationship] call — re-activates the old
-/// rows and deactivates the new rows. Used by the Undo action on the
-/// "Relationship updated" snackbar.
+/// v5.64: Reverts an [updateRelationship] call — restores the old
+/// relationshipKey/labelAtoB on both forward + inverse rows.
+/// Used by the Undo action on the "Relationship updated" snackbar.
+///
+/// v5.68: Updated for in-place UPDATE approach. Instead of
+/// re-activating old rows + deactivating new rows, we simply
+/// UPDATE the same rows back to their old values.
 Future<void> undoUpdateRelationship({
   required WidgetRef ref,
   required String familyId,
@@ -3837,33 +3878,39 @@ Future<void> undoUpdateRelationship({
   }
   final now = DateTime.now().toIso8601String();
 
-  // 1. Re-activate the OLD rows.
-  for (final oldId in updateResult.deactivatedOldIds) {
-    try {
-      await withRetry(
-        () => client.from(_kRelationshipTable).update({
-          'isActive': true,
-          'updatedAt': now,
-        }).eq('id', oldId),
-        operationName: 'Re-activate old relationship for undo',
-      );
-    } catch (e) {
-      debugPrint('[UNDO-UPDATE-REL] Could not re-activate $oldId (non-fatal): $e');
-    }
+  // 1. Restore the forward row to its old values.
+  try {
+    await withRetry(
+      () => client.from(_kRelationshipTable).update({
+        'relationshipKey': updateResult.oldForwardRelationshipKey,
+        'relationshipType': updateResult.oldForwardRelationshipKey,
+        'labelAtoB': updateResult.oldForwardLabelAtoB,
+        'labelBtoA': updateResult.oldForwardLabelBtoA,
+        'updatedAt': now,
+      }).eq('id', updateResult.forwardId),
+      operationName: 'Restore forward relationship for undo',
+    );
+  } catch (e) {
+    debugPrint('[UNDO-UPDATE-REL] Could not restore forward (non-fatal): $e');
   }
 
-  // 2. Deactivate the NEW rows.
-  for (final newId in [updateResult.newForwardId, updateResult.newInverseId]) {
+  // 2. Restore the inverse row to its old values (if it had old values).
+  if (updateResult.oldInverseLabelAtoB != null) {
     try {
       await withRetry(
         () => client.from(_kRelationshipTable).update({
-          'isActive': false,
+          'relationshipKey': _mapToFundamentalDbType(
+              updateResult.oldInverseLabelAtoB!),
+          'relationshipType': _mapToFundamentalDbType(
+              updateResult.oldInverseLabelAtoB!),
+          'labelAtoB': updateResult.oldInverseLabelAtoB,
+          'labelBtoA': updateResult.oldInverseLabelBtoA,
           'updatedAt': now,
-        }).eq('id', newId),
-        operationName: 'Deactivate new relationship for undo',
+        }).eq('id', updateResult.inverseId),
+        operationName: 'Restore inverse relationship for undo',
       );
     } catch (e) {
-      debugPrint('[UNDO-UPDATE-REL] Could not deactivate $newId (non-fatal): $e');
+      debugPrint('[UNDO-UPDATE-REL] Could not restore inverse (non-fatal): $e');
     }
   }
 
