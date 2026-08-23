@@ -769,6 +769,13 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // in the _onFocusPerson handler).
     _focusTimeoutTimer?.cancel();
     ref.read(graphFocusProvider.notifier).clearAll();
+    // v5.74 (BUG 1 FIX): Clear the selectedNodeProvider on dispose.
+    // This is a global StateProvider that survives screen exits —
+    // without clearing it, a node selected in a prior session stays
+    // "selected" (highlighted with a glow ring) when the user returns
+    // to the graph, even though they didn't tap anything. This caused
+    // the "Manish's node appears highlighted without being tapped" bug.
+    ref.read(selectedNodeProvider.notifier).state = null;
     super.dispose();
   }
 

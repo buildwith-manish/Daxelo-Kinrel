@@ -896,18 +896,21 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // (see [_handleNodeLongPress]).
     ref.read(selectedNodeProvider.notifier).state = nodeId;
 
-    // v91 (PART 12): Cinematic camera focus on node selection.
-    // v5.72 (ZOOM LOOP FIX): Only animate if this node is NOT already
-    // the focused person. Tapping the already-focused node was causing
-    // the camera to re-animate on every tap (because the early-return
-    // guard in _maybeFocusCameraOnNode fails at high zoom levels where
-    // the focus region is very small). This gate prevents the re-
-    // animation, eliminating the visible "zoom wiggle" on repeated taps.
-    final currentFocus = ref.read(graphFocusProvider).focusedPersonId;
-    if (currentFocus != nodeId) {
-      _maybeFocusCameraOnNode(nodeId, layout);
-    }
-
+    // v5.74 (BUG 2 FIX): Removed the tap-to-zoom camera animation
+    // entirely. The user reported that tapping a node causes a zoom
+    // animation that "keeps going" or loops. The root cause was the
+    // interaction between _maybeFocusCameraOnNode (which animates the
+    // camera) and the 18s focus auto-timeout (which clears focus,
+    // resetting _lastFocusedPersonId, causing the next rebuild to
+    // re-animate).
+    //
+    // The Isolate Connections feature (long-press → "Isolate
+    // connections") already handles the camera-centering use case
+    // with its own timeout + cleanup. A simple tap should ONLY select
+    // the node (visual highlight) — it should NOT move the camera.
+    // The user can pan/zoom manually or use "Isolate connections" if
+    // they want the camera to center on a specific node.
+    //
     // Intentionally DO NOT open GraphQuickActions here.
     // Tap = select / highlight only. Long-press = open info panel.
   }

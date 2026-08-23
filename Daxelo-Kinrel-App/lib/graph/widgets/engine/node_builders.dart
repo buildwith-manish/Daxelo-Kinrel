@@ -89,7 +89,13 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       name: (p['name'] as String?) ?? '',
       gender: p['gender'] as String?,
       generationIndex: (p['generationIndex'] as num?)?.toInt() ?? 0,
-      isAnchor: (p['isAnchor'] as bool?) ?? false,
+      // v5.74 (BUG 1 FIX): Pass isAnchor as the viewer's own node flag,
+      // NOT the Person.isAnchor DB field. The viewer's node should get
+      // the steady green "self" styling (distinct from the tap-selected
+      // glow). Using isViewer instead of p['isAnchor'] ensures that
+      // when a non-creator member logs in, THEIR node (not the family
+      // creator's) gets the green styling.
+      isAnchor: isViewer,
       photoUrl: p['photoUrl'] as String?,
       isDeceased: (p['isDeceased'] as bool?) ?? false,
       // v5.65 (ISOLATE CONNECTIONS): Pass the computed node opacity so

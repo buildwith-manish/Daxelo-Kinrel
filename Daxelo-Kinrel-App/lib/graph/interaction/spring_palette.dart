@@ -62,10 +62,17 @@ class SpringPalette {
 
   /// Focus spring. Slight settle — cinematic focus pull.
   /// Used for: focusOnNode, fit-to-view, history navigation.
+  /// v5.74 (BUG 2 FIX): Bumped damping from 25.0 to 29.0 for true
+  /// critical damping (ζ = 29 / (2·√200) ≈ 1.026 — slightly over-
+  /// damped, NO overshoot). The previous value (25.0, ζ ≈ 0.884)
+  /// was near-critical but still had a tiny overshoot that could
+  /// be perceived as a "zoom wiggle" on some devices. With true
+  /// critical damping, the animation reaches its target smoothly
+  /// without any oscillation, and settles in ~0.4 seconds.
   static const SpringDescription focus = SpringDescription(
     mass: 1.0,
     stiffness: 200.0,
-    damping: 25.0,
+    damping: 29.0,
   );
 
   /// Branch expand spring. Slightly under-damped — feels like a

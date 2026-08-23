@@ -32,14 +32,16 @@ extension _RelationshipViewMethods on _FamilyGraphEngineViewState {
           currentViewport: viewport,
         );
 
-    // v5.72 (ZOOM LOOP FIX): Auto-clear the focus after 18 seconds.
+    // v5.72 (ZOOM LOOP FIX): Auto-clear the focus after 15 seconds.
     // The user reported the focus/zoom animation "keeps going forever"
     // — this timer ensures the isolate-connections view auto-exits
     // after a reasonable viewing period, returning the graph to its
     // normal state. The user can re-isolate if they want to continue
-    // viewing. 18 seconds is in the user's requested 15-20s range.
+    // viewing. 15 seconds is the lower end of the user's requested
+    // 15-20s range.
+    // v5.74: Reduced from 18s to 15s for a snappier feel.
     _focusTimeoutTimer?.cancel();
-    _focusTimeoutTimer = Timer(const Duration(seconds: 18), () {
+    _focusTimeoutTimer = Timer(const Duration(seconds: 15), () {
       if (!mounted) return;
       ref.read(graphFocusProvider.notifier).clearFocus();
     });
