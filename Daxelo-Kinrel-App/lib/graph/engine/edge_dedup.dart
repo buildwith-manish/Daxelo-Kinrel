@@ -118,6 +118,11 @@ class EdgeDeduplicator {
     final groupOrder = <String>[]; // preserves first-seen order
 
     for (final edge in edges) {
+      // v5.60: Skip self-relationships (fromPersonId == toPersonId).
+      // These are data errors — they should never exist in the DB,
+      // but if they do (e.g. from a buggy inference engine), they
+      // must not render as visible edges.
+      if (edge.sourceId == edge.targetId) continue;
       final pairKey = _pairKey(edge.sourceId, edge.targetId);
       if (!groups.containsKey(pairKey)) {
         groups[pairKey] = <GraphEdgeData>[];

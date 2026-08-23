@@ -1145,13 +1145,23 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       return;
     }
 
-    // v5.37: Removed the anchor node guard (v5.31). The user reports
-    // "Every node should be draggable and movable independently."
-    // The anchor guard was preventing the grandfather node from being
-    // dragged (it had isAnchor=true in the DB). Now ALL nodes are
-    // draggable in Rearrange mode, including the anchor/self node.
-    // If the user later wants the anchor to be immovable again, this
-    // guard can be re-added.
+    // v5.60: The viewer's OWN node must NOT be draggable in Rearrange
+    // mode. It represents "you" and should stay anchored as the fixed
+    // reference point other nodes are positioned relative to.
+    final viewerPersonId = ref
+        .read(viewerPersonIdProvider(widget.familyId))
+        .valueOrNull;
+    if (viewerPersonId != null && nodeId == viewerPersonId) {
+      debugPrint('[v5.60 Rearrange] Cannot drag own node ($nodeId == viewer) — ignoring');
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(
+          content: Text('Your own node is locked and cannot be moved.'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     _rearrangeDragKind = 'node';
     _rearrangeDragId = nodeId;

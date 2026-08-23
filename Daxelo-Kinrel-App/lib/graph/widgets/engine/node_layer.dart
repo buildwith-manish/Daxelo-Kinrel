@@ -71,6 +71,9 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
             category: relationCategoryById[id],
             // v83: Use custom colors if available
             customColors: customColorsByPersonId[id],
+            // v5.60: Pass isViewer so the viewer's node always gets
+            // the "self" color (green), regardless of category.
+            isViewer: viewerPersonId != null && id == viewerPersonId,
           ),
           isEmphasised: isEmphasised,
         ));
@@ -99,7 +102,7 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
       if (pos == null || p == null) continue;
       final Widget node = lod == Lod.full
           ? _buildFullNode(id, p, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId)
-          : _buildChipNode(p, category: relationCategoryById[id], customColors: customColorsByPersonId[id]);
+          : _buildChipNode(p, category: relationCategoryById[id], customColors: customColorsByPersonId[id], isViewer: viewerPersonId != null && id == viewerPersonId);
 
       // v62: Dim nodes not in the highlighted generation (if set).
       final int personGen =

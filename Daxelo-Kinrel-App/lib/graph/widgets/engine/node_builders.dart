@@ -207,12 +207,13 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
   /// v97: Zoom-aware geometry — chip dimensions are computed from desired
   /// screen-space sizes and converted to graph space so the parent camera
   /// Transform restores them to stable screen-space sizes.
-  Widget _buildChipNode(Map<String, dynamic> p, {KinshipEdgeCategory? category, Map<String, dynamic>? customColors}) {
+  Widget _buildChipNode(Map<String, dynamic> p, {KinshipEdgeCategory? category, Map<String, dynamic>? customColors, bool isViewer = false}) {
     final color = _dotColor(
       p['gender'] as String?,
       (p['isAnchor'] as bool?) ?? false,
       category: category,
       customColors: customColors,
+      isViewer: isViewer,
     );
     // v97: Compute graph-space dimensions from desired screen-space targets.
     final zoom = _camera.zoomLevel;
