@@ -488,11 +488,32 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
               continue;
             }
           }
+          final relKey = (r['relationshipKey'] ?? 'unknown').toString();
+          // v5.69 (DATA CORRUPTION GUARD): Log a warning if the
+          // relationshipKey is not one of the 4 fundamental edge types
+          // required by the DB CHECK constraint. This catches data
+          // corruption from failed update attempts (e.g. a row with
+          // relationshipKey='mother_in_law' that shouldn't be in this
+          // column) BEFORE it silently renders with the wrong style.
+          // The graph still renders the edge (using the fallback
+          // classifier), but the warning makes the corruption visible
+          // in dev logs for diagnosis.
+          if (relKey != 'parent' &&
+              relKey != 'spouse' &&
+              relKey != 'adoptive_parent' &&
+              relKey != 'step_parent' &&
+              relKey != 'unknown') {
+            debugPrint('[GRAPH WARNING] Edge $s→$t has non-fundamental '
+                'relationshipKey="$relKey" (expected parent/spouse/'
+                'adoptive_parent/step_parent). This may indicate data '
+                'corruption from a failed relationship update. The edge '
+                'will still render with a fallback style.');
+          }
           rawEdges.add(GraphEdgeData(
             id: (r['id'] ?? '$s-$t').toString(),
             sourceId: s,
             targetId: t,
-            relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
+            relationshipKey: relKey,
             isPrivate: r['isPrivate'] as bool? ?? false,
           ));
         }
