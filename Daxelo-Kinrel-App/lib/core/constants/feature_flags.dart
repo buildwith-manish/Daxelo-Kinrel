@@ -118,4 +118,4 @@ const bool kShowRelationshipDebugBanner = false;
 /// relative perspective is not working for non-creator accounts.
 ///
 /// Set to `false` to remove the debug banner after diagnosis is complete.
-const bool kShowViewerDebugBanner = true;
+const bool kShowViewerDebugBanner = false;
