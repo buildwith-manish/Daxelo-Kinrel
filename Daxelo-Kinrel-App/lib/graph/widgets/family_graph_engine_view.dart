@@ -1584,11 +1584,19 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// The anchor/viewer node always uses the Teal "self" color so it
   /// stands out from all other categories.
   Color _dotColor(String? gender, bool isAnchor, {KinshipEdgeCategory? category, Map<String, dynamic>? customColors, bool isViewer = false}) {
-    // v5.60: The viewer's own node ALWAYS uses the "self" color (green),
-    // regardless of isAnchor, category, or customColors. This ensures
-    // the "You" node stays a fixed color and is never overridden by
-    // relationship-color logic.
-    if (isViewer || isAnchor) return KinshipEdgeColors.self;
+    // v5.71 (VIEWER PERSPECTIVE): ONLY the viewer's own node uses the
+    // "self" color (green). The family creator/anchor no longer gets
+    // green automatically — when a non-creator member logs in, they
+    // should see THEIR OWN node as green, and the family creator's
+    // node should be colored by its relationship category (just like
+    // every other node).
+    //
+    // Previously (v5.60), the condition was `if (isViewer || isAnchor)`
+    // which caused TWO green nodes when a non-creator was viewing:
+    // their own node + the anchor's node. This was confusing — it
+    // looked like there were two "You" nodes. Now only the actual
+    // viewer gets green.
+    if (isViewer) return KinshipEdgeColors.self;
     // v83: If custom colors are provided, use the custom node color
     if (customColors != null && customColors['nodeColor'] != null) {
       return Color(customColors['nodeColor'] as int);
