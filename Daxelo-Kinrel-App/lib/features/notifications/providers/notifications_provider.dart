@@ -465,6 +465,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
     switch (eventType) {
       case 'invitation_received':
       case 'family_invite': // v109: used by fn_send_family_invite_notification RPC
+      case 'graph_invite': // v5.84: used by fn_create_graph_pending_invitation RPC
         return NotificationType.familyInvite;
       case 'invitation_accepted':
         return NotificationType.acceptedInvite;

@@ -681,32 +681,27 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             child: _buildRearrangeBanner(),
           ),
 
-        // v5.9: "Unlinked Members" button — only visible when there are
-        // members with zero relationship edges AND NOT in Rearrange mode
-        // (v5.25 distraction-free gate).
-        // Positioned top-right so it doesn't overlap other FABs.
-        // v5.29 Fix 3: Moved up from top+60 to top+8.
-        if (ref.watch(unlinkedPersonIdsProvider(widget.familyId)).isNotEmpty &&
-            !ref.watch(rearrangeModeProvider))
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
-            right: 16,
-            child: _buildUnlinkedMembersButton(),
-          ),
-
-        // v5.41: "Pending Invitations" button — shows count of graph-originated
-        // invitations that haven't been accepted yet. Visible when there are
-        // pending invitations AND NOT in Rearrange mode.
-        // Positioned BELOW the unlinked members button (or top-right when
-        // there are no unlinked members).
-        if (ref.watch(pendingGraphInvitationCountProvider(widget.familyId)) > 0 &&
-            !ref.watch(rearrangeModeProvider))
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8 +
-                (ref.watch(unlinkedPersonIdsProvider(widget.familyId)).isNotEmpty ? 48 : 0),
-            right: 16,
-            child: _buildPendingInvitationsButton(),
-          ),
+        // v5.84: COMBINED "Link & Invites" button — replaces the two
+        // separate pills with a single button showing the combined count
+        // of unlinked members + pending invitations. Tapping opens a
+        // single bottom sheet with two sections.
+        if (!ref.watch(rearrangeModeProvider))
+          Builder(builder: (context) {
+            final unlinkedCount =
+                ref.watch(unlinkedPersonIdsProvider(widget.familyId)).length;
+            final inviteCount = ref.watch(
+                pendingGraphInvitationCountProvider(widget.familyId));
+            final totalCount = unlinkedCount + inviteCount;
+            if (totalCount == 0) return const SizedBox.shrink();
+            return Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              right: 16,
+              child: _buildCombinedLinkInvitesButton(
+                unlinkedCount: unlinkedCount,
+                inviteCount: inviteCount,
+              ),
+            );
+          }),
 
         // REMOVED: Floating legend button (top-right).
         // The legend is now triggered from the bottom dock's Help/Legend
@@ -1043,6 +1038,283 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         ],
       ),
     );
+  }
+
+  // v5.84: Combined Link & Invites button — single entry point with
+  // combined count badge. Opens a bottom sheet with two sections.
+  Widget _buildCombinedLinkInvitesButton({
+    required int unlinkedCount,
+    required int inviteCount,
+  }) {
+    final totalCount = unlinkedCount + inviteCount;
+
+    return Semantics(
+      label: '$totalCount items need attention: $unlinkedCount unlinked members, '
+          '$inviteCount pending invitations. Tap to see the list.',
+      button: true,
+      child: GestureDetector(
+        onTap: () => _showCombinedLinkInvitesSheet(
+          unlinkedCount: unlinkedCount,
+          inviteCount: inviteCount,
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkCard,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: KinrelColors.orange.withValues(alpha: 0.4),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.notifications_active_rounded,
+                size: 16,
+                color: KinrelColors.orange,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Inbox',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: KinrelColors.orange,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$totalCount',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.monoFont,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.darkCard,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // v5.84: Combined bottom sheet with two sections.
+  void _showCombinedLinkInvitesSheet({
+    required int unlinkedCount,
+    required int inviteCount,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Drag handle
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 4),
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: KinrelColors.textDim,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // Title
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Text(
+                  'Link & Invites',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+              ),
+              const Divider(color: Color(0x1AFFFFFF), height: 1),
+              // Content
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  children: [
+                    // Section 1: Unlinked members
+                    _buildSectionHeader(
+                      'Unlinked members',
+                      unlinkedCount,
+                      KinrelColors.amber,
+                    ),
+                    if (unlinkedCount > 0)
+                      _buildUnlinkedMembersList()
+                    else
+                      _buildEmptySection('All members are linked'),
+                    const SizedBox(height: 12),
+                    // Section 2: Pending invitations
+                    _buildSectionHeader(
+                      'Pending invitations',
+                      inviteCount,
+                      KinrelColors.tealAccent,
+                    ),
+                    if (inviteCount > 0)
+                      _buildPendingInvitesList()
+                    else
+                      _buildEmptySection('No pending invitations'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, int count, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      child: Row(
+        children: [
+          Text(
+            '$title ($count)',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptySection(String message) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Text(
+        message,
+        style: TextStyle(
+          fontFamily: KinrelTypography.bodyFont,
+          fontSize: 13,
+          color: KinrelColors.textDim,
+          fontStyle: FontStyle.italic,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnlinkedMembersList() {
+    final unlinkedIds = ref.watch(unlinkedPersonIdsProvider(widget.familyId));
+    final graph = ref.watch(familyGraphProvider(widget.familyId)).valueOrNull;
+    if (graph == null) return _buildEmptySection('Loading...');
+
+    final personsById = <String, Map<String, dynamic>>{};
+    for (final p in graph.persons) {
+      final id = p['id'] as String?;
+      if (id != null) personsById[id] = p;
+    }
+
+    return Column(
+      children: unlinkedIds.map((id) {
+        final person = personsById[id];
+        final name = (person?['name'] as String?) ?? 'Unknown';
+        return ListTile(
+          leading: Icon(Icons.link_off, color: KinrelColors.amber, size: 20),
+          title: Text(name, style: TextStyle(
+            color: KinrelColors.textWhite,
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 14,
+          )),
+          subtitle: Text('No relationships defined', style: TextStyle(
+            color: KinrelColors.textDim, fontSize: 12,
+          )),
+          trailing: Icon(Icons.chevron_right, color: KinrelColors.textDim),
+          onTap: () {
+            Navigator.pop(context);
+            showRelationshipPickerFlow(
+              context: context,
+              ref: ref,
+              familyId: widget.familyId,
+              sourcePerson: GraphPersonData(id: id, name: name),
+            );
+          },
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildPendingInvitesList() {
+    return Consumer(builder: (context, ref, _) {
+      final invitationsAsync =
+          ref.watch(graphPendingInvitationsProvider(widget.familyId));
+      final invitations = invitationsAsync.valueOrNull ?? [];
+
+      if (invitations.isEmpty) {
+        return _buildEmptySection('No pending invitations');
+      }
+
+      return Column(
+        children: invitations.map((inv) {
+          return ListTile(
+            leading: Icon(Icons.mail_outline, color: KinrelColors.tealAccent, size: 20),
+            title: Text(inv.recipientName ?? 'Unknown', style: TextStyle(
+              color: KinrelColors.textWhite,
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 14,
+            )),
+            subtitle: Text(
+              '${inv.specificLabelAtoB ?? inv.relationshipKey} • ${inv.status}',
+              style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  onPressed: () async {
+                    final notifier = ref.read(
+                      graphPendingInvitationsProvider(widget.familyId).notifier,
+                    );
+                    await notifier.cancelInvitation(inv.id);
+                  },
+                  child: Text('Cancel', style: TextStyle(
+                    color: Colors.red.shade300, fontSize: 12,
+                  )),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      );
+    });
   }
 
   // v5.9: Unlinked Members button — shows count badge, opens bottom sheet.
