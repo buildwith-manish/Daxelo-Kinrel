@@ -433,34 +433,53 @@ class _RelationshipInfoContentState
   /// v5.64: Opens the RelationshipPickerSheet (same one used for creating
   /// new relationships), then calls updateRelationship() to UPDATE the
   /// existing edge — no duplicate rows are created.
+  ///
+  /// v5.67 (BUG 2 FIX): Restructured to NOT call setState after
+  /// navigator.pop(). The previous version called navigator.pop() to
+  /// close the sheet, then called setState(() => _isMutating = true)
+  /// — which threw 'setState() called after dispose()' because the
+  /// widget was already disposed. The exception was caught by the
+  /// try/catch, so the actual updateRelationship() call NEVER EXECUTED
+  /// and the relationship was never updated.
+  ///
+  /// The fix: capture the navigator + messenger BEFORE pop, then do
+  /// all async work without setState (the loading indicator is invisible
+  /// anyway since the sheet is closed).
   Future<void> _showChangeRelationshipFlow(WidgetRef ref) async {
     if (widget.familyId == null || widget.edgeId == null) return;
     final familyId = widget.familyId!;
     final edgeId = widget.edgeId!;
 
-    // Close the info sheet FIRST so the picker sheet can show on top.
-    // (If we keep the info sheet open, the picker shows as a nested
-    // modal which is visually awkward on small screens.)
+    // v5.67: Capture navigator + messenger BEFORE pop — they remain
+    // valid after the widget is disposed (Navigator and ScaffoldMessenger
+    // are inherited widgets tied to the root, not to this sheet).
     final navigator = Navigator.of(context);
-    navigator.pop();
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final sourceName = widget.sourceName;
+    final targetName = widget.targetName;
+    final sourceId = widget.sourceId;
+    final targetId = widget.targetId;
+    final sourceGender = widget.sourceGender;
+    final targetGender = widget.targetGender;
 
     // Fetch the existing relationship types for smart suggestions.
     final detail = ref.read(familyDetailProvider(familyId)).valueOrNull;
     final existingRels = detail?.relationships
             .where((r) =>
-                r.fromPersonId == widget.sourceId ||
-                r.toPersonId == widget.sourceId)
+                r.fromPersonId == sourceId || r.toPersonId == sourceId)
             .map((r) => r.relationshipKey)
             .toList() ??
         const <String>[];
 
+    // Close the info sheet FIRST so the picker sheet can show on top.
+    navigator.pop();
+
     // Open the picker. The user picks a new relationship type for
     // the SAME pair of people (source → target).
-    if (!mounted) return;
     final pickedKey = await RelationshipPickerSheet.show(
-      context,
-      personAName: widget.sourceName,
-      personBName: widget.targetName,
+      navigator.context,
+      personAName: sourceName,
+      personBName: targetName,
       existingRelationshipTypes: existingRels,
     );
     if (pickedKey == null) return; // User cancelled.
@@ -468,16 +487,13 @@ class _RelationshipInfoContentState
     // Build the canonical edge input (maps the specific label to the
     // fundamental DB edge type — e.g. 'father' → 'parent').
     final edgeInput = buildCanonicalRelationshipEdge(
-      referencePersonId: widget.sourceId,
-      describedPersonId: widget.targetId,
+      referencePersonId: sourceId,
+      describedPersonId: targetId,
       pickedRelationshipKey: pickedKey,
-      referencePersonGender: widget.sourceGender,
-      describedPersonGender: widget.targetGender,
+      referencePersonGender: sourceGender,
+      describedPersonGender: targetGender,
     );
 
-    final messenger = ScaffoldMessenger.maybeOf(context);
-
-    setState(() => _isMutating = true);
     try {
       final result = await updateRelationship(
         ref: ref,
@@ -485,8 +501,8 @@ class _RelationshipInfoContentState
         familyId: familyId,
         newRelationshipKey: edgeInput.relationshipKey,
         newSpecificLabelAtoB: edgeInput.specificLabelAtoB,
-        fromPersonGender: widget.sourceGender,
-        toPersonGender: widget.targetGender,
+        fromPersonGender: sourceGender,
+        toPersonGender: targetGender,
       );
 
       // Show a confirmation snackbar with an Undo action.
@@ -507,7 +523,6 @@ class _RelationshipInfoContentState
                   familyId: familyId,
                   updateResult: result,
                 );
-                if (!mounted) return;
                 messenger.showSnackBar(
                   const SnackBar(
                     content: Text('Change reverted'),
@@ -517,7 +532,6 @@ class _RelationshipInfoContentState
                   ),
                 );
               } catch (e) {
-                if (!mounted) return;
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text('Could not undo: $e'),
@@ -540,29 +554,38 @@ class _RelationshipInfoContentState
           duration: const Duration(seconds: 5),
         ),
       );
-    } finally {
-      if (mounted) {
-        setState(() => _isMutating = false);
-      }
     }
   }
 
   /// v5.64: Shows a confirmation dialog, then soft-deletes the
   /// relationship via deleteRelationship(). Shows an Undo snackbar
   /// that re-activates the soft-deleted rows.
+  ///
+  /// v5.67 (BUG 3 FIX): Same setState-after-dispose bug as BUG 2.
+  /// Restructured to capture navigator + messenger BEFORE pop, and
+  /// removed all setState calls (the loading indicator is invisible
+  /// since the sheet is closed).
   Future<void> _showRemoveRelationshipConfirmation(WidgetRef ref) async {
     if (widget.familyId == null || widget.edgeId == null) return;
     final familyId = widget.familyId!;
     final edgeId = widget.edgeId!;
 
+    // v5.67: Capture everything BEFORE showing the dialog + popping.
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final sourceName = widget.sourceName;
+    final targetName = widget.targetName;
+    final sourceId = widget.sourceId;
+    final targetId = widget.targetId;
+
     // Build the confirmation message using the current relationship label.
     final relLabel = _formatKey(widget.relationshipKey);
     final message =
-        'Remove ${widget.sourceName} as ${widget.targetName}\'s $relLabel?\n\n'
+        'Remove $sourceName as $targetName\'s $relLabel?\n\n'
         'This won\'t delete either person, only this connection.';
 
     final confirmed = await showDialog<bool>(
-      context: context,
+      context: navigator.context,
       builder: (ctx) => AlertDialog(
         backgroundColor: KinrelColors.darkCard,
         shape: RoundedRectangleBorder(
@@ -609,8 +632,6 @@ class _RelationshipInfoContentState
     if (confirmed != true) return;
 
     // Close the info sheet.
-    final navigator = Navigator.of(context);
-    final messenger = ScaffoldMessenger.maybeOf(context);
     navigator.pop();
 
     // Before deleting, capture the inverse edge ID so the Undo can
@@ -623,8 +644,8 @@ class _RelationshipInfoContentState
             .from('Relationship')
             .select('id')
             .eq('familyId', familyId)
-            .eq('fromPersonId', widget.targetId)
-            .eq('toPersonId', widget.sourceId)
+            .eq('fromPersonId', targetId)
+            .eq('toPersonId', sourceId)
             .eq('isActive', true)
             .maybeSingle();
         inverseEdgeId = inverseData?['id'] as String?;
@@ -633,7 +654,6 @@ class _RelationshipInfoContentState
       // Non-fatal — the inverse ID is only for undo.
     }
 
-    setState(() => _isMutating = true);
     try {
       await deleteRelationship(
         ref: ref,
@@ -645,7 +665,7 @@ class _RelationshipInfoContentState
       messenger?.showSnackBar(
         SnackBar(
           content: Text(
-            'Removed: ${widget.sourceName} \u2194 ${widget.targetName}',
+            'Removed: $sourceName \u2194 $targetName',
           ),
           backgroundColor: KinrelColors.darkCard,
           behavior: SnackBarBehavior.floating,
@@ -661,7 +681,6 @@ class _RelationshipInfoContentState
                   relationshipId: edgeId,
                   inverseRelationshipId: inverseEdgeId,
                 );
-                if (!mounted) return;
                 messenger.showSnackBar(
                   const SnackBar(
                     content: Text('Relationship restored'),
@@ -671,7 +690,6 @@ class _RelationshipInfoContentState
                   ),
                 );
               } catch (e) {
-                if (!mounted) return;
                 messenger.showSnackBar(
                   SnackBar(
                     content: Text('Could not undo: $e'),
@@ -694,10 +712,6 @@ class _RelationshipInfoContentState
           duration: const Duration(seconds: 5),
         ),
       );
-    } finally {
-      if (mounted) {
-        setState(() => _isMutating = false);
-      }
     }
   }
 }

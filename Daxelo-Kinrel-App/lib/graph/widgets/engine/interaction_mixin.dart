@@ -415,29 +415,26 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       return dimmed;
     }
 
-    // Fallback: selection-based first-degree dim (v91 behavior).
-    final String? selectedNode = ref.read(selectedNodeProvider);
-    if (selectedNode == null) return null;
-
-    final connected = <String>{};
-    for (final deduped in edges) {
-      final e = deduped.edge;
-      if (e.sourceId == selectedNode || e.targetId == selectedNode) {
-        connected.add(e.id);
-      }
-    }
-
-    // If every visible edge is connected, there's nothing to dim.
-    if (connected.length == edges.length) return null;
-
-    // Return the COMPLEMENT — edges that are NOT connected.
-    final dimmed = <String>{};
-    for (final deduped in edges) {
-      if (!connected.contains(deduped.edge.id)) {
-        dimmed.add(deduped.edge.id);
-      }
-    }
-    return dimmed;
+    // v5.67 (BUG 1 FIX): The selection-based dimming fallback has been
+    // REMOVED. Previously, when no person was focused (isolation off)
+    // but a node was selected (selectedNodeProvider non-null), edges
+    // NOT connected to the selected node were dimmed. This was a v91
+    // behavior designed for a subtle 15% dim (dimAlpha was 0.85).
+    //
+    // With v5.65's stronger dimAlpha (0.18 = 82% reduction), this
+    // fallback became too aggressive: after "Show all" cleared the
+    // focus, the selectedNodeProvider still had a value (from the
+    // long-press that opened the menu), so edges stayed dimmed even
+    // though the user had exited isolation mode. The user reported:
+    // "Show all restores nodes but not connection lines."
+    //
+    // The fix: node selection (tap) should ONLY highlight the node
+    // visually — it should NOT dim edges. Edge dimming is now EXCLUSIVELY
+    // driven by the Isolate Connections feature (focus mode). When no
+    // person is focused, ALL edges are at full opacity.
+    //
+    // Returns null (nothing to dim) when no person is focused.
+    return null;
   }
 
   /// v92 (PARTS 14–16): Resolve the viewer→target kinship path.
