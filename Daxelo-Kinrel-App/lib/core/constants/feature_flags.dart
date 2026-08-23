@@ -111,3 +111,11 @@ const bool kEnableKinrel = true;
 ///
 /// Set to `false` to remove the debug dialog after diagnosis is complete.
 const bool kShowRelationshipDebugBanner = false;
+
+/// v5.76: TEMPORARY debug flag — shows an on-screen banner on the graph
+/// showing the current auth user ID, resolved viewerPersonId, and which
+/// node is getting isViewer=true. This helps diagnose why the viewer-
+/// relative perspective is not working for non-creator accounts.
+///
+/// Set to `false` to remove the debug banner after diagnosis is complete.
+const bool kShowViewerDebugBanner = true;

@@ -107,7 +107,7 @@ import '../interaction/couple_union_model.dart'
         deriveCoupleUnions,
         resolveEffectiveEdgeEndpoints,
         unionMidpoint;
-import '../../core/constants/feature_flags.dart' show kEnableGraphShareExport;
+import '../../core/constants/feature_flags.dart' show kEnableGraphShareExport, kShowViewerDebugBanner;
 import '../../core/constants/brand_colors.dart' show KinrelColors;
 import '../../core/constants/brand_typography.dart' show KinrelTypography;
 import '../../core/kinship/kinship_edge_style.dart';
@@ -118,6 +118,7 @@ import '../../core/kinship/kinship_service.dart' show KinshipService;
 import '../../core/relationship/relationship_engine.dart' show RelationshipEngine;
 import '../../core/services/graph_layout_service.dart' show GraphPerson;
 import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
+import '../../core/services/supabase_service.dart' show supabaseProvider, currentUserProvider;
 import '../../core/viewer/viewer_api_client.dart'
     show viewerApiClientProvider;
 import '../../features/family/presentation/services/graph_export_service.dart'
@@ -1295,6 +1296,15 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         // space with the banner gone.
         return Column(
           children: [
+            // v5.76: TEMPORARY debug banner showing viewer resolution state.
+            // This helps diagnose why the viewer-relative perspective is not
+            // working for non-creator accounts.
+            if (kShowViewerDebugBanner)
+              _ViewerDebugBanner(
+                authUserId: ref.watch(currentUserProvider)?.id,
+                viewerPersonId: viewerPersonId,
+                flat: flat,
+              ),
             // v5.8: Re-enabled ClaimProfileBanner — shows a prompt when the
             // current user has NOT claimed a Person node in this family.
             // v5.11: SAFETY NET — only show when viewerPersonId is null
@@ -1820,6 +1830,113 @@ class _IsolateConnectionsChip extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v5.76: TEMPORARY viewer debug banner
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Shows the current auth user ID, resolved viewerPersonId, and which
+/// Person node is getting isViewer=true. This helps diagnose why the
+/// viewer-relative perspective is not working for non-creator accounts.
+class _ViewerDebugBanner extends StatelessWidget {
+  const _ViewerDebugBanner({
+    required this.authUserId,
+    required this.viewerPersonId,
+    required this.flat,
+  });
+
+  final String? authUserId;
+  final String? viewerPersonId;
+  final FlatGraphResult? flat;
+
+  @override
+  Widget build(BuildContext context) {
+    // Find which person in the flat data has isAnchor=true
+    String? anchorPersonId;
+    String? anchorName;
+    String? viewerName;
+    if (flat != null) {
+      for (final p in flat!.persons) {
+        final id = p['id'] as String?;
+        final name = p['name'] as String? ?? '?';
+        final isAnchor = p['isAnchor'] as bool? ?? false;
+        if (isAnchor) {
+          anchorPersonId = id;
+          anchorName = name;
+        }
+        if (id == viewerPersonId) {
+          viewerName = name;
+        }
+      }
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      color: const Color(0xFF1a1a2e),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'VIEWER DEBUG',
+            style: TextStyle(
+              color: KinrelColors.orange,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'monospace',
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Auth User ID: ${authUserId ?? "NULL"}',
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 10,
+              fontFamily: 'monospace',
+            ),
+          ),
+          Text(
+            'Viewer Person ID: ${viewerPersonId ?? "NULL"}',
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 10,
+              fontFamily: 'monospace',
+            ),
+          ),
+          Text(
+            'Viewer Person Name: ${viewerName ?? "NULL"}',
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 10,
+              fontFamily: 'monospace',
+            ),
+          ),
+          Text(
+            'Anchor Person: ${anchorName ?? "NULL"} (${anchorPersonId?.substring(0, 8) ?? "NULL"})',
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 10,
+              fontFamily: 'monospace',
+            ),
+          ),
+          Text(
+            'Status: ${viewerPersonId == anchorPersonId ? "VIEWER == ANCHOR (same)" : viewerPersonId != null ? "VIEWER != ANCHOR (different - correct!)" : "VIEWER NULL - no linked Person"}',
+            style: TextStyle(
+              color: viewerPersonId == anchorPersonId
+                  ? Colors.red
+                  : viewerPersonId != null
+                      ? Colors.green
+                      : Colors.amber,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'monospace',
+            ),
+          ),
+        ],
       ),
     );
   }
