@@ -374,27 +374,34 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     }
 
     if (focusedPerson != null) {
-      // v5.65 (ISOLATE CONNECTIONS): Focus mode now uses ONLY the
-      // focused person + their FIRST-DEGREE (direct) connections.
-      // An edge is "connected" (stays bright) iff EITHER endpoint is
-      // the focused person OR a direct (1st-degree) neighbour.
+      // v5.66 (BUG 2 FIX): An edge stays bright ONLY if at least one
+      // endpoint is the FOCUSED PERSON themselves — NOT just any
+      // 1st-degree relative.
       //
-      // 2nd-degree neighbours are NO LONGER kept bright — they fade
-      // with the rest of the graph. This is the key behavior change
-      // from v95: the isolation is stricter, showing only the
-      // immediate relationship circle.
+      // Previously (v5.65), an edge stayed bright if EITHER endpoint was
+      // in {focusedPerson ∪ firstDegreeIds}. This was too permissive:
+      // when isolating MA (whose 1st-degree relatives include both JD
+      // and HD), the JD↔HD spouse edge stayed bright because both JD
+      // and HD were in the emphasised set — even though that edge does
+      // NOT connect MA to anyone. The user reported this as "the
+      // connection line between two dimmed, unrelated nodes does not
+      // dim."
+      //
+      // The fix: only keep edges bright if they DIRECTLY involve the
+      // focused person (sourceId == focusedPerson OR targetId ==
+      // focusedPerson). Edges between two 1st-degree relatives (e.g.
+      // JD↔HD when isolating MA) are now dimmed, matching the node
+      // dimming (both JD and HD nodes are bright, but the edge between
+      // them fades since it's not part of the focused person's direct
+      // relationship circle).
+      //
+      // The NODE-level dimming (node_builders.dart) is unchanged: the
+      // focused person + their 1st-degree neighbours stay at full
+      // opacity. Only the EDGE dimming is stricter here.
       final connected = <String>{};
-      final emphasisedIds = <String>{
-        focusedPerson,
-        ...focusState.firstDegreeIds,
-        // v5.65: secondDegreeIds intentionally EXCLUDED — 2nd-degree
-        // relatives are NOT part of the isolated subgraph. They fade
-        // to the dim opacity along with unrelated nodes.
-      };
       for (final deduped in edges) {
         final e = deduped.edge;
-        if (emphasisedIds.contains(e.sourceId) ||
-            emphasisedIds.contains(e.targetId)) {
+        if (e.sourceId == focusedPerson || e.targetId == focusedPerson) {
           connected.add(e.id);
         }
       }
@@ -629,8 +636,25 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       ..._rearrangeLiveEdgeWaypoints,
     };
 
-    String? bestId;
-    double bestDist = double.infinity;
+    // v5.66 (BUG 1 FIX): When multiple edges have the SAME visual
+    // midpoint (which happens when couple-union-redirected parent→child
+    // edges share the same union midpoint as their effective source),
+    // the old tiebreaker (strict `dist < bestDist`) picked whichever
+    // edge appeared FIRST in _currentEdges — which is non-deterministic
+    // and could be the WRONG edge (e.g. tapping HD↔MA but getting
+    // JD↔MA because JD→MA appeared first in the list).
+    //
+    // The fix: track ALL edges within the hit radius, then pick the one
+    // whose ACTUAL (non-redirected, raw) source/target nodes are closest
+    // to the tap point. This breaks the tie correctly: if the user taps
+    // closer to HD's node than JD's, the HD→MA edge wins.
+    //
+    // We compute a "raw proximity score" = the distance from the tap
+    // point to the NEAREST of the two raw endpoints (source or target,
+    // BEFORE the couple-union redirect). The edge whose nearest raw
+    // endpoint is closest to the tap wins.
+    final candidates = <_EdgeHitCandidate>[];
+
     for (final deduped in _currentEdges) {
       final e = deduped.edge;
       final s = _currentPositionsWithOffset[e.sourceId];
@@ -654,19 +678,6 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       // single source of truth (EngineEdgePainter.computeVisualMidpoint),
       // shared between the painter and this hit-tester so they can
       // NEVER drift apart.
-      //
-      // Previously (v5.59–v5.61) this computed `linearMid +
-      // waypointDelta`, which is the QUADRATIC BEZIER CONTROL POINT
-      // position — NOT the curve's visual midpoint. For the default
-      // (non-dragged) perpendicular-bow curve, the visual midpoint is
-      // `linearMid + 0.75·bow`, which differs from `linearMid` by up
-      // to 75px. At high zoom, the 50px screen hit radius shrinks in
-      // graph space (e.g. zoom=2 → 25 graph units), so the offset
-      // exceeded the radius and the dot became untouchable — the
-      // "lines undraggable after zoom" bug.
-      //
-      // By using the shared helper, the hit-test position is now
-      // IDENTICAL to the rendered marker position at every zoom level.
       final waypointDelta = allEdgeWaypoints[e.id] ?? Offset.zero;
       final visualMid = EngineEdgePainter.computeVisualMidpoint(
         resolved.source,
@@ -676,12 +687,42 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       );
 
       final dist = (visualMid - graphPos).distance;
-      if (dist < hitRadius && dist < bestDist) {
-        bestDist = dist;
-        bestId = e.id;
+      if (dist < hitRadius) {
+        // v5.66: Compute the raw-endpoint proximity score for tiebreaking.
+        // This is the distance from the tap to the NEAREST raw endpoint
+        // (before the couple-union redirect). When two edges share the
+        // same visual midpoint (e.g. HD→MA and JD→MA both redirect
+        // through the HD-JD union midpoint), the one whose raw parent
+        // node is closer to the tap wins.
+        final rawSourceDist = (s - graphPos).distance;
+        final rawTargetDist = (t - graphPos).distance;
+        final rawProximity = rawSourceDist < rawTargetDist
+            ? rawSourceDist
+            : rawTargetDist;
+        candidates.add(_EdgeHitCandidate(
+          edgeId: e.id,
+          midpointDist: dist,
+          rawProximity: rawProximity,
+        ));
       }
     }
-    return bestId;
+
+    if (candidates.isEmpty) return null;
+
+    // v5.66: Sort by (1) midpoint distance ascending, then (2) raw
+    // endpoint proximity ascending. This means: pick the closest
+    // midpoint; on ties, pick the edge whose raw endpoints are closest
+    // to the tap. The raw proximity tiebreaker only matters when two
+    // edges have nearly-identical midpoints (within 1px), which is the
+    // couple-union redirect case.
+    candidates.sort((a, b) {
+      final midCompare = a.midpointDist.compareTo(b.midpointDist);
+      if (midCompare.abs() > 0.5) return midCompare; // >0.5px difference
+      // Midpoints are nearly identical — use raw proximity as tiebreaker.
+      return a.rawProximity.compareTo(b.rawProximity);
+    });
+
+    return candidates.first.edgeId;
   }
 
   /// v92 (PART 17): Handle a tap on an edge midpoint. Selects the edge
@@ -1737,4 +1778,30 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       ),
     );
   }
+}
+
+/// v5.66 (BUG 1 FIX): Helper class for edge hit-testing tiebreaking.
+/// When multiple edges share the same visual midpoint (due to
+/// couple-union redirects), this holds the info needed to pick the
+/// correct one based on raw endpoint proximity.
+class _EdgeHitCandidate {
+  const _EdgeHitCandidate({
+    required this.edgeId,
+    required this.midpointDist,
+    required this.rawProximity,
+  });
+
+  final String edgeId;
+
+  /// Distance from the tap to the edge's visual midpoint (the dot/heart
+  /// position). Primary sort key — closer midpoints win.
+  final double midpointDist;
+
+  /// Distance from the tap to the NEAREST raw endpoint (before the
+  /// couple-union redirect). Secondary sort key — when two edges have
+  /// nearly-identical midpoints (within 0.5px), the one whose raw
+  /// parent/child node is closest to the tap wins. This ensures tapping
+  /// near HD's node picks the HD→MA edge, not the JD→MA edge (even when
+  /// both redirect through the same HD-JD union midpoint).
+  final double rawProximity;
 }
