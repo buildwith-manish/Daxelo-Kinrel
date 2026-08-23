@@ -526,12 +526,20 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
               try {
                 ref.invalidate(familyListProvider);
                 ref.invalidate(archivedFamiliesProvider);
+                // v5.78 (AUTH FIX): Invalidate authStateProvider +
+                // currentUserProvider on signedIn. This guarantees these
+                // providers are fresh even if the initial init-race left
+                // them stuck on Stream.empty() / null. Without this, the
+                // graph screen shows "Auth User ID: NULL" because the
+                // providers were cached before Supabase was ready.
+                ref.invalidate(authStateProvider);
+                ref.invalidate(currentUserProvider);
                 // v5.4: Invalidate viewer + graph providers so the graph
                 // re-renders from the NEW user's perspective on account switch.
                 // Without this, the graph keeps showing the previous user's
                 // "You" node and perspective labels.
                 invalidateViewerCache();
-                debugPrint('🔐 Auth listener: signedIn — familyListProvider + viewerCache invalidated');
+                debugPrint('🔐 Auth listener: signedIn — familyListProvider + viewerCache + authState invalidated');
               } catch (e) {
                 debugPrint('⚠️ Auth listener: failed to invalidate family providers: $e');
               }

@@ -155,8 +155,17 @@ Future<bool> autoSignInForDebug(WidgetRef ref) async {
 
 // ── Auth State Providers ─────────────────────────────────────────────
 
+/// v5.78 (AUTH FIX): authStateProvider now watches supabaseReadyStateProvider
+/// so it is re-created when Supabase becomes ready. Previously, if this
+/// provider was first read BEFORE Supabase finished initializing, it
+/// returned Stream.empty() and Riverpod cached that empty stream forever
+/// — causing currentUserProvider to always return null, which made the
+/// graph screen show "Auth User ID: NULL" even for logged-in users.
 final authStateProvider = StreamProvider<AuthState>((ref) {
-  if (!_supabaseInitialized) return const Stream.empty();
+  // Watch the ready state — this causes the provider to be re-created
+  // when Supabase finishes initializing.
+  final isReady = ref.watch(supabaseReadyStateProvider);
+  if (!isReady) return const Stream.empty();
   try {
     return Supabase.instance.client.auth.onAuthStateChange;
   } catch (e) {
@@ -165,7 +174,16 @@ final authStateProvider = StreamProvider<AuthState>((ref) {
   }
 });
 
+/// v5.78 (AUTH FIX): currentUserProvider now also watches
+/// supabaseReadyStateProvider so it re-evaluates when Supabase becomes
+/// ready. Previously, it was computed once with auth.currentUser == null
+/// (during the init race) and never recomputed because its only watched
+/// dependency (authStateProvider) was stuck on Stream.empty().
 final currentUserProvider = Provider<User?>((ref) {
+  // Watch the ready state so this provider re-evaluates when Supabase
+  // finishes initializing.
+  ref.watch(supabaseReadyStateProvider);
+
   // Real session only — no mock user.
   try {
     final authState = ref.watch(authStateProvider);
