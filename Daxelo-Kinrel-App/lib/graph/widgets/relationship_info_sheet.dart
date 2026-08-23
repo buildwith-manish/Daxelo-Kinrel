@@ -30,7 +30,15 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/constants/brand_colors.dart';
+import '../../core/constants/brand_typography.dart';
+import '../../core/family/family_provider.dart';
+import '../../core/family/relationship_edge_builder.dart';
+import '../../core/services/supabase_service.dart' show supabaseProvider;
+import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
+import '../../features/family/presentation/relationship_picker_sheet.dart';
 import '../interaction/graph_kinship_path_focus.dart'
     show GraphKinshipPathFocus;
 
@@ -50,6 +58,13 @@ class RelationshipInfoSheet {
   /// [stepIndex] and [stepCount] are optional and, when supplied,
   /// render a "Path step X of Y" badge above the relationship name —
   /// used when the tapped edge is part of an active path focus.
+  ///
+  /// v5.64: [familyId], [edgeId], and [ref] enable the "Change
+  /// relationship" and "Remove relationship" action buttons. When ALL
+  /// THREE are non-null, the sheet shows two action buttons below the
+  /// relationship display. When any is null (e.g. the sheet is opened
+  /// from the path-focus view where no single edge is being edited),
+  /// the action buttons are hidden.
   static Future<void> show(
     BuildContext context, {
     required String sourceId,
@@ -63,6 +78,9 @@ class RelationshipInfoSheet {
     int? stepIndex,
     int? stepCount,
     VoidCallback? onFocusPath,
+    String? familyId,
+    String? edgeId,
+    WidgetRef? ref,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -70,8 +88,10 @@ class RelationshipInfoSheet {
       barrierColor: Colors.black.withValues(alpha: 0.4),
       isScrollControlled: true,
       builder: (_) => _RelationshipInfoContent(
+        sourceId: sourceId,
         sourceName: sourceName,
         sourceGender: sourceGender,
+        targetId: targetId,
         targetName: targetName,
         targetGender: targetGender,
         relationshipKey: relationshipKey,
@@ -79,6 +99,9 @@ class RelationshipInfoSheet {
         stepIndex: stepIndex,
         stepCount: stepCount,
         onFocusPath: onFocusPath,
+        familyId: familyId,
+        edgeId: edgeId,
+        ref: ref,
       ),
     );
   }
@@ -88,10 +111,16 @@ class RelationshipInfoSheet {
 // SHEET CONTENT
 // ═══════════════════════════════════════════════════════════════════════
 
-class _RelationshipInfoContent extends StatelessWidget {
+/// v5.64: Converted to ConsumerStatefulWidget so the action buttons
+/// can call providers (familyDetailProvider, viewerPersonIdProvider,
+/// currentUserFamilyRoleProvider) and invoke updateRelationship /
+/// deleteRelationship directly.
+class _RelationshipInfoContent extends ConsumerStatefulWidget {
   const _RelationshipInfoContent({
+    required this.sourceId,
     required this.sourceName,
     required this.sourceGender,
+    required this.targetId,
     required this.targetName,
     required this.targetGender,
     required this.relationshipKey,
@@ -99,10 +128,15 @@ class _RelationshipInfoContent extends StatelessWidget {
     this.stepIndex,
     this.stepCount,
     this.onFocusPath,
+    this.familyId,
+    this.edgeId,
+    this.ref,
   });
 
+  final String sourceId;
   final String sourceName;
   final String? sourceGender;
+  final String targetId;
   final String targetName;
   final String? targetGender;
   final String relationshipKey;
@@ -121,6 +155,20 @@ class _RelationshipInfoContent extends StatelessWidget {
   /// When null, the button is hidden.
   final VoidCallback? onFocusPath;
 
+  /// v5.64: Family ID — required for the Change/Remove action buttons.
+  /// When null, the action buttons are hidden.
+  final String? familyId;
+
+  /// v5.64: Edge ID of the tapped relationship — required for the
+  /// Change/Remove action buttons. When null, the buttons are hidden.
+  final String? edgeId;
+
+  /// v5.64: WidgetRef from the caller — needed to call providers
+  /// (familyDetailProvider, viewerPersonIdProvider, etc.) and to pass
+  /// to updateRelationship / deleteRelationship. When null, the action
+  /// buttons are hidden.
+  final WidgetRef? ref;
+
   static const Color _bg = Color(0xFF0F1318);
   static const Color _card = Color(0xFF1A1F2B);
   static const Color _orange = Color(0xFFE8863A);
@@ -129,9 +177,31 @@ class _RelationshipInfoContent extends StatelessWidget {
   static const Color _divider = Color(0xFF2A3040);
 
   @override
+  ConsumerState<_RelationshipInfoContent> createState() =>
+      _RelationshipInfoContentState();
+}
+
+class _RelationshipInfoContentState
+    extends ConsumerState<_RelationshipInfoContent> {
+  bool _isMutating = false;
+
+  @override
   Widget build(BuildContext context) {
+    // Use the caller's ref if provided, otherwise fall back to this
+    // widget's own ref (ConsumerState). The caller's ref is the same
+    // graph-engine ref that has access to graph providers; this
+    // widget's ref has access to the same providers because the
+    // ProviderScope is at the app root.
+    final ref = widget.ref ?? this.ref;
+    final relationshipKey = widget.relationshipKey;
+    final sourceName = widget.sourceName;
+    final targetName = widget.targetName;
+    final sourceGender = widget.sourceGender;
+    final targetGender = widget.targetGender;
+
     final fwd = _formatKey(relationshipKey);
-    final inv = _formatKey(_genderAwareInverse(relationshipKey, targetGender));
+    final inv = _formatKey(
+        _genderAwareInverse(relationshipKey, targetGender));
     final sourceInitials = _initials(sourceName);
     final targetInitials = _initials(targetName);
     final sourceColor = _avatarColor(sourceGender);
@@ -145,21 +215,29 @@ class _RelationshipInfoContent extends StatelessWidget {
       ..write(targetName)
       ..write(', ')
       ..write(fwd);
-    if (pathFocus != null && pathFocus!.resolvedRelationshipLabel != null) {
+    if (widget.pathFocus != null &&
+        widget.pathFocus!.resolvedRelationshipLabel != null) {
       semanticLabel
-          ..write('. ')
-          ..write(pathFocus!.resolvedRelationshipLabel)
-          ..write('. Path has ')
-          ..write(pathFocus!.stepCount)
-          ..write(' steps.');
+        ..write('. ')
+        ..write(widget.pathFocus!.resolvedRelationshipLabel)
+        ..write('. Path has ')
+        ..write(widget.pathFocus!.stepCount)
+        ..write(' steps.');
     }
+
+    // v5.64: Determine whether to show the action buttons. They appear
+    // only when we have the full context (familyId + edgeId + ref) AND
+    // the user has permission (admin/owner, OR the relationship
+    // involves the viewer). The permission check matches the one in
+    // relationship_picker_flow.dart's showRelationshipPickerFlow.
+    final bool canEdit = _canEditRelationship(ref);
 
     return Semantics(
       label: semanticLabel.toString(),
       container: true,
       child: Container(
         decoration: const BoxDecoration(
-          color: _bg,
+          color: _RelationshipInfoContent._bg,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
@@ -171,7 +249,7 @@ class _RelationshipInfoContent extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: _divider,
+                color: _RelationshipInfoContent._divider,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -181,7 +259,7 @@ class _RelationshipInfoContent extends StatelessWidget {
             const Text(
               'Connection',
               style: TextStyle(
-                color: _textWhite,
+                color: _RelationshipInfoContent._textWhite,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.3,
@@ -207,7 +285,7 @@ class _RelationshipInfoContent extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 22),
                       child: _ConnectorLine(
                         label: fwd,
-                        color: _orange,
+                        color: _RelationshipInfoContent._orange,
                       ),
                     ),
                   ),
@@ -225,7 +303,7 @@ class _RelationshipInfoContent extends StatelessWidget {
             const SizedBox(height: 20),
 
             // ── Divider ──────────────────────────────────────────────────
-            Container(height: 1, color: _divider),
+            Container(height: 1, color: _RelationshipInfoContent._divider),
 
             // ── Relationship sentences ───────────────────────────────────
             Padding(
@@ -239,14 +317,15 @@ class _RelationshipInfoContent extends StatelessWidget {
                     fromName: sourceName,
                     relation: fwd,
                     toName: targetName,
-                    arrowColor: _orange,
+                    arrowColor: _RelationshipInfoContent._orange,
                   ),
                   const SizedBox(height: 12),
                   _RelationRow(
                     fromName: targetName,
                     relation: inv,
                     toName: sourceName,
-                    arrowColor: _orange.withValues(alpha: 0.7),
+                    arrowColor:
+                        _RelationshipInfoContent._orange.withValues(alpha: 0.7),
                   ),
                 ],
               ),
@@ -254,13 +333,77 @@ class _RelationshipInfoContent extends StatelessWidget {
 
             // v92 (PART 16): Path section — only rendered when pathFocus
             // is supplied AND has at least one step.
-            if (pathFocus != null && pathFocus!.stepCount > 0) ...[
-              Container(height: 1, color: _divider),
+            if (widget.pathFocus != null && widget.pathFocus!.stepCount > 0) ...[
+              Container(height: 1, color: _RelationshipInfoContent._divider),
               _PathFocusSection(
-                pathFocus: pathFocus!,
-                stepIndex: stepIndex,
-                stepCount: stepCount,
-                onFocusPath: onFocusPath,
+                pathFocus: widget.pathFocus!,
+                stepIndex: widget.stepIndex,
+                stepCount: widget.stepCount,
+                onFocusPath: widget.onFocusPath,
+              ),
+            ],
+
+            // ── v5.64: Action buttons (Change / Remove) ──────────────────
+            // Shown only when we have the full context AND the user has
+            // permission. Styled to match GraphQuickActions' ListTile
+            // buttons (same icon + text style) for app-wide consistency.
+            // NOTE: "Relate to another person" is intentionally NOT
+            // shown here — that action belongs ONLY in the node long-
+            // press menu (GraphQuickActions) for creating NEW
+            // relationships from a person. This sheet is exclusively
+            // for editing/removing the EXISTING relationship between
+            // the two people shown.
+            if (canEdit && widget.familyId != null && widget.edgeId != null) ...[
+              Container(height: 1, color: _RelationshipInfoContent._divider),
+              // Change relationship
+              ListTile(
+                leading: const Icon(Icons.swap_horiz_rounded,
+                    color: KinrelColors.tealAccent),
+                title: Text(
+                  'Change relationship',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: _RelationshipInfoContent._textWhite,
+                  ),
+                ),
+                trailing: _isMutating
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: KinrelColors.tealAccent,
+                        ),
+                      )
+                    : null,
+                onTap: _isMutating
+                    ? null
+                    : () => _showChangeRelationshipFlow(ref),
+              ),
+              // Remove relationship
+              ListTile(
+                leading: const Icon(Icons.link_off_rounded, color: Colors.red),
+                title: Text(
+                  'Remove relationship',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: Colors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                trailing: _isMutating
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.red,
+                        ),
+                      )
+                    : null,
+                onTap: _isMutating
+                    ? null
+                    : () => _showRemoveRelationshipConfirmation(ref),
               ),
             ],
 
@@ -272,136 +415,425 @@ class _RelationshipInfoContent extends StatelessWidget {
     );
   }
 
+  /// v5.64: Permission check — matches the logic in
+  /// relationship_picker_flow.dart's showRelationshipPickerFlow.
+  /// Returns true if the current user can edit THIS relationship
+  /// (admin/owner can edit any; regular members can edit relationships
+  /// that involve themselves).
+  bool _canEditRelationship(WidgetRef ref) {
+    if (widget.familyId == null) return false;
+    final role = ref.read(currentUserFamilyRoleProvider(widget.familyId!));
+    if (role == 'admin' || role == 'owner') return true;
+    final viewerId =
+        ref.read(viewerPersonIdProvider(widget.familyId!)).valueOrNull;
+    if (viewerId == null) return false;
+    return viewerId == widget.sourceId || viewerId == widget.targetId;
+  }
+
+  /// v5.64: Opens the RelationshipPickerSheet (same one used for creating
+  /// new relationships), then calls updateRelationship() to UPDATE the
+  /// existing edge — no duplicate rows are created.
+  Future<void> _showChangeRelationshipFlow(WidgetRef ref) async {
+    if (widget.familyId == null || widget.edgeId == null) return;
+    final familyId = widget.familyId!;
+    final edgeId = widget.edgeId!;
+
+    // Close the info sheet FIRST so the picker sheet can show on top.
+    // (If we keep the info sheet open, the picker shows as a nested
+    // modal which is visually awkward on small screens.)
+    final navigator = Navigator.of(context);
+    navigator.pop();
+
+    // Fetch the existing relationship types for smart suggestions.
+    final detail = ref.read(familyDetailProvider(familyId)).valueOrNull;
+    final existingRels = detail?.relationships
+            .where((r) =>
+                r.fromPersonId == widget.sourceId ||
+                r.toPersonId == widget.sourceId)
+            .map((r) => r.relationshipKey)
+            .toList() ??
+        const <String>[];
+
+    // Open the picker. The user picks a new relationship type for
+    // the SAME pair of people (source → target).
+    if (!mounted) return;
+    final pickedKey = await RelationshipPickerSheet.show(
+      context,
+      personAName: widget.sourceName,
+      personBName: widget.targetName,
+      existingRelationshipTypes: existingRels,
+    );
+    if (pickedKey == null) return; // User cancelled.
+
+    // Build the canonical edge input (maps the specific label to the
+    // fundamental DB edge type — e.g. 'father' → 'parent').
+    final edgeInput = buildCanonicalRelationshipEdge(
+      referencePersonId: widget.sourceId,
+      describedPersonId: widget.targetId,
+      pickedRelationshipKey: pickedKey,
+      referencePersonGender: widget.sourceGender,
+      describedPersonGender: widget.targetGender,
+    );
+
+    final messenger = ScaffoldMessenger.maybeOf(context);
+
+    setState(() => _isMutating = true);
+    try {
+      final result = await updateRelationship(
+        ref: ref,
+        relationshipId: edgeId,
+        familyId: familyId,
+        newRelationshipKey: edgeInput.relationshipKey,
+        newSpecificLabelAtoB: edgeInput.specificLabelAtoB,
+        fromPersonGender: widget.sourceGender,
+        toPersonGender: widget.targetGender,
+      );
+
+      // Show a confirmation snackbar with an Undo action.
+      final newLabel = _formatKey(edgeInput.specificLabelAtoB);
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text('Relationship updated to $newLabel'),
+          backgroundColor: KinrelColors.darkCard,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Undo',
+            textColor: KinrelColors.tealAccent,
+            onPressed: () async {
+              try {
+                await undoUpdateRelationship(
+                  ref: ref,
+                  familyId: familyId,
+                  updateResult: result,
+                );
+                if (!mounted) return;
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Change reverted'),
+                    backgroundColor: KinrelColors.darkCard,
+                    behavior: SnackBarBehavior.floating,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('Could not undo: $e'),
+                    backgroundColor: Colors.redAccent,
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+              }
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text('Could not update relationship: $e'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isMutating = false);
+      }
+    }
+  }
+
+  /// v5.64: Shows a confirmation dialog, then soft-deletes the
+  /// relationship via deleteRelationship(). Shows an Undo snackbar
+  /// that re-activates the soft-deleted rows.
+  Future<void> _showRemoveRelationshipConfirmation(WidgetRef ref) async {
+    if (widget.familyId == null || widget.edgeId == null) return;
+    final familyId = widget.familyId!;
+    final edgeId = widget.edgeId!;
+
+    // Build the confirmation message using the current relationship label.
+    final relLabel = _formatKey(widget.relationshipKey);
+    final message =
+        'Remove ${widget.sourceName} as ${widget.targetName}\'s $relLabel?\n\n'
+        'This won\'t delete either person, only this connection.';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: KinrelColors.darkCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.0),
+        ),
+        title: const Text(
+          'Remove relationship',
+          style: TextStyle(
+            fontFamily: KinrelTypography.displayFont,
+            fontSize: 18.0,
+            fontWeight: FontWeight.w700,
+            color: KinrelColors.textWhite,
+          ),
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 14.0,
+            color: KinrelColors.textSilver,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: KinrelColors.textDim),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Remove',
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    // Close the info sheet.
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    navigator.pop();
+
+    // Before deleting, capture the inverse edge ID so the Undo can
+    // re-activate both rows.
+    String? inverseEdgeId;
+    try {
+      final client = ref.read(supabaseProvider);
+      if (client != null) {
+        final inverseData = await client
+            .from('Relationship')
+            .select('id')
+            .eq('familyId', familyId)
+            .eq('fromPersonId', widget.targetId)
+            .eq('toPersonId', widget.sourceId)
+            .eq('isActive', true)
+            .maybeSingle();
+        inverseEdgeId = inverseData?['id'] as String?;
+      }
+    } catch (e) {
+      // Non-fatal — the inverse ID is only for undo.
+    }
+
+    setState(() => _isMutating = true);
+    try {
+      await deleteRelationship(
+        ref: ref,
+        relationshipId: edgeId,
+        familyId: familyId,
+      );
+
+      // Show confirmation with Undo.
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Removed: ${widget.sourceName} \u2194 ${widget.targetName}',
+          ),
+          backgroundColor: KinrelColors.darkCard,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Undo',
+            textColor: KinrelColors.tealAccent,
+            onPressed: () async {
+              try {
+                await undoDeleteRelationship(
+                  ref: ref,
+                  familyId: familyId,
+                  relationshipId: edgeId,
+                  inverseRelationshipId: inverseEdgeId,
+                );
+                if (!mounted) return;
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Relationship restored'),
+                    backgroundColor: KinrelColors.darkCard,
+                    behavior: SnackBarBehavior.floating,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('Could not undo: $e'),
+                    backgroundColor: Colors.redAccent,
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+              }
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text('Could not remove relationship: $e'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isMutating = false);
+      }
+    }
+  }
+}
+
   // ── Helpers ───────────────────────────────────────────────────────
+  // v5.64: These were originally static methods on _RelationshipInfoContent.
+  // After converting to ConsumerStatefulWidget, they're now top-level
+  // functions so both the widget and the state can call them.
 
-  static String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) {
-      return parts[0].substring(0, math.min(2, parts[0].length)).toUpperCase();
-    }
-    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+String _initials(String name) {
+  final parts = name.trim().split(RegExp(r'\s+'));
+  if (parts.isEmpty) return '?';
+  if (parts.length == 1) {
+    return parts[0].substring(0, math.min(2, parts[0].length)).toUpperCase();
   }
+  return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+}
 
-  static Color _avatarColor(String? gender) {
-    if (gender == 'female') return const Color(0xFF7B5EA7);
-    return const Color(0xFF2A7BB5);
-  }
+Color _avatarColor(String? gender) {
+  if (gender == 'female') return const Color(0xFF7B5EA7);
+  return const Color(0xFF2A7BB5);
+}
 
-  static String _formatKey(String key) {
-    return key
-        .split('_')
-        .where((w) => w.isNotEmpty)
-        .map((w) => '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}')
-        .join(' ');
-  }
+String _formatKey(String key) {
+  return key
+      .split('_')
+      .where((w) => w.isNotEmpty)
+      .map((w) => '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}')
+      .join(' ');
+}
 
-  /// Returns the inverse relationship key, taking the target's gender
-  /// into account for parent/child and sibling types.
-  static String _genderAwareInverse(String key, String? targetGender) {
-    final isFemale = targetGender == 'female';
-    final isMale = targetGender == 'male';
+/// Returns the inverse relationship key, taking the target's gender
+/// into account for parent/child and sibling types.
+String _genderAwareInverse(String key, String? targetGender) {
+  final isFemale = targetGender == 'female';
+  final isMale = targetGender == 'male';
 
-    switch (key) {
-      // parent → child uses child's gender
-      case 'father':
-      case 'mother':
-        return isFemale ? 'daughter' : 'son';
+  switch (key) {
+    // parent → child uses child's gender
+    case 'father':
+    case 'mother':
+      return isFemale ? 'daughter' : 'son';
 
-      // child → parent uses parent's gender
-      case 'son':
-      case 'daughter':
-        return isFemale ? 'mother' : 'father';
+    // child → parent uses parent's gender
+    case 'son':
+    case 'daughter':
+      return isFemale ? 'mother' : 'father';
 
-      // sibling
-      case 'brother':
-        return isFemale ? 'sister' : 'brother';
-      case 'sister':
-        return isMale ? 'brother' : 'sister';
+    // sibling
+    case 'brother':
+      return isFemale ? 'sister' : 'brother';
+    case 'sister':
+      return isMale ? 'brother' : 'sister';
 
-      // spouse
-      case 'husband':
-        return 'wife';
-      case 'wife':
-        return 'husband';
-      case 'spouse':
-      case 'partner':
-        return key;
+    // spouse
+    case 'husband':
+      return 'wife';
+    case 'wife':
+      return 'husband';
+    case 'spouse':
+    case 'partner':
+      return key;
 
-      // grandparent → grandchild
-      case 'grandfather':
-      case 'paternal_grandfather':
-      case 'maternal_grandfather':
-        return isFemale ? 'granddaughter' : 'grandson';
-      case 'grandmother':
-      case 'paternal_grandmother':
-      case 'maternal_grandmother':
-        return isFemale ? 'granddaughter' : 'grandson';
+    // grandparent → grandchild
+    case 'grandfather':
+    case 'paternal_grandfather':
+    case 'maternal_grandfather':
+      return isFemale ? 'granddaughter' : 'grandson';
+    case 'grandmother':
+    case 'paternal_grandmother':
+    case 'maternal_grandmother':
+      return isFemale ? 'granddaughter' : 'grandson';
 
-      // grandchild → grandparent
-      case 'grandson':
-      case 'granddaughter':
-        return isFemale ? 'grandmother' : 'grandfather';
+    // grandchild → grandparent
+    case 'grandson':
+    case 'granddaughter':
+      return isFemale ? 'grandmother' : 'grandfather';
 
-      // uncle/aunt ↔ nephew/niece
-      case 'uncle':
-      case 'paternal_uncle':
-      case 'maternal_uncle':
-        return isFemale ? 'niece' : 'nephew';
-      case 'aunt':
-      case 'paternal_aunt':
-      case 'maternal_aunt':
-        return isFemale ? 'niece' : 'nephew';
-      case 'nephew':
-        return isFemale ? 'aunt' : 'uncle';
-      case 'niece':
-        return isFemale ? 'aunt' : 'uncle';
+    // uncle/aunt ↔ nephew/niece
+    case 'uncle':
+    case 'paternal_uncle':
+    case 'maternal_uncle':
+      return isFemale ? 'niece' : 'nephew';
+    case 'aunt':
+    case 'paternal_aunt':
+    case 'maternal_aunt':
+      return isFemale ? 'niece' : 'nephew';
+    case 'nephew':
+      return isFemale ? 'aunt' : 'uncle';
+    case 'niece':
+      return isFemale ? 'aunt' : 'uncle';
 
-      // cousin
-      case 'cousin':
-        return 'cousin';
-      case 'cousin_brother':
-        return isFemale ? 'cousin_sister' : 'cousin_brother';
-      case 'cousin_sister':
-        return isMale ? 'cousin_brother' : 'cousin_sister';
+    // cousin
+    case 'cousin':
+      return 'cousin';
+    case 'cousin_brother':
+      return isFemale ? 'cousin_sister' : 'cousin_brother';
+    case 'cousin_sister':
+      return isMale ? 'cousin_brother' : 'cousin_sister';
 
-      // in-law
-      case 'father_in_law':
-        return isFemale ? 'daughter_in_law' : 'son_in_law';
-      case 'mother_in_law':
-        return isFemale ? 'daughter_in_law' : 'son_in_law';
-      case 'son_in_law':
-        return isFemale ? 'mother_in_law' : 'father_in_law';
-      case 'daughter_in_law':
-        return isFemale ? 'mother_in_law' : 'father_in_law';
-      case 'brother_in_law':
-        return isFemale ? 'sister_in_law' : 'brother_in_law';
-      case 'sister_in_law':
-        return isMale ? 'brother_in_law' : 'sister_in_law';
+    // in-law
+    case 'father_in_law':
+      return isFemale ? 'daughter_in_law' : 'son_in_law';
+    case 'mother_in_law':
+      return isFemale ? 'daughter_in_law' : 'son_in_law';
+    case 'son_in_law':
+      return isFemale ? 'mother_in_law' : 'father_in_law';
+    case 'daughter_in_law':
+      return isFemale ? 'mother_in_law' : 'father_in_law';
+    case 'brother_in_law':
+      return isFemale ? 'sister_in_law' : 'brother_in_law';
+    case 'sister_in_law':
+      return isMale ? 'brother_in_law' : 'sister_in_law';
 
-      // step-family
-      case 'stepfather':
-        return isFemale ? 'stepdaughter' : 'stepson';
-      case 'stepmother':
-        return isFemale ? 'stepdaughter' : 'stepson';
-      case 'stepson':
-        return isFemale ? 'stepmother' : 'stepfather';
-      case 'stepdaughter':
-        return isFemale ? 'stepmother' : 'stepfather';
-      case 'stepbrother':
-        return isFemale ? 'stepsister' : 'stepbrother';
-      case 'stepsister':
-        return isMale ? 'stepbrother' : 'stepsister';
+    // step-family
+    case 'stepfather':
+      return isFemale ? 'stepdaughter' : 'stepson';
+    case 'stepmother':
+      return isFemale ? 'stepdaughter' : 'stepson';
+    case 'stepson':
+      return isFemale ? 'stepmother' : 'stepfather';
+    case 'stepdaughter':
+      return isFemale ? 'stepmother' : 'stepfather';
+    case 'stepbrother':
+      return isFemale ? 'stepsister' : 'stepbrother';
+    case 'stepsister':
+      return isMale ? 'stepbrother' : 'stepsister';
 
-      // half-sibling
-      case 'half_brother':
-        return isFemale ? 'half_sister' : 'half_brother';
-      case 'half_sister':
-        return isMale ? 'half_brother' : 'half_sister';
+    // half-sibling
+    case 'half_brother':
+      return isFemale ? 'half_sister' : 'half_brother';
+    case 'half_sister':
+      return isMale ? 'half_brother' : 'half_sister';
 
-      default:
-        return key;
-    }
+    default:
+      return key;
   }
 }
 

@@ -739,6 +739,11 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     //   • Directional sentences (A is the X of B / B is the Y of A)
     //   • Optional path focus section (if pathFocus is non-null)
     //   • Optional "Focus Path" button (if pathFocus is multi-hop)
+    //   • v5.64: "Change relationship" + "Remove relationship" action
+    //     buttons (shown when familyId + edgeId + ref are all non-null
+    //     AND the user has permission — admin/owner can edit any
+    //     relationship, regular members can edit relationships that
+    //     involve themselves).
     RelationshipInfoSheet.show(
       context,
       sourceId: e.sourceId,
@@ -765,6 +770,15 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
                   pathFocus.targetPersonId;
             }
           : null,
+      // v5.64: Pass the family ID, edge ID, and ref so the sheet can
+      // show the "Change relationship" and "Remove relationship"
+      // action buttons. Without these, the buttons are hidden (the
+      // sheet falls back to display-only mode — used by the
+      // path-focus view in relationship_view.dart which doesn't
+      // edit a specific edge).
+      familyId: widget.familyId,
+      edgeId: e.id,
+      ref: ref,
     );
   }
 

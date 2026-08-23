@@ -3578,6 +3578,369 @@ Future<void> deleteRelationship({
   } catch (_) {}
 }
 
+/// v5.64: Updates an EXISTING relationship to a new type.
+///
+/// This is the "Change relationship" action — it replaces the
+/// relationshipKey/labelAtoB of an existing edge (and its inverse,
+/// if stored as a separate row) with a new type chosen by the user.
+/// It does NOT create a duplicate — the existing edge row(s) are
+/// deactivated (soft-delete) and a NEW pair of rows is inserted with
+/// the new relationship type, preserving the same two person IDs.
+///
+/// Soft-delete + re-insert is preferred over an in-place UPDATE
+/// because:
+///   1. It matches the existing soft-delete pattern used by
+///      deleteRelationship (and deletePerson elsewhere in this file).
+///   2. It preserves the audit trail — the old relationship row
+///      remains in the DB with isActive=false, so the change is
+///      reversible via the Undo action (which simply re-activates
+///      the old rows and deactivates the new ones).
+///   3. The DB trigger that auto-fills labelBtoA + edgeType fires
+///      on INSERT, not on UPDATE — re-inserting ensures the trigger
+///      runs for the new relationship type.
+///
+/// Parameters:
+/// - [ref] — the WidgetRef for provider access + graph cache invalidation.
+/// - [relationshipId] — the ID of the forward edge to update.
+/// - [familyId] — the family ID (for cache invalidation + inverse lookup).
+/// - [newRelationshipKey] — the FUNDAMENTAL edge type ('parent', 'spouse',
+///   'adoptive_parent', 'step_parent') for the new relationship.
+/// - [newSpecificLabelAtoB] — the SPECIFIC kinship label (e.g. 'father',
+///   'brother', 'wife') for the new relationship. Stored in labelAtoB.
+/// - [fromPersonGender] — gender of the fromPerson (for the inverse edge).
+/// - [toPersonGender] — gender of the toPerson (for the inverse edge).
+///
+/// Returns a [RelationshipUpdateResult] containing the IDs of the
+/// deactivated old rows + the newly-inserted rows, so the caller can
+/// implement the Undo action (swap which set is active).
+///
+/// Throws on failure. The caller should catch + show a user-friendly
+/// error message (see _showChangeRelationshipFlow in
+/// relationship_info_sheet.dart).
+Future<RelationshipUpdateResult> updateRelationship({
+  required WidgetRef ref,
+  required String relationshipId,
+  required String familyId,
+  required String newRelationshipKey,
+  required String newSpecificLabelAtoB,
+  String? fromPersonGender,
+  String? toPersonGender,
+}) async {
+  final client = ref.read(supabaseProvider);
+  if (client == null) {
+    throw Exception(
+      'Database is not connected. Please restart the app and try again.',
+    );
+  }
+
+  final now = DateTime.now().toIso8601String();
+
+  // 1. Look up the existing relationship to find both endpoints + the inverse row.
+  final existingData = await withRetry(
+    () => client
+        .from(_kRelationshipTable)
+        .select()
+        .eq('id', relationshipId)
+        .maybeSingle(),
+    operationName: 'Lookup relationship for update',
+  );
+  if (existingData == null) {
+    throw Exception('Relationship not found — it may have already been removed.');
+  }
+  final fromPersonId = existingData['fromPersonId'] as String?;
+  final toPersonId = existingData['toPersonId'] as String?;
+  if (fromPersonId == null || toPersonId == null) {
+    throw Exception('Relationship data is incomplete (missing person IDs).');
+  }
+
+  // 2. Find the inverse edge row (if one exists as a separate row).
+  //    The inverse is the row with from/to swapped. It MAY NOT EXIST
+  //    if the relationship was created with only a forward edge —
+  //    that's fine, we just skip deactivating it.
+  String? inverseRelationshipId;
+  try {
+    final inverseData = await withRetry(
+      () => client
+          .from(_kRelationshipTable)
+          .select('id')
+          .eq('familyId', familyId)
+          .eq('fromPersonId', toPersonId)
+          .eq('toPersonId', fromPersonId)
+          .eq('isActive', true)
+          .maybeSingle(),
+      operationName: 'Lookup inverse relationship for update',
+    );
+    inverseRelationshipId = inverseData?['id'] as String?;
+  } catch (e) {
+    debugPrint('[UPDATE-REL] Could not look up inverse edge (non-fatal): $e');
+  }
+
+  // 3. Deactivate the OLD forward + inverse rows (soft-delete).
+  final deactivatedOldIds = <String>[relationshipId];
+  await withRetry(
+    () => client.from(_kRelationshipTable).update({
+      'isActive': false,
+      'updatedAt': now,
+    }).eq('id', relationshipId),
+    operationName: 'Deactivate old forward relationship',
+  );
+  if (inverseRelationshipId != null) {
+    deactivatedOldIds.add(inverseRelationshipId!);
+    try {
+      await withRetry(
+        () => client.from(_kRelationshipTable).update({
+          'isActive': false,
+          'updatedAt': now,
+        }).eq('id', inverseRelationshipId!),
+        operationName: 'Deactivate old inverse relationship',
+      );
+    } catch (e) {
+      debugPrint('[UPDATE-REL] Could not deactivate old inverse (non-fatal): $e');
+    }
+  }
+
+  // 4. INSERT the NEW forward edge with the updated relationship type.
+  //    Uses the SAME shape as createRelationship() so the DB trigger
+  //    fires correctly (auto-fills labelBtoA + edgeType).
+  final newForwardId = _generateId();
+  await withRetry(
+    () => client.from(_kRelationshipTable).insert({
+      'id': newForwardId,
+      'familyId': familyId,
+      'fromPersonId': fromPersonId,
+      'toPersonId': toPersonId,
+      'relationshipKey': newRelationshipKey,
+      'relationshipType': newRelationshipKey,
+      'labelAtoB': newSpecificLabelAtoB,
+      'direction': 'forward',
+      'isActive': true,
+      'createdAt': now,
+      'updatedAt': now,
+    }).timeout(const Duration(seconds: 5)),
+    operationName: 'Insert new forward relationship',
+  );
+
+  // 5. INSERT the NEW inverse edge (gender-aware).
+  //    Uses getGenderAwareInverseKey to compute the inverse label
+  //    (e.g. 'father' → 'son'/'daughter' depending on the child's gender).
+  final inverseLabel = getGenderAwareInverseKey(newSpecificLabelAtoB, toPersonGender);
+  final inverseFundamentalKey = _mapToFundamentalDbType(inverseLabel);
+  final newInverseId = _generateId();
+  try {
+    await withRetry(
+      () => client.from(_kRelationshipTable).insert({
+        'id': newInverseId,
+        'familyId': familyId,
+        'fromPersonId': toPersonId,
+        'toPersonId': fromPersonId,
+        'relationshipKey': inverseFundamentalKey,
+        'relationshipType': inverseFundamentalKey,
+        'labelAtoB': inverseLabel,
+        'direction': 'inverse',
+        'isActive': true,
+        'createdAt': now,
+        'updatedAt': now,
+      }).timeout(const Duration(seconds: 5)),
+      operationName: 'Insert new inverse relationship',
+    );
+  } catch (e) {
+    // Non-fatal: the forward edge is already inserted. The inverse
+    // failing just means the reverse-direction label won't show, but
+    // the relationship is still valid. Log + continue.
+    debugPrint('[UPDATE-REL] Could not insert new inverse edge (non-fatal): $e');
+  }
+
+  // 6. Update Family.lastActivityAt.
+  try {
+    await withRetry(
+      () => client
+          .from(_kFamilyTable)
+          .update({
+            'lastActivityAt': now,
+            'updatedAt': now,
+          })
+          .eq('id', familyId),
+      operationName: 'Update family activity timestamp',
+    );
+  } catch (e) {
+    debugPrint('[UPDATE-REL] Could not update family activity: $e');
+  }
+
+  // 7. Invalidate providers + clear the graph cache so the line's
+  //    color/label reflects the new relationship type immediately.
+  ref.invalidate(familyRelationshipsProvider(familyId));
+  ref.invalidate(familyDetailProvider(familyId));
+  ref.invalidate(unifiedFamilyRosterProvider(familyId));
+  FamilyGraphNotifier.clearCache(familyId);
+  ref.invalidate(familyGraphProvider(familyId));
+  if (IsarDatabase.isInitialized) {
+    try {
+      await CacheInvalidation.invalidateFamily(familyId);
+    } catch (_) {}
+  }
+
+  return RelationshipUpdateResult(
+    deactivatedOldIds: deactivatedOldIds,
+    newForwardId: newForwardId,
+    newInverseId: newInverseId,
+    fromPersonId: fromPersonId,
+    toPersonId: toPersonId,
+    newRelationshipKey: newRelationshipKey,
+    newSpecificLabelAtoB: newSpecificLabelAtoB,
+    inverseLabel: inverseLabel,
+  );
+}
+
+/// v5.64: Result of an [updateRelationship] call. Contains the IDs
+/// needed to undo the update (re-activate the old rows + deactivate
+/// the new rows).
+class RelationshipUpdateResult {
+  const RelationshipUpdateResult({
+    required this.deactivatedOldIds,
+    required this.newForwardId,
+    required this.newInverseId,
+    required this.fromPersonId,
+    required this.toPersonId,
+    required this.newRelationshipKey,
+    required this.newSpecificLabelAtoB,
+    required this.inverseLabel,
+  });
+
+  /// IDs of the OLD rows that were deactivated (forward + inverse, if both existed).
+  final List<String> deactivatedOldIds;
+
+  /// ID of the NEW forward row that was inserted.
+  final String newForwardId;
+
+  /// ID of the NEW inverse row that was inserted (may not have been
+  /// inserted if the inverse INSERT failed — check newInverseInserted).
+  final String newInverseId;
+
+  final String fromPersonId;
+  final String toPersonId;
+  final String newRelationshipKey;
+  final String newSpecificLabelAtoB;
+  final String inverseLabel;
+}
+
+/// v5.64: Reverts an [updateRelationship] call — re-activates the old
+/// rows and deactivates the new rows. Used by the Undo action on the
+/// "Relationship updated" snackbar.
+Future<void> undoUpdateRelationship({
+  required WidgetRef ref,
+  required String familyId,
+  required RelationshipUpdateResult updateResult,
+}) async {
+  final client = ref.read(supabaseProvider);
+  if (client == null) {
+    throw Exception('Database is not connected.');
+  }
+  final now = DateTime.now().toIso8601String();
+
+  // 1. Re-activate the OLD rows.
+  for (final oldId in updateResult.deactivatedOldIds) {
+    try {
+      await withRetry(
+        () => client.from(_kRelationshipTable).update({
+          'isActive': true,
+          'updatedAt': now,
+        }).eq('id', oldId),
+        operationName: 'Re-activate old relationship for undo',
+      );
+    } catch (e) {
+      debugPrint('[UNDO-UPDATE-REL] Could not re-activate $oldId (non-fatal): $e');
+    }
+  }
+
+  // 2. Deactivate the NEW rows.
+  for (final newId in [updateResult.newForwardId, updateResult.newInverseId]) {
+    try {
+      await withRetry(
+        () => client.from(_kRelationshipTable).update({
+          'isActive': false,
+          'updatedAt': now,
+        }).eq('id', newId),
+        operationName: 'Deactivate new relationship for undo',
+      );
+    } catch (e) {
+      debugPrint('[UNDO-UPDATE-REL] Could not deactivate $newId (non-fatal): $e');
+    }
+  }
+
+  // 3. Invalidate providers + clear graph cache.
+  ref.invalidate(familyRelationshipsProvider(familyId));
+  ref.invalidate(familyDetailProvider(familyId));
+  ref.invalidate(unifiedFamilyRosterProvider(familyId));
+  FamilyGraphNotifier.clearCache(familyId);
+  ref.invalidate(familyGraphProvider(familyId));
+  if (IsarDatabase.isInitialized) {
+    try {
+      await CacheInvalidation.invalidateFamily(familyId);
+    } catch (_) {}
+  }
+}
+
+/// v5.64: Reverts a [deleteRelationship] call — re-activates the
+/// soft-deleted rows. Used by the Undo action on the "Relationship
+/// removed" snackbar.
+///
+/// [relationshipId] is the ID of the forward edge that was deleted.
+/// [inverseRelationshipId] is the ID of the inverse edge, if known.
+/// The caller (relationship_info_sheet.dart) captures both IDs at
+/// delete time and passes them here for the undo.
+Future<void> undoDeleteRelationship({
+  required WidgetRef ref,
+  required String familyId,
+  required String relationshipId,
+  String? inverseRelationshipId,
+}) async {
+  final client = ref.read(supabaseProvider);
+  if (client == null) {
+    throw Exception('Database is not connected.');
+  }
+  final now = DateTime.now().toIso8601String();
+
+  // 1. Re-activate the forward row.
+  try {
+    await withRetry(
+      () => client.from(_kRelationshipTable).update({
+        'isActive': true,
+        'updatedAt': now,
+      }).eq('id', relationshipId),
+      operationName: 'Re-activate relationship for undo delete',
+    );
+  } catch (e) {
+    debugPrint('[UNDO-DELETE-REL] Could not re-activate $relationshipId: $e');
+  }
+
+  // 2. Re-activate the inverse row (if provided).
+  if (inverseRelationshipId != null) {
+    try {
+      await withRetry(
+        () => client.from(_kRelationshipTable).update({
+          'isActive': true,
+          'updatedAt': now,
+        }).eq('id', inverseRelationshipId),
+        operationName: 'Re-activate inverse relationship for undo delete',
+      );
+    } catch (e) {
+      debugPrint('[UNDO-DELETE-REL] Could not re-activate inverse $inverseRelationshipId (non-fatal): $e');
+    }
+  }
+
+  // 3. Invalidate providers + clear graph cache.
+  ref.invalidate(familyRelationshipsProvider(familyId));
+  ref.invalidate(familyDetailProvider(familyId));
+  ref.invalidate(unifiedFamilyRosterProvider(familyId));
+  FamilyGraphNotifier.clearCache(familyId);
+  ref.invalidate(familyGraphProvider(familyId));
+  if (IsarDatabase.isInitialized) {
+    try {
+      await CacheInvalidation.invalidateFamily(familyId);
+    } catch (_) {}
+  }
+}
+
 // ── Top-level parsing functions for compute() ──────────────────────
 // These must be top-level functions (not closures or class methods)
 // because Dart's compute() requires them for spawning isolates.
