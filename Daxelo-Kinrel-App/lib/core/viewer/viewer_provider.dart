@@ -110,8 +110,23 @@ final viewerPersonIdProvider =
     }
 
     if (userId == null) {
-      // No authenticated user — fall back to anchor (legacy / unclaimed)
-      return _resolveAnchorPerson(client, familyId);
+      // v5.77 (VIEWER FIX): Do NOT fall back to the anchor person when
+      // userId is null. Previously, this returned _resolveAnchorPerson
+      // which returns the anchor Person ID regardless of who owns it.
+      // This caused the graph to show the anchor (e.g. Manish) as "You"
+      // even when a DIFFERENT user (e.g. Yakshitha) was logged in —
+      // because during the brief window when the auth state hasn't
+      // initialized yet, the provider returned the anchor's Person ID.
+      //
+      // Now we return null — the graph shows no "You" node until the
+      // auth state is properly initialized. Once currentUserProvider
+      // fires with the real user, this provider rebuilds and Step 1
+      // finds the correct Person.
+      //
+      // Also clear the stale cache so a previous user's cached
+      // viewerPersonId isn't used.
+      invalidateViewerCache(familyId);
+      return null;
     }
 
     // Step 1: Query Person where linkedUserId = userId AND familyId = familyId
