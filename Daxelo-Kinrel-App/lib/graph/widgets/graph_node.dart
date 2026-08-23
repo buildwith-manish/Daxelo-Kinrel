@@ -166,6 +166,10 @@ class GraphNode extends ConsumerStatefulWidget {
     this.isUnclaimed = false,
     // v5.9: unlinked-member detection
     this.isUnlinked = false,
+    // v5.85: indirect-relation badge — shown when this node has an
+    // indirect relationship to the current viewer (not directly
+    // connected by a line, but related through other people).
+    this.isIndirectRelation = false,
     this.familyId,
     this.showRelationLabel = true,
     // P3.3: birthday glow parameters.
@@ -289,6 +293,13 @@ class GraphNode extends ConsumerStatefulWidget {
   /// a DASHED border and a small "link-off" badge in the corner to
   /// signal that the user should connect them to the family tree.
   final bool isUnlinked;
+
+  /// v5.85: Whether this node has an INDIRECT relationship to the current
+  /// viewer (reachable through other people, but NOT directly connected
+  /// by a relationship line). When true, a small custom badge icon is
+  /// rendered in the corner of the node to signal "tap to see how you're
+  /// related." The badge is VISUAL ONLY — not a separate tap target.
+  final bool isIndirectRelation;
 
   /// Optional family ID — when provided AND kEnableKinrel is true, the
   /// node shows an Kinrel role glyph badge (root/anchor/bridge/weaver/leaf/
@@ -1014,6 +1025,21 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                 ),
               ),
             ),
+          // v5.85: "Indirect relation" badge — custom interlocking-rings
+          // icon, bottom-left corner. Shown when the node has an indirect
+          // relationship to the current viewer (not directly connected
+          // by a line, but related through other people).
+          // VISUAL INDICATOR ONLY — not a separate tap target. Tapping
+          // the node opens the relationship detail sheet.
+          if (widget.isIndirectRelation && !widget.isUnlinked)
+            Positioned(
+              left: -2,
+              bottom: -2,
+              child: CustomPaint(
+                size: const Size(22, 22),
+                painter: _IndirectRelationBadgePainter(),
+              ),
+            ),
           // Role glyph — uses _NodeRoleGlyphBadge which handles the
           // provider lookup internally (familyId → role → badge)
           if (widget.familyId != null && kEnableKinrel)
@@ -1250,4 +1276,58 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       ),
     );
   }
+}
+
+/// v5.85: Custom painter for the indirect-relation badge icon.
+///
+/// Draws two interlocking rings (like a simplified chain-link) on a
+/// dark circular background — visually distinct from the amber "unlinked"
+/// badge. Uses teal accent color to match the app's existing design
+/// language for "connection" indicators.
+///
+/// The badge is 22x22 pixels — same size as the unlinked badge — and
+/// sits in the bottom-left corner of the node.
+class _IndirectRelationBadgePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    // Background: dark circle
+    final bgPaint = Paint()
+      ..color = const Color(0xFF1A1F2B) // KinrelColors.darkCard
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius, bgPaint);
+
+    // Border: thin teal outline
+    final borderPaint = Paint()
+      ..color = const Color(0xFF14B8A6) // teal accent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawCircle(center, radius, borderPaint);
+
+    // Two interlocking rings — left ring and right ring
+    final ringRadius = size.width * 0.18;
+    final ringStrokeWidth = 1.5;
+    final ringColor = const Color(0xFF14B8A6); // teal accent
+
+    // Left ring (slightly to the left of center)
+    final leftCenter = Offset(center.dx - ringRadius * 0.7, center.dy);
+    final leftPaint = Paint()
+      ..color = ringColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = ringStrokeWidth;
+    canvas.drawCircle(leftCenter, ringRadius, leftPaint);
+
+    // Right ring (slightly to the right of center, overlapping)
+    final rightCenter = Offset(center.dx + ringRadius * 0.7, center.dy);
+    final rightPaint = Paint()
+      ..color = ringColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = ringStrokeWidth;
+    canvas.drawCircle(rightCenter, ringRadius, rightPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

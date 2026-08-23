@@ -46,6 +46,8 @@ import '../../../graph/widgets/relationship_picker_flow.dart'; // v5.10
 import '../../../graph/widgets/graph_relationship_labels.dart' show GraphPersonData; // v5.10
 // v5.41: Pending Invitations sheet (graph-originated invites).
 import '../../../graph/widgets/pending_invitations_sheet.dart';
+import '../../../graph/interaction/indirect_relation_provider.dart'
+    show indirectRelationIdsProvider, hasSeenIndirectBadgeProvider;
 import '../../family/presentation/providers/graph_pending_invitations_provider.dart';
 // v5.22: Rearrange-mode toggle (personal layout overrides + edge midpoint bow).
 // v5.34: also imports saveAllOverridesTriggerProvider + resetUnsavedOverridesTriggerProvider.
@@ -702,6 +704,18 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
               ),
             );
           }),
+
+        // v5.85: One-time coach-mark for the indirect-relation badge.
+        // Shows a brief tooltip the FIRST time the user encounters any
+        // node with the badge. After dismissal, never shows again.
+        if (ref.watch(indirectRelationIdsProvider(widget.familyId)).isNotEmpty &&
+            !ref.watch(hasSeenIndirectBadgeProvider) &&
+            !ref.watch(rearrangeModeProvider))
+          _IndirectRelationCoachMark(
+            onDismiss: () {
+              ref.read(hasSeenIndirectBadgeProvider.notifier).state = true;
+            },
+          ),
 
         // REMOVED: Floating legend button (top-right).
         // The legend is now triggered from the bottom dock's Help/Legend
@@ -1729,4 +1743,152 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       ),
     );
   }
+}
+
+/// v5.85: One-time coach-mark for the indirect-relation badge.
+///
+/// Shows a brief, dismissible tooltip near the top-center of the graph
+/// explaining: "This icon means you're indirectly related to this
+/// person — tap their name to see how."
+///
+/// Appears only ONCE per user account (tracked via hasSeenIndirectBadgeProvider).
+/// After dismissal (tap anywhere or auto-dismiss after 5 seconds), never
+/// shows again.
+class _IndirectRelationCoachMark extends StatefulWidget {
+  const _IndirectRelationCoachMark({required this.onDismiss});
+
+  final VoidCallback onDismiss;
+
+  @override
+  State<_IndirectRelationCoachMark> createState() =>
+      _IndirectRelationCoachMarkState();
+}
+
+class _IndirectRelationCoachMarkState
+    extends State<_IndirectRelationCoachMark> {
+  Timer? _autoDismissTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-dismiss after 5 seconds
+    _autoDismissTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) widget.onDismiss();
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoDismissTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: widget.onDismiss,
+        child: Container(
+          color: Colors.black.withValues(alpha: 0.3),
+          child: Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 32),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1F2B),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF14B8A6), // teal accent
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Custom badge icon preview
+                  CustomPaint(
+                    size: const Size(28, 28),
+                    painter: _CoachMarkBadgePreviewPainter(),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Indirect Relation',
+                    style: TextStyle(
+                      color: const Color(0xFF14B8A6),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: KinrelTypography.displayFont,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'This icon means you\'re indirectly related to '
+                    'this person — tap their name to see how.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: KinrelColors.textWhite,
+                      fontSize: 13,
+                      height: 1.4,
+                      fontFamily: KinrelTypography.bodyFont,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Tap to dismiss',
+                    style: TextStyle(
+                      color: KinrelColors.textDim,
+                      fontSize: 11,
+                      fontFamily: KinrelTypography.bodyFont,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Simple version of the badge painter for the coach-mark preview.
+class _CoachMarkBadgePreviewPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    final bgPaint = Paint()
+      ..color = const Color(0xFF1A1F2B)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius, bgPaint);
+
+    final borderPaint = Paint()
+      ..color = const Color(0xFF14B8A6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    canvas.drawCircle(center, radius, borderPaint);
+
+    final ringRadius = size.width * 0.18;
+    final ringPaint = Paint()
+      ..color = const Color(0xFF14B8A6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    canvas.drawCircle(
+        Offset(center.dx - ringRadius * 0.7, center.dy), ringRadius, ringPaint);
+    canvas.drawCircle(
+        Offset(center.dx + ringRadius * 0.7, center.dy), ringRadius, ringPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

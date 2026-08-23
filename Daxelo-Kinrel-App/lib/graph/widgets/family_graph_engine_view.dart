@@ -118,6 +118,8 @@ import '../../core/kinship/kinship_service.dart' show KinshipService;
 import '../../core/relationship/relationship_engine.dart' show RelationshipEngine;
 import '../../core/services/graph_layout_service.dart' show GraphPerson;
 import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
+import '../interaction/indirect_relation_provider.dart'
+    show indirectRelationIdsProvider, hasSeenIndirectBadgeProvider;
 import '../../core/services/supabase_service.dart' show supabaseProvider, currentUserProvider;
 import '../../core/viewer/viewer_api_client.dart'
     show viewerApiClientProvider;

@@ -24,6 +24,12 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
     // v5.9: Check if this person is "unlinked" (zero relationship edges).
     final unlinkedIds = ref.watch(unlinkedPersonIdsProvider(widget.familyId));
     final bool isUnlinked = unlinkedIds.contains(id);
+    // v5.85: Check if this node has an INDIRECT relationship to the
+    // current viewer (not directly connected by a line, but related
+    // through other people). Used to show the interlocking-rings badge.
+    final indirectIds = ref.watch(
+        indirectRelationIdsProvider(widget.familyId));
+    final bool isIndirectRelation = indirectIds.contains(id);
     // §4: Wire selectedNodeProvider to the node's NodeState so
     // selection visually highlights the node.
     final selectedId = ref.watch(selectedNodeProvider);
@@ -142,6 +148,9 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       isUnclaimed: false,
       // v5.9: Pass isUnlinked so GraphNode renders the dashed ring + badge.
       isUnlinked: isUnlinked,
+      // v5.85: Pass the indirect-relation flag so GraphNode renders the
+      // interlocking-rings badge on indirectly-related nodes.
+      isIndirectRelation: isIndirectRelation,
       // Pass familyId so GraphNode can render the Kinrel role glyph badge
       // (root/anchor/bridge/weaver/leaf/twin_node) on the node when
       // kEnableKinrel is true.
