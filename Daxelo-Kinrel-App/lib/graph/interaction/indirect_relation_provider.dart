@@ -14,6 +14,10 @@
 // existing relationship detail sheet which shows the computed term.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../features/family/presentation/providers/family_graph_provider.dart'
+    show familyGraphProvider;
+import '../../core/viewer/viewer_provider.dart'
+    show viewerPersonIdProvider;
 
 /// Maximum relationship hops from the viewer for the indirect badge to
 /// appear. Nodes beyond this distance show no badge.
