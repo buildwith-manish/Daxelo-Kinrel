@@ -519,22 +519,32 @@ class EngineEdgePainter extends CustomPainter {
       // v5.27 Task 2: Connect-on-open animation.
       //
       // While connectOnOpenActive is true, the painter HIDES non-revealed
-      // edges (alpha=0) instead of dimming them. The current edge fades
-      // in from alpha=0 to its normal effectiveAlpha over its time slot
-      // using connectOnOpenProgress (0..1). Revealed edges (in
-      // connectOnOpenRevealedEdgeIds) are drawn at their full effectiveAlpha.
+      // edges (alpha=0) instead of dimming them. The current edge is
+      // progressively DRAWN (path-draw) from its BFS-arrival endpoint
+      // toward the new endpoint using connectOnOpenProgress (0..1).
+      // Revealed edges (in connectOnOpenRevealedEdgeIds) are drawn at
+      // their full effectiveAlpha.
       //
-      // This is the SAME pattern as the existing path-trace fade (the
-      // painter already knows how to apply per-edge alpha multipliers)
-      // — we just add a new branch for the connect-on-open case.
+      // v5.92: Changed from alpha fade-in to progressive path-draw.
+      // The current edge's alpha stays at full effectiveAlpha, but the
+      // drawn Path is truncated via PathMetric.extractPath so the line
+      // visibly grows from the already-revealed node toward the new
+      // node. The midpoint symbol (heart/dot) is skipped until
+      // progress >= 1.0 so it doesn't appear before the line reaches it.
       double connectOnOpenAlpha = 1.0;
+      bool isConnectOnOpenCurrentEdge = false;
+      bool skipMidpointForConnectOnOpen = false;
       if (connectOnOpenActive) {
         if (connectOnOpenRevealedEdgeIds.contains(e.id)) {
-          // Already revealed — full alpha.
+          // Already revealed — full alpha, full path, midpoint shown.
           connectOnOpenAlpha = 1.0;
         } else if (e.id == connectOnOpenCurrentEdgeId) {
-          // Currently fading in — interpolate from 0 to 1.
-          connectOnOpenAlpha = connectOnOpenProgress.clamp(0.0, 1.0);
+          // Currently drawing in — full alpha, but truncate the path.
+          connectOnOpenAlpha = 1.0;
+          isConnectOnOpenCurrentEdge = true;
+          // Skip midpoint until the line fully reaches it.
+          skipMidpointForConnectOnOpen =
+              connectOnOpenProgress < 1.0;
         } else {
           // Not yet started — completely hidden.
           connectOnOpenAlpha = 0.0;
@@ -549,6 +559,82 @@ class EngineEdgePainter extends CustomPainter {
                   ? (edgeAlpha * dimAlpha).clamp(0.0, 1.0)
                   : (edgeAlpha + pathFocusBoost).clamp(0.0, 1.0)) *
               connectOnOpenAlpha).clamp(0.0, 1.0);
+
+      // v5.92: Progressive path-draw for the connect-on-open current edge.
+      // Instead of fading in the full path, we truncate the drawn Path
+      // using PathMetric.extractPath so the line visibly grows from the
+      // already-revealed node toward the new node.
+      //
+      // Direction: the sub-path must start at the endpoint that was
+      // ALREADY revealed (the BFS-arrival node) and grow toward the
+      // new node. We determine which endpoint is the revealed one by
+      // checking which endpoint appears in any already-revealed edge.
+      Path drawPath = path;
+      if (isConnectOnOpenCurrentEdge) {
+        final double progress =
+            connectOnOpenProgress.clamp(0.0, 1.0);
+        if (progress <= 0.0) {
+          // Nothing to draw yet — use an empty path.
+          drawPath = Path();
+        } else if (progress < 1.0) {
+          // Determine which endpoint is the BFS-arrival node (already
+          // revealed). We build a set of node IDs touched by any
+          // revealed edge. The current edge's endpoint that appears in
+          // this set is the "from" side; the other is the "to" side.
+          //
+          // This mirrors _orderedEdgesForConnectOnOpen's BFS: the BFS
+          // arrives at a node via a previously-revealed edge, then
+          // traverses the current edge to reach a new node. The line
+          // should grow FROM the arrival node TOWARD the new node.
+          final revealedNodeIds = <String>{};
+          for (final reId in connectOnOpenRevealedEdgeIds) {
+            for (final re in edges) {
+              if (re.edge.id == reId) {
+                revealedNodeIds.add(re.edge.sourceId);
+                revealedNodeIds.add(re.edge.targetId);
+                break;
+              }
+            }
+          }
+          // Check which endpoint of the current edge is already revealed.
+          // If sourceId is revealed (and targetId is not), the path
+          // grows from source to target (natural _bezier direction).
+          // If targetId is revealed (and sourceId is not), the path
+          // grows from target to source (reversed).
+          final bool sourceIsRevealed =
+              revealedNodeIds.contains(e.sourceId);
+          final bool targetIsRevealed =
+              revealedNodeIds.contains(e.targetId);
+
+          // Compute the truncated sub-path via PathMetrics.
+          final metrics = path.computeMetrics();
+          for (final metric in metrics) {
+            final double len = metric.length;
+            if (len <= 0) continue;
+            if (sourceIsRevealed && !targetIsRevealed) {
+              // Natural direction: source → target.
+              drawPath = metric
+                  .extractPath(0, len * progress);
+            } else if (targetIsRevealed && !sourceIsRevealed) {
+              // Reversed direction: target → source. Extract from the
+              // end backward so the line grows from the target side.
+              drawPath = metric
+                  .extractPath(len * (1 - progress), len);
+            } else {
+              // Both revealed or neither revealed — default to natural
+              // direction (source → target). This is the fallback for
+              // the base edge (first edge in the trace, where neither
+              // endpoint has been revealed by a previous edge yet — the
+              // base node is the viewer's own node, which is the BFS
+              // start and should be treated as "already revealed").
+              drawPath = metric
+                  .extractPath(0, len * progress);
+            }
+            break; // Use only the first contour.
+          }
+        }
+        // If progress >= 1.0, drawPath stays as the full path (no truncation).
+      }
 
       // ── DOT LOD: minimal stroke only ──────────────────────────────
       // No blur, no ridge, no sweep. Selected edges get a slightly
@@ -571,7 +657,7 @@ class EngineEdgePainter extends CustomPainter {
                 .withValues(alpha: GraphLighting.selectedAuraAlpha)
             ..strokeCap = StrokeCap.round
             ..isAntiAlias = true;
-          canvas.drawPath(path, dotAuraPaint);
+          canvas.drawPath(drawPath, dotAuraPaint);
         }
         final dotBodyPaint = Paint()
           ..style = PaintingStyle.stroke
@@ -579,7 +665,7 @@ class EngineEdgePainter extends CustomPainter {
           ..color = edgeColor.withValues(alpha: effectiveAlpha)
           ..strokeCap = StrokeCap.round
           ..isAntiAlias = true;
-        canvas.drawPath(path, dotBodyPaint);
+        canvas.drawPath(drawPath, dotBodyPaint);
 
         // v105: paint the midpoint (simplified) at DOT LOD too, so
         // the heart / dot stays visible when zoomed out. _paintMidpoint
@@ -588,10 +674,15 @@ class EngineEdgePainter extends CustomPainter {
         //
         // v5.62: lateralOffset + waypointDelta are now required so the
         // marker is rendered at the SAME position the hit-tester checks.
-        if (midpointSymbol != KinshipMidpointSymbol.none) {
+        //
+        // v5.92: Skip the midpoint for the connect-on-open current edge
+        // until progress >= 1.0, so the symbol doesn't appear before
+        // the line reaches it.
+        if (midpointSymbol != KinshipMidpointSymbol.none &&
+            !skipMidpointForConnectOnOpen) {
           _paintMidpoint(
             canvas: canvas,
-            path: path,
+            path: drawPath,
             s: effectiveSource,
             t: effectiveTarget,
             midpointSymbol: midpointSymbol,
@@ -618,7 +709,7 @@ class EngineEdgePainter extends CustomPainter {
       if (isSelected) {
         _paintSelectedEdge(
           canvas: canvas,
-          path: path,
+          path: drawPath,
           edgeColor: edgeColor,
           bodyWidth: bodyWidth,
           edgeAlpha: edgeAlpha,
@@ -629,7 +720,7 @@ class EngineEdgePainter extends CustomPainter {
       } else if (dashPattern.isNotEmpty && dashPattern.length >= 2) {
         _paintDashedPhysical(
           canvas: canvas,
-          path: path,
+          path: drawPath,
           edgeColor: edgeColor,
           bodyWidth: bodyWidth,
           edgeAlpha: effectiveAlpha,
@@ -640,7 +731,7 @@ class EngineEdgePainter extends CustomPainter {
       } else {
         _paintSolidPhysical(
           canvas: canvas,
-          path: path,
+          path: drawPath,
           edgeColor: edgeColor,
           bodyWidth: bodyWidth,
           edgeAlpha: effectiveAlpha,
@@ -655,7 +746,7 @@ class EngineEdgePainter extends CustomPainter {
       if (isSweep) {
         _paintSweepSegment(
           canvas: canvas,
-          path: path,
+          path: drawPath,
           progress: sweepProgress,
           edgeColor: edgeColor,
           bodyWidth: bodyWidth,
@@ -671,7 +762,7 @@ class EngineEdgePainter extends CustomPainter {
       if (isTrace) {
         _paintSweepSegment(
           canvas: canvas,
-          path: path,
+          path: drawPath,
           progress: traceProgress,
           edgeColor: edgeColor,
           bodyWidth: bodyWidth,
@@ -713,10 +804,16 @@ class EngineEdgePainter extends CustomPainter {
       //
       // v5.62: lateralOffset + waypointDelta are now required so the
       // marker is rendered at the SAME position the hit-tester checks.
-      if (midpointSymbol != KinshipMidpointSymbol.none) {
+      //
+      // v5.92: Skip the midpoint for the connect-on-open current edge
+      // until progress >= 1.0, so the symbol doesn't appear before
+      // the line reaches it. Use drawPath (which may be truncated)
+      // so the midpoint position computation follows the visible line.
+      if (midpointSymbol != KinshipMidpointSymbol.none &&
+          !skipMidpointForConnectOnOpen) {
         _paintMidpoint(
           canvas: canvas,
-          path: path,
+          path: drawPath,
           // Phase 6: pass the EFFECTIVE (post-redirect) endpoints so the
           // midpoint fallback (used only if PathMetrics fails) matches
           // the rendered curve. The primary computation uses path
