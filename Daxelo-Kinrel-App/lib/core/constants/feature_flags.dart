@@ -119,11 +119,11 @@ const bool kShowRelationshipDebugBanner = false;
 ///
 /// v5.88: RE-ENABLED to diagnose a regression where all nodes lost
 /// their color coding after the v5.87 step-parent term-mapping fix.
-/// The v5.87 code change only touched structural_kinship_classifier.dart
-/// (which is NOT used by viewer resolution), so the regression must be
-/// from the manual DB fix that changed Manish's anchor linkedUserId.
-/// This banner will help confirm whether Auth ID / Viewer Person ID
-/// is null and which Persons are linked to which auth users.
+///
+/// v5.89: DISABLED — viewer-relative perspective confirmed working
+/// again (spiderman84780 → Manish anchor, Yakshitha → Yakshitha).
+/// Both the Step-father term fix and the JD-as-Father relationship
+/// creation have been verified. Debug banner no longer needed.
 ///
 /// Set to `false` to remove the debug banner after diagnosis is complete.
-const bool kShowViewerDebugBanner = true;
+const bool kShowViewerDebugBanner = false;
