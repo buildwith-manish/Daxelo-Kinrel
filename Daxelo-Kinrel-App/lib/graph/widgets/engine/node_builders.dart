@@ -151,6 +151,11 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       // v5.85: Pass the indirect-relation flag so GraphNode renders the
       // interlocking-rings badge on indirectly-related nodes.
       isIndirectRelation: isIndirectRelation,
+      // v5.86: When the badge is tapped, open the Connection sheet
+      // (same as long-press → View relationship).
+      onBadgeTap: isIndirectRelation
+          ? () => _onViewRelationship(id)
+          : null,
       // Pass familyId so GraphNode can render the Kinrel role glyph badge
       // (root/anchor/bridge/weaver/leaf/twin_node) on the node when
       // kEnableKinrel is true.

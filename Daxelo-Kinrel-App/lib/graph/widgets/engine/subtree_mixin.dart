@@ -76,6 +76,14 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
       return labels;
     }
 
+    // v5.86 (CANVAS LABEL FIX): Compute the set of INDIRECT relation
+    // node IDs (distance >= 2 from viewer). These nodes should NOT
+    // show their viewer-relative label on the canvas — only the badge
+    // icon. The actual label (e.g. "Father-in-law") is shown only in
+    // the Connection detail sheet when the user taps the node.
+    final indirectIds = ref.read(
+        indirectRelationIdsProvider(widget.familyId));
+
     // Build typed inputs for RelationshipEngine.
     final graphPersons = <GraphPerson>[
       for (final Map<String, dynamic> p in flat.persons)
@@ -105,6 +113,9 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
     final engine = RelationshipEngine.instance;
     for (final GraphPerson p in graphPersons) {
       if (p.id == viewerPersonId) continue; // viewer's own label is "You"
+      // v5.86: Skip label computation for INDIRECT relations.
+      // Their label is shown only in the Connection sheet, not on canvas.
+      if (indirectIds.contains(p.id)) continue;
       final classification = engine.resolveClassification(
         viewerPersonId: viewerPersonId,
         targetPersonId: p.id,

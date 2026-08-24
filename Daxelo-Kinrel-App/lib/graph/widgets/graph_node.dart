@@ -170,6 +170,9 @@ class GraphNode extends ConsumerStatefulWidget {
     // indirect relationship to the current viewer (not directly
     // connected by a line, but related through other people).
     this.isIndirectRelation = false,
+    // v5.86: Callback when the indirect-relation badge is tapped.
+    // Opens the Connection/relationship detail sheet directly.
+    this.onBadgeTap,
     this.familyId,
     this.showRelationLabel = true,
     // P3.3: birthday glow parameters.
@@ -300,6 +303,10 @@ class GraphNode extends ConsumerStatefulWidget {
   /// rendered in the corner of the node to signal "tap to see how you're
   /// related." The badge is VISUAL ONLY — not a separate tap target.
   final bool isIndirectRelation;
+
+  /// v5.86: Callback when the indirect-relation badge is tapped.
+  /// Opens the Connection/relationship detail sheet directly.
+  final VoidCallback? onBadgeTap;
 
   /// Optional family ID — when provided AND kEnableKinrel is true, the
   /// node shows an Kinrel role glyph badge (root/anchor/bridge/weaver/leaf/
@@ -1025,19 +1032,22 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                 ),
               ),
             ),
-          // v5.85: "Indirect relation" badge — custom interlocking-rings
-          // icon, bottom-left corner. Shown when the node has an indirect
-          // relationship to the current viewer (not directly connected
-          // by a line, but related through other people).
-          // VISUAL INDICATOR ONLY — not a separate tap target. Tapping
-          // the node opens the relationship detail sheet.
+          // v5.86: "Indirect relation" badge — now TAPPABLE. Tapping the
+          // badge opens the Connection/relationship detail sheet directly
+          // (same sheet as long-press → View relationship). The badge
+          // uses a GestureDetector with HitTestBehavior.opaque so it
+          // captures the tap BEFORE the node's own onTap handler.
           if (widget.isIndirectRelation && !widget.isUnlinked)
             Positioned(
               left: -2,
               bottom: -2,
-              child: CustomPaint(
-                size: const Size(22, 22),
-                painter: _IndirectRelationBadgePainter(),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: widget.onBadgeTap,
+                child: CustomPaint(
+                  size: const Size(22, 22),
+                  painter: _IndirectRelationBadgePainter(),
+                ),
               ),
             ),
           // Role glyph — uses _NodeRoleGlyphBadge which handles the
