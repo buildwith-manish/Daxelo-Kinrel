@@ -1330,9 +1330,24 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 14,
             )),
-            subtitle: Text(
-              '${inv.specificLabelAtoB ?? inv.relationshipKey} • ${inv.status}',
-              style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${inv.specificLabelAtoB ?? inv.relationshipKey} • ${inv.status}',
+                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12),
+                ),
+                // v5.96: Show relative time ("Sent 5 minutes ago")
+                // using updatedAt (refreshed on resend) or createdAt.
+                Text(
+                  inv.sentRelativeTime(),
+                  style: TextStyle(
+                    color: KinrelColors.textDim.withValues(alpha: 0.7),
+                    fontSize: 11,
+                    fontFamily: KinrelTypography.bodyFont,
+                  ),
+                ),
+              ],
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,

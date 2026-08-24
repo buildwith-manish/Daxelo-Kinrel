@@ -48,6 +48,7 @@ class GraphPendingInvitation {
   final String status; // 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired'
   final DateTime? expiresAt;
   final DateTime? createdAt;
+  final DateTime? updatedAt; // v5.96: when the invitation was last sent/resent
   final String? inviteCode;
 
   const GraphPendingInvitation({
@@ -66,6 +67,7 @@ class GraphPendingInvitation {
     required this.status,
     this.expiresAt,
     this.createdAt,
+    this.updatedAt,
     this.inviteCode,
   });
 
@@ -89,6 +91,9 @@ class GraphPendingInvitation {
           : null,
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
+          : null,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'] as String)
           : null,
       inviteCode: json['inviteCode'] as String?,
     );
@@ -116,6 +121,27 @@ class GraphPendingInvitation {
       return recipientPhone!;
     }
     return 'Unknown recipient';
+  }
+
+  /// v5.96: Returns a relative-time string for when the invitation was
+  /// last sent (updatedAt if available, otherwise createdAt). e.g.
+  /// "Sent just now", "Sent 5 minutes ago", "Sent 2 hours ago".
+  ///
+  /// [now] is injected for testability; defaults to DateTime.now().
+  String sentRelativeTime({DateTime? now}) {
+    final reference = now ?? DateTime.now();
+    // Use updatedAt (refreshed on resend) if available, else createdAt.
+    final sent = updatedAt ?? createdAt;
+    if (sent == null) return 'Sent some time ago';
+
+    final diff = reference.difference(sent);
+    if (diff.isNegative) return 'Sent just now';
+    if (diff.inSeconds < 10) return 'Sent just now';
+    if (diff.inMinutes < 1) return 'Sent ${diff.inSeconds}s ago';
+    if (diff.inMinutes < 60) return 'Sent ${diff.inMinutes} minute${diff.inMinutes == 1 ? '' : 's'} ago';
+    if (diff.inHours < 24) return 'Sent ${diff.inHours} hour${diff.inHours == 1 ? '' : 's'} ago';
+    if (diff.inDays < 7) return 'Sent ${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
+    return 'Sent on ${sent.day}/${sent.month}/${sent.year}';
   }
 }
 
