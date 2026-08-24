@@ -102,12 +102,19 @@ jobs:
           with open('Daxelo-Kinrel-App/assets/map_styles/kinrel_dark_style.json') as f:
             s = json.load(f)
           src = s['sources']['openmaptiles']
-          assert 'tiles' in src, 'openmaptiles source missing tiles array'
-          assert 'openfreemap.org' in src['tiles'][0], f'openmaptiles tiles URL is not OpenFreeMap: {src[\"tiles\"][0]}'
           assert 'pmtiles://' not in str(src), 'openmaptiles still uses pmtiles:// protocol'
           assert '{{PMTILES_URL}}' not in str(src), 'openmaptiles still has unsubstituted placeholder'
-          print(f'✅ Style JSON validated: openmaptiles source is OpenFreeMap ZYX')
-          print(f'   tiles URL: {src[\"tiles\"][0]}')
+          # v7.0+: Accept either 'tiles' array OR 'url' field (TileJSON endpoint)
+          if 'tiles' in src:
+              assert 'openfreemap.org' in src['tiles'][0], f'openmaptiles tiles URL is not OpenFreeMap: {src[\"tiles\"][0]}'
+              print(f'✅ Style JSON validated: openmaptiles source uses OpenFreeMap tiles array')
+              print(f'   tiles URL: {src[\"tiles\"][0]}')
+          elif 'url' in src:
+              assert 'openfreemap.org' in src['url'], f'openmaptiles url is not OpenFreeMap: {src[\"url\"]}'
+              print(f'✅ Style JSON validated: openmaptiles source uses OpenFreeMap TileJSON url')
+              print(f'   url: {src[\"url\"]}')
+          else:
+              raise AssertionError('openmaptiles source missing both tiles array and url field')
           "
 
   # ───────────────────────────────────────────────────────────────
