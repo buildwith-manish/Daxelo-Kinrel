@@ -106,7 +106,8 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
           (
             fromId: r['fromPersonId'] as String,
             toId: r['toPersonId'] as String,
-            type: r['relationshipKey'] as String,
+            type: (r['labelAtoB'] as String?) ??
+                r['relationshipKey'] as String,
           ),
     ];
 
@@ -175,7 +176,8 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
           (
             fromId: r['fromPersonId'] as String,
             toId: r['toPersonId'] as String,
-            type: r['relationshipKey'] as String,
+            type: (r['labelAtoB'] as String?) ??
+                r['relationshipKey'] as String,
           ),
     ];
 
@@ -403,7 +405,8 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
           (
             fromId: r['fromPersonId'] as String,
             toId: r['toPersonId'] as String,
-            type: r['relationshipKey'] as String,
+            type: (r['labelAtoB'] as String?) ??
+                r['relationshipKey'] as String,
           ),
     ];
 
