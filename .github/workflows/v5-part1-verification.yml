@@ -215,6 +215,9 @@ jobs:
   # ───────────────────────────────────────────────────────────────
   deploy-vercel:
     name: Deploy to Vercel
+    # v5.98: DISABLED — Vercel's native GitHub integration already
+    # auto-deploys on push. This job caused duplicate deployments.
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [build-production, build-staging]

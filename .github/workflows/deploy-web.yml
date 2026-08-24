@@ -161,17 +161,15 @@ jobs:
             --cwd "${{ env.FLUTTER_APP_DIR }}"
 
       # ── Step 10: Deploy to Vercel (pre-built) ────────────────────
-      # `vercel deploy --prebuilt --prod` deploys an already-built
-      # directory without triggering Vercel's build system. We point
-      # it at the build/web/ output directory from Step 6.
-      #
-      # The --cwd flag tells Vercel CLI where the .vercel/ config lives
-      # (pulled in Step 9). The build/web/ path is relative to that dir.
-      #
-      # VERCEL_ORG_ID and VERCEL_PROJECT_ID env vars (set at the job
-      # level) tell the CLI which project to deploy to.
+      # v5.98: DISABLED — Vercel's native GitHub integration already
+      # auto-deploys on every push to main. Running `vercel deploy` CLI
+      # here caused DUPLICATE deployments (one from Vercel's native
+      # integration + one from this CLI call). The build/analyze steps
+      # above still run to catch errors, but the actual deploy is left
+      # to Vercel's built-in Git integration.
       - name: Deploy to Vercel
         id: deploy
+        if: false  # v5.98: Skip — Vercel native integration handles deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         working-directory: ${{ env.FLUTTER_APP_DIR }}
@@ -191,8 +189,11 @@ jobs:
       # just that the deploy command exited 0.
       - name: Verify live site
         run: |
-          # Wait a few seconds for Vercel to propagate the deployment.
-          sleep 5
+          # v5.98: Wait for Vercel's native GitHub integration to finish
+          # deploying (we no longer deploy via CLI — Vercel auto-deploys).
+          # Vercel builds take 2-5 minutes; wait 120s before first check.
+          echo "Waiting 120s for Vercel native deployment to complete..."
+          sleep 120
 
           # The production URL is always https://daxelo-kinrel.vercel.app
           # (custom domain) — but the deploy also returns a unique URL.

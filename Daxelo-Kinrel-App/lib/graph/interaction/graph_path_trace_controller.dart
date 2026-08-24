@@ -495,17 +495,15 @@ class GraphPathTraceController extends ChangeNotifier {
     return (2200 / edgeCount).round();
   }
 
-  /// v5.93: Connect-on-open per-edge duration: proportional to the
-  /// edge's pixel length so all edges appear to draw at the same
-  /// visual speed, clamped to a 1.0–3.0 second range per edge.
+  /// v5.98: Connect-on-open duration is now a FIXED 300ms regardless
+  /// of edge length or count. Since the reveal is now opacity-only
+  /// (no PathMetric progressive draw), cost no longer scales with
+  /// duration or edge length, so there's no performance reason to
+  /// stretch it. 300ms reads as premium/instant rather than "loading."
   ///
-  /// This is ONLY used by connect-on-open (when [edgeLengths] is
-  /// passed to [startTrace]). The kinship path-focus trace never
-  /// passes [edgeLengths] and keeps the existing fast bucket timing
-  /// from [_perEdgeDurationMs].
+  /// The [edgeLength] parameter is retained for API compatibility but
+  /// is no longer used in the calculation.
   int _connectOnOpenDurationMs(double edgeLength) {
-    const double pxPerSecond = 220.0; // tune for desired feel
-    final double seconds = (edgeLength / pxPerSecond).clamp(1.0, 3.0);
-    return (seconds * 1000).round();
+    return 300;
   }
 }

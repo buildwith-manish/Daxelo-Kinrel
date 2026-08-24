@@ -10,6 +10,7 @@
 //   - LOD-derived edge quality (stroke width, alpha, midpoint symbols)
 
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -35,6 +36,19 @@ import '../../rendering/semantic_zoom.dart'
         farTierExcludesPremiumEffects;
 
 class EngineEdgePainter extends CustomPainter {
+  /// v5.98: Static cache of pre-rendered midpoint bead images.
+  /// Keyed by a signature string of (radius, color, isDimmed, isSelected,
+  /// edgeQuality). On first use, the bead is rendered once via
+  /// PictureRecorder → picture.toImage(), then blitted on subsequent
+  /// paints via canvas.drawImageRect — no gradient shader or blur
+  /// recomputation per edge per frame.
+  static final Map<String, ui.Image> _midpointImageCache = {};
+
+  /// Clear the midpoint image cache. Call when theme or DPI changes.
+  static void clearMidpointCache() {
+    _midpointImageCache.clear();
+  }
+
   EngineEdgePainter({
     required this.positions,
     required this.edges,
@@ -539,24 +553,29 @@ class EngineEdgePainter extends CustomPainter {
       // visibly grows from the already-revealed node toward the new
       // node. The midpoint symbol (heart/dot) is skipped until
       // progress >= 1.0 so it doesn't appear before the line reaches it.
+      // v5.98: Replaced progressive path-draw with fade+scale reveal.
+      // Instead of truncating the path via PathMetric (expensive per-frame
+      // geometry recomputation), we draw the FULL bezier path immediately
+      // and animate only opacity (0→1) and strokeWidth (60%→100%).
+      // This removes ALL PathMetric calls from the connect-on-open path.
       double connectOnOpenAlpha = 1.0;
-      bool isConnectOnOpenCurrentEdge = false;
+      double connectOnOpenWidthScale = 1.0; // v5.98: width scale for "settling" feel
       bool skipMidpointForConnectOnOpen = false;
       if (connectOnOpenActive) {
         if (connectOnOpenRevealedEdgeIds.contains(e.id)) {
-          // Already revealed — full alpha, full path, midpoint shown.
+          // Already revealed — full alpha, full width, midpoint shown.
           connectOnOpenAlpha = 1.0;
+          connectOnOpenWidthScale = 1.0;
         } else if (connectOnOpenCurrentEdgeIds.contains(e.id) ||
             e.id == connectOnOpenCurrentEdgeId) {
-          // v5.97: This edge is currently animating — either in
-          // simultaneous mode (connectOnOpenCurrentEdgeIds) or
-          // sequential mode (connectOnOpenCurrentEdgeId). Full alpha,
-          // but truncate the path.
-          connectOnOpenAlpha = 1.0;
-          isConnectOnOpenCurrentEdge = true;
-          // Skip midpoint until the line fully reaches it.
-          skipMidpointForConnectOnOpen =
-              connectOnOpenProgress < 1.0;
+          // v5.98: Currently animating — fade in opacity + scale width.
+          // No PathMetric calls — just alpha/width interpolation.
+          final progress = connectOnOpenProgress.clamp(0.0, 1.0);
+          connectOnOpenAlpha = progress;
+          // Width eases from 60% → 100% for a subtle "settling" feel
+          connectOnOpenWidthScale = 0.6 + 0.4 * progress;
+          // Skip midpoint until fully revealed
+          skipMidpointForConnectOnOpen = progress < 1.0;
         } else {
           // Not yet started — completely hidden.
           connectOnOpenAlpha = 0.0;
@@ -572,81 +591,11 @@ class EngineEdgePainter extends CustomPainter {
                   : (edgeAlpha + pathFocusBoost).clamp(0.0, 1.0)) *
               connectOnOpenAlpha).clamp(0.0, 1.0);
 
-      // v5.92: Progressive path-draw for the connect-on-open current edge.
-      // Instead of fading in the full path, we truncate the drawn Path
-      // using PathMetric.extractPath so the line visibly grows from the
-      // already-revealed node toward the new node.
-      //
-      // Direction: the sub-path must start at the endpoint that was
-      // ALREADY revealed (the BFS-arrival node) and grow toward the
-      // new node. We determine which endpoint is the revealed one by
-      // checking which endpoint appears in any already-revealed edge.
-      Path drawPath = path;
-      if (isConnectOnOpenCurrentEdge) {
-        final double progress =
-            connectOnOpenProgress.clamp(0.0, 1.0);
-        if (progress <= 0.0) {
-          // Nothing to draw yet — use an empty path.
-          drawPath = Path();
-        } else if (progress < 1.0) {
-          // Determine which endpoint is the BFS-arrival node (already
-          // revealed). We build a set of node IDs touched by any
-          // revealed edge. The current edge's endpoint that appears in
-          // this set is the "from" side; the other is the "to" side.
-          //
-          // This mirrors _orderedEdgesForConnectOnOpen's BFS: the BFS
-          // arrives at a node via a previously-revealed edge, then
-          // traverses the current edge to reach a new node. The line
-          // should grow FROM the arrival node TOWARD the new node.
-          final revealedNodeIds = <String>{};
-          for (final reId in connectOnOpenRevealedEdgeIds) {
-            for (final re in edges) {
-              if (re.edge.id == reId) {
-                revealedNodeIds.add(re.edge.sourceId);
-                revealedNodeIds.add(re.edge.targetId);
-                break;
-              }
-            }
-          }
-          // Check which endpoint of the current edge is already revealed.
-          // If sourceId is revealed (and targetId is not), the path
-          // grows from source to target (natural _bezier direction).
-          // If targetId is revealed (and sourceId is not), the path
-          // grows from target to source (reversed).
-          final bool sourceIsRevealed =
-              revealedNodeIds.contains(e.sourceId);
-          final bool targetIsRevealed =
-              revealedNodeIds.contains(e.targetId);
-
-          // Compute the truncated sub-path via PathMetrics.
-          final metrics = path.computeMetrics();
-          for (final metric in metrics) {
-            final double len = metric.length;
-            if (len <= 0) continue;
-            if (sourceIsRevealed && !targetIsRevealed) {
-              // Natural direction: source → target.
-              drawPath = metric
-                  .extractPath(0, len * progress);
-            } else if (targetIsRevealed && !sourceIsRevealed) {
-              // Reversed direction: target → source. Extract from the
-              // end backward so the line grows from the target side.
-              drawPath = metric
-                  .extractPath(len * (1 - progress), len);
-            } else {
-              // Both revealed or neither revealed — default to natural
-              // direction (source → target). This is the fallback for
-              // the base edge (first edge in the trace, where neither
-              // endpoint has been revealed by a previous edge yet — the
-              // base node is the viewer's own node, which is the BFS
-              // start and should be treated as "already revealed").
-              drawPath = metric
-                  .extractPath(0, len * progress);
-            }
-            break; // Use only the first contour.
-          }
-        }
-        // If progress >= 1.0, drawPath stays as the full path (no truncation).
-      }
+      // v5.98: Apply width scale for the connect-on-open "settling" feel.
+      // The full path is drawn (no PathMetric truncation) — only alpha
+      // and width change per frame.
+      final double effectiveBodyWidth =
+          bodyWidth * connectOnOpenWidthScale;
 
       // ── DOT LOD: minimal stroke only ──────────────────────────────
       // No blur, no ridge, no sweep. Selected edges get a slightly
@@ -664,20 +613,20 @@ class EngineEdgePainter extends CustomPainter {
           // PASS D — orange interaction aura (cheap, no blur)
           final dotAuraPaint = Paint()
             ..style = PaintingStyle.stroke
-            ..strokeWidth = bodyWidth + 2.0
+            ..strokeWidth = effectiveBodyWidth + 2.0
             ..color = KinrelColors.orange
                 .withValues(alpha: GraphLighting.selectedAuraAlpha)
             ..strokeCap = StrokeCap.round
             ..isAntiAlias = true;
-          canvas.drawPath(drawPath, dotAuraPaint);
+          canvas.drawPath(path, dotAuraPaint);
         }
         final dotBodyPaint = Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = isSelected ? bodyWidth + 0.6 : bodyWidth
+          ..strokeWidth = isSelected ? effectiveBodyWidth + 0.6 : effectiveBodyWidth
           ..color = edgeColor.withValues(alpha: effectiveAlpha)
           ..strokeCap = StrokeCap.round
           ..isAntiAlias = true;
-        canvas.drawPath(drawPath, dotBodyPaint);
+        canvas.drawPath(path, dotBodyPaint);
 
         // v105: paint the midpoint (simplified) at DOT LOD too, so
         // the heart / dot stays visible when zoomed out. _paintMidpoint
@@ -694,14 +643,14 @@ class EngineEdgePainter extends CustomPainter {
             !skipMidpointForConnectOnOpen) {
           _paintMidpoint(
             canvas: canvas,
-            path: drawPath,
+            path: path,
             s: effectiveSource,
             t: effectiveTarget,
             midpointSymbol: midpointSymbol,
             customColors: customColors,
             style: style,
             edgeColor: edgeColor,
-            effectiveStrokeWidth: bodyWidth,
+            effectiveStrokeWidth: effectiveBodyWidth,
             isSelected: isSelected,
             isDimmed: isDimmed,
             dimAlpha: dimAlpha,
@@ -721,9 +670,9 @@ class EngineEdgePainter extends CustomPainter {
       if (isSelected) {
         _paintSelectedEdge(
           canvas: canvas,
-          path: drawPath,
+          path: path,
           edgeColor: edgeColor,
-          bodyWidth: bodyWidth,
+          bodyWidth: effectiveBodyWidth,
           edgeAlpha: edgeAlpha,
           dashPattern: dashPattern,
           shadowSigma: shadowSigma,
@@ -732,9 +681,9 @@ class EngineEdgePainter extends CustomPainter {
       } else if (dashPattern.isNotEmpty && dashPattern.length >= 2) {
         _paintDashedPhysical(
           canvas: canvas,
-          path: drawPath,
+          path: path,
           edgeColor: edgeColor,
-          bodyWidth: bodyWidth,
+          bodyWidth: effectiveBodyWidth,
           edgeAlpha: effectiveAlpha,
           dashPattern: dashPattern,
           shadowSigma: shadowSigma,
@@ -743,9 +692,9 @@ class EngineEdgePainter extends CustomPainter {
       } else {
         _paintSolidPhysical(
           canvas: canvas,
-          path: drawPath,
+          path: path,
           edgeColor: edgeColor,
-          bodyWidth: bodyWidth,
+          bodyWidth: effectiveBodyWidth,
           edgeAlpha: effectiveAlpha,
           shadowSigma: shadowSigma,
           ridgeAlpha: ridgeAlpha,
@@ -758,10 +707,10 @@ class EngineEdgePainter extends CustomPainter {
       if (isSweep) {
         _paintSweepSegment(
           canvas: canvas,
-          path: drawPath,
+          path: path,
           progress: sweepProgress,
           edgeColor: edgeColor,
-          bodyWidth: bodyWidth,
+          bodyWidth: effectiveBodyWidth,
         );
       }
 
@@ -774,10 +723,10 @@ class EngineEdgePainter extends CustomPainter {
       if (isTrace) {
         _paintSweepSegment(
           canvas: canvas,
-          path: drawPath,
+          path: path,
           progress: traceProgress,
           edgeColor: edgeColor,
-          bodyWidth: bodyWidth,
+          bodyWidth: effectiveBodyWidth,
         );
       }
 
@@ -819,13 +768,12 @@ class EngineEdgePainter extends CustomPainter {
       //
       // v5.92: Skip the midpoint for the connect-on-open current edge
       // until progress >= 1.0, so the symbol doesn't appear before
-      // the line reaches it. Use drawPath (which may be truncated)
-      // so the midpoint position computation follows the visible line.
+      // the line reaches it.
       if (midpointSymbol != KinshipMidpointSymbol.none &&
           !skipMidpointForConnectOnOpen) {
         _paintMidpoint(
           canvas: canvas,
-          path: drawPath,
+          path: path,
           // Phase 6: pass the EFFECTIVE (post-redirect) endpoints so the
           // midpoint fallback (used only if PathMetrics fails) matches
           // the rendered curve. The primary computation uses path
@@ -1334,82 +1282,191 @@ class EngineEdgePainter extends CustomPainter {
         compact: edgeQuality != EdgeQuality.full,
       );
     } else {
-      // ── PSEUDO-3D DOT BEAD ───────────────────────────────────
+      // ── PSEUDO-3D DOT BEAD (cached as pre-rendered image) ──
+      // v5.98: The bead (shadow + rim arc + radial gradient + specular)
+      // is now rendered ONCE per unique (radius, color, isDimmed,
+      // isSelected, edgeQuality) signature via PictureRecorder, then
+      // cached as a ui.Image. Subsequent paints just blit the cached
+      // image via drawImageRect — no gradient shader or blur recomputation
+      // per edge per frame. This is a major perf win for graphs with
+      // many edges (500+ nodes → 500+ midpoint beads per frame).
       final double beadR =
           GraphLighting.beadRadiusFor(effectiveStrokeWidth);
-      final beadRect = Rect.fromCircle(center: midPoint, radius: beadR);
+      final double shadowAlpha = isSelected
+          ? GraphLighting.selectedShadowAlpha
+          : GraphLighting.shadowAlpha;
+      final double blurSigma =
+          edgeQuality == EdgeQuality.full ? 2.0 : 1.4;
 
-      // Shadow — down-right per global lighting contract.
-      // v105: skip the shadow when dimmed (it would look muddy at
-      // reduced alpha) — the bead itself still shows.
-      if (!isDimmed) {
-        canvas.drawCircle(
-          midPoint + GraphLighting.shadowOffset,
+      // Build cache key. Quantize radius to 0.5px steps to limit
+      // cache entries (beadR varies continuously with zoom/LOD).
+      final String cacheKey =
+          '${beadR.roundToDouble()}_${effectiveMidpointColor.value}_'
+          '${isDimmed}_${isSelected}_${edgeQuality.name}';
+
+      ui.Image? cachedImage = _midpointImageCache[cacheKey];
+
+      // Cache miss — render the bead once and store it.
+      if (cachedImage == null) {
+        final double pad = beadR * 2.5; // padding for shadow blur
+        final int imgSize = ((beadR + pad) * 2).ceil();
+        final recorder = ui.PictureRecorder();
+        final canvas2 = ui.Canvas(recorder);
+        final center = Offset(imgSize / 2, imgSize / 2);
+
+        // Shadow — down-right per global lighting contract.
+        if (!isDimmed) {
+          canvas2.drawCircle(
+            center + GraphLighting.shadowOffset,
+            beadR,
+            Paint()
+              ..color = Colors.black.withValues(alpha: shadowAlpha)
+              ..maskFilter = MaskFilter.blur(BlurStyle.normal, blurSigma),
+          );
+        }
+
+        // Dark rim (bottom) — adds convex depth reading.
+        canvas2.drawArc(
+          Rect.fromCircle(
+              center: center + const Offset(0, 1.5), radius: beadR),
+          0.0,
+          math.pi,
+          false,
+          Paint()
+            ..color = isDimmed
+                ? effectiveMidpointColor
+                    .withValues(alpha: midpointAlpha * 0.5)
+                : Color.lerp(effectiveMidpointColor, Colors.black, 0.5)!,
+        );
+
+        // Face gradient — upper-left light, darker bottom-right.
+        canvas2.drawCircle(
+          center,
           beadR,
           Paint()
-            ..color = Colors.black
-                .withValues(alpha: isSelected
-                    ? GraphLighting.selectedShadowAlpha
-                    : GraphLighting.shadowAlpha)
-            ..maskFilter = MaskFilter.blur(
-                BlurStyle.normal,
-                edgeQuality == EdgeQuality.full
-                    ? 2.0
-                    : 1.4),
+            ..shader = RadialGradient(
+              center: const Alignment(-0.3, -0.4),
+              radius: 0.8,
+              colors: isDimmed
+                  ? [
+                      effectiveMidpointColor
+                          .withValues(alpha: midpointAlpha),
+                      effectiveMidpointColor
+                          .withValues(alpha: midpointAlpha * 0.8),
+                      effectiveMidpointColor
+                          .withValues(alpha: midpointAlpha * 0.6),
+                    ]
+                  : [
+                      Color.lerp(effectiveMidpointColor, Colors.white, 0.3)!,
+                      effectiveMidpointColor,
+                      Color.lerp(effectiveMidpointColor, Colors.black, 0.3)!,
+                    ],
+              stops: const [0.0, 0.5, 1.0],
+            ).createShader(Rect.fromCircle(center: center, radius: beadR)),
         );
+
+        // Specular highlight — tiny, upper-left.
+        if (!isDimmed) {
+          canvas2.drawOval(
+            Rect.fromCenter(
+              center: Offset(
+                  center.dx - beadR * 0.25, center.dy - beadR * 0.3),
+              width: beadR * 0.5,
+              height: beadR * 0.3,
+            ),
+            Paint()..color = Colors.white.withValues(alpha: 0.15),
+          );
+        }
+
+        final picture = recorder.endRecording();
+        // toImage is async, but we can use the sync variant via
+        // picture.toImageSync (Flutter 3.7+). Fall back to a
+        // synchronous approach using PictureRecorder.
+        // Actually, toImage is the only way — but it returns a Future.
+        // Since CustomPainter.paint is sync, we use toImageSync if
+        // available, otherwise fall back to drawing directly (no cache).
+        try {
+          // toImageSync is available in Flutter 3.7+
+          cachedImage = picture.toImageSync(imgSize, imgSize);
+          _midpointImageCache[cacheKey] = cachedImage;
+        } catch (_) {
+          // Fallback: draw directly (no caching) if toImageSync fails
+          cachedImage = null;
+        }
       }
 
-      // Dark rim (bottom) — adds convex depth reading.
-      canvas.drawArc(
-        Rect.fromCircle(
-            center: midPoint + const Offset(0, 1.5), radius: beadR),
-        0.0,
-        math.pi,
-        false,
-        Paint()
-          ..color = isDimmed
-              ? effectiveMidpointColor.withValues(alpha: midpointAlpha * 0.5)
-              : Color.lerp(effectiveMidpointColor, Colors.black, 0.5)!,
-      );
-
-      // Face gradient — upper-left light, darker bottom-right.
-      canvas.drawCircle(
-        midPoint,
-        beadR,
-        Paint()
-          ..shader = RadialGradient(
-            center: const Alignment(-0.3, -0.4),
-            radius: 0.8,
-            colors: isDimmed
-                ? [
-                    effectiveMidpointColor
-                        .withValues(alpha: midpointAlpha),
-                    effectiveMidpointColor
-                        .withValues(alpha: midpointAlpha * 0.8),
-                    effectiveMidpointColor
-                        .withValues(alpha: midpointAlpha * 0.6),
-                  ]
-                : [
-                    Color.lerp(effectiveMidpointColor, Colors.white, 0.3)!,
-                    effectiveMidpointColor,
-                    Color.lerp(effectiveMidpointColor, Colors.black, 0.3)!,
-                  ],
-            stops: const [0.0, 0.5, 1.0],
-          ).createShader(beadRect),
-      );
-
-      // Specular highlight — tiny, upper-left.
-      // v105: skip when dimmed (would be invisible at reduced alpha).
-      if (!isDimmed) {
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: Offset(
-                midPoint.dx - beadR * 0.25, midPoint.dy - beadR * 0.3),
-            width: beadR * 0.5,
-            height: beadR * 0.3,
-          ),
-          Paint()..color = Colors.white.withValues(alpha: 0.15),
+      if (cachedImage != null) {
+        // Blit the cached bead image at the midpoint position.
+        final src = Rect.fromLTWH(
+          0, 0,
+          cachedImage.width.toDouble(), cachedImage.height.toDouble(),
         );
+        final double pad = beadR * 2.5;
+        final dst = Rect.fromCircle(
+          center: midPoint,
+          radius: beadR + pad,
+        );
+        canvas.drawImageRect(cachedImage, src, dst, Paint());
+      } else {
+        // Fallback: draw directly (same code as before caching)
+        final beadRect =
+            Rect.fromCircle(center: midPoint, radius: beadR);
+        if (!isDimmed) {
+          canvas.drawCircle(
+            midPoint + GraphLighting.shadowOffset,
+            beadR,
+            Paint()
+              ..color = Colors.black.withValues(alpha: shadowAlpha)
+              ..maskFilter = MaskFilter.blur(BlurStyle.normal, blurSigma),
+          );
+        }
+        canvas.drawArc(
+          Rect.fromCircle(
+              center: midPoint + const Offset(0, 1.5), radius: beadR),
+          0.0,
+          math.pi,
+          false,
+          Paint()
+            ..color = isDimmed
+                ? effectiveMidpointColor
+                    .withValues(alpha: midpointAlpha * 0.5)
+                : Color.lerp(effectiveMidpointColor, Colors.black, 0.5)!,
+        );
+        canvas.drawCircle(
+          midPoint,
+          beadR,
+          Paint()
+            ..shader = RadialGradient(
+              center: const Alignment(-0.3, -0.4),
+              radius: 0.8,
+              colors: isDimmed
+                  ? [
+                      effectiveMidpointColor
+                          .withValues(alpha: midpointAlpha),
+                      effectiveMidpointColor
+                          .withValues(alpha: midpointAlpha * 0.8),
+                      effectiveMidpointColor
+                          .withValues(alpha: midpointAlpha * 0.6),
+                    ]
+                  : [
+                      Color.lerp(effectiveMidpointColor, Colors.white, 0.3)!,
+                      effectiveMidpointColor,
+                      Color.lerp(effectiveMidpointColor, Colors.black, 0.3)!,
+                    ],
+              stops: const [0.0, 0.5, 1.0],
+            ).createShader(beadRect),
+        );
+        if (!isDimmed) {
+          canvas.drawOval(
+            Rect.fromCenter(
+              center: Offset(
+                  midPoint.dx - beadR * 0.25, midPoint.dy - beadR * 0.3),
+              width: beadR * 0.5,
+              height: beadR * 0.3,
+            ),
+            Paint()..color = Colors.white.withValues(alpha: 0.15),
+          );
+        }
       }
     }
   }
