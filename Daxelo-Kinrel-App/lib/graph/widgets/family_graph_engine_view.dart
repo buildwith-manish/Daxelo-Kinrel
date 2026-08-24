@@ -1304,8 +1304,11 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
             if (kShowViewerDebugBanner)
               _ViewerDebugBanner(
                 authUserId: ref.watch(currentUserProvider)?.id,
+                authUserEmail: ref.watch(currentUserProvider)?.email,
                 viewerPersonId: viewerPersonId,
                 flat: flat,
+                familyId: widget.familyId,
+                supabaseClient: ref.watch(supabaseProvider),
               ),
             // v5.8: Re-enabled ClaimProfileBanner — shows a prompt when the
             // current user has NOT claimed a Person node in this family.
@@ -1839,21 +1842,103 @@ class _IsolateConnectionsChip extends StatelessWidget {
 
 // ═══════════════════════════════════════════════════════════════════════
 // v5.76: TEMPORARY viewer debug banner
+// v5.88: ENHANCED with DB query — shows ALL Persons' linkedUserIds in
+//        the current family so we can immediately see which auth users
+//        are linked to which Person nodes.
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Shows the current auth user ID, resolved viewerPersonId, and which
 /// Person node is getting isViewer=true. This helps diagnose why the
 /// viewer-relative perspective is not working for non-creator accounts.
-class _ViewerDebugBanner extends StatelessWidget {
+///
+/// v5.88: Now also queries the DB for ALL Persons' linkedUserIds in the
+/// current family, so we can see exactly which auth users are linked
+/// to which Person nodes. This is critical for diagnosing the regression
+/// where viewerPersonId is null even though the user is logged in.
+class _ViewerDebugBanner extends StatefulWidget {
   const _ViewerDebugBanner({
     required this.authUserId,
+    required this.authUserEmail,
     required this.viewerPersonId,
     required this.flat,
+    required this.familyId,
+    required this.supabaseClient,
   });
 
   final String? authUserId;
+  final String? authUserEmail;
   final String? viewerPersonId;
   final FlatGraphResult? flat;
+  final String familyId;
+  final dynamic supabaseClient; // SupabaseClient?
+
+  @override
+  State<_ViewerDebugBanner> createState() => _ViewerDebugBannerState();
+}
+
+class _ViewerDebugBannerState extends State<_ViewerDebugBanner> {
+  /// List of (personId, name, linkedUserId, isAnchor) tuples fetched
+  /// from the DB. Null while loading, empty list if query failed.
+  List<_PersonLinkInfo>? _personLinks;
+  String? _fetchError;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPersonLinks();
+  }
+
+  @override
+  void didUpdateWidget(_ViewerDebugBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Re-fetch when auth user changes (so we can see the new user's link)
+    if (oldWidget.authUserId != widget.authUserId ||
+        oldWidget.familyId != widget.familyId) {
+      _fetchPersonLinks();
+    }
+  }
+
+  Future<void> _fetchPersonLinks() async {
+    if (widget.supabaseClient == null) return;
+    setState(() {
+      _isLoading = true;
+      _fetchError = null;
+    });
+    try {
+      final response = await widget.supabaseClient
+          .from('Person')
+          .select('id,name,isAnchor,linkedUserId,gender')
+          .eq('familyId', widget.familyId)
+          .filter('deletedAt', 'is', null)
+          .order('isAnchor', ascending: false)
+          .order('name')
+          .timeout(const Duration(seconds: 8));
+      final rows = (response as List).map((r) {
+        final m = r as Map<String, dynamic>;
+        return _PersonLinkInfo(
+          id: m['id'] as String?,
+          name: m['name'] as String? ?? '?',
+          isAnchor: m['isAnchor'] as bool? ?? false,
+          linkedUserId: m['linkedUserId'] as String?,
+          gender: m['gender'] as String?,
+        );
+      }).toList();
+      if (mounted) {
+        setState(() {
+          _personLinks = rows;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _fetchError = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1861,8 +1946,8 @@ class _ViewerDebugBanner extends StatelessWidget {
     String? anchorPersonId;
     String? anchorName;
     String? viewerName;
-    if (flat != null) {
-      for (final p in flat!.persons) {
+    if (widget.flat != null) {
+      for (final p in widget.flat!.persons) {
         final id = p['id'] as String?;
         final name = p['name'] as String? ?? '?';
         final isAnchor = p['isAnchor'] as bool? ?? false;
@@ -1870,10 +1955,55 @@ class _ViewerDebugBanner extends StatelessWidget {
           anchorPersonId = id;
           anchorName = name;
         }
-        if (id == viewerPersonId) {
+        if (id == widget.viewerPersonId) {
           viewerName = name;
         }
       }
+    }
+
+    // Determine which auth user the anchor is linked to (from DB query)
+    String? anchorLinkedUserId;
+    int linkedCount = 0;
+    if (_personLinks != null) {
+      for (final p in _personLinks!) {
+        if (p.isAnchor) {
+          anchorLinkedUserId = p.linkedUserId;
+        }
+        if (p.linkedUserId != null && p.linkedUserId!.isNotEmpty) {
+          linkedCount++;
+        }
+      }
+    }
+
+    // Check if the current auth user matches ANY person's linkedUserId
+    final bool authUserIsLinkedToSomeone = _personLinks?.any(
+          (p) => p.linkedUserId != null && p.linkedUserId == widget.authUserId,
+        ) ??
+        false;
+
+    final bool viewerIsNull = widget.viewerPersonId == null;
+    final bool authIsNull = widget.authUserId == null;
+
+    // Status logic
+    String statusText;
+    Color statusColor;
+    if (authIsNull) {
+      statusText = 'AUTH NULL — auth state not initialized (v5.78 regression?)';
+      statusColor = Colors.red;
+    } else if (viewerIsNull && !authUserIsLinkedToSomeone) {
+      statusText =
+          'VIEWER NULL — no Person has linkedUserId == authUserId (DB link broken)';
+      statusColor = Colors.amber;
+    } else if (viewerIsNull && authUserIsLinkedToSomeone) {
+      statusText =
+          'VIEWER NULL but auth matches a Person.linkedUserId — viewerPersonIdProvider bug';
+      statusColor = Colors.red;
+    } else if (widget.viewerPersonId == anchorPersonId) {
+      statusText = 'VIEWER == ANCHOR (viewer is the anchor — correct)';
+      statusColor = Colors.green;
+    } else {
+      statusText = 'VIEWER != ANCHOR (different — correct!)';
+      statusColor = Colors.green;
     }
 
     return Container(
@@ -1883,63 +2013,131 @@ class _ViewerDebugBanner extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'VIEWER DEBUG',
-            style: TextStyle(
-              color: KinrelColors.orange,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              fontFamily: 'monospace',
-            ),
+          Row(
+            children: [
+              Text(
+                'VIEWER DEBUG (v5.88)',
+                style: TextStyle(
+                  color: KinrelColors.orange,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'monospace',
+                ),
+              ),
+              const Spacer(),
+              if (_isLoading)
+                const SizedBox(
+                  width: 10,
+                  height: 10,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white54),
+                  ),
+                )
+              else
+                GestureDetector(
+                  onTap: _fetchPersonLinks,
+                  child: const Icon(Icons.refresh,
+                      color: Colors.white54, size: 14),
+                ),
+            ],
           ),
           const SizedBox(height: 4),
-          Text(
-            'Auth User ID: ${authUserId ?? "NULL"}',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 10,
-              fontFamily: 'monospace',
-            ),
-          ),
-          Text(
-            'Viewer Person ID: ${viewerPersonId ?? "NULL"}',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 10,
-              fontFamily: 'monospace',
-            ),
-          ),
-          Text(
-            'Viewer Person Name: ${viewerName ?? "NULL"}',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 10,
-              fontFamily: 'monospace',
-            ),
-          ),
-          Text(
-            'Anchor Person: ${anchorName ?? "NULL"} (${anchorPersonId?.substring(0, 8) ?? "NULL"})',
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 10,
-              fontFamily: 'monospace',
-            ),
-          ),
-          Text(
-            'Status: ${viewerPersonId == anchorPersonId ? "VIEWER == ANCHOR (same)" : viewerPersonId != null ? "VIEWER != ANCHOR (different - correct!)" : "VIEWER NULL - no linked Person"}',
-            style: TextStyle(
-              color: viewerPersonId == anchorPersonId
+          _debugLine('Auth User ID: ${widget.authUserId ?? "NULL"}'),
+          _debugLine(
+              'Auth Email: ${widget.authUserEmail ?? "NULL"}', color: Colors.cyan),
+          _debugLine('Viewer Person ID: ${widget.viewerPersonId ?? "NULL"}'),
+          _debugLine('Viewer Person Name: ${viewerName ?? "NULL"}'),
+          _debugLine(
+              'Anchor Person: ${anchorName ?? "NULL"} (${anchorPersonId?.substring(0, 8) ?? "NULL"})'),
+          _debugLine(
+              'Anchor linkedUserId: ${anchorLinkedUserId?.substring(0, 8) ?? "NULL"}',
+              color: anchorLinkedUserId == null
                   ? Colors.red
-                  : viewerPersonId != null
+                  : (anchorLinkedUserId == widget.authUserId
                       ? Colors.green
-                      : Colors.amber,
+                      : Colors.amber)),
+          _debugLine(
+              'Persons with linkedUserId set: $linkedCount / ${_personLinks?.length ?? "?"}'),
+          _debugLine(
+              'Auth user matches a Person.linkedUserId: $authUserIsLinkedToSomeone',
+              color: authUserIsLinkedToSomeone ? Colors.green : Colors.red),
+          const SizedBox(height: 4),
+          Text(
+            'Status: $statusText',
+            style: TextStyle(
+              color: statusColor,
               fontSize: 10,
               fontWeight: FontWeight.w600,
               fontFamily: 'monospace',
             ),
           ),
+          if (_fetchError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'DB fetch error: $_fetchError',
+                style: const TextStyle(
+                  color: Colors.red,
+                  fontSize: 9,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+          // List all persons with their linkedUserIds
+          if (_personLinks != null && _personLinks!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'ALL PERSONS (DB):',
+              style: TextStyle(
+                color: KinrelColors.orange.withValues(alpha: 0.8),
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'monospace',
+              ),
+            ),
+            const SizedBox(height: 2),
+            ..._personLinks!.map((p) {
+              final isViewerLink = p.linkedUserId == widget.authUserId &&
+                  widget.authUserId != null;
+              final isAnchorLink = p.isAnchor;
+              return _debugLine(
+                '${isAnchorLink ? "★" : " "} ${p.name.padRight(12).substring(0, 12)} | link=${p.linkedUserId?.substring(0, 8) ?? "NULL"}${isViewerLink ? " ← YOU" : ""}',
+                color: isViewerLink
+                    ? Colors.green
+                    : (p.linkedUserId != null ? Colors.white : Colors.white24),
+              );
+            }),
+          ],
         ],
       ),
     );
   }
+
+  Widget _debugLine(String text, {Color color = Colors.white70}) {
+    return Text(
+      text,
+      style: TextStyle(
+        color: color,
+        fontSize: 10,
+        fontFamily: 'monospace',
+      ),
+    );
+  }
+}
+
+/// Helper class for the person-link diagnostic dump.
+class _PersonLinkInfo {
+  const _PersonLinkInfo({
+    required this.id,
+    required this.name,
+    required this.isAnchor,
+    required this.linkedUserId,
+    required this.gender,
+  });
+  final String? id;
+  final String name;
+  final bool isAnchor;
+  final String? linkedUserId;
+  final String? gender;
 }

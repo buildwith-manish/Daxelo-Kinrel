@@ -117,5 +117,13 @@ const bool kShowRelationshipDebugBanner = false;
 /// node is getting isViewer=true. This helps diagnose why the viewer-
 /// relative perspective is not working for non-creator accounts.
 ///
+/// v5.88: RE-ENABLED to diagnose a regression where all nodes lost
+/// their color coding after the v5.87 step-parent term-mapping fix.
+/// The v5.87 code change only touched structural_kinship_classifier.dart
+/// (which is NOT used by viewer resolution), so the regression must be
+/// from the manual DB fix that changed Manish's anchor linkedUserId.
+/// This banner will help confirm whether Auth ID / Viewer Person ID
+/// is null and which Persons are linked to which auth users.
+///
 /// Set to `false` to remove the debug banner after diagnosis is complete.
-const bool kShowViewerDebugBanner = false;
+const bool kShowViewerDebugBanner = true;
