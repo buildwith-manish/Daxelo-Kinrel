@@ -512,6 +512,69 @@ class _RelationshipInfoContentState
       describedPersonGender: targetGender,
     );
 
+    // v5.95: Explicit confirmation step — show the user the old → new
+    // replacement before calling updateRelationship. This makes it
+    // clear the old relationship is being REPLACED, not stacked.
+    final oldLabelFormatted = _formatKey(widget.relationshipKey);
+    final newLabelFormatted = _formatKey(edgeInput.specificLabelAtoB);
+
+    final confirmed = await showDialog<bool>(
+      context: navigator.context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: KinrelColors.darkCard,
+        title: Text(
+          'Change relationship?',
+          style: TextStyle(
+            color: KinrelColors.textWhite,
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: Text(
+          "$sourceName's relationship to $targetName will change from "
+          '$oldLabelFormatted to $newLabelFormatted. '
+          'This removes the old relationship.',
+          style: TextStyle(
+            color: KinrelColors.textDim,
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 14,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: KinrelColors.textDim,
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Change',
+              style: TextStyle(
+                color: KinrelColors.tealAccent,
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // If the user cancelled the confirmation, do NOT call
+    // updateRelationship and do NOT pop the Connection sheet — let
+    // them pick a different type or back out normally.
+    if (confirmed != true) return;
+
     try {
       final result = await updateRelationship(
         ref: ref,
@@ -527,10 +590,11 @@ class _RelationshipInfoContentState
       navigator.pop();
 
       // Show a confirmation snackbar with an Undo action.
-      final newLabel = _formatKey(edgeInput.specificLabelAtoB);
+      // v5.95: State both sides of the change so the confirmation
+      // itself proves the old one was replaced, not stacked.
       messenger?.showSnackBar(
         SnackBar(
-          content: Text('Relationship updated to $newLabel'),
+          content: Text('Changed to $newLabelFormatted (was $oldLabelFormatted)'),
           backgroundColor: KinrelColors.darkCard,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 5),
