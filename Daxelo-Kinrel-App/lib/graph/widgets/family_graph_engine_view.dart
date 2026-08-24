@@ -1020,9 +1020,17 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// opening the graph screen (gated by _hasPlayedConnectOnOpen). If
   /// reduced motion is active, calls revealAll instead of startTrace
   /// (so all edges appear immediately, no animation).
+  ///
+  /// v5.93: Now passes per-edge pixel lengths to startTrace so the
+  /// animation duration is proportional to each edge's length (1–3s
+  /// per edge), making all edges appear to draw at the same visual
+  /// speed. The length is computed as the straight-line distance
+  /// between the two node center positions (sufficient — exact bezier
+  /// arc length is not needed for timing).
   void _maybeStartConnectOnOpen(
     FlatGraphResult flat,
     String? viewerPersonId,
+    Map<String, Offset> positions,
   ) {
     if (_hasPlayedConnectOnOpen) return;
     if (flat.relationships.isEmpty) {
@@ -1047,12 +1055,35 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       // Skip the animation — all edges revealed immediately.
       _connectOnOpenController!.revealAll(ordered);
     } else {
-      // startTrace handles the timing math:
-      //   1-5 edges:    320ms/edge
-      //   6-10 edges:   250ms/edge
-      //   >10 edges:    180ms/edge (capped at ~2200ms total)
-      // (See GraphPathTraceController._perEdgeDurationMs.)
-      _connectOnOpenController!.startTrace(ordered);
+      // v5.93: Compute per-edge pixel lengths (straight-line distance
+      // between the two node centers) so startTrace can use
+      // length-proportional timing (1–3s per edge).
+      final edgeLengths = <String, double>{};
+      final edgeById = <String, Map<String, dynamic>>{};
+      for (final r in flat.relationships) {
+        final id = r['id']?.toString();
+        if (id != null) edgeById[id] = r;
+      }
+      for (final edgeId in ordered) {
+        final r = edgeById[edgeId];
+        if (r == null) {
+          edgeLengths[edgeId] = 400.0; // fallback
+          continue;
+        }
+        final fromId = r['fromPersonId']?.toString();
+        final toId = r['toPersonId']?.toString();
+        final fromPos = fromId != null ? positions[fromId] : null;
+        final toPos = toId != null ? positions[toId] : null;
+        if (fromPos != null && toPos != null) {
+          edgeLengths[edgeId] = (fromPos - toPos).distance;
+        } else {
+          edgeLengths[edgeId] = 400.0; // fallback if positions missing
+        }
+      }
+      _connectOnOpenController!.startTrace(
+        ordered,
+        edgeLengths: edgeLengths,
+      );
     }
   }
 
@@ -1285,7 +1316,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         // FIRST render where flat.relationships is populated. The
         // _hasPlayedConnectOnOpen flag is a one-time gate — subsequent
         // rebuilds (pan/zoom/new members) won't re-trigger.
-        _maybeStartConnectOnOpen(flat, viewerPersonId);
+        // v5.93: Pass layout.positions so per-edge pixel lengths can be
+        // computed for length-proportional animation timing.
+        _maybeStartConnectOnOpen(flat, viewerPersonId, layout.positions);
         // v5.30 Issue 2: Kick off the load animation for saved node
         // overrides on the FIRST render where savedOverrides is non-empty.
         // The _hasPlayedLoadAnimation flag is a one-time gate — subsequent

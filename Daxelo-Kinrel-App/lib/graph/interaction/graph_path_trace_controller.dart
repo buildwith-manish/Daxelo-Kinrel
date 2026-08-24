@@ -154,6 +154,14 @@ class GraphPathTraceController extends ChangeNotifier {
   List<String> _orderedEdgeIds = const [];
   int _currentIndex = 0;
 
+  /// v5.93: Optional per-edge pixel lengths for the connect-on-open
+  /// animation. When non-null, each edge's duration is computed
+  /// individually via [_connectOnOpenDurationMs] so all edges appear
+  /// to draw at the same visual speed (proportional to pixel length).
+  /// When null, the existing [_perEdgeDurationMs] bucket timing is
+  /// used (same duration for all edges in the sequence).
+  Map<String, double>? _orderedEdgeLengths;
+
   /// P3.2: Reduced-motion flag. When true, the controller suppresses
   /// haptic feedback on each edge completion. The consumer should
   /// also call `revealAll()` instead of `startTrace()` when this is
@@ -194,6 +202,7 @@ class GraphPathTraceController extends ChangeNotifier {
     _controllerListener = null;
     _state = GraphPathTraceState.empty;
     _orderedEdgeIds = const [];
+    _orderedEdgeLengths = null;
     _currentIndex = 0;
   }
 
@@ -210,7 +219,18 @@ class GraphPathTraceController extends ChangeNotifier {
   ///   1–5 edges: 320 ms
   ///   6–10 edges: 250 ms
   ///   >10 edges: 180 ms (capped at ~2200 ms total)
-  void startTrace(List<String> orderedEdgeIds) {
+  ///
+  /// v5.93: When [edgeLengths] is non-null (connect-on-open mode),
+  /// each edge's duration is computed individually via
+  /// [_connectOnOpenDurationMs] based on that edge's pixel length, so
+  /// all edges appear to draw at the same visual speed. This mode is
+  /// slower (1.0–3.0 seconds per edge) and is ONLY used by
+  /// connect-on-open — the kinship path-focus trace never passes
+  /// [edgeLengths] and keeps the existing fast bucket timing.
+  void startTrace(
+    List<String> orderedEdgeIds, {
+    Map<String, double>? edgeLengths,
+  }) {
     if (_controller == null) {
       // Not attached — fall back to revealAll behaviour.
       revealAll(orderedEdgeIds);
@@ -226,6 +246,7 @@ class GraphPathTraceController extends ChangeNotifier {
         .intersection(orderedEdgeIds.toSet());
 
     _orderedEdgeIds = List.unmodifiable(orderedEdgeIds);
+    _orderedEdgeLengths = edgeLengths;
     _currentIndex = 0;
     _state = GraphPathTraceState(
       phase: GraphPathTracePhase.tracing,
@@ -237,8 +258,18 @@ class GraphPathTraceController extends ChangeNotifier {
     notifyListeners();
 
     // Configure per-edge duration and start.
-    _controller!.duration =
-        Duration(milliseconds: _perEdgeDurationMs(_orderedEdgeIds.length));
+    // v5.93: When edgeLengths is provided (connect-on-open), use the
+    // length-proportional duration for the FIRST edge. Subsequent
+    // edges get their own duration in _onTick when advancing.
+    final int firstEdgeDurationMs;
+    if (edgeLengths != null) {
+      final firstEdgeId = _orderedEdgeIds[0];
+      final firstLen = edgeLengths[firstEdgeId] ?? 400.0;
+      firstEdgeDurationMs = _connectOnOpenDurationMs(firstLen);
+    } else {
+      firstEdgeDurationMs = _perEdgeDurationMs(_orderedEdgeIds.length);
+    }
+    _controller!.duration = Duration(milliseconds: firstEdgeDurationMs);
     _controller!.forward(from: 0.0);
   }
 
@@ -269,6 +300,7 @@ class GraphPathTraceController extends ChangeNotifier {
 
   void _resetToIdle() {
     _orderedEdgeIds = const [];
+    _orderedEdgeLengths = null;
     _currentIndex = 0;
     _state = GraphPathTraceState.empty;
     notifyListeners();
@@ -311,6 +343,16 @@ class GraphPathTraceController extends ChangeNotifier {
         traceActive: true,
       );
       notifyListeners();
+      // v5.93: When edgeLengths is provided (connect-on-open), set
+      // the duration fresh for the NEXT edge based on its own pixel
+      // length. When null, the existing bucket timing (already set
+      // in startTrace) is reused for all edges.
+      if (_orderedEdgeLengths != null) {
+        final nextEdgeId = _orderedEdgeIds[_currentIndex];
+        final nextLen = _orderedEdgeLengths![nextEdgeId] ?? 400.0;
+        _controller!.duration =
+            Duration(milliseconds: _connectOnOpenDurationMs(nextLen));
+      }
       _controller!.forward(from: 0.0);
     } else {
       // Mid-edge — update progress.
@@ -336,5 +378,19 @@ class GraphPathTraceController extends ChangeNotifier {
     if (total <= 2200) return 180;
     // Spread the cap evenly across edges.
     return (2200 / edgeCount).round();
+  }
+
+  /// v5.93: Connect-on-open per-edge duration: proportional to the
+  /// edge's pixel length so all edges appear to draw at the same
+  /// visual speed, clamped to a 1.0–3.0 second range per edge.
+  ///
+  /// This is ONLY used by connect-on-open (when [edgeLengths] is
+  /// passed to [startTrace]). The kinship path-focus trace never
+  /// passes [edgeLengths] and keeps the existing fast bucket timing
+  /// from [_perEdgeDurationMs].
+  int _connectOnOpenDurationMs(double edgeLength) {
+    const double pxPerSecond = 220.0; // tune for desired feel
+    final double seconds = (edgeLength / pxPerSecond).clamp(1.0, 3.0);
+    return (seconds * 1000).round();
   }
 }
