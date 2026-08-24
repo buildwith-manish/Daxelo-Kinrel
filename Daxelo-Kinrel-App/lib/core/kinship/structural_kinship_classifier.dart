@@ -365,20 +365,42 @@ class StructuralKinshipClassifier {
       );
     }
 
-    // ── In-law: any path through a spouse link ────────────────────
-    // If the path goes through a spouse, the target is an in-law
-    // (e.g. wife's father = father-in-law).
+    // ── In-law vs Step-parent: depends on step ORDER ──────────────
+    // v5.87: The previous code treated ALL [spouse + parent] paths as
+    // in-law, but the ORDER matters:
+    //   [spouse, parent] = spouse's parent → Father/Mother-in-law (CORRECT)
+    //   [parent, spouse] = parent's spouse → Step-father/mother (was WRONG)
+    //
+    // The fix: check if the FIRST step is a spouse step (→ in-law) or
+    // a parent step (→ step-parent). This correctly distinguishes the
+    // two relationship types.
     if (hasSpouse && parentCount > 0 && childCount == 0) {
-      // Spouse's parent = parent-in-law
+      final isFirstStepSpouse = roles.first == _StepRole.spouse;
       final isFemale = targetGender == 'female' || targetGender == 'f';
-      return StructuralClassification(
-        category: KinshipEdgeCategory.inLaw,
-        label: isFemale ? 'Mother-in-law' : 'Father-in-law',
-        key: isFemale ? 'mother_in_law' : 'father_in_law',
-      );
+
+      if (isFirstStepSpouse) {
+        // [spouse, parent] = spouse's parent = in-law
+        return StructuralClassification(
+          category: KinshipEdgeCategory.inLaw,
+          label: isFemale ? 'Mother-in-law' : 'Father-in-law',
+          key: isFemale ? 'mother_in_law' : 'father_in_law',
+        );
+      } else {
+        // [parent, spouse] = parent's spouse = step-parent
+        // (NOT in-law — in-law means "spouse's blood relative")
+        return StructuralClassification(
+          category: KinshipEdgeCategory.extended,
+          label: isFemale ? 'Step-mother' : 'Step-father',
+          key: isFemale ? 'step_mother' : 'step_father',
+        );
+      }
     }
     if (hasSpouse && siblingCount > 0 && parentCount == 0 && childCount == 0) {
-      // Spouse's sibling = sibling-in-law
+      // v5.87: Same order check as parent+spouse above.
+      // [spouse, sibling] = spouse's sibling = sibling-in-law (CORRECT)
+      // [sibling, spouse] = sibling's spouse = sibling-in-law (also correct,
+      //   but technically a co-sibling-in-law, not a blood in-law.
+      //   For simplicity, both are labeled sibling-in-law.)
       final isFemale = targetGender == 'female' || targetGender == 'f';
       return StructuralClassification(
         category: KinshipEdgeCategory.inLaw,
