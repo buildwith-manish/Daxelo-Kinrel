@@ -333,6 +333,33 @@ class GraphPendingInvitationsNotifier
     }
   }
 
+  /// v5.94: Resends a pending invitation (called by the inviter).
+  ///
+  /// Extends the invitation's expiry by 7 days and sends a reminder
+  /// notification to the recipient. Uses the same try/catch/timeout/
+  /// success-check pattern as [cancelInvitation].
+  Future<bool> resendInvitation(String invitationId) async {
+    final client = ref.read(supabaseProvider);
+    if (client == null) return false;
+
+    try {
+      final response = await client.rpc(
+        'fn_resend_graph_invitation',
+        params: {'p_invitation_id': invitationId},
+      ).timeout(const Duration(seconds: 10));
+
+      final result = response as Map<String, dynamic>;
+      if (result['success'] == true) {
+        ref.invalidateSelf();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('[graphPendingInvitations] resend error: $e');
+      return false;
+    }
+  }
+
   /// Accepts a pending invitation (called by the invitee).
   /// This creates the Person + Relationship + reciprocal edge.
   Future<bool> acceptInvitation(String invitationId) async {

@@ -1337,6 +1337,40 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // v5.94: Resend button — extends expiry + sends reminder
+                TextButton(
+                  onPressed: () async {
+                    final notifier = ref.read(
+                      graphPendingInvitationsProvider(widget.familyId).notifier,
+                    );
+                    final success = await notifier.resendInvitation(inv.id);
+                    final messenger = ScaffoldMessenger.maybeOf(context);
+                    if (success) {
+                      messenger?.showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Reminder sent to ${inv.recipientName ?? 'recipient'}',
+                          ),
+                          backgroundColor: KinrelColors.tealAccent,
+                          behavior: SnackBarBehavior.floating,
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    } else {
+                      messenger?.showSnackBar(
+                        const SnackBar(
+                          content: Text('Failed to send reminder'),
+                          backgroundColor: Colors.redAccent,
+                          behavior: SnackBarBehavior.floating,
+                          duration: Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  },
+                  child: Text('Resend', style: TextStyle(
+                    color: KinrelColors.tealAccent, fontSize: 12,
+                  )),
+                ),
                 TextButton(
                   onPressed: () async {
                     final notifier = ref.read(
