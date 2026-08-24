@@ -590,6 +590,49 @@ class StructuralKinshipClassifier {
       );
     }
 
+    // v5.99: Niece/Nephew via shared parent (no explicit sibling step).
+    // Path: [parent, child, child] — go up to parent, down to sibling
+    // (via shared parent), down to sibling's child. The intermediate
+    // "child" is actually the viewer's sibling (detected by the shared
+    // parent hop), so the final child is a niece/nephew.
+    // genDelta = 1 - 2 = -1, no explicit sibling step.
+    if (!hasSibling && !hasSpouse &&
+        parentCount == 1 && childCount == 2 && generationDelta == -1) {
+      final isFemale = targetGender == 'female' || targetGender == 'f';
+      return StructuralClassification(
+        category: KinshipEdgeCategory.auntUncle, // niece/nephew → auntUncle color
+        label: isFemale ? 'Niece' : 'Nephew',
+        key: isFemale ? 'niece' : 'nephew',
+      );
+    }
+
+    // v5.99: Sibling's spouse (in-law via shared parent).
+    // Path: [parent, child, spouse] — go up to parent, down to sibling,
+    // to sibling's spouse. genDelta = 0, hasSpouse, no explicit sibling.
+    if (!hasSibling && hasSpouse &&
+        parentCount == 1 && childCount == 1 && generationDelta == 0) {
+      final isFemale = targetGender == 'female' || targetGender == 'f';
+      return StructuralClassification(
+        category: KinshipEdgeCategory.inLaw,
+        label: isFemale ? 'Sister-in-law' : 'Brother-in-law',
+        key: isFemale ? 'sister_in_law' : 'brother_in_law',
+      );
+    }
+
+    // v5.99: Sibling's child's child (great-niece/great-nephew).
+    // Path: [parent, child, child, child] or [sibling, child, child].
+    // genDelta = 1 - 3 = -2 or 0 - 2 = -2.
+    if (!hasSpouse && generationDelta == -2 &&
+        ((parentCount == 1 && childCount == 3) ||
+         (hasSibling && childCount == 2 && parentCount == 0))) {
+      final isFemale = targetGender == 'female' || targetGender == 'f';
+      return StructuralClassification(
+        category: KinshipEdgeCategory.auntUncle,
+        label: isFemale ? 'Great-niece' : 'Great-nephew',
+        key: isFemale ? 'great_niece' : 'great_nephew',
+      );
+    }
+
     // Parent (single parent step)
     if (parentCount == 1 && childCount == 0 && !hasSibling && !hasSpouse) {
       final isFemale = targetGender == 'female' || targetGender == 'f';
