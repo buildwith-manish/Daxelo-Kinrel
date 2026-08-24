@@ -259,6 +259,9 @@ class FlatGraphResult {
         toPersonId: r['toPersonId'] as String? ?? '',
         relationshipKey: r['relationshipKey'] as String? ?? '',
         displayLabel: r['displayLabel'] as String?,
+        // v5.99: Parse labelAtoB so the layout BFS can use specific labels
+        // for generation lookup (e.g. 'brother' → gen 0, not 'parent' → gen -1).
+        labelAtoB: r['labelAtoB'] as String?,
       );
     }).toList();
   }

@@ -568,18 +568,97 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
   // ── Data State ────────────────────────────────────────────────────
 
+  /// v5.99: Computes generation set from the flat graph using BFS with
+  /// labelAtoB (specific labels) — matches the layout engine's generation
+  /// assignment. Returns a Set<int> of distinct generation values.
+  Set<int> _computeGenerationsFromGraph(
+      FlatGraphResult graph, List<PersonData> persons) {
+    if (persons.isEmpty) return {0};
+
+    // Find anchor (or first person) as BFS start
+    final anchor = persons.firstWhere(
+      (p) => p.isAnchor,
+      orElse: () => persons.first,
+    );
+
+    // Build adjacency using labelAtoB (specific label)
+    final parentKeys = {'father', 'mother', 'parent', 'stepfather', 'stepmother'};
+    final childKeys = {'son', 'daughter', 'child', 'stepson', 'stepdaughter'};
+    final grandparentKeys = {
+      'grandfather', 'grandmother', 'grandparent',
+      'paternal_grandfather', 'paternal_grandmother',
+      'maternal_grandfather', 'maternal_grandmother',
+    };
+    final grandchildKeys = {'grandson', 'granddaughter', 'grandchild'};
+
+    final adjacency = <String, List<(String, int)>>{};
+    for (final p in persons) {
+      adjacency[p.id] = [];
+    }
+
+    for (final r in graph.relationships) {
+      final fromId = r['fromPersonId'] as String?;
+      final toId = r['toPersonId'] as String?;
+      if (fromId == null || toId == null) continue;
+      if (!adjacency.containsKey(fromId) || !adjacency.containsKey(toId)) {
+        continue;
+      }
+
+      // Use labelAtoB (specific label) for generation lookup
+      final key = (r['labelAtoB'] as String?) ??
+          (r['relationshipKey'] as String?) ?? '';
+
+      int offset;
+      if (grandparentKeys.contains(key)) {
+        offset = -2;
+      } else if (parentKeys.contains(key)) {
+        offset = -1;
+      } else if (grandchildKeys.contains(key)) {
+        offset = 2;
+      } else if (childKeys.contains(key)) {
+        offset = 1;
+      } else {
+        offset = 0; // spouse, sibling, cousin, in-law, etc.
+      }
+
+      adjacency[fromId]!.add((toId, offset));
+      adjacency[toId]!.add((fromId, -offset));
+    }
+
+    // BFS from anchor
+    final generations = <int>{};
+    final visited = <String>{};
+    final queue = <(String, int)>[(anchor.id, 0)];
+    visited.add(anchor.id);
+    generations.add(0);
+
+    while (queue.isNotEmpty) {
+      final (currentId, currentGen) = queue.removeAt(0);
+      final neighbors = adjacency[currentId] ?? <(String, int)>[];
+      for (final entry in neighbors) {
+        final neighborId = entry.$1;
+        final offset = entry.$2;
+        if (visited.contains(neighborId)) continue;
+        visited.add(neighborId);
+        final neighborGen = currentGen + offset;
+        generations.add(neighborGen);
+        queue.add((neighborId, neighborGen));
+      }
+    }
+
+    return generations;
+  }
+
   Widget _buildDataState(FlatGraphResult graph) {
     final persons = graph.toPersonDataList();
 
     // If no persons at all, show the empty state with add member FAB
     if (persons.isEmpty) return _buildEmptyState();
 
-    // Determine which generations are present (used by the stats panel
-    // for the "totalGenerations" count).
-    final presentGenerations = <int>{};
-    for (final p in persons) {
-      presentGenerations.add(p.generationIndex);
-    }
+    // v5.99: Compute generations using BFS with labelAtoB (specific labels)
+    // instead of the stale API generationIndex (which defaults to 0 for all).
+    // This matches the fix in graph_layout_service.dart and subtree_mixin.dart.
+    final presentGenerations = _computeGenerationsFromGraph(graph, persons);
 
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 

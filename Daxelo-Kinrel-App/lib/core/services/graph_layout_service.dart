@@ -67,12 +67,16 @@ class GraphRelationship {
   final String fromPersonId;
   final String toPersonId;
   final String relationshipKey;
+  /// v5.99: The specific label (e.g. 'father', 'brother', 'wife') used
+  /// for generation lookup. Falls back to [relationshipKey] if not set.
+  final String? labelAtoB;
 
   const GraphRelationship({
     required this.id,
     required this.fromPersonId,
     required this.toPersonId,
     required this.relationshipKey,
+    this.labelAtoB,
   });
 }
 
@@ -96,6 +100,11 @@ class GraphLayoutResult {
   /// in search, never in kinship BFS.
   final List<dynamic> coupleUnions;
 
+  /// v5.99: BFS-computed generation for each person (personId → gen).
+  /// Used by the stats panel to show the correct GENS count (based on
+  /// the layout's own BFS, not the stale API generationIndex).
+  final Map<String, int> generations;
+
   const GraphLayoutResult({
     required this.positions,
     required this.canvasWidth,
@@ -103,6 +112,7 @@ class GraphLayoutResult {
     this.ringRadii = const {},
     this.ringAngleOffsets = const {},
     this.coupleUnions = const [],
+    this.generations = const {},
   });
 }
 
@@ -509,6 +519,9 @@ class GraphLayoutService {
       ringRadii: ringRadii,
       ringAngleOffsets: ringAngleOffsets,
       coupleUnions: coupleUnions,
+      // v5.99: Pass the BFS-computed generations so the stats panel
+      // can show the correct GENS count (not the stale API values).
+      generations: generations,
     );
   }
 
@@ -564,24 +577,28 @@ class GraphLayoutService {
 
       // Determine generational offset from fromPerson → toPerson.
       //
-      // v2.2: Look up the key in the kinshipGenerationMap FIRST. This
-      // map contains all 5,359 Indian kinship types with their correct
-      // generational distance from the viewer (e.g., "father" = -1,
-      // "paternal_uncle" = -1, "cousin" = 0, "grandfather" = -2).
+      // v5.99: Use labelAtoB (specific label like 'father', 'brother')
+      // instead of relationshipKey (fundamental type like 'parent').
+      // The mapToFundamentalEdge() function maps ALL non-spouse
+      // relationships to 'parent', so using relationshipKey would
+      // treat siblings, children, grandparents ALL as parent edges
+      // (generation -1), producing wrong generation assignments.
       //
-      // If the map is not available or the key is not in it, fall back
-      // to the hardcoded key sets (which cover ~38 common types).
+      // The kinshipGenerationMap is keyed by SPECIFIC labels
+      // ('father' → -1, 'brother' → 0, 'son' → +1, etc.), so we
+      // must look up the specific label, not the fundamental type.
+      final lookupKey = rel.labelAtoB ?? rel.relationshipKey;
       int fromToTo;
       if (kinshipGenerationMap != null &&
-          kinshipGenerationMap.containsKey(rel.relationshipKey)) {
-        fromToTo = kinshipGenerationMap[rel.relationshipKey]!;
-      } else if (_grandparentKeys.contains(rel.relationshipKey)) {
+          kinshipGenerationMap.containsKey(lookupKey)) {
+        fromToTo = kinshipGenerationMap[lookupKey]!;
+      } else if (_grandparentKeys.contains(lookupKey)) {
         fromToTo = -2;
-      } else if (_parentKeys.contains(rel.relationshipKey)) {
+      } else if (_parentKeys.contains(lookupKey)) {
         fromToTo = -1;
-      } else if (_grandchildKeys.contains(rel.relationshipKey)) {
+      } else if (_grandchildKeys.contains(lookupKey)) {
         fromToTo = 2;
-      } else if (_childKeys.contains(rel.relationshipKey)) {
+      } else if (_childKeys.contains(lookupKey)) {
         fromToTo = 1;
       } else {
         fromToTo = 0; // spouse, sibling, cousin, in-law, etc.

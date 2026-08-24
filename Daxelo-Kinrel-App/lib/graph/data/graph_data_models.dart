@@ -235,6 +235,9 @@ class GraphEdgeData {
         fromPersonId: sourceId,
         toPersonId: targetId,
         relationshipKey: relationshipKey,
+        // v5.99: Pass labelAtoB so the layout BFS can use specific labels
+        // for generation lookup (e.g. 'brother' → gen 0, not 'parent' → gen -1).
+        labelAtoB: relationshipKey,
       );
 }
 
@@ -481,6 +484,7 @@ class RelationshipData {
     required this.toPersonId,
     required this.relationshipKey,
     this.displayLabel,
+    this.labelAtoB,
   });
 
   /// Unique identifier for this relationship.
@@ -499,11 +503,18 @@ class RelationshipData {
   /// "Mother's Brother").
   final String? displayLabel;
 
+  /// v5.99: The specific label (e.g. 'father', 'brother', 'wife') used
+  /// for generation lookup in the layout BFS. Falls back to
+  /// [relationshipKey] if null.
+  final String? labelAtoB;
+
   /// Converts to [GraphRelationship] for layout computation.
   GraphRelationship toGraphRelationship() => GraphRelationship(
         id: id,
         fromPersonId: fromPersonId,
         toPersonId: toPersonId,
         relationshipKey: relationshipKey,
+        // v5.99: Pass the specific label for generation lookup.
+        labelAtoB: labelAtoB ?? relationshipKey,
       );
 }
