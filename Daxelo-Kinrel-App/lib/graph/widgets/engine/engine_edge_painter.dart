@@ -62,6 +62,7 @@ class EngineEdgePainter extends CustomPainter {
     this.connectOnOpenCurrentEdgeId,
     this.connectOnOpenProgress = 0.0,
     this.connectOnOpenRevealedEdgeIds = const <String>{},
+    this.connectOnOpenCurrentEdgeIds = const <String>{},
   });
 
   final Map<String, Offset> positions;
@@ -138,6 +139,13 @@ class EngineEdgePainter extends CustomPainter {
   final String? connectOnOpenCurrentEdgeId;
   final double connectOnOpenProgress;
   final Set<String> connectOnOpenRevealedEdgeIds;
+
+  /// v5.97: When non-empty, ALL edges in this set are animating
+  /// simultaneously (parallel mode). The painter applies the same
+  /// progressive-draw treatment to every edge in this set. When empty,
+  /// the painter falls back to checking [connectOnOpenCurrentEdgeId]
+  /// (sequential mode).
+  final Set<String> connectOnOpenCurrentEdgeIds;
 
   // ── Path construction ─────────────────────────────────────────────────
 
@@ -538,8 +546,12 @@ class EngineEdgePainter extends CustomPainter {
         if (connectOnOpenRevealedEdgeIds.contains(e.id)) {
           // Already revealed — full alpha, full path, midpoint shown.
           connectOnOpenAlpha = 1.0;
-        } else if (e.id == connectOnOpenCurrentEdgeId) {
-          // Currently drawing in — full alpha, but truncate the path.
+        } else if (connectOnOpenCurrentEdgeIds.contains(e.id) ||
+            e.id == connectOnOpenCurrentEdgeId) {
+          // v5.97: This edge is currently animating — either in
+          // simultaneous mode (connectOnOpenCurrentEdgeIds) or
+          // sequential mode (connectOnOpenCurrentEdgeId). Full alpha,
+          // but truncate the path.
           connectOnOpenAlpha = 1.0;
           isConnectOnOpenCurrentEdge = true;
           // Skip midpoint until the line fully reaches it.
@@ -1468,7 +1480,9 @@ class EngineEdgePainter extends CustomPainter {
         (connectOnOpenActive &&
             old.connectOnOpenProgress != connectOnOpenProgress) ||
         !_sameSet(old.connectOnOpenRevealedEdgeIds,
-            connectOnOpenRevealedEdgeIds);
+            connectOnOpenRevealedEdgeIds) ||
+        !_sameSet(old.connectOnOpenCurrentEdgeIds,
+            connectOnOpenCurrentEdgeIds);
   }
 
   /// Lightweight dimmed-set comparison. We do NOT deep-compare element

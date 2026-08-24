@@ -44,6 +44,7 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
     this.connectOnOpenCurrentEdgeId,
     this.connectOnOpenProgress = 0.0,
     this.connectOnOpenRevealedEdgeIds = const <String>{},
+    this.connectOnOpenCurrentEdgeIds = const <String>{},
   });
 
   final Map<String, Offset> positions;
@@ -78,6 +79,9 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
   final String? connectOnOpenCurrentEdgeId;
   final double connectOnOpenProgress;
   final Set<String> connectOnOpenRevealedEdgeIds;
+
+  /// v5.97: Set of all edges animating simultaneously (parallel mode).
+  final Set<String> connectOnOpenCurrentEdgeIds;
 
   /// v99 (Phase 6): Derived couple unions from the layout. The painter
   /// renders a subtle junction glyph at the midpoint between partners
@@ -313,6 +317,7 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
         connectOnOpenCurrentEdgeId: widget.connectOnOpenCurrentEdgeId,
         connectOnOpenProgress: widget.connectOnOpenProgress,
         connectOnOpenRevealedEdgeIds: widget.connectOnOpenRevealedEdgeIds,
+        connectOnOpenCurrentEdgeIds: widget.connectOnOpenCurrentEdgeIds,
       ),
       child: const SizedBox.expand(),
     );

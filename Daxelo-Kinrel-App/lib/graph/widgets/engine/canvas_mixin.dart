@@ -809,6 +809,9 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     connectOnOpenRevealedEdgeIds:
                         _connectOnOpenController?.state.completedEdgeIds ??
                             const <String>{},
+                    connectOnOpenCurrentEdgeIds:
+                        _connectOnOpenController?.state.currentEdgeIds ??
+                            const <String>{},
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.

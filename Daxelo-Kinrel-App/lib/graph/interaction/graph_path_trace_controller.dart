@@ -68,6 +68,7 @@ class GraphPathTraceState {
     this.completedEdgeIds = const <String>{},
     this.traceProgress = 0.0,
     this.traceActive = false,
+    this.currentEdgeIds = const <String>{},
   });
 
   final GraphPathTracePhase phase;
@@ -75,6 +76,12 @@ class GraphPathTraceState {
   /// The edge currently being swept. Null when phase is idle or
   /// revealedStatically.
   final String? currentEdgeId;
+
+  /// v5.97: When non-empty, ALL edges in this set are animating
+  /// simultaneously (parallel mode). The painter checks this set
+  /// for the progressive-draw treatment. When empty, the painter
+  /// falls back to checking [currentEdgeId] (sequential mode).
+  final Set<String> currentEdgeIds;
 
   /// Edges that have already been swept and should remain statically
   /// focused.
@@ -94,6 +101,7 @@ class GraphPathTraceState {
     Set<String>? completedEdgeIds,
     double? traceProgress,
     bool? traceActive,
+    Set<String>? currentEdgeIds,
   }) {
     return GraphPathTraceState(
       phase: phase ?? this.phase,
@@ -101,6 +109,7 @@ class GraphPathTraceState {
       completedEdgeIds: completedEdgeIds ?? this.completedEdgeIds,
       traceProgress: traceProgress ?? this.traceProgress,
       traceActive: traceActive ?? this.traceActive,
+      currentEdgeIds: currentEdgeIds ?? this.currentEdgeIds,
     );
   }
 
@@ -112,7 +121,8 @@ class GraphPathTraceState {
           other.currentEdgeId == currentEdgeId &&
           other.traceActive == traceActive &&
           other.traceProgress == traceProgress &&
-          _setEquals(other.completedEdgeIds, completedEdgeIds);
+          _setEquals(other.completedEdgeIds, completedEdgeIds) &&
+          _setEquals(other.currentEdgeIds, currentEdgeIds);
 
   static bool _setEquals(Set<String> a, Set<String> b) {
     if (a.length != b.length) return false;
@@ -121,11 +131,13 @@ class GraphPathTraceState {
 
   @override
   int get hashCode => Object.hash(
-      phase, currentEdgeId, traceActive, traceProgress, completedEdgeIds.length);
+      phase, currentEdgeId, traceActive, traceProgress,
+      completedEdgeIds.length, currentEdgeIds.length);
 
   @override
   String toString() =>
       'GraphPathTraceState(phase=$phase, current=$currentEdgeId, '
+      'currentIds=${currentEdgeIds.length}, '
       'completed=${completedEdgeIds.length}, progress=$traceProgress, active=$traceActive)';
 }
 
@@ -291,6 +303,80 @@ class GraphPathTraceController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// v5.97: Animate ALL edges simultaneously (parallel, not sequential).
+  ///
+  /// Unlike [startTrace] which plays edges one-by-one, this method sets
+  /// ALL edges as "current" and animates them all from progress 0→1 at
+  /// the same time. The duration is based on the longest edge (so all
+  /// edges finish at the same time, with shorter edges appearing slower
+  /// relative to their length).
+  ///
+  /// When complete, all edges transition to the revealed set.
+  ///
+  /// [edgeLengths] is used to compute the duration (longest edge →
+  /// 1.0–3.0 seconds, clamped). If null, defaults to 1.5 seconds.
+  void startTraceSimultaneous(
+    List<String> orderedEdgeIds, {
+    Map<String, double>? edgeLengths,
+  }) {
+    if (_controller == null) {
+      revealAll(orderedEdgeIds);
+      return;
+    }
+    if (orderedEdgeIds.isEmpty) {
+      _resetToIdle();
+      return;
+    }
+
+    _orderedEdgeIds = List.unmodifiable(orderedEdgeIds);
+    _orderedEdgeLengths = edgeLengths;
+    _currentIndex = 0;
+
+    // v5.97: Set ALL edges as "current" so the painter animates them
+    // all simultaneously. We abuse the existing state shape by putting
+    // all edge IDs into completedEdgeIds (which the painter treats as
+    // "current" when connectOnOpenActive is true AND traceActive is true
+    // — see the painter's connectOnOpen logic).
+    //
+    // Actually, we need a different approach: the painter checks
+    // `e.id == connectOnOpenCurrentEdgeId` for the current edge. To
+    // support multiple simultaneous current edges, the call site
+    // (canvas_mixin) passes ALL ordered edges as currentEdgeIds.
+    // The controller state sets currentEdgeId to null (no single
+    // current edge) and puts ALL edges in a new field.
+    //
+    // Simpler approach: set traceProgress to 0, and put ALL edges in
+    // completedEdgeIds. The painter checks: if edge is in
+    // connectOnOpenRevealedEdgeIds → full alpha. But we want them
+    // to ANIMATE, not be fully revealed.
+    //
+    // The cleanest fix: add a new field `currentEdgeIds` (Set) to the
+    // state, and have the painter check if the edge is in this set
+    // for the progressive-draw treatment.
+    _state = GraphPathTraceState(
+      phase: GraphPathTracePhase.tracing,
+      currentEdgeId: null, // No single current edge — all are current
+      completedEdgeIds: const {}, // None completed yet — all animating
+      traceProgress: 0.0,
+      traceActive: true,
+      // v5.97: All edges are "current" (animating simultaneously)
+      currentEdgeIds: orderedEdgeIds.toSet(),
+    );
+    notifyListeners();
+
+    // Compute duration based on the longest edge (so all edges finish
+    // together, with shorter edges appearing proportionally faster).
+    final int durationMs;
+    if (edgeLengths != null && edgeLengths.isNotEmpty) {
+      final maxLen = edgeLengths.values.reduce((a, b) => a > b ? a : b);
+      durationMs = _connectOnOpenDurationMs(maxLen);
+    } else {
+      durationMs = 1500; // default 1.5s
+    }
+    _controller!.duration = Duration(milliseconds: durationMs);
+    _controller!.forward(from: 0.0);
+  }
+
   /// Reset to idle — clears all trace state. Called when the path
   /// focus is cleared.
   void reset() {
@@ -307,7 +393,36 @@ class GraphPathTraceController extends ChangeNotifier {
   }
 
   void _onTick() {
-    if (_controller == null || _currentIndex >= _orderedEdgeIds.length) {
+    if (_controller == null) return;
+
+    // v5.97: Simultaneous (parallel) mode — all edges animate at once.
+    if (_state.currentEdgeIds.isNotEmpty) {
+      final progress = _controller!.value;
+      if (progress >= 1.0) {
+        // All edges finished — transition to completed.
+        GraphHaptics.pathTraceStep(reducedMotion: _reducedMotion);
+        _state = GraphPathTraceState(
+          phase: GraphPathTracePhase.idle,
+          currentEdgeId: null,
+          completedEdgeIds: _state.currentEdgeIds,
+          traceProgress: 0.0,
+          traceActive: false,
+          currentEdgeIds: const {},
+        );
+        notifyListeners();
+      } else {
+        // Mid-animation — update progress for all edges.
+        _state = _state.copyWith(
+          traceProgress: progress,
+          traceActive: true,
+        );
+        notifyListeners();
+      }
+      return;
+    }
+
+    // Sequential mode (existing behavior)
+    if (_currentIndex >= _orderedEdgeIds.length) {
       return;
     }
     final progress = _controller!.value;

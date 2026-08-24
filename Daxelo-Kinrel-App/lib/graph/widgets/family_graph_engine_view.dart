@@ -1080,7 +1080,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
           edgeLengths[edgeId] = 400.0; // fallback if positions missing
         }
       }
-      _connectOnOpenController!.startTrace(
+      _connectOnOpenController!.startTraceSimultaneous(
         ordered,
         edgeLengths: edgeLengths,
       );
@@ -1291,7 +1291,14 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
             PersonalLayoutOverrides.empty;
     final rearrangeMode = ref.watch(rearrangeModeProvider);
 
+    // v5.97: Use skipLoadingOnReload so that when the graph is invalidated
+    // by realtime events (or any other ref.invalidate), the UI keeps
+    // showing the PREVIOUS layout instead of flashing a loading spinner.
+    // The loading spinner only shows on the FIRST load (when there's no
+    // previous data). This prevents the "Loading family graph..." from
+    // appearing repeatedly every few seconds.
     return layoutAsync.when(
+      skipLoadingOnReload: true,
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (Object e, _) => ErrorRetry(
         onRetry: () =>
