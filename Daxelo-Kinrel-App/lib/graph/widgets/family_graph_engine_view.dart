@@ -144,7 +144,6 @@ import '../rendering/semantic_zoom.dart'
         farTierExcludesPremiumEffects,
         shouldRenderText;
 import '../rendering/viewport_culler.dart' show ViewportCuller;
-import '../rendering/density_cluster_engine.dart' show DensityClusterEngine, DensityClusterResult;
 import 'graph_node.dart' show GraphNode, NodeState;
 import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, OnThisDayEventType, showOnThisDayEventSheet;
 import 'graph_minimap.dart' show GraphMiniMap;

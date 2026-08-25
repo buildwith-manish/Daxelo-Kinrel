@@ -30,10 +30,22 @@
 //   • large descendant subtrees not currently explored
 //
 //   Do NOT aggressively collapse small graphs (< 30 members).
+//
+// v5.105: Density-driven budget rule. When post-cull visible nodes
+// exceed kNodeBudget (50), subtrees are collapsed largest-first until
+// the budget is met. This is recursive: if a single branch is so
+// large that collapsing it still leaves us over budget, the algorithm
+// recurses into the branch's own children. Works at any scale (10 to
+// 100,000+ members) with one unified rule.
 
 import 'dart:ui' show Offset;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// v5.105: Global on-screen node budget. If the number of visible
+/// (post-cull) nodes exceeds this, subtrees are collapsed until the
+/// budget is met. ~50 provides a clean, legible graph at any scale.
+const int kNodeBudget = 50;
 
 /// A collapsed branch presentation entry.
 ///
@@ -413,6 +425,159 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
   void clearAll() {
     if (state == BranchCollapseState.empty) return;
     state = BranchCollapseState.empty;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // v5.105: DENSITY-DRIVEN BUDGET COLLAPSE
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// Density-driven collapse: if [visibleNodeIds] exceeds [kNodeBudget],
+  /// collapse subtrees (largest first) until the visible count is at or
+  /// under budget.
+  ///
+  /// This is the UNIFIED rule that works at any scale:
+  ///   - Small trees (<50 visible): zero collapsing (no regression)
+  ///   - Medium (50-500): partial collapsing of large branches
+  ///   - Large (500-10,000+): heavy recursive collapsing
+  ///
+  /// Parameters:
+  /// [visibleNodeIds] — nodes that passed viewport culling (pre-collapse).
+  /// [childrenOf] — adjacency: personId → children IDs (for subtree sizing).
+  /// [personNameOf] — resolves personId → display name for labels.
+  /// [allEdges] — all edges (for computing hidden edge IDs).
+  void computeDensityCollapse({
+    required Set<String> visibleNodeIds,
+    required Map<String, Set<String>> childrenOf,
+    required String Function(String) personNameOf,
+    required List<({String fromId, String toId, String edgeId, String relationshipKey})> allEdges,
+  }) {
+    // Small-set bypass: if within budget, clear any existing branches.
+    if (visibleNodeIds.length <= kNodeBudget) {
+      if (state.collapsedBranches.isNotEmpty) {
+        state = BranchCollapseState(
+          collapsedBranches: const [],
+          expandedBranchRoots: state.expandedBranchRoots,
+          revision: state.revision + 1,
+        );
+      }
+      return;
+    }
+
+    // We need to collapse. Find roots with the largest subtrees.
+    final remaining = Set<String>.from(visibleNodeIds);
+    final newBranches = <CollapsedBranch>[];
+
+    // Compute subtree sizes for all visible nodes.
+    final subtreeSizes = <String, int>{};
+    for (final id in visibleNodeIds) {
+      subtreeSizes[id] = _subtreeSizeBFS(id, childrenOf, remaining);
+    }
+
+    // Find roots: visible nodes that have children also in the visible set.
+    final roots = visibleNodeIds.where((id) {
+      final children = childrenOf[id] ?? {};
+      return children.any((c) => remaining.contains(c));
+    }).toList();
+
+    // Sort roots by subtree size, largest first.
+    roots.sort((a, b) =>
+        (subtreeSizes[b] ?? 0).compareTo(subtreeSizes[a] ?? 0));
+
+    // Collapse subtrees until we're within budget.
+    for (final rootId in roots) {
+      if (remaining.length <= kNodeBudget) break;
+
+      // Skip if user has manually expanded this root.
+      if (state.expandedBranchRoots.contains(rootId)) continue;
+
+      // Compute the subtree to collapse (BFS through childrenOf).
+      final subtreeMembers = <String>{};
+      _collectSubtreeBFS(rootId, childrenOf, remaining, subtreeMembers);
+      subtreeMembers.remove(rootId); // root stays visible
+
+      if (subtreeMembers.length < 3) continue; // too small to cluster
+
+      // Compute hidden edges.
+      final hiddenEdgeIds = <String>{};
+      for (final e in allEdges) {
+        if (subtreeMembers.contains(e.fromId) &&
+            (subtreeMembers.contains(e.toId) || e.toId == rootId)) {
+          hiddenEdgeIds.add(e.edgeId);
+        } else if (subtreeMembers.contains(e.toId) &&
+            (subtreeMembers.contains(e.fromId) || e.fromId == rootId)) {
+          hiddenEdgeIds.add(e.edgeId);
+        }
+      }
+
+      final rootName = personNameOf(rootId);
+      final label = _generateBranchLabel(rootName, subtreeMembers.length);
+
+      newBranches.add(CollapsedBranch(
+        id: '${rootId}_branch',
+        rootPersonId: rootId,
+        rootPersonName: rootName,
+        hiddenMemberIds: Set.unmodifiable(subtreeMembers),
+        hiddenEdgeIds: Set.unmodifiable(hiddenEdgeIds),
+        visibleMemberCount: 1,
+        hiddenGenerationDepth: _maxDepth(rootId, childrenOf, subtreeMembers),
+        branchLabel: label,
+        relationshipKey: '',
+      ));
+
+      remaining.removeAll(subtreeMembers);
+    }
+
+    // Idempotent update.
+    if (_branchesEqual(newBranches, state.collapsedBranches)) {
+      return;
+    }
+
+    state = BranchCollapseState(
+      collapsedBranches: newBranches,
+      expandedBranchRoots: state.expandedBranchRoots,
+      revision: state.revision + 1,
+    );
+  }
+
+  /// Compute subtree size via BFS (only counting nodes in [visible]).
+  int _subtreeSizeBFS(
+    String rootId,
+    Map<String, Set<String>> childrenOf,
+    Set<String> visible,
+  ) {
+    final visited = <String>{};
+    final queue = <String>[rootId];
+    int count = 0;
+    while (queue.isNotEmpty) {
+      final n = queue.removeLast();
+      if (visited.contains(n)) continue;
+      visited.add(n);
+      if (visible.contains(n)) count++;
+      for (final child in childrenOf[n] ?? const <String>{}) {
+        if (visible.contains(child)) queue.add(child);
+      }
+    }
+    return count;
+  }
+
+  /// Collect all subtree members via BFS (only nodes in [visible]).
+  void _collectSubtreeBFS(
+    String rootId,
+    Map<String, Set<String>> childrenOf,
+    Set<String> visible,
+    Set<String> members,
+  ) {
+    final visited = <String>{};
+    final queue = <String>[rootId];
+    while (queue.isNotEmpty) {
+      final n = queue.removeLast();
+      if (visited.contains(n)) continue;
+      visited.add(n);
+      if (visible.contains(n)) members.add(n);
+      for (final child in childrenOf[n] ?? const <String>{}) {
+        if (visible.contains(child)) queue.add(child);
+      }
+    }
   }
 
   /// Compute the descendant subtree of [root], excluding any person

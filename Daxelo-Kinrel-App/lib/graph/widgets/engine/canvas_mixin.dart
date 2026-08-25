@@ -419,11 +419,12 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             ? culled.where(allowed.contains).toSet()
             : culled.where((id) => allowed.contains(id) && !hiddenIds.contains(id)).toSet();
 
-        // v5.104: Density-driven recursive clustering.
-        // If the visible set exceeds the node budget, collapse subtrees
-        // into cluster circles until the budget is met. Small trees
-        // (<50 visible) are never clustered — zero regression.
-        final childrenOf = <String, List<String>>{};
+        // v5.105: Density-driven budget collapse.
+        // If visible nodes exceed kNodeBudget (50), collapse subtrees
+        // largest-first until budget is met. Small trees (<50 visible)
+        // bypass entirely — zero regression.
+        // Build childrenOf adjacency from labelAtoB parent edges.
+        final childrenOfAdj = <String, Set<String>>{};
         for (final Map<String, dynamic> r in flat.relationships) {
           final label = (r['labelAtoB'] as String?) ??
               (r['relationshipKey'] as String?) ?? '';
@@ -432,32 +433,43 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             final to = r['toPersonId'] as String?;
             if (from != null && to != null) {
               // "toPerson is fromPerson's parent" → fromPerson is child of toPerson
-              childrenOf.putIfAbsent(to, () => []).add(from);
+              childrenOfAdj.putIfAbsent(to, () => <String>{}).add(from);
             }
           }
         }
-        final personNames = <String, String>{};
-        for (final p in flat.persons) {
-          final id = p['id'] as String?;
-          final name = p['name'] as String?;
-          if (id != null && name != null) personNames[id] = name;
+        // Build person name resolver.
+        String personNameResolver(String pid) {
+          for (final p in flat.persons) {
+            if (p['id'] == pid) return (p['name'] as String?) ?? 'Unknown';
+          }
+          return 'Unknown';
         }
-
-        final clusterResult = DensityClusterEngine.compute(
+        // Build allEdges for hidden edge computation.
+        final allEdgesForCollapse = <({String fromId, String toId, String edgeId, String relationshipKey})>[
+          for (final Map<String, dynamic> r in flat.relationships)
+            if (r['fromPersonId'] != null && r['toPersonId'] != null && r['id'] != null)
+              (
+                fromId: r['fromPersonId'] as String,
+                toId: r['toPersonId'] as String,
+                edgeId: r['id'] as String,
+                relationshipKey: (r['relationshipKey'] as String?) ?? '',
+              ),
+        ];
+        // Run density-driven collapse.
+        ref.read(branchCollapseProvider.notifier).computeDensityCollapse(
           visibleNodeIds: visiblePreCluster,
-          positions: effectivePositions,
-          childrenOf: childrenOf,
-          personNames: personNames,
-          personCategories: _cachedRelationCategories?.map(
-              (k, v) => MapEntry(k, v.toString())) ?? {},
-          expandedBranchRoots: collapseState.expandedBranchRoots,
-          zoom: _camera.zoomLevel,
-          viewportSize: _viewportSize,
+          childrenOf: childrenOfAdj,
+          personNameOf: personNameResolver,
+          allEdges: allEdgesForCollapse,
         );
+        // Re-read collapse state after density collapse.
+        final densityCollapseState = ref.read(branchCollapseProvider);
+        final densityHiddenIds = densityCollapseState.allHiddenMemberIds;
+        final densityHiddenEdgeIds = densityCollapseState.allHiddenEdgeIds;
 
         // Apply clustering: remove hidden members from visible set.
         final Set<String> visible = visiblePreCluster
-            .where((id) => !clusterResult.allHiddenMemberIds.contains(id))
+            .where((id) => !densityHiddenIds.contains(id))
             .toSet();
 
         // Record throttling baselines for _onCameraChanged.
@@ -530,6 +542,16 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           final s = r['fromPersonId'] as String?;
           final t = r['toPersonId'] as String?;
           if (s == null || t == null) continue;
+          // v5.105: Skip edges that are hidden by collapsed branches.
+          // An edge is hidden if either endpoint is a hidden member
+          // (densityHiddenIds) OR the edge ID is in the hidden edge set.
+          final edgeId = r['id']?.toString();
+          if (densityHiddenIds.contains(s) || densityHiddenIds.contains(t)) {
+            continue;
+          }
+          if (edgeId != null && densityHiddenEdgeIds.contains(edgeId)) {
+            continue;
+          }
           final sPos = effectivePositions[s];
           final tPos = effectivePositions[t];
           if (sPos == null || tPos == null) {

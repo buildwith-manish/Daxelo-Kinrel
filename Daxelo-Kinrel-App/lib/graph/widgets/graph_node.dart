@@ -524,9 +524,18 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     if (widget.category != null) {
       color = KinshipEdgeStyleResolver.styleForCategory(widget.category!).color;
     } else {
-      color = KinshipEdgeStyleResolver.styleFor(
-        widget.relationshipKey ?? '',
-      ).color;
+      // v5.105: Fall back to the relation label (specific term like
+      // 'Father', 'Cousin') instead of the fundamental relationshipKey
+      // ('parent'). The relationLabel is always the specific kinship
+      // term computed by the BFS classifier, so it resolves to the
+      // correct category color. Previously fell back to relationshipKey
+      // which was null (not passed by node_builders), causing all nodes
+      // to render as flat gray-blue (extended category).
+      final fallbackKey = widget.relationLabel.isNotEmpty &&
+              widget.relationLabel != 'You'
+          ? widget.relationLabel.toLowerCase().replaceAll(' ', '_')
+          : (widget.relationshipKey ?? '');
+      color = KinshipEdgeStyleResolver.styleFor(fallbackKey).color;
     }
     // High contrast: full opacity colors for WCAG AA 4.5:1 contrast
     return _highContrast

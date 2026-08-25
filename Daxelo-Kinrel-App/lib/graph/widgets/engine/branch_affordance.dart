@@ -27,16 +27,34 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
   ) {
     if (collapseState.collapsedBranches.isEmpty) return const [];
 
+    // v5.105: Track placed chip positions to avoid overlap.
+    // If two chips would overlap, offset the second one vertically.
+    final placedRects = <Rect>[];
     final chips = <Widget>[];
+
     for (final branch in collapseState.collapsedBranches) {
       final pos = layout.positions[branch.rootPersonId];
       if (pos == null) continue;
 
-      // Position the chip slightly below and to the right of the root
-      // node so it doesn't overlap the node circle.
-      final chipLeft = pos.dx + 40;
-      final chipTop =
+      // Position the chip slightly below and to the right of the root node.
+      var chipLeft = pos.dx + 40;
+      var chipTop =
           pos.dy + _FamilyGraphEngineViewState._kCircleCenterYOffset + 40;
+
+      // v5.105: Collision avoidance — if this chip would overlap an
+      // already-placed chip, push it down by 30px increments until it fits.
+      const chipWidth = 200.0; // approximate
+      const chipHeight = 32.0;  // approximate
+      while (placedRects.any((r) => r.overlaps(
+          Rect.fromLTWH(chipLeft, chipTop, chipWidth, chipHeight)))) {
+        chipTop += 36; // stack vertically
+      }
+      placedRects.add(Rect.fromLTWH(chipLeft, chipTop, chipWidth, chipHeight));
+
+      // v5.105: Use the dominant kinship category color for the chip
+      // border/accent instead of hardcoded orange. The category is
+      // derived from the relationshipKey field on the CollapsedBranch.
+      final chipAccentColor = _chipColorForBranch(branch);
 
       chips.add(Positioned(
         left: chipLeft,
@@ -53,7 +71,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
               color: KinrelColors.darkBackground.withValues(alpha: 0.92),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: KinrelColors.orange.withValues(alpha: 0.6),
+                color: chipAccentColor.withValues(alpha: 0.6),
                 width: 1.2,
               ),
               boxShadow: [
@@ -70,7 +88,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                 Icon(
                   Icons.unfold_more,
                   size: 14,
-                  color: KinrelColors.orange,
+                  color: chipAccentColor,
                 ),
                 const SizedBox(width: 6),
                 Text(
@@ -90,6 +108,18 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       ));
     }
     return chips;
+  }
+
+  /// v5.105: Returns the accent color for a collapsed-branch chip
+  /// based on the branch's relationshipKey. Falls back to orange
+  /// (the original color) when the key is empty or unrecognized.
+  Color _chipColorForBranch(CollapsedBranch branch) {
+    if (branch.relationshipKey.isEmpty) {
+      return KinrelColors.orange;
+    }
+    // Map the relationship key to a category color.
+    final style = KinshipEdgeStyleResolver.styleFor(branch.relationshipKey);
+    return style.color ?? KinrelColors.orange;
   }
 
   /// v92 (PART 19): Wraps [node] in a Stack and overlays a "+N"
