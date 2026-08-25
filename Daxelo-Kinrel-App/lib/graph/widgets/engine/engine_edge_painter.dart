@@ -536,15 +536,16 @@ class EngineEdgePainter extends CustomPainter {
         midpointSymbol = style.midpointSymbol;
       }
 
-      // v5.107: Zoom-aware stroke width. At low zoom, the graph-space
+      // v5.107/v5.108: Zoom-aware stroke width. At low zoom, the graph-space
       // stroke (2.2–4.5px) renders at <1 screen pixel, making edges
       // invisible. We floor the graph-space width so the on-screen
       // width never drops below the per-tier minimum:
-      //   full = 2.0px, chip = 1.5px, dot = 1.0px screen.
+      //   full = 2.5px, chip = 2.0px, dot = 1.5px screen.
+      // v5.108: Increased minimums for better visibility at zoom-out.
       final double minScreenStroke = switch (edgeQuality) {
-        EdgeQuality.full => 2.0,
-        EdgeQuality.chip => 1.5,
-        EdgeQuality.dot => 1.0,
+        EdgeQuality.full => 2.5,
+        EdgeQuality.chip => 2.0,
+        EdgeQuality.dot => 1.5,
       };
       final double safeZoom = zoom > 0.01 ? zoom : 0.01;
       final double minGraphWidth = minScreenStroke / safeZoom;

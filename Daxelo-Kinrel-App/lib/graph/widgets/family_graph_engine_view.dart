@@ -137,6 +137,7 @@ import '../rendering/semantic_zoom.dart'
         SemanticTier,
         SemanticZoomThresholds,
         defaultThresholds,
+        thresholdsForMemberCount,
         computeSemanticTier,
         semanticTierToLodName,
         shouldOverrideFarTier,
@@ -1164,10 +1165,13 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // if the user zooms out to FAR. Pairs semantic zoom with focus
     // mode per Vision §5 Layer 1.
     final focusActive = ref.read(graphFocusProvider).focusedPersonId != null;
+    // v5.108: Use member-count-scaled thresholds so large families
+    // don't degrade to unreadable dots too quickly.
+    final thresholds = thresholdsForMemberCount(_currentMemberCount);
     _currentSemanticTier = computeSemanticTier(
       zoom,
       currentTier: _currentSemanticTier,
-      thresholds: defaultThresholds,
+      thresholds: thresholds,
       memberCount: _currentMemberCount,
       focusActive: focusActive,
     );

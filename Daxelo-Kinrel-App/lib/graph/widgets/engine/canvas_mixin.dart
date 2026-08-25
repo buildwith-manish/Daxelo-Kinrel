@@ -541,10 +541,14 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // visible" (isEdgeVisible). The original zoom-in bug this was fixing
         // doesn't apply at zoom-out anyway, since at zoom-out both endpoints
         // being off-screen simultaneously for a short edge is rare.
+        // v5.108: Use the post-clustering visible set size for the
+        // segment-fallback decision, not the total edge count. After
+        // density clustering, the visible edge count is much lower
+        // (collapsed branches hide their edges), so the segment
+        // fallback becomes safe to use at lower zoom levels.
         final currentZoom = _camera.zoomLevel;
-        final totalEdgeCount = flat.relationships.length;
         final useSegmentFallback =
-            totalEdgeCount < 200 || currentZoom > 1.5;
+            visible.length < 200 || currentZoom > 1.5;
 
         final rawEdges = <GraphEdgeData>[];
         for (final Map<String, dynamic> r in flat.relationships) {

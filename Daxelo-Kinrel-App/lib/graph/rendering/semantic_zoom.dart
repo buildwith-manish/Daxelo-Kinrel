@@ -101,6 +101,44 @@ class SemanticZoomThresholds {
 /// Default thresholds calibrated for the v93 camera range.
 const defaultThresholds = SemanticZoomThresholds();
 
+/// v5.108: Returns thresholds scaled by member count. Large families
+/// need lower FAR/MEDIUM thresholds because the user zooms out further
+/// to see the whole tree. If the thresholds don't scale, the graph
+/// degrades to unreadable dots before the user can see the full structure.
+///
+/// Scaling rules:
+///   <100 members: default (near=1.0, medium=0.72, far=0.65)
+///   100-500: lower by 0.1 (medium=0.62, far=0.55)
+///   500-2000: lower by 0.2 (medium=0.52, far=0.45)
+///   2000+: lower by 0.3 (medium=0.42, far=0.35)
+SemanticZoomThresholds thresholdsForMemberCount(int memberCount) {
+  if (memberCount < 100) return defaultThresholds;
+  if (memberCount < 500) {
+    return const SemanticZoomThresholds(
+      nearEnter: 0.90,
+      nearLeave: 0.82,
+      mediumEnter: 0.62,
+      mediumLeave: 0.55,
+    );
+  }
+  if (memberCount < 2000) {
+    return const SemanticZoomThresholds(
+      nearEnter: 0.80,
+      nearLeave: 0.72,
+      mediumEnter: 0.52,
+      mediumLeave: 0.45,
+    );
+  }
+  // 2000+ members — very low thresholds so the graph stays at MEDIUM
+  // (chip with names) even at extreme zoom-out.
+  return const SemanticZoomThresholds(
+    nearEnter: 0.70,
+    nearLeave: 0.62,
+    mediumEnter: 0.42,
+    mediumLeave: 0.35,
+  );
+}
+
 /// Computes the semantic presentation tier with hysteresis.
 ///
 /// The [currentTier] is the tier the graph is CURRENTLY in (for
