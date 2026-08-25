@@ -456,11 +456,20 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
               ),
         ];
         // Run density-driven collapse.
+        // v5.106: Pass categoryOf so chip colors use dominant kinship category.
+        final categoryMap = <String, String>{};
+        final cats = _cachedRelationCategories;
+        if (cats != null) {
+          for (final entry in cats.entries) {
+            categoryMap[entry.key] = entry.value.toString();
+          }
+        }
         ref.read(branchCollapseProvider.notifier).computeDensityCollapse(
           visibleNodeIds: visiblePreCluster,
           childrenOf: childrenOfAdj,
           personNameOf: personNameResolver,
           allEdges: allEdgesForCollapse,
+          categoryOf: categoryMap,
         );
         // Re-read collapse state after density collapse.
         final densityCollapseState = ref.read(branchCollapseProvider);

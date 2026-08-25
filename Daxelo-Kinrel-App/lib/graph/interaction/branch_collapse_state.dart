@@ -68,6 +68,7 @@ class CollapsedBranch {
     required this.hiddenGenerationDepth,
     required this.branchLabel,
     required this.relationshipKey,
+    this.subBranches = const [],
   });
 
   /// Unique ID for this collapse entry (typically
@@ -103,6 +104,12 @@ class CollapsedBranch {
   /// descendant (e.g. "mother", "father", "spouse") — used for
   /// label generation.
   final String relationshipKey;
+
+  /// v5.106: Nested sub-branches for recursive clustering at extreme
+  /// scale (10k+). When a single collapsed subtree still exceeds
+  /// kNodeBudget on its own, its children are recursively collapsed
+  /// into sub-branches.
+  final List<CollapsedBranch> subBranches;
 
   /// The total hidden count (= hiddenMemberIds.length).
   int get hiddenCount => hiddenMemberIds.length;
@@ -450,6 +457,11 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     required Map<String, Set<String>> childrenOf,
     required String Function(String) personNameOf,
     required List<({String fromId, String toId, String edgeId, String relationshipKey})> allEdges,
+    /// v5.106: Map of personId → kinship category string (e.g. 'parent',
+    /// 'child', 'sibling'). Used to compute the dominant category for
+    /// each collapsed branch's chip color. Pass the same map that
+    /// node_builders uses for node ring colors.
+    Map<String, String>? categoryOf,
   }) {
     // Small-set bypass: if within budget, clear any existing branches.
     if (visibleNodeIds.length <= kNodeBudget) {
@@ -512,6 +524,25 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       final rootName = personNameOf(rootId);
       final label = _generateBranchLabel(rootName, subtreeMembers.length);
 
+      // v5.106: Compute dominant kinship category among subtree members.
+      // This is used for the chip's accent color instead of hardcoded orange.
+      final dominantKey = _dominantCategoryKey(subtreeMembers, categoryOf);
+
+      // v5.106: Recursive sub-clustering. If the subtree is so large
+      // that even after collapsing it, its own children would exceed
+      // kNodeBudget, recurse into the subtree's children to create
+      // nested sub-branches. This ensures the budget holds at 10k+ scale.
+      final subBranches = subtreeMembers.length > kNodeBudget
+          ? _computeSubBranches(
+              rootId: rootId,
+              subtreeMembers: subtreeMembers,
+              childrenOf: childrenOf,
+              personNameOf: personNameOf,
+              allEdges: allEdges,
+              categoryOf: categoryOf,
+            )
+          : const <CollapsedBranch>[];
+
       newBranches.add(CollapsedBranch(
         id: '${rootId}_branch',
         rootPersonId: rootId,
@@ -521,7 +552,8 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
         visibleMemberCount: 1,
         hiddenGenerationDepth: _maxDepth(rootId, childrenOf, subtreeMembers),
         branchLabel: label,
-        relationshipKey: '',
+        relationshipKey: dominantKey,  // v5.106: was '' — now dominant category
+        subBranches: subBranches,       // v5.106: recursive sub-branches
       ));
 
       remaining.removeAll(subtreeMembers);
@@ -628,9 +660,128 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
 
   String _generateBranchLabel(String rootName, int hiddenCount) {
     if (rootName.isNotEmpty) {
+      if (hiddenCount >= 1000) {
+        return "$rootName's branch · ${(hiddenCount / 1000).toStringAsFixed(1)}k";
+      }
       return "$rootName's branch · $hiddenCount";
     }
     return 'Branch · $hiddenCount';
+  }
+
+  /// v5.106: Compute the dominant kinship category key among a set of
+  /// members. Returns the category string that appears most frequently.
+  /// Falls back to 'parent' if no categories are available.
+  String _dominantCategoryKey(
+    Set<String> members,
+    Map<String, String>? categoryOf,
+  ) {
+    if (categoryOf == null || categoryOf.isEmpty) return 'parent';
+    final counts = <String, int>{};
+    for (final id in members) {
+      final cat = categoryOf[id];
+      if (cat != null) {
+        counts[cat] = (counts[cat] ?? 0) + 1;
+      }
+    }
+    if (counts.isEmpty) return 'parent';
+    String? dominant;
+    int maxCount = 0;
+    for (final entry in counts.entries) {
+      if (entry.value > maxCount) {
+        maxCount = entry.value;
+        dominant = entry.key;
+      }
+    }
+    return dominant ?? 'parent';
+  }
+
+  /// v5.106: Recursively compute sub-branches for a large collapsed
+  /// subtree. When a single branch has > kNodeBudget members, its
+  /// direct children are each evaluated as potential sub-branch roots.
+  /// This ensures the budget holds at 10k/100k+ scale.
+  List<CollapsedBranch> _computeSubBranches({
+    required String rootId,
+    required Set<String> subtreeMembers,
+    required Map<String, Set<String>> childrenOf,
+    required String Function(String) personNameOf,
+    required List<({String fromId, String toId, String edgeId, String relationshipKey})> allEdges,
+    Map<String, String>? categoryOf,
+  }) {
+    // Find the root's direct children that are in the subtree.
+    final directChildren = (childrenOf[rootId] ?? <String>{})
+        .where((c) => subtreeMembers.contains(c))
+        .toList();
+
+    if (directChildren.isEmpty) return const [];
+
+    // Compute subtree size for each child.
+    final childSubtreeSizes = <String, int>{};
+    for (final child in directChildren) {
+      final childSubtree = <String>{};
+      _collectSubtreeBFS(child, childrenOf, subtreeMembers, childSubtree);
+      childSubtreeSizes[child] = childSubtree.length;
+    }
+
+    // Sort children by subtree size, largest first.
+    directChildren.sort((a, b) =>
+        (childSubtreeSizes[b] ?? 0).compareTo(childSubtreeSizes[a] ?? 0));
+
+    final subBranches = <CollapsedBranch>[];
+    final subHidden = <String>{};
+
+    for (final childId in directChildren) {
+      // Collect this child's subtree.
+      final childSubtree = <String>{};
+      _collectSubtreeBFS(childId, childrenOf, subtreeMembers, childSubtree);
+      childSubtree.remove(childId); // child stays visible as sub-branch root
+
+      if (childSubtree.length < 3) continue; // too small to sub-cluster
+
+      // Compute hidden edges for this sub-branch.
+      final subHiddenEdges = <String>{};
+      for (final e in allEdges) {
+        if (childSubtree.contains(e.fromId) &&
+            (childSubtree.contains(e.toId) || e.toId == childId)) {
+          subHiddenEdges.add(e.edgeId);
+        } else if (childSubtree.contains(e.toId) &&
+            (childSubtree.contains(e.fromId) || e.fromId == childId)) {
+          subHiddenEdges.add(e.edgeId);
+        }
+      }
+
+      final childName = personNameOf(childId);
+      final subLabel = _generateBranchLabel(childName, childSubtree.length);
+      final subDominantKey = _dominantCategoryKey(childSubtree, categoryOf);
+
+      // Recurse if this sub-branch is still too large.
+      final subSubBranches = childSubtree.length > kNodeBudget
+          ? _computeSubBranches(
+              rootId: childId,
+              subtreeMembers: childSubtree,
+              childrenOf: childrenOf,
+              personNameOf: personNameOf,
+              allEdges: allEdges,
+              categoryOf: categoryOf,
+            )
+          : const <CollapsedBranch>[];
+
+      subBranches.add(CollapsedBranch(
+        id: '${childId}_subbranch',
+        rootPersonId: childId,
+        rootPersonName: childName,
+        hiddenMemberIds: Set.unmodifiable(childSubtree),
+        hiddenEdgeIds: Set.unmodifiable(subHiddenEdges),
+        visibleMemberCount: 1,
+        hiddenGenerationDepth: _maxDepth(childId, childrenOf, childSubtree),
+        branchLabel: subLabel,
+        relationshipKey: subDominantKey,
+        subBranches: subSubBranches,
+      ));
+
+      subHidden.addAll(childSubtree);
+    }
+
+    return subBranches;
   }
 }
 
