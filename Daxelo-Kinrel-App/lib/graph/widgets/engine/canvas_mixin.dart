@@ -415,9 +415,50 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             _culler.cull(effectivePositions, nodeSizes, vp);
         // v99: Subtract branch-collapse hidden member IDs — now uses
         // the CURRENT collapse state (computed above, not stale).
-        final Set<String> visible = hiddenIds.isEmpty
+        final Set<String> visiblePreCluster = hiddenIds.isEmpty
             ? culled.where(allowed.contains).toSet()
             : culled.where((id) => allowed.contains(id) && !hiddenIds.contains(id)).toSet();
+
+        // v5.104: Density-driven recursive clustering.
+        // If the visible set exceeds the node budget, collapse subtrees
+        // into cluster circles until the budget is met. Small trees
+        // (<50 visible) are never clustered — zero regression.
+        final childrenOf = <String, List<String>>{};
+        for (final Map<String, dynamic> r in flat.relationships) {
+          final label = (r['labelAtoB'] as String?) ??
+              (r['relationshipKey'] as String?) ?? '';
+          if (label == 'father' || label == 'mother' || label == 'parent') {
+            final from = r['fromPersonId'] as String?;
+            final to = r['toPersonId'] as String?;
+            if (from != null && to != null) {
+              // "toPerson is fromPerson's parent" → fromPerson is child of toPerson
+              childrenOf.putIfAbsent(to, () => []).add(from);
+            }
+          }
+        }
+        final personNames = <String, String>{};
+        for (final p in flat.persons) {
+          final id = p['id'] as String?;
+          final name = p['name'] as String?;
+          if (id != null && name != null) personNames[id] = name;
+        }
+
+        final clusterResult = DensityClusterEngine.compute(
+          visibleNodeIds: visiblePreCluster,
+          positions: effectivePositions,
+          childrenOf: childrenOf,
+          personNames: personNames,
+          personCategories: _cachedRelationCategories?.map(
+              (k, v) => MapEntry(k, v.toString())) ?? {},
+          expandedBranchRoots: collapseState.expandedBranchRoots,
+          zoom: _camera.zoomLevel,
+          viewportSize: _viewportSize,
+        );
+
+        // Apply clustering: remove hidden members from visible set.
+        final Set<String> visible = visiblePreCluster
+            .where((id) => !clusterResult.allHiddenMemberIds.contains(id))
+            .toSet();
 
         // Record throttling baselines for _onCameraChanged.
         _lastCullViewport = vp;
