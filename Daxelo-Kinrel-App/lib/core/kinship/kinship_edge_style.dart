@@ -207,9 +207,18 @@ class KinshipEdgeStyle {
 class KinshipEdgeColors {
   KinshipEdgeColors._();
 
-  /// Self — Green #16A34A (node ring only).
-  /// v5.8: Changed from Teal #0D9488 to Green #16A34A per user request.
-  static const Color self = Color(0xFF16A34A);
+  /// Self — Gold #FFC94A (node ring only).
+  /// v5.100: Changed from Green #16A34A to Gold #FFC94A to make the
+  /// "You" node unmistakably distinct from all other categories (teal,
+  /// cyan, emerald, etc. were too similar to the old green). Gold is
+  /// reserved EXCLUSIVELY for the "You" node — no other category,
+  /// edge type, or UI element uses this color.
+  static const Color self = Color(0xFFFFC94A);
+
+  /// v5.100: Reserved constant for the "You" node color. Use this in
+  /// any code that needs to reference the self-node color directly,
+  /// so future category color changes don't accidentally collide.
+  static const Color kSelfNodeColor = Color(0xFFFFC94A);
 
   /// Parent — Blue #3B82F6.
   static const Color parent = Color(0xFF3B82F6);

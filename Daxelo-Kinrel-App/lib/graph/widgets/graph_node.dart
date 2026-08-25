@@ -376,6 +376,9 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   late final AnimationController _shimmerController;
   late final AnimationController _errorPulseController;
   late final AnimationController _expandRotateController;
+  // v5.100: Slow pulse for the "You" node glow (always active)
+  late final AnimationController _selfPulseController;
+  late final Animation<double> _selfPulseAnimation;
 
   late final Animation<double> _pulseAnimation;
   late final Animation<double> _shimmerAnimation;
@@ -392,6 +395,19 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   @override
   void initState() {
     super.initState();
+
+    // v5.100: "You" node glow pulse — slow, gentle, always active.
+    // 2.5s period, opacity 0.2 ↔ 0.45. Only runs when isAnchor.
+    _selfPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2500),
+    );
+    _selfPulseAnimation = Tween<double>(begin: 0.2, end: 0.45).animate(
+      CurvedAnimation(parent: _selfPulseController, curve: Curves.easeInOut),
+    );
+    if (widget.isAnchor) {
+      _selfPulseController.repeat(reverse: true);
+    }
 
     // Pulse animation for focused state (1.5s repeat, scale 1.0↔1.15)
     _pulseController = AnimationController(
@@ -474,6 +490,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     _shimmerController.dispose();
     _errorPulseController.dispose();
     _expandRotateController.dispose();
+    _selfPulseController.dispose();  // v5.100: "You" node glow
     super.dispose();
   }
 
@@ -499,7 +516,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   Color get _borderColor {
     if (widget.isAnonymous)
       return _highContrast ? Colors.grey : KinrelColors.textDim;
-    if (widget.isAnchor) return KinshipEdgeColors.self;
+    if (widget.isAnchor) return KinshipEdgeColors.kSelfNodeColor;
     // v69: Prefer the AUTHORITATIVE category — no lossy string round-trip.
     // styleForCategory() is always correct and never falls through to
     // grey for a known relationship.
@@ -521,7 +538,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     if (widget.isAnonymous) return Colors.transparent;
     // Premium visual: increased tint from 0.04 to 0.12 for clearer
     // color identity on the dark background.
-    if (widget.isAnchor) return KinshipEdgeColors.self.withValues(alpha: 0.12);
+    if (widget.isAnchor) return KinshipEdgeColors.kSelfNodeColor.withValues(alpha: 0.12);
     // v69: Derive tint from the authoritative category when available.
     if (widget.category != null) {
       final color = KinshipEdgeStyleResolver.styleForCategory(
@@ -806,7 +823,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
           fontSize: 11.0,
           fontWeight: FontWeight.w500,
           color: widget.relationLabel == 'You'
-              ? KinshipEdgeColors.self
+              ? KinshipEdgeColors.kSelfNodeColor
               : _borderColor,
         ),
         textAlign: TextAlign.center,
@@ -818,9 +835,17 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     final cam = widget.camera;
     if (cam == null) {
       // Legacy fallback: hard on/off via showRelationLabel.
+      // v5.100: "You" label is always shown regardless.
+      if (widget.isAnchor) return labelWidget;
       return widget.showRelationLabel
           ? labelWidget
           : const SizedBox.shrink();
+    }
+
+    // v5.100: "You" label is ALWAYS visible at every LOD tier —
+    // it never fades on zoom-out the way other labels can.
+    if (widget.isAnchor) {
+      return labelWidget;
     }
 
     // v104: smooth zoom-fade. The AnimatedBuilder rebuilds ONLY this
@@ -875,17 +900,29 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     // P3.3: pass birthday glow params so the painter can draw layer 9.
     // P3.4: pass memorial candle flicker params so the painter can draw
     // layer 10 for deceased nodes.
+    //
+    // v5.100: The "You" (isAnchor) node gets:
+    //   • 25% larger diameter (guaranteed bigger than every other node)
+    //   • Gold border (#FFC94A) — reserved exclusively for "You"
+    //   • Thicker double-ring border (4.5px vs 3.0px)
+    //   • Always-visible label (no LOD fade)
+    final effectiveDiameter = widget.isAnchor
+        ? (diameter * 1.25)  // v5.100: "You" node is 25% larger
+        : diameter;
     final nodeParams = Pseudo3DNodeParams(
-      diameter: diameter,
-      borderColor: widget.isAnchor ? KinshipEdgeColors.self : _borderColor,
-      borderWidth: widget.isAnchor ? 3.0 : _borderWidth,
+      diameter: effectiveDiameter,
+      borderColor: widget.isAnchor ? KinshipEdgeColors.kSelfNodeColor : _borderColor,
+      borderWidth: widget.isAnchor ? 4.5 : _borderWidth,  // v5.100: thicker for "You"
       generationIndex: widget.generationIndex,
       isAnchor: widget.isAnchor,
       nodeState: widget.nodeState,
-      tintColor: _tintColor,
+      tintColor: widget.isAnchor
+          ? KinshipEdgeColors.kSelfNodeColor.withValues(alpha: 0.15)  // v5.100: gold tint
+          : _tintColor,
       showTint:
           widget.nodeState == NodeState.selected ||
-          widget.nodeState == NodeState.hover,
+          widget.nodeState == NodeState.hover ||
+          widget.isAnchor,  // v5.100: always show gold tint on "You"
       isNearBirthday: widget.isNearBirthday,
       birthdayPulseValue: widget.birthdayPulseValue,
       isDeceased: widget.isDeceased,
@@ -894,24 +931,44 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       isUnlinked: widget.isUnlinked, // v5.9
     );
 
-    final extraPad = widget.isAnchor ? 16.0 : 12.0;
+    // v5.100: Extra padding for "You" node to accommodate the glow
+    final extraPad = widget.isAnchor ? 20.0 : 12.0;
 
     return SizedBox(
-      width: diameter + extraPad,
-      height: diameter + extraPad,
+      width: effectiveDiameter + extraPad,
+      height: effectiveDiameter + extraPad,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
+          // v5.100: "You" node glow — a pulsing gold aura behind the node.
+          // Uses a simple AnimatedBuilder on a shared pulse controller
+          // (no per-frame gradient — just opacity on a pre-drawn circle).
+          if (widget.isAnchor)
+            Positioned.fill(
+              child: AnimatedBuilder(
+                animation: _selfPulseAnimation,
+                builder: (context, child) {
+                  return CustomPaint(
+                    painter: _SelfNodeGlowPainter(
+                      color: KinshipEdgeColors.kSelfNodeColor,
+                      pulse: _selfPulseAnimation.value,
+                      diameter: effectiveDiameter,
+                    ),
+                  );
+                },
+              ),
+            ),
           // Layers 1-6: CustomPainter renders the entire pseudo-3D node
           Positioned.fill(
             child: CustomPaint(painter: Pseudo3DNodePainter(nodeParams)),
           ),
           // Content layer (initials/photo) clipped to the circle
+          // v5.100: Use effectiveDiameter for "You" node's larger size
           Positioned(
             left: extraPad / 2,
             top: extraPad / 2,
-            width: diameter,
-            height: diameter,
+            width: effectiveDiameter,
+            height: effectiveDiameter,
             child: ClipOval(
               child: Stack(
                 children: [
@@ -919,7 +976,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                     Positioned.fill(
                       child: Container(color: nodeParams.tintColor),
                     ),
-                  _buildCircleContent(diameter),
+                  _buildCircleContent(effectiveDiameter),  // v5.100: use effective diameter
                   if (widget.nodeState == NodeState.loading)
                     Positioned.fill(
                       child: AnimatedBuilder(
@@ -1340,4 +1397,43 @@ class _IndirectRelationBadgePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v5.100: _SelfNodeGlowPainter — pulsing gold glow for the "You" node
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Paints a slow, gentle pulsing gold aura behind the "You" node.
+///
+/// This is a CHEAP painter — it draws a single filled circle with
+/// a MaskFilter.blur (no per-frame gradient shader). The pulse is
+/// driven by a simple opacity tween (0.2 ↔ 0.45) on the animation
+/// controller, so only the Paint.color alpha changes per frame.
+class _SelfNodeGlowPainter extends CustomPainter {
+  const _SelfNodeGlowPainter({
+    required this.color,
+    required this.pulse,
+    required this.diameter,
+  });
+
+  final Color color;
+  final double pulse;  // 0.2 ↔ 0.45
+  final double diameter;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final glowRadius = diameter * 0.75;  // extends beyond the node
+
+    final paint = Paint()
+      ..color = color.withValues(alpha: pulse)
+      ..style = PaintingStyle.fill
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, diameter * 0.3);
+
+    canvas.drawCircle(center, glowRadius, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SelfNodeGlowPainter old) =>
+      old.pulse != pulse;
 }
