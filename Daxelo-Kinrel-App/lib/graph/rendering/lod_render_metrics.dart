@@ -125,21 +125,21 @@ LodRenderMetrics computeLodMetrics({
 
     case 'overview':
       // OVERVIEW LOD (formerly DOT): single painter, no widgets.
-      // Desired screen targets:
-      //   normal marker radius: 5–8px (clamped)
-      //   emphasised marker radius: 7–11px (clamped)
-      //   edge stroke: 1.0px screen-space minimum
-      //   hit radius: 20px screen-space minimum
-      const screenNormalR = 6.0;
-      const screenEmphasisR = 9.0;
-      const screenStrokeMin = 1.0;
-      const screenHitRadius = 20.0;
+      // v5.109: Increased screen radii for better visibility.
+      //   normal marker radius: 10px (was 6px)
+      //   emphasised marker radius: 14px (was 9px)
+      //   edge stroke: 1.5px screen-space minimum (was 1.0px)
+      //   hit radius: 22px screen-space minimum (was 20px)
+      const screenNormalR = 10.0;
+      const screenEmphasisR = 14.0;
+      const screenStrokeMin = 1.5;
+      const screenHitRadius = 22.0;
       final graphNormalR = screenNormalR / safeZoom;
       final graphEmphasisR = screenEmphasisR / safeZoom;
       final graphStroke = screenStrokeMin / safeZoom;
       final graphHit = screenHitRadius / safeZoom;
-      // Cull size: overview marker footprint (12px screen diameter).
-      final cullD = 12.0 / safeZoom;
+      // Cull size: overview marker footprint (20px screen diameter).
+      final cullD = 20.0 / safeZoom;
       return LodRenderMetrics(
         zoom: safeZoom,
         tier: 'overview',
@@ -159,13 +159,14 @@ LodRenderMetrics computeLodMetrics({
 
 /// Returns the graph-space radius for an overview marker, accounting
 /// for emphasis (focused/selected/path/search nodes).
+/// v5.109: Increased from 6.0/9.0 to 10.0/14.0.
 double overviewGraphRadius({
   required double zoom,
   required bool isEmphasised,
 }) {
   final safeZoom = (zoom > 0.001 && zoom.isFinite) ? zoom : 1.0;
-  const screenNormalR = 6.0;
-  const screenEmphasisR = 9.0;
+  const screenNormalR = 10.0;
+  const screenEmphasisR = 14.0;
   final screenR = isEmphasised ? screenEmphasisR : screenNormalR;
   return screenR / safeZoom;
 }

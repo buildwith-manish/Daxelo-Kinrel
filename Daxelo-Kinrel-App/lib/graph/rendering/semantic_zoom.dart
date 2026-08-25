@@ -295,8 +295,10 @@ bool shouldOverrideFarTier({
 /// Returns the dot radius for a node at FAR zoom, accounting for
 /// focus/selection overrides.
 ///
-/// Normal nodes: 6.0px (the existing _NodeDotPainter radius).
-/// Focused/selected/path nodes: 9.0px (50% larger, discoverable).
+/// v5.109: Increased from 6.0/9.0 to 10.0/14.0 for better visibility
+/// and tap accessibility at maximum zoom-out.
+/// Normal nodes: 10.0px (20px diameter).
+/// Focused/selected/path nodes: 14.0px (28px diameter, 40% larger).
 double farTierDotRadius({
   required String nodeId,
   required String? focusedPersonId,
@@ -309,9 +311,9 @@ double farTierDotRadius({
     selectedPersonId: selectedPersonId,
     pathNodeIds: pathNodeIds,
   )) {
-    return 9.0; // 50% larger for discoverability
+    return 14.0; // 40% larger for discoverability
   }
-  return 6.0; // standard dot radius
+  return 10.0; // standard dot radius
 }
 
 /// Returns true when the FAR tier should EXCLUDE premium visual
