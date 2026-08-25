@@ -77,6 +77,7 @@ class EngineEdgePainter extends CustomPainter {
     this.connectOnOpenProgress = 0.0,
     this.connectOnOpenRevealedEdgeIds = const <String>{},
     this.connectOnOpenCurrentEdgeIds = const <String>{},
+    this.zoom = 1.0,
   });
 
   final Map<String, Offset> positions;
@@ -160,6 +161,12 @@ class EngineEdgePainter extends CustomPainter {
   /// the painter falls back to checking [connectOnOpenCurrentEdgeId]
   /// (sequential mode).
   final Set<String> connectOnOpenCurrentEdgeIds;
+
+  /// v5.107: Current camera zoom level. Used to compute a zoom-aware
+  /// minimum stroke width so edges remain visible at low zoom (where
+  /// the graph-space stroke would otherwise render at <1 screen pixel).
+  /// Defaults to 1.0 (no zoom adjustment).
+  final double zoom;
 
   // ── Path construction ─────────────────────────────────────────────────
 
@@ -529,8 +536,22 @@ class EngineEdgePainter extends CustomPainter {
         midpointSymbol = style.midpointSymbol;
       }
 
-      // Effective stroke width clamped to the lighting contract range.
-      final double bodyWidth = GraphLighting.clampBodyWidth(style.strokeWidth);
+      // v5.107: Zoom-aware stroke width. At low zoom, the graph-space
+      // stroke (2.2–4.5px) renders at <1 screen pixel, making edges
+      // invisible. We floor the graph-space width so the on-screen
+      // width never drops below the per-tier minimum:
+      //   full = 2.0px, chip = 1.5px, dot = 1.0px screen.
+      final double minScreenStroke = switch (edgeQuality) {
+        EdgeQuality.full => 2.0,
+        EdgeQuality.chip => 1.5,
+        EdgeQuality.dot => 1.0,
+      };
+      final double safeZoom = zoom > 0.01 ? zoom : 0.01;
+      final double minGraphWidth = minScreenStroke / safeZoom;
+      final double bodyWidth = math.max(
+        GraphLighting.clampBodyWidth(style.strokeWidth),
+        minGraphWidth,
+      );
 
       // v92 (PART 14): Path-focused edges get a subtle clarity boost
       // (~10% alpha lift, capped at 1.0). They retain their
@@ -1539,7 +1560,9 @@ class EngineEdgePainter extends CustomPainter {
         !_sameSet(old.connectOnOpenRevealedEdgeIds,
             connectOnOpenRevealedEdgeIds) ||
         !_sameSet(old.connectOnOpenCurrentEdgeIds,
-            connectOnOpenCurrentEdgeIds);
+            connectOnOpenCurrentEdgeIds) ||
+        // v5.107: Repaint when zoom changes (stroke width is zoom-dependent)
+        old.zoom != zoom;
   }
 
   /// Lightweight dimmed-set comparison. We do NOT deep-compare element

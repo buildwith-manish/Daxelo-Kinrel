@@ -1724,13 +1724,17 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       return KinshipEdgeStyleResolver.styleForCategory(category).color;
     }
     // Legacy fallback: gender-based color.
+    // v5.107: Changed final fallback from Colors.grey to
+    // KinshipEdgeColors.extended (slate #64748B) — the app's existing
+    // tone reserved for extended/unclassified relatives. Colors.grey
+    // is not part of the kinship palette and made nodes look broken.
     switch (gender) {
       case 'male':
         return Colors.blue;
       case 'female':
         return Colors.pink;
       default:
-        return Colors.grey;
+        return KinshipEdgeColors.extended;
     }
   }
 

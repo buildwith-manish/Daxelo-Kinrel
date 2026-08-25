@@ -906,6 +906,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     connectOnOpenCurrentEdgeIds:
                         _connectOnOpenController?.state.currentEdgeIds ??
                             const <String>{},
+                    zoom: _camera.zoomLevel,  // v5.107: zoom-aware stroke
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
