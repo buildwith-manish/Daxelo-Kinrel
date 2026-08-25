@@ -493,14 +493,38 @@ class GraphLayoutService {
     }
 
     // ── Step 6.5: v5.101 — Convert to hierarchical Y-bands ──────────
-    // Override Y-positions to create clear horizontal generational bands:
-    //   gen -2 → top (grandparents)
-    //   gen -1 → upper-middle (parents, aunts/uncles)
-    //   gen  0 → center (self, siblings, spouse, cousins)
-    //   gen +1 → lower-middle (children, nieces/nephews)
-    //   gen +2 → bottom (grandchildren)
-    // X-positions are preserved from the radial layout (gives horizontal spread).
+    // Override Y-positions to create clear horizontal generational bands.
     _applyHierarchicalYBands(positions, generations, ringSpacing);
+
+    // ── Step 6.6: v5.102 — Barycenter reordering within each generation ──
+    // Reorder nodes within each generation band so that connected nodes
+    // are positioned near each other, minimizing edge crossings.
+    // Uses iterative median heuristic (2 passes for convergence).
+    // Scales: skipped for >2000 nodes (too expensive), 1 pass for >500,
+    // 2 passes for ≤500 (better convergence at manageable cost).
+    final nodeCount = persons.length;
+    final barycenterPasses = nodeCount > 2000 ? 0 : (nodeCount > 500 ? 1 : 2);
+    for (int pass = 0; pass < barycenterPasses; pass++) {
+      _barycenterReorder(
+        positions: positions,
+        generations: generations,
+        relationships: relationships,
+        personMap: personMap,
+        bandHeight: ringSpacing,
+      );
+    }
+
+    // ── Step 6.7: v5.102 — Label collision avoidance ─────────────────
+    // Nudge X positions so that no two nodes in the same generation band
+    // are closer than a minimum horizontal gap (prevents label overlap).
+    // Scales: gap widens with node count to maintain readability.
+    _avoidLabelCollisions(
+      positions: positions,
+      generations: generations,
+      personMap: personMap,
+      bandHeight: ringSpacing,
+      nodeCount: nodeCount,
+    );
 
     // ── Step 7: Translate positions so everything is in positive space ─
     _normalizePositions(positions, ringRadii);
@@ -1037,6 +1061,148 @@ class GraphLayoutService {
       // positive gen = below (positive Y), gen 0 = center (Y=0).
       final y = gen * bandHeight;
       positions[id] = Offset(pos.dx, y);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // STEP 6.6: v5.102 — BARYCENTER REORDER (crossing minimization)
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// Reorder nodes within each generation band using the median heuristic.
+  ///
+  /// For each node, compute the median X of all its connected neighbors
+  /// in adjacent generations. Then sort nodes within each band by their
+  /// median X, and re-assign X positions evenly spaced across the band.
+  ///
+  /// This minimizes edge crossings because connected nodes end up near
+  /// each other horizontally, so their connecting lines don't cross
+  /// lines from unrelated nodes.
+  ///
+  /// Iterative: run 2 passes for ≤500 nodes, 1 pass for 501-2000,
+  /// skip for >2000 (too expensive at that scale).
+  void _barycenterReorder({
+    required Map<String, Offset> positions,
+    required Map<String, int> generations,
+    required List<GraphRelationship> relationships,
+    required Map<String, GraphPerson> personMap,
+    required double bandHeight,
+  }) {
+    // Build adjacency: personId → list of (neighborId, genDiff)
+    final adjacency = <String, List<String>>{};
+    for (final rel in relationships) {
+      final from = rel.fromPersonId;
+      final to = rel.toPersonId;
+      if (!personMap.containsKey(from) || !personMap.containsKey(to)) continue;
+      adjacency.putIfAbsent(from, () => []).add(to);
+      adjacency.putIfAbsent(to, () => []).add(from);
+    }
+
+    // Group by generation
+    final genGroups = <int, List<String>>{};
+    for (final entry in generations.entries) {
+      genGroups.putIfAbsent(entry.value, () => []).add(entry.key);
+    }
+
+    // For each generation band, compute median X and reorder
+    for (final gen in genGroups.keys) {
+      final ids = genGroups[gen]!;
+      if (ids.length <= 1) continue;
+
+      // Compute median X for each node based on neighbors in OTHER generations
+      final medianX = <String, double>{};
+      for (final id in ids) {
+        final neighbors = adjacency[id] ?? [];
+        final neighborXs = <double>[];
+        for (final neighborId in neighbors) {
+          final nGen = generations[neighborId];
+          if (nGen == null || nGen == gen) continue; // skip same-gen neighbors
+          final nPos = positions[neighborId];
+          if (nPos != null) {
+            neighborXs.add(nPos.dx);
+          }
+        }
+        if (neighborXs.isEmpty) {
+          // No cross-generation neighbors — keep current X
+          medianX[id] = positions[id]?.dx ?? 0.0;
+        } else {
+          neighborXs.sort();
+          medianX[id] = neighborXs[neighborXs.length ~/ 2]; // median
+        }
+      }
+
+      // Sort by median X
+      ids.sort((a, b) => (medianX[a] ?? 0.0).compareTo(medianX[b] ?? 0.0));
+
+      // Re-assign X positions: spread evenly across the band's width
+      // Use the existing X range but reorder the nodes within it
+      final xs = ids.map((id) => positions[id]?.dx ?? 0.0).toList()..sort();
+      for (int i = 0; i < ids.length; i++) {
+        final id = ids[i];
+        final y = gen * bandHeight;
+        positions[id] = Offset(xs[i], y);
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // STEP 6.7: v5.102 — LABEL COLLISION AVOIDANCE
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// Nudge X positions so that no two nodes in the same generation band
+  /// are closer than a minimum horizontal gap.
+  ///
+  /// The gap scales with node count: more nodes = wider gap needed
+  /// to keep labels legible. At 500+ nodes, the gap is ~80px (enough
+  /// for a 2-letter initial + name label). At 50 nodes, ~120px.
+  ///
+  /// Algorithm: sort nodes by X within each band, then sweep left-to-right
+  /// pushing any node that's too close to its left neighbor rightward.
+  /// O(n log n) per band — scales linearly with total node count.
+  void _avoidLabelCollisions({
+    required Map<String, Offset> positions,
+    required Map<String, int> generations,
+    required Map<String, GraphPerson> personMap,
+    required double bandHeight,
+    required int nodeCount,
+  }) {
+    // Scale gap: wider for small families (more space), narrower for
+    // large families (prevent canvas from becoming too wide).
+    // At 50 nodes: 120px gap. At 500: 80px. At 2000: 50px.
+    final minGap = nodeCount > 2000
+        ? 50.0
+        : nodeCount > 500
+            ? 80.0
+            : nodeCount > 100
+                ? 100.0
+                : 120.0;
+
+    // Group by generation
+    final genGroups = <int, List<String>>{};
+    for (final entry in generations.entries) {
+      genGroups.putIfAbsent(entry.value, () => []).add(entry.key);
+    }
+
+    for (final gen in genGroups.keys) {
+      final ids = genGroups[gen]!;
+      if (ids.length <= 1) continue;
+
+      // Sort by current X
+      ids.sort((a, b) =>
+          (positions[a]?.dx ?? 0.0).compareTo(positions[b]?.dx ?? 0.0));
+
+      // Sweep: push right if too close to left neighbor
+      double lastX = positions[ids.first]?.dx ?? 0.0;
+      for (int i = 1; i < ids.length; i++) {
+        final id = ids[i];
+        final pos = positions[id];
+        if (pos == null) continue;
+        var newX = pos.dx;
+        if (newX - lastX < minGap) {
+          newX = lastX + minGap;
+        }
+        positions[id] = Offset(newX, pos.dy);
+        lastX = newX;
+      }
     }
   }
 
