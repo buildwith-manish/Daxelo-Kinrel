@@ -492,6 +492,16 @@ class GraphLayoutService {
       }
     }
 
+    // ── Step 6.5: v5.101 — Convert to hierarchical Y-bands ──────────
+    // Override Y-positions to create clear horizontal generational bands:
+    //   gen -2 → top (grandparents)
+    //   gen -1 → upper-middle (parents, aunts/uncles)
+    //   gen  0 → center (self, siblings, spouse, cousins)
+    //   gen +1 → lower-middle (children, nieces/nephews)
+    //   gen +2 → bottom (grandchildren)
+    // X-positions are preserved from the radial layout (gives horizontal spread).
+    _applyHierarchicalYBands(positions, generations, ringSpacing);
+
     // ── Step 7: Translate positions so everything is in positive space ─
     _normalizePositions(positions, ringRadii);
 
@@ -994,6 +1004,39 @@ class GraphLayoutService {
           positions[id]!.dy + velocities[id]!.dy,
         );
       }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // STEP 6.5: v5.101 — APPLY HIERARCHICAL Y-BANDS
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// Override Y-coordinates to create clear horizontal generational bands.
+  ///
+  /// Each generation gets a fixed Y position:
+  ///   gen -2 → y = -2 * bandHeight (grandparents, top)
+  ///   gen -1 → y = -1 * bandHeight (parents, aunts/uncles)
+  ///   gen  0 → y = 0 (self, siblings, spouse, cousins)
+  ///   gen +1 → y = +1 * bandHeight (children, nieces/nephews)
+  ///   gen +2 → y = +2 * bandHeight (grandchildren, bottom)
+  ///
+  /// X-coordinates are preserved from the radial layout, which gives
+  /// a natural horizontal spread within each band. This converts the
+  /// radial layout into a hierarchical band layout while keeping the
+  /// existing X-spread and spouse placement logic.
+  void _applyHierarchicalYBands(
+    Map<String, Offset> positions,
+    Map<String, int> generations,
+    double bandHeight,
+  ) {
+    for (final entry in positions.entries) {
+      final id = entry.key;
+      final pos = entry.value;
+      final gen = generations[id] ?? 0;
+      // Override Y with fixed band position. Negative gen = above (negative Y),
+      // positive gen = below (positive Y), gen 0 = center (Y=0).
+      final y = gen * bandHeight;
+      positions[id] = Offset(pos.dx, y);
     }
   }
 

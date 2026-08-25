@@ -442,61 +442,55 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
 
       KinshipEdgeCategory? category;
 
-      // Priority 1: Direct edge from anchor → use the STORED key.
+      // Priority 1: Direct edge from anchor → use the STORED label.
       // Honor the user's explicit selection — don't let BFS overwrite.
       //
-      // v76 FIX: The stored key has DIFFERENT meanings depending on
-      // edge direction:
-      //   from: newPerson, to: anchor, key: 'father'
-      //     → "newPerson IS father OF anchor"
-      //     → newPerson's category = 'father' = parent (blue) ✅
+      // v5.101 BUG FIX: Use labelAtoB (specific label like 'father')
+      // instead of relationshipKey (fundamental type like 'parent').
+      // The labelAtoB convention is: "toPerson is fromPerson's <label>"
+      // So if from=Manish, to=Jdhfhd, labelAtoB='father' → Jdhfhd IS
+      // Manish's father → Jdhfhd's category = parent (blue).
       //
-      //   from: anchor, to: newPerson, key: 'son'
-      //     → "anchor IS son OF newPerson"
-      //     → newPerson's category = INVERSE of 'son' = parent (blue) ✅
+      // Previously used relationshipKey ('parent') which was then
+      // inverted to 'child' → child category (pink) for BOTH father
+      // and mother nodes, causing inconsistent ring colors.
       //
-      // Previously both branches used the raw key, so the second case
-      // classified newPerson as 'son' = child (pink) — WRONG.
+      // With labelAtoB, NO inversion is needed — the label already
+      // describes the target's relationship to the source.
       if (directEdgePersons.contains(p.id)) {
-        // Find the stored key for this direct edge.
-        String? storedKey;
-        bool needsInverse = false;
+        // Find the stored label for this direct edge.
+        String? storedLabel;
         for (final r in flat.relationships) {
           final from = r['fromPersonId'] as String?;
           final to = r['toPersonId'] as String?;
-          final key = r['relationshipKey'] as String?;
-          if (key == null || key.isEmpty) continue;
-          if (to == effectiveSource && from == p.id) {
-            // Edge points TO anchor: key IS the anchor's perspective
-            // on `from`. Use the key DIRECTLY.
-            storedKey = key;
-            needsInverse = false;
-            break;
-          }
-          if (from == effectiveSource && to == p.id) {
-            // Edge points FROM anchor: key is the anchor's relationship
-            // TO `to`, NOT the anchor's perspective ON `to`.
-            // The anchor's perspective on `to` is the INVERSE.
-            storedKey = key;
-            needsInverse = true;
-            break;
-          }
-        }
-        if (storedKey != null) {
-          // v76: If the edge points FROM anchor, we need the INVERSE
-          // key to get the anchor's perspective on the target person.
-          // For example: from: anchor, to: newPerson, key: 'son'
-          // → anchor IS son OF newPerson → newPerson is anchor's PARENT
-          // → we need to classify 'son' as its inverse (parent), not as 'son' (child).
-          //
-          // For edges pointing TO anchor, the key is already correct.
-          final effectiveKey = needsInverse
-              ? _inverseKeyForCategory(storedKey)
-              : storedKey;
+          if (from == null || to == null) continue;
+          // Check if this edge connects source and target
+          if (!((from == effectiveSource && to == p.id) ||
+                (to == effectiveSource && from == p.id))) continue;
 
+          // v5.101: Use labelAtoB (specific label) — it describes
+          // "toPerson is fromPerson's <label>" regardless of direction.
+          // If the edge is from=source, to=target → label is correct as-is
+          // If the edge is from=target, to=source → we need the INVERSE
+          //   (because labelAtoB describes source from target's perspective)
+          final label = (r['labelAtoB'] as String?) ??
+              (r['relationshipKey'] as String?);
+          if (label == null || label.isEmpty) continue;
+
+          if (from == effectiveSource && to == p.id) {
+            // Edge: source → target, labelAtoB describes target
+            // from source's perspective. Use directly.
+            storedLabel = label;
+          } else {
+            // Edge: target → source, labelAtoB describes source
+            // from target's perspective. Need inverse.
+            storedLabel = _inverseKeyForCategory(label);
+          }
+          break;
+        }
+        if (storedLabel != null) {
           // v71: Use the 5,363-entry lookup map as the PRIMARY resolver
-          // — no string guessing, no gaps. Falls back to the structural
-          // classifier only for keys not in the map (e.g. synthetic keys).
+          final effectiveKey = storedLabel;
           if (KinshipCategoryMap.isKnown(effectiveKey)) {
             category = KinshipCategoryMap.categoryFor(effectiveKey);
           } else {
