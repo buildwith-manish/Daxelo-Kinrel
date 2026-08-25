@@ -465,6 +465,25 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // edge filter) and is a tight-enough approximation for the
         // short edges in a family tree.
         final expandedVp = _culler.expandedViewport(vp);
+        // v5.103: Scale the segment-crossing fallback by zoom and edge count.
+        // At low zoom with many edges, the graph-space viewport is huge, so
+        // the segment-vs-rect test passes for almost every long edge — even
+        // ones connecting nodes on opposite sides of the graph. This causes
+        // the "hairball" of hundreds of full-length lines with no visible
+        // endpoint nodes, and is the main cause of lag at 500+ members.
+        //
+        // Fix: only use the segment-crossing fallback when:
+        //   - Edge count < 200 (small graph — fallback is cheap), OR
+        //   - Zoom > 1.5 (genuinely zoomed in — the original bug case)
+        // At low zoom with many edges, fall back to strict "both endpoints
+        // visible" (isEdgeVisible). The original zoom-in bug this was fixing
+        // doesn't apply at zoom-out anyway, since at zoom-out both endpoints
+        // being off-screen simultaneously for a short edge is rare.
+        final currentZoom = _camera.zoomLevel;
+        final totalEdgeCount = flat.relationships.length;
+        final useSegmentFallback =
+            totalEdgeCount < 200 || currentZoom > 1.5;
+
         final rawEdges = <GraphEdgeData>[];
         for (final Map<String, dynamic> r in flat.relationships) {
           final s = r['fromPersonId'] as String?;
@@ -474,11 +493,10 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           final tPos = effectivePositions[t];
           if (sPos == null || tPos == null) {
             // Position unknown — fall back to the conservative
-            // both-endpoints-visible test so we don't crash. This also
-            // preserves the historical behaviour for any edge whose
-            // endpoints haven't been laid out yet.
+            // both-endpoints-visible test so we don't crash.
             if (!_culler.isEdgeVisible(s, t, visible)) continue;
-          } else {
+          } else if (useSegmentFallback) {
+            // v5.103: Use the segment-crossing fallback (original behavior)
             if (!_culler.isEdgeVisibleWithViewport(
                   sourceId: s,
                   targetId: t,
@@ -489,6 +507,10 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 )) {
               continue;
             }
+          } else {
+            // v5.103: Strict mode — both endpoints must be visible.
+            // At low zoom with many edges, this prevents the hairball.
+            if (!_culler.isEdgeVisible(s, t, visible)) continue;
           }
           final relKey = (r['relationshipKey'] ?? 'unknown').toString();
           // v5.69 (DATA CORRUPTION GUARD): Log a warning if the
