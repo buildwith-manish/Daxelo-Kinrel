@@ -105,6 +105,7 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
           relationCategoryById,
           customColorsByPersonId,
           viewerPersonId,
+          flat,
         );
       } else {
         // Lod.chip — legacy fallback (shouldn't normally be reached
