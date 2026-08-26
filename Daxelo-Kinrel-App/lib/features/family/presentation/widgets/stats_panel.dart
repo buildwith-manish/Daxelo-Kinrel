@@ -41,6 +41,8 @@ class StatsPanel extends StatelessWidget {
     required this.totalConnections,
     required this.totalGenerations,
     this.isTruncated = false,
+    this.onViewAllMembers,
+    this.familyId,
   });
 
   /// Total number of members in the graph.
@@ -54,6 +56,13 @@ class StatsPanel extends StatelessWidget {
 
   /// Whether the graph is truncated (too many nodes to display fully).
   final bool isTruncated;
+
+  /// v5.114: Callback when the user taps "View all members".
+  /// Opens the full-family list/search view.
+  final VoidCallback? onViewAllMembers;
+
+  /// v5.114: The family ID, used for navigation to the list view.
+  final String? familyId;
 
   @override
   Widget build(BuildContext context) {
@@ -93,6 +102,42 @@ class StatsPanel extends StatelessWidget {
           if (isTruncated) ...[
             const SizedBox(height: 8),
             _TruncatedWarning(),
+          ],
+          // v5.114: "View all members" button — opens the full-family
+          // list/search view. This is where "show me everyone" goes.
+          if (onViewAllMembers != null) ...[
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: onViewAllMembers,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: KinrelColors.orange.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: KinrelColors.orange.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.list_alt,
+                        size: 12, color: KinrelColors.orange),
+                    const SizedBox(width: 4),
+                    Text(
+                      'View all $totalMembers',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.monoFont,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.orange,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ],
       ),

@@ -18,6 +18,7 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
     Map<String, KinshipEdgeCategory> relationCategoryById,
     Map<String, Map<String, dynamic>> customColorsByPersonId,
     String? viewerPersonId,
+    FlatGraphResult? flat,
   ) {
     // v2.2: If this node IS the viewer, show "You" as the relation label.
     final bool isViewer = viewerPersonId != null && id == viewerPersonId;
@@ -199,6 +200,11 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       onTap: () {
         if (ref.read(rearrangeModeProvider)) return;
         ref.read(selectedNodeProvider.notifier).state = id;
+        // v5.114: Tap-to-expand — if this node is on the outermost visible
+        // ring, expand its immediate neighborhood into the visible set.
+        // This is incremental: only the tapped node's direct neighbors
+        // are added, the rest of the graph is unchanged.
+        if (flat != null) _maybeExpandFromPerson(id, flat);
       },
       // Long-press = open the member information bottom sheet. This is
       // the ONLY gesture that opens the info panel from a node.

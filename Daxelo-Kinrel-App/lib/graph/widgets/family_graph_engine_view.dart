@@ -120,6 +120,9 @@ import '../../core/services/graph_layout_service.dart' show GraphPerson;
 import '../../core/viewer/viewer_provider.dart' show viewerPersonIdProvider;
 import '../interaction/indirect_relation_provider.dart'
     show indirectRelationIdsProvider, hasSeenIndirectBadgeProvider;
+// v5.114: Ego-centric proximity graph state.
+import '../interaction/proximity_graph_state.dart'
+    show proximityGraphProvider, buildAdjacency;
 import '../../core/services/supabase_service.dart' show supabaseProvider, currentUserProvider;
 import '../../core/viewer/viewer_api_client.dart'
     show viewerApiClientProvider;

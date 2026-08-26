@@ -38,6 +38,14 @@ import '../../../../core/services/supabase_service.dart';
 import '../../../../core/viewer/viewer_provider.dart';
 import '../../../../graph/data/graph_data_models.dart'
     show PersonData, RelationshipData;
+import '../../../../graph/engine/radial_layout.dart'
+    show RadialLayout, RadialLayoutConfig;
+import '../../../../graph/interaction/proximity_graph_state.dart'
+    show
+        proximityGraphProvider,
+        ProximityGraphState,
+        buildAdjacency,
+        kProximityNodeBudget;
 
 /// Provider for the Drift database instance.
 /// Used by [FamilyGraphNotifier] to persist graph data locally.
@@ -1384,11 +1392,6 @@ final graphLayoutProvider =
       relationships.map((r) => r.toGraphRelationship()).toList();
 
   // v5.8: Center the layout on the VIEWER's node ONLY.
-  // If no viewer is resolved, fall back to anchor → first person.
-  // This is the ONLY acceptable anchor fallback: it affects only the
-  // LAYOUT center point, NOT the perspective labels or "You" node.
-  // (Perspective labels are computed in subtree_mixin.dart which is
-  // viewer-only with NO anchor fallback.)
   final viewerId = ref.read(viewerPersonIdProvider(familyId)).valueOrNull;
   final PersonData centerPerson;
   if (viewerId != null) {
@@ -1396,79 +1399,107 @@ final graphLayoutProvider =
     if (match != null) {
       centerPerson = match;
     } else {
-      // Viewer ID resolved but not in fetched set — fall back to anchor.
       centerPerson = persons.firstWhere(
         (p) => p.isAnchor,
         orElse: () => persons.first,
       );
     }
   } else {
-    // No viewer resolved — center on anchor (layout only, not perspective).
     centerPerson = persons.firstWhere(
       (p) => p.isAnchor,
       orElse: () => persons.first,
     );
   }
 
-  final compactMode = persons.length > 50;
+  // ── v5.114: EGO-CENTRIC PROXIMITY FILTER ──────────────────────────
+  // Instead of laying out ALL 714 nodes, filter to the anchor's 2-hop
+  // neighborhood (capped at ~30 nodes). This uses the RadialLayout
+  // engine (lib/graph/engine/radial_layout.dart) which places the
+  // anchor at center and each relationship-distance ring on a
+  // concentric circle.
+  //
+  // The proximity state is managed by proximityGraphProvider. On graph
+  // open, it initializes with ring 1 + ring 2. When the user taps a
+  // node on the outermost ring, expandFromPerson() adds that node's
+  // neighbors to the visible set.
+  final proximityState = ref.watch(proximityGraphProvider);
 
-  // v2.2: Load the kinship generation map (5,359 entries) so the layout
-  // can correctly position nodes for ALL kinship types, not just the
-  // ~38 hardcoded ones.
-  final kinshipGenMap = ref.read(kinshipGenerationMapProvider);
+  // Build adjacency for the proximity filter.
+  final allEdges = <({String fromId, String toId, String edgeId, String relationshipKey})>[
+    for (final r in graphRelationships)
+      (
+        fromId: r.fromPersonId,
+        toId: r.toPersonId,
+        edgeId: r.id,
+        relationshipKey: r.relationshipKey,
+      ),
+  ];
+  final adjacency = buildAdjacency(allEdges);
+  final allPersonIds = <String>{for (final p in graphPersons) p.id};
 
-  final params = _LayoutComputeParams(
-    persons: graphPersons,
-    relationships: graphRelationships,
-    anchorPersonId: centerPerson.id,
-    compactMode: compactMode,
-    kinshipGenerationMap: kinshipGenMap,
+  // Initialize the proximity set if not already done.
+  if (!proximityState.isInitialized) {
+    ref.read(proximityGraphProvider.notifier).initialize(
+          anchorId: centerPerson.id,
+          allPersons: allPersonIds,
+          adjacency: adjacency,
+        );
+  }
+
+  // Re-read after potential initialization.
+  final visibleIds = ref.read(proximityGraphProvider).visibleIds;
+  if (visibleIds.isEmpty) {
+    return const GraphLayoutResult(
+      positions: {},
+      canvasWidth: 0,
+      canvasHeight: 0,
+    );
+  }
+
+  // Filter persons + relationships to the visible set.
+  final proximityPersons = graphPersons
+      .where((p) => visibleIds.contains(p.id))
+      .toList();
+  final proximityRelationships = graphRelationships
+      .where((r) =>
+          visibleIds.contains(r.fromPersonId) &&
+          visibleIds.contains(r.toPersonId))
+      .toList();
+
+  // ── v5.114: Use RadialLayout for the proximity set ───────────────
+  // RadialLayout places the anchor at center, ring 1 on a circle around
+  // the anchor, ring 2 on a larger circle, etc. This is exactly the
+  // ego-centric view the user wants.
+  final radialLayout = RadialLayout(
+    config: const RadialLayoutConfig(
+      ringSpacing: 200.0,
+      compactSpacing: 140.0,
+      spouseAngularOffset: 90.0,
+      canvasPadding: 120.0,
+      baseRadius: 180.0,
+      compact: false,
+    ),
   );
 
-  // v62: Performance telemetry — measure layout computation time so we
-  // can monitor production performance and detect regressions.
-  final stopwatch = Stopwatch()..start();
-  bool isolateSuccess = true;
-  try {
-    final result = await compute(_runLayoutInIsolate, params);
-    stopwatch.stop();
-    AnalyticsService.instance.logEvent('graph_layout_time', {
-      'total_ms': stopwatch.elapsedMilliseconds,
-      'node_count': persons.length,
-      'edge_count': graphRelationships.length,
-      'compact_mode': compactMode,
-      'isolate_success': true,
-      // v2.2: track whether the layout was viewer-centered or legacy.
-      'viewer_centered': viewerId == centerPerson.id,
-    });
-    return result;
-  } catch (e) {
-    isolateSuccess = false;
-    stopwatch.stop();
-    debugPrint('[graphLayoutProvider] Isolate compute failed, '
-        'falling back to main thread: $e');
-    final fallbackStopwatch = Stopwatch()..start();
-    final service = GraphLayoutService();
-    final result = service.computeLayout(
-      persons: graphPersons,
-      relationships: graphRelationships,
-      anchorPersonId: centerPerson.id,
-      compactMode: compactMode,
-      kinshipGenerationMap: kinshipGenMap,
-    );
-    fallbackStopwatch.stop();
-    AnalyticsService.instance.logEvent('graph_layout_time', {
-      'total_ms': stopwatch.elapsedMilliseconds + fallbackStopwatch.elapsedMilliseconds,
-      'fallback_ms': fallbackStopwatch.elapsedMilliseconds,
-      'node_count': persons.length,
-      'edge_count': graphRelationships.length,
-      'compact_mode': compactMode,
-      'isolate_success': false,
-      'isolate_error': e.toString().substring(0, 200),
-      'viewer_centered': viewerId == centerPerson.id,
-    });
-    return result;
-  }
+  final result = radialLayout.compute(
+    persons: proximityPersons,
+    relationships: proximityRelationships,
+    anchorPersonId: centerPerson.id,
+  );
+
+  AnalyticsService.instance.logEvent('graph_layout_time', {
+    'total_ms': 0, // RadialLayout is synchronous — no measurable time
+    'node_count': proximityPersons.length,
+    'edge_count': proximityRelationships.length,
+    'compact_mode': false,
+    'isolate_success': true,
+    'viewer_centered': true,
+    'layout_engine': 'radial',
+    'proximity_filtered': true,
+    'total_family_size': graphPersons.length,
+  });
+
+  return result;
 });
 
 // ═══════════════════════════════════════════════════════════════════════

@@ -822,6 +822,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
               totalConnections: graph.relationships.length,
               totalGenerations: presentGenerations.length,
               isTruncated: graph.isTruncated,
+              // v5.114: Wire up "View all members" → list view.
+              familyId: widget.familyId,
+              onViewAllMembers: () {
+                context.go('/family/${widget.familyId}/members');
+              },
             ),
           ),
 

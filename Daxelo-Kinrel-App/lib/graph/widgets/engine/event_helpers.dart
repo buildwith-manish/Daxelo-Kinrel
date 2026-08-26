@@ -86,4 +86,45 @@ extension _EventHelpers on _FamilyGraphEngineViewState {
     }
     return null;
   }
+
+  /// v5.114: Tap-to-expand — if the tapped person is on the outermost
+  /// visible ring, expand their immediate neighborhood into the visible
+  /// set.
+  ///
+  /// This is INCREMENTAL: only the tapped person's direct neighbors are
+  /// added to the visible set. The rest of the graph is unchanged.
+  ///
+  /// "Outermost ring" = the person is visible but has NOT been expanded
+  /// yet (their neighbors haven't been revealed).
+  void _maybeExpandFromPerson(String personId, FlatGraphResult flat) {
+    final proximityState = ref.read(proximityGraphProvider);
+    if (!proximityState.isInitialized) return;
+    if (!proximityState.visibleIds.contains(personId)) return;
+    // Already expanded — no-op.
+    if (proximityState.expandedPersonIds.contains(personId)) return;
+
+    // Build adjacency from the flat graph data.
+    final allEdges = <({String fromId, String toId, String edgeId, String relationshipKey})>[
+      for (final r in flat.relationships)
+        (
+          fromId: r['fromPersonId'] as String? ?? '',
+          toId: r['toPersonId'] as String? ?? '',
+          edgeId: r['id'] as String? ?? '',
+          relationshipKey: r['relationshipKey'] as String? ?? '',
+        ),
+    ];
+    final adjacency = buildAdjacency(allEdges);
+    final allPersonIds = <String>{
+      for (final p in flat.persons) p['id'] as String? ?? '',
+    };
+
+    ref.read(proximityGraphProvider.notifier).expandFromPerson(
+          personId: personId,
+          adjacency: adjacency,
+          allPersons: allPersonIds,
+        );
+
+    // The layout provider watches proximityGraphProvider, so it will
+    // automatically recompute with the expanded visible set.
+  }
 }
