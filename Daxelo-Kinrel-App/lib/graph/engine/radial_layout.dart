@@ -193,38 +193,55 @@ class RadialLayout {
 
     // 5. Group persons by generation
     //
-    // v5.114: NORMALIZE generations relative to the anchor. The anchor
-    // must be at generation 0 (center). All other nodes are shifted by
-    // (anchorGen - 0) so the anchor lands at the center.
+    // v5.114: Compute relationship-distance rings (hop count) from the
+    // anchor using BFS. The stored generationIndex from the RPC is not
+    // reliable for radial placement (it's often -degree for ALL nodes,
+    // putting ancestors and descendants on the same ring).
     //
-    // v67 (BUG-15 FIX): The server's RPC sets generationIndex = -degree
-    // for ALL nodes (both ancestors AND descendants), so a child at
-    // degree 1 and a parent at degree 1 both get generationIndex = -1.
-    // This causes children and grandparents to land on the SAME ring.
+    // Instead, we compute the actual hop distance:
+    //   - Anchor = ring 0 (center)
+    //   - Direct neighbors (1 hop) = ring 1
+    //   - Neighbors of neighbors (2 hops) = ring 2
+    //   - etc.
     //
-    // Fix: use the SIGN of generationIndex to distinguish:
-    //   - Negative = ancestors (placed in upper semicircle, trunk 270°)
-    //   - Positive = descendants (placed in lower semicircle, trunk 90°)
-    //   - Zero = same generation as anchor
-    final anchorGen = anchor.generationIndex;
-    final normalizedPersons = <GraphPerson>[];
+    // We also determine the DIRECTION (ancestor vs descendant) from the
+    // relationship key so ancestors go to the upper semicircle and
+    // descendants go to the lower semicircle:
+    //   - parent/father/mother → ancestor (negative ring)
+    //   - child/son/daughter → descendant (positive ring)
+    //   - spouse/sibling → same ring as the connected person
+    final hopDistance = _computeHopDistance(anchor.id, persons, relationships);
+
+    // Assign signed generation: positive for descendants, negative for
+    // ancestors, 0 for same-generation (spouse/sibling/anchor).
+    final signedGen = <String, int>{};
     for (final person in persons) {
-      normalizedPersons.add(GraphPerson(
+      final hops = hopDistance[person.id] ?? 0;
+      if (person.id == anchor.id) {
+        signedGen[person.id] = 0;
+      } else {
+        // Determine direction from the relationship connecting this
+        // person to the anchor's neighborhood. Default to positive
+        // (descendant) if we can't determine.
+        final direction = _computeDirection(person.id, anchor.id, relationships);
+        signedGen[person.id] = direction == -1 ? -hops : hops;
+      }
+    }
+
+    final generationGroups = <int, List<GraphPerson>>{};
+    for (final person in persons) {
+      final gen = signedGen[person.id] ?? 0;
+      generationGroups.putIfAbsent(gen, () => []).add(GraphPerson(
         id: person.id,
         name: person.name,
         gender: person.gender,
-        generationIndex: person.generationIndex - anchorGen,
+        generationIndex: gen,
         isAnchor: person.id == anchor.id,
         photoUrl: person.photoUrl,
         isDeceased: person.isDeceased,
         relationship: person.relationship,
         deletedAt: person.deletedAt,
       ));
-    }
-
-    final generationGroups = <int, List<GraphPerson>>{};
-    for (final person in normalizedPersons) {
-      generationGroups.putIfAbsent(person.generationIndex, () => []).add(person);
     }
 
     // 6. Compute ring radii — use abs() for radius, but keep the sign
@@ -331,6 +348,72 @@ class RadialLayout {
   }
 
   // ── Private helpers ───────────────────────────────────────────────
+
+  /// v5.114: Compute the hop distance (relationship distance) from the
+  /// anchor to every other person using BFS.
+  ///
+  /// Returns a map: personId → hop count.
+  /// The anchor itself has hop 0.
+  Map<String, int> _computeHopDistance(
+    String anchorId,
+    List<GraphPerson> persons,
+    List<GraphRelationship> relationships,
+  ) {
+    // Build undirected adjacency.
+    final adjacency = <String, Set<String>>{};
+    for (final r in relationships) {
+      adjacency.putIfAbsent(r.fromPersonId, () => <String>{}).add(r.toPersonId);
+      adjacency.putIfAbsent(r.toPersonId, () => <String>{}).add(r.fromPersonId);
+    }
+
+    final distances = <String, int>{anchorId: 0};
+    final queue = <String>[anchorId];
+    while (queue.isNotEmpty) {
+      final current = queue.removeAt(0);
+      final currentDist = distances[current] ?? 0;
+      final neighbors = adjacency[current] ?? <String>{};
+      for (final neighbor in neighbors) {
+        if (!distances.containsKey(neighbor)) {
+          distances[neighbor] = currentDist + 1;
+          queue.add(neighbor);
+        }
+      }
+    }
+    return distances;
+  }
+
+  /// v5.114: Determine whether a person is an ancestor (-1) or
+  /// descendant (+1) of the anchor, based on the relationship keys
+  /// connecting them.
+  ///
+  /// Returns -1 for ancestors (parent/father/mother), +1 for descendants
+  /// (child/son/daughter), 0 for same-generation (spouse/sibling/in-law).
+  int _computeDirection(
+    String personId,
+    String anchorId,
+    List<GraphRelationship> relationships,
+  ) {
+    // Check direct relationships between this person and the anchor.
+    for (final r in relationships) {
+      final isPersonToAnchor =
+          r.fromPersonId == personId && r.toPersonId == anchorId;
+      final isAnchorToPerson =
+          r.fromPersonId == anchorId && r.toPersonId == personId;
+
+      if (isPersonToAnchor) {
+        // person → anchor: if key is parent, person is ancestor of anchor
+        if (_parentKeys.contains(r.relationshipKey)) return -1;
+        if (_childKeys.contains(r.relationshipKey)) return 1;
+      }
+      if (isAnchorToPerson) {
+        // anchor → person: if key is parent, person is descendant of anchor
+        if (_parentKeys.contains(r.relationshipKey)) return 1;
+        if (_childKeys.contains(r.relationshipKey)) return -1;
+      }
+    }
+    // Default: same generation (spouse, sibling, in-law, etc.)
+    return 0;
+  }
 
   /// Find the anchor person from the list.
   GraphPerson _findAnchor(List<GraphPerson> persons, String? anchorId) {
