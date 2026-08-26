@@ -511,6 +511,31 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
         relationships: graphRels,
       )?.category;
 
+      // v5.110: Priority 3 — Generation-based fallback.
+      // If BFS failed to resolve a category (common for distant nodes
+      // in large trees where the BFS is too expensive or the path is
+      // too long), assign a category based on the node's generation
+      // index relative to the viewer. This ensures EVERY node gets
+      // a non-gray color — no node should ever fall through to the
+      // default gray/extended just because the kinship BFS couldn't
+      // reach it.
+      if (category == null) {
+        final genDelta = p.generationIndex;
+        if (genDelta <= -2) {
+          category = KinshipEdgeCategory.grandparent;
+        } else if (genDelta == -1) {
+          category = KinshipEdgeCategory.parent;
+        } else if (genDelta >= 2) {
+          category = KinshipEdgeCategory.grandparent; // grandchild uses same color
+        } else if (genDelta == 1) {
+          category = KinshipEdgeCategory.child;
+        } else {
+          // gen 0 — same generation as viewer. Could be sibling,
+          // spouse, or cousin. Default to sibling (most common).
+          category = KinshipEdgeCategory.sibling;
+        }
+      }
+
       if (category != null) {
         categories[p.id] = category;
       }

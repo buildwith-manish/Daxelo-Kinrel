@@ -546,9 +546,15 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // density clustering, the visible edge count is much lower
         // (collapsed branches hide their edges), so the segment
         // fallback becomes safe to use at lower zoom levels.
+        // v5.110: When branches are collapsed (densityHiddenIds is
+        // non-empty), ALWAYS use strict mode — the segment fallback
+        // lets edges between collapsed (hidden) nodes bleed through,
+        // creating the hairball. Only use the segment fallback when
+        // NO branches are collapsed (small trees or zoomed-in views).
         final currentZoom = _camera.zoomLevel;
+        final branchesCollapsed = densityHiddenIds.isNotEmpty;
         final useSegmentFallback =
-            visible.length < 200 || currentZoom > 1.5;
+            !branchesCollapsed && (visible.length < 200 || currentZoom > 1.5);
 
         final rawEdges = <GraphEdgeData>[];
         for (final Map<String, dynamic> r in flat.relationships) {
