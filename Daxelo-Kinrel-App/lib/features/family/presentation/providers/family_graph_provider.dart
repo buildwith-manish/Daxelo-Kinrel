@@ -672,6 +672,156 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     ref.invalidate(graphLayoutProvider(familyId));
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // v5.115: BRANCH-SCOPED FETCH (Task 1)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Fetches a single branch via the `get_member_branch` RPC and merges
+  /// the returned nodes/edges into the current provider state.
+  ///
+  /// This is the LAZY FETCH path for branch expansion: instead of loading
+  /// the entire family up front, the graph loads only the anchor's 2-hop
+  /// neighborhood on open, then fetches individual branches on demand
+  /// when the user taps a collapsed-branch chip.
+  ///
+  /// Parameters:
+  /// [rootPersonId] — the person at the root of the branch (the chip's
+  ///   `rootPersonId` from `CollapsedBranch`).
+  /// [branchType] — the branch type for the RPC ('maternal', 'paternal',
+  ///   'cousins', 'inLaws', 'grandchildren'). Mapped from the
+  ///   `relationshipKey` on `CollapsedBranch` by the caller.
+  /// [depth] — the traversal depth (default 2, matching the RPC's default
+  ///   and the expand_collapse.dart Level 1→2 transition).
+  ///
+  /// Merge strategy:
+  ///   - Persons: union by ID (skip if already present)
+  ///   - Edges: union by canonical pair key (sorted from|to)
+  ///   - Does NOT remove existing nodes/edges — only adds new ones
+  ///
+  /// After merge, invalidates `graphLayoutProvider` so the layout
+  /// recomputes with the new nodes.
+  Future<void> fetchBranchAndMerge({
+    required String rootPersonId,
+    required String branchType,
+    int depth = 2,
+  }) async {
+    final familyId = arg;
+    final client = ref.read(supabaseProvider);
+    if (client == null || client.auth.currentSession == null) return;
+
+    try {
+      debugPrint('[FamilyGraphNotifier] fetchBranchAndMerge: '
+          'root=$rootPersonId type=$branchType depth=$depth');
+
+      final response = await client.rpc(
+        'get_member_branch',
+        params: <String, dynamic>{
+          'p_member_id': rootPersonId,
+          'p_branch_type': branchType,
+          'p_depth': depth,
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      final data = response as Map<String, dynamic>?;
+      if (data == null || data.containsKey('error')) {
+        debugPrint('[FamilyGraphNotifier] get_member_branch returned null/error');
+        return;
+      }
+
+      // Parse the RPC response into a FlatGraphResult.
+      // The RPC returns {nodes: [...], edges: [...]} with fields
+      // sourceId/targetId — FlatGraphResult.fromRpc already handles this.
+      final branchResult = FlatGraphResult.fromRpc(data);
+
+      if (branchResult.persons.isEmpty && branchResult.relationships.isEmpty) {
+        debugPrint('[FamilyGraphNotifier] get_member_branch returned empty');
+        return;
+      }
+
+      // Merge into the current state (union by ID / canonical pair).
+      final current = state.valueOrNull;
+      if (current == null) return;
+
+      final newPersons = List<Map<String, dynamic>>.from(current.persons);
+      final existingPersonIds = <String>{
+        for (final p in newPersons) p['id'] as String? ?? '',
+      };
+      for (final p in branchResult.persons) {
+        final id = p['id'] as String?;
+        if (id != null && !existingPersonIds.contains(id)) {
+          newPersons.add(p);
+          existingPersonIds.add(id);
+        }
+      }
+
+      final newRelationships = List<Map<String, dynamic>>.from(current.relationships);
+      final existingPairs = <String>{};
+      for (final r in newRelationships) {
+        final from = r['fromPersonId'] as String? ?? '';
+        final to = r['toPersonId'] as String? ?? '';
+        final pair = [from, to]..sort();
+        existingPairs.add('${pair[0]}|${pair[1]}');
+      }
+      for (final r in branchResult.relationships) {
+        final from = r['fromPersonId'] as String? ?? '';
+        final to = r['toPersonId'] as String? ?? '';
+        final pair = [from, to]..sort();
+        final canonical = '${pair[0]}|${pair[1]}';
+        if (!existingPairs.contains(canonical)) {
+          newRelationships.add(r);
+          existingPairs.add(canonical);
+        }
+      }
+
+      final updated = FlatGraphResult(
+        persons: newPersons,
+        relationships: newRelationships,
+        isTruncated: current.isTruncated,
+        totalCount: current.totalCount,
+      );
+      _addToCache(familyId, updated);
+      state = AsyncData(updated);
+
+      debugPrint('[FamilyGraphNotifier] fetchBranchAndMerge: '
+          'added ${branchResult.persons.length} persons, '
+          '${branchResult.relationships.length} edges');
+
+      // Invalidate layout so positions recompute with new nodes.
+      ref.invalidate(graphLayoutProvider(familyId));
+    } catch (e) {
+      debugPrint('[FamilyGraphNotifier] fetchBranchAndMerge error: $e');
+    }
+  }
+
+  /// v5.115: Maps a relationship key from `CollapsedBranch.relationshipKey`
+  /// to the branch_type parameter expected by `get_member_branch`.
+  ///
+  /// Returns null for keys that don't map to a branch type (the caller
+  /// should skip the fetch in that case).
+  static String? branchTypeForRelationshipKey(String key) {
+    final k = key.toLowerCase().trim();
+    if (k == 'mother' || k == 'maternal_grandmother' ||
+        k == 'maternal_grandfather' || k.startsWith('maternal')) {
+      return 'maternal';
+    }
+    if (k == 'father' || k == 'paternal_grandmother' ||
+        k == 'paternal_grandfather' || k.startsWith('paternal')) {
+      return 'paternal';
+    }
+    if (k == 'cousin' || k == 'niece' || k == 'nephew') {
+      return 'cousins';
+    }
+    if (k == 'father_in_law' || k == 'mother_in_law' ||
+        k == 'brother_in_law' || k == 'sister_in_law' ||
+        k.contains('in_law') || k.contains('inlaw')) {
+      return 'inLaws';
+    }
+    if (k == 'grandson' || k == 'granddaughter' || k == 'grandchild') {
+      return 'grandchildren';
+    }
+    return null;
+  }
+
   /// v67 (BUG-12): Infers the generation index for a newly-added member
   /// based on their relationship key to the anchor.
   ///

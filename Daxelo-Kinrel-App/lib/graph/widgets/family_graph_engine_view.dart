@@ -48,6 +48,7 @@ import '../../core/services/graph_layout_service.dart' show GraphLayoutResult, G
 import '../../features/family/presentation/providers/family_graph_provider.dart'
     show
         FlatGraphResult,
+        FamilyGraphNotifier, // v5.115: for fetchBranchAndMerge
         familyGraphProvider,
         graphLayoutProvider,
         graphRealtimeProvider,

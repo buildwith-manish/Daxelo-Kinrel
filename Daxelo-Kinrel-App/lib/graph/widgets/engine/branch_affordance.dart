@@ -63,7 +63,10 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
           onTap: () {
             // P3.2: "branch opening" haptic on branch expand.
             GraphHaptics.branchExpand(context);
-            ref.read(branchCollapseProvider.notifier).expandBranch(branch.rootPersonId);
+            // v5.115 (Task 1): Fetch ONLY this branch via get_member_branch
+            // RPC, then expand. This is a lazy fetch — only the tapped
+            // branch's nodes/edges are loaded, not the whole family.
+            _fetchAndExpandBranch(branch);
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -91,15 +94,20 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                   color: chipAccentColor,
                 ),
                 const SizedBox(width: 6),
+                // v5.115 (Task 2): Show "Label · Count · NG" instead of
+                // just "Label · Count". The hiddenGenerationDepth is
+                // already computed by _maxDepth in branch_collapse_state.
                 Text(
                   branch.branchLabel.isNotEmpty
-                      ? branch.branchLabel
-                      : 'Branch · ${branch.hiddenCount}',
+                      ? '${branch.branchLabel} · ${branch.hiddenCount} · ${branch.hiddenGenerationDepth}G'
+                      : 'Branch · ${branch.hiddenCount} · ${branch.hiddenGenerationDepth}G',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ],
             ),
@@ -120,6 +128,41 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     // Map the relationship key to a category color.
     final style = KinshipEdgeStyleResolver.styleFor(branch.relationshipKey);
     return style.color ?? KinrelColors.orange;
+  }
+
+  /// v5.115 (Task 1): Fetches the branch via get_member_branch RPC,
+  /// then expands it in the collapse state.
+  ///
+  /// This is the LAZY FETCH path: only the tapped branch's nodes/edges
+  /// are loaded from Supabase, not the whole family. After the fetch
+  /// merges the new data into the provider state, the branch is
+  /// removed from the collapsed set (via expandBranch) so its nodes
+  /// become visible.
+  ///
+  /// If the branchType can't be determined from the relationshipKey
+  /// (e.g. for custom/unrecognized keys), falls back to the old
+  /// behavior of just expanding without fetching (the nodes may
+  /// already be in the FlatGraphResult from the initial load).
+  Future<void> _fetchAndExpandBranch(CollapsedBranch branch) async {
+    // Map the relationship key to a branch type for the RPC.
+    final branchType = FamilyGraphNotifier.branchTypeForRelationshipKey(
+        branch.relationshipKey);
+
+    if (branchType != null) {
+      // Fetch only this branch's nodes/edges from Supabase.
+      await ref.read(familyGraphProvider(widget.familyId).notifier)
+          .fetchBranchAndMerge(
+        rootPersonId: branch.rootPersonId,
+        branchType: branchType,
+        depth: 2,
+      );
+    }
+
+    // Expand the branch in the collapse state — removes it from the
+    // collapsed set and adds the root to expandedBranchRoots so it
+    // won't be auto-collapsed again.
+    ref.read(branchCollapseProvider.notifier)
+        .expandBranch(branch.rootPersonId);
   }
 
   /// v92 (PART 19): Wraps [node] in a Stack and overlays a "+N"
@@ -155,6 +198,13 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
           bottom: 28,
           child: BranchAffordanceChip(
             count: hiddenCount,
+            // v5.115 (Task 2): Pass branch context to the chip so it
+            // shows "Label · Count · NG" instead of just "+count".
+            // These fields come from the CollapsedBranch model and
+            // are already computed — no new data fetch needed.
+            label: null, // per-node chip doesn't have a branch label
+            memberCount: hiddenCount,
+            generationDepth: null, // per-node chip doesn't track depth
             onTap: () => _handleBranchExpand(nodeId, flat),
           ),
         ),

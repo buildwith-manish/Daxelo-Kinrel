@@ -38,6 +38,8 @@ import '../../../core/services/supabase_service.dart';
 import '../../../graph/graph.dart';
 import '../../../graph/interaction/graph_focus_state.dart'
     show graphFocusProvider, PathSelectPhase;
+import '../../../graph/interaction/expand_collapse.dart'
+    show expandCollapseProvider;
 import '../../../graph/widgets/family_graph_engine_view.dart';
 import '../../../graph/widgets/graph_tutorial_overlay.dart';
 import '../../../graph/widgets/search_bar.dart';
@@ -222,6 +224,61 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     });
   }
 
+  /// v5.115 (Task 4): Shows a warning dialog before entering Level 4
+  /// ("Show All" mode).
+  ///
+  /// "Show All" means "all branches are eligible to be loaded on demand
+  /// as the user pans/zooms into them" — NOT "all N nodes are drawn
+  /// simultaneously." The kNodeBudget (50), viewport culling, and
+  /// semantic zoom all stay active. Branches that push the visible
+  /// count over the budget will still be collapsed into chips.
+  Future<void> _showAllWithWarning() async {
+    final graphData = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
+    final memberCount = graphData?.persons.length ?? 0;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: KinrelColors.darkCard,
+        title: Text(
+          'Show All Branches?',
+          style: TextStyle(color: KinrelColors.textWhite),
+        ),
+        content: Text(
+          memberCount > 300
+              ? 'This family has $memberCount members. Large trees may be '
+                'simplified automatically for performance. Branches will '
+                'load progressively as you explore — some may be collapsed '
+                'into summary chips to keep the graph readable. You can tap '
+                'any chip to expand that branch.'
+              : 'This family has $memberCount members. All branches will be '
+                'eligible for loading. Some branches may still be collapsed '
+                'into summary chips to keep the graph readable.',
+          style: TextStyle(color: KinrelColors.textWhite.withValues(alpha: 0.85)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancel', style: TextStyle(color: KinrelColors.textDim)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Show All', style: TextStyle(color: KinrelColors.orange)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      // Enter Level 4 (full tree). This does NOT disable:
+      //   - kNodeBudget (stays at 50)
+      //   - viewport culling (only on-screen nodes render)
+      //   - semantic zoom (FULL/COMPACT/MINI/MICRO/FAR tiers stay active)
+      //   - branch-collapse logic (computeDensityCollapse still runs)
+      ref.read(expandCollapseProvider.notifier).expandAll();
+    }
+  }
+
   /// Opens the Add Member sheet and refreshes graph data when it closes.
   /// v5.41: Passes `fromGraph: true` so that graph-originated invites
   /// (with phone/email) are routed to the pending invitations system
@@ -328,23 +385,36 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     );
   }
 
-  /// Centers the camera on the member with [memberId] by bumping the
-  /// recenter key. The actual transform is applied by FamilyGraphWidget's
-  /// auto-center logic when it sees the recenterKey change.
+  /// v5.115 (Task 3): Centers the camera on the member with [memberId].
   ///
-  /// Note: this is a simplified jump-to-person — it triggers a full
-  /// re-center on the anchor. A more precise "center on this specific
-  /// node" would require access to the layout positions, which live
-  /// inside FamilyGraphWidget. For now, the search result tap selects
-  /// the node (via selectedNodeProvider) so the user can see it
-  /// highlighted.
+  /// This now uses the existing `graphFocusProvider` (the same mechanism
+  /// used by "Focus on person" in the quick-actions sheet) to:
+  ///   1. Set the focused person → the engine view's _onFocusPerson
+  ///      handler animates the camera to center on that node.
+  ///   2. Select the node so it's visually highlighted.
+  ///
+  /// If the person is inside a collapsed branch, the focus mechanism
+  /// will expand the branch automatically (the focus state's
+  /// always-visible set includes the focused person).
+  ///
+  /// This replaces the old behavior which only bumped _recenterKey
+  /// (a full re-center on the anchor, NOT on the found node).
   void _focusOnMember(String memberId, FlatGraphResult? graphData) {
     // Select the node so it's visually highlighted.
     ref.read(selectedNodeProvider.notifier).state = memberId;
-    // Trigger re-centering so the graph fits in view.
-    setState(() {
-      _recenterKey++;
-    });
+
+    // v5.115: Use graphFocusProvider to center the camera on the
+    // found node. This reuses the existing _onFocusPerson handler
+    // in the engine view, which calls _camera.focusOnNode().
+    final personName = graphData?.persons
+        .where((p) => p['id'] == memberId)
+        .firstOrNull?['name'] as String?;
+    ref.read(graphFocusProvider.notifier).focus(
+          personId: memberId,
+          personName: personName ?? 'Found person',
+          edges: const [], // no path edges needed for search jump
+          currentViewport: null,
+        );
   }
 
   // ── AppBar ────────────────────────────────────────────────────────
@@ -1750,6 +1820,16 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             tooltip: 'Legend',
             onPressed: () => setState(() => _showLegend = !_showLegend),
             highlighted: _showLegend,
+          ),
+          // Divider
+          _divider(),
+          // v5.115 (Task 4): Show All — enters Level 4 (full tree)
+          // with a performance warning dialog. Does NOT disable
+          // kNodeBudget, viewport culling, or semantic zoom.
+          _toolbarButton(
+            icon: Icons.account_tree_outlined,
+            tooltip: 'Show All Branches',
+            onPressed: _showAllWithWarning,
           ),
         ],
       ),
