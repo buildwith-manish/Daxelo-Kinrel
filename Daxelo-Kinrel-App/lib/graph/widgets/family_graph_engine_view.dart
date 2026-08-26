@@ -1163,21 +1163,33 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   }
 
   Lod _lodFor(double zoom) {
-    // v97: Semantic zoom with hysteresis.
-    // Camera range restored to 0.2–5.0 — CHIP and DOT are reachable.
+    // v5.112 (USER FEEDBACK): ALWAYS return Lod.full.
     //
-    // v102 (semantic-zoom fix): Pass _currentMemberCount so small
-    // families (< 30 members) are pinned to NEAR (full detail)
-    // regardless of zoom. This prevents a 4-person family from
-    // degrading to unlabeled dots when the user pinch-zooms out.
+    // The user explicitly requested that nodes should NEVER degrade to
+    // simple colored dots or circles — even when zoomed out, the graph
+    // should show the same full 72dp GraphNode widgets (with initials,
+    // names, borders, relationship colors, etc.) that are visible when
+    // zoomed in.
     //
-    // P2.3: Pass focusActive so the tier is floored at MEDIUM when
-    // focus mode is active — the focus subgraph stays legible even
-    // if the user zooms out to FAR. Pairs semantic zoom with focus
-    // mode per Vision §5 Layer 1.
+    // Previous versions (v5.108-v5.111) used a multi-tier semantic zoom
+    // system that degraded nodes to chips, mini-circles, micro-dots, and
+    // finally plain dots as the user zoomed out. The user found this
+    // unacceptable: "It should not feel like simple dot or color."
+    //
+    // Now we ALWAYS render the full GraphNode widget. Performance is
+    // handled by:
+    //   1. Viewport culling — only on-screen nodes are built as widgets
+    //   2. RepaintBoundary — each node is cached as a raster layer
+    //   3. EdgePathCache — edge paths are memoized
+    //   4. AnimatedBuilder on camera — pan/zoom reuses the cached rasters
+    //
+    // The relation label ("Husband", "You", etc.) still fades smoothly
+    // based on zoom via relationLabelOpacityFor — that's just text opacity,
+    // not the node itself. The primary member name is ALWAYS visible.
+    //
+    // The SemanticTier computation is preserved for backward compat
+    // (tests, focus-mode logic) but no longer drives the Lod selection.
     final focusActive = ref.read(graphFocusProvider).focusedPersonId != null;
-    // v5.108: Use member-count-scaled thresholds so large families
-    // don't degrade to unreadable dots too quickly.
     final thresholds = thresholdsForMemberCount(_currentMemberCount);
     _currentSemanticTier = computeSemanticTier(
       zoom,
@@ -1186,28 +1198,8 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       memberCount: _currentMemberCount,
       focusActive: focusActive,
     );
-    switch (_currentSemanticTier!) {
-      case SemanticTier.near:
-        return Lod.full;
-      case SemanticTier.compact:
-        // v5.111: COMPACT uses the same full GraphNode widget — the
-        // relation label fades to 0 via relationLabelOpacityFor (which
-        // completes its fade at zoom 0.6, well within the COMPACT
-        // range 0.50-0.85). The name remains visible.
-        return Lod.compact;
-      case SemanticTier.mini:
-        // v5.111: MINI — circle + border + initial (single painter).
-        return Lod.mini;
-      case SemanticTier.micro:
-        // v5.111: MICRO — colored circle + accent ring (single painter).
-        return Lod.micro;
-      case SemanticTier.medium:
-        // v5.111: Legacy — kept for backward compat. Shouldn't normally
-        // be reached (focus mode now floors at COMPACT, not MEDIUM).
-        return Lod.chip;
-      case SemanticTier.far:
-        return Lod.dot;
-    }
+    // v5.112: Always full — never degrade to dots/circles.
+    return Lod.full;
   }
 
   /// v96 (Phase 3): Returns the current semantic tier (with hysteresis).
