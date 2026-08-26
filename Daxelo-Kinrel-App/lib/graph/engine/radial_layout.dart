@@ -193,6 +193,10 @@ class RadialLayout {
 
     // 5. Group persons by generation
     //
+    // v5.114: NORMALIZE generations relative to the anchor. The anchor
+    // must be at generation 0 (center). All other nodes are shifted by
+    // (anchorGen - 0) so the anchor lands at the center.
+    //
     // v67 (BUG-15 FIX): The server's RPC sets generationIndex = -degree
     // for ALL nodes (both ancestors AND descendants), so a child at
     // degree 1 and a parent at degree 1 both get generationIndex = -1.
@@ -202,13 +206,24 @@ class RadialLayout {
     //   - Negative = ancestors (placed in upper semicircle, trunk 270°)
     //   - Positive = descendants (placed in lower semicircle, trunk 90°)
     //   - Zero = same generation as anchor
-    //
-    // The production GraphLayoutService does its own BFS generation
-    // assignment (correctly signed), so this fix only affects the
-    // RadialLayout (currently unused in production but kept for
-    // correctness if the flag is ever flipped).
-    final generationGroups = <int, List<GraphPerson>>{};
+    final anchorGen = anchor.generationIndex;
+    final normalizedPersons = <GraphPerson>[];
     for (final person in persons) {
+      normalizedPersons.add(GraphPerson(
+        id: person.id,
+        name: person.name,
+        gender: person.gender,
+        generationIndex: person.generationIndex - anchorGen,
+        isAnchor: person.id == anchor.id,
+        photoUrl: person.photoUrl,
+        isDeceased: person.isDeceased,
+        relationship: person.relationship,
+        deletedAt: person.deletedAt,
+      ));
+    }
+
+    final generationGroups = <int, List<GraphPerson>>{};
+    for (final person in normalizedPersons) {
       generationGroups.putIfAbsent(person.generationIndex, () => []).add(person);
     }
 
