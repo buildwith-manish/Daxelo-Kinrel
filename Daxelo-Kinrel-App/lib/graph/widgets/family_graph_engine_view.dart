@@ -129,7 +129,13 @@ import '../rendering/edge_path_cache.dart' show EdgePathCache;
 import '../rendering/edge_quality.dart' show EdgeQuality, EdgeQualityX;
 import '../rendering/graph_lighting.dart' show GraphLighting;
 import '../rendering/lod_render_metrics.dart'
-    show LodRenderMetrics, computeLodMetrics, overviewGraphRadius, overviewGraphRingStroke;
+    show
+        LodRenderMetrics,
+        computeLodMetrics,
+        overviewGraphRadius,
+        overviewGraphRingStroke,
+        miniGraphRadius,
+        microGraphRadius;
 import '../rendering/emphasis_priority.dart'
     show EmphasisLevel, computeEmphasisLevel;
 import '../rendering/semantic_zoom.dart'
@@ -143,7 +149,9 @@ import '../rendering/semantic_zoom.dart'
         shouldOverrideFarTier,
         farTierDotRadius,
         farTierExcludesPremiumEffects,
-        shouldRenderText;
+        shouldRenderText,
+        miniTierRadius,
+        microTierRadius;
 import '../rendering/viewport_culler.dart' show ViewportCuller;
 import 'graph_node.dart' show GraphNode, NodeState;
 import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, OnThisDayEventType, showOnThisDayEventSheet;
@@ -165,6 +173,9 @@ import 'engine/lod.dart' show Lod;
 import 'engine/dot.dart' show Dot;
 import 'engine/dot_grid_painter.dart' show DotGridPainter;
 import 'engine/node_dot_painter.dart' show NodeDotPainter;
+// v5.111: New MINI and MICRO painters for the 5-tier semantic zoom.
+import 'engine/node_mini_painter.dart' show NodeMiniPainter;
+import 'engine/node_micro_painter.dart' show NodeMicroPainter;
 import 'engine/engine_edge_painter.dart' show EngineEdgePainter;
 import 'engine/edge_selection_wrapper.dart' show EdgeSelectionWrapper;
 import 'engine/branch_affordance_chip.dart' show BranchAffordanceChip;
@@ -1178,7 +1189,21 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     switch (_currentSemanticTier!) {
       case SemanticTier.near:
         return Lod.full;
+      case SemanticTier.compact:
+        // v5.111: COMPACT uses the same full GraphNode widget — the
+        // relation label fades to 0 via relationLabelOpacityFor (which
+        // completes its fade at zoom 0.6, well within the COMPACT
+        // range 0.50-0.85). The name remains visible.
+        return Lod.compact;
+      case SemanticTier.mini:
+        // v5.111: MINI — circle + border + initial (single painter).
+        return Lod.mini;
+      case SemanticTier.micro:
+        // v5.111: MICRO — colored circle + accent ring (single painter).
+        return Lod.micro;
       case SemanticTier.medium:
+        // v5.111: Legacy — kept for backward compat. Shouldn't normally
+        // be reached (focus mode now floors at COMPACT, not MEDIUM).
         return Lod.chip;
       case SemanticTier.far:
         return Lod.dot;
@@ -1192,11 +1217,22 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// Maps the current LOD to the edge-layer visual quality tier (PART 10).
   /// Computed ONCE per build and passed to `EngineEdgePainter` — the
   /// painter never derives quality per edge.
+  ///
+  /// v5.111: Updated for 5-tier system. COMPACT uses full edge quality
+  /// (the GraphNode is still premium — no reason to degrade edges).
+  /// MINI and MICRO use chip-quality edges (simplified but still visible).
   EdgeQuality _edgeQualityFor(Lod lod) {
     switch (lod) {
       case Lod.full:
+      case Lod.compact:
+        // v5.111: COMPACT keeps full edge quality — the GraphNode is
+        // still premium, so edges should match.
         return EdgeQuality.full;
+      case Lod.mini:
+      case Lod.micro:
       case Lod.chip:
+        // v5.111: MINI/MICRO use chip-quality edges (simplified but
+        // still visible — 2.0px screen-space stroke).
         return EdgeQuality.chip;
       case Lod.dot:
         return EdgeQuality.dot;
@@ -1232,10 +1268,17 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   }
 
   /// v97: Returns the LOD tier name for the current zoom.
+  /// v5.111: Added 'compact', 'mini', 'micro' tiers.
   String _lodTierName(Lod lod) {
     switch (lod) {
       case Lod.full:
         return 'full';
+      case Lod.compact:
+        return 'compact';
+      case Lod.mini:
+        return 'mini';
+      case Lod.micro:
+        return 'micro';
       case Lod.chip:
         return 'chip';
       case Lod.dot:

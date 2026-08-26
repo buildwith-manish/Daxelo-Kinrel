@@ -1,6 +1,6 @@
 // lib/graph/rendering/lod_render_metrics.dart
 //
-// DAXELO KINREL — LOD Render Metrics (v97)
+// DAXELO KINREL — LOD Render Metrics (v97 + v5.111)
 //
 // Centralizes ALL zoom-aware sizing calculations so that culling,
 // chip rendering, overview painting, hit testing, and edge rendering
@@ -10,6 +10,12 @@
 // A value of X in graph space appears as X*zoom on screen.
 // To achieve a desired SCREEN-SPACE size S, the graph-space value
 // must be S / zoom.
+//
+// v5.111: Added 'compact', 'mini', 'micro' tiers for the new 5-tier
+// semantic zoom system. MINI and MICRO use SCREEN-SPACE CLAMPED sizes
+// (they do NOT shrink as zoom decreases — the graph-space value grows
+// to compensate). This is the KEY change that prevents nodes from
+// collapsing into anonymous colored dots.
 
 import 'dart:ui' show Size;
 
@@ -30,31 +36,13 @@ class LodRenderMetrics {
     required this.screenStrokeWidth,
   });
 
-  /// The camera zoom level these metrics were computed for.
   final double zoom;
-
-  /// The LOD tier: 'full', 'chip', or 'overview'.
   final String tier;
-
-  /// The graph-space bounding-box size used for viewport culling.
-  /// Nodes whose graph-space center is within this distance of the
-  /// viewport edge should remain visible.
   final Size cullSize;
-
-  /// The graph-space radius for drawing node markers (overview/dot
-  /// painter). The parent Transform produces screenNodeRadius on screen.
   final double graphNodeRadius;
-
-  /// The graph-space stroke width for edges at this LOD.
   final double graphStrokeWidth;
-
-  /// The graph-space hit-test radius for node tapping.
   final double graphHitRadius;
-
-  /// The resulting screen-space node radius (graphNodeRadius * zoom).
   final double screenNodeRadius;
-
-  /// The resulting screen-space stroke width (graphStrokeWidth * zoom).
   final double screenStrokeWidth;
 
   @override
@@ -66,12 +54,15 @@ class LodRenderMetrics {
 
 /// Computes render metrics for the given LOD tier + zoom.
 ///
-/// This is the SINGLE ENTRY POINT for all zoom-aware sizing.
-/// Culling, chip rendering, overview painting, hit testing, and edge
-/// rendering all call this function — no duplicate zoom math.
+/// v5.111: Added 'compact', 'mini', 'micro' tiers.
 ///
-/// [tier] — 'full', 'chip', or 'overview'.
-/// [zoom] — the current camera zoom level.
+/// Tier → screen-space target sizes:
+///   • full     — 72dp graph-space (geometric scaling, no clamp)
+///   • compact  — 72dp graph-space (geometric scaling, no clamp)
+///   • mini     — 22px screen-space (CLAMPED — graph-space = 22/zoom)
+///   • micro    — 16px screen-space (CLAMPED — graph-space = 16/zoom)
+///   • overview — 14px normal / 20px emphasised screen-space (CLAMPED)
+///   • chip     — 8px screen-space (legacy — kept for backward compat)
 LodRenderMetrics computeLodMetrics({
   required String tier,
   required double zoom,
@@ -82,34 +73,96 @@ LodRenderMetrics computeLodMetrics({
   switch (tier) {
     case 'full':
       // FULL LOD: full GraphNode widgets (72dp diameter).
-      // Culling uses the full node box size.
-      // Edges use the existing premium widths (2.2–4.5 graph-space).
       return LodRenderMetrics(
         zoom: safeZoom,
         tier: 'full',
         cullSize: const Size(140, 176),
         graphNodeRadius: 36.0, // 72 / 2
-        graphStrokeWidth: 2.5, // existing premium width
-        graphHitRadius: 44.0, // generous tap target
+        graphStrokeWidth: 2.5,
+        graphHitRadius: 44.0,
         screenNodeRadius: 36.0 * safeZoom,
         screenStrokeWidth: 2.5 * safeZoom,
       );
 
-    case 'chip':
-      // CHIP LOD: lightweight chips with zoom-aware geometry.
-      // Desired screen targets:
-      //   chip marker diameter: 8px
-      //   chip font size: 11px
-      //   chip total height: ~30px
-      //   edge stroke: 1.5px screen-space minimum
-      const screenMarkerRadius = 4.0; // 8px diameter
+    case 'compact':
+      // COMPACT LOD (v5.111): same 72dp GraphNode widget as FULL, but
+      // the relation label is faded out (driven by the existing
+      // relationLabelOpacityFor function — at zoom 0.50-0.85 it's
+      // already faded to 0). All sizing is IDENTICAL to FULL so the
+      // transition NEAR↔COMPACT is invisible (no visual jump).
+      return LodRenderMetrics(
+        zoom: safeZoom,
+        tier: 'compact',
+        cullSize: const Size(140, 176),
+        graphNodeRadius: 36.0,
+        graphStrokeWidth: 2.5,
+        graphHitRadius: 44.0,
+        screenNodeRadius: 36.0 * safeZoom,
+        screenStrokeWidth: 2.5 * safeZoom,
+      );
+
+    case 'mini':
+      // MINI LOD (v5.111): circle + border + initial letter.
+      // SCREEN-SPACE CLAMPED — node does NOT shrink as zoom decreases.
+      //   normal radius: 11px (22px diameter)
+      //   emphasised radius: 15px (30px diameter)
+      //   border stroke: 1.5px screen-space
+      //   hit radius: 22px screen-space (generous tap target)
+      const screenNormalR = 11.0;
+      const screenEmphasisR = 15.0;
       const screenStrokeMin = 1.5;
-      const screenHitRadius = 24.0; // generous touch target
-      // Graph-space values (divided by zoom so Transform restores them).
+      const screenHitRadius = 22.0;
+      final graphNormalR = screenNormalR / safeZoom;
+      final graphStroke = screenStrokeMin / safeZoom;
+      final graphHit = screenHitRadius / safeZoom;
+      // Cull size: mini footprint (30px screen diameter + label none).
+      final cullD = 30.0 / safeZoom;
+      return LodRenderMetrics(
+        zoom: safeZoom,
+        tier: 'mini',
+        cullSize: Size(cullD, cullD),
+        graphNodeRadius: graphNormalR,
+        graphStrokeWidth: graphStroke,
+        graphHitRadius: graphHit,
+        screenNodeRadius: screenNormalR,
+        screenStrokeWidth: screenStrokeMin,
+      );
+
+    case 'micro':
+      // MICRO LOD (v5.111): colored circle + accent ring (no letter).
+      // SCREEN-SPACE CLAMPED — smaller than MINI but still visible.
+      //   normal radius: 8px (16px diameter)
+      //   emphasised radius: 11px (22px diameter)
+      //   ring stroke: 1.5px screen-space
+      //   hit radius: 18px screen-space
+      const screenNormalR = 8.0;
+      const screenEmphasisR = 11.0;
+      const screenStrokeMin = 1.5;
+      const screenHitRadius = 18.0;
+      final graphNormalR = screenNormalR / safeZoom;
+      final graphStroke = screenStrokeMin / safeZoom;
+      final graphHit = screenHitRadius / safeZoom;
+      final cullD = 22.0 / safeZoom;
+      return LodRenderMetrics(
+        zoom: safeZoom,
+        tier: 'micro',
+        cullSize: Size(cullD, cullD),
+        graphNodeRadius: graphNormalR,
+        graphStrokeWidth: graphStroke,
+        graphHitRadius: graphHit,
+        screenNodeRadius: screenNormalR,
+        screenStrokeWidth: screenStrokeMin,
+      );
+
+    case 'chip':
+      // CHIP LOD (legacy MEDIUM tier — kept for focus-mode fallback).
+      // v5.111: Raised marker from 8px to 12px for better visibility.
+      const screenMarkerRadius = 6.0; // 12px diameter (was 4.0 / 8px)
+      const screenStrokeMin = 1.5;
+      const screenHitRadius = 24.0;
       final graphMarkerR = screenMarkerRadius / safeZoom;
       final graphStroke = screenStrokeMin / safeZoom;
       final graphHit = screenHitRadius / safeZoom;
-      // Cull size: chip footprint in graph space (~80×40 screen).
       final cullW = 80.0 / safeZoom;
       final cullH = 40.0 / safeZoom;
       return LodRenderMetrics(
@@ -124,22 +177,21 @@ LodRenderMetrics computeLodMetrics({
       );
 
     case 'overview':
-      // OVERVIEW LOD (formerly DOT): single painter, no widgets.
-      // v5.109: Increased screen radii for better visibility.
-      //   normal marker radius: 10px (was 6px)
-      //   emphasised marker radius: 14px (was 9px)
-      //   edge stroke: 1.5px screen-space minimum (was 1.0px)
-      //   hit radius: 22px screen-space minimum (was 20px)
-      const screenNormalR = 10.0;
-      const screenEmphasisR = 14.0;
+      // OVERVIEW LOD (FAR tier): single painter, no widgets.
+      // v5.111: Raised minimum screen radii for better visibility.
+      //   normal marker radius: 14px (was 10px) → 28px diameter
+      //   emphasised marker radius: 20px (was 14px) → 40px diameter
+      //   edge stroke: 1.5px screen-space minimum
+      //   hit radius: 24px screen-space minimum (was 22px)
+      const screenNormalR = 14.0;
+      const screenEmphasisR = 20.0;
       const screenStrokeMin = 1.5;
-      const screenHitRadius = 22.0;
+      const screenHitRadius = 24.0;
       final graphNormalR = screenNormalR / safeZoom;
       final graphEmphasisR = screenEmphasisR / safeZoom;
       final graphStroke = screenStrokeMin / safeZoom;
       final graphHit = screenHitRadius / safeZoom;
-      // Cull size: overview marker footprint (20px screen diameter).
-      final cullD = 20.0 / safeZoom;
+      final cullD = 28.0 / safeZoom;
       return LodRenderMetrics(
         zoom: safeZoom,
         tier: 'overview',
@@ -159,14 +211,40 @@ LodRenderMetrics computeLodMetrics({
 
 /// Returns the graph-space radius for an overview marker, accounting
 /// for emphasis (focused/selected/path/search nodes).
-/// v5.109: Increased from 6.0/9.0 to 10.0/14.0.
+/// v5.111: Increased from 10.0/14.0 to 14.0/20.0.
 double overviewGraphRadius({
   required double zoom,
   required bool isEmphasised,
 }) {
   final safeZoom = (zoom > 0.001 && zoom.isFinite) ? zoom : 1.0;
-  const screenNormalR = 10.0;
-  const screenEmphasisR = 14.0;
+  const screenNormalR = 14.0;
+  const screenEmphasisR = 20.0;
+  final screenR = isEmphasised ? screenEmphasisR : screenNormalR;
+  return screenR / safeZoom;
+}
+
+/// Returns the graph-space radius for a MINI marker (v5.111).
+/// Screen-space clamped: 11px normal, 15px emphasised.
+double miniGraphRadius({
+  required double zoom,
+  required bool isEmphasised,
+}) {
+  final safeZoom = (zoom > 0.001 && zoom.isFinite) ? zoom : 1.0;
+  const screenNormalR = 11.0;
+  const screenEmphasisR = 15.0;
+  final screenR = isEmphasised ? screenEmphasisR : screenNormalR;
+  return screenR / safeZoom;
+}
+
+/// Returns the graph-space radius for a MICRO marker (v5.111).
+/// Screen-space clamped: 8px normal, 11px emphasised.
+double microGraphRadius({
+  required double zoom,
+  required bool isEmphasised,
+}) {
+  final safeZoom = (zoom > 0.001 && zoom.isFinite) ? zoom : 1.0;
+  const screenNormalR = 8.0;
+  const screenEmphasisR = 11.0;
   final screenR = isEmphasised ? screenEmphasisR : screenNormalR;
   return screenR / safeZoom;
 }

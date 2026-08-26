@@ -1,9 +1,9 @@
 // test/graph/rendering/semantic_zoom_test.dart
 //
-// Phase 3 — Semantic Zoom Presentation Tiers tests.
+// Phase 3 + v5.111 — Semantic Zoom Presentation Tiers tests.
 //
 // Tests:
-//   1. tier selection (NEAR/MEDIUM/FAR at correct zoom ranges)
+//   1. tier selection (NEAR/COMPACT/MINI/MICRO/FAR at correct zoom ranges)
 //   2. threshold transitions (enter/leave boundaries)
 //   3. hysteresis (no flicker when zoom oscillates near threshold)
 //   4. focused-node tier override (discoverable at FAR)
@@ -11,6 +11,12 @@
 //   6. dot LOD remains reachable
 //   7. far tier excludes premium shadows
 //   8. path remains discoverable
+//   9. v5.111: MINI/MICRO tier sizing helpers
+//
+// v5.111: Rewritten for the 5-tier system (was 3-tier). The old MEDIUM
+// tier is now COMPACT (full GraphNode with relation label faded), and
+// two new intermediate tiers (MINI, MICRO) provide gradual degradation
+// between COMPACT and FAR.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/graph/rendering/semantic_zoom.dart';
@@ -18,118 +24,139 @@ import 'package:kinrel/graph/rendering/semantic_zoom.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('Phase 3 — Tier selection', () {
-    test('TEST 1: NEAR tier at zoom >= 1.0 (initial, no hysteresis)', () {
+  group('Phase 3 — Tier selection (v5.111 5-tier)', () {
+    test('TEST 1: NEAR tier at zoom >= 0.85 (initial, no hysteresis)', () {
+      expect(computeSemanticTier(0.85), SemanticTier.near);
       expect(computeSemanticTier(1.0), SemanticTier.near);
       expect(computeSemanticTier(1.5), SemanticTier.near);
       expect(computeSemanticTier(2.5), SemanticTier.near);
     });
 
-    test('TEST 1: MEDIUM tier at 0.72 <= zoom < 1.0', () {
-      expect(computeSemanticTier(0.72), SemanticTier.medium);
-      expect(computeSemanticTier(0.8), SemanticTier.medium);
-      expect(computeSemanticTier(0.99), SemanticTier.medium);
+    test('TEST 1: COMPACT tier at 0.50 <= zoom < 0.85', () {
+      expect(computeSemanticTier(0.50), SemanticTier.compact);
+      expect(computeSemanticTier(0.70), SemanticTier.compact);
+      expect(computeSemanticTier(0.84), SemanticTier.compact);
     });
 
-    test('TEST 1: FAR tier at zoom < 0.65', () {
-      expect(computeSemanticTier(0.64), SemanticTier.far);
-      expect(computeSemanticTier(0.3), SemanticTier.far);
-      expect(computeSemanticTier(0.1), SemanticTier.far);
+    test('TEST 1: MINI tier at 0.28 <= zoom < 0.50', () {
+      expect(computeSemanticTier(0.28), SemanticTier.mini);
+      expect(computeSemanticTier(0.35), SemanticTier.mini);
+      expect(computeSemanticTier(0.49), SemanticTier.mini);
+    });
+
+    test('TEST 1: MICRO tier at 0.16 <= zoom < 0.28', () {
+      expect(computeSemanticTier(0.16), SemanticTier.micro);
+      expect(computeSemanticTier(0.20), SemanticTier.micro);
+      expect(computeSemanticTier(0.27), SemanticTier.micro);
+    });
+
+    test('TEST 1: FAR tier at zoom < 0.13', () {
+      expect(computeSemanticTier(0.12), SemanticTier.far);
+      expect(computeSemanticTier(0.10), SemanticTier.far);
+      expect(computeSemanticTier(0.05), SemanticTier.far);
     });
   });
 
   group('Phase 3 — Threshold transitions', () {
-    test('TEST 2: NEAR → MEDIUM transition at nearLeave (0.92)', () {
-      // Start at NEAR (zoom=1.0)
+    test('TEST 2: NEAR → COMPACT transition at nearLeave (0.78)', () {
       var tier = computeSemanticTier(1.0);
       expect(tier, SemanticTier.near);
 
       // Zoom out to just above nearLeave → still NEAR
-      tier = computeSemanticTier(0.93, currentTier: tier);
+      tier = computeSemanticTier(0.79, currentTier: tier);
       expect(tier, SemanticTier.near);
 
-      // Zoom out past nearLeave → MEDIUM
-      tier = computeSemanticTier(0.91, currentTier: tier);
-      expect(tier, SemanticTier.medium);
+      // Zoom out past nearLeave → COMPACT
+      tier = computeSemanticTier(0.77, currentTier: tier);
+      expect(tier, SemanticTier.compact);
     });
 
-    test('TEST 2: MEDIUM → NEAR transition at nearEnter (1.0)', () {
-      // Start at MEDIUM (zoom=0.8)
-      var tier = computeSemanticTier(0.8);
-      expect(tier, SemanticTier.medium);
+    test('TEST 2: COMPACT → NEAR transition at nearEnter (0.85)', () {
+      var tier = computeSemanticTier(0.70);
+      expect(tier, SemanticTier.compact);
 
-      // Zoom in to just below nearEnter → still MEDIUM
-      tier = computeSemanticTier(0.99, currentTier: tier);
-      expect(tier, SemanticTier.medium);
+      // Zoom in to just below nearEnter → still COMPACT
+      tier = computeSemanticTier(0.84, currentTier: tier);
+      expect(tier, SemanticTier.compact);
 
       // Zoom in past nearEnter → NEAR
-      tier = computeSemanticTier(1.01, currentTier: tier);
+      tier = computeSemanticTier(0.86, currentTier: tier);
       expect(tier, SemanticTier.near);
     });
 
-    test('TEST 2: MEDIUM → FAR transition at mediumLeave (0.65)', () {
-      var tier = computeSemanticTier(0.8);
-      expect(tier, SemanticTier.medium);
+    test('TEST 2: COMPACT → MINI transition at compactLeave (0.45)', () {
+      var tier = computeSemanticTier(0.50);
+      expect(tier, SemanticTier.compact);
 
-      tier = computeSemanticTier(0.66, currentTier: tier);
-      expect(tier, SemanticTier.medium);
+      tier = computeSemanticTier(0.46, currentTier: tier);
+      expect(tier, SemanticTier.compact);
 
-      tier = computeSemanticTier(0.64, currentTier: tier);
-      expect(tier, SemanticTier.far);
+      tier = computeSemanticTier(0.44, currentTier: tier);
+      expect(tier, SemanticTier.mini);
     });
 
-    test('TEST 2: FAR → MEDIUM transition at mediumEnter (0.72)', () {
-      var tier = computeSemanticTier(0.5);
-      expect(tier, SemanticTier.far);
+    test('TEST 2: MINI → MICRO transition at miniLeave (0.24)', () {
+      var tier = computeSemanticTier(0.28);
+      expect(tier, SemanticTier.mini);
 
-      tier = computeSemanticTier(0.71, currentTier: tier);
-      expect(tier, SemanticTier.far);
+      tier = computeSemanticTier(0.25, currentTier: tier);
+      expect(tier, SemanticTier.mini);
 
-      tier = computeSemanticTier(0.73, currentTier: tier);
-      expect(tier, SemanticTier.medium);
+      tier = computeSemanticTier(0.23, currentTier: tier);
+      expect(tier, SemanticTier.micro);
+    });
+
+    test('TEST 2: MICRO → FAR transition at microLeave (0.13)', () {
+      var tier = computeSemanticTier(0.16);
+      expect(tier, SemanticTier.micro);
+
+      tier = computeSemanticTier(0.14, currentTier: tier);
+      expect(tier, SemanticTier.micro);
+
+      tier = computeSemanticTier(0.12, currentTier: tier);
+      expect(tier, SemanticTier.far);
     });
   });
 
   group('Phase 3 — Hysteresis (no flicker)', () {
     test('TEST 3: zoom oscillating around nearEnter does NOT flap', () {
-      // Start at MEDIUM (zoom=0.95)
-      var tier = computeSemanticTier(0.95);
-      expect(tier, SemanticTier.medium);
+      var tier = computeSemanticTier(0.80);
+      expect(tier, SemanticTier.compact);
 
-      // Zoom up to 1.0 → NEAR
-      tier = computeSemanticTier(1.0, currentTier: tier);
+      // Zoom up to 0.90 → NEAR
+      tier = computeSemanticTier(0.90, currentTier: tier);
       expect(tier, SemanticTier.near);
 
-      // Zoom back down to 0.95 → still NEAR (hysteresis: nearLeave=0.92)
-      tier = computeSemanticTier(0.95, currentTier: tier);
+      // Zoom back down to 0.80 → still NEAR (hysteresis: nearLeave=0.78)
+      tier = computeSemanticTier(0.80, currentTier: tier);
       expect(tier, SemanticTier.near,
-          reason: 'Hysteresis: should stay NEAR until zoom < 0.92');
+          reason: 'Hysteresis: should stay NEAR until zoom < 0.78');
 
-      // Zoom down past nearLeave → MEDIUM
-      tier = computeSemanticTier(0.91, currentTier: tier);
-      expect(tier, SemanticTier.medium);
+      // Zoom down past nearLeave → COMPACT
+      tier = computeSemanticTier(0.77, currentTier: tier);
+      expect(tier, SemanticTier.compact);
 
-      // Zoom back up to 0.95 → still MEDIUM (hysteresis: nearEnter=1.0)
-      tier = computeSemanticTier(0.95, currentTier: tier);
-      expect(tier, SemanticTier.medium,
-          reason: 'Hysteresis: should stay MEDIUM until zoom >= 1.0');
+      // Zoom back up to 0.80 → still COMPACT (hysteresis: nearEnter=0.85)
+      tier = computeSemanticTier(0.80, currentTier: tier);
+      expect(tier, SemanticTier.compact,
+          reason: 'Hysteresis: should stay COMPACT until zoom >= 0.85');
     });
 
-    test('TEST 3: zoom oscillating around mediumEnter does NOT flap', () {
-      var tier = computeSemanticTier(0.6);
-      expect(tier, SemanticTier.far);
+    test('TEST 3: zoom oscillating around compactEnter does NOT flap', () {
+      var tier = computeSemanticTier(0.30);
+      expect(tier, SemanticTier.mini);
 
-      // Zoom up past mediumEnter → MEDIUM
-      tier = computeSemanticTier(0.73, currentTier: tier);
-      expect(tier, SemanticTier.medium);
+      // Zoom up past compactEnter → COMPACT
+      tier = computeSemanticTier(0.51, currentTier: tier);
+      expect(tier, SemanticTier.compact);
 
-      // Zoom back down to 0.68 → still MEDIUM (hysteresis: mediumLeave=0.65)
-      tier = computeSemanticTier(0.68, currentTier: tier);
-      expect(tier, SemanticTier.medium);
+      // Zoom back down to 0.47 → still COMPACT (hysteresis: compactLeave=0.45)
+      tier = computeSemanticTier(0.47, currentTier: tier);
+      expect(tier, SemanticTier.compact);
 
-      // Zoom down past mediumLeave → FAR
-      tier = computeSemanticTier(0.64, currentTier: tier);
-      expect(tier, SemanticTier.far);
+      // Zoom down past compactLeave → MINI
+      tier = computeSemanticTier(0.44, currentTier: tier);
+      expect(tier, SemanticTier.mini);
     });
   });
 
@@ -170,18 +197,22 @@ void main() {
   });
 
   group('Phase 3 — Dot LOD remains reachable', () {
-    test('TEST 6: FAR tier maps to dot LOD', () {
-      expect(semanticTierToLodName(SemanticTier.far), 'dot');
+    test('TEST 6: FAR tier maps to overview LOD', () {
+      // v5.111: SemanticTier.far now maps to 'overview' (was 'dot').
+      expect(semanticTierToLodName(SemanticTier.far), 'overview');
       expect(semanticTierToLodName(SemanticTier.medium), 'chip');
       expect(semanticTierToLodName(SemanticTier.near), 'full');
+      // v5.111: New tiers.
+      expect(semanticTierToLodName(SemanticTier.compact), 'compact');
+      expect(semanticTierToLodName(SemanticTier.mini), 'mini');
+      expect(semanticTierToLodName(SemanticTier.micro), 'micro');
     });
 
-    test('TEST 6: FAR tier is reachable at low zoom', () {
-      // With no hysteresis memory, zoom=0.5 → FAR
-      expect(computeSemanticTier(0.5), SemanticTier.far);
-      // With hysteresis memory, starting from FAR, zoom=0.5 stays FAR
-      var tier = computeSemanticTier(0.5);
-      tier = computeSemanticTier(0.5, currentTier: tier);
+    test('TEST 6: FAR tier is reachable at very low zoom', () {
+      // v5.111: FAR now requires zoom < 0.13 (was < 0.65).
+      expect(computeSemanticTier(0.10), SemanticTier.far);
+      var tier = computeSemanticTier(0.10);
+      tier = computeSemanticTier(0.10, currentTier: tier);
       expect(tier, SemanticTier.far);
     });
   });
@@ -191,14 +222,32 @@ void main() {
       expect(farTierExcludesPremiumEffects(SemanticTier.far), isTrue);
     });
 
-    test('TEST 7: farTierExcludesPremiumEffects returns false for NEAR/MEDIUM', () {
+    test(
+        'TEST 7: farTierExcludesPremiumEffects returns false for NEAR/COMPACT',
+        () {
       expect(farTierExcludesPremiumEffects(SemanticTier.near), isFalse);
-      expect(farTierExcludesPremiumEffects(SemanticTier.medium), isFalse);
+      expect(farTierExcludesPremiumEffects(SemanticTier.compact), isFalse);
+    });
+
+    test(
+        'TEST 7: v5.111 farTierExcludesPremiumEffects returns true for MINI/MICRO',
+        () {
+      // v5.111: MINI and MICRO do NOT render premium effects (shadows,
+      // specular, etc.) — they use single-painter circle rendering.
+      expect(farTierExcludesPremiumEffects(SemanticTier.mini), isTrue);
+      expect(farTierExcludesPremiumEffects(SemanticTier.micro), isTrue);
     });
 
     test('TEST 7: shouldRenderText returns false at FAR', () {
       expect(shouldRenderText(SemanticTier.far), isFalse,
           reason: 'No text at FAR zoom — unreadable');
+    });
+
+    test('TEST 7: v5.111 shouldRenderText returns false at MINI/MICRO', () {
+      // MINI paints an initial letter, but it's not a Text widget —
+      // shouldRenderText controls whether to build Text widgets.
+      expect(shouldRenderText(SemanticTier.mini), isFalse);
+      expect(shouldRenderText(SemanticTier.micro), isFalse);
     });
   });
 
@@ -230,7 +279,7 @@ void main() {
       );
     });
 
-    test('TEST 8: farTierDotRadius is larger for emphasised nodes', () {
+    test('TEST 8: v5.111 farTierDotRadius is larger for emphasised nodes', () {
       final normalRadius = farTierDotRadius(
         nodeId: 'person-A',
         focusedPersonId: null,
@@ -245,24 +294,32 @@ void main() {
       );
       expect(emphasisedRadius, greaterThan(normalRadius),
           reason: 'Emphasised dots must be larger for discoverability');
-      expect(normalRadius, 6.0);
-      expect(emphasisedRadius, 9.0);
+      // v5.111: Raised from 6.0/9.0 to 14.0/20.0.
+      expect(normalRadius, 14.0);
+      expect(emphasisedRadius, 20.0);
     });
   });
 
-  group('Phase 3 — Hysteresis thresholds', () {
+  group('Phase 3 — Hysteresis thresholds (v5.111)', () {
     test('default thresholds have correct enter/leave values', () {
       const t = defaultThresholds;
-      expect(t.nearEnter, 1.0);
-      expect(t.nearLeave, 0.92);
-      expect(t.mediumEnter, 0.72);
-      expect(t.mediumLeave, 0.65);
+      // v5.111: New 5-tier thresholds.
+      expect(t.nearEnter, 0.85);
+      expect(t.nearLeave, 0.78);
+      expect(t.compactEnter, 0.50);
+      expect(t.compactLeave, 0.45);
+      expect(t.miniEnter, 0.28);
+      expect(t.miniLeave, 0.24);
+      expect(t.microEnter, 0.16);
+      expect(t.microLeave, 0.13);
     });
 
     test('hysteresis margins are positive', () {
       const t = defaultThresholds;
       expect(t.nearHysteresis, greaterThan(0));
-      expect(t.mediumHysteresis, greaterThan(0));
+      expect(t.compactHysteresis, greaterThan(0));
+      expect(t.miniHysteresis, greaterThan(0));
+      expect(t.microHysteresis, greaterThan(0));
     });
   });
 
@@ -270,18 +327,19 @@ void main() {
   // v102 (semantic-zoom fix): Small-family bypass.
   //
   // Graphs under 30 members must NEVER degrade below NEAR, regardless
-  // of zoom level. The MEDIUM and FAR tiers exist to keep LARGE trees
-  // legible at low zoom — they should never apply to a 4-person family.
-  // The 30 threshold matches branch_collapse_state.dart's convention.
+  // of zoom level. The COMPACT/MINI/MICRO/FAR tiers exist to keep
+  // LARGE trees legible at low zoom — they should never apply to a
+  // 4-person family.
   // ────────────────────────────────────────────────────────────────────
   group('v102 — Small-family bypass (memberCount < 30)', () {
     test('4-member family stays NEAR at zoom 1.0 (default)', () {
       expect(computeSemanticTier(1.0, memberCount: 4), SemanticTier.near);
     });
 
-    test('4-member family stays NEAR at zoom 0.5 (would be FAR without bypass)', () {
+    test('4-member family stays NEAR at zoom 0.5 (would be MINI without bypass)',
+        () {
       expect(computeSemanticTier(0.5, memberCount: 4), SemanticTier.near,
-          reason: 'A 4-person family must never degrade to FAR — '
+          reason: 'A 4-person family must never degrade — '
               'there is no legibility benefit to collapsing a tiny graph');
     });
 
@@ -296,7 +354,6 @@ void main() {
     });
 
     test('4-member family stays NEAR across the FULL zoom range', () {
-      // Test every zoom level from 0.2 to 5.0 in 0.1 steps.
       for (double z = 0.2; z <= 5.0; z += 0.1) {
         expect(computeSemanticTier(z, memberCount: 4), SemanticTier.near,
             reason: '4-member family must be NEAR at zoom $z');
@@ -304,8 +361,8 @@ void main() {
     });
 
     test('4-member family stays NEAR with hysteresis memory', () {
-      // Even with a currentTier of FAR, a small family overrides to NEAR.
-      var tier = computeSemanticTier(0.5, memberCount: 4, currentTier: SemanticTier.far);
+      var tier =
+          computeSemanticTier(0.5, memberCount: 4, currentTier: SemanticTier.far);
       expect(tier, SemanticTier.near,
           reason: 'Small family overrides hysteresis — always NEAR');
     });
@@ -320,64 +377,69 @@ void main() {
 
     test('30-member family degrades normally (at threshold)', () {
       // 30 is NOT small (the check is < 30, not <= 30).
-      // A 30-member family at zoom 0.5 → FAR (normal behavior).
-      expect(computeSemanticTier(0.5, memberCount: 30), SemanticTier.far,
-          reason: '30 members is at the threshold — normal tier degradation applies');
+      // v5.111: 30-member family at zoom 0.5 → MINI (was FAR).
+      expect(computeSemanticTier(0.5, memberCount: 30), SemanticTier.mini,
+          reason: '30 members is at the threshold — normal tier '
+              'degradation applies (v5.111: 0.5 is now MINI, not FAR)');
     });
 
     test('100-member family degrades normally (large graph)', () {
-      expect(computeSemanticTier(0.5, memberCount: 100), SemanticTier.far);
-      expect(computeSemanticTier(0.8, memberCount: 100), SemanticTier.medium);
+      // v5.111: Updated for new thresholds.
+      expect(computeSemanticTier(0.10, memberCount: 100), SemanticTier.far);
+      expect(computeSemanticTier(0.20, memberCount: 100), SemanticTier.micro);
+      expect(computeSemanticTier(0.35, memberCount: 100), SemanticTier.mini);
+      expect(computeSemanticTier(0.60, memberCount: 100), SemanticTier.compact);
       expect(computeSemanticTier(1.5, memberCount: 100), SemanticTier.near);
     });
 
     test('1000-member family degrades normally (very large graph)', () {
-      // The bypass must NOT accidentally pin large graphs to NEAR.
-      expect(computeSemanticTier(0.3, memberCount: 1000), SemanticTier.far);
-      // zoom 0.75 is above mediumEnter (0.72) → medium
-      expect(computeSemanticTier(0.75, memberCount: 1000), SemanticTier.medium);
+      // v5.111: Large families use scaled-down thresholds.
+      // For 1000 members (500-2000 range):
+      //   nearEnter=0.75, compactEnter=0.40, miniEnter=0.20, microEnter=0.11
+      expect(computeSemanticTier(0.10, memberCount: 1000), SemanticTier.far);
+      expect(computeSemanticTier(0.15, memberCount: 1000), SemanticTier.micro);
+      expect(computeSemanticTier(0.25, memberCount: 1000), SemanticTier.mini);
+      expect(computeSemanticTier(0.50, memberCount: 1000), SemanticTier.compact);
       expect(computeSemanticTier(2.0, memberCount: 1000), SemanticTier.near);
     });
 
     test('null memberCount preserves old behavior (backward compat)', () {
-      // When memberCount is not provided, the function behaves exactly
-      // as before — no bypass. This ensures existing callers that don't
-      // pass memberCount are unaffected.
-      expect(computeSemanticTier(0.5), SemanticTier.far);
-      expect(computeSemanticTier(0.8), SemanticTier.medium);
+      // v5.111: With null memberCount, default thresholds apply.
+      expect(computeSemanticTier(0.10), SemanticTier.far);
+      expect(computeSemanticTier(0.20), SemanticTier.micro);
+      expect(computeSemanticTier(0.35), SemanticTier.mini);
+      expect(computeSemanticTier(0.60), SemanticTier.compact);
       expect(computeSemanticTier(1.5), SemanticTier.near);
     });
 
     test('0 memberCount is treated as unknown (no bypass)', () {
-      // memberCount=0 (empty graph) should not trigger the bypass —
-      // it's a degenerate case. Treat it as "unknown" so we don't pin
-      // an empty graph to NEAR (which would be harmless but wasteful).
-      expect(computeSemanticTier(0.5, memberCount: 0), SemanticTier.far);
+      expect(computeSemanticTier(0.10, memberCount: 0), SemanticTier.far);
     });
   });
 
   // ═══════════════════════════════════════════════════════════════════════
   // P2.3: Semantic zoom + focus mode pairing
+  // v5.111: Focus mode now floors at COMPACT (was MEDIUM).
   // ═══════════════════════════════════════════════════════════════════════
 
-  group('P2.3: Focus mode pairing', () {
-    test('zoom 0.4 with focus → MEDIUM (floored from FAR)', () {
-      // Without focus, zoom 0.4 → FAR. With focus, floored at MEDIUM
-      // so the focus subgraph remains legible with names.
-      final tierWithoutFocus = computeSemanticTier(0.4, memberCount: 100);
+  group('P2.3: Focus mode pairing (v5.111 — floors at COMPACT)', () {
+    test('zoom 0.10 with focus → COMPACT (floored from FAR)', () {
+      // Without focus, zoom 0.10 → FAR. With focus, floored at COMPACT
+      // so the focus subgraph remains legible with full GraphNode widgets.
+      final tierWithoutFocus = computeSemanticTier(0.10, memberCount: 100);
       expect(tierWithoutFocus, SemanticTier.far);
 
       final tierWithFocus =
-          computeSemanticTier(0.4, memberCount: 100, focusActive: true);
-      expect(tierWithFocus, SemanticTier.medium,
-          reason: 'Focus mode should floor the tier at MEDIUM, never FAR');
+          computeSemanticTier(0.10, memberCount: 100, focusActive: true);
+      expect(tierWithFocus, SemanticTier.compact,
+          reason: 'Focus mode should floor the tier at COMPACT, never below');
     });
 
-    test('zoom 0.2 with focus → MEDIUM (floored from FAR)', () {
+    test('zoom 0.2 with focus → COMPACT (floored from MICRO)', () {
       final tier =
           computeSemanticTier(0.2, memberCount: 100, focusActive: true);
-      expect(tier, SemanticTier.medium,
-          reason: 'Even at minimum zoom, focus keeps the graph at MEDIUM');
+      expect(tier, SemanticTier.compact,
+          reason: 'Even at minimum zoom, focus keeps the graph at COMPACT');
     });
 
     test('zoom 1.5 with focus → NEAR (unchanged)', () {
@@ -386,11 +448,11 @@ void main() {
       expect(tier, SemanticTier.near);
     });
 
-    test('focus does not upgrade MEDIUM to NEAR', () {
-      // Focus only floors at MEDIUM — it does NOT force NEAR.
+    test('focus does not upgrade COMPACT to NEAR', () {
+      // Focus only floors at COMPACT — it does NOT force NEAR.
       final tier =
-          computeSemanticTier(0.7, memberCount: 100, focusActive: true);
-      expect(tier, SemanticTier.medium);
+          computeSemanticTier(0.70, memberCount: 100, focusActive: true);
+      expect(tier, SemanticTier.compact);
     });
 
     test('focus + small family → NEAR (small-family bypass wins)', () {
@@ -399,26 +461,59 @@ void main() {
     });
 
     test('tier transitions are stable during focus', () {
-      // Start at NEAR, zoom out to MEDIUM range with focus
       var tier =
           computeSemanticTier(1.5, memberCount: 100, focusActive: true);
       expect(tier, SemanticTier.near);
 
-      // Zoom out to 0.7 — should be MEDIUM (not FAR, because focus)
+      // Zoom out to 0.7 — should be COMPACT (not MINI/MICRO/FAR, because focus)
       tier = computeSemanticTier(0.7,
           currentTier: tier, memberCount: 100, focusActive: true);
-      expect(tier, SemanticTier.medium);
+      expect(tier, SemanticTier.compact);
 
-      // Zoom further out to 0.4 — should stay MEDIUM (focus floor)
-      tier = computeSemanticTier(0.4,
+      // Zoom further out to 0.10 — should stay COMPACT (focus floor)
+      tier = computeSemanticTier(0.10,
           currentTier: tier, memberCount: 100, focusActive: true);
-      expect(tier, SemanticTier.medium,
-          reason: 'Focus floor prevents degradation to FAR');
+      expect(tier, SemanticTier.compact,
+          reason: 'Focus floor prevents degradation below COMPACT');
 
       // Zoom back in to 1.5 — should return to NEAR
       tier = computeSemanticTier(1.5,
           currentTier: tier, memberCount: 100, focusActive: true);
       expect(tier, SemanticTier.near);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // v5.111: MINI and MICRO tier sizing helpers
+  // ═══════════════════════════════════════════════════════════════════════
+
+  group('v5.111 — MINI/MICRO sizing helpers', () {
+    test('miniTierRadius returns correct sizes', () {
+      expect(miniTierRadius(isEmphasised: false), 11.0,
+          reason: 'Normal MINI radius: 11px (22px diameter)');
+      expect(miniTierRadius(isEmphasised: true), 15.0,
+          reason: 'Emphasised MINI radius: 15px (30px diameter)');
+    });
+
+    test('microTierRadius returns correct sizes', () {
+      expect(microTierRadius(isEmphasised: false), 8.0,
+          reason: 'Normal MICRO radius: 8px (16px diameter)');
+      expect(microTierRadius(isEmphasised: true), 11.0,
+          reason: 'Emphasised MICRO radius: 11px (22px diameter)');
+    });
+
+    test('emphasised radius is always larger than normal', () {
+      expect(miniTierRadius(isEmphasised: true),
+          greaterThan(miniTierRadius(isEmphasised: false)));
+      expect(microTierRadius(isEmphasised: true),
+          greaterThan(microTierRadius(isEmphasised: false)));
+    });
+
+    test('MINI is always larger than MICRO', () {
+      expect(miniTierRadius(isEmphasised: false),
+          greaterThan(microTierRadius(isEmphasised: false)));
+      expect(miniTierRadius(isEmphasised: true),
+          greaterThan(microTierRadius(isEmphasised: true)));
     });
   });
 }

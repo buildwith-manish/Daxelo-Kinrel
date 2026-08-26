@@ -3,8 +3,18 @@
 // under ~900 lines.
 //
 // Contains _buildNodeLayer — the LOD-aware node layer builder that
-// renders either a single dot painter (FAR tier) or individual
-// positioned node widgets (NEAR/MEDIUM tiers).
+// renders either a single dot painter (FAR/MICRO/MINI tiers) or
+// individual positioned node widgets (NEAR/COMPACT/CHIP tiers).
+//
+// v5.111: Updated for the new 5-tier semantic zoom system. The
+// dispatch logic now handles:
+//   • Lod.full     → _buildFullNode (premium GraphNode widgets)
+//   • Lod.compact  → _buildFullNode (same widget, relation label faded
+//                   automatically by relationLabelOpacityFor)
+//   • Lod.mini     → NodeMiniPainter (circle + border + initial, single painter)
+//   • Lod.micro    → NodeMicroPainter (colored circle + ring, single painter)
+//   • Lod.chip     → _buildChipNode (legacy, kept for focus-mode fallback)
+//   • Lod.dot      → NodeDotPainter (basic dots, single painter)
 
 part of '../family_graph_engine_view.dart';
 
@@ -15,14 +25,7 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
   ///
   /// [effectivePositions] is the MERGED position map (auto-layout ⊕
   /// saved overrides ⊕ live drag overrides) — the SAME map the edge
-  /// layer uses. This ensures nodes and edges are always in sync:
-  /// when a node is dragged/saved, its edges follow because both
-  /// layers read from the same position map.
-  ///
-  /// v5.31 Issue 1: Previously this method received only `layout`
-  /// and read `layout.positions[id]` (auto-layout only). This meant
-  /// nodes stayed at their auto-layout positions while edges used
-  /// the overridden positions — creating "detached" connections.
+  /// layer uses.
   List<Widget> _buildNodeLayer(
     GraphLayoutResult layout,
     Map<String, Offset> effectivePositions,
@@ -36,73 +39,83 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
   ) {
     final Lod lod = _lodFor(_camera.zoomLevel);
 
-    // Dot tier: one painter for ALL visible nodes — no per-node widgets.
-    if (lod == Lod.dot) {
-      final dots = <Dot>[];
-      for (final String id in visible) {
-        // v5.31 Issue 1: use effectivePositions (merged) instead of
-        // layout.positions (auto-layout only) so dots follow overrides.
-        final pos = effectivePositions[id];
-        final p = personById[id];
-        if (pos == null || p == null) continue;
-
-        // v96 (Phase 3): At FAR (dot) zoom, focused/selected/path
-        // nodes get an emphasised dot (larger + accent ring) so they
-        // remain discoverable.
-        // v96 (Phase 5): Search matches also get emphasised dots.
-        final focusedId = ref.read(graphFocusProvider).focusedPersonId;
-        final selectedId = ref.read(selectedNodeProvider);
-        final pathFocus = ref.read(graphPathFocusProvider).focus;
-        final pathNodeIds = pathFocus?.orderedPersonIds.toSet();
-        final searchState = ref.read(graphSearchProvider);
-        final isEmphasised = shouldOverrideFarTier(
-          nodeId: id,
-          focusedPersonId: focusedId,
-          selectedPersonId: selectedId,
-          pathNodeIds: pathNodeIds,
-        ) || (searchState.isActive && searchState.isMatch(id));
-
-        dots.add(Dot(
-          pos,
-          _dotColor(
-            p['gender'] as String?,
-            (p['isAnchor'] as bool?) ?? false,
-            // v69: Use the authoritative category for dot color.
-            category: relationCategoryById[id],
-            // v83: Use custom colors if available
-            customColors: customColorsByPersonId[id],
-            // v5.60: Pass isViewer so the viewer's node always gets
-            // the "self" color (green), regardless of category.
-            isViewer: viewerPersonId != null && id == viewerPersonId,
-          ),
-          isEmphasised: isEmphasised,
-        ));
-      }
-      return <Widget>[
-        Positioned.fill(
-          child: CustomPaint(
-            painter: NodeDotPainter(dots, zoom: _camera.zoomLevel),
-            // v2.2 Fix 1: SizedBox.expand() ensures the dot painter
-            // canvas covers the full Stack area.
-            child: const SizedBox.expand(),
-          ),
-        ),
-      ];
+    // ── v5.111: MINI tier — circle + border + initial (single painter) ──
+    if (lod == Lod.mini) {
+      return _buildSinglePainterLayer(
+        visible: visible,
+        effectivePositions: effectivePositions,
+        personById: personById,
+        relationCategoryById: relationCategoryById,
+        customColorsByPersonId: customColorsByPersonId,
+        viewerPersonId: viewerPersonId,
+        painterBuilder: (dots) =>
+            NodeMiniPainter(dots, zoom: _camera.zoomLevel),
+        includeInitial: true,
+      );
     }
 
-    // Full / chip tiers: individual widgets (culling keeps the count small).
+    // ── v5.111: MICRO tier — colored circle + accent ring (single painter) ──
+    if (lod == Lod.micro) {
+      return _buildSinglePainterLayer(
+        visible: visible,
+        effectivePositions: effectivePositions,
+        personById: personById,
+        relationCategoryById: relationCategoryById,
+        customColorsByPersonId: customColorsByPersonId,
+        viewerPersonId: viewerPersonId,
+        painterBuilder: (dots) =>
+            NodeMicroPainter(dots, zoom: _camera.zoomLevel),
+        includeInitial: false,
+      );
+    }
+
+    // ── DOT tier — basic dots (single painter) ──
+    if (lod == Lod.dot) {
+      return _buildSinglePainterLayer(
+        visible: visible,
+        effectivePositions: effectivePositions,
+        personById: personById,
+        relationCategoryById: relationCategoryById,
+        customColorsByPersonId: customColorsByPersonId,
+        viewerPersonId: viewerPersonId,
+        painterBuilder: (dots) =>
+            NodeDotPainter(dots, zoom: _camera.zoomLevel),
+        includeInitial: false,
+      );
+    }
+
+    // ── FULL / COMPACT / CHIP tiers — individual widgets ──
     final widgets = <Widget>[];
     final highlightedGen = widget.highlightedGeneration;
     for (final String id in visible) {
-      // v5.31 Issue 1: use effectivePositions (merged) instead of
-      // layout.positions (auto-layout only) so node widgets follow
-      // overrides — edges and nodes stay in sync.
       final pos = effectivePositions[id];
       final p = personById[id];
       if (pos == null || p == null) continue;
-      final Widget node = lod == Lod.full
-          ? _buildFullNode(id, p, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId)
-          : _buildChipNode(p, category: relationCategoryById[id], customColors: customColorsByPersonId[id], isViewer: viewerPersonId != null && id == viewerPersonId);
+
+      final Widget node;
+      if (lod == Lod.full || lod == Lod.compact) {
+        // v5.111: COMPACT uses the same _buildFullNode — the relation
+        // label fade is driven by relationLabelOpacityFor (which fades
+        // to 0 at zoom < 0.6, well within the COMPACT range 0.50-0.85).
+        // The name remains visible. No additional wiring needed.
+        node = _buildFullNode(
+          id,
+          p,
+          relationLabelById,
+          relationCategoryById,
+          customColorsByPersonId,
+          viewerPersonId,
+        );
+      } else {
+        // Lod.chip — legacy fallback (shouldn't normally be reached
+        // in the new 5-tier system, but kept for safety).
+        node = _buildChipNode(
+          p,
+          category: relationCategoryById[id],
+          customColors: customColorsByPersonId[id],
+          isViewer: viewerPersonId != null && id == viewerPersonId,
+        );
+      }
 
       // v62: Dim nodes not in the highlighted generation (if set).
       final int personGen =
@@ -119,15 +132,9 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
         height: _FamilyGraphEngineViewState._kNodeSize.height,
         child: Opacity(
           opacity: opacity,
-          // 2.5D: Add padding around the node so the elevation shadows
-          // (blurRadius up to 20px) have room to render inside the
-          // RepaintBoundary layer. Without this padding, the RepaintBoundary
-          // clips the shadow to the node's bounds, making it invisible.
           child: RepaintBoundary(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
-              // v92 (PART 19): Wrap the node in a Stack so we can
-              // overlay the +N collapsed-branch affordance chip.
               child: _withBranchAffordance(node, id, flat),
             ),
           ),
@@ -135,5 +142,75 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
       ));
     }
     return widgets;
+  }
+
+  /// v5.111: Shared helper that builds a single-painter node layer
+  /// (used by MINI, MICRO, and DOT tiers). All three tiers render
+  /// every visible node in ONE CustomPaint call — no per-node widgets.
+  ///
+  /// [painterBuilder] receives the list of [Dot] objects and returns
+  /// the configured painter. [includeInitial] controls whether the
+  /// person's first-name initial is attached to each Dot (MINI only).
+  List<Widget> _buildSinglePainterLayer({
+    required Set<String> visible,
+    required Map<String, Offset> effectivePositions,
+    required Map<String, Map<String, dynamic>> personById,
+    required Map<String, KinshipEdgeCategory> relationCategoryById,
+    required Map<String, Map<String, dynamic>> customColorsByPersonId,
+    required String? viewerPersonId,
+    required CustomPainter Function(List<Dot> dots) painterBuilder,
+    required bool includeInitial,
+  }) {
+    final dots = <Dot>[];
+    final focusedId = ref.read(graphFocusProvider).focusedPersonId;
+    final selectedId = ref.read(selectedNodeProvider);
+    final pathFocus = ref.read(graphPathFocusProvider).focus;
+    final pathNodeIds = pathFocus?.orderedPersonIds.toSet();
+    final searchState = ref.read(graphSearchProvider);
+
+    for (final String id in visible) {
+      final pos = effectivePositions[id];
+      final p = personById[id];
+      if (pos == null || p == null) continue;
+
+      final isEmphasised = shouldOverrideFarTier(
+            nodeId: id,
+            focusedPersonId: focusedId,
+            selectedPersonId: selectedId,
+            pathNodeIds: pathNodeIds,
+          ) ||
+          (searchState.isActive && searchState.isMatch(id));
+
+      // Compute the initial letter (MINI only).
+      String? initial;
+      if (includeInitial) {
+        final name = (p['name'] as String?) ?? '';
+        if (name.isNotEmpty) {
+          initial = name.trimLeft().substring(0, 1).toUpperCase();
+        }
+      }
+
+      dots.add(Dot(
+        pos,
+        _dotColor(
+          p['gender'] as String?,
+          (p['isAnchor'] as bool?) ?? false,
+          category: relationCategoryById[id],
+          customColors: customColorsByPersonId[id],
+          isViewer: viewerPersonId != null && id == viewerPersonId,
+        ),
+        isEmphasised: isEmphasised,
+        initial: initial,
+      ));
+    }
+
+    return <Widget>[
+      Positioned.fill(
+        child: CustomPaint(
+          painter: painterBuilder(dots),
+          child: const SizedBox.expand(),
+        ),
+      ),
+    ];
   }
 }

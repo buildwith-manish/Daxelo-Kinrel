@@ -1,5 +1,12 @@
 // lib/graph/widgets/engine/node_dot_painter.dart
 // P0.4: Extracted from family_graph_engine_view.dart.
+//
+// v5.111: Raised minimum screen-space radii from 10.0/14.0 to 14.0/20.0
+// so dots remain visible markers of branch structure even at maximum
+// zoom-out. The DOT tier is now reserved for TRUE far-zoom only
+// (zoom < 0.16 default) — the new MINI and MICRO tiers handle the
+// intermediate zoom range with circle + initial / circle + ring
+// rendering respectively.
 
 import 'package:flutter/material.dart';
 import 'dot.dart' show Dot;
@@ -7,15 +14,15 @@ import 'dot.dart' show Dot;
 /// Draws every visible node as a dot in ONE painter — avoids thousands of
 /// widgets when fully zoomed out (the 2000-node case).
 ///
-/// v97: Node radius is now ZOOM-AWARE. The painter receives the current
-/// camera zoom and computes graph-space radii from desired screen-space
-/// radii: graphRadius = screenRadius / zoom.
+/// v5.111: Raised minimum screen-space radii:
+///   normal: 14px radius (28px diameter — was 10px / 20px)
+///   emphasised: 20px radius (40px diameter — was 14px / 28px)
 ///
-/// v5.109: Increased minimum screen-space radii so nodes remain
-/// recognizable and tappable even at maximum zoom-out:
-///   normal: 10px radius (20px diameter — meets 44px tap target via
-///           the expanded hit-test radius in lod_render_metrics)
-///   emphasised: 14px radius (28px diameter)
+/// These sizes are the FINAL fallback before the graph becomes truly
+/// unreadable. The new MINI tier (22px) and MICRO tier (16px) handle
+/// the intermediate zoom range with more recognizable rendering, so
+/// the DOT tier is only reached at extreme zoom-out where the user
+/// is looking at the entire tree structure (1000+ nodes).
 class NodeDotPainter extends CustomPainter {
   NodeDotPainter(this.dots, {this.zoom = 1.0});
 
@@ -30,9 +37,9 @@ class NodeDotPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     final safeZoom = (zoom > 0.001 && zoom.isFinite) ? zoom : 1.0;
-    // v5.109: Increased from 6.0/9.0 to 10.0/14.0 for better visibility.
-    const screenNormalR = 10.0;
-    const screenEmphasisR = 14.0;
+    // v5.111: Raised from 10.0/14.0 to 14.0/20.0 for better visibility.
+    const screenNormalR = 14.0;
+    const screenEmphasisR = 20.0;
     const screenRingStroke = 2.5;
     final graphNormalR = screenNormalR / safeZoom;
     final graphEmphasisR = screenEmphasisR / safeZoom;
