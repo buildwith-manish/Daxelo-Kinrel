@@ -892,10 +892,14 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
               totalConnections: graph.relationships.length,
               totalGenerations: presentGenerations.length,
               isTruncated: graph.isTruncated,
-              // v5.114: Wire up "View all members" → list view.
+              // v5.116: "View all" opens the IN-GRAPH search overlay
+              // instead of navigating away to the members list. This
+              // keeps the user in the graph context — selecting a
+              // person from search centers the camera on them and
+              // highlights their direct connections.
               familyId: widget.familyId,
               onViewAllMembers: () {
-                context.go('/family/${widget.familyId}/members');
+                setState(() => _showSearch = true);
               },
             ),
           ),

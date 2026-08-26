@@ -1583,6 +1583,23 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   ///
   /// If viewerPersonId is null (unlinked user), falls back to the
   /// bounding-box fit (the existing behavior).
+  /// v5.116 (Task 5): ALWAYS center on the anchor at zoom 1.0.
+  ///
+  /// Previously this did two steps:
+  ///   1. initialFitOnce (fit ALL positions to viewport → very low zoom)
+  ///   2. resetView (center on viewer at zoom 1.0, IF viewerPersonId != null)
+  ///
+  /// The problem: if viewerPersonId was null (or not in positions), step 2
+  /// was skipped, leaving the anchor at the top edge of a zoomed-out view.
+  ///
+  /// The fix: ALWAYS center on the anchor at zoom 1.0, using the same
+  /// resetView math. The anchor is determined by: viewer's node →
+  /// isAnchor person → first person in the layout. This is the same
+  /// fallback chain used in graphLayoutProvider.
+  ///
+  /// fitToView-style whole-tree framing is NOT used on first load anymore.
+  /// It's reserved for an explicit user action (e.g. a future "Fit All"
+  /// button). The initialFitOnce method still exists for that purpose.
   Future<void> _maybeFrame(
     GraphLayoutResult layout,
     FlatGraphResult flat,
@@ -1593,24 +1610,39 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     if (layout.positions.isEmpty) return;
     _framed = true;
 
-    // Step 1: Do the initial bounding-box fit to set a reasonable zoom
-    // level. This ensures all nodes are visible at a comfortable scale.
-    _camera.initialFitOnce(layout.positions, _viewportSize);
-
-    // Step 2 (v5.75): If the viewer's Person ID is resolved, re-center
-    // on the viewer's node. This overrides the bounding-box center with
-    // the viewer's node position, putting "You" dead-center on screen.
+    // Determine the anchor position: viewer → isAnchor → first person.
+    Offset? anchorPos;
     if (viewerPersonId != null) {
-      final viewerPos = layout.positions[viewerPersonId];
-      if (viewerPos != null) {
-        final bool reduced = MediaQuery.disableAnimationsOf(context);
-        _camera.resetView(
-          focusNodePosition: viewerPos,
-          circleCenterYOffset: _kCircleCenterYOffset,
-          viewportSize: _viewportSize,
-          reducedMotion: reduced,
-        );
+      anchorPos = layout.positions[viewerPersonId];
+    }
+    if (anchorPos == null) {
+      // Fall back to the isAnchor person.
+      for (final p in flat.persons) {
+        if (p['isAnchor'] == true) {
+          final id = p['id'] as String?;
+          if (id != null) {
+            anchorPos = layout.positions[id];
+            if (anchorPos != null) break;
+          }
+        }
       }
+    }
+    if (anchorPos == null && layout.positions.isNotEmpty) {
+      // Last resort: first person in the layout.
+      anchorPos = layout.positions.values.first;
+    }
+
+    if (anchorPos != null) {
+      final bool reduced = MediaQuery.disableAnimationsOf(context);
+      _camera.resetView(
+        focusNodePosition: anchorPos,
+        circleCenterYOffset: _kCircleCenterYOffset,
+        viewportSize: _viewportSize,
+        reducedMotion: reduced,
+      );
+    } else {
+      // No positions at all — fall back to the old bounding-box fit.
+      _camera.initialFitOnce(layout.positions, _viewportSize);
     }
 
     _culler.invalidate();

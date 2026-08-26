@@ -297,6 +297,55 @@ class RadialLayout {
         nonSpouseMembers.add(person);
       }
 
+      // v5.116 (Task 7): Barycenter sort — group siblings under their
+      // parent's angular sector to reduce edge crossings.
+      //
+      // For each person in generation N, find their parent in generation
+      // N-1 (already placed on the previous ring), get the parent's
+      // angle, and sort by that angle. This groups siblings together
+      // in the same angular sector instead of interleaving them with
+      // children of other parents.
+      //
+      // This is an ordering fix inside the existing radial placement
+      // step — NOT a new layout algorithm. The same median-heuristic
+      // is used by GraphLayoutService._barycenterReorder.
+      if (gen.abs() >= 1 && nonSpouseMembers.length > 1) {
+        // Build a parent lookup: personId → parent's angle (if placed).
+        final parentAngle = <String, double>{};
+        for (final person in nonSpouseMembers) {
+          // Find this person's parent in the relationships.
+          for (final r in relationships) {
+            String? parentId;
+            if (_parentKeys.contains(r.relationshipKey) &&
+                r.fromPersonId == person.id) {
+              parentId = r.toPersonId;
+            } else if (_childKeys.contains(r.relationshipKey) &&
+                       r.toPersonId == person.id) {
+              parentId = r.fromPersonId;
+            }
+            if (parentId != null && positions.containsKey(parentId)) {
+              final pPos = positions[parentId]!;
+              final angle = atan2(
+                pPos.dy - center.dy,
+                pPos.dx - center.dx,
+              );
+              parentAngle[person.id] = angle;
+              break;
+            }
+          }
+        }
+        // Sort by parent's angle (fall back to current order for
+        // persons with no placed parent).
+        nonSpouseMembers.sort((a, b) {
+          final aAngle = parentAngle[a.id];
+          final bAngle = parentAngle[b.id];
+          if (aAngle == null && bAngle == null) return 0;
+          if (aAngle == null) return 1;
+          if (bAngle == null) return -1;
+          return aAngle.compareTo(bAngle);
+        });
+      }
+
       // Compute angular spread for this ring
       const arcFraction = 0.8; // 80% of semicircle
       final totalArc = pi * arcFraction;

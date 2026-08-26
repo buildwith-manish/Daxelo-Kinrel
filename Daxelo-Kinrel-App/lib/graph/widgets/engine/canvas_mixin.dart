@@ -561,6 +561,15 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           final s = r['fromPersonId'] as String?;
           final t = r['toPersonId'] as String?;
           if (s == null || t == null) continue;
+          // v5.116 (Task 6): Skip edges where either endpoint has no
+          // position in the current layout. This prevents "dangling"
+          // edges that converge on points with no rendered node.
+          // The proximity filter (v5.114) means only ~30 nodes have
+          // positions — edges to the other 684 nodes must be dropped.
+          if (!effectivePositions.containsKey(s) ||
+              !effectivePositions.containsKey(t)) {
+            continue;
+          }
           // v5.105: Skip edges that are hidden by collapsed branches.
           // An edge is hidden if either endpoint is a hidden member
           // (densityHiddenIds) OR the edge ID is in the hidden edge set.
