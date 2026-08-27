@@ -359,6 +359,14 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // v99: Compute collapse BEFORE visible-set derivation.
         // This eliminates the one-frame lag where the visible set
         // used stale hidden IDs from the previous build.
+        //
+        // v5.122: Pass the PROXIMITY visible count (effectivePositions.length)
+        // instead of the full family count (flat.persons.length). The proximity
+        // filter already limits to ~30 nodes — computeCollapse should NOT
+        // collapse branches based on the full 714-member family when only
+        // 30 nodes are actually being rendered. This was the root cause of
+        // "edges ending at empty points" — computeCollapse was hiding
+        // proximity nodes that had positions.
         ref.read(branchCollapseProvider.notifier).computeCollapse(
               allPersons: {
                 for (final p in flat.persons) (p['id'] ?? '').toString(),
@@ -372,7 +380,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                   ? searchState.matchIdSet
                   : null,
               selectedPersonId: selectedPerson,
-              familyMemberCount: flat.persons.length,
+              familyMemberCount: effectivePositions.length, // v5.122: was flat.persons.length
               // v102 (BUG-2 FIX): Pass the person-name lookup so
               // CollapsedBranch.rootPersonName and branchLabel are
               // populated with real names (e.g. "Mother's branch · 38").
