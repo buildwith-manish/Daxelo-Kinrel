@@ -49,9 +49,10 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
   /// [allPersons] — all person IDs in the family.
   /// [adjacency] — adjacency map: personId → set of directly-connected person IDs.
   ///
-  /// Computes ring 1 (direct neighbors) and ring 2 (neighbors of neighbors).
-  /// If ring 1 + ring 2 + anchor exceeds [kProximityNodeBudget], only
-  /// ring 1 is included.
+  /// Computes ring 1 (direct neighbors), ring 2 (neighbors of neighbors),
+  /// and ring 3+ (expanding outward until the budget is reached).
+  /// This ensures the default view always shows up to kProximityNodeBudget
+  /// nodes, even when the anchor has very few direct connections.
   void initialize({
     required String anchorId,
     required Set<String> allPersons,
@@ -62,41 +63,29 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
       return;
     }
 
+    // v5.121: BFS expansion from the anchor, adding nodes ring by ring
+    // until we reach kProximityNodeBudget. This handles the case where
+    // the anchor has very few direct connections — instead of falling
+    // back to ALL 714 nodes (which makes the canvas too big), we expand
+    // to ring 3, 4, 5... until we have enough nodes to fill the view.
     final visible = <String>{anchorId};
-    final ring1 = adjacency[anchorId] ?? <String>{};
-    visible.addAll(ring1.where((id) => allPersons.contains(id)));
+    final currentRing = <String>{anchorId};
 
-    // Try to add ring 2 (neighbors of ring 1).
-    final ring2 = <String>{};
-    for (final r1Id in ring1) {
-      final r1Neighbors = adjacency[r1Id] ?? <String>{};
-      for (final r2Id in r1Neighbors) {
-        if (!visible.contains(r2Id) && allPersons.contains(r2Id)) {
-          ring2.add(r2Id);
+    while (visible.length < kProximityNodeBudget && currentRing.isNotEmpty) {
+      final nextRing = <String>{};
+      for (final ringId in currentRing) {
+        final neighbors = adjacency[ringId] ?? <String>{};
+        for (final neighborId in neighbors) {
+          if (!visible.contains(neighborId) && allPersons.contains(neighborId)) {
+            nextRing.add(neighborId);
+            if (visible.length + nextRing.length >= kProximityNodeBudget) break;
+          }
         }
+        if (visible.length + nextRing.length >= kProximityNodeBudget) break;
       }
-    }
-
-    // v5.117: Include as many ring 2 nodes as fit within the budget,
-    // rather than all-or-nothing. This ensures the default view shows
-    // the maximum number of relevant nodes (up to kProximityNodeBudget)
-    // instead of dropping ring 2 entirely when it's slightly over budget.
-    //
-    // Ring 2 nodes are added in adjacency order (not sorted by relevance)
-    // because all ring 2 nodes are equidistant from the anchor. A future
-    // improvement could prioritize by relationship category.
-    final remainingBudget = kProximityNodeBudget - visible.length;
-    if (remainingBudget > 0 && ring2.isNotEmpty) {
-      // If all of ring 2 fits, add it all. Otherwise add as many as fit.
-      if (ring2.length <= remainingBudget) {
-        visible.addAll(ring2);
-      } else {
-        // Add ring 2 nodes one by one until we hit the budget.
-        for (final r2Id in ring2) {
-          if (visible.length >= kProximityNodeBudget) break;
-          visible.add(r2Id);
-        }
-      }
+      visible.addAll(nextRing);
+      currentRing.clear();
+      currentRing.addAll(nextRing);
     }
 
     state = ProximityGraphState(

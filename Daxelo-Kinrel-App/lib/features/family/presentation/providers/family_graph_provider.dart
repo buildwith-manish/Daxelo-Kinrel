@@ -1613,16 +1613,12 @@ final graphLayoutProvider =
     visibleIds = allPersonIds;
   }
 
-  // v5.118c: If the proximity set is very small (< 10 nodes), the
-  // anchor likely has very few connections in this family. Fall back
-  // to showing ALL persons so the graph isn't mostly empty. This
-  // happens when the viewer isn't linked to a Person in this family
-  // and the isAnchor fallback person has few relationships.
-  // The RadialLayout will still center on the anchor and arrange
-  // other nodes in rings by hop distance.
-  if (visibleIds.length < 10 && graphPersons.length > 10) {
-    visibleIds = allPersonIds;
-  }
+  // v5.121: Removed the < 10 fallback that showed ALL 714 nodes.
+  // The BFS expansion in proximity_graph_state.dart now expands to
+  // ring 3, 4, 5... until kProximityNodeBudget is reached, so the
+  // proximity set is always filled to ~50 nodes (or all reachable
+  // nodes if the family is smaller). No need to fall back to ALL
+  // 714 nodes — that made the canvas too big and only showed 1 node.
 
   if (visibleIds.isEmpty) {
     return const GraphLayoutResult(
