@@ -22,7 +22,7 @@ void main() {
   group('v69: Category → Color pipeline — every category gets its distinct color', () {
     // The spec colors from brand_colors.dart.
     final categoryToExpectedColor = <KinshipEdgeCategory, Color>{
-      KinshipEdgeCategory.self: KinrelColors.nodeSelf, // #0D9488 teal
+      KinshipEdgeCategory.self: KinrelColors.nodeSelf, // Gold #FFC94A (v5.100)
       KinshipEdgeCategory.parent: KinrelColors.nodeParent, // #3B82F6 blue
       KinshipEdgeCategory.child: KinrelColors.nodeChild, // #EC4899 pink
       KinshipEdgeCategory.sibling: KinrelColors.nodeSibling, // #8B5CF6 purple

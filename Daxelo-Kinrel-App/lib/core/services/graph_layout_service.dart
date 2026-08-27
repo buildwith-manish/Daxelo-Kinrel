@@ -1286,26 +1286,42 @@ class GraphLayoutService {
     final ids = positions.keys.toList();
     final n = ids.length;
 
+    // v5.123 (PERF): Cache positions + generations in parallel LISTS so
+    // the O(n²) pairwise scan touches plain array slots instead of two
+    // hash-map lookups per pair. For 2,000 nodes that removes ~4M map
+    // lookups per iteration. Position writes go back to the map ONLY
+    // when an overlap is actually resolved (rare after the
+    // label-collision sweep), and the caches are refreshed per
+    // iteration so multi-pass convergence is unchanged.
+    final minDistSq = minDistance * minDistance;
     for (int iteration = 0; iteration < maxIterations; iteration++) {
       int overlapsFound = 0;
+
+      final xs = List<double>.filled(n, 0.0);
+      final ys = List<double>.filled(n, 0.0);
+      for (int i = 0; i < n; i++) {
+        final p = positions[ids[i]]!;
+        xs[i] = p.dx;
+        ys[i] = p.dy;
+      }
 
       // O(n²) pairwise check. For 714 nodes this is ~254k pairs — fast
       // enough on the compute isolate.
       for (int i = 0; i < n; i++) {
-        final idA = ids[i];
-        final posA = positions[idA];
-        if (posA == null) continue;
+        final ax = xs[i];
+        final ay = ys[i];
 
         for (int j = i + 1; j < n; j++) {
-          final idB = ids[j];
-          final posB = positions[idB];
-          if (posB == null) continue;
+          // Fast reject: bands are `bandHeight` apart vertically, so any
+          // pair from different bands with |Δy| >= minDistance can never
+          // overlap — skip without the full distance math.
+          final dy = ys[j] - ay;
+          if (dy > minDistance || dy < -minDistance) continue;
 
-          final dx = posB.dx - posA.dx;
-          final dy = posB.dy - posA.dy;
+          final dx = xs[j] - ax;
           final distSq = dx * dx + dy * dy;
 
-          if (distSq < minDistance * minDistance && distSq > 0.001) {
+          if (distSq < minDistSq && distSq > 0.001) {
             overlapsFound++;
             final dist = sqrt(distSq);
             // Push-apart amount: half the overlap on each side.
@@ -1314,29 +1330,33 @@ class GraphLayoutService {
             final ux = dx / dist;
 
             // Push B away from A (X-axis only — Y is clamped to band).
-            final newBx = posB.dx + ux * overlap;
+            final newBx = xs[j] + ux * overlap;
             // Push A away from B (X-axis only — Y is clamped to band).
-            final newAx = posA.dx - ux * overlap;
+            final newAx = ax - ux * overlap;
 
             // Clamp Y to the node's generation band so the hierarchical
             // band structure is preserved. This prevents the push-apart
             // from scattering nodes into wrong generations.
-            final genA = generations[idA] ?? 0;
-            final genB = generations[idB] ?? 0;
-            final bandYA = genA * bandHeight;
-            final bandYB = genB * bandHeight;
+            final idA = ids[i];
+            final idB = ids[j];
+            final bandYA = (generations[idA] ?? 0) * bandHeight;
+            final bandYB = (generations[idB] ?? 0) * bandHeight;
 
             positions[idA] = Offset(newAx, bandYA);
             positions[idB] = Offset(newBx, bandYB);
+            xs[i] = newAx;
+            xs[j] = newBx;
+            ys[i] = bandYA;
+            ys[j] = bandYB;
           } else if (distSq <= 0.001) {
             // Nodes at the exact same position — nudge B to the right.
             overlapsFound++;
-            final genB = generations[idB] ?? 0;
-            final bandYB = genB * bandHeight;
-            positions[idB] = Offset(
-              posB.dx + minDistance,
-              bandYB,
-            );
+            final idB = ids[j];
+            final bandYB = (generations[idB] ?? 0) * bandHeight;
+            final newBx = xs[j] + minDistance;
+            positions[idB] = Offset(newBx, bandYB);
+            xs[j] = newBx;
+            ys[j] = bandYB;
           }
         }
       }

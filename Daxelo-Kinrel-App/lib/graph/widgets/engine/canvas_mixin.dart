@@ -349,6 +349,42 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             ),
         ];
 
+        // v5.123 (RIVERPOD FIX): Initialize the proximity notifier from
+        // the WIDGET layer. graphLayoutProvider used to do this during
+        // its own provider build, which Riverpod forbids ("Providers
+        // are not allowed to modify other providers during their
+        // initialization"). The layout provider now computes the same
+        // default set via the pure ProximityGraphNotifier
+        // .computeDefaultVisibleIds helper, and this post-frame init
+        // installs the state so tap-to-expand works. Both paths use the
+        // same deterministic computation, so the rendered layout is
+        // identical — the notifier write merely enables later
+        // incremental expansions.
+        if (!ref.read(proximityGraphProvider).isInitialized &&
+            flat.persons.isNotEmpty) {
+          final proximityAnchorId = ProximityGraphNotifier.resolveDefaultAnchor(
+            persons: flat.persons,
+            viewerPersonId: viewerPersonId,
+          );
+          if (proximityAnchorId != null) {
+            final proximityAllPersonIds = <String>{
+              for (final p in flat.persons) (p['id'] ?? '').toString(),
+            };
+            final proximityAdjacency = buildAdjacency(rawEdgeTuples);
+            // Mutate AFTER the frame — modifying providers during the
+            // build phase is not allowed by Riverpod.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              if (ref.read(proximityGraphProvider).isInitialized) return;
+              ref.read(proximityGraphProvider.notifier).initialize(
+                    anchorId: proximityAnchorId,
+                    allPersons: proximityAllPersonIds,
+                    adjacency: proximityAdjacency,
+                  );
+            });
+          }
+        }
+
         // v99: Watch focus + search + path state BEFORE computing
         // collapse, so collapse has the current protected sets.
         final focusState = ref.watch(graphFocusProvider);

@@ -224,7 +224,14 @@ void main() {
         ],
         relationships: [
           _r('ego', 'wife', 'wife'),
-          _r('fil', 'wife', 'father'), // fil IS wife's father → father-in-law
+          // v5.123 (CONVENTION FIX): canonical convention —
+          // from=wife, to=fil, key='father' means "wife sees fil as her
+          // father", i.e. fil IS the wife's father → ego's father-in-law.
+          // (The old _r('fil', 'wife', 'father') was inverted — it meant
+          // "fil sees wife as his father", so the BFS produced
+          // ['wife', 'child'] and misclassified ego's father-in-law as
+          // ego's own child.)
+          _r('wife', 'fil', 'father'),
         ],
         expectedCategory: KinshipEdgeCategory.inLaw,
         expectedColor: KinrelColors.nodeInLaw, // #F59E0B

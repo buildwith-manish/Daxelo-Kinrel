@@ -43,6 +43,7 @@ import '../../../../graph/engine/radial_layout.dart'
 import '../../../../graph/interaction/proximity_graph_state.dart'
     show
         proximityGraphProvider,
+        ProximityGraphNotifier,
         ProximityGraphState,
         buildAdjacency,
         kProximityNodeBudget;
@@ -1587,23 +1588,26 @@ final graphLayoutProvider =
   final adjacency = buildAdjacency(allEdges);
   final allPersonIds = <String>{for (final p in graphPersons) p.id};
 
-  // v5.118: Initialize the proximity set if not already done, and
-  // compute visible IDs SYNCHRONOUSLY (don't rely on ref.read after
-  // initialize — the StateNotifier update may not be visible in the
-  // same synchronous execution frame, causing the first layout to
-  // return empty positions).
+  // v5.118 → v5.123: Compute the default visible IDs SYNCHRONOUSLY.
+  // v5.123 (RIVERPOD FIX): The old code CALLED
+  // proximityGraphProvider.notifier.initialize() here — mutating another
+  // provider during a provider's own initialization, which Riverpod
+  // forbids ("Providers are not allowed to modify other providers during
+  // their initialization" — crashed family_graph_screen_fab_test).
+  // The notifier is now initialized from the WIDGET layer
+  // (canvas_mixin), and this provider computes the same deterministic
+  // default set via the pure static helper when the notifier has not
+  // been initialized yet.
   Set<String> visibleIds;
   if (proximityState.isInitialized) {
     visibleIds = proximityState.visibleIds;
   } else {
-    // Initialize and compute visible IDs directly.
-    ref.read(proximityGraphProvider.notifier).initialize(
-          anchorId: centerPerson.id,
-          allPersons: allPersonIds,
-          adjacency: adjacency,
-        );
-    // Read the newly-set state.
-    visibleIds = ref.read(proximityGraphProvider).visibleIds;
+    // Pure computation — no provider mutation.
+    visibleIds = ProximityGraphNotifier.computeDefaultVisibleIds(
+      anchorId: centerPerson.id,
+      allPersons: allPersonIds,
+      adjacency: adjacency,
+    );
   }
 
   // v5.118: If visibleIds is STILL empty (edge case: anchor not in

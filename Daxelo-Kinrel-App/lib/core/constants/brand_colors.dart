@@ -54,9 +54,15 @@ class KinrelColors {
   static const Color inLawGold = Color(0xFFD4AF37);
 
   // ── Relationship-Based Node Color System (V2.1 Blueprint §11) ───
-  /// Self — Green #16A34A, green glow + pulse animation
+  /// Self — Gold #FFC94A, gold glow + pulse animation
   /// v5.8: Changed from Teal #0D9488 to Green #16A34A per user request.
-  static const Color nodeSelf = Color(0xFF16A34A);
+  /// v5.100/v5.123: Changed from Green #16A34A to Gold #FFC94A to make
+  /// the "You" node unmistakably distinct — KinshipEdgeColors.self and
+  /// graph_node's ring already moved to Gold in v5.100; this constant
+  /// (used by the legend, filter panel, and node_colors.dart) was left
+  /// behind, making the "You" node render with inconsistent colors.
+  /// Gold is reserved EXCLUSIVELY for the viewer's own node.
+  static const Color nodeSelf = Color(0xFFFFC94A);
 
   /// Parent — Blue #3B82F6, blue tint 4%
   static const Color nodeParent = Color(0xFF3B82F6);

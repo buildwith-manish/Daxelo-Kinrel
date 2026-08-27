@@ -52,6 +52,12 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
   /// and ring 3+ (expanding outward until the budget is reached).
   /// This ensures the default view always shows up to kProximityNodeBudget
   /// nodes, even when the anchor has very few direct connections.
+  ///
+  /// v5.123: The default-set computation is extracted into
+  /// [computeDefaultVisibleIds] so callers that must NOT mutate this
+  /// notifier (e.g. graphLayoutProvider — Riverpod forbids providers
+  /// modifying other providers during their initialization) can compute
+  /// the same deterministic set without writing state.
   void initialize({
     required String anchorId,
     required Set<String> allPersons,
@@ -62,11 +68,73 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
       return;
     }
 
-    // v5.121: BFS expansion from the anchor, adding nodes ring by ring
-    // until we reach kProximityNodeBudget. This handles the case where
-    // the anchor has very few direct connections — instead of falling
-    // back to ALL 714 nodes (which makes the canvas too big), we expand
-    // to ring 3, 4, 5... until we have enough nodes to fill the view.
+    final visible = computeDefaultVisibleIds(
+      anchorId: anchorId,
+      allPersons: allPersons,
+      adjacency: adjacency,
+    );
+
+    state = ProximityGraphState(
+      anchorId: anchorId,
+      visibleIds: visible,
+      expandedPersonIds: {anchorId},
+    );
+  }
+
+  /// Resolves the proximity anchor the same way graphLayoutProvider
+  /// resolves its layout center person: the viewer's own node when
+  /// linked (and present in the graph), otherwise the isAnchor-flagged
+  /// person, otherwise the first person in the family.
+  ///
+  /// v5.123: Extracted so the widget-layer initialization (canvas_mixin)
+  /// and the layout provider agree on WHICH person seeds the default
+  /// ego-centric view — they must never diverge, or the rendered layout
+  /// and the expansion state would center on different people.
+  static String? resolveDefaultAnchor({
+    required List<Map<String, dynamic>> persons,
+    String? viewerPersonId,
+  }) {
+    if (viewerPersonId != null && viewerPersonId.isNotEmpty) {
+      for (final p in persons) {
+        if (p['id'] == viewerPersonId) {
+          return viewerPersonId;
+        }
+      }
+    }
+    for (final p in persons) {
+      if (p['isAnchor'] == true) {
+        return (p['id'] ?? '').toString();
+      }
+    }
+    if (persons.isNotEmpty) {
+      return (persons.first['id'] ?? '').toString();
+    }
+    return null;
+  }
+
+  /// Pure (non-mutating) computation of the default visible set.
+  ///
+  /// v5.121: BFS expansion from the anchor, adding nodes ring by ring
+  /// until we reach kProximityNodeBudget. This handles the case where
+  /// the anchor has very few direct connections — instead of falling
+  /// back to ALL 714 nodes (which makes the canvas too big), we expand
+  /// to ring 3, 4, 5... until we have enough nodes to fill the view.
+  ///
+  /// v5.123: Extracted from [initialize] so the layout provider can
+  /// compute the SAME default set synchronously without mutating this
+  /// notifier (which Riverpod forbids during provider initialization —
+  /// the root cause of the "Providers are not allowed to modify other
+  /// providers during their initialization" crash in
+  /// family_graph_screen_fab_test).
+  static Set<String> computeDefaultVisibleIds({
+    required String anchorId,
+    required Set<String> allPersons,
+    required Map<String, Set<String>> adjacency,
+  }) {
+    if (!allPersons.contains(anchorId)) {
+      return const <String>{};
+    }
+
     final visible = <String>{anchorId};
     final currentRing = <String>{anchorId};
 
@@ -87,11 +155,7 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
       currentRing.addAll(nextRing);
     }
 
-    state = ProximityGraphState(
-      anchorId: anchorId,
-      visibleIds: visible,
-      expandedPersonIds: {anchorId},
-    );
+    return visible;
   }
 
   /// Tap-to-expand: add a person's immediate neighborhood to the visible set.

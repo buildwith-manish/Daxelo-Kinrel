@@ -194,9 +194,12 @@ void main() {
       expect(computeSemanticTier(0.5, memberCount: 4), SemanticTier.near);
       expect(computeSemanticTier(5.0, memberCount: 4), SemanticTier.near);
 
-      // Large graph (40 members) → degrades normally.
-      expect(computeSemanticTier(0.5, memberCount: 40), SemanticTier.far);
-      expect(computeSemanticTier(0.8, memberCount: 40), SemanticTier.medium);
+      // Large graph (40 members → default thresholds, v5.111 5-tier
+      // system) → degrades normally.
+      // v5.123: updated stale pre-v5.111 expectations (far/medium) to
+      // the 5-tier equivalents.
+      expect(computeSemanticTier(0.5, memberCount: 40), SemanticTier.compact);
+      expect(computeSemanticTier(0.8, memberCount: 40), SemanticTier.compact);
       expect(computeSemanticTier(1.5, memberCount: 40), SemanticTier.near);
     });
 
@@ -297,8 +300,10 @@ void main() {
           reason: 'Branch collapse must work when focus + search are active');
 
       // Phase 3: semantic zoom (40 members → degrades at low zoom)
+      // v5.123: v5.111 5-tier system — 0.5 is COMPACT (compactEnter =
+      // 0.50 for < 100 members), not FAR.
       final tier = computeSemanticTier(0.5, memberCount: persons.length);
-      expect(tier, SemanticTier.far);
+      expect(tier, SemanticTier.compact);
 
       // Phase 7: validation (self-relationship blocked)
       final validation = validateRelationship(

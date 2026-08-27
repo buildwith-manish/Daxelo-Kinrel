@@ -123,7 +123,7 @@ import '../interaction/indirect_relation_provider.dart'
     show indirectRelationIdsProvider, hasSeenIndirectBadgeProvider;
 // v5.114: Ego-centric proximity graph state.
 import '../interaction/proximity_graph_state.dart'
-    show proximityGraphProvider, buildAdjacency;
+    show proximityGraphProvider, ProximityGraphNotifier, buildAdjacency;
 import '../../core/services/supabase_service.dart' show supabaseProvider, currentUserProvider;
 import '../../core/viewer/viewer_api_client.dart'
     show viewerApiClientProvider;
@@ -312,6 +312,16 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// returns to normal. This prevents the "keeps zooming in and out
   /// forever" bug where the focus state persists indefinitely.
   Timer? _focusTimeoutTimer;
+
+  /// v5.123 (DISPOSE FIX): Notifier references captured in initState so
+  /// dispose() can clear GLOBAL interaction state WITHOUT calling
+  /// `ref.read` — Riverpod throws "Cannot use ref after the widget was
+  /// disposed" when the element is unmounted during tree finalization
+  /// (e.g. test teardown). The notifier instances are owned by the
+  /// ProviderScope and outlive this widget, so calling them directly
+  /// is always safe.
+  late final GraphFocusNotifier _focusNotifierForCleanup;
+  late final StateController<String?> _selectedNodeNotifierForCleanup;
 
   /// v62: Position of the last double-tap, for zoom-toward-focal-point.
   Offset _doubleTapPosition = Offset.zero;
@@ -579,6 +589,13 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _expandCollapse =
         ExpandCollapseController(const ExpandCollapseState());
 
+    // v5.123 (DISPOSE FIX): Capture the global interaction-state notifiers
+    // now (ref is valid in initState) so dispose() can clear them without
+    // touching ref — see the field docs on _focusNotifierForCleanup.
+    _focusNotifierForCleanup = ref.read(graphFocusProvider.notifier);
+    _selectedNodeNotifierForCleanup =
+        ref.read(selectedNodeProvider.notifier);
+
     // v5.27 Task 1: reset animation controller. 350ms easeOutCubic,
     // flat duration regardless of how many nodes are resetting.
     // Reduced-motion is checked at trigger time in _onResetTrigger.
@@ -796,14 +813,18 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // Also cancel the focus auto-timeout timer (see _focusTimeoutTimer
     // in the _onFocusPerson handler).
     _focusTimeoutTimer?.cancel();
-    ref.read(graphFocusProvider.notifier).clearAll();
+    // v5.123 (DISPOSE FIX): Call the captured notifier instances instead
+    // of ref.read — using ref after the element has been disposed throws
+    // "Bad state: Cannot use ref after the widget was disposed" during
+    // tree finalization (test teardown hit this).
+    _focusNotifierForCleanup.clearAll();
     // v5.74 (BUG 1 FIX): Clear the selectedNodeProvider on dispose.
     // This is a global StateProvider that survives screen exits —
     // without clearing it, a node selected in a prior session stays
     // "selected" (highlighted with a glow ring) when the user returns
     // to the graph, even though they didn't tap anything. This caused
     // the "Manish's node appears highlighted without being tapped" bug.
-    ref.read(selectedNodeProvider.notifier).state = null;
+    _selectedNodeNotifierForCleanup.state = null;
     super.dispose();
   }
 

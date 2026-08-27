@@ -437,6 +437,16 @@ class RadialLayout {
   ///
   /// Returns -1 for ancestors (parent/father/mother), +1 for descendants
   /// (child/son/daughter), 0 for same-generation (spouse/sibling/in-law).
+  ///
+  /// v5.123 (DIRECTION FIX): The stored edge `from: A, to: B, key: X`
+  /// means "B is the X of A" (A sees B as X) — the canonical convention
+  /// used by GraphService.buildAdjacencyList,
+  /// GraphLayoutService._assignGenerations, and
+  /// buildCanonicalRelationshipEdge (see labelAtoB_convention_test).
+  /// Both branches below were previously INVERTED, which placed
+  /// ancestors in the descendant (lower) semicircle and vice versa —
+  /// the root cause of crossed edges and the failing
+  /// radial_layout_test ancestor/descendant assertions.
   int _computeDirection(
     String personId,
     String anchorId,
@@ -450,14 +460,20 @@ class RadialLayout {
           r.fromPersonId == anchorId && r.toPersonId == personId;
 
       if (isPersonToAnchor) {
-        // person → anchor: if key is parent, person is ancestor of anchor
-        if (_parentKeys.contains(r.relationshipKey)) return -1;
-        if (_childKeys.contains(r.relationshipKey)) return 1;
-      }
-      if (isAnchorToPerson) {
-        // anchor → person: if key is parent, person is descendant of anchor
+        // person → anchor with key X: the ANCHOR is the X of person.
+        // Parent-type key → anchor is person's parent → person is a
+        // DESCENDANT of the anchor (+1).
+        // Child-type key → anchor is person's child → person is an
+        // ANCESTOR of the anchor (-1).
         if (_parentKeys.contains(r.relationshipKey)) return 1;
         if (_childKeys.contains(r.relationshipKey)) return -1;
+      }
+      if (isAnchorToPerson) {
+        // anchor → person with key X: the PERSON is the X of anchor.
+        // Parent-type key → person is anchor's parent → ANCESTOR (-1).
+        // Child-type key → person is anchor's child → DESCENDANT (+1).
+        if (_parentKeys.contains(r.relationshipKey)) return -1;
+        if (_childKeys.contains(r.relationshipKey)) return 1;
       }
     }
     // Default: same generation (spouse, sibling, in-law, etc.)

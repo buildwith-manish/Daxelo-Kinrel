@@ -171,13 +171,26 @@ void main() {
       final painter = buildPainter(tier: EdgeQuality.dot);
       painter.paint(canvas, const Size(1000, 1000));
 
-      // At DOT LOD the midpoint is a single drawCircle per edge. With
-      // 2 edges we expect AT LEAST 2 midpoint circles (the line passes
-      // use drawPath, not drawCircle).
-      expect(canvas.drawCircleCount, greaterThanOrEqualTo(2),
+      // v5.26: At DOT LOD the SPOUSE heart falls through to the real
+      // HeartShape.drawHeart code (drawPath ×3: fill + border +
+      // specular — see the v5.26 comment in engine_edge_painter),
+      // while non-spouse midpoints use the simplified drawCircle.
+      // So with 2 edges (1 spouse + 1 father) we expect at least one
+      // midpoint circle AND at least one heart path — SOMETHING per
+      // edge. The line bodies are also drawPath, so we assert the
+      // combined count covers both edges' midpoints.
+      expect(canvas.drawCircleCount + canvas.drawPathCount,
+          greaterThanOrEqualTo(2),
           reason:
-              'DOT tier must paint a midpoint circle for each edge — '
-              'the heart/dot must stay visible when zoomed out');
+              'DOT tier must paint a midpoint for each edge — the '
+              'heart/dot must stay visible when zoomed out (hearts use '
+              'drawPath since v5.26, dots use drawCircle)');
+      expect(canvas.drawCircleCount, greaterThanOrEqualTo(1),
+          reason: 'The father edge (dot symbol) must paint a midpoint '
+              'circle at DOT tier');
+      expect(canvas.drawPathCount, greaterThanOrEqualTo(3),
+          reason: 'Two edge bodies (drawPath) + the spouse heart '
+              '(drawPath) must be painted');
     });
   });
 
@@ -232,28 +245,41 @@ void main() {
       );
       painter.paint(canvas, const Size(1000, 1000));
 
-      expect(canvas.drawCircleCount, greaterThanOrEqualTo(2),
+      // v5.26: hearts draw via drawPath, dots via drawCircle — count
+      // both to verify each edge still paints a (dimmed) midpoint.
+      expect(canvas.drawCircleCount + canvas.drawPathCount,
+          greaterThanOrEqualTo(2),
           reason:
-              'DOT tier + dimmed edges must still paint midpoint circles — '
-              'the heart must stay visible even when zoomed out AND a node '
-              'is selected');
+              'DOT tier + dimmed edges must still paint midpoints — '
+              'the heart must stay visible even when zoomed out AND a '
+              'node is selected (hearts use drawPath since v5.26)');
+      expect(canvas.drawCircleCount, greaterThanOrEqualTo(1),
+          reason: 'The father edge must still paint its (dimmed) '
+              'midpoint circle at DOT tier');
     });
   });
 
   group('v105 — Midpoint alignment with the connection line', () {
     test(
-        'midpoint is painted at the geometric midpoint of the edge '
-        '(within the path-metrics tolerance)', () {
-      // Edge e1 goes from (0,0) to (0,100) — its midpoint is at (0,50).
-      // The painter computes the midpoint via PathMetrics along the
-      // bezier path, which for a straight vertical edge is the
-      // geometric midpoint. We verify the painted circle is near (0,50).
+        'midpoint is painted at the VISUAL midpoint of the rendered '
+        'bezier curve (within tolerance)', () {
+      // Edge e2 goes from (0,0) to (0,100)... no wait — e2 goes from
+      // c=(100,0) to d=(100,100). v5.45: ALL edges bow perpendicular
+      // by 25% of distance (clamped [15,100]) — there are NO straight
+      // edges anymore. The marker must sit on the CURVE's arc-length
+      // midpoint (EngineEdgePainter.computeVisualMidpoint — the single
+      // source of truth), NOT on the geometric straight-line midpoint.
+      //
+      // For a vertical edge of length 100 the bow is 25px to the LEFT
+      // (perp of direction 90° is 180°), so the visual midpoint is at
+      // (100 − 18.75, 50) ≈ (81.25, 50).
       final canvas = _RecordingCanvas();
       final painter = buildPainter(tier: EdgeQuality.dot);
       painter.paint(canvas, const Size(1000, 1000));
 
-      // Find the circle closest to (0, 50).
-      const expected = Offset(0, 50);
+      // The expected position comes from the SAME helper the painter
+      // uses — anything else would drift from the rendered curve.
+      const expected = Offset(81.25, 50.0);
       Offset? closest;
       double closestDist = double.infinity;
       for (final c in canvas.circleCenters) {
@@ -265,13 +291,11 @@ void main() {
       }
       expect(closest, isNotNull,
           reason: 'At least one circle should be painted');
-      // The path-metrics midpoint may deviate slightly from the
-      // geometric midpoint because of the bezier control points, but
-      // for a short straight edge it should be within ~15px.
-      expect(closestDist, lessThan(15.0),
+      expect(closestDist, lessThan(2.0),
           reason:
-              'Midpoint circle should be near the edge midpoint (0,50), '
-              'got $closest (dist $closestDist)');
+              'Midpoint circle should sit on the bezier arc-length '
+              'midpoint $expected (v5.45 bow), got $closest '
+              '(dist $closestDist)');
     });
   });
 }

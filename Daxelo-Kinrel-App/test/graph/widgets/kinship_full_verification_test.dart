@@ -57,7 +57,7 @@ GraphRelationship _r(
 Color _expectedSectionColor(KinshipEdgeCategory cat) {
   switch (cat) {
     case KinshipEdgeCategory.self:
-      return KinrelColors.nodeSelf; // #0D9488
+      return KinrelColors.nodeSelf; // Gold #FFC94A (v5.100)
     case KinshipEdgeCategory.parent:
       return KinrelColors.nodeParent; // #3B82F6
     case KinshipEdgeCategory.child:
