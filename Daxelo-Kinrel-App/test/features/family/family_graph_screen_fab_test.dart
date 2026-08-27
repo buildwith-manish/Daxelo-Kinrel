@@ -137,7 +137,12 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        // v5.123: the graph runs ALWAYS-ON animations by design (ambient
+        // particles, the "You" node glow pulse) — pumpAndSettle never
+        // settles. Pump fixed durations instead (the standard pattern
+        // for endless animations).
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
 
         // v10 Fix #4: FAB should NOT be present in the data state.
         // The AppBar "Add" button is used instead.
@@ -170,7 +175,10 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        // v5.123: fixed-duration pumps (endless ambient animations —
+        // pumpAndSettle never settles).
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
 
         // FAB must be present in the empty state (0 members)
         expect(

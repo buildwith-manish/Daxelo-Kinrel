@@ -166,18 +166,24 @@ class _StatRow extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Label — 9px, semibold, muted, uppercase, wide tracking
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontFamily: KinrelTypography.monoFont,
-              fontSize: 9,
-              fontWeight: FontWeight.w600,
-              color: KinrelColors.textDim,
-              letterSpacing: 0.15 * 9, // 0.15em at 9px = ~1.35
-              decoration: TextDecoration.none,
-            ),
+        // Label — 9px, semibold, muted, uppercase, wide tracking.
+        // v5.123 (RENDERFLEX FIX): plain Text, NOT Expanded — the panel
+        // is content-sized (Positioned with only left+bottom inside the
+        // graph Stack gives unbounded width), and an Expanded child
+        // under unbounded width throws
+        // "RenderFlex children have non-zero flex but incoming width
+        // constraints are unbounded" in debug builds. In release builds
+        // the Expanded degrades to intrinsic sizing anyway (label then
+        // value inline), so this matches the shipped visual exactly.
+        Text(
+          label,
+          style: TextStyle(
+            fontFamily: KinrelTypography.monoFont,
+            fontSize: 9,
+            fontWeight: FontWeight.w600,
+            color: KinrelColors.textDim,
+            letterSpacing: 0.15 * 9, // 0.15em at 9px = ~1.35
+            decoration: TextDecoration.none,
           ),
         ),
         const SizedBox(width: 12),
