@@ -1643,12 +1643,60 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
 
     if (anchorPos != null) {
       final bool reduced = MediaQuery.disableAnimationsOf(context);
-      _camera.resetView(
-        focusNodePosition: anchorPos,
-        circleCenterYOffset: _kCircleCenterYOffset,
-        viewportSize: _viewportSize,
-        reducedMotion: reduced,
+
+      // v5.121c: Compute a zoom level that fits the proximity set's
+      // bounding box around the anchor. At zoom 1.0, only the anchor
+      // is visible because the canvas is large. We need to zoom OUT
+      // so that the anchor + its neighbors are all visible.
+      //
+      // Compute the bounding box of all positions relative to the anchor,
+      // then find the zoom that fits this box in the viewport.
+      double maxDistX = 0;
+      double maxDistY = 0;
+      for (final pos in layout.positions.values) {
+        final dx = (pos.dx - anchorPos.dx).abs();
+        final dy = (pos.dy - anchorPos.dy).abs();
+        if (dx > maxDistX) maxDistX = dx;
+        if (dy > maxDistY) maxDistY = dy;
+      }
+      // The zoom must be low enough that 2*maxDist fits in the viewport.
+      // Add 200px padding for node circles + labels.
+      final targetZoomX = (_viewportSize.width - 200) / (2 * maxDistX + 1);
+      final targetZoomY = (_viewportSize.height - 200) / (2 * maxDistY + 1);
+      var fitZoom = targetZoomX < targetZoomY ? targetZoomX : targetZoomY;
+      // Clamp to a reasonable range: don't zoom in too far (max 1.5)
+      // and don't zoom out too far (min 0.15).
+      if (fitZoom > 1.5) fitZoom = 1.5;
+      if (fitZoom < 0.15) fitZoom = 0.15;
+
+      // Center on the anchor at the computed zoom.
+      final focusCircleCenter = Offset(
+        anchorPos.dx,
+        anchorPos.dy + _kCircleCenterYOffset,
       );
+      final targetPanX =
+          (_viewportSize.width / 2) - (focusCircleCenter.dx * fitZoom);
+      final targetPanY =
+          (_viewportSize.height / 2) - (focusCircleCenter.dy * fitZoom);
+
+      if (reduced) {
+        // Reduced motion: snap instantly (duration 0).
+        _camera.animateTo(
+          targetPanX,
+          targetPanY,
+          fitZoom,
+          duration: const Duration(milliseconds: 1),
+          curve: Curves.linear,
+        );
+      } else {
+        _camera.animateTo(
+          targetPanX,
+          targetPanY,
+          fitZoom,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+        );
+      }
     } else {
       // No positions at all — fall back to the old bounding-box fit.
       _camera.initialFitOnce(layout.positions, _viewportSize);
