@@ -1587,17 +1587,32 @@ final graphLayoutProvider =
   final adjacency = buildAdjacency(allEdges);
   final allPersonIds = <String>{for (final p in graphPersons) p.id};
 
-  // Initialize the proximity set if not already done.
-  if (!proximityState.isInitialized) {
+  // v5.118: Initialize the proximity set if not already done, and
+  // compute visible IDs SYNCHRONOUSLY (don't rely on ref.read after
+  // initialize — the StateNotifier update may not be visible in the
+  // same synchronous execution frame, causing the first layout to
+  // return empty positions).
+  Set<String> visibleIds;
+  if (proximityState.isInitialized) {
+    visibleIds = proximityState.visibleIds;
+  } else {
+    // Initialize and compute visible IDs directly.
     ref.read(proximityGraphProvider.notifier).initialize(
           anchorId: centerPerson.id,
           allPersons: allPersonIds,
           adjacency: adjacency,
         );
+    // Read the newly-set state.
+    visibleIds = ref.read(proximityGraphProvider).visibleIds;
   }
 
-  // Re-read after potential initialization.
-  final visibleIds = ref.read(proximityGraphProvider).visibleIds;
+  // v5.118: If visibleIds is STILL empty (edge case: anchor not in
+  // allPersons), fall back to showing ALL persons so the graph isn't
+  // blank. This should rarely happen but prevents a blank screen.
+  if (visibleIds.isEmpty && graphPersons.isNotEmpty) {
+    visibleIds = allPersonIds;
+  }
+
   if (visibleIds.isEmpty) {
     return const GraphLayoutResult(
       positions: {},
