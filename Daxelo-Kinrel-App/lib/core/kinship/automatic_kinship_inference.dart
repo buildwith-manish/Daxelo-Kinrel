@@ -426,6 +426,13 @@ List<InferredEdge> inferKinshipEdges({
   // Canonical: "toPerson is fromPerson's child" → fromPerson is the parent
   // If fromPerson (the parent) has other children, then toPerson (the new
   // child) and those other children are siblings.
+  //
+  // v5.123 (SYMMETRY FIX): Rule 3 (parent-type new edge) infers
+  // grandparents via the new parent's parents. The MIRROR case was
+  // missing here: when a child-type edge is added, the parent's
+  // existing parents are the NEW CHILD's grandparents. Without this,
+  // adding "Y is my son" inferred nothing for Y's grandparents while
+  // adding "X is my father" did — asymmetric and wrong.
   if (label == 'son' || label == 'daughter' || label == 'child') {
     // fromPerson is the parent, toPerson is the child
     final fromPersonChildren = getChildren(newFromPersonId);
@@ -439,6 +446,18 @@ List<InferredEdge> inferKinshipEdges({
         toPersonId: otherChildId,
         labelAtoB: toGender == 'female' ? 'sister' : 'brother',
         reason: 'Child edge → sibling (shared parent)',
+      ));
+    }
+    // fromPerson's (the parent's) parents → toPerson's grandparents.
+    // Canonical: fromId=grandparent, toId=toPerson(the new child),
+    // label=grandchild-type of the new child's gender.
+    final fromPersonParents = getParents(newFromPersonId);
+    for (final gpId in fromPersonParents) {
+      inferred.add(InferredEdge(
+        fromPersonId: gpId,
+        toPersonId: newToPersonId,
+        labelAtoB: grandchildLabel(personById[newToPersonId]?.gender),
+        reason: 'Child edge → grandparent',
       ));
     }
   }

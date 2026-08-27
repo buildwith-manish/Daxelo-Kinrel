@@ -43,9 +43,13 @@ import '../../../../graph/engine/radial_layout.dart'
 import '../../../../graph/interaction/proximity_graph_state.dart'
     show
         proximityGraphProvider,
+        ProximityGraphNotifier,
         ProximityGraphState,
         buildAdjacency,
         kProximityNodeBudget;
+// v5.123 (Step 1): disclosure level drives the force-relaxation opt-in.
+import '../../../../graph/interaction/expand_collapse.dart'
+    show expandCollapseProvider, DisclosureLevel;
 
 /// Provider for the Drift database instance.
 /// Used by [FamilyGraphNotifier] to persist graph data locally.
@@ -306,12 +310,20 @@ class _LayoutComputeParams {
   final bool compactMode;
   final Map<String, int>? kinshipGenerationMap;
 
+  /// v5.123 (Step 1): EXPLICIT opt-in for GraphLayoutService's force-
+  /// relaxation pass. Only the "Show All Branches" / Level 4 path
+  /// (expandCollapseProvider disclosure level == DisclosureLevel.full)
+  /// passes true — the default ego-centric view must keep nodes
+  /// exactly on their rings.
+  final bool allowForceRelaxation;
+
   const _LayoutComputeParams({
     required this.persons,
     required this.relationships,
     this.anchorPersonId,
     this.compactMode = false,
     this.kinshipGenerationMap,
+    this.allowForceRelaxation = false,
   });
 }
 
@@ -324,6 +336,7 @@ GraphLayoutResult _runLayoutInIsolate(_LayoutComputeParams params) {
     anchorPersonId: params.anchorPersonId,
     compactMode: params.compactMode,
     kinshipGenerationMap: params.kinshipGenerationMap,
+    allowForceRelaxation: params.allowForceRelaxation,
   );
 }
 
@@ -1587,23 +1600,29 @@ final graphLayoutProvider =
   final adjacency = buildAdjacency(allEdges);
   final allPersonIds = <String>{for (final p in graphPersons) p.id};
 
-  // v5.118: Initialize the proximity set if not already done, and
-  // compute visible IDs SYNCHRONOUSLY (don't rely on ref.read after
-  // initialize — the StateNotifier update may not be visible in the
-  // same synchronous execution frame, causing the first layout to
-  // return empty positions).
+  // v5.118 → v5.123: Compute the default visible IDs SYNCHRONOUSLY.
+  // v5.123 (RIVERPOD FIX): The old code CALLED
+  // proximityGraphProvider.notifier.initialize() here — mutating another
+  // provider during a provider's own initialization, which Riverpod
+  // forbids ("Providers are not allowed to modify other providers during
+  // their initialization" — crashed family_graph_screen_fab_test).
+  // The notifier is now initialized from the WIDGET layer
+  // (canvas_mixin), and this provider computes the same deterministic
+  // default set via the pure static helper when the notifier has not
+  // been initialized yet.
   Set<String> visibleIds;
   if (proximityState.isInitialized) {
     visibleIds = proximityState.visibleIds;
   } else {
-    // Initialize and compute visible IDs directly.
-    ref.read(proximityGraphProvider.notifier).initialize(
-          anchorId: centerPerson.id,
-          allPersons: allPersonIds,
-          adjacency: adjacency,
-        );
-    // Read the newly-set state.
-    visibleIds = ref.read(proximityGraphProvider).visibleIds;
+    // Pure computation — no provider mutation. v5.123 (Step 2): the
+    // edge list is passed so the adaptive soft/hard budget can rank
+    // candidates by kinship category when truncating at the hard cap.
+    visibleIds = ProximityGraphNotifier.computeDefaultVisibleIds(
+      anchorId: centerPerson.id,
+      allPersons: allPersonIds,
+      adjacency: adjacency,
+      edges: allEdges,
+    );
   }
 
   // v5.118: If visibleIds is STILL empty (edge case: anchor not in
@@ -1642,6 +1661,22 @@ final graphLayoutProvider =
   // RadialLayout places the anchor at center, ring 1 on a circle around
   // the anchor, ring 2 on a larger circle, etc. This is exactly the
   // ego-centric view the user wants.
+  //
+  // v5.123 (Step 1): Derive the force-relaxation opt-in from the
+  // disclosure level. The DEFAULT ego-centric view (this RadialLayout
+  // path — pure algebra, no physics) NEVER relaxes: positioning comes
+  // purely from ring radius + evenly-spaced angles + the barycenter
+  // branch-grouping pass. Only the "Show All Branches" / Level 4 path
+  // (expandCollapseProvider.currentDisclosureLevel ==
+  // DisclosureLevel.full, set by _showAllWithWarning → expandAll)
+  // sets allowForceRelaxation = true, which is honoured whenever the
+  // GraphLayoutService engine is used (see _runLayoutInIsolate). The
+  // old implicit `n > 60` node-count trigger inside
+  // GraphLayoutService.computeLayout is gone — callers must opt in.
+  final disclosureLevel =
+      ref.watch(expandCollapseProvider.select((s) => s.currentDisclosureLevel));
+  final allowForceRelaxation = disclosureLevel == DisclosureLevel.full;
+
   final radialLayout = RadialLayout(
     config: const RadialLayoutConfig(
       ringSpacing: 200.0,
@@ -1669,6 +1704,9 @@ final graphLayoutProvider =
     'layout_engine': 'radial',
     'proximity_filtered': true,
     'total_family_size': graphPersons.length,
+    // v5.123 (Step 1): force relaxation is opt-in only (Show-All path).
+    'allow_force_relaxation': allowForceRelaxation,
+    'disclosure_level': disclosureLevel,
   });
 
   return result;

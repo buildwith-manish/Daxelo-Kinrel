@@ -207,7 +207,12 @@ SemanticZoomThresholds thresholdsForMemberCount(int memberCount) {
 ///
 /// The [currentTier] is the tier the graph is CURRENTLY in (for
 /// hysteresis memory). The [zoom] is the current camera zoom level.
-/// The [thresholds] define the enter/leave boundaries.
+/// The [thresholds] define the enter/leave boundaries. When [thresholds]
+/// is omitted and [memberCount] is provided, the thresholds are derived
+/// from [thresholdsForMemberCount] so large families degrade at lower
+/// zoom (v5.108/v5.111 intent — previously the caller had to pass the
+/// scaled thresholds explicitly, and callers/tests that only passed
+/// `memberCount` silently got the small-family defaults).
 ///
 /// [memberCount] (optional) — when below 30 (small-family bypass),
 /// the tier is PINNED to [SemanticTier.near] regardless of zoom.
@@ -223,10 +228,19 @@ SemanticZoomThresholds thresholdsForMemberCount(int memberCount) {
 SemanticTier computeSemanticTier(
   double zoom, {
   SemanticTier? currentTier,
-  SemanticZoomThresholds thresholds = defaultThresholds,
+  SemanticZoomThresholds? thresholds,
   int? memberCount,
   bool focusActive = false,
 }) {
+  // v5.123: Derive member-count-scaled thresholds when the caller did
+  // not pass an explicit set. Explicit thresholds are used as-is
+  // (backward compatible — the engine view passes its own pre-scaled
+  // set computed from _currentMemberCount).
+  final effectiveThresholds = thresholds ??
+      (memberCount != null
+          ? thresholdsForMemberCount(memberCount)
+          : defaultThresholds);
+
   // Small-family bypass: graphs under 30 members never degrade below
   // NEAR. The 30 threshold matches `branch_collapse_state.dart`'s
   // small-family bypass convention.
@@ -239,7 +253,7 @@ SemanticTier computeSemanticTier(
   // The user can still zoom out, but the graph won't degrade to MINI/
   // MICRO/FAR (no names, no full nodes) while a person is focused.
   if (focusActive) {
-    final tier = _computeTierRaw(zoom, currentTier, thresholds);
+    final tier = _computeTierRaw(zoom, currentTier, effectiveThresholds);
     // Floor at COMPACT — never below during focus.
     if (tier == SemanticTier.far ||
         tier == SemanticTier.micro ||
@@ -250,7 +264,7 @@ SemanticTier computeSemanticTier(
     return tier;
   }
 
-  return _computeTierRaw(zoom, currentTier, thresholds);
+  return _computeTierRaw(zoom, currentTier, effectiveThresholds);
 }
 
 /// Internal: raw tier computation without focus override.

@@ -129,12 +129,21 @@ void main() {
     });
 
     test('TEST 12: born exactly 17 years ago → minor', () {
-      final dob = DateTime.now().subtract(const Duration(days: 365 * 17));
+      // v5.123: calendar-correct DOB (18*365 days ≈ 17y 360d because of
+      // leap days — the old Duration-based DOB was NOT "exactly 17
+      // years" and made these boundary tests off-by-a-few-days).
+      final now = DateTime.now();
+      final dob = DateTime(now.year - 17, now.month, now.day);
       expect(isMinorByDateOfBirth(dob), isTrue);
     });
 
     test('TEST 13: born exactly 18 years ago → NOT minor', () {
-      final dob = DateTime.now().subtract(const Duration(days: 365 * 18));
+      // v5.123: calendar-correct DOB. The old
+      // `DateTime.now().subtract(Duration(days: 365 * 18))` lands ~4-5
+      // leap days SHORT of 18 calendar years, so the person was still
+      // 17 — the test asserted the wrong premise.
+      final now = DateTime.now();
+      final dob = DateTime(now.year - 18, now.month, now.day);
       expect(isMinorByDateOfBirth(dob), isFalse);
     });
   });

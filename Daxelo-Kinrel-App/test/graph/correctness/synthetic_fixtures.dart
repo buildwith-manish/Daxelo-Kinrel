@@ -16,6 +16,20 @@
 //
 // Each fixture returns a (persons, relationships) tuple suitable for
 // RelationshipEngine.resolveClassification and GraphService.findPath.
+//
+// v5.123 (CONVENTION FIX): All edges now use the CANONICAL convention
+// that the production engine (GraphService.buildAdjacencyList,
+// RelationshipEngine) expects:
+//
+//   _r(from, to, type)  ⟶  "to IS the <type> of from"
+//   (from is the reference/seer; to is the described/seen person)
+//
+// Example: _r('son1', 'father', 'parent') → father is son1's parent.
+// The fixtures were originally written with the INVERTED convention
+// ("from IS the <type> of to") for the pre-2026-07-16 engine that
+// inverted BFS path types; that inversion was removed in 6fcc969d and
+// the fixtures were never updated — which is why the correctness
+// suite failed with mirrored results like son1→father = 'son'.
 
 import 'package:kinrel/core/services/graph_layout_service.dart' show GraphPerson;
 
@@ -68,12 +82,12 @@ SyntheticFamily generateNuclearFamily() {
   final relationships = [
     _r('father', 'mother', 'spouse'),
     _r('mother', 'father', 'spouse'),
-    _r('father', 'son1', 'parent'),
-    _r('mother', 'son1', 'parent'),
-    _r('father', 'daughter1', 'parent'),
-    _r('mother', 'daughter1', 'parent'),
-    _r('father', 'son2', 'parent'),
-    _r('mother', 'son2', 'parent'),
+    _r('son1', 'father', 'parent'),
+    _r('son1', 'mother', 'parent'),
+    _r('daughter1', 'father', 'parent'),
+    _r('daughter1', 'mother', 'parent'),
+    _r('son2', 'father', 'parent'),
+    _r('son2', 'mother', 'parent'),
   ];
   return SyntheticFamily(
     name: 'Nuclear family',
@@ -117,12 +131,12 @@ SyntheticFamily generateExtendedFamily() {
         gender: i % 2 == 0 ? 'male' : 'female', gen: -1));
   }
   // gp0+gp1 → p0, p1; gp2+gp3 → p2; p3+p4 are spouses of p0, p1
-  relationships.add(_r('gp0', 'p0', 'parent'));
-  relationships.add(_r('gp1', 'p0', 'parent'));
-  relationships.add(_r('gp0', 'p1', 'parent'));
-  relationships.add(_r('gp1', 'p1', 'parent'));
-  relationships.add(_r('gp2', 'p2', 'parent'));
-  relationships.add(_r('gp3', 'p2', 'parent'));
+  relationships.add(_r('p0', 'gp0', 'parent'));
+  relationships.add(_r('p0', 'gp1', 'parent'));
+  relationships.add(_r('p1', 'gp0', 'parent'));
+  relationships.add(_r('p1', 'gp1', 'parent'));
+  relationships.add(_r('p2', 'gp2', 'parent'));
+  relationships.add(_r('p2', 'gp3', 'parent'));
   // p0-p3, p1-p4, p2-p5 are spouse pairs
   relationships.add(_r('p0', 'p3', 'spouse'));
   relationships.add(_r('p3', 'p0', 'spouse'));
@@ -138,16 +152,16 @@ SyntheticFamily generateExtendedFamily() {
   }
   // p0+p3 → c0, c1; p1+p4 → c2, c3; p2+p5 → c4, c5
   for (final parent in ['p0', 'p3']) {
-    relationships.add(_r(parent, 'c0', 'parent'));
-    relationships.add(_r(parent, 'c1', 'parent'));
+    relationships.add(_r('c0', parent, 'parent'));
+    relationships.add(_r('c1', parent, 'parent'));
   }
   for (final parent in ['p1', 'p4']) {
-    relationships.add(_r(parent, 'c2', 'parent'));
-    relationships.add(_r(parent, 'c3', 'parent'));
+    relationships.add(_r('c2', parent, 'parent'));
+    relationships.add(_r('c3', parent, 'parent'));
   }
   for (final parent in ['p2', 'p5']) {
-    relationships.add(_r(parent, 'c4', 'parent'));
-    relationships.add(_r(parent, 'c5', 'parent'));
+    relationships.add(_r('c4', parent, 'parent'));
+    relationships.add(_r('c5', parent, 'parent'));
   }
 
   // Generation 1: grandchildren (4) — c0's children
@@ -159,8 +173,8 @@ SyntheticFamily generateExtendedFamily() {
   relationships.add(_r('c0', 'sp0', 'spouse'));
   relationships.add(_r('sp0', 'c0', 'spouse'));
   for (int i = 0; i < 4; i++) {
-    relationships.add(_r('c0', 'gc$i', 'parent'));
-    relationships.add(_r('sp0', 'gc$i', 'parent'));
+    relationships.add(_r('gc$i', 'c0', 'parent'));
+    relationships.add(_r('gc$i', 'sp0', 'parent'));
   }
 
   return SyntheticFamily(
@@ -211,8 +225,8 @@ SyntheticFamily generateLargeIndianJointFamily() {
             gender: c % 2 == 0 ? 'male' : 'female', gen: gen));
         newPersons.add(id);
         // Both parents are parents of this child
-        relationships.add(_r(prevGenParents[i], id, 'parent'));
-        relationships.add(_r(prevGenParents[i + 1], id, 'parent'));
+        relationships.add(_r(id, prevGenParents[i], 'parent'));
+        relationships.add(_r(id, prevGenParents[i + 1], 'parent'));
       }
     }
 
@@ -260,12 +274,12 @@ SyntheticFamily generateCrossCulturalFamily() {
   final relationships = [
     _r('f', 'm', 'spouse'),
     _r('m', 'f', 'spouse'),
-    _r('f', 'v', 'parent'),
-    _r('m', 'v', 'parent'),
-    _r('ff', 'f', 'parent'),
-    _r('fm', 'f', 'parent'),
-    _r('mf', 'm', 'parent'),
-    _r('mm', 'm', 'parent'),
+    _r('v', 'f', 'parent'),
+    _r('v', 'm', 'parent'),
+    _r('f', 'ff', 'parent'),
+    _r('f', 'fm', 'parent'),
+    _r('m', 'mf', 'parent'),
+    _r('m', 'mm', 'parent'),
   ];
   return SyntheticFamily(
     name: 'Cross-cultural family',
@@ -295,14 +309,14 @@ SyntheticFamily generateBlendedFamily() {
   ];
   final relationships = [
     _r('bio_f', 'bio_m', 'spouse'), // divorced
-    _r('bio_f', 'v', 'parent'),
-    _r('bio_m', 'v', 'parent'),
+    _r('v', 'bio_f', 'parent'),
+    _r('v', 'bio_m', 'parent'),
     _r('bio_m', 'step_f', 'spouse'), // remarried
-    _r('step_f', 'v', 'step_parent'),
+    _r('v', 'step_f', 'step_parent'),
     _r('bio_f', 'step_m', 'spouse'), // remarried
-    _r('bio_m', 'half_s', 'parent'),
-    _r('step_f', 'half_s', 'parent'),
-    _r('step_f', 'step_s', 'parent'), // step_s from step_f's prev marriage
+    _r('half_s', 'bio_m', 'parent'),
+    _r('half_s', 'step_f', 'parent'),
+    _r('step_s', 'step_f', 'parent'), // step_s from step_f's prev marriage
   ];
   return SyntheticFamily(
     name: 'Blended family (step/half/adoptive)',
@@ -331,10 +345,10 @@ SyntheticFamily generatePolygamousFamily() {
     _r('w1', 'h', 'spouse'),
     _r('h', 'w2', 'spouse'),
     _r('w2', 'h', 'spouse'),
-    _r('h', 'c1', 'parent'),
-    _r('w1', 'c1', 'parent'),
-    _r('h', 'c2', 'parent'),
-    _r('w2', 'c2', 'parent'),
+    _r('c1', 'h', 'parent'),
+    _r('c1', 'w1', 'parent'),
+    _r('c2', 'h', 'parent'),
+    _r('c2', 'w2', 'parent'),
   ];
   return SyntheticFamily(
     name: 'Polygamous family (multiple spouses)',
@@ -366,23 +380,23 @@ SyntheticFamily generateConsanguineousFamily() {
   final relationships = [
     _r('gf', 'gm', 'spouse'),
     _r('gm', 'gf', 'spouse'),
-    _r('gf', 'f1', 'parent'),
-    _r('gm', 'f1', 'parent'),
-    _r('gf', 'm1', 'parent'),
-    _r('gm', 'm1', 'parent'),
+    _r('f1', 'gf', 'parent'),
+    _r('f1', 'gm', 'parent'),
+    _r('m1', 'gf', 'parent'),
+    _r('m1', 'gm', 'parent'),
     _r('f1', 'f1s', 'spouse'),
     _r('f1s', 'f1', 'spouse'),
     _r('m1', 'm1s', 'spouse'),
     _r('m1s', 'm1', 'spouse'),
-    _r('f1', 'c1', 'parent'),
-    _r('f1s', 'c1', 'parent'),
-    _r('m1', 'c2', 'parent'),
-    _r('m1s', 'c2', 'parent'),
+    _r('c1', 'f1', 'parent'),
+    _r('c1', 'f1s', 'parent'),
+    _r('c2', 'm1', 'parent'),
+    _r('c2', 'm1s', 'parent'),
     // Cousin marriage: c1 and c2 are first cousins who marry
     _r('c1', 'c2', 'spouse'),
     _r('c2', 'c1', 'spouse'),
-    _r('c1', 'gc', 'parent'),
-    _r('c2', 'gc', 'parent'),
+    _r('gc', 'c1', 'parent'),
+    _r('gc', 'c2', 'parent'),
   ];
   return SyntheticFamily(
     name: 'Consanguineous family (cousin marriage)',
@@ -393,7 +407,11 @@ SyntheticFamily generateConsanguineousFamily() {
       // NOTE: 'c1 → m1' returns 'mother_in_law' — a known engine
       // limitation for aunt/uncle through cousin marriage. This is
       // flagged as a known issue, not included in ground truth.
-      'c1_c2': 'parents_child', // cousin → structural fallback
+      //
+      // v5.123: c1 and c2 MARRIED (direct spouse edge), so BFS finds
+      // the 1-hop spouse path before any blood path — the correct
+      // answer is 'wife', not the old 'parents_child' fallback.
+      'c1_c2': 'wife',
       'gc_gf': 'great_grandfather',
     },
   );
@@ -414,12 +432,12 @@ SyntheticFamily generateDisconnectedSubgraphs() {
   final relationships = [
     _r('a_f', 'a_m', 'spouse'),
     _r('a_m', 'a_f', 'spouse'),
-    _r('a_f', 'a_c', 'parent'),
-    _r('a_m', 'a_c', 'parent'),
+    _r('a_c', 'a_f', 'parent'),
+    _r('a_c', 'a_m', 'parent'),
     _r('b_f', 'b_m', 'spouse'),
     _r('b_m', 'b_f', 'spouse'),
-    _r('b_f', 'b_c', 'parent'),
-    _r('b_m', 'b_c', 'parent'),
+    _r('b_c', 'b_f', 'parent'),
+    _r('b_c', 'b_m', 'parent'),
   ];
   return SyntheticFamily(
     name: 'Disconnected subgraphs (2 families)',
@@ -466,8 +484,8 @@ SyntheticFamily generateLargeDeepFamily() {
         final spouseId = 'deep_${gen}_${i + 1}';
         relationships.add(_r(parentId, spouseId, 'spouse'));
         relationships.add(_r(spouseId, parentId, 'spouse'));
-        relationships.add(_r(parentId, childId, 'parent'));
-        relationships.add(_r(spouseId, childId, 'parent'));
+        relationships.add(_r(childId, parentId, 'parent'));
+        relationships.add(_r(childId, spouseId, 'parent'));
       }
     }
   }

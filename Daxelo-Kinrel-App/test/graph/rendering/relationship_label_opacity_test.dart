@@ -58,20 +58,23 @@ void main() {
     });
 
     test('opacity is 0.0 below kLabelFullyHiddenZoom', () {
-      expect(relationLabelOpacityFor(zoom: 0.5), 0.0);
-      expect(relationLabelOpacityFor(zoom: 0.3), 0.0);
+      // v5.112 moved kLabelFullyVisibleZoom → 0.5 and
+      // kLabelFullyHiddenZoom → 0.25 (documented user feedback:
+      // labels stay visible across most of the zoom range). 0.5 is now
+      // FULLY VISIBLE and 0.3 is mid-fade, so this group asserts
+      // hidden only at/below 0.25 and 0.2.
+      expect(relationLabelOpacityFor(zoom: 0.25), 0.0);
       expect(relationLabelOpacityFor(zoom: 0.2), 0.0);
     });
 
     test(
-        'the fade COMPLETES before the DOT tier (zoom 0.65) — no flicker '
-        'at the LOD boundary', () {
-      // DOT tier starts at zoom 0.65 (per defaultThresholds.mediumLeave).
-      // The label must be fully hidden BEFORE the node degrades to a
-      // dot, so there is never a frame where a dot has a half-visible
-      // label hovering over it.
-      expect(relationLabelOpacityFor(zoom: 0.65), 0.0);
-      expect(relationLabelOpacityFor(zoom: 0.64), 0.0);
+        'the fade COMPLETES at kLabelFullyHiddenZoom (0.25) — well before '
+        'the DOT tier (zoom 0.16) — no flicker at the LOD boundary', () {
+      // v5.112: kLabelFullyHiddenZoom is 0.25, comfortably above the
+      // MICRO enter threshold (0.16), so the label is always fully
+      // hidden before the graph degrades to dots.
+      expect(relationLabelOpacityFor(zoom: 0.25), 0.0);
+      expect(relationLabelOpacityFor(zoom: 0.24), 0.0);
     });
   });
 
@@ -119,13 +122,19 @@ void main() {
 
     test('fade IS applied at the large-family boundary (30 members)', () {
       // 30 members is NOT a small family — the fade should apply.
-      expect(relationLabelOpacityFor(zoom: 0.3, memberCount: 30), 0.0);
+      // v5.112: at zoom 0.3 the label is MID-FADE (0.25 < 0.3 < 0.5)
+      // with opacity (0.3-0.25)/(0.5-0.25) = 0.2; fully hidden at 0.2.
+      expect(relationLabelOpacityFor(zoom: 0.3, memberCount: 30), closeTo(0.2, 0.01));
+      expect(relationLabelOpacityFor(zoom: 0.2, memberCount: 30), 0.0);
       expect(relationLabelOpacityFor(zoom: 1.0, memberCount: 30), 1.0);
     });
 
     test('memberCount 0 / null → fade applies (no bypass)', () {
-      expect(relationLabelOpacityFor(zoom: 0.3, memberCount: 0), 0.0);
-      expect(relationLabelOpacityFor(zoom: 0.3, memberCount: null), 0.0);
+      // v5.112: zoom 0.3 is mid-fade (0.2), zoom 0.2 is fully hidden.
+      expect(relationLabelOpacityFor(zoom: 0.3, memberCount: 0), closeTo(0.2, 0.01));
+      expect(relationLabelOpacityFor(zoom: 0.2, memberCount: 0), 0.0);
+      expect(relationLabelOpacityFor(zoom: 0.3, memberCount: null), closeTo(0.2, 0.01));
+      expect(relationLabelOpacityFor(zoom: 0.2, memberCount: null), 0.0);
     });
   });
 
@@ -141,8 +150,9 @@ void main() {
     });
 
     test('focus override applies even for large families', () {
-      // Without focus: a 1000-member family at zoom 0.3 → fully hidden.
-      expect(relationLabelOpacityFor(zoom: 0.3, memberCount: 1000), 0.0);
+      // Without focus: a 1000-member family at zoom 0.3 → mid-fade
+      // (v5.112: (0.3-0.25)/0.25 = 0.2 opacity).
+      expect(relationLabelOpacityFor(zoom: 0.3, memberCount: 1000), closeTo(0.2, 0.01));
       // With focus: same family at zoom 0.3 → fully visible.
       expect(
         relationLabelOpacityFor(zoom: 0.3, memberCount: 1000, focusActive: true),
@@ -175,12 +185,15 @@ void main() {
       // Fully visible range → visible.
       expect(relationLabelVisibleAt(zoom: 1.0), isTrue);
       expect(relationLabelVisibleAt(zoom: kLabelFullyVisibleZoom), isTrue);
-      // Fully hidden range → not visible.
-      expect(relationLabelVisibleAt(zoom: 0.3), isFalse);
+      // Fully hidden range → not visible (v5.112: hidden at/below 0.25).
+      expect(relationLabelVisibleAt(zoom: 0.25), isFalse);
       expect(relationLabelVisibleAt(zoom: kLabelFullyHiddenZoom), isFalse);
-      // Mid-fade → visible (opacity > 0).
+      // Mid-fade → visible (opacity > 0). v5.112: zoom 0.3 is mid-fade
+      // (opacity 0.2), so it IS visible.
       final mid = (kLabelFullyVisibleZoom + kLabelFullyHiddenZoom) / 2;
       expect(relationLabelVisibleAt(zoom: mid), isTrue);
+      expect(relationLabelVisibleAt(zoom: 0.3), isTrue,
+          reason: 'v5.112: 0.3 is mid-fade (opacity 0.2 > 0) → visible');
     });
 
     test('small-family bypass → visible at all zoom levels', () {
@@ -203,10 +216,12 @@ void main() {
       expect(kLabelFullyVisibleZoom, lessThan(1.0));
     });
 
-    test('kLabelFullyHiddenZoom is below the DOT tier threshold (0.65)', () {
-      // The fade must complete BEFORE the graph degrades to dots so
-      // there's no flicker at the LOD boundary.
-      expect(kLabelFullyHiddenZoom, lessThan(0.65));
+    test('kLabelFullyHiddenZoom is below the MICRO enter threshold (0.16)', () {
+      // v5.112: the fade must complete BEFORE the graph degrades to
+      // dots so there's no flicker at the LOD boundary. The current
+      // threshold (0.25) is above the MICRO enter (0.16).
+      expect(kLabelFullyHiddenZoom, lessThan(0.5));
+      expect(kLabelFullyHiddenZoom, greaterThan(0.16));
     });
 
     test('fully-visible threshold is above fully-hidden threshold', () {

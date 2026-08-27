@@ -42,30 +42,33 @@ void main() {
       expect(m.screenNodeRadius, 36.0); // 36 * 1.0
     });
 
-    test('CHIP metrics: screen marker radius = 4.0 (8px diameter)', () {
+    test('CHIP metrics: screen marker radius = 6.0 (12px diameter)', () {
       final m = computeLodMetrics(tier: 'chip', zoom: 0.5);
       expect(m.tier, 'chip');
-      expect(m.screenNodeRadius, 4.0);
-      // At zoom 0.5, graph radius = 4.0 / 0.5 = 8.0
-      expect(m.graphNodeRadius, closeTo(8.0, 0.01));
+      // v5.111: Raised from 4.0 to 6.0 for better visibility.
+      expect(m.screenNodeRadius, 6.0);
+      // At zoom 0.5, graph radius = 6.0 / 0.5 = 12.0
+      expect(m.graphNodeRadius, closeTo(12.0, 0.01));
     });
 
-    test('OVERVIEW metrics: screen radius = 6.0 at any zoom', () {
+    test('OVERVIEW metrics: screen radius = 14.0 at any zoom', () {
       final m = computeLodMetrics(tier: 'overview', zoom: 0.2);
       expect(m.tier, 'overview');
-      expect(m.screenNodeRadius, 6.0);
-      // At zoom 0.2, graph radius = 6.0 / 0.2 = 30.0
-      expect(m.graphNodeRadius, closeTo(30.0, 0.01));
+      // v5.111: Raised from 10.0 to 14.0 for better visibility.
+      expect(m.screenNodeRadius, 14.0);
+      // At zoom 0.2, graph radius = 14.0 / 0.2 = 70.0
+      expect(m.graphNodeRadius, closeTo(70.0, 0.01));
     });
 
-    test('OVERVIEW at zoom 0.34: screen radius >= 6.0', () {
+    test('OVERVIEW at zoom 0.34: screen radius >= 14.0', () {
       final m = computeLodMetrics(tier: 'overview', zoom: 0.34);
-      expect(m.screenNodeRadius, greaterThanOrEqualTo(6.0));
+      // v5.111: 14.0 (was 6.0 pre-overhaul).
+      expect(m.screenNodeRadius, greaterThanOrEqualTo(14.0));
     });
 
-    test('OVERVIEW at zoom 0.20: screen radius >= 6.0', () {
+    test('OVERVIEW at zoom 0.20: screen radius >= 14.0', () {
       final m = computeLodMetrics(tier: 'overview', zoom: 0.20);
-      expect(m.screenNodeRadius, greaterThanOrEqualTo(6.0));
+      expect(m.screenNodeRadius, greaterThanOrEqualTo(14.0));
     });
 
     test('malformed zoom 0: no NaN, no infinity', () {
@@ -89,22 +92,24 @@ void main() {
   });
 
   group('v97 — Overview graph radius (screen-space enforcement)', () {
-    test('normal marker at zoom 0.2: screen radius = 6.0', () {
+    test('normal marker at zoom 0.2: screen radius = 14.0', () {
       final graphR = overviewGraphRadius(zoom: 0.2, isEmphasised: false);
       final screenR = graphR * 0.2; // graphR * zoom = screenR
-      expect(screenR, closeTo(6.0, 0.01));
+      // v5.111: Raised from 6.0 to 14.0.
+      expect(screenR, closeTo(14.0, 0.01));
     });
 
-    test('emphasised marker at zoom 0.2: screen radius = 9.0', () {
+    test('emphasised marker at zoom 0.2: screen radius = 20.0', () {
       final graphR = overviewGraphRadius(zoom: 0.2, isEmphasised: true);
       final screenR = graphR * 0.2;
-      expect(screenR, closeTo(9.0, 0.01));
+      // v5.111: Raised from 9.0 to 20.0.
+      expect(screenR, closeTo(20.0, 0.01));
     });
 
-    test('normal marker at zoom 0.34: screen radius = 6.0', () {
+    test('normal marker at zoom 0.34: screen radius = 14.0', () {
       final graphR = overviewGraphRadius(zoom: 0.34, isEmphasised: false);
       final screenR = graphR * 0.34;
-      expect(screenR, closeTo(6.0, 0.01));
+      expect(screenR, closeTo(14.0, 0.01));
     });
 
     test('zoom 0: no divide-by-zero (safeZoom fallback)', () {

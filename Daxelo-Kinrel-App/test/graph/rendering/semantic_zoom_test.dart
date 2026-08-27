@@ -377,10 +377,13 @@ void main() {
 
     test('30-member family degrades normally (at threshold)', () {
       // 30 is NOT small (the check is < 30, not <= 30).
-      // v5.111: 30-member family at zoom 0.5 → MINI (was FAR).
-      expect(computeSemanticTier(0.5, memberCount: 30), SemanticTier.mini,
+      // v5.111/v5.123: 30 members (< 100 → default thresholds) at zoom
+      // 0.5 → COMPACT — 0.5 is exactly compactEnter, one tier ABOVE
+      // MINI (miniEnter = 0.28). The old "MINI" expectation was
+      // mis-derived from the pre-v5.111 3-tier system.
+      expect(computeSemanticTier(0.5, memberCount: 30), SemanticTier.compact,
           reason: '30 members is at the threshold — normal tier '
-              'degradation applies (v5.111: 0.5 is now MINI, not FAR)');
+              'degradation applies (v5.111: 0.5 is COMPACT, not MINI)');
     });
 
     test('100-member family degrades normally (large graph)', () {

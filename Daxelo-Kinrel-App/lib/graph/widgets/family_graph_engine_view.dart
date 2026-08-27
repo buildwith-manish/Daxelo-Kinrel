@@ -123,7 +123,7 @@ import '../interaction/indirect_relation_provider.dart'
     show indirectRelationIdsProvider, hasSeenIndirectBadgeProvider;
 // v5.114: Ego-centric proximity graph state.
 import '../interaction/proximity_graph_state.dart'
-    show proximityGraphProvider, buildAdjacency;
+    show proximityGraphProvider, ProximityGraphNotifier, buildAdjacency;
 import '../../core/services/supabase_service.dart' show supabaseProvider, currentUserProvider;
 import '../../core/viewer/viewer_api_client.dart'
     show viewerApiClientProvider;
@@ -198,6 +198,7 @@ import '../rearrange/layout_overrides_service.dart'
         LayoutOverridesService,
         PersonalLayoutOverrides,
         personalLayoutOverridesProvider,
+        branchExpansionStateProvider,
         rearrangeModeProvider,
         resetAnimationTriggerProvider,
         saveAllOverridesTriggerProvider,
@@ -312,6 +313,26 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// returns to normal. This prevents the "keeps zooming in and out
   /// forever" bug where the focus state persists indefinitely.
   Timer? _focusTimeoutTimer;
+
+  /// v5.123 (DISPOSE FIX): Notifier references captured in initState so
+  /// dispose() can clear GLOBAL interaction state WITHOUT calling
+  /// `ref.read` — Riverpod throws "Cannot use ref after the widget was
+  /// disposed" when the element is unmounted during tree finalization
+  /// (e.g. test teardown). The notifier instances are owned by the
+  /// ProviderScope and outlive this widget, so calling them directly
+  /// is always safe.
+  late final GraphFocusNotifier _focusNotifierForCleanup;
+  late final StateController<String?> _selectedNodeNotifierForCleanup;
+
+  /// v5.123 (Step 5): The branch-collapse notifier — captured in
+  /// initState to (a) wire the expansion-persistence callback and
+  /// (b) clear it on dispose without touching `ref`.
+  late final BranchCollapseNotifier _branchCollapseNotifierForCleanup;
+
+  /// v5.123 (Step 5): The family whose persisted branch-expansion
+  /// state has been applied (seeded + revealed) — guards the
+  /// once-per-family-load seeding.
+  String? _persistedExpansionSeededFamilyId;
 
   /// v62: Position of the last double-tap, for zoom-toward-focal-point.
   Offset _doubleTapPosition = Offset.zero;
@@ -579,6 +600,31 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _expandCollapse =
         ExpandCollapseController(const ExpandCollapseState());
 
+    // v5.123 (DISPOSE FIX): Capture the global interaction-state notifiers
+    // now (ref is valid in initState) so dispose() can clear them without
+    // touching ref — see the field docs on _focusNotifierForCleanup.
+    _focusNotifierForCleanup = ref.read(graphFocusProvider.notifier);
+    _selectedNodeNotifierForCleanup =
+        ref.read(selectedNodeProvider.notifier);
+
+    // v5.123 (Step 5): Wire branch-expansion persistence. Whenever a
+    // branch is expanded (chip tap) or re-collapsed, the choice is
+    // stored on the viewer's GraphLayoutState row keyed by
+    // (userId, familyId, branchRootId) and re-applied on the next
+    // graph load (see _applyPersistedBranchExpansion below).
+    _branchCollapseNotifierForCleanup =
+        ref.read(branchCollapseProvider.notifier);
+    _branchCollapseNotifierForCleanup.onExpansionChanged =
+        (String rootPersonId, bool expanded) {
+      if (!mounted) return;
+      LayoutOverridesService.saveBranchExpansionState(
+        ref,
+        widget.familyId,
+        rootPersonId,
+        expanded,
+      );
+    };
+
     // v5.27 Task 1: reset animation controller. 350ms easeOutCubic,
     // flat duration regardless of how many nodes are resetting.
     // Reduced-motion is checked at trigger time in _onResetTrigger.
@@ -733,6 +779,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       ref.read(selectedNodeProvider.notifier).state = null;
       ref.read(selectedEdgeProvider.notifier).state = null;
       ref.read(graphUndoProvider.notifier).clearAll();
+      // v5.123 (Step 5): Re-apply persisted branch expansion for the
+      // NEW family on its first build (the guard family ID resets).
+      _persistedExpansionSeededFamilyId = null;
       _lastEdgeFingerprint = 0;
       _lastFocusedPersonId = null;
       // v5.27 Task 2: reset the connect-on-open flag on family switch
@@ -796,15 +845,86 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // Also cancel the focus auto-timeout timer (see _focusTimeoutTimer
     // in the _onFocusPerson handler).
     _focusTimeoutTimer?.cancel();
-    ref.read(graphFocusProvider.notifier).clearAll();
+    // v5.123 (DISPOSE FIX): Call the captured notifier instances instead
+    // of ref.read — using ref after the element has been disposed throws
+    // "Bad state: Cannot use ref after the widget was disposed" during
+    // tree finalization (test teardown hit this).
+    _focusNotifierForCleanup.clearAll();
     // v5.74 (BUG 1 FIX): Clear the selectedNodeProvider on dispose.
     // This is a global StateProvider that survives screen exits —
     // without clearing it, a node selected in a prior session stays
     // "selected" (highlighted with a glow ring) when the user returns
     // to the graph, even though they didn't tap anything. This caused
     // the "Manish's node appears highlighted without being tapped" bug.
-    ref.read(selectedNodeProvider.notifier).state = null;
+    _selectedNodeNotifierForCleanup.state = null;
+    // v5.123 (Step 5): Detach the expansion-persistence callback — the
+    // captured `ref` in its closure must never be used after disposal.
+    _branchCollapseNotifierForCleanup.onExpansionChanged = null;
     super.dispose();
+  }
+
+  /// v5.123 (Step 5): Applies PERSISTED branch expansion choices on
+  /// top of the default density-collapse computation, once per family
+  /// load. Branches the user previously expanded (persisted as
+  /// `true` keyed by (userId, familyId, branchRootId) on the
+  /// GraphLayoutState row) load ALREADY-EXPANDED:
+  ///   1. Their roots join expandedBranchRoots (seedExpandedBranchRoots)
+  ///      so the budget rule skips them — even when it would otherwise
+  ///      have collapsed them.
+  ///   2. Their subtrees are revealed into the proximity visible set
+  ///      (revealBranchSubtree) so the members actually render.
+  ///
+  /// Called post-frame from the canvas build (provider mutations are
+  /// not allowed during the build phase).
+  void _applyPersistedBranchExpansion(FlatGraphResult flat) {
+    final familyId = widget.familyId;
+    if (_persistedExpansionSeededFamilyId == familyId) return;
+
+    final persisted =
+        ref.read(branchExpansionStateProvider(familyId)).valueOrNull;
+    if (persisted == null) return; // Still loading — retry on next build.
+
+    // Mark this family as seeded from here on. An empty persisted map
+    // means the viewer never expanded a branch — nothing to apply.
+    // In-session saves (expandBranch) don't need re-seeding: the reveal
+    // already happened interactively via _fetchAndExpandBranch.
+    _persistedExpansionSeededFamilyId = familyId;
+
+    final expandedRoots = <String>{
+      for (final entry in persisted.entries)
+        if (entry.value) entry.key,
+    };
+    if (expandedRoots.isEmpty) return;
+
+    // 1. Protect the persisted-expanded roots from the budget rule.
+    _branchCollapseNotifierForCleanup.seedExpandedBranchRoots(expandedRoots);
+
+    // 2. Reveal each root's subtree so the members render (only roots
+    //    that exist in this family's data).
+    final allPersonIds = <String>{
+      for (final p in flat.persons) (p['id'] ?? '').toString(),
+    };
+    final childrenOf = <String, Set<String>>{};
+    for (final Map<String, dynamic> r in flat.relationships) {
+      final label = (r['labelAtoB'] as String?) ??
+          (r['relationshipKey'] as String?) ?? '';
+      if (label == 'father' || label == 'mother' || label == 'parent') {
+        final from = r['fromPersonId'] as String?;
+        final to = r['toPersonId'] as String?;
+        if (from != null && to != null) {
+          // "toPerson is fromPerson's parent" → from is child of to.
+          childrenOf.putIfAbsent(to, () => <String>{}).add(from);
+        }
+      }
+    }
+    for (final rootId in expandedRoots) {
+      if (!allPersonIds.contains(rootId)) continue;
+      ref.read(proximityGraphProvider.notifier).revealBranchSubtree(
+            rootId: rootId,
+            childrenOf: childrenOf,
+            allPersons: allPersonIds,
+          );
+    }
   }
 
   // ── v5.27 Task 1 — Reset animation callbacks ─────────────────────

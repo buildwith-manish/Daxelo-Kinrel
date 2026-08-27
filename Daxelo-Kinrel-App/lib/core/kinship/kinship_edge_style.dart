@@ -4,7 +4,7 @@
 //
 // Single source of truth for the 10-category edge styling system used by
 // every graph painter in the app:
-//   1. Self             — Green   #16A34A  (node ring only, never on edges)
+//   1. Self             — Gold    #FFC94A  (node ring only, never on edges)
 //   2. Parent / Child   — Blue    #3B82F6  (parent)  /  Pink #EC4899 (child)
 //   3. Sibling          — Purple  #8B5CF6  (dashed arc above)
 //   4. Spouse           — Orange  #F97316  edge + Pink heart #EC4899

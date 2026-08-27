@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────
+# Daxelo Kinrel — Graph Engine Test Gate
+# ─────────────────────────────────────────────────────────────────
+# Runs ONLY `flutter test test/graph/` (the graph-engine gate the
+# agent workflow uses after each scoped change). Much faster than
+# the full CI suite so per-step verification stays practical.
+# Runs on pushes to agent/* branches and via workflow_dispatch.
+# ─────────────────────────────────────────────────────────────────
+
+name: Graph Tests
+
+on:
+  push:
+    branches: ['agent/**']
+  workflow_dispatch:
+
+concurrency:
+  group: graph-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.44.2'
+  JAVA_VERSION: '17'
+
+jobs:
+  graph-tests:
+    name: flutter test test/graph/
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install native build toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build \
+            libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev \
+            libc++-19-dev libc++1-19 libc++abi1-19 libc++abi1-19 libunwind-19
+
+      - name: Enable Flutter native assets
+        run: flutter config --enable-native-assets
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze changed graph modules
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib/graph lib/core/services/graph_layout_service.dart lib/core/kinship lib/features/family/presentation/providers test/graph || true
+
+      - name: Run graph tests
+        run: flutter test test/graph/ --no-pub --reporter expanded

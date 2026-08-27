@@ -11,16 +11,21 @@ part of '../family_graph_engine_view.dart';
 /// Mixin containing collapsed-branch affordance logic for
 /// _FamilyGraphEngineViewState.
 extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
-  /// v102 (BUG-2 FIX): Builds positioned chips for each collapsed branch.
+  /// v102 (BUG-2 FIX) + v5.123 (Step 3): Builds positioned chips for
+  /// each collapsed branch.
   ///
-  /// Each chip is positioned near the branch root node's coordinates
-  /// and displays the branch label (e.g. "Mother's branch · 38").
-  /// Tapping the chip calls `expandBranch(rootPersonId)` to reveal
-  /// the hidden members.
+  /// Every [CollapsedBranch] renders a PERSISTENTLY VISIBLE chip at its
+  /// attachment point on the canvas — a direct child of the graph Stack,
+  /// never hidden inside a menu and never gated on the filter panel.
+  /// The chip LEADS with "+{count}" (the number of hidden members) and
+  /// appends a short label (the branch root's name, e.g. "Mother")
+  /// when space permits (width-capped, single line, ellipsized).
   ///
-  /// This is the UI affordance that was missing — the collapse state
-  /// was computed but never surfaced to the user, so they had no way
-  /// to know a branch was collapsed or to expand it.
+  /// Tapping the chip expands JUST that branch: the existing
+  /// `expandBranch` path in branch_collapse_state.dart (plus the lazy
+  /// per-branch `get_member_branch` fetch from v5.115). No other
+  /// branch's collapse state changes, and the expansion is incremental
+  /// — unrelated branches keep their chips and positions.
   List<Widget> _buildCollapsedBranchChips(
     GraphLayoutResult layout,
     BranchCollapseState collapseState,
@@ -56,6 +61,13 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       // derived from the relationshipKey field on the CollapsedBranch.
       final chipAccentColor = _chipColorForBranch(branch);
 
+      // v5.123 (Step 3): The short label — the branch root's name
+      // (surname-style context like "Mother" / "Rajesh"), falling back
+      // to the generated branch label when the root name is unknown.
+      final shortLabel = branch.rootPersonName.trim().isNotEmpty
+          ? branch.rootPersonName.trim()
+          : branch.branchLabel;
+
       chips.add(Positioned(
         left: chipLeft,
         top: chipTop,
@@ -63,13 +75,16 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
           onTap: () {
             // P3.2: "branch opening" haptic on branch expand.
             GraphHaptics.branchExpand(context);
-            // v5.115 (Task 1): Fetch ONLY this branch via get_member_branch
-            // RPC, then expand. This is a lazy fetch — only the tapped
-            // branch's nodes/edges are loaded, not the whole family.
+            // v5.115 (Task 1) + v5.123 (Step 3): Fetch ONLY this branch
+            // via get_member_branch RPC, then expand. This is a lazy
+            // fetch — only the tapped branch's nodes/edges are loaded,
+            // never the whole family, and unrelated branches are not
+            // re-fetched or re-laid-out.
             _fetchAndExpandBranch(branch);
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            constraints: const BoxConstraints(maxWidth: 190),
             decoration: BoxDecoration(
               color: KinrelColors.darkBackground.withValues(alpha: 0.92),
               borderRadius: BorderRadius.circular(14),
@@ -94,20 +109,23 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                   color: chipAccentColor,
                 ),
                 const SizedBox(width: 6),
-                // v5.115 (Task 2): Show "Label · Count · NG" instead of
-                // just "Label · Count". The hiddenGenerationDepth is
-                // already computed by _maxDepth in branch_collapse_state.
-                Text(
-                  branch.branchLabel.isNotEmpty
-                      ? '${branch.branchLabel} · ${branch.hiddenCount} · ${branch.hiddenGenerationDepth}G'
-                      : 'Branch · ${branch.hiddenCount} · ${branch.hiddenGenerationDepth}G',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                // v5.123 (Step 3): Lead with "+{count}", then append the
+                // short label when space permits (single line,
+                // ellipsized). The generation depth stays available via
+                // the branch tooltip semantics below.
+                Flexible(
+                  child: Text(
+                    shortLabel.isEmpty
+                        ? '+${branch.hiddenCount}'
+                        : '+${branch.hiddenCount} · $shortLabel',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
                 ),
               ],
             ),
@@ -130,14 +148,25 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     return style.color ?? KinrelColors.orange;
   }
 
-  /// v5.115 (Task 1): Fetches the branch via get_member_branch RPC,
-  /// then expands it in the collapse state.
+  /// v5.115 (Task 1) + v5.123 (Step 3): Fetches the branch via
+  /// get_member_branch RPC, then expands it in the collapse state AND
+  /// reveals its members in the proximity set.
   ///
   /// This is the LAZY FETCH path: only the tapped branch's nodes/edges
   /// are loaded from Supabase, not the whole family. After the fetch
   /// merges the new data into the provider state, the branch is
-  /// removed from the collapsed set (via expandBranch) so its nodes
-  /// become visible.
+  /// removed from the collapsed set (via the existing expandBranch
+  /// path) so its nodes become visible.
+  ///
+  /// v5.123 (Step 3): the branch's hidden members are ALSO added to the
+  /// proximity visible set via the existing expansion mechanism
+  /// (ProximityGraphNotifier.revealPersons — the bulk sibling of the
+  /// tap-to-expand expandFromPerson). Without this, expandBranch alone
+  /// removed the chip but the members never rendered — they had no
+  /// positions because the layout only positions proximity-visible
+  /// nodes. The reveal is purely INCREMENTAL: unrelated branches keep
+  /// their chips and their nodes keep their positions; only the tapped
+  /// branch's members are added.
   ///
   /// If the branchType can't be determined from the relationshipKey
   /// (e.g. for custom/unrecognized keys), falls back to the old
@@ -156,6 +185,23 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
         branchType: branchType,
         depth: 2,
       );
+    }
+
+    // v5.123 (Step 3): Reveal the branch's members in the proximity
+    // set FIRST (incremental — only this branch's hidden members plus
+    // the root's own subtree context) so the layout provider gives
+    // them positions and the expansion is actually VISIBLE.
+    final flat = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
+    if (flat != null) {
+      ref.read(proximityGraphProvider.notifier).revealPersons(
+            personIds: {
+              branch.rootPersonId,
+              ...branch.hiddenMemberIds,
+            },
+            allPersons: {
+              for (final p in flat.persons) (p['id'] ?? '').toString(),
+            },
+          );
     }
 
     // Expand the branch in the collapse state — removes it from the

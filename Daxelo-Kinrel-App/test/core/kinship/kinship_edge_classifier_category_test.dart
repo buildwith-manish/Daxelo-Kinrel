@@ -38,7 +38,7 @@ void main() {
     // color matches GraphNode's ring color category.
     // ─────────────────────────────────────────────────────────────────
     final categoryToExpectedColor = <String, Color>{
-      'self': KinrelColors.nodeSelf, // Teal #0D9488
+      'self': KinrelColors.nodeSelf, // Gold #FFC94A (v5.100)
       'parent': KinrelColors.nodeParent, // Blue #3B82F6
       'spouse': KinrelColors.nodeSpouse, // Orange #F97316
       'sibling': KinrelColors.nodeSibling, // Purple #8B5CF6

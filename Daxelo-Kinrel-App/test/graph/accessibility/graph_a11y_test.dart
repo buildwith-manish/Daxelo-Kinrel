@@ -203,7 +203,13 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        // v5.123: This node has isAnchor: true, so it runs the v5.100
+        // ALWAYS-ON "You" glow pulse (_selfPulseController.repeat) —
+        // pumpAndSettle() never settles and times out. Pump fixed
+        // durations instead (the standard pattern for endless
+        // animations).
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // Verify no layout exceptions
         expect(tester.takeException(), isNull);
