@@ -1613,6 +1613,17 @@ final graphLayoutProvider =
     visibleIds = allPersonIds;
   }
 
+  // v5.118c: If the proximity set is very small (< 10 nodes), the
+  // anchor likely has very few connections in this family. Fall back
+  // to showing ALL persons so the graph isn't mostly empty. This
+  // happens when the viewer isn't linked to a Person in this family
+  // and the isAnchor fallback person has few relationships.
+  // The RadialLayout will still center on the anchor and arrange
+  // other nodes in rings by hop distance.
+  if (visibleIds.length < 10 && graphPersons.length > 10) {
+    visibleIds = allPersonIds;
+  }
+
   if (visibleIds.isEmpty) {
     return const GraphLayoutResult(
       positions: {},
