@@ -444,5 +444,60 @@ void main() {
       expect(notifier.state.visibleIds, contains('stranger'));
       expect(notifier.state.visibleIds, containsAll(['anchor', 'wife']));
     });
+
+    test('revealBranchSubtree (Step 5): persisted-expanded branches '
+        'load with their whole subtree visible', () {
+      // anchor ─ son (branch root) ─ g1, g2 (grandchildren)
+      final edges = <_E>[
+        _e('anchor', 'son', 'son'),
+        _e('son', 'g1', 'son'),
+        _e('son', 'g2', 'son'),
+      ];
+      final fullPersons = <String>{
+        for (final e in edges) e.fromId,
+        for (final e in edges) e.toId,
+      };
+      final adjacency = buildAdjacency(edges);
+      final childrenOf = <String, Set<String>>{
+        'anchor': {'son'},
+        'son': {'g1', 'g2'},
+      };
+
+      // Default proximity set: everything in this small graph.
+      final notifier = ProximityGraphNotifier();
+      notifier.initialize(
+        anchorId: 'anchor',
+        allPersons: {'anchor'},
+        adjacency: adjacency,
+        edges: edges,
+      );
+      expect(notifier.state.visibleIds, {'anchor'});
+
+      // Simulate the load-time seeding for a persisted-expanded branch
+      // rooted at 'son' — the whole subtree becomes visible.
+      notifier.revealBranchSubtree(
+        rootId: 'son',
+        childrenOf: childrenOf,
+        allPersons: fullPersons,
+      );
+      expect(notifier.state.visibleIds, containsAll(['son', 'g1', 'g2']));
+
+      // Unknown root → no-op.
+      final revisionSnapshot = notifier.state.visibleIds;
+      notifier.revealBranchSubtree(
+        rootId: 'not-a-person',
+        childrenOf: childrenOf,
+        allPersons: fullPersons,
+      );
+      expect(notifier.state.visibleIds, revisionSnapshot);
+
+      // Already-visible subtree → no-op (idempotent).
+      notifier.revealBranchSubtree(
+        rootId: 'son',
+        childrenOf: childrenOf,
+        allPersons: fullPersons,
+      );
+      expect(notifier.state.visibleIds, containsAll(['son', 'g1', 'g2']));
+    });
   });
 }

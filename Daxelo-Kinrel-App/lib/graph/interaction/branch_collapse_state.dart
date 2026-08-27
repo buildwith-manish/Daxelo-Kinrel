@@ -230,6 +230,39 @@ class BranchCollapseState {
 class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
   BranchCollapseNotifier() : super(BranchCollapseState.empty);
 
+  /// v5.123 (Step 5): Optional persistence hook — invoked whenever a
+  /// branch's expansion state changes via [expandBranch] (true) or
+  /// [collapseBranch] (false). The engine view wires this to
+  /// LayoutOverridesService.saveBranchExpansionState so the choice is
+  /// stored keyed by (userId, familyId, branchRootId) and re-applied
+  /// on the next graph load via [seedExpandedBranchRoots].
+  void Function(String rootPersonId, bool expanded)? onExpansionChanged;
+
+  /// v5.123 (Step 5): Applies PERSISTED expansion state on top of the
+  /// default density-collapse computation — a branch the user
+  /// previously expanded loads ALREADY-EXPANDED (its root joins
+  /// [BranchCollapseState.expandedBranchRoots], so the budget rule
+  /// skips it), even when the default rule would have collapsed it.
+  ///
+  /// Idempotent: re-seeding the same roots is a no-op (set union).
+  /// Called once per family load with the roots persisted as
+  /// expanded=true.
+  void seedExpandedBranchRoots(Set<String> roots) {
+    if (roots.isEmpty) return;
+    final current = state.expandedBranchRoots;
+    var added = false;
+    final merged = Set<String>.from(current);
+    for (final root in roots) {
+      if (merged.add(root)) added = true;
+    }
+    if (!added) return; // Already seeded — no state change.
+    state = BranchCollapseState(
+      collapsedBranches: state.collapsedBranches,
+      expandedBranchRoots: merged,
+      revision: state.revision + 1,
+    );
+  }
+
   /// Compute the collapse state from the current graph data.
   ///
   /// [allPersons] — all person IDs in the family.
@@ -428,6 +461,8 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       expandedBranchRoots: newExpanded,
       revision: state.revision + 1,
     );
+    // v5.123 (Step 5): persist the user's expansion choice.
+    onExpansionChanged?.call(rootPersonId, true);
   }
 
   /// Collapse a branch — re-collapses the subtree under [rootPersonId].
@@ -440,6 +475,8 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       revision: state.revision + 1,
     );
     // The actual re-collapse happens on the next computeCollapse call.
+    // v5.123 (Step 5): persist the user's re-collapse choice.
+    onExpansionChanged?.call(rootPersonId, false);
   }
 
   /// Clear all collapse state — called when switching families.

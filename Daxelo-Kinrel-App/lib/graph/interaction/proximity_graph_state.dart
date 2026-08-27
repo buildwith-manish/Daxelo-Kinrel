@@ -413,6 +413,38 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
     );
   }
 
+  /// v5.123 (Step 5): Reveals an entire branch subtree (the root plus
+  /// all its descendants) — used when a PERSISTED expanded branch is
+  /// re-applied on graph load, so the previously-expanded branch's
+  /// members render immediately instead of waiting behind a chip.
+  ///
+  /// [childrenOf] is the parent→children adjacency (the same map the
+  /// density-collapse computation builds). Purely INCREMENTAL, like
+  /// [revealPersons]. Unknown root → no-op.
+  void revealBranchSubtree({
+    required String rootId,
+    required Map<String, Set<String>> childrenOf,
+    required Set<String> allPersons,
+  }) {
+    if (!allPersons.contains(rootId)) return;
+
+    // Collect the subtree via BFS through childrenOf (cycle-safe).
+    final subtree = <String>{};
+    final queue = <String>[rootId];
+    while (queue.isNotEmpty) {
+      final current = queue.removeLast();
+      if (!subtree.add(current)) continue;
+      for (final child in childrenOf[current] ?? const <String>{}) {
+        if (allPersons.contains(child) && !subtree.contains(child)) {
+          queue.add(child);
+        }
+      }
+    }
+    if (subtree.isEmpty) return;
+
+    revealPersons(personIds: subtree, allPersons: allPersons);
+  }
+
   /// Reset to the default 2-hop view (clears all expansions).
   void reset() {
     state = const ProximityGraphState();

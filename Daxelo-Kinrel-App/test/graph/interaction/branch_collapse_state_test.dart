@@ -454,4 +454,92 @@ void main() {
               'focus-collapsed (v5.123: was < 30)');
     });
   });
+
+  // ────────────────────────────────────────────────────────────────────
+  // v5.123 (Step 5): Persisted per-user branch expansion choices.
+  //   • seedExpandedBranchRoots applies persisted state ON TOP of the
+  //     default density-collapse computation — a previously expanded
+  //     branch loads already-expanded even when the budget rule would
+  //     have collapsed it.
+  //   • onExpansionChanged fires from expandBranch/collapseBranch so
+  //     the engine view can persist (userId, familyId, branchRootId).
+  // ────────────────────────────────────────────────────────────────────
+  group('v5.123 (Step 5) — persisted branch expansion', () {
+    test('a seeded (persisted-expanded) branch is NOT re-collapsed by '
+        'the density rule even though the budget would collapse it', () {
+      // 73-candidate wide tree — person-0's subtree collapses by default.
+      final candidates = <String>{'person-0'};
+      final childrenOf = <String, Set<String>>{};
+      final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[];
+      for (var i = 1; i <= 24; i++) {
+        candidates.add('person-$i');
+        childrenOf.putIfAbsent('person-0', () => <String>{}).add('person-$i');
+        edges.add((fromId: 'person-$i', toId: 'person-0', edgeId: 'p$i', relationshipKey: 'parent'));
+        for (var g = 0; g < 2; g++) {
+          final gc = 'person-$i-$g';
+          candidates.add(gc);
+          childrenOf.putIfAbsent('person-$i', () => <String>{}).add(gc);
+          edges.add((fromId: gc, toId: 'person-$i', edgeId: 'p${i}_$g', relationshipKey: 'parent'));
+        }
+      }
+
+      // Baseline: without persistence, person-0's branch collapses.
+      final baseline = BranchCollapseNotifier();
+      baseline.computeDensityCollapse(
+        visibleNodeIds: candidates,
+        childrenOf: childrenOf,
+        personNameOf: (id) => 'Person $id',
+        allEdges: edges,
+      );
+      expect(baseline.state.collapsedBranches, isNotEmpty);
+      expect(baseline.state.allHiddenMemberIds, contains('person-1-0'));
+
+      // v5.123 (Step 5): seed the PERSISTED expansion (the user had
+      // expanded person-0's branch in a previous session) BEFORE the
+      // collapse computation runs — the branch must NOT re-collapse.
+      notifier.seedExpandedBranchRoots({'person-0'});
+      expect(notifier.state.expandedBranchRoots, contains('person-0'));
+
+      notifier.computeDensityCollapse(
+        visibleNodeIds: candidates,
+        childrenOf: childrenOf,
+        personNameOf: (id) => 'Person $id',
+        allEdges: edges,
+      );
+      expect(
+        notifier.state.collapsedBranches
+            .where((b) => b.rootPersonId == 'person-0'),
+        isEmpty,
+        reason: 'A persisted-expanded branch loads already-expanded — '
+            'the budget rule must skip it');
+      expect(notifier.state.allHiddenMemberIds, isNot(contains('person-1-0')));
+
+      // Seeding is idempotent.
+      final revision = notifier.state.revision;
+      notifier.seedExpandedBranchRoots({'person-0'});
+      expect(notifier.state.revision, revision,
+          reason: 'Re-seeding the same roots is a no-op');
+    });
+
+    test('onExpansionChanged fires for expandBranch (true) and '
+        'collapseBranch (false)', () {
+      final calls = <(String, bool)>[];
+      notifier.onExpansionChanged =
+          (rootPersonId, expanded) => calls.add((rootPersonId, expanded));
+
+      notifier.expandBranch('person-7');
+      expect(calls, [('person-7', true)],
+          reason: 'Expanding a branch persists expanded=true keyed by '
+              '(userId, familyId, branchRootId)');
+
+      notifier.collapseBranch('person-7');
+      expect(calls, [('person-7', true), ('person-7', false)],
+          reason: 'Re-collapsing persists expanded=false');
+
+      // Detaching stops the callbacks (dispose path).
+      notifier.onExpansionChanged = null;
+      notifier.expandBranch('person-8');
+      expect(calls.length, 2);
+    });
+  });
 }

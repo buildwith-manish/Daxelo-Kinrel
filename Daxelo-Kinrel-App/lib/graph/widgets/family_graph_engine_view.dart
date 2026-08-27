@@ -198,6 +198,7 @@ import '../rearrange/layout_overrides_service.dart'
         LayoutOverridesService,
         PersonalLayoutOverrides,
         personalLayoutOverridesProvider,
+        branchExpansionStateProvider,
         rearrangeModeProvider,
         resetAnimationTriggerProvider,
         saveAllOverridesTriggerProvider,
@@ -322,6 +323,16 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// is always safe.
   late final GraphFocusNotifier _focusNotifierForCleanup;
   late final StateController<String?> _selectedNodeNotifierForCleanup;
+
+  /// v5.123 (Step 5): The branch-collapse notifier — captured in
+  /// initState to (a) wire the expansion-persistence callback and
+  /// (b) clear it on dispose without touching `ref`.
+  late final BranchCollapseNotifier _branchCollapseNotifierForCleanup;
+
+  /// v5.123 (Step 5): The family whose persisted branch-expansion
+  /// state has been applied (seeded + revealed) — guards the
+  /// once-per-family-load seeding.
+  String? _persistedExpansionSeededFamilyId;
 
   /// v62: Position of the last double-tap, for zoom-toward-focal-point.
   Offset _doubleTapPosition = Offset.zero;
@@ -596,6 +607,24 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _selectedNodeNotifierForCleanup =
         ref.read(selectedNodeProvider.notifier);
 
+    // v5.123 (Step 5): Wire branch-expansion persistence. Whenever a
+    // branch is expanded (chip tap) or re-collapsed, the choice is
+    // stored on the viewer's GraphLayoutState row keyed by
+    // (userId, familyId, branchRootId) and re-applied on the next
+    // graph load (see _applyPersistedBranchExpansion below).
+    _branchCollapseNotifierForCleanup =
+        ref.read(branchCollapseProvider.notifier);
+    _branchCollapseNotifierForCleanup.onExpansionChanged =
+        (String rootPersonId, bool expanded) {
+      if (!mounted) return;
+      LayoutOverridesService.saveBranchExpansionState(
+        ref,
+        widget.familyId,
+        rootPersonId,
+        expanded,
+      );
+    };
+
     // v5.27 Task 1: reset animation controller. 350ms easeOutCubic,
     // flat duration regardless of how many nodes are resetting.
     // Reduced-motion is checked at trigger time in _onResetTrigger.
@@ -750,6 +779,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       ref.read(selectedNodeProvider.notifier).state = null;
       ref.read(selectedEdgeProvider.notifier).state = null;
       ref.read(graphUndoProvider.notifier).clearAll();
+      // v5.123 (Step 5): Re-apply persisted branch expansion for the
+      // NEW family on its first build (the guard family ID resets).
+      _persistedExpansionSeededFamilyId = null;
       _lastEdgeFingerprint = 0;
       _lastFocusedPersonId = null;
       // v5.27 Task 2: reset the connect-on-open flag on family switch
@@ -825,7 +857,74 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // to the graph, even though they didn't tap anything. This caused
     // the "Manish's node appears highlighted without being tapped" bug.
     _selectedNodeNotifierForCleanup.state = null;
+    // v5.123 (Step 5): Detach the expansion-persistence callback — the
+    // captured `ref` in its closure must never be used after disposal.
+    _branchCollapseNotifierForCleanup.onExpansionChanged = null;
     super.dispose();
+  }
+
+  /// v5.123 (Step 5): Applies PERSISTED branch expansion choices on
+  /// top of the default density-collapse computation, once per family
+  /// load. Branches the user previously expanded (persisted as
+  /// `true` keyed by (userId, familyId, branchRootId) on the
+  /// GraphLayoutState row) load ALREADY-EXPANDED:
+  ///   1. Their roots join expandedBranchRoots (seedExpandedBranchRoots)
+  ///      so the budget rule skips them — even when it would otherwise
+  ///      have collapsed them.
+  ///   2. Their subtrees are revealed into the proximity visible set
+  ///      (revealBranchSubtree) so the members actually render.
+  ///
+  /// Called post-frame from the canvas build (provider mutations are
+  /// not allowed during the build phase).
+  void _applyPersistedBranchExpansion(FlatGraphResult flat) {
+    final familyId = widget.familyId;
+    if (_persistedExpansionSeededFamilyId == familyId) return;
+
+    final persisted =
+        ref.read(branchExpansionStateProvider(familyId)).valueOrNull;
+    if (persisted == null) return; // Still loading — retry on next build.
+
+    // Mark this family as seeded from here on. An empty persisted map
+    // means the viewer never expanded a branch — nothing to apply.
+    // In-session saves (expandBranch) don't need re-seeding: the reveal
+    // already happened interactively via _fetchAndExpandBranch.
+    _persistedExpansionSeededFamilyId = familyId;
+
+    final expandedRoots = <String>{
+      for (final entry in persisted.entries)
+        if (entry.value) entry.key,
+    };
+    if (expandedRoots.isEmpty) return;
+
+    // 1. Protect the persisted-expanded roots from the budget rule.
+    _branchCollapseNotifierForCleanup.seedExpandedBranchRoots(expandedRoots);
+
+    // 2. Reveal each root's subtree so the members render (only roots
+    //    that exist in this family's data).
+    final allPersonIds = <String>{
+      for (final p in flat.persons) (p['id'] ?? '').toString(),
+    };
+    final childrenOf = <String, Set<String>>{};
+    for (final Map<String, dynamic> r in flat.relationships) {
+      final label = (r['labelAtoB'] as String?) ??
+          (r['relationshipKey'] as String?) ?? '';
+      if (label == 'father' || label == 'mother' || label == 'parent') {
+        final from = r['fromPersonId'] as String?;
+        final to = r['toPersonId'] as String?;
+        if (from != null && to != null) {
+          // "toPerson is fromPerson's parent" → from is child of to.
+          childrenOf.putIfAbsent(to, () => <String>{}).add(from);
+        }
+      }
+    }
+    for (final rootId in expandedRoots) {
+      if (!allPersonIds.contains(rootId)) continue;
+      ref.read(proximityGraphProvider.notifier).revealBranchSubtree(
+            rootId: rootId,
+            childrenOf: childrenOf,
+            allPersons: allPersonIds,
+          );
+    }
   }
 
   // ── v5.27 Task 1 — Reset animation callbacks ─────────────────────

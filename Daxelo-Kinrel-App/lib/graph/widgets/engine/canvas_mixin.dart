@@ -550,6 +550,26 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           categoryOf: categoryMap,
           protectedIds: protectedCollapseIds,
         );
+
+        // v5.123 (Step 5): Apply PERSISTED per-user branch expansion
+        // choices once per family load — post-frame, because provider
+        // mutations are not allowed during the build phase. The seeded
+        // roots join expandedBranchRoots (skipping the budget rule) and
+        // their subtrees are revealed into the proximity set, so
+        // previously-expanded branches load ALREADY-EXPANDED.
+        // WATCH the provider so it starts fetching (FutureProvider is
+        // lazy) and this build re-runs when the persisted choices
+        // arrive — the guard below then skips repeats.
+        final persistedExpansion = ref
+            .watch(branchExpansionStateProvider(widget.familyId))
+            .valueOrNull;
+        if (_persistedExpansionSeededFamilyId != widget.familyId &&
+            persistedExpansion != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _applyPersistedBranchExpansion(flat);
+          });
+        }
         // Re-read collapse state after density collapse.
         final densityCollapseState = ref.read(branchCollapseProvider);
         final densityHiddenIds = densityCollapseState.allHiddenMemberIds;

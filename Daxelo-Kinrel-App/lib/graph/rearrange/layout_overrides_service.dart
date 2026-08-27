@@ -121,6 +121,86 @@ final personalLayoutOverridesProvider =
   }
 });
 
+// ────────────────────────────────────────────────────────────────
+// v5.123 (Step 5): Persisted branch expansion state
+// ────────────────────────────────────────────────────────────────
+
+/// Loads the current viewer's persisted branch expansion choices for
+/// the given family: `{branchRootId: expanded}`. Branches mapped to
+/// `true` load ALREADY-EXPANDED on the next graph load, overriding the
+/// default density-collapse budget rule.
+///
+/// Same storage row as the layout overrides ((familyId, auth.uid())
+/// with RLS) — the `expandedBranches` JSONB column added in migration
+/// 20260827000000_graph_layout_state_expanded_branches.sql.
+final branchExpansionStateProvider =
+    FutureProvider.family<Map<String, bool>, String>(
+        (ref, familyId) async {
+  final client = ref.watch(supabaseProvider);
+  if (client == null) return const <String, bool>{};
+
+  final auth = client.auth.currentUser;
+  if (auth == null) return const <String, bool>{};
+
+  try {
+    // RLS automatically restricts this SELECT to the viewer's own row.
+    final rows = await client
+        .from('GraphLayoutState')
+        .select('expandedBranches')
+        .eq('familyId', familyId)
+        .eq('userId', auth.id)
+        .limit(1);
+
+    final rowsList = rows is List ? rows : const [];
+    if (rowsList.isEmpty) {
+      return const <String, bool>{};
+    }
+
+    final row = rowsList.first as Map<String, dynamic>;
+    return _parseExpandedBranches(row['expandedBranches']);
+  } catch (e) {
+    // Fail soft — the default density-collapse rule applies.
+    return const <String, bool>{};
+  }
+});
+
+/// Defensive parser for the `expandedBranches` JSONB column.
+/// Tolerates already-parsed Maps and JSON strings; non-bool values
+/// are dropped.
+Map<String, bool> _parseExpandedBranches(dynamic raw) {
+  if (raw == null) return const <String, bool>{};
+  Map<String, dynamic> map;
+  if (raw is Map) {
+    map = raw.cast<String, dynamic>();
+  } else if (raw is String) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        map = decoded.cast<String, dynamic>();
+      } else {
+        return const <String, bool>{};
+      }
+    } catch (_) {
+      return const <String, bool>{};
+    }
+  } else {
+    return const <String, bool>{};
+  }
+
+  final out = <String, bool>{};
+  for (final entry in map.entries) {
+    final v = entry.value;
+    if (v is bool) {
+      out[entry.key] = v;
+    } else if (v is String && (v == 'true' || v == 'false')) {
+      out[entry.key] = v == 'true';
+    } else if (v is num) {
+      out[entry.key] = v != 0;
+    }
+  }
+  return out;
+}
+
 // ────────────────────────────────────────────────────────────────────
 // JSON parsers (defensive — DB column is JSONB, but Postgrest returns
 // it as already-parsed JSON. We tolerate both shapes.)
@@ -408,6 +488,48 @@ class LayoutOverridesService {
     ref.invalidate(personalLayoutOverridesProvider(familyId));
   }
 
+  // ── v5.123 (Step 5) — branch expansion persistence ────────────
+
+  /// Persists one branch's expanded/collapsed choice for the current
+  /// viewer + family, keyed by (userId, familyId, branchRootId) — the
+  /// row's (familyId, userId) key plus the JSONB map's branchRootId
+  /// key. Read-modify-writes the `expandedBranches` map so other
+  /// branches' choices on the same family are preserved.
+  ///
+  /// [expanded] = true  → the branch loads ALREADY-EXPANDED on the
+  ///                      next graph load, overriding the default
+  ///                      density-collapse budget rule.
+  /// [expanded] = false → the user re-collapsed the branch; the
+  ///                      default rule applies on the next load.
+  ///
+  /// Personal-only — same (familyId, userId) row + RLS as every
+  /// other method in this service.
+  static Future<void> saveBranchExpansionState(
+    WidgetRef ref,
+    String familyId,
+    String branchRootId,
+    bool expanded,
+  ) async {
+    final client = ref.read(supabaseProvider);
+    if (client == null) return;
+    final auth = client.auth.currentUser;
+    if (auth == null) return;
+
+    final existing = await _readRow(client, familyId, auth.id);
+    final expandedMap =
+        Map<String, dynamic>.from(existing?['expandedBranches'] as Map? ?? const {});
+    expandedMap[branchRootId] = expanded;
+
+    await client.from('GraphLayoutState').upsert({
+      'familyId': familyId,
+      'userId': auth.id,
+      'expandedBranches': expandedMap,
+      if (existing != null) ..._preserveOtherColumns(existing),
+    }, onConflict: 'familyId, userId');
+
+    ref.invalidate(branchExpansionStateProvider(familyId));
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────
 
   /// Read the viewer's own GraphLayoutState row. Returns null when no
@@ -421,8 +543,8 @@ class LayoutOverridesService {
     final rows = await client
         .from('GraphLayoutState')
         .select(
-            'nodePositions, edgeWaypoints, layoutMode, collapsedNodes, '
-            'hiddenNodes, zoomLevel, panOffset, filters')
+            'nodePositions, edgeWaypoints, expandedBranches, layoutMode, '
+            'collapsedNodes, hiddenNodes, zoomLevel, panOffset, filters')
         .eq('familyId', familyId)
         .eq('userId', userId)
         .limit(1);
@@ -432,12 +554,20 @@ class LayoutOverridesService {
   }
 
   /// Columns to preserve when upserting so we don't clobber the other
-  /// saved state on the row (zoom, pan, filters, etc.).
+  /// saved state on the row (zoom, pan, filters, etc.). Columns NOT
+  /// returned here are also preserved — the upsert only updates the
+  /// columns present in its payload.
   static Map<String, dynamic> _preserveOtherColumns(Map<String, dynamic> row) {
     final out = <String, dynamic>{};
     for (final entry in row.entries) {
-      // Skip the two columns the caller is already setting.
-      if (entry.key == 'nodePositions' || entry.key == 'edgeWaypoints') continue;
+      // Skip the columns the callers set themselves. v5.123: also
+      // skip expandedBranches — callers that don't set it preserve it
+      // by omission (the upsert leaves unlisted columns untouched).
+      if (entry.key == 'nodePositions' ||
+          entry.key == 'edgeWaypoints' ||
+          entry.key == 'expandedBranches') {
+        continue;
+      }
       out[entry.key] = entry.value;
     }
     return out;
