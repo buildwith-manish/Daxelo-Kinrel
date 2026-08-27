@@ -269,5 +269,57 @@ void main() {
       expect(kProximityHardNodeBudget, 50);
       expect(kProximityHardNodeBudget, greaterThan(kProximityNodeBudget));
     });
+
+    test('revealPersons (Step 3): bulk branch reveal is incremental and '
+        'idempotent', () {
+      final edges = <_E>[_e('anchor', 'a', 'son'), _e('a', 'b', 'son')];
+      final allPersons = <String>{'anchor', 'a', 'b', 'c', 'd'};
+      final adjacency = buildAdjacency(edges);
+
+      final notifier = ProximityGraphNotifier();
+      notifier.initialize(
+        anchorId: 'anchor',
+        allPersons: allPersons,
+        adjacency: adjacency,
+        edges: edges,
+      );
+      final before = notifier.state.visibleIds;
+      expect(before, contains('a'));
+
+      // Reveal the hidden branch members ('c' and 'd' have no edges —
+      // they are only reachable via reveal, e.g. after a chip tap).
+      notifier.revealPersons(
+        personIds: {'b', 'c', 'd'},
+        allPersons: allPersons,
+      );
+      expect(notifier.state.visibleIds, contains('b'));
+      expect(notifier.state.visibleIds, contains('c'));
+      expect(notifier.state.visibleIds, contains('d'));
+      expect(notifier.state.anchorId, 'anchor');
+
+      // Already-visible IDs stay (nothing removed) and expandedPersonIds
+      // tracks the reveal.
+      for (final id in before) {
+        expect(notifier.state.visibleIds, contains(id),
+            reason: 'revealPersons must never remove visible nodes');
+      }
+      expect(notifier.state.expandedPersonIds, containsAll(['b', 'c', 'd']));
+
+      // Idempotent: revealing the same set again does not change state.
+      final revisionSnapshot = notifier.state;
+      notifier.revealPersons(
+        personIds: {'b', 'c', 'd'},
+        allPersons: allPersons,
+      );
+      expect(notifier.state.visibleIds, revisionSnapshot.visibleIds,
+          reason: 'Re-revealing already-visible persons is a no-op');
+
+      // Unknown IDs are ignored.
+      notifier.revealPersons(
+        personIds: {'not-a-person'},
+        allPersons: allPersons,
+      );
+      expect(notifier.state.visibleIds, isNot(contains('not-a-person')));
+    });
   });
 }

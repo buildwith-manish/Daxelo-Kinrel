@@ -397,41 +397,36 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         final pathFocusState = ref.watch(graphPathFocusProvider).focus;
         final selectedPerson = ref.read(selectedNodeProvider);
 
-        // v99: Compute collapse BEFORE visible-set derivation.
-        // This eliminates the one-frame lag where the visible set
-        // used stale hidden IDs from the previous build.
+        // v5.123 (COLLAPSE PIPELINE STABILIZATION — single authority):
+        // The canvas previously ran computeCollapse (focus-based) and
+        // THEN computeDensityCollapse (budget-based) every build. The
+        // two passes overwrote each other's state and the density pass
+        // compared the POST-hiding count against the budget — so it
+        // cleared the very branches it had just created, and the next
+        // build recreated them: an infinite rebuild oscillation
+        // whenever the rendered count sat in the 30–50 range (or grew
+        // past 50 via tap-to-expand), which also hid proximity nodes
+        // that had positions ("edges ending at empty points").
         //
-        // v5.122: Pass the PROXIMITY visible count (effectivePositions.length)
-        // instead of the full family count (flat.persons.length). The proximity
-        // filter already limits to ~30 nodes — computeCollapse should NOT
-        // collapse branches based on the full 714-member family when only
-        // 30 nodes are actually being rendered. This was the root cause of
-        // "edges ending at empty points" — computeCollapse was hiding
-        // proximity nodes that had positions.
-        ref.read(branchCollapseProvider.notifier).computeCollapse(
-              allPersons: {
-                for (final p in flat.persons) (p['id'] ?? '').toString(),
-              },
-              allEdges: rawEdgeTuples,
-              focusPersonId: focusState.focusedPersonId,
-              firstDegreeIds: focusState.firstDegreeIds,
-              secondDegreeIds: focusState.secondDegreeIds,
-              pathNodeIds: pathFocusState?.orderedPersonIds.toSet(),
-              searchMatchIds: searchState.isActive
-                  ? searchState.matchIdSet
-                  : null,
-              selectedPersonId: selectedPerson,
-              familyMemberCount: effectivePositions.length, // v5.122: was flat.persons.length
-              // v102 (BUG-2 FIX): Pass the person-name lookup so
-              // CollapsedBranch.rootPersonName and branchLabel are
-              // populated with real names (e.g. "Mother's branch · 38").
-              personNameOf: (id) {
-                final p = personById[id];
-                if (p == null) return '';
-                return (p['name'] as String?) ?? '';
-              },
-            );
-        // Read the UPDATED collapse state (computeCollapse just ran).
+        // Now ONE pass runs: computeDensityCollapse, fed the FULL
+        // rendered candidate set (positions ∩ allow-list, NOT the
+        // post-hiding count) plus an explicit protected-ID set that
+        // absorbs computeCollapse's focus/search/path/selection
+        // protections. The computation is a deterministic fixed point —
+        // the same inputs produce the same branches, the idempotency
+        // check no-ops, and the pipeline converges. computeCollapse
+        // remains available for direct/unit use (see
+        // branch_collapse_state_test + family_graph_integration_test).
+        final protectedCollapseIds = <String>{
+          if (focusState.focusedPersonId != null) focusState.focusedPersonId!,
+          ...focusState.firstDegreeIds,
+          ...focusState.secondDegreeIds,
+          if (pathFocusState != null) ...pathFocusState.orderedPersonIds,
+          if (searchState.isActive) ...searchState.matchIdSet,
+          if (selectedPerson != null) selectedPerson,
+        };
+        // Read the current collapse state (stable from the previous
+        // build — the density pass below no-ops when inputs match).
         final collapseState = ref.watch(branchCollapseProvider);
         final hiddenIds = collapseState.allHiddenMemberIds;
 
@@ -483,10 +478,13 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             .where((id) => allowed.contains(id) && !hiddenIds.contains(id))
             .toSet();
 
-        // v5.105: Density-driven budget collapse.
-        // If visible nodes exceed kNodeBudget (50), collapse subtrees
-        // largest-first until budget is met. Small trees (<50 visible)
-        // bypass entirely — zero regression.
+        // v5.105/v5.123: Density-driven budget collapse — the SINGLE
+        // collapse authority. If the FULL rendered candidate set exceeds
+        // kNodeBudget (50), collapse subtrees largest-first until the
+        // budget is met. Small trees (≤ 50 candidates) bypass entirely.
+        // v5.123: the input is the PRE-hiding candidate set (positions ∩
+        // allow-list) so the computation is a fixed point — see the
+        // stabilization comment above.
         // Build childrenOf adjacency from labelAtoB parent edges.
         final childrenOfAdj = <String, Set<String>>{};
         for (final Map<String, dynamic> r in flat.relationships) {
@@ -519,8 +517,12 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 relationshipKey: (r['relationshipKey'] as String?) ?? '',
               ),
         ];
-        // Run density-driven collapse.
+        // Run density-driven collapse (the single authority — see the
+        // stabilization comment above).
         // v5.106: Pass categoryOf so chip colors use dominant kinship category.
+        // v5.123: Pass the FULL pre-hiding candidate set + the protected
+        // IDs (focus/search/path/selection) so the computation is a
+        // deterministic fixed point AND focus-aware.
         final categoryMap = <String, String>{};
         final cats = _cachedRelationCategories;
         if (cats != null) {
@@ -528,12 +530,16 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             categoryMap[entry.key] = entry.value.toString();
           }
         }
+        final densityCandidates = effectivePositions.keys
+            .where((id) => allowed.contains(id))
+            .toSet();
         ref.read(branchCollapseProvider.notifier).computeDensityCollapse(
-          visibleNodeIds: visiblePreCluster,
+          visibleNodeIds: densityCandidates,
           childrenOf: childrenOfAdj,
           personNameOf: personNameResolver,
           allEdges: allEdgesForCollapse,
           categoryOf: categoryMap,
+          protectedIds: protectedCollapseIds,
         );
         // Re-read collapse state after density collapse.
         final densityCollapseState = ref.read(branchCollapseProvider);
@@ -541,6 +547,9 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         final densityHiddenEdgeIds = densityCollapseState.allHiddenEdgeIds;
 
         // Apply clustering: remove hidden members from visible set.
+        // (visiblePreCluster already excludes the previous build's
+        // hidden IDs — with the fixed-point density pass the two sets
+        // agree, so this is stable across builds.)
         final Set<String> visible = visiblePreCluster
             .where((id) => !densityHiddenIds.contains(id))
             .toSet();
@@ -1017,13 +1026,20 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 // positions — creating "detached" connections.
                 ..._buildNodeLayer(
                     layout, effectivePositions, visible, personById, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId, flat),
-                // v102 (BUG-2 FIX): Collapsed-branch affordances.
+                // v102 (BUG-2 FIX) + v5.123 (Step 3): Collapsed-branch
+                // affordances — ALWAYS-visible "+N" chips.
                 // Render a chip near each collapsed branch root showing
-                // the branch label (e.g. "Mother's branch · 38").
-                // Tapping the chip expands the branch (reveals hidden
-                // members); long-pressing a node re-collapses via the
-                // existing _handleNodeLongPress path.
-                ..._buildCollapsedBranchChips(layout, collapseState),
+                // "+N" and, space permitting, the branch label.
+                // Tapping the chip expands JUST that branch (the lazy
+                // per-branch fetch + expand path in branch_affordance);
+                // long-pressing a node re-collapses via the existing
+                // _handleNodeLongPress path.
+                // v5.123: pass the POST-density-collapse state — the old
+                // code passed the state captured BEFORE
+                // computeDensityCollapse ran, so density-created branches
+                // (the ones that actually matter at scale) never got
+                // chips, and already-cleared branches kept stale ones.
+                ..._buildCollapsedBranchChips(layout, densityCollapseState),
               ],
             ),
           ),

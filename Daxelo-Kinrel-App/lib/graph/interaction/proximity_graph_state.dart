@@ -377,6 +377,42 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
     );
   }
 
+  /// v5.123 (Step 3): Bulk reveal — adds a set of persons to the visible
+  /// set in one incremental step (used when a collapsed branch is
+  /// expanded so its members actually render).
+  ///
+  /// Semantics mirror [expandFromPerson] (the existing tap-to-expand
+  /// mechanism): purely INCREMENTAL — only adds IDs, never removes, and
+  /// records the revealed persons in [ProximityGraphState.expandedPersonIds]
+  /// so they are not treated as un-expanded outermost-ring nodes.
+  /// Deterministic and safe to call with IDs that are already visible.
+  void revealPersons({
+    required Set<String> personIds,
+    required Set<String> allPersons,
+  }) {
+    final current = state;
+    if (personIds.isEmpty) return;
+
+    final newVisible = Set<String>.from(current.visibleIds);
+    var added = false;
+    for (final id in personIds) {
+      if (allPersons.contains(id) && !newVisible.contains(id)) {
+        newVisible.add(id);
+        added = true;
+      }
+    }
+    if (!added) return; // Nothing new — no state change, no rebuild.
+
+    final newExpanded = Set<String>.from(current.expandedPersonIds)
+      ..addAll(personIds.where(allPersons.contains));
+
+    state = ProximityGraphState(
+      anchorId: current.anchorId,
+      visibleIds: newVisible,
+      expandedPersonIds: newExpanded,
+    );
+  }
+
   /// Reset to the default 2-hop view (clears all expansions).
   void reset() {
     state = const ProximityGraphState();

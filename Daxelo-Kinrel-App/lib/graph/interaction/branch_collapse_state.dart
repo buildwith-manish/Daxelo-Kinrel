@@ -240,10 +240,13 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
   /// [pathNodeIds] — person IDs on the active relationship path.
   /// [searchMatchIds] — person IDs matching the current search.
   /// [selectedPersonId] — the currently selected person.
-  /// [familyMemberCount] — total member count (for small-family bypass).
+  /// [familyMemberCount] — the RENDERED node count (for the budget bypass).
   ///
   /// Rules:
-  ///   • Small families (< 30 members) → no collapse.
+  ///   • Rendered sets that fit the global budget (≤ [kNodeBudget])
+  ///     → no collapse (v5.123: was `< 30`, which let the 30–50 range
+  ///     hide proximity-positioned nodes and oscillate against
+  ///     computeDensityCollapse's clearing pass).
   ///   • Focus person + first-degree + path + search + selected → always visible.
   ///   • Second-degree → visible where graph size allows.
   ///   • Distant branches (3+ hops from focus) → collapsed if they have ≥ 5 members.
@@ -265,8 +268,14 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     /// generic label ("Branch · 38") — the old behavior.
     String Function(String personId)? personNameOf,
   }) {
-    // Small family bypass — don't collapse small graphs.
-    if (familyMemberCount < 30) {
+    // Budget bypass — don't collapse graphs whose RENDERED set already
+    // fits the global legibility budget. v5.123: aligned with
+    // computeDensityCollapse's `<= kNodeBudget` invariant so the two
+    // mechanisms can never fight (the old `< 30` left the 30–50 range
+    // engaging this pass while the density pass cleared it — an
+    // infinite rebuild oscillation that hid proximity nodes with
+    // positions, the "edges ending at empty points" bug).
+    if (familyMemberCount <= kNodeBudget) {
       if (state.collapsedBranches.isNotEmpty) {
         state = BranchCollapseState(
           collapsedBranches: const [],
@@ -448,15 +457,30 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
   /// under budget.
   ///
   /// This is the UNIFIED rule that works at any scale:
-  ///   - Small trees (<50 visible): zero collapsing (no regression)
+  ///   - Small trees (≤ 50 candidates): zero collapsing (no regression)
   ///   - Medium (50-500): partial collapsing of large branches
   ///   - Large (500-10,000+): heavy recursive collapsing
   ///
+  /// v5.123 (CONVERGENCE FIX): [visibleNodeIds] must be the FULL
+  /// rendered candidate set (positions ∩ expand/collapse allow-list),
+  /// NOT the count with the current hidden set subtracted. Feeding the
+  /// post-hiding count made this pass clear the very branches it had
+  /// just created on the next build — an infinite rebuild oscillation.
+  /// With the full candidate set the computation is a deterministic
+  /// fixed point: the same inputs produce the same branches, so the
+  /// idempotency check (`_branchesEqual`) no-ops and the pipeline
+  /// converges.
+  ///
   /// Parameters:
-  /// [visibleNodeIds] — nodes that passed viewport culling (pre-collapse).
+  /// [visibleNodeIds] — ALL rendered candidate nodes (pre-collapse).
   /// [childrenOf] — adjacency: personId → children IDs (for subtree sizing).
   /// [personNameOf] — resolves personId → display name for labels.
   /// [allEdges] — all edges (for computing hidden edge IDs).
+  /// [protectedIds] — v5.123: persons that must NEVER be hidden (focus
+  ///   person, first/second-degree neighbours, active path, search
+  ///   matches, selection). Roots inside this set are skipped and the
+  ///   members are excluded from hidden subtrees — this absorbs the
+  ///   focus-protection the canvas used to get from computeCollapse.
   void computeDensityCollapse({
     required Set<String> visibleNodeIds,
     required Map<String, Set<String>> childrenOf,
@@ -467,6 +491,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     /// each collapsed branch's chip color. Pass the same map that
     /// node_builders uses for node ring colors.
     Map<String, String>? categoryOf,
+    Set<String>? protectedIds,
   }) {
     // Small-set bypass: if within budget, clear any existing branches.
     if (visibleNodeIds.length <= kNodeBudget) {
@@ -480,6 +505,8 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       return;
     }
 
+    final protected = protectedIds ?? const <String>{};
+
     // We need to collapse. Find roots with the largest subtrees.
     final remaining = Set<String>.from(visibleNodeIds);
     final newBranches = <CollapsedBranch>[];
@@ -492,6 +519,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
 
     // Find roots: visible nodes that have children also in the visible set.
     final roots = visibleNodeIds.where((id) {
+      if (protected.contains(id)) return false; // v5.123: never hide under a protected root
       final children = childrenOf[id] ?? {};
       return children.any((c) => remaining.contains(c));
     }).toList();
@@ -511,6 +539,9 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       final subtreeMembers = <String>{};
       _collectSubtreeBFS(rootId, childrenOf, remaining, subtreeMembers);
       subtreeMembers.remove(rootId); // root stays visible
+      // v5.123: protected persons stay visible even inside a hidden
+      // subtree (their branch is partially collapsed around them).
+      subtreeMembers.removeAll(protected);
 
       if (subtreeMembers.length < 3) continue; // too small to cluster
 

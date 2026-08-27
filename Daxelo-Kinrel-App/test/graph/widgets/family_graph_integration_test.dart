@@ -106,7 +106,7 @@ void main() {
           reason: 'person-1 and person-2 are spouses → must produce a union');
     });
 
-    test('3. Phase 4 — Branch collapse triggers for 40-person graph', () {
+    test('3. Phase 4 — Branch collapse triggers for large rendered set', () {
       final notifier = BranchCollapseNotifier();
       notifier.computeCollapse(
         allPersons: persons,
@@ -114,14 +114,18 @@ void main() {
         focusPersonId: 'person-0',
         firstDegreeIds: {'person-1', 'person-2', 'person-3', 'person-4'},
         secondDegreeIds: const {},
-        familyMemberCount: persons.length,
+        // v5.123: computeCollapse's budget bypass now aligns with the
+        // density pass (≤ kNodeBudget = 50 → no collapse). Simulate a
+        // rendered set ABOVE the budget so the focus-collapse path is
+        // exercised.
+        familyMemberCount: 80,
         personNameOf: (id) => 'Person $id',
       );
 
-      // 40 members >= 30 → collapse is eligible.
+      // 80 rendered members > 50 → collapse is eligible.
       // person-1 has 30 descendants (persons 10-39) → large branch.
       expect(notifier.state.collapsedBranches, isNotEmpty,
-          reason: '40-person graph with a 30-member distant branch '
+          reason: 'large rendered graph with a 30-member distant branch '
               'must trigger branch collapse');
 
       // The collapsed branch should hide >= 5 members.
@@ -142,7 +146,8 @@ void main() {
         focusPersonId: 'person-0',
         firstDegreeIds: {'person-1', 'person-2', 'person-3', 'person-4'},
         secondDegreeIds: const {},
-        familyMemberCount: persons.length,
+        // v5.123: above the budget so the collapse path runs.
+        familyMemberCount: 80,
       );
       expect(notifier.state.collapsedBranches, isNotEmpty);
 
@@ -293,7 +298,8 @@ void main() {
         firstDegreeIds: {'person-1', 'person-2', 'person-3', 'person-4'},
         secondDegreeIds: const {},
         searchMatchIds: searchNotifier.state.matchIdSet,
-        familyMemberCount: persons.length,
+        // v5.123: above the budget so the collapse path runs.
+        familyMemberCount: 80,
         personNameOf: (id) => 'Person $id',
       );
       expect(collapseNotifier.state.collapsedBranches, isNotEmpty,
