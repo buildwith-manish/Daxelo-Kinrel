@@ -29,11 +29,10 @@ import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// The maximum number of visible nodes in the default ego-centric view.
-/// If the 2-hop neighborhood would exceed this, ring 2 is partially
-/// included (as many as fit) rather than skipped entirely.
-/// v5.117: Increased from 30 to 50 to match kNodeBudget so the default
-/// view shows as many relevant nodes as the graph can legibly render.
-const int kProximityNodeBudget = 50;
+/// v5.121d: Reduced from 50 to 30 — at 50 nodes the zoom was too far
+/// out, making nodes too small to read. 30 nodes fills the view at
+/// a comfortable zoom where initials are legible.
+const int kProximityNodeBudget = 30;
 
 /// Manages the visible subset of the family graph.
 ///

@@ -1665,9 +1665,11 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       final targetZoomY = (_viewportSize.height - 200) / (2 * maxDistY + 1);
       var fitZoom = targetZoomX < targetZoomY ? targetZoomX : targetZoomY;
       // Clamp to a reasonable range: don't zoom in too far (max 1.5)
-      // and don't zoom out too far (min 0.15).
+      // and don't zoom out too far (min 0.4 so nodes are still legible).
+      // v5.121d: Raised min from 0.15 to 0.4 — at 0.15 nodes were
+      // too small to read (dots instead of circles with initials).
       if (fitZoom > 1.5) fitZoom = 1.5;
-      if (fitZoom < 0.15) fitZoom = 0.15;
+      if (fitZoom < 0.4) fitZoom = 0.4;
 
       // Center on the anchor at the computed zoom.
       final focusCircleCenter = Offset(
