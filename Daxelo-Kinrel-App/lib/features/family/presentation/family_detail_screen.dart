@@ -348,6 +348,20 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
                     ),
                   ),
 
+                  // v5.119 step 2: Utility row (Invite / Settings / Leave)
+                  // migrated from FamilyHubScreen into the main scroll.
+                  SliverToBoxAdapter(
+                    child: staggerFade(
+                      UtilityRow(
+                        familyId: widget.familyId,
+                        onInvite: () => showAddMemberOptions(context, familyId: widget.familyId),
+                        onSettings: () => context.push('/family/${widget.familyId}/management'),
+                        onLeave: () => _showLeaveFamilyDialog(context),
+                      ),
+                      5,
+                    ),
+                  ),
+
                   // Bottom padding: small breathing gap so the last
                   // content row isn't flush against the Family Space
                   // floating nav below it.
@@ -4727,28 +4741,10 @@ class _DiscoveryGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tiles = <_DiscoveryTile>[
-      _DiscoveryTile(
-        icon: Icons.auto_awesome,
-        label: 'Family Intelligence',
-        subtitle: 'Pulse, brief, quests, blessings',
-        color: const Color(0xFFC8853A),
-        onTap: () => context.push('/pulse'),
-      ),
-      _DiscoveryTile(
-        icon: Icons.photo_library_outlined,
-        label: 'Memories',
-        subtitle: 'Photo vault & On This Day',
-        color: const Color(0xFF00897B),
-        onTap: () => context.push('/memory-vault?familyId=$familyId'),
-      ),
-      _DiscoveryTile(
-        icon: Icons.mic_none,
-        label: 'Oral History',
-        subtitle: 'Record family stories',
-        color: const Color(0xFFD81B60),
-        onTap: () => context.push('/oral-history?familyId=$familyId'),
-      ),
+
+    // v5.119 step 8: Grouped discovery tiles instead of flat 6-tile grid.
+    // Each sub-group gets its own header, matching the "Discover" style.
+    final playTiles = <_DiscoveryTile>[
       _DiscoveryTile(
         icon: Icons.quiz_outlined,
         label: 'Quiz',
@@ -4763,9 +4759,36 @@ class _DiscoveryGrid extends StatelessWidget {
         color: const Color(0xFFF4511E),
         onTap: () => context.push('/achievements'),
       ),
+    ];
+
+    final preserveTiles = <_DiscoveryTile>[
+      _DiscoveryTile(
+        icon: Icons.photo_library_outlined,
+        label: 'Memories',
+        subtitle: 'Photo vault & On This Day',
+        color: const Color(0xFF00897B),
+        onTap: () => context.push('/memory-vault?familyId=$familyId'),
+      ),
+      _DiscoveryTile(
+        icon: Icons.mic_none,
+        label: 'Oral History',
+        subtitle: 'Record family stories',
+        color: const Color(0xFFD81B60),
+        onTap: () => context.push('/oral-history?familyId=$familyId'),
+      ),
+    ];
+
+    final insightsTiles = <_DiscoveryTile>[
+      _DiscoveryTile(
+        icon: Icons.auto_awesome,
+        label: 'Family Intelligence',
+        subtitle: 'Brief, quests, blessings', // v5.119 step 6: removed 'Pulse' (collision with FamilyPulseSection)
+        color: const Color(0xFFC8853A),
+        onTap: () => context.push('/pulse'),
+      ),
       _DiscoveryTile(
         icon: Icons.memory,
-        label: 'Memories',
+        label: 'Activity Feed', // v5.119 step 5: was 'Memories' (collision with photo vault)
         subtitle: 'Family activity feed',
         color: const Color(0xFF8E24AA),
         onTap: () => context.push('/memories?familyId=$familyId'),
@@ -4777,6 +4800,7 @@ class _DiscoveryGrid extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Main header
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 8),
             child: Text(
@@ -4786,18 +4810,17 @@ class _DiscoveryGrid extends StatelessWidget {
               ),
             ),
           ),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 0.85,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-            ),
-            itemCount: tiles.length,
-            itemBuilder: (context, i) => tiles[i],
-          ),
+          // Play group
+          _DiscoveryGroupHeader(label: 'Play'),
+          _DiscoveryRow(tiles: playTiles),
+          const SizedBox(height: 12),
+          // Preserve group
+          _DiscoveryGroupHeader(label: 'Preserve'),
+          _DiscoveryRow(tiles: preserveTiles),
+          const SizedBox(height: 12),
+          // Insights group
+          _DiscoveryGroupHeader(label: 'Insights'),
+          _DiscoveryRow(tiles: insightsTiles),
         ],
       ),
     );
@@ -4867,6 +4890,47 @@ class _DiscoveryTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// v5.119 step 8: Discovery group header + row helpers.
+
+/// A small section header for a discovery sub-group (Play / Preserve / Insights).
+class _DiscoveryGroupHeader extends StatelessWidget {
+  const _DiscoveryGroupHeader({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 6, top: 4),
+      child: Text(
+        label,
+        style: theme.textTheme.labelMedium?.copyWith(
+          fontWeight: FontWeight.w600,
+          color: theme.textTheme.labelMedium?.color?.withValues(alpha: 0.7),
+        ),
+      ),
+    );
+  }
+}
+
+/// A horizontal scroll-free row of discovery tiles (2 per row).
+class _DiscoveryRow extends StatelessWidget {
+  const _DiscoveryRow({required this.tiles});
+  final List<_DiscoveryTile> tiles;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (int i = 0; i < tiles.length; i++) ...[
+          Expanded(child: tiles[i]),
+          if (i < tiles.length - 1) const SizedBox(width: 8),
+        ],
+      ],
     );
   }
 }

@@ -634,7 +634,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // v135: Tapping navigates to the Family Hub (intermediate
                 // screen), NOT the Family Space directly.
                 GestureDetector(
-                  onTap: () => context.push('/family/${widget.familyId}/hub'),
+                  onTap: () => context.push('/family/${widget.familyId}'),
                   child: Container(
                     width: 48,
                     height: 48,
@@ -701,7 +701,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 Expanded(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () => context.push('/family/${widget.familyId}/hub'),
+                    onTap: () => context.push('/family/${widget.familyId}'),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,

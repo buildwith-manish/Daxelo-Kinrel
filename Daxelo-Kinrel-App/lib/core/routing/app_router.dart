@@ -57,7 +57,8 @@ import '../../features/home/presentation/home_screen.dart';
 // KIN-25: ExploreScreen import removed — /explore route deleted.
 import '../../features/family/presentation/family_list_screen.dart';
 import '../../features/family/presentation/family_detail_screen.dart';
-import '../../features/family/presentation/family_hub_screen.dart';
+// v5.119 step 10: family_hub_screen.dart removed — content migrated to
+// family_detail_screen.dart. The /family/:id/hub route is deleted.
 import '../../features/family/presentation/family_groups_screen.dart';
 import '../../features/family/presentation/create_group_screen.dart';
 import '../../features/family/presentation/group_hub_screen.dart';
@@ -972,16 +973,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       // The Hub is the digital home of the conversation — a premium
       // overview space with hero, members, shared content, insights,
       // and a gateway to enter the full Family Space.
-      GoRoute(
-        path: '/family/:id/hub',
-        pageBuilder: (context, state) {
-          final familyId = state.pathParameters['id']!;
-          return _fastFadePage(
-            key: state.pageKey,
-            child: FamilyHubScreen(familyId: familyId),
-          );
-        },
-      ),
+      // v5.119 step 10: /family/:id/hub route DELETED.
+      // FamilyHubScreen was removed — its content (UtilityRow, Insights,
+      // IdentityCard) was migrated into FamilyDetailScreen and the
+      // /family/:id/management route. Chat now links directly to
+      // /family/:id (FamilyDetailScreen) instead of /family/:id/hub.
       GoRoute(
         path: '/family-tree',
         pageBuilder: (context, state) => _fastFadePage(

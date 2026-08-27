@@ -117,7 +117,7 @@ class FamilySpaceFloatingNav extends StatelessWidget {
     _NavTab(
       icon: Icons.chat_bubble_outline_rounded,
       activeIcon: Icons.chat_rounded,
-      label: 'Chat',
+      label: 'Family Chat', // v5.119 step 7: disambiguate from global DM 'Chat'
     ),
   ];
 
