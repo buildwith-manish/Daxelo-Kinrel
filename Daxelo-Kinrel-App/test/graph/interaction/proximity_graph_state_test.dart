@@ -144,8 +144,9 @@ void main() {
 
     test('sparse families fill deeper rings as COMPLETE rings until the '
         'soft budget is reached', () {
-      // Anchor + 2 ring-1 + 10 ring-2 = 13 (< 30) → ring 3 (20 nodes)
-      // completes in full → 33 total ≥ 30 → stop. 33 ≤ 50 → no cut.
+      // Anchor + 2 ring-1 + 10 ring-2 = 13 (< 30) → ring 3 (30 nodes,
+      // 3 per ring-2 node) completes IN FULL → 43 total ≥ 30 → stop.
+      // 43 ≤ 50 → no truncation.
       final edges = <_E>[
         _e('anchor', 'spouse', 'wife'),
         _e('anchor', 'father', 'father'),
@@ -154,9 +155,11 @@ void main() {
         edges.add(_e('spouse', 'r2s$i', 'son'));
         edges.add(_e('father', 'r2f$i', 'son'));
       }
-      for (var i = 0; i < 10; i++) {
-        edges.add(_e('r2s$i', 'r3s${i}a', 'son'));
-        edges.add(_e('r2s$i', 'r3s${i}b', 'son'));
+      for (var i = 0; i < 5; i++) {
+        for (final suffix in ['a', 'b', 'c']) {
+          edges.add(_e('r2s$i', 'r3s$i$suffix', 'son'));
+          edges.add(_e('r2f$i', 'r3f$i$suffix', 'son'));
+        }
       }
       final allPersons = <String>{'anchor', for (final e in edges) e.fromId, for (final e in edges) e.toId};
       final adjacency = buildAdjacency(edges);
@@ -168,13 +171,15 @@ void main() {
         edges: edges,
       );
 
-      expect(visible.length, 33,
-          reason: '1 anchor + 2 ring-1 + 10 ring-2 + 20 ring-3 (complete) '
-              '= 33 — soft budget satisfied by complete rings');
-      for (var i = 0; i < 10; i++) {
-        expect(visible, contains('r3s${i}a'));
-        expect(visible, contains('r3s${i}b'),
-            reason: 'Ring 3 must be complete (33 ≤ hard cap)');
+      expect(visible.length, 43,
+          reason: '1 anchor + 2 ring-1 + 10 ring-2 + 30 ring-3 (complete) '
+              '= 43 — soft budget satisfied by complete rings');
+      for (var i = 0; i < 5; i++) {
+        for (final suffix in ['a', 'b', 'c']) {
+          expect(visible, contains('r3s$i$suffix'));
+          expect(visible, contains('r3f$i$suffix'),
+              reason: 'Ring 3 must be complete (43 ≤ hard cap)');
+        }
       }
     });
 
