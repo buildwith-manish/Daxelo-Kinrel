@@ -444,10 +444,19 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
 
         // v99: Animate camera to focused node ONLY when the focused
         // person ID changes (not every build).
+        // v5.123 (Step 4): if the focused person has NO position yet —
+        // they were just revealed into the proximity set by a search
+        // jump and the layout hasn't recomputed — do NOT consume the
+        // change flag; leave _lastFocusedPersonId untouched so the next
+        // build (with the updated layout) still triggers the camera
+        // animation. This is what makes "search → reveal path → animate
+        // camera to the target" work end-to-end.
         if (focusState.focusedPersonId != null &&
             focusState.focusedPersonId != _lastFocusedPersonId) {
-          _lastFocusedPersonId = focusState.focusedPersonId;
-          _maybeFocusCameraOnNode(focusState.focusedPersonId!, layout);
+          if (layout.positions.containsKey(focusState.focusedPersonId)) {
+            _lastFocusedPersonId = focusState.focusedPersonId;
+            _maybeFocusCameraOnNode(focusState.focusedPersonId!, layout);
+          }
         } else if (focusState.focusedPersonId == null) {
           _lastFocusedPersonId = null;
         }

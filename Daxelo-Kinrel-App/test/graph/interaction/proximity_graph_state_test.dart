@@ -14,6 +14,9 @@
 //     distant in-laws) using the existing KinshipEdgeCategory ranking.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kinrel/core/relationship/relationship_engine.dart';
+import 'package:kinrel/core/services/graph_layout_service.dart'
+    show GraphPerson;
 import 'package:kinrel/graph/interaction/proximity_graph_state.dart';
 
 /// Edge tuple matching the production shape used by buildAdjacency.
@@ -320,6 +323,121 @@ void main() {
         allPersons: allPersons,
       );
       expect(notifier.state.visibleIds, isNot(contains('not-a-person')));
+    });
+
+    test('search jump (Step 4): reveal shortest path to an offscreen '
+        'person + their neighborhood — no other branch expands', () {
+      // anchor ─ wife ─ fil (wife's father = the search TARGET)
+      //   └─ son ─ d1, d2        (an unrelated branch that must NOT expand)
+      // fil ─ filBro             (target's immediate neighborhood)
+      final edges = <_E>[
+        _e('anchor', 'wife', 'wife'),
+        _e('wife', 'fil', 'father'),
+        _e('anchor', 'son', 'son'),
+        _e('son', 'd1', 'son'),
+        _e('son', 'd2', 'son'),
+        _e('fil', 'filBro', 'brother'),
+      ];
+      final fullPersons = <String>{
+        for (final e in edges) e.fromId,
+        for (final e in edges) e.toId,
+      };
+      final adjacency = buildAdjacency(edges);
+
+      // Initial proximity set covers only the near family (the target
+      // is OUTSIDE it — "not loaded/visible at all").
+      final notifier = ProximityGraphNotifier();
+      notifier.initialize(
+        anchorId: 'anchor',
+        allPersons: {'anchor', 'wife', 'son'},
+        adjacency: adjacency,
+        edges: edges,
+      );
+      expect(notifier.state.visibleIds, {'anchor', 'wife', 'son'});
+      expect(notifier.state.visibleIds, isNot(contains('fil')));
+
+      // The exact composition the search jump uses
+      // (family_graph_screen._revealPathToMember): resolve the shortest
+      // path via RelationshipEngine.resolvePath — the SAME BFS behind
+      // graph_kinship_path_focus — then reveal the path and expand the
+      // target's neighborhood.
+      RelationshipEngine.instance.invalidateCache();
+      final persons = <GraphPerson>[
+        for (final id in fullPersons)
+          GraphPerson(id: id, name: 'Person $id'),
+      ];
+      final pathSteps = RelationshipEngine.instance.resolvePath(
+        viewerPersonId: 'anchor',
+        targetPersonId: 'fil',
+        persons: persons,
+        relationships: [
+          for (final e in edges)
+            (fromId: e.fromId, toId: e.toId, type: e.relationshipKey),
+        ],
+      );
+
+      expect(pathSteps, isNotNull,
+          reason: 'The reused BFS must find anchor → wife → fil');
+      expect(pathSteps!.map((s) => s.personId).toList(), ['wife', 'fil']);
+
+      final pathIds = <String>{
+        'anchor',
+        for (final step in pathSteps) step.personId,
+      };
+      notifier.revealPersons(personIds: pathIds, allPersons: fullPersons);
+      notifier.expandFromPerson(
+        personId: 'fil',
+        adjacency: adjacency,
+        allPersons: fullPersons,
+      );
+
+      // Path + target neighborhood are now visible…
+      expect(notifier.state.visibleIds,
+          containsAll(['anchor', 'wife', 'fil', 'filBro']));
+      // …and the UNRELATED branch was NOT expanded.
+      expect(notifier.state.visibleIds, isNot(contains('d1')));
+      expect(notifier.state.visibleIds, isNot(contains('d2')));
+    });
+
+    test('search jump (Step 4): disconnected target still renders '
+        '(reveal target alone)', () {
+      final edges = <_E>[_e('anchor', 'wife', 'wife')];
+      final fullPersons = <String>{'anchor', 'wife', 'stranger'};
+      final adjacency = buildAdjacency(edges);
+
+      final notifier = ProximityGraphNotifier();
+      notifier.initialize(
+        anchorId: 'anchor',
+        allPersons: {'anchor', 'wife'},
+        adjacency: adjacency,
+        edges: edges,
+      );
+
+      // No path exists — the search-jump fallback reveals the target
+      // alone so they still render and the camera can center on them.
+      RelationshipEngine.instance.invalidateCache();
+      final persons = <GraphPerson>[
+        GraphPerson(id: 'anchor', name: 'Anchor'),
+        GraphPerson(id: 'wife', name: 'Wife'),
+        GraphPerson(id: 'stranger', name: 'Stranger'),
+      ];
+      final pathSteps = RelationshipEngine.instance.resolvePath(
+        viewerPersonId: 'anchor',
+        targetPersonId: 'stranger',
+        persons: persons,
+        relationships: [
+          for (final e in edges)
+            (fromId: e.fromId, toId: e.toId, type: e.relationshipKey),
+        ],
+      );
+      expect(pathSteps, isNull, reason: 'stranger is disconnected');
+
+      notifier.revealPersons(
+        personIds: {'stranger'},
+        allPersons: fullPersons,
+      );
+      expect(notifier.state.visibleIds, contains('stranger'));
+      expect(notifier.state.visibleIds, containsAll(['anchor', 'wife']));
     });
   });
 }
