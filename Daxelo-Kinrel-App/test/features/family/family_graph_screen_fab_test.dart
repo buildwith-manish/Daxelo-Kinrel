@@ -140,11 +140,13 @@ void main() {
         // v5.123: the graph runs ALWAYS-ON animations by design (ambient
         // particles, the "You" node glow pulse) — pumpAndSettle never
         // settles. Pump fixed durations instead (the standard pattern
-        // for endless animations): 2s also lets the camera's initial
-        // framing animation (Timer-chained ticks) finish so no pending
-        // timers remain at test end.
+        // for endless animations). The SECOND pump lets the async layout
+        // provider resolve and fire the camera's one-time framing
+        // (_maybeFrame → animateTo); the THIRD flushes that animation's
+        // Timer chain so no pending timers remain at test end.
         await tester.pump();
         await tester.pump(const Duration(seconds: 2));
+        await tester.pump(const Duration(seconds: 1));
 
         // v10 Fix #4 + v5.123: the screen legitimately renders OTHER
         // FABs in the data state (Share graph, How-We're-Connected,
@@ -185,10 +187,11 @@ void main() {
           ),
         );
         // v5.123: fixed-duration pumps (endless ambient animations —
-        // pumpAndSettle never settles). 2s lets the camera animation
-        // finish so no pending timers remain at test end.
+        // pumpAndSettle never settles). The third pump flushes the
+        // camera framing animation's Timer chain (pending-timer guard).
         await tester.pump();
         await tester.pump(const Duration(seconds: 2));
+        await tester.pump(const Duration(seconds: 1));
 
         // FAB must be present in the empty state (0 members).
         // v5.123: the AppBar's 'Add' TextButton uses the SAME icon —
