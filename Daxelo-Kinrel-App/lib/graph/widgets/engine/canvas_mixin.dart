@@ -489,6 +489,21 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             .where((id) => !densityHiddenIds.contains(id))
             .toSet();
 
+        // v5.120: ALWAYS include the anchor (viewer's node) in the visible
+        // set, even if it's outside the viewport. Without this, the anchor
+        // node doesn't get rendered as a GraphNode widget, but edges to it
+        // still draw (because the anchor has a position in effectivePositions
+        // and the edge segment crosses the viewport). This produces the
+        // "edges converging on an empty point" bug where the anchor's
+        // position has no visible circle/initials.
+        final String? anchorIdForVisible = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
+        if (anchorIdForVisible != null &&
+            effectivePositions.containsKey(anchorIdForVisible) &&
+            !densityHiddenIds.contains(anchorIdForVisible) &&
+            !visible.contains(anchorIdForVisible)) {
+          visible.add(anchorIdForVisible);
+        }
+
         // Record throttling baselines for _onCameraChanged.
         _lastCullViewport = vp;
         _lastLod = _lodFor(_camera.zoomLevel);
