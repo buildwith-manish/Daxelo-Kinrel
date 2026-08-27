@@ -144,13 +144,20 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
 
-        // v10 Fix #4: FAB should NOT be present in the data state.
-        // The AppBar "Add" button is used instead.
+        // v10 Fix #4 + v5.123: the screen legitimately renders OTHER
+        // FABs in the data state (Share graph, How-We're-Connected,
+        // Rearrange mode) — the ORIGINAL premise 'no FAB with data' is
+        // stale. The actual rule: the ADD-MEMBER FAB
+        // (person_add_alt_1_rounded) only appears in the EMPTY state;
+        // with data, the AppBar 'Add' button is used instead.
         expect(
-          find.byType(FloatingActionButton),
+          find.descendant(
+            of: find.byType(FloatingActionButton),
+            matching: find.byIcon(Icons.person_add_alt_1_rounded),
+          ),
           findsNothing,
-          reason: 'FamilyGraphScreen with data should NOT have a FAB — '
-              'the AppBar "Add" button is used instead',
+          reason: 'FamilyGraphScreen with data must NOT show the '
+              'add-member FAB — the AppBar "Add" button is used instead',
         );
       },
     );
@@ -180,15 +187,20 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
 
-        // FAB must be present in the empty state (0 members)
+        // FAB must be present in the empty state (0 members).
+        // v5.123: the AppBar's 'Add' TextButton uses the SAME icon —
+        // scope the finder to FABs so the count is exactly one.
         expect(
-          find.byType(FloatingActionButton),
+          find.descendant(
+            of: find.byType(FloatingActionButton),
+            matching: find.byIcon(Icons.person_add_alt_1_rounded),
+          ),
           findsOneWidget,
-          reason: 'FAB must be present in the empty state (0 members)',
+          reason: 'The add-member FAB must be present in the empty state',
         );
         expect(
           find.byIcon(Icons.person_add_alt_1_rounded),
-          findsOneWidget,
+          findsWidgets, // v5.123: the AppBar 'Add' button uses the same icon.
           reason: 'FAB icon must be visible in the empty state',
         );
       },
