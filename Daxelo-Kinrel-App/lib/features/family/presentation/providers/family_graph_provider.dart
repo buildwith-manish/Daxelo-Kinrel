@@ -47,6 +47,9 @@ import '../../../../graph/interaction/proximity_graph_state.dart'
         ProximityGraphState,
         buildAdjacency,
         kProximityNodeBudget;
+// v5.123 (Step 1): disclosure level drives the force-relaxation opt-in.
+import '../../../../graph/interaction/expand_collapse.dart'
+    show expandCollapseProvider, DisclosureLevel;
 
 /// Provider for the Drift database instance.
 /// Used by [FamilyGraphNotifier] to persist graph data locally.
@@ -307,12 +310,20 @@ class _LayoutComputeParams {
   final bool compactMode;
   final Map<String, int>? kinshipGenerationMap;
 
+  /// v5.123 (Step 1): EXPLICIT opt-in for GraphLayoutService's force-
+  /// relaxation pass. Only the "Show All Branches" / Level 4 path
+  /// (expandCollapseProvider disclosure level == DisclosureLevel.full)
+  /// passes true — the default ego-centric view must keep nodes
+  /// exactly on their rings.
+  final bool allowForceRelaxation;
+
   const _LayoutComputeParams({
     required this.persons,
     required this.relationships,
     this.anchorPersonId,
     this.compactMode = false,
     this.kinshipGenerationMap,
+    this.allowForceRelaxation = false,
   });
 }
 
@@ -325,6 +336,7 @@ GraphLayoutResult _runLayoutInIsolate(_LayoutComputeParams params) {
     anchorPersonId: params.anchorPersonId,
     compactMode: params.compactMode,
     kinshipGenerationMap: params.kinshipGenerationMap,
+    allowForceRelaxation: params.allowForceRelaxation,
   );
 }
 
@@ -1646,6 +1658,22 @@ final graphLayoutProvider =
   // RadialLayout places the anchor at center, ring 1 on a circle around
   // the anchor, ring 2 on a larger circle, etc. This is exactly the
   // ego-centric view the user wants.
+  //
+  // v5.123 (Step 1): Derive the force-relaxation opt-in from the
+  // disclosure level. The DEFAULT ego-centric view (this RadialLayout
+  // path — pure algebra, no physics) NEVER relaxes: positioning comes
+  // purely from ring radius + evenly-spaced angles + the barycenter
+  // branch-grouping pass. Only the "Show All Branches" / Level 4 path
+  // (expandCollapseProvider.currentDisclosureLevel ==
+  // DisclosureLevel.full, set by _showAllWithWarning → expandAll)
+  // sets allowForceRelaxation = true, which is honoured whenever the
+  // GraphLayoutService engine is used (see _runLayoutInIsolate). The
+  // old implicit `n > 60` node-count trigger inside
+  // GraphLayoutService.computeLayout is gone — callers must opt in.
+  final disclosureLevel =
+      ref.watch(expandCollapseProvider.select((s) => s.currentDisclosureLevel));
+  final allowForceRelaxation = disclosureLevel == DisclosureLevel.full;
+
   final radialLayout = RadialLayout(
     config: const RadialLayoutConfig(
       ringSpacing: 200.0,
@@ -1673,6 +1701,9 @@ final graphLayoutProvider =
     'layout_engine': 'radial',
     'proximity_filtered': true,
     'total_family_size': graphPersons.length,
+    // v5.123 (Step 1): force relaxation is opt-in only (Show-All path).
+    'allow_force_relaxation': allowForceRelaxation,
+    'disclosure_level': disclosureLevel,
   });
 
   return result;

@@ -9,7 +9,7 @@
 // - Descendants (gen > 0) arc below center (trunk angle 90°)
 // - Siblings / spouse of anchor sit on the anchor ring (gen 0)
 // - Spouses are always placed adjacent to their partner on the same ring
-// - Optional force-relaxation pass for medium-sized families (> 60 nodes)
+// - Optional force-relaxation pass — EXPLICIT opt-in only (Show-All path)
 // - Pure radial with angle jitter for very large families (> 1000 nodes)
 // - Computes canvas dimensions from outermost ring + padding
 //
@@ -285,6 +285,20 @@ class GraphLayoutService {
   /// [anchorPersonId] — optional ID of the anchor/ego person to center on.
   ///   Falls back to `isAnchor` flag, then the first person.
   /// [compactMode] — use compact node dimensions for dense graphs.
+  /// [allowForceRelaxation] — v5.123: EXPLICIT opt-in for the
+  ///   force-relaxation physics pass. Defaults to FALSE: the default
+  ///   ego-centric view (proximity-budget-driven, roughly ≤ 40 nodes)
+  ///   positions nodes PURELY from ring radius (fixed by
+  ///   generationIndex) + evenly-spaced angles within the ring +
+  ///   branch grouping (the barycenter pass sorts siblings/couples
+  ///   from the same parent adjacent before angle assignment), so
+  ///   nodes stay exactly ON their assigned rings and edges stay
+  ///   clean. Only the "Show All Branches" / Level 4 path — where the
+  ///   node count can be much larger and pure radial placement would
+  ///   overlap — should pass true. This replaces the old implicit
+  ///   `n > 60` node-count check, which silently repositioned nodes
+  ///   OFF their rings at normal view sizes and produced crossed,
+  ///   messy edges.
   ///
   /// Returns a [GraphLayoutResult] with personId → Offset positions,
   /// canvas dimensions, and ring metadata.
@@ -294,6 +308,7 @@ class GraphLayoutService {
     String? anchorPersonId,
     bool compactMode = false,
     Map<String, int>? kinshipGenerationMap,
+    bool allowForceRelaxation = false,
   }) {
     _compactMode = compactMode;
 
@@ -433,8 +448,15 @@ class GraphLayoutService {
     positions[anchor] = center;
 
     // Determine family size bucket
+    // v5.123: Force relaxation is now an EXPLICIT opt-in
+    // ([allowForceRelaxation], default false) instead of the old
+    // implicit `n > 60` node-count check. The physics pass moved nodes
+    // OFF their assigned ring radii at normal (~20-40 node) view sizes,
+    // producing crossed/messy edges. Only the Show-All/Level 4 path —
+    // which can have far more nodes — opts in. The upper bound (pure
+    // radial + jitter above 1000 nodes) is unchanged.
     final n = persons.length;
-    final useForceRelaxation = n > 60 && n <= 1000;
+    final useForceRelaxation = allowForceRelaxation && n <= 1000;
     final useJitter = n > 1000;
 
     // Place anchor-ring non-anchor persons (siblings, spouse on gen 0)
@@ -461,7 +483,7 @@ class GraphLayoutService {
       );
     }
 
-    // ── Step 6: Force-relaxation for medium families ──────────────────
+    // ── Step 6: Force-relaxation (explicit opt-in: Show-All/Level 4) ──
     if (useForceRelaxation) {
       _forceRelax(
         positions: positions,
