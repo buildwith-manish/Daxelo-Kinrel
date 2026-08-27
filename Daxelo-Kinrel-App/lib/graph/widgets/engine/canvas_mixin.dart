@@ -421,11 +421,18 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         final Rect vp = _graphSpaceViewport();
         final Set<String> culled =
             _culler.cull(effectivePositions, nodeSizes, vp);
-        // v99: Subtract branch-collapse hidden member IDs — now uses
-        // the CURRENT collapse state (computed above, not stale).
-        final Set<String> visiblePreCluster = hiddenIds.isEmpty
-            ? culled.where(allowed.contains).toSet()
-            : culled.where((id) => allowed.contains(id) && !hiddenIds.contains(id)).toSet();
+        // v5.121: Render ALL nodes that have positions, not just those
+        // within the viewport culler's bounds. The proximity filter
+        // already limits to ~50 nodes, so the viewport culler is no
+        // longer needed for performance — and it was actively harmful
+        // because it excluded nodes that were just off-screen, producing
+        // the "edges ending at empty points" bug.
+        //
+        // The culler is still used for edge segment-testing below, but
+        // the node visible set now includes every node with a position.
+        final Set<String> visiblePreCluster = effectivePositions.keys
+            .where((id) => allowed.contains(id) && !hiddenIds.contains(id))
+            .toSet();
 
         // v5.105: Density-driven budget collapse.
         // If visible nodes exceed kNodeBudget (50), collapse subtrees
