@@ -29,8 +29,11 @@ import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// The maximum number of visible nodes in the default ego-centric view.
-/// If the 2-hop neighborhood would exceed this, only ring 1 is shown.
-const int kProximityNodeBudget = 30;
+/// If the 2-hop neighborhood would exceed this, ring 2 is partially
+/// included (as many as fit) rather than skipped entirely.
+/// v5.117: Increased from 30 to 50 to match kNodeBudget so the default
+/// view shows as many relevant nodes as the graph can legibly render.
+const int kProximityNodeBudget = 50;
 
 /// Manages the visible subset of the family graph.
 ///
@@ -74,9 +77,26 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
       }
     }
 
-    // If ring 2 fits within the budget, add it. Otherwise stop at ring 1.
-    if (visible.length + ring2.length <= kProximityNodeBudget) {
-      visible.addAll(ring2);
+    // v5.117: Include as many ring 2 nodes as fit within the budget,
+    // rather than all-or-nothing. This ensures the default view shows
+    // the maximum number of relevant nodes (up to kProximityNodeBudget)
+    // instead of dropping ring 2 entirely when it's slightly over budget.
+    //
+    // Ring 2 nodes are added in adjacency order (not sorted by relevance)
+    // because all ring 2 nodes are equidistant from the anchor. A future
+    // improvement could prioritize by relationship category.
+    final remainingBudget = kProximityNodeBudget - visible.length;
+    if (remainingBudget > 0 && ring2.isNotEmpty) {
+      // If all of ring 2 fits, add it all. Otherwise add as many as fit.
+      if (ring2.length <= remainingBudget) {
+        visible.addAll(ring2);
+      } else {
+        // Add ring 2 nodes one by one until we hit the budget.
+        for (final r2Id in ring2) {
+          if (visible.length >= kProximityNodeBudget) break;
+          visible.add(r2Id);
+        }
+      }
     }
 
     state = ProximityGraphState(

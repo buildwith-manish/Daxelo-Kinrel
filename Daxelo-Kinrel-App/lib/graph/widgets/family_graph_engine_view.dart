@@ -710,6 +710,10 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       _culler.invalidate();
       _edgePathCache.clear();
       _expandCollapse.updateVisibleNodes(<String>{});
+      // v5.117: Reset the proximity graph state when switching families
+      // so the new family's anchor + 2-hop neighborhood is computed
+      // fresh (not the stale set from the previous family).
+      ref.read(proximityGraphProvider.notifier).reset();
       // v95 (Phase 1): Clear focus + history when switching families.
       // Focus is local graph interaction state — it should not persist
       // across family boundaries.
