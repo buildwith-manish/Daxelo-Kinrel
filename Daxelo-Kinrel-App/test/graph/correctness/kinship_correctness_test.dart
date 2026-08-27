@@ -22,6 +22,14 @@ void main() {
     // Run each fixture through the correctness check.
     for (final fixture in allSyntheticFixtures()) {
       test('${fixture.name} — kinship terms verified', () {
+        // v5.123: RelationshipEngine is a SINGLETON with a
+        // (viewer, target)-keyed classification cache. Fixtures reuse
+        // person IDs across DIFFERENT graphs (e.g. both the polygamous
+        // and consanguineous fixtures have c1 → c2 pairs), so the
+        // cache MUST be invalidated between fixtures — otherwise the
+        // first fixture's result bleeds into the second (the
+        // multi_hop_node_color_test already follows this pattern).
+        RelationshipEngine.instance.invalidateCache();
         var testedPairs = 0;
         for (final entry in fixture.groundTruth.entries) {
           // unused: final parts = entry.key.split('_');
