@@ -45,6 +45,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// v5.105: Global on-screen node budget. If the number of visible
 /// (post-cull) nodes exceeds this, subtrees are collapsed until the
 /// budget is met. ~50 provides a clean, legible graph at any scale.
+///
+/// v5.123 (Step 2): The default ego-centric proximity view now uses
+/// this same value as its HARD cap (kProximityHardNodeBudget in
+/// proximity_graph_state.dart) — this constant itself is UNCHANGED and
+/// remains the Show-All-path budget.
 const int kNodeBudget = 50;
 
 /// A collapsed branch presentation entry.

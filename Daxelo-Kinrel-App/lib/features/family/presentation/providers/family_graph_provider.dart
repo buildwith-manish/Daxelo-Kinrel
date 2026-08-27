@@ -1614,11 +1614,14 @@ final graphLayoutProvider =
   if (proximityState.isInitialized) {
     visibleIds = proximityState.visibleIds;
   } else {
-    // Pure computation — no provider mutation.
+    // Pure computation — no provider mutation. v5.123 (Step 2): the
+    // edge list is passed so the adaptive soft/hard budget can rank
+    // candidates by kinship category when truncating at the hard cap.
     visibleIds = ProximityGraphNotifier.computeDefaultVisibleIds(
       anchorId: centerPerson.id,
       allPersons: allPersonIds,
       adjacency: adjacency,
+      edges: allEdges,
     );
   }
 

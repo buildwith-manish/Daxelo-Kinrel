@@ -371,6 +371,10 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
               for (final p in flat.persons) (p['id'] ?? '').toString(),
             };
             final proximityAdjacency = buildAdjacency(rawEdgeTuples);
+            // v5.123 (Step 2): pass the raw edges so the adaptive
+            // soft/hard budget can rank candidates by kinship category
+            // when truncating at the hard cap.
+            final proximityEdges = rawEdgeTuples;
             // Mutate AFTER the frame — modifying providers during the
             // build phase is not allowed by Riverpod.
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -380,6 +384,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     anchorId: proximityAnchorId,
                     allPersons: proximityAllPersonIds,
                     adjacency: proximityAdjacency,
+                    edges: proximityEdges,
                   );
             });
           }

@@ -28,11 +28,55 @@
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// The maximum number of visible nodes in the default ego-centric view.
+import '../../core/graph/graph_service.dart' show inverseTypeMap;
+import '../../core/kinship/kinship_edge_style.dart' show KinshipEdgeCategory;
+import '../../core/kinship/structural_kinship_classifier.dart'
+    show StructuralKinshipClassifier;
+import 'branch_collapse_state.dart' show kNodeBudget;
+
+/// The SOFT target for visible nodes in the default ego-centric view.
 /// v5.121d: Reduced from 50 to 30 — at 50 nodes the zoom was too far
 /// out, making nodes too small to read. 30 nodes fills the view at
 /// a comfortable zoom where initials are legible.
+///
+/// v5.123 (Step 2): This is now a SOFT budget, not a hard cut. Rings
+/// 1 and 2 always fill IN FULL (most families' ring 1+2 is under
+/// ~40 nodes) even when that exceeds this number, and deeper rings
+/// complete as whole rings. Partial-ring truncation happens ONLY at
+/// [kProximityHardNodeBudget].
 const int kProximityNodeBudget = 30;
+
+/// The HARD cap for the default ego-centric view. v5.123 (Step 2):
+/// Matches [kNodeBudget] (the Show-All-path budget) WITHOUT changing
+/// it — the proximity default simply borrows the same legibility
+/// ceiling. When filling a ring would push the visible count past
+/// this cap, the ring is truncated, preferring closer relationship
+/// categories over farther ones (see
+/// [kProximityCategoryKeepPriority]).
+const int kProximityHardNodeBudget = kNodeBudget;
+
+/// v5.123 (Step 2): Keep-priority used when the proximity set must be
+/// truncated at [kProximityHardNodeBudget]. Lower rank = kept first.
+///
+/// Built on the EXISTING [KinshipEdgeCategory] enum (no new
+/// categorization): immediate family first (spouse/parent/child/
+/// sibling), then blood ancestors and collaterals by distance, then
+/// marriage-affiliated relatives (in-laws), then step/ceremonial and
+/// indirect connections last. This encodes "keep siblings/children
+/// before distant in-laws".
+const Map<KinshipEdgeCategory, int> kProximityCategoryKeepPriority = {
+  KinshipEdgeCategory.self: 0,
+  KinshipEdgeCategory.spouse: 1,
+  KinshipEdgeCategory.parent: 2,
+  KinshipEdgeCategory.child: 3,
+  KinshipEdgeCategory.sibling: 4,
+  KinshipEdgeCategory.grandparent: 5,
+  KinshipEdgeCategory.auntUncle: 6,
+  KinshipEdgeCategory.cousin: 7,
+  KinshipEdgeCategory.inLaw: 8,
+  KinshipEdgeCategory.extended: 9,
+  KinshipEdgeCategory.indirect: 10,
+};
 
 /// Manages the visible subset of the family graph.
 ///
@@ -47,11 +91,17 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
   /// [anchorId] — the viewer's person ID (or family anchor).
   /// [allPersons] — all person IDs in the family.
   /// [adjacency] — adjacency map: personId → set of directly-connected person IDs.
+  /// [edges] — the raw edge list (with relationship keys). Optional;
+  /// when provided it powers the kinship-category keep-priority used
+  /// when truncating at the hard cap. Without it, truncation falls
+  /// back to BFS discovery order (the old behaviour).
   ///
   /// Computes ring 1 (direct neighbors), ring 2 (neighbors of neighbors),
-  /// and ring 3+ (expanding outward until the budget is reached).
-  /// This ensures the default view always shows up to kProximityNodeBudget
-  /// nodes, even when the anchor has very few direct connections.
+  /// and ring 3+ (expanding outward until the soft budget is reached).
+  /// This ensures the default view always shows up to
+  /// [kProximityNodeBudget] nodes (hard-capped at
+  /// [kProximityHardNodeBudget]), even when the anchor has very few
+  /// direct connections.
   ///
   /// v5.123: The default-set computation is extracted into
   /// [computeDefaultVisibleIds] so callers that must NOT mutate this
@@ -62,6 +112,7 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
     required String anchorId,
     required Set<String> allPersons,
     required Map<String, Set<String>> adjacency,
+    List<({String fromId, String toId, String edgeId, String relationshipKey})>? edges,
   }) {
     if (!allPersons.contains(anchorId)) {
       state = const ProximityGraphState();
@@ -72,6 +123,7 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
       anchorId: anchorId,
       allPersons: allPersons,
       adjacency: adjacency,
+      edges: edges,
     );
 
     state = ProximityGraphState(
@@ -120,42 +172,174 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
   /// back to ALL 714 nodes (which makes the canvas too big), we expand
   /// to ring 3, 4, 5... until we have enough nodes to fill the view.
   ///
-  /// v5.123: Extracted from [initialize] so the layout provider can
-  /// compute the SAME default set synchronously without mutating this
-  /// notifier (which Riverpod forbids during provider initialization —
-  /// the root cause of the "Providers are not allowed to modify other
-  /// providers during their initialization" crash in
-  /// family_graph_screen_fab_test).
+  /// v5.123 (Step 2 — ADAPTIVE BUDGET): The single fixed cap is now a
+  /// soft/hard range:
+  ///   • Rings 1 and 2 ALWAYS fill in full — even when that exceeds
+  ///     the soft budget (most families' ring 1+2 is under ~40 nodes).
+  ///   • Deeper rings fill as COMPLETE rings while the total is below
+  ///     the soft budget [kProximityNodeBudget].
+  ///   • Truncation (a partial ring) happens ONLY at the hard cap
+  ///     [kProximityHardNodeBudget] (default 50, matching kNodeBudget).
+  ///   • When truncation IS needed, candidates are kept by kinship
+  ///     proximity — closer relationship categories over farther ones
+  ///     (siblings/children before distant in-laws), classified with
+  ///     the EXISTING KinshipEdgeCategory enum via the existing
+  ///     StructuralKinshipClassifier over each candidate's BFS path —
+  ///     NOT strictly by BFS discovery order.
+  ///
+  /// [edges] powers the kinship-category keep-priority. Without it,
+  /// truncation falls back to BFS discovery order (the old behaviour).
+  ///
+  /// v5.123: Also extracted so the layout provider can compute the
+  /// SAME default set synchronously without mutating this notifier
+  /// (which Riverpod forbids during provider initialization — the root
+  /// cause of the "Providers are not allowed to modify other providers
+  /// during their initialization" crash in family_graph_screen_fab_test).
   static Set<String> computeDefaultVisibleIds({
     required String anchorId,
     required Set<String> allPersons,
     required Map<String, Set<String>> adjacency,
+    List<({String fromId, String toId, String edgeId, String relationshipKey})>? edges,
   }) {
     if (!allPersons.contains(anchorId)) {
       return const <String>{};
     }
 
-    final visible = <String>{anchorId};
-    final currentRing = <String>{anchorId};
+    // Direction-aware key lookup, matching GraphService's adjacency
+    // convention: traversing from→to keeps the stored key ("to is the
+    // from's <key>"); traversing to→from yields the inverse key.
+    final keyTo = <String, Map<String, String>>{};
+    if (edges != null) {
+      for (final e in edges) {
+        if (e.fromId.isEmpty || e.toId.isEmpty) continue;
+        keyTo.putIfAbsent(e.fromId, () => <String, String>{})[e.toId] =
+            e.relationshipKey;
+        keyTo.putIfAbsent(e.toId, () => <String, String>{})[e.fromId] =
+            inverseTypeMap[e.relationshipKey] ?? e.relationshipKey;
+      }
+    }
 
-    while (visible.length < kProximityNodeBudget && currentRing.isNotEmpty) {
-      final nextRing = <String>{};
+    final visible = <String>{anchorId};
+    // Discovery chain: for each node, the BFS parent it was reached
+    // through + the edge key in the parent→node direction. Used to
+    // classify each candidate's relationship to the ANCHOR.
+    final parentOf = <String, String>{};
+    final keyFromParent = <String, String>{};
+
+    var ringIndex = 0; // ring being expanded (0 = the anchor itself)
+    var currentRing = <String>[anchorId]; // ordered → deterministic
+
+    while (currentRing.isNotEmpty) {
+      final nextRing = <String>[];
+      final pending = <String>{};
       for (final ringId in currentRing) {
-        final neighbors = adjacency[ringId] ?? <String>{};
+        final neighbors = adjacency[ringId] ?? const <String>{};
         for (final neighborId in neighbors) {
-          if (!visible.contains(neighborId) && allPersons.contains(neighborId)) {
+          if (!visible.contains(neighborId) &&
+              !pending.contains(neighborId) &&
+              allPersons.contains(neighborId)) {
+            pending.add(neighborId);
             nextRing.add(neighborId);
-            if (visible.length + nextRing.length >= kProximityNodeBudget) break;
+            parentOf[neighborId] = ringId;
+            keyFromParent[neighborId] = keyTo[ringId]?[neighborId] ?? '';
           }
         }
-        if (visible.length + nextRing.length >= kProximityNodeBudget) break;
       }
+      if (nextRing.isEmpty) break;
+
+      // Hard cap: adding this ring (or part of it) is the ONLY place
+      // truncation happens. Keep the kinship-closest candidates.
+      if (visible.length + nextRing.length > kProximityHardNodeBudget) {
+        final capacity = kProximityHardNodeBudget - visible.length;
+        visible.addAll(_keepClosestByCategory(
+          candidates: nextRing,
+          capacity: capacity,
+          parentOf: parentOf,
+          keyFromParent: keyFromParent,
+        ));
+        break;
+      }
+
+      // Soft budget: rings 1 and 2 ALWAYS complete (ringIndex < 2 when
+      // adding ring 1 / ring 2). Deeper rings complete only while the
+      // soft budget hasn't been reached — but once added, they are
+      // never partially cut (only the hard cap truncates).
+      if (ringIndex >= 2 && visible.length >= kProximityNodeBudget) {
+        break;
+      }
+
       visible.addAll(nextRing);
-      currentRing.clear();
-      currentRing.addAll(nextRing);
+      currentRing = nextRing;
+      ringIndex++;
     }
 
     return visible;
+  }
+
+  /// v5.123 (Step 2): Picks the [capacity] kinship-closest candidates
+  /// from [candidates], ranking by [kProximityCategoryKeepPriority]
+  /// (ties broken by BFS discovery order for determinism).
+  ///
+  /// Each candidate's category is resolved by the EXISTING
+  /// [StructuralKinshipClassifier] — the same classifier
+  /// RelationshipEngine uses — over the candidate's BFS path keys
+  /// (anchor → … → candidate). A sibling therefore outranks a
+  /// sibling-in-law; a child outranks a distant in-law.
+  static List<String> _keepClosestByCategory({
+    required List<String> candidates,
+    required int capacity,
+    required Map<String, String> parentOf,
+    required Map<String, String> keyFromParent,
+  }) {
+    if (capacity <= 0) return const <String>[];
+    if (capacity >= candidates.length) return candidates;
+
+    // Rank candidates: (category priority, discovery order).
+    final ranked = <(int, int, String)>[];
+    for (var i = 0; i < candidates.length; i++) {
+      final id = candidates[i];
+      final category = _classifyCandidate(
+        id,
+        parentOf: parentOf,
+        keyFromParent: keyFromParent,
+      );
+      final rank = kProximityCategoryKeepPriority[category] ??
+          kProximityCategoryKeepPriority[KinshipEdgeCategory.extended]!;
+      ranked.add((rank, i, id));
+    }
+    ranked.sort((a, b) {
+      final byRank = a.$1.compareTo(b.$1);
+      if (byRank != 0) return byRank;
+      return a.$2.compareTo(b.$2); // stable: BFS discovery order
+    });
+
+    return [for (final r in ranked.take(capacity)) r.$3];
+  }
+
+  /// Classifies [id]'s relationship to the anchor by composing the
+  /// BFS path keys (anchor → … → id) through the EXISTING
+  /// [StructuralKinshipClassifier]. Returns [KinshipEdgeCategory.extended]
+  /// when no path keys are available (missing edge keys degrade to the
+  /// old BFS-order behaviour).
+  static KinshipEdgeCategory _classifyCandidate(
+    String id, {
+    required Map<String, String> parentOf,
+    required Map<String, String> keyFromParent,
+  }) {
+    // Walk the parent chain from `id` up to the anchor, collecting
+    // the step keys, then reverse → anchor-to-id order.
+    final pathKeys = <String>[];
+    var current = id;
+    while (parentOf.containsKey(current)) {
+      final key = keyFromParent[current];
+      if (key == null) break;
+      pathKeys.add(key);
+      current = parentOf[current]!;
+    }
+    if (pathKeys.isEmpty) return KinshipEdgeCategory.extended;
+    return StructuralKinshipClassifier.classify(
+      path: pathKeys.reversed.toList(),
+    ).category;
   }
 
   /// Tap-to-expand: add a person's immediate neighborhood to the visible set.
