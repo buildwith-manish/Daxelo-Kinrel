@@ -266,6 +266,14 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // avoids the historical setState-during-build crash.
         // v5.75: Pass flat + viewerPersonId so _maybeFrame can center on the
         // viewer's own node instead of the bounding box center.
+        // v5.118: Reset _framed if the layout went from empty to non-empty
+        // (the proximity set was just initialized on a subsequent build).
+        // Without this, the camera frames on the first (empty) layout and
+        // never re-centers when the actual nodes arrive.
+        if (layout.positions.isNotEmpty && _framed && _lastFramedPositionCount == 0) {
+          _framed = false;
+        }
+        _lastFramedPositionCount = layout.positions.length;
         WidgetsBinding.instance
             .addPostFrameCallback((_) => _maybeFrame(layout, flat, viewerPersonId));
 

@@ -318,6 +318,10 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
 
   Size _viewportSize = Size.zero;
   bool _framed = false; // one-time initial framing per family
+  /// v5.118: Tracks the position count from the last framing. Used to
+  /// detect when the layout went from empty to non-empty (proximity
+  /// set just initialized) so _maybeFrame can re-center.
+  int _lastFramedPositionCount = 0;
 
   /// v107: Pending Reset View request. Set to true when the user taps
   /// the "Center on Root" / "Reset View" button (recenterKey changes).
@@ -704,6 +708,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.familyId != widget.familyId) {
       _framed = false;
+      _lastFramedPositionCount = 0;
       _camera
         ..resetInitialFit()
         ..setFamilyId(widget.familyId);
