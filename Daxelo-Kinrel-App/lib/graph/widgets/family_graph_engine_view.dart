@@ -387,6 +387,14 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // hit-tester. These two call sites must never diverge.
   List<CoupleUnion> _currentCoupleUnions = const [];
 
+  // v5.125 (Step 6): Cache the anchor geometry for the SAME reason as
+  // the fields above — the tap hit-tester must compute edge midpoints
+  // with the SAME bow-around-the-anchor offset + sector fan-out the
+  // painter renders, or the marker and the tap target drift apart.
+  // Updated once per build in the canvas build (canvas_mixin.dart).
+  String? _currentAnchorId;
+  Offset? _currentAnchorCenter;
+
   // Repaint/recull throttling.
   Rect _lastCullViewport = Rect.zero;
   Lod _lastLod = Lod.full;

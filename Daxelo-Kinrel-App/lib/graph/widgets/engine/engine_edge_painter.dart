@@ -44,6 +44,44 @@ class EngineEdgePainter extends CustomPainter {
   /// recomputation per edge per frame.
   static final Map<String, ui.Image> _midpointImageCache = {};
 
+  // ── v5.125 (Step 6): anchor-knot edge geometry constants ───────────
+
+  /// Radial gap (px) between the two endpoints' distances from the
+  /// anchor beyond which an edge is considered to SKIP intermediate
+  /// rings and becomes eligible for the bow-around-the-anchor routing.
+  /// 2 × RadialLayoutConfig.ringSpacing (200) — an edge spanning more
+  /// than two rings (e.g. ring 1 ↔ ring 4, or a grandparent ↔
+  /// grandchild chord) jumps past at least one whole ring.
+  static const double kAnchorBowRingGap = 400.0;
+
+  /// How close (px) the edge's straight line must pass to the anchor
+  /// center for the bow to engage. Roughly 1.5 ring spacings — chords
+  /// passing farther out than ring 1's radius do not contribute to the
+  /// visual knot around the anchor and keep their default curve.
+  static const double kAnchorBowInfluenceRadius = 300.0;
+
+  /// Maximum perpendicular offset (px) added to the bezier control
+  /// points when the straight line would pass exactly through the
+  /// anchor. Scales linearly down to 0 at [kAnchorBowInfluenceRadius]
+  /// clearance.
+  static const double kAnchorBowMaxOffset = 110.0;
+
+  /// Endpoints closer than this (px) to the anchor center are treated
+  /// as anchor-incident edges — they RADIATE from the anchor and get
+  /// the sector fan-out instead of the bow (bowing an edge that starts
+  /// at the anchor would look wrong and fight the fan-out).
+  static const double kAnchorIncidentClearance = 80.0;
+
+  /// Angular width (radians) of a "same angular sector" for the
+  /// anchor-edge fan-out. 30° — sectors narrower than this are what
+  /// produce the overlapping visual band.
+  static const double kAnchorSectorWidth = math.pi / 6;
+
+  /// Per-edge fan-out step (px) applied through the EXISTING
+  /// lateralOffset mechanism — the same separation the spouse/union
+  /// parallel-edge fix (v64 BUG-2) uses.
+  static const double kAnchorFanStep = 12.0;
+
   /// Clear the midpoint image cache. Call when theme or DPI changes.
   static void clearMidpointCache() {
     _midpointImageCache.clear();
@@ -78,12 +116,28 @@ class EngineEdgePainter extends CustomPainter {
     this.connectOnOpenRevealedEdgeIds = const <String>{},
     this.connectOnOpenCurrentEdgeIds = const <String>{},
     this.zoom = 1.0,
+    // v5.125 (Step 6): anchor geometry for the bow-around-the-anchor
+    // routing + sector fan-out. Null (the default) keeps the exact
+    // pre-v5.125 geometry — backward compatible for every existing
+    // construction site and test.
+    this.anchorId,
+    this.anchorCenter,
   });
 
   final Map<String, Offset> positions;
   final List<DedupedEdge> edges;
   final Map<String, KinshipEdgeCategory> edgeCategories;
   final Map<String, Map<String, dynamic>> edgeCustomColors;
+
+  /// v5.125 (Step 6): the anchor person's ID and center position (in
+  /// the SAME coordinate space as [positions]). Edges whose endpoints
+  /// span more than [kAnchorBowRingGap] radially AND whose straight
+  /// line passes within [kAnchorBowInfluenceRadius] of this point are
+  /// bowed AROUND it; anchor-incident edges in the same angular sector
+  /// fan out via [computeAnchorSectorFanOuts]. Geometry only — edge
+  /// colors and the category-to-color mapping are untouched.
+  final String? anchorId;
+  final Offset? anchorCenter;
 
   /// Phase 6: Couple unions used to redirect parent→child edges to the
   /// union midpoint. Passed through unchanged from the build method via
@@ -196,7 +250,11 @@ class EngineEdgePainter extends CustomPainter {
   /// pre-v5.22 behaviour. This is the regression-guard for PART 2.5
   /// ("default midpoint must stay mathematically correct").
   static Path _bezier(Offset s, Offset t,
-      {double lateralOffset = 0.0, Offset waypointDelta = Offset.zero}) {
+      {double lateralOffset = 0.0,
+      Offset waypointDelta = Offset.zero,
+      // v5.125 (Step 6): see the Step 6 doc block below the
+      // waypointDelta branch.
+      Offset? anchorCenter}) {
     final double dy = t.dy - s.dy;
     final double dx = t.dx - s.dx;
     final double distance = (s - t).distance;
@@ -304,17 +362,233 @@ class EngineEdgePainter extends CustomPainter {
     // Control points at 1/3 and 2/3 along the connecting line,
     // shifted perpendicular by `bow`. This produces a smooth, natural
     // curve that is ALWAYS visible — no straight lines anywhere.
+    //
+    // v5.125 (Step 6): when [anchorCenter] is provided AND the edge
+    // spans more than [kAnchorBowRingGap] radially (its endpoints'
+    // distances from the anchor differ by more than two ring
+    // spacings — i.e. the straight line skips past intermediate
+    // rings) AND the straight line would pass within
+    // [kAnchorBowInfluenceRadius] of the anchor, BOTH control points
+    // are additionally shifted perpendicular, AWAY from the anchor —
+    // scaled linearly by how close the line would otherwise pass to
+    // the center. The chord therefore bows AROUND the anchor knot
+    // instead of cutting straight through it. Anchor-incident edges
+    // (an endpoint within [kAnchorIncidentClearance] of the anchor)
+    // radiate FROM the anchor and are exempt — they get the sector
+    // fan-out (see [computeAnchorSectorFanOuts]) instead. Edges with
+    // a user-dragged midpoint keep the EXACT v5.62 dragged geometry
+    // (the branch above returns early) — a user-placed midpoint
+    // always wins over automatic routing.
+    //
+    // Implementation note: the offset is applied to the EXISTING
+    // cubic's two control points (rather than introducing a separate
+    // quadratic path) so the v5.62 marker/hit-test parity contract —
+    // visual midpoint == PathMetric t=0.5 == what
+    // [computeVisualMidpoint] returns for the same inputs — holds
+    // unchanged for every caller.
+    final Offset centerAvoid = _centerAvoidanceOffset(s, t, anchorCenter);
     final Offset cp1 = Offset(
-      s.dx + dx * 0.33 + bow.dx,
-      s.dy + dy * 0.33 + bow.dy,
+      s.dx + dx * 0.33 + bow.dx + centerAvoid.dx,
+      s.dy + dy * 0.33 + bow.dy + centerAvoid.dy,
     );
     final Offset cp2 = Offset(
-      s.dx + dx * 0.67 + bow.dx,
-      s.dy + dy * 0.67 + bow.dy,
+      s.dx + dx * 0.67 + bow.dx + centerAvoid.dx,
+      s.dy + dy * 0.67 + bow.dy + centerAvoid.dy,
     );
     return Path()
       ..moveTo(s.dx, s.dy)
       ..cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, t.dx, t.dy);
+  }
+
+  /// v5.125 (Step 6): The bow-around-the-anchor offset for the chord
+  /// (s → t) relative to [center]. Zero when the chord should keep its
+  /// default curve — see [_bezier]'s Step 6 doc for the gating rules
+  /// (anchor-incident edges, ring-span gate, segment-distance gate).
+  static Offset _centerAvoidanceOffset(Offset s, Offset t, Offset? center) {
+    if (center == null) return Offset.zero;
+
+    final double rs = (s - center).distance;
+    final double rt = (t - center).distance;
+
+    // Gate 1 — anchor-incident edges radiate from the anchor: they are
+    // handled by the sector fan-out, not the bow.
+    if (rs < kAnchorIncidentClearance || rt < kAnchorIncidentClearance) {
+      return Offset.zero;
+    }
+
+    // Gate 2 — the edge must skip past intermediate rings (endpoints'
+    // ring radii differ by more than ~2 ring spacings).
+    if ((rs - rt).abs() <= kAnchorBowRingGap) {
+      return Offset.zero;
+    }
+
+    // Gate 3 — the straight line must actually pass near the anchor.
+    // Distance from `center` to the SEGMENT (s,t), not the infinite
+    // line — a parallel-but-distant line must not bow.
+    final Offset st = t - s;
+    final double stLenSq = st.distanceSquared;
+    double segDist;
+    if (stLenSq < 1.0) {
+      segDist = rs; // degenerate — treat as the endpoint distance
+    } else {
+      // Clamp the projection parameter to [0, 1] for segment distance.
+      final double u =
+          ((center - s).dot(st) / stLenSq).clamp(0.0, 1.0);
+      final Offset closest = s + st * u;
+      segDist = (center - closest).distance;
+    }
+    if (segDist >= kAnchorBowInfluenceRadius) {
+      return Offset.zero;
+    }
+
+    // Scale: full [kAnchorBowMaxOffset] when the line would pass
+    // exactly through the anchor, fading linearly to 0 at the
+    // influence radius.
+    final double scale = 1.0 - segDist / kAnchorBowInfluenceRadius;
+    final double magnitude = kAnchorBowMaxOffset * scale;
+
+    // Direction: unit perpendicular to (t - s), pointing AWAY from
+    // the anchor at the chord midpoint.
+    final Offset mid = Offset(
+      s.dx + (t.dx - s.dx) * 0.5,
+      s.dy + (t.dy - s.dy) * 0.5,
+    );
+    final Offset perpUnit = Offset(-st.dy, st.dx) / st.distance;
+    final bool perpPointsAway =
+        (mid + perpUnit - center).distance > (mid - center).distance;
+    final double sign = perpPointsAway ? 1.0 : -1.0;
+    return perpUnit * (sign * magnitude);
+  }
+
+  /// v5.125 (Step 6): Per-edge fan-out offsets for edges that share
+  /// the ANCHOR endpoint and point into the same angular sector.
+  ///
+  /// With force-relaxation off, the ring layout itself is clean, but
+  /// several anchor edges pointing into the same 30° sector render as
+  /// one overlapping visual band. This assigns each such edge a small
+  /// consistent perpendicular offset — applied through the EXISTING
+  /// `lateralOffset` bezier parameter (the same mechanism the v64
+  /// spouse/union parallel-edge separation uses) — so they fan out.
+  ///
+  /// Deterministic: edges are ordered by angle (then by the other
+  /// endpoint's ID), and each sector group's offsets are centred on
+  /// zero: a group of n edges gets steps of [kAnchorFanStep] spaced
+  /// (i - (n-1)/2) apart. Edges not incident to the anchor, singleton
+  /// sectors, and unknown geometry map to 0.0.
+  ///
+  /// Called by the painter's paint loop (once per frame) AND by the
+  /// canvas hit-tester (once per tap) with the SAME inputs, so the
+  /// rendered curve and the tap target can never drift apart.
+  static Map<String, double> computeAnchorSectorFanOuts({
+    required List<DedupedEdge> edges,
+    required Map<String, Offset> positions,
+    required String? anchorId,
+    required Offset? anchorCenter,
+  }) {
+    if (anchorId == null || anchorCenter == null) return const {};
+    // Angles are measured from [anchorCenter] directly (the SAME point
+    // the bow routing measures from), so the positions map only needs
+    // the OTHER endpoints of anchor-incident edges.
+
+    // Collect anchor-incident edges: (edgeId, angle toward the other
+    // endpoint, other-endpoint id for stable ordering).
+    final entries = <(String, double, String)>[];
+    for (final deduped in edges) {
+      final e = deduped.edge;
+      String otherId;
+      if (e.sourceId == anchorId) {
+        otherId = e.targetId;
+      } else if (e.targetId == anchorId) {
+        otherId = e.sourceId;
+      } else {
+        continue;
+      }
+      final otherPos = positions[otherId];
+      if (otherPos == null) continue;
+      final angle = (otherPos - anchorCenter).direction;
+      entries.add((e.id, angle, otherId));
+    }
+    if (entries.length < 2) return const {};
+
+    // Stable order: angle ascending, then other-endpoint ID.
+    entries.sort((a, b) {
+      final byAngle = a.$2.compareTo(b.$2);
+      if (byAngle != 0) return byAngle;
+      return a.$3.compareTo(b.$3);
+    });
+
+    final fanOuts = <String, double>{};
+
+    // Group consecutive entries within kAnchorSectorWidth of the
+    // group's FIRST member. Wrap-around: if the last group and the
+    // first group are also within the sector width across the 2π
+    // seam, merge them (angles are circular).
+    var groupStart = 0;
+    void emitGroup(int start, int end) {
+      final n = end - start;
+      if (n < 2) {
+        for (var i = start; i < end; i++) {
+          fanOuts[entries[i].$1] = 0.0;
+        }
+        return;
+      }
+      for (var i = start; i < end; i++) {
+        final centered = i - start - (n - 1) / 2.0;
+        fanOuts[entries[i].$1] = centered * kAnchorFanStep;
+      }
+    }
+
+    for (var i = 1; i <= entries.length; i++) {
+      final atEnd = i == entries.length;
+      if (!atEnd &&
+          (entries[i].$2 - entries[groupStart].$2).abs() <
+              kAnchorSectorWidth) {
+        continue;
+      }
+      emitGroup(groupStart, i);
+      groupStart = i;
+    }
+
+    // Wrap-around merge: the last entry and the first entry may be
+    // within the sector width across the 2π seam. If so, re-emit the
+    // union of the first and last groups as ONE circular group.
+    final firstAngle = entries.first.$2;
+    final lastAngle = entries.last.$2;
+    if ((firstAngle - lastAngle).abs() > math.pi &&
+        (2 * math.pi - (firstAngle - lastAngle).abs()) <
+            kAnchorSectorWidth) {
+      // Find the extents of the first and last groups.
+      var firstGroupEnd = 1;
+      while (firstGroupEnd < entries.length &&
+          (entries[firstGroupEnd].$2 - firstAngle).abs() <
+              kAnchorSectorWidth) {
+        firstGroupEnd++;
+      }
+      var lastGroupStart = entries.length - 1;
+      while (lastGroupStart > 0 &&
+          (lastAngle - entries[lastGroupStart - 1].$2).abs() <
+              kAnchorSectorWidth) {
+        lastGroupStart--;
+      }
+      // Merge whenever the circular (seam-crossing) group has ≥ 2
+      // edges — including the pure 2-edge seam pair, where both linear
+      // groups are singletons.
+      final mergedCount =
+          (entries.length - lastGroupStart) + firstGroupEnd;
+      if (mergedCount >= 2) {
+        final merged = <(String, double, String)>[
+          ...entries.sublist(lastGroupStart),
+          ...entries.sublist(0, firstGroupEnd),
+        ];
+        final n = merged.length;
+        for (var i = 0; i < n; i++) {
+          final centered = i - (n - 1) / 2.0;
+          fanOuts[merged[i].$1] = centered * kAnchorFanStep;
+        }
+      }
+    }
+
+    return fanOuts;
   }
 
   /// v5.62: SINGLE SOURCE OF TRUTH for the edge midpoint marker
@@ -322,43 +596,23 @@ class EngineEdgePainter extends CustomPainter {
   /// curve — i.e. the position where _paintMidpoint renders the
   /// dot/heart marker.
   ///
-  /// This is computed as the PathMetric t=0.5 (arc-length midpoint)
-  /// of the path returned by [_bezier] for the same (s, t,
-  /// lateralOffset, waypointDelta) inputs. Because [s] and [t] are
-  /// already the EFFECTIVE endpoints (post couple-union redirect —
-  /// see `resolveEffectiveEdgeEndpoints`), the caller MUST pass the
-  /// SAME effective endpoints the painter passes to [_bezier].
-  ///
-  /// Why this exists: the marker (dot/heart) is rendered at the
-  /// PathMetric t=0.5 of the rendered curve, but the hit-tester
-  /// previously checked `linearMid + waypointDelta` — a DIFFERENT
-  /// position. For the default perpendicular-bow curve, the visual
-  /// midpoint is `linearMid + 0.75·bow` (not `linearMid`), and for
-  /// the dragged case the visual midpoint is exactly `linearMid +
-  /// waypointDelta` (only because v5.62 changed the dragged curve
-  /// from a quadratic to a cubic specifically so this holds). The
-  /// hit-tester MUST call this same helper to compute the tap
-  /// target, otherwise the marker and the tap target silently drift
-  /// apart — which is the root cause of the "lines undraggable
-  /// after zoom" bug (the 48px hit radius shrinks in graph space at
-  /// high zoom, eventually failing to cover the drift).
-  ///
-  /// Performance: PathMetric computation is O(path length) — cheap
-  /// for a single edge, called once per edge per hit-test. The
-  /// painter calls this once per edge per frame (via _paintMidpoint);
-  /// the hit-tester calls it once per edge per tap. Both are
-  /// acceptable for graphs with up to ~hundreds of edges.
+  /// v5.125 (Step 6): [anchorCenter] engages the bow-around-the-anchor
+  /// routing inside [_bezier] — pass the SAME value the painter passes
+  /// or the marker and the tap target drift apart (see the parity notes
+  /// on [_bezier]).
   static Offset computeVisualMidpoint(
     Offset s,
     Offset t, {
     double lateralOffset = 0.0,
     Offset waypointDelta = Offset.zero,
+    Offset? anchorCenter,
   }) {
     final path = _bezier(
       s,
       t,
       lateralOffset: lateralOffset,
       waypointDelta: waypointDelta,
+      anchorCenter: anchorCenter,
     );
     for (final metric in path.computeMetrics()) {
       if (metric.length > 0) {
@@ -407,6 +661,18 @@ class EngineEdgePainter extends CustomPainter {
     // The stronger 0.18 alpha is acceptable for both cases.
     const double dimAlpha = 0.18; // v5.65: strong fade for isolation (was 0.85)
 
+    // v5.125 (Step 6): Per-edge sector fan-out offsets for edges
+    // sharing the ANCHOR endpoint (geometry only — see
+    // [computeAnchorSectorFanOuts]). Computed ONCE per paint with the
+    // same inputs the canvas hit-tester uses, so the rendered curve
+    // and the tap target stay identical.
+    final Map<String, double> anchorFanOuts = computeAnchorSectorFanOuts(
+      edges: edges,
+      positions: positions,
+      anchorId: anchorId,
+      anchorCenter: anchorCenter,
+    );
+
     for (final DedupedEdge deduped in edges) {
       final GraphEdgeData e = deduped.edge;
       final Offset? s = positions[e.sourceId];
@@ -452,8 +718,17 @@ class EngineEdgePainter extends CustomPainter {
       // (which may share the same base edge ID after dedup) get
       // SEPARATE cache entries. Without this, the second parallel edge
       // would hit the cache and get the FIRST edge's path (wrong curve).
-      final cacheEdgeId = deduped.lateralOffset != 0.0
-          ? '${e.id}__offset_${deduped.lateralOffset.toStringAsFixed(1)}'
+      //
+      // v5.125 (Step 6): the anchor-sector fan-out rides the SAME
+      // lateralOffset bezier parameter (and the SAME cache-key
+      // suffix pattern) — the fan-out is derived from the edge list +
+      // positions, so suffixing it also protects against a stale
+      // cached path when the fan grouping changes but this edge's own
+      // endpoints do not move.
+      final double anchorFanOut = anchorFanOuts[e.id] ?? 0.0;
+      final double totalLateralOffset = deduped.lateralOffset + anchorFanOut;
+      final cacheEdgeId = totalLateralOffset != 0.0
+          ? '${e.id}__offset_${totalLateralOffset.toStringAsFixed(1)}'
           : e.id;
       // v5.22 (PART 2): Look up the per-viewer RELATIVE midpoint
       // bow override for this edge. When non-zero, the path factory
@@ -475,8 +750,9 @@ class EngineEdgePainter extends CustomPainter {
         targetPos: effectiveTarget,
         pathFactory: (Offset ss, Offset tt) =>
             _bezier(ss, tt,
-                lateralOffset: deduped.lateralOffset,
-                waypointDelta: waypointDelta),
+                lateralOffset: totalLateralOffset,
+                waypointDelta: waypointDelta,
+                anchorCenter: anchorCenter),
       );
 
       final bool isSelected = e.id == selectedEdgeId;
@@ -676,7 +952,9 @@ class EngineEdgePainter extends CustomPainter {
             isSelected: isSelected,
             isDimmed: isDimmed,
             dimAlpha: dimAlpha,
-            lateralOffset: deduped.lateralOffset,
+            // v5.125 (Step 6): the TOTAL offset (parallel-edge +
+            // anchor fan-out) so the marker sits on the rendered curve.
+            lateralOffset: totalLateralOffset,
             waypointDelta: waypointDelta,
           );
         }
@@ -811,7 +1089,9 @@ class EngineEdgePainter extends CustomPainter {
           isSelected: isSelected,
           isDimmed: isDimmed,
           dimAlpha: dimAlpha,
-          lateralOffset: deduped.lateralOffset,
+          // v5.125 (Step 6): the TOTAL offset (parallel-edge +
+          // anchor fan-out) so the marker sits on the rendered curve.
+          lateralOffset: totalLateralOffset,
           waypointDelta: waypointDelta,
         );
       }
@@ -1183,8 +1463,15 @@ class EngineEdgePainter extends CustomPainter {
     // v5.62: Use the shared helper so the marker position is IDENTICAL
     // to the position the hit-tester checks. This is the single source
     // of truth — never recompute the midpoint inline.
-    final Offset midPoint =
-        computeVisualMidpoint(s, t, lateralOffset: lateralOffset, waypointDelta: waypointDelta);
+    // v5.125 (Step 6): anchorCenter is included so the marker sits on
+    // the bowed (around-the-anchor) curve, exactly where the hit-tester
+    // looks.
+    final Offset midPoint = computeVisualMidpoint(
+      s, t,
+      lateralOffset: lateralOffset,
+      waypointDelta: waypointDelta,
+      anchorCenter: anchorCenter,
+    );
 
     // Resolve the effective midpoint color.
     //   • Default relationship → style.midpointColor (pink for spouse,
@@ -1563,7 +1850,11 @@ class EngineEdgePainter extends CustomPainter {
         !_sameSet(old.connectOnOpenCurrentEdgeIds,
             connectOnOpenCurrentEdgeIds) ||
         // v5.107: Repaint when zoom changes (stroke width is zoom-dependent)
-        old.zoom != zoom;
+        old.zoom != zoom ||
+        // v5.125 (Step 6): repaint when the anchor geometry changes (the
+        // bow-around-the-anchor routing + sector fan-out depend on it).
+        old.anchorId != anchorId ||
+        old.anchorCenter != anchorCenter;
   }
 
   /// Lightweight dimmed-set comparison. We do NOT deep-compare element

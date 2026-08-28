@@ -652,6 +652,17 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // endpoint is closest to the tap wins.
     final candidates = <_EdgeHitCandidate>[];
 
+    // v5.125 (Step 6): Compute the anchor-sector fan-outs + bow inputs
+    // with the SAME cached state the painter renders from, so the tap
+    // target is exactly the rendered curve's midpoint (never a stale
+    // pre-fan-out position).
+    final anchorFanOuts = EngineEdgePainter.computeAnchorSectorFanOuts(
+      edges: _currentEdges,
+      positions: _currentPositionsWithOffset,
+      anchorId: _currentAnchorId,
+      anchorCenter: _currentAnchorCenter,
+    );
+
     for (final deduped in _currentEdges) {
       final e = deduped.edge;
       final s = _currentPositionsWithOffset[e.sourceId];
@@ -676,11 +687,17 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       // shared between the painter and this hit-tester so they can
       // NEVER drift apart.
       final waypointDelta = allEdgeWaypoints[e.id] ?? Offset.zero;
+      // v5.125 (Step 6): the TOTAL offset (parallel-edge lateralOffset +
+      // anchor-sector fan-out) and the anchor center — identical to what
+      // the painter's paint loop passes, keeping the marker and the tap
+      // target at the same point.
       final visualMid = EngineEdgePainter.computeVisualMidpoint(
         resolved.source,
         resolved.target,
-        lateralOffset: deduped.lateralOffset,
+        lateralOffset:
+            deduped.lateralOffset + (anchorFanOuts[e.id] ?? 0.0),
         waypointDelta: waypointDelta,
+        anchorCenter: _currentAnchorCenter,
       );
 
       final dist = (visualMid - graphPos).distance;
