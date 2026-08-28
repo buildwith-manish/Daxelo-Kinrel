@@ -291,16 +291,18 @@ void main() {
         anchorCenter: anchor,
       );
 
-      // Both edges belong to ONE 2-edge sector fanned ±12px (which of
-      // the two gets +12 vs -12 depends on the circular ordering —
-      // what matters is the symmetric pair, never both 0, which was
-      // the pre-fix overlapping band).
+      // Both edges belong to ONE 2-edge sector. Adjacent edges in a
+      // sector are exactly one fan step (12px) apart — for a 2-edge
+      // sector that means symmetric ±6 offsets (never both 0, which
+      // was the pre-fix overlapping band).
       final w1Fan = fanOuts['e-w1']!;
-      expect(w1Fan.abs(), EngineEdgePainter.kAnchorFanStep,
-          reason: 'Each seam-sector edge gets a full fan step');
-      expect(fanOuts['e-w2'], -w1Fan,
-          reason: 'The 2-edge seam sector fans symmetrically: one edge '
-              'at -12, the other at +12');
+      final w2Fan = fanOuts['e-w2']!;
+      expect((w2Fan - w1Fan).abs(), EngineEdgePainter.kAnchorFanStep,
+          reason: 'The two seam-sector edges must be one full fan step '
+              'apart (12px separation), not stacked on top of each '
+              'other');
+      expect(w1Fan, -w2Fan,
+          reason: 'The 2-edge seam sector fans symmetrically around 0');
     });
 
     test('no anchor geometry → no fan-out (backward compatible)', () {
