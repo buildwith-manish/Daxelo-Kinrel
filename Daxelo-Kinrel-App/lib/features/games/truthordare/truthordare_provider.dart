@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
+import '../shared/data/game_invite_chat_sync.dart';
 import 'truthordare_models.dart';
 import 'truthordare_selection_logic.dart';
 
@@ -60,6 +61,16 @@ class TodNotifier extends StateNotifier<TodState> {
       }
       state = state.copyWith(game: game, isLoading: false); _subscribeToRealtime(gameId);
       await _refreshPlayers(gameId); await _refreshRounds(gameId); await _refreshApprovedPrompts();
+      // Keep the persistent game-invite chat card in the family thread in
+      // sync with the new player count ("2/4 players" / "Full") for every
+      // family member via realtime. Best-effort, never affects the join.
+      unawaited(
+        syncGameInviteChatCards(
+          client: client,
+          gameId: gameId,
+          currentPlayers: state.players.length,
+        ),
+      );
       return true;
     } catch (e) { debugPrint('[Tod] joinGame error: $e'); state = state.copyWith(isLoading: false, error: '$e'); return false; }
   }

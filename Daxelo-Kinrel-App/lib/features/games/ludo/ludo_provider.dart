@@ -18,6 +18,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
+import '../shared/data/game_invite_chat_sync.dart';
 import 'ludo_game_logic.dart';
 import 'ludo_models.dart';
 
@@ -257,6 +258,16 @@ class LudoNotifier extends StateNotifier<LudoState> {
       await _refreshPlayers(gameId);
       await _refreshTokens(gameId);
       await _refreshMoves(gameId);
+      // Keep the persistent game-invite chat card in the family thread in
+      // sync with the new player count ("2/4 players" / "Full") for every
+      // family member via realtime. Best-effort, never affects the join.
+      unawaited(
+        syncGameInviteChatCards(
+          client: client,
+          gameId: gameId,
+          currentPlayers: state.players.length,
+        ),
+      );
       return true;
     } catch (e) {
       debugPrint('[Ludo] joinGame error: $e');

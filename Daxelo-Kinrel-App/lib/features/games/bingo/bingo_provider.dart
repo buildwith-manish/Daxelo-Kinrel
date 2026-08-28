@@ -21,6 +21,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/config/env_config.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
+import '../shared/data/game_invite_chat_sync.dart';
 import 'bingo_models.dart';
 
 class BingoState {
@@ -275,6 +276,16 @@ class BingoNotifier extends StateNotifier<BingoState> {
       state = state.copyWith(game: game, isLoading: false);
       _subscribeToRealtime(gameId);
       await _refreshCards(gameId);
+      // Keep the persistent game-invite chat card in the family thread in
+      // sync with the new player count ("2/4 players" / "Full") for every
+      // family member via realtime. Best-effort, never affects the join.
+      unawaited(
+        syncGameInviteChatCards(
+          client: client,
+          gameId: gameId,
+          currentPlayers: state.allCards.length,
+        ),
+      );
       return true;
     } catch (e) {
       debugPrint('[Bingo] joinGame error: $e');

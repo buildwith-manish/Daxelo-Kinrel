@@ -21,6 +21,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
+import '../shared/data/game_invite_chat_sync.dart';
 import 'antakshari_models.dart';
 
 class AntakshariState {
@@ -252,6 +253,16 @@ class AntakshariNotifier extends StateNotifier<AntakshariState> {
       _subscribeToRealtime(gameId);
       await _refreshPlayers(gameId);
       await _refreshTurns(gameId);
+      // Keep the persistent game-invite chat card in the family thread in
+      // sync with the new player count ("2/4 players" / "Full") for every
+      // family member via realtime. Best-effort, never affects the join.
+      unawaited(
+        syncGameInviteChatCards(
+          client: client,
+          gameId: gameId,
+          currentPlayers: state.players.length,
+        ),
+      );
       return true;
     } catch (e) {
       debugPrint('[Antakshari] joinGame error: $e');

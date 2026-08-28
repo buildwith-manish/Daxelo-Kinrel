@@ -483,6 +483,10 @@ class _GroupChatRowState extends ConsumerState<_GroupChatRow> {
         return msg.eventTitle ?? 'Family Event';
       case MessageType.sticker:
         return msg.content;
+      case MessageType.gameInvite:
+        return msg.gameType != null
+            ? 'Game invite · ${msg.roomCode ?? ''}'.trim()
+            : 'Game invite';
       case MessageType.text:
       default:
         return msg.content;

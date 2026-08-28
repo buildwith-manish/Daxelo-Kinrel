@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
+import '../shared/data/game_invite_chat_sync.dart';
 import 'dotsboxes_game_logic.dart';
 import 'dotsboxes_models.dart';
 
@@ -57,6 +58,16 @@ class DbNotifier extends StateNotifier<DbState> {
       if (existing.length >= 4) { state = state.copyWith(isLoading: false, error: 'Game is full'); return false; }
       if (!existing.any((p) => p.userId == myId)) await client.from('dotsboxes_players').upsert({'gameId': gameId, 'userId': myId, 'userName': _myName, 'turnOrder': existing.length, 'playerColor': existing.length, 'boxesCaptured': 0}, onConflict: 'gameId,userId');
       state = state.copyWith(game: game, isLoading: false); _subscribeToRealtime(gameId); await _refreshPlayers(gameId); await _refreshLines(gameId); await _refreshBoxes(gameId);
+      // Keep the persistent game-invite chat card in the family thread in
+      // sync with the new player count ("2/4 players" / "Full") for every
+      // family member via realtime. Best-effort, never affects the join.
+      unawaited(
+        syncGameInviteChatCards(
+          client: client,
+          gameId: gameId,
+          currentPlayers: state.players.length,
+        ),
+      );
       return true;
     } catch (e) { debugPrint('[DB] joinGame error: $e'); state = state.copyWith(isLoading: false, error: '$e'); return false; }
   }

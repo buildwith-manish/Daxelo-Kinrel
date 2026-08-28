@@ -33,13 +33,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
+import '../../games/shared/models/game_invite.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Models
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Message type — drives the bubble content and layout.
-enum MessageType { text, photo, voiceNote, familyEvent, sticker }
+enum MessageType { text, photo, voiceNote, familyEvent, sticker, gameInvite }
 
 /// A single emoji reaction on a message.
 class MessageReaction {
@@ -101,6 +102,13 @@ class ChatMessage {
     this.forwardedFrom,
     this.deletedForMe = const [],
     this.groupId, // v137: for group-scoped messages (null = family-wide chat)
+    // Game-invite card fields (messageType == gameInvite)
+    this.gameType, // route segment, e.g. 'sos' → '/family/<id>/sos/lobby'
+    this.gameId, // id of the <game>_games row the invite points at
+    this.roomCode, // 6-char display room code
+    this.gameMaxPlayers,
+    this.gameCurrentPlayers,
+    this.gameInviteStatus, // 'pending' | 'accepted' | 'expired' | 'cancelled'
   });
 
   /// URL of the attached media (photo or voice note) in Supabase storage.
@@ -183,6 +191,41 @@ class ChatMessage {
   /// Null means it's a family-wide chat message.
   final String? groupId;
 
+  /// Game-invite card: the game's route segment (e.g. 'sos'). Used both for
+  /// display and to build the lobby join route.
+  final String? gameType;
+
+  /// Game-invite card: id of the game room row (`<game>_games`.id).
+  final String? gameId;
+
+  /// Game-invite card: the 6-char display room code.
+  final String? roomCode;
+
+  /// Game-invite card: maximum players for the room.
+  final int? gameMaxPlayers;
+
+  /// Game-invite card: current players in the room. Kept in sync with the
+  /// live game state by syncGameInviteChatCards() so the card shows
+  /// "2/4 players" / flips to "Full" without reopening the thread.
+  final int? gameCurrentPlayers;
+
+  /// Game-invite card lifecycle: 'pending' (joinable) | 'accepted' (started)
+  /// | 'expired' | 'cancelled' (ended). Null is treated as 'pending'.
+  final String? gameInviteStatus;
+
+  /// Game-invite card: whether the room is full.
+  bool get isGameFull =>
+      (gameCurrentPlayers ?? 0) >= (gameMaxPlayers ?? 1) &&
+      messageType == MessageType.gameInvite;
+
+  /// Game-invite card: whether the invite is no longer joinable because its
+  /// lifecycle ended (started / expired / cancelled) — as opposed to merely
+  /// being full.
+  bool get isGameInviteClosed =>
+      messageType == MessageType.gameInvite &&
+      gameInviteStatus != null &&
+      gameInviteStatus != 'pending';
+
   /// Convenience: grouped reactions (emoji → count).
   Map<String, int> get groupedReactions {
     final map = <String, int>{};
@@ -224,6 +267,12 @@ class ChatMessage {
     String? messageStatus,
     String? content,
     List<dynamic>? deletedForMe,
+    String? gameType,
+    String? gameId,
+    String? roomCode,
+    int? gameMaxPlayers,
+    int? gameCurrentPlayers,
+    String? gameInviteStatus,
   }) {
     return ChatMessage(
       id: id,
@@ -251,6 +300,12 @@ class ChatMessage {
       messageSubType: messageSubType,
       forwardedFrom: forwardedFrom,
       deletedForMe: deletedForMe ?? this.deletedForMe,
+      gameType: gameType ?? this.gameType,
+      gameId: gameId ?? this.gameId,
+      roomCode: roomCode ?? this.roomCode,
+      gameMaxPlayers: gameMaxPlayers ?? this.gameMaxPlayers,
+      gameCurrentPlayers: gameCurrentPlayers ?? this.gameCurrentPlayers,
+      gameInviteStatus: gameInviteStatus ?? this.gameInviteStatus,
     );
   }
 
@@ -284,6 +339,12 @@ class ChatMessage {
       forwardedFrom: json['forwardedFrom'] as String?,
       deletedForMe: json['deletedForMe'] as List<dynamic>? ?? const [],
       groupId: json['groupId'] as String?,
+      gameType: json['gameType'] as String?,
+      gameId: json['gameId'] as String?,
+      roomCode: json['roomCode'] as String?,
+      gameMaxPlayers: json['gameMaxPlayers'] as int?,
+      gameCurrentPlayers: json['gameCurrentPlayers'] as int?,
+      gameInviteStatus: json['gameInviteStatus'] as String?,
     );
   }
 
@@ -297,6 +358,8 @@ class ChatMessage {
         return MessageType.familyEvent;
       case 'sticker':
         return MessageType.sticker;
+      case 'gameInvite':
+        return MessageType.gameInvite;
       case 'text':
       default:
         return MessageType.text;
@@ -331,6 +394,12 @@ class ChatMessage {
       if (messageSubType != null) 'messageSubType': messageSubType,
       if (forwardedFrom != null) 'forwardedFrom': forwardedFrom,
       if (groupId != null) 'groupId': groupId,
+      if (gameType != null) 'gameType': gameType,
+      if (gameId != null) 'gameId': gameId,
+      if (roomCode != null) 'roomCode': roomCode,
+      if (gameMaxPlayers != null) 'gameMaxPlayers': gameMaxPlayers,
+      if (gameCurrentPlayers != null) 'gameCurrentPlayers': gameCurrentPlayers,
+      if (gameInviteStatus != null) 'gameInviteStatus': gameInviteStatus,
     };
   }
 
@@ -344,6 +413,8 @@ class ChatMessage {
         return 'familyEvent';
       case MessageType.sticker:
         return 'sticker';
+      case MessageType.gameInvite:
+        return 'gameInvite';
       case MessageType.text:
       default:
         return 'text';
@@ -1254,6 +1325,83 @@ class ChatNotifier extends StateNotifier<ChatState> {
           messages: withoutFailed,
           error: 'Failed to send sticker',
         );
+      }
+    }
+  }
+
+  /// Send a persistent game-invite card to the family chat thread.
+  ///
+  /// Called by InviteFamilySheet alongside each `game_invites` insert +
+  /// Socket.IO `game:invite:send`, so the invite is ALSO visible as a
+  /// persistent card in the chat thread. The socket popup only reaches
+  /// members who are online right now; this card is the second, durable
+  /// surface for the same invite (one card per invite action — it
+  /// represents the room as a whole, not one card per recipient).
+  ///
+  /// The card starts at `gameInviteStatus='pending'` with the room's
+  /// current player count. Live updates (joins / game start / finish) are
+  /// pushed onto the ChatMessage row by `syncGameInviteChatCards()` in
+  /// lib/features/games/shared/data/game_invite_chat_sync.dart; this
+  /// notifier's realtime UPDATE subscription then refreshes every open
+  /// chat UI automatically.
+  ///
+  /// Failures are intentionally quiet (debugPrint + remove the optimistic
+  /// card): the chat card is additive and must never surface a chat error
+  /// banner or block the actual game invite that triggered it.
+  Future<void> sendGameInvite({
+    required String gameType,
+    required String gameId,
+    required String roomCode,
+    required int maxPlayers,
+    required int currentPlayers,
+    String? content,
+  }) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) {
+      if (mounted) state = state.copyWith(error: 'Not signed in');
+      return;
+    }
+
+    final senderName = _currentUserName;
+    final msgId = _generateId();
+    final now = DateTime.now();
+    final displayName =
+        GameTypeX.fromRouteSegment(gameType)?.displayName ?? gameType;
+
+    final optimistic = ChatMessage(
+      id: msgId,
+      senderId: myUserId,
+      senderName: senderName,
+      content: content ?? '$senderName started a $displayName game',
+      messageType: MessageType.gameInvite,
+      timestamp: now,
+      isRead: false,
+      senderInitials: _initialsFromName(senderName),
+      gameType: gameType,
+      gameId: gameId,
+      roomCode: roomCode,
+      gameMaxPlayers: maxPlayers,
+      gameCurrentPlayers: currentPlayers,
+      gameInviteStatus: 'pending',
+    );
+
+    // Track for echo de-dup so the realtime INSERT doesn't double-render.
+    _pendingOptimisticIds.add(msgId);
+    final updated = [optimistic, ...state.messages];
+    if (mounted) state = state.copyWith(messages: updated);
+
+    try {
+      await client.from('ChatMessage').insert(optimistic.toJson(
+        familyId: familyId,
+      ));
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendGameInvite insert failed: $e');
+      _pendingOptimisticIds.remove(msgId);
+      if (mounted) {
+        final withoutFailed =
+            state.messages.where((m) => m.id != msgId).toList();
+        state = state.copyWith(messages: withoutFailed);
       }
     }
   }

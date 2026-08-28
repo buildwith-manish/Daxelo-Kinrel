@@ -34,6 +34,7 @@ import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/network/socket_service.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../chat/providers/chat_provider.dart';
 import '../../../family/presentation/add_member_source.dart';
 import '../models/game_invite.dart';
 import '../models/game_invite_status.dart';
@@ -224,6 +225,38 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     );
   }
 
+  /// Post the game invite as a persistent card in the family chat thread
+  /// (ChatNotifier.sendGameInvite inserts a ChatMessage row with
+  /// messageType='gameInvite').
+  ///
+  /// One card per invite-send ACTION — it represents the room as a whole,
+  /// not one card per recipient — so this is called exactly once per user
+  /// action (single send / multi-select send / bulk send), never inside the
+  /// per-recipient loop.
+  ///
+  /// Best-effort and fully additive: wrapped in its own try/catch that only
+  /// debugPrints on failure. A failed chat card must never block, roll back,
+  /// or surface an error for the actual game_invites/socket invite flow.
+  Future<void> _postInviteChatCard() async {
+    try {
+      // Read the notifier synchronously — never touch `ref` after an await
+      // (this sheet may pop while the insert is in flight).
+      final chatNotifier = ref.read(chatProvider(widget.familyId).notifier);
+      await chatNotifier.sendGameInvite(
+        gameType: widget.gameType.routeSegment,
+        gameId: widget.gameId,
+        roomCode: widget.roomCode,
+        maxPlayers: widget.maxPlayers,
+        currentPlayers: widget.currentPlayers,
+        // content left null → ChatNotifier falls back to the default
+        // "<name> started a <gameType> game" text.
+      );
+    } catch (e) {
+      debugPrint(
+          '⚠️ InviteFamilySheet: game-invite chat card failed (non-blocking): $e');
+    }
+  }
+
   /// Send a single invite to one member and mark them as 'pending' in the
   /// status provider. Single-tap path.
   Future<void> _sendInvite(_LinkedMember m) async {
@@ -250,6 +283,13 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
       timestamp: DateTime.now().toUtc(),
     );
 
+    // Tracks whether the DURABLE invite (the game_invites row + its FCM
+    // push trigger) was persisted. The chat card accompanies that durable
+    // invite, so it must post even when the realtime socket leg fails —
+    // e.g. the NestJS gateway is cold-starting or unreachable — because the
+    // recipient still has the game_invites row + push notification.
+    bool inviteRowInserted = false;
+
     try {
       // 1. Insert into game_invites table — this triggers the FCM push
       //    via the AFTER INSERT trigger on the table.
@@ -270,6 +310,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
           'status': 'pending',
           'sourceGameId': null,
         });
+        inviteRowInserted = true;
       }
 
       // 2. Send the in-app realtime Socket.IO event (immediate delivery
@@ -284,6 +325,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
             avatarUrl: m.user.avatarUrl,
             photoThumb: m.user.photoThumb,
           );
+
       if (!mounted) return;
       setState(() => _sendingTo.remove(m.user.id));
       widget.onInviteSent?.call();
@@ -307,6 +349,15 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
           ),
         );
       }
+    } finally {
+      // 4. Post the persistent game-invite card to the family chat thread
+      //    — once per send action, tied to the DURABLE invite row (not the
+      //    realtime socket leg, which can fail while the invite itself was
+      //    persisted). Best-effort, never blocks or rolls back the invite
+      //    flow above.
+      if (inviteRowInserted) {
+        await _postInviteChatCard();
+      }
     }
   }
 
@@ -325,6 +376,10 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     final socket = ref.read(socketServiceProvider);
     final base = _buildInvite();
     int sent = 0;
+    // Durable invites persisted to game_invites (row + FCM push trigger).
+    // The chat card accompanies these — not the realtime socket leg, which
+    // can fail per-recipient while the invite itself was persisted.
+    int inserted = 0;
     final records = <InviteRecord>[];
 
     for (final m in selected) {
@@ -361,6 +416,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
             'status': 'pending',
             'sourceGameId': null,
           });
+          inserted++;
         }
         // Send realtime Socket.IO event
         await socket.sendGameInvite(toUserId: m.user.id, invite: invite);
@@ -383,6 +439,15 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
       ref
           .read(gameInviteStatusProvider(widget.gameId).notifier)
           .markManyPending(records);
+    }
+
+    // One persistent chat card per send action (not per recipient) — the
+    // card represents the invite/room as a whole for the family thread.
+    // Tied to the durable game_invites rows (`inserted > 0`), so a fully-
+    // failed action (or a socket outage) never posts a card, while a
+    // persisted invite always gets one.
+    if (inserted > 0) {
+      await _postInviteChatCard();
     }
 
     if (!mounted) return;
@@ -419,6 +484,10 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     final socket = ref.read(socketServiceProvider);
     final base = _buildInvite();
     int sent = 0;
+    // Durable invites persisted to game_invites (row + FCM push trigger).
+    // The chat card accompanies these — not the realtime socket leg, which
+    // can fail per-recipient while the invite itself was persisted.
+    int inserted = 0;
     final records = <InviteRecord>[];
 
     for (final m in eligible) {
@@ -455,6 +524,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
             'status': 'pending',
             'sourceGameId': null,
           });
+          inserted++;
         }
         // Send realtime Socket.IO event
         await socket.sendGameInvite(toUserId: m.user.id, invite: invite);
@@ -477,6 +547,15 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
       ref
           .read(gameInviteStatusProvider(widget.gameId).notifier)
           .markManyPending(records);
+    }
+
+    // One persistent chat card per send action (not per recipient) — the
+    // card represents the invite/room as a whole for the family thread.
+    // Tied to the durable game_invites rows (`inserted > 0`), so a fully-
+    // failed action (or a socket outage) never posts a card, while a
+    // persisted invite always gets one.
+    if (inserted > 0) {
+      await _postInviteChatCard();
     }
 
     if (!mounted) return;

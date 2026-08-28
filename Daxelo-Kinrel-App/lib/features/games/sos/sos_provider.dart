@@ -17,6 +17,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
+import '../shared/data/game_invite_chat_sync.dart';
 import 'sos_game_logic.dart';
 import 'sos_models.dart';
 
@@ -247,6 +248,17 @@ class SosNotifier extends StateNotifier<SosState> {
       _subscribeToRealtime(gameId);
       await _refreshPlayers(gameId);
       await _refreshMoves(gameId);
+
+      // Keep the persistent game-invite chat card in the family thread in
+      // sync with the new player count ("2/4 players" / "Full") for every
+      // family member via realtime. Best-effort, never affects the join.
+      unawaited(
+        syncGameInviteChatCards(
+          client: client,
+          gameId: gameId,
+          currentPlayers: state.players.length,
+        ),
+      );
       return true;
     } catch (e) {
       debugPrint('[SOS] joinGame error: $e');
@@ -277,6 +289,16 @@ class SosNotifier extends StateNotifier<SosState> {
         'status': 'active',
         'startedAt': DateTime.now().toIso8601String(),
       }).eq('id', gameId);
+
+      // The game-invite chat card is no longer joinable — flip its status
+      // so the card renders "Started" for every family member via realtime.
+      unawaited(
+        syncGameInviteChatCards(
+          client: client,
+          gameId: gameId,
+          inviteStatus: 'accepted',
+        ),
+      );
     } catch (e) {
       debugPrint('[SOS] startGame error: $e');
       state = state.copyWith(error: '$e');
@@ -444,6 +466,16 @@ class SosNotifier extends StateNotifier<SosState> {
       'winnerTeam': winner.winnerTeam?.name,
       'winnerUserId': winner.winnerUserId,
     }).eq('id', gameId);
+
+    // The game-invite chat card has run its course — flip its status so the
+    // card renders "Ended" for every family member via realtime.
+    unawaited(
+      syncGameInviteChatCards(
+        client: client,
+        gameId: gameId,
+        inviteStatus: 'expired',
+      ),
+    );
   }
 
   /// Leave the game (manual exit).

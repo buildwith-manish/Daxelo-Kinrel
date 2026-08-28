@@ -51,6 +51,8 @@ import 'voice_message_player.dart';
 import 'sticker_panel.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
+import '../../games/shared/icons/game_icons.dart';
+import '../../games/shared/models/game_invite.dart';
 import '../data/chat_wallpaper_provider.dart';
 import '../data/wallpaper_picker.dart';
 import 'widgets/chat_background.dart';
@@ -3351,7 +3353,7 @@ class _MessageBubble extends ConsumerWidget {
                           if (!isMe && !isSticker && isFirstInGroup)
                             _buildSenderName(ref),
                           // Message content
-                          _buildMessageContent(),
+                          _buildMessageContent(context),
                           // v127: Inline timestamp only on last-in-group
                           if (!isSticker && isLastInGroup) _buildTimeRow(),
                           if (isSticker) _buildStickerTimeRow(),
@@ -3506,7 +3508,7 @@ class _MessageBubble extends ConsumerWidget {
     );
   }
 
-  Widget _buildMessageContent() {
+  Widget _buildMessageContent(BuildContext context) {
     switch (message.messageType) {
       case MessageType.text:
         // v131: Premium typography — comfortable line height (1.5),
@@ -3831,7 +3833,263 @@ class _MessageBubble extends ConsumerWidget {
             ],
           ),
         );
+
+      case MessageType.gameInvite:
+        // Persistent game-invite card — the second, durable surface for a
+        // game-room invite (the first being the realtime GameInviteListener
+        // popup that only reaches members who are online right now).
+        // Rendered full width within the normal bubble constraints.
+        return _buildGameInviteCard(context);
     }
+  }
+
+  /// Game-invite card bubble (MessageType.gameInvite).
+  ///
+  /// Distinct card inside the standard bubble: game icon + display name,
+  /// "<current>/<max> players", the room code as a small mono chip, and a
+  /// primary Join button that navigates exactly like
+  /// GameInviteListener._acceptInvite (same '/family/<id>/<gameType>/lobby?
+  /// join=<gameId>' route). The button is disabled ("Full") once the room
+  /// is full, and "Started"/"Ended" once the invite's lifecycle closes
+  /// (gameInviteStatus accepted/expired/cancelled). The sender's own card
+  /// never shows Join — they are already in the game — and shows a
+  /// waiting/status label instead.
+  Widget _buildGameInviteCard(BuildContext context) {
+    final rawGameType = message.gameType ?? '';
+    final parsedGameType = GameTypeX.fromRouteSegment(rawGameType);
+    final displayName =
+        parsedGameType?.displayName ?? _titleCaseSegment(rawGameType);
+    final maxPlayers = message.gameMaxPlayers ?? 2;
+    final currentPlayers = message.gameCurrentPlayers ?? 1;
+    final roomCode = (message.roomCode ?? '').trim();
+    final status = message.gameInviteStatus ?? 'pending';
+    final isFull = currentPlayers >= maxPlayers;
+
+    // Disabled-button label resolution: null → enabled "Join".
+    String? disabledLabel;
+    if (isFull) {
+      disabledLabel = 'Full';
+    } else if (status == 'accepted') {
+      disabledLabel = 'Started';
+    } else if (status == 'expired' || status == 'cancelled') {
+      disabledLabel = 'Ended';
+    }
+
+    final canJoin =
+        !isMe && disabledLabel == null && (message.gameId ?? '').isNotEmpty;
+
+    // Sender-side status line (replaces the Join button on isMe cards).
+    String waitingLabel;
+    if (status == 'accepted') {
+      waitingLabel = 'Game started';
+    } else if (status == 'expired' || status == 'cancelled') {
+      waitingLabel = 'Game ended';
+    } else if (isFull) {
+      waitingLabel = 'Room full';
+    } else {
+      waitingLabel = 'Waiting for players…';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(KinrelSpacing.md),
+      decoration: BoxDecoration(
+        color: KinrelColors.orange.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        border: Border.all(
+          color: KinrelColors.orange.withValues(alpha: 0.2),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header: game icon + game display name
+          Row(
+            children: [
+              SizedBox(
+                width: 40,
+                height: 40,
+                child: parsedGameType != null
+                    ? GameIcon(gameId: rawGameType, size: 40)
+                    : const Icon(Icons.sports_esports,
+                        size: 26, color: KinrelColors.orange),
+              ),
+              const SizedBox(width: KinrelSpacing.sm + 2),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      'GAME INVITE',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.monoFont,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w500,
+                        color: KinrelColors.orange,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: KinrelSpacing.sm),
+          // Players + room code chip
+          Row(
+            children: [
+              Icon(
+                Icons.group_outlined,
+                size: 13,
+                color: KinrelColors.textSilver.withValues(alpha: 0.8),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '$currentPlayers/$maxPlayers players',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textSilver,
+                ),
+              ),
+              if (roomCode.isNotEmpty) ...[
+                const SizedBox(width: KinrelSpacing.sm),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.orange.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: KinrelColors.orange.withValues(alpha: 0.3),
+                      width: 0.75,
+                    ),
+                  ),
+                  child: Text(
+                    roomCode,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.monoFont,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.orange,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          // Fallback text ("<sender> started a <game> game") if present
+          if (message.content.isNotEmpty) ...[
+            const SizedBox(height: KinrelSpacing.sm - 2),
+            Text(
+              message.content,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: KinrelColors.textSilver.withValues(alpha: 0.85),
+                height: 1.35,
+              ),
+            ),
+          ],
+          const SizedBox(height: KinrelSpacing.sm + 2),
+          if (isMe)
+            // Sender is already in the game — status label, no Join button.
+            Row(
+              children: [
+                Icon(
+                  status == 'accepted'
+                      ? Icons.play_circle_outline
+                      : (status == 'expired' || status == 'cancelled')
+                          ? Icons.event_busy
+                          : Icons.hourglass_top,
+                  size: 14,
+                  color: KinrelColors.textDim,
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    waitingLabel,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.textDim,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else
+            // Join button — same route as GameInviteListener._acceptInvite.
+            SizedBox(
+              width: double.infinity,
+              child: Material(
+                color: canJoin
+                    ? KinrelColors.orange
+                    : KinrelColors.darkElevated,
+                borderRadius: BorderRadius.circular(KinrelRadius.sm),
+                child: InkWell(
+                  onTap: canJoin ? () => _joinGameFromCard(context) : null,
+                  borderRadius: BorderRadius.circular(KinrelRadius.sm),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Center(
+                      child: Text(
+                        canJoin ? 'Join' : (disabledLabel ?? 'Join'),
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: canJoin
+                              ? KinrelColors.textWhite
+                              : KinrelColors.textDim,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Navigate into the game lobby from a chat invite card.
+  ///
+  /// Replicates GameInviteListener._acceptInvite's join route exactly
+  /// (GameInvite.joinRoute): '/family/<familyId>/<gameType>/lobby?join=<gameId>'.
+  /// The lobby screen picks up the `join` query param and joins the room.
+  void _joinGameFromCard(BuildContext context) {
+    final gameType = message.gameType ?? '';
+    final gameId = message.gameId ?? '';
+    if (gameType.isEmpty || gameId.isEmpty || familyId == null) return;
+    context.go('/family/$familyId/$gameType/lobby?join=$gameId');
+  }
+
+  /// Title-case fallback for game types not in the GameType enum
+  /// (e.g. 'somegame' → 'Somegame', 'my-game' → 'My Game').
+  String _titleCaseSegment(String s) {
+    if (s.isEmpty) return s;
+    return s
+        .split(RegExp(r'[-_\s]+'))
+        .where((w) => w.isNotEmpty)
+        .map((w) => w[0].toUpperCase() + w.substring(1))
+        .join(' ');
   }
 
   /// Phase 18: Thinking of You bubble — a warm, heart-themed card that

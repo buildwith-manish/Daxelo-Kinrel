@@ -752,6 +752,10 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
       case MessageType.sticker:
         // Show the emoji directly — it's instantly recognizable
         return msg.content;
+      case MessageType.gameInvite:
+        return msg.gameType != null
+            ? 'Game invite · ${msg.roomCode ?? ''}'.trim()
+            : 'Game invite';
       case MessageType.text:
       default:
         return msg.content;

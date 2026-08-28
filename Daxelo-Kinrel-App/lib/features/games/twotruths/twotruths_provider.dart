@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
+import '../shared/data/game_invite_chat_sync.dart';
 import 'twotruths_game_logic.dart';
 import 'twotruths_models.dart';
 
@@ -52,6 +53,16 @@ class TtNotifier extends StateNotifier<TtState> {
       if (existing.length >= 12) { state = state.copyWith(isLoading: false, error: 'Game is full'); return false; }
       if (!existing.any((p) => p.userId == myId)) await client.from('twotruths_players').upsert({'gameId': gameId, 'userId': myId, 'userName': _myName, 'turnOrder': existing.length, 'totalScore': 0, 'hasGuessed': false}, onConflict: 'gameId,userId');
       state = state.copyWith(game: game, isLoading: false); _subscribeToRealtime(gameId); await _refreshPlayers(gameId); await _refreshRounds(gameId);
+      // Keep the persistent game-invite chat card in the family thread in
+      // sync with the new player count ("2/4 players" / "Full") for every
+      // family member via realtime. Best-effort, never affects the join.
+      unawaited(
+        syncGameInviteChatCards(
+          client: client,
+          gameId: gameId,
+          currentPlayers: state.players.length,
+        ),
+      );
       return true;
     } catch (e) { debugPrint('[TT] joinGame error: $e'); state = state.copyWith(isLoading: false, error: '$e'); return false; }
   }
