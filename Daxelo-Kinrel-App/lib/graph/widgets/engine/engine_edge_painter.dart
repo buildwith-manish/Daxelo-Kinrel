@@ -432,8 +432,10 @@ class EngineEdgePainter extends CustomPainter {
       segDist = rs; // degenerate — treat as the endpoint distance
     } else {
       // Clamp the projection parameter to [0, 1] for segment distance.
-      final double u =
-          ((center - s).dot(st) / stLenSq).clamp(0.0, 1.0);
+      // (Offset has no dot() in this Flutter version — expand it.)
+      final Offset cs = center - s;
+      final double dot = cs.dx * st.dx + cs.dy * st.dy;
+      final double u = (dot / stLenSq).clamp(0.0, 1.0);
       final Offset closest = s + st * u;
       segDist = (center - closest).distance;
     }
