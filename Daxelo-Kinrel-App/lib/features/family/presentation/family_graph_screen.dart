@@ -73,16 +73,16 @@ import 'providers/family_graph_provider.dart'
         graphRealtimeProvider,
         selectedNodeProvider,
         unlinkedPersonIdsProvider; // v5.9
-// v5.123 (Step 4): search jump — shortest-path reveal for offscreen
-// results. RelationshipEngine.resolvePath is the SAME BFS behind
+// v5.123 (Step 4) → v5.125: search jump — shortest-path reveal for
+// offscreen results. The orchestration lives in the search state layer
+// (GraphSearchNotifier.revealOffscreenMatch), which reuses
+// RelationshipEngine.resolvePath — the same BFS behind
 // graph_kinship_path_focus (GraphPathFocusNotifier.resolve) — no
-// second path-finding algorithm.
-import '../../../core/relationship/relationship_engine.dart'
-    show RelationshipEngine;
+// second path-finding algorithm. The screen only supplies graph data.
 import '../../../core/services/graph_layout_service.dart'
     show GraphPerson;
 import '../../../graph/interaction/proximity_graph_state.dart'
-    show proximityGraphProvider, buildAdjacency;
+    show proximityGraphProvider;
 import '../../../graph/interaction/graph_search_state.dart'
     show graphSearchProvider;
 import 'widgets/relationship_legend.dart';
@@ -441,39 +441,46 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     final personName = graphData?.persons
         .where((p) => p['id'] == memberId)
         .firstOrNull?['name'] as String?;
+    // v5.125 (Step 4): pass the REAL edge list so focus() computes the
+    // target's first/second-degree neighbour sets immediately. The
+    // canvas's own recompute is fingerprint-gated (it only re-runs when
+    // the graph DATA changes), so a second jump to a different person
+    // would otherwise keep the previous person's neighbours — dimming
+    // the newly revealed path as "unrelated" and mis-protecting the
+    // collapse pass.
+    final focusEdges = <({String fromId, String toId})>[
+      for (final r in graphData?.relationships ?? const <Map<String, dynamic>>[])
+        (
+          fromId: (r['fromPersonId'] ?? '').toString(),
+          toId: (r['toPersonId'] ?? '').toString(),
+        ),
+    ];
     ref.read(graphFocusProvider.notifier).focus(
           personId: memberId,
           personName: personName ?? 'Found person',
-          edges: const [], // no path edges needed for search jump
+          edges: focusEdges,
           currentViewport: null,
         );
   }
 
-  /// v5.123 (Step 4): Reveals the shortest relationship path from the
-  /// current proximity anchor to [memberId] when the member is NOT in
-  /// the current visible set (searched-for but not loaded/visible).
+  /// v5.123 (Step 4) → v5.125: Reveals the shortest relationship path
+  /// from the current proximity anchor to [memberId] when the member is
+  /// NOT in the current visible set (searched-for but not loaded/visible).
   ///
-  /// Path resolution REUSES RelationshipEngine.resolvePath — the same
-  /// BFS that powers graph_kinship_path_focus (GraphPathFocusNotifier
-  /// .resolve) — no second path-finding algorithm.
+  /// The orchestration lives in the SEARCH STATE LAYER —
+  /// `GraphSearchNotifier.revealOffscreenMatch` (graph_search_state.dart)
+  /// — which reuses `RelationshipEngine.resolvePath` (the same BFS that
+  /// powers graph_kinship_path_focus / graph_path_trace_controller) and
+  /// the existing proximity-expansion mechanisms (revealPersons +
+  /// expandFromPerson — identical semantics to tap-to-expand). No other
+  /// branch expands, and the revealed path is recorded in the search
+  /// state so the canvas's density-collapse pass protects it.
   ///
-  /// The reveal is scoped: ONLY the direct path's nodes (anchor → … →
-  /// target) plus the target's immediate neighborhood are added — the
-  /// same incremental semantics as the existing tap-to-expand. No
-  /// other branch expands.
+  /// This thin adapter only builds the engine inputs from the flat
+  /// graph, so the logic stays unit-testable at state level.
   void _revealPathToMember(String memberId, FlatGraphResult? graphData) {
     if (graphData == null) return;
 
-    final proximity = ref.read(proximityGraphProvider);
-    // Nothing initialized yet (or the target is already visible) —
-    // the normal focus flow handles those cases.
-    if (!proximity.isInitialized) return;
-    if (proximity.visibleIds.contains(memberId)) return;
-
-    final anchorId = proximity.anchorId;
-    if (anchorId == null || anchorId == memberId) return;
-
-    // Build the engine inputs from the flat graph.
     final persons = <GraphPerson>[];
     for (final p in graphData.persons) {
       persons.add(GraphPerson(
@@ -495,54 +502,13 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
         ),
     ];
-    final allPersonIds = <String>{
-      for (final p in persons) p.id,
-    };
 
-    // REUSED BFS: shortest relationship path anchor → target.
-    final pathSteps = RelationshipEngine.instance.resolvePath(
-      viewerPersonId: anchorId,
+    ref.read(graphSearchProvider.notifier).revealOffscreenMatch(
       targetPersonId: memberId,
       persons: persons,
-      relationships: [
-        for (final e in allEdges) (fromId: e.fromId, toId: e.toId, type: e.relationshipKey),
-      ],
+      edges: allEdges,
+      proximityNotifier: ref.read(proximityGraphProvider.notifier),
     );
-
-    if (pathSteps == null || pathSteps.isEmpty) {
-      // No path from the anchor (disconnected / data gap) — reveal the
-      // target alone so the search result at least renders and the
-      // camera can still center on them.
-      ref.read(proximityGraphProvider.notifier).revealPersons(
-        personIds: {memberId},
-        allPersons: allPersonIds,
-      );
-      return;
-    }
-
-    // Reveal ONLY the nodes on the direct path (anchor included for
-    // continuity — revealPersons skips already-visible IDs).
-    final pathIds = <String>{
-      anchorId,
-      for (final step in pathSteps) step.personId,
-    };
-    ref.read(proximityGraphProvider.notifier).revealPersons(
-      personIds: pathIds,
-      allPersons: allPersonIds,
-    );
-
-    // The target's immediate neighborhood — matching the existing
-    // tap-to-expand behavior for consistency.
-    ref.read(proximityGraphProvider.notifier).expandFromPerson(
-      personId: memberId,
-      adjacency: buildAdjacency(allEdges),
-      allPersons: allPersonIds,
-    );
-
-    // The camera animation is driven by the focus set in
-    // _focusOnMember: the engine view defers the camera move until the
-    // newly revealed target has a layout position (see the v5.123
-    // watcher comment in canvas_mixin.dart).
   }
 
   // ── AppBar ────────────────────────────────────────────────────────

@@ -14,7 +14,13 @@
 //   9. active path/search state interaction
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kinrel/graph/interaction/graph_search_state.dart';
+import 'package:kinrel/graph/interaction/proximity_graph_state.dart';
+import 'package:kinrel/graph/interaction/graph_focus_state.dart';
+import 'package:kinrel/graph/interaction/branch_collapse_state.dart';
+import 'package:kinrel/core/relationship/relationship_engine.dart';
+import 'package:kinrel/core/services/graph_layout_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -222,6 +228,328 @@ void main() {
       final matchSet = notifier.state.matchIdSet;
       expect(matchSet, isA<Set<String>>());
       expect(matchSet.contains('person-2'), isTrue);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // v5.125 (Step 4): Offscreen-match reveal — search jump for a match
+  // that is NOT in the visible/proximity set at all.
+  //
+  // Synthetic family (canonical edge convention: from A → to B, key X
+  // means "B is the X of A", so child→parent 'father' edges make the
+  // parent the head of childrenOf):
+  //
+  //   p0 (anchor/viewer)
+  //   ├─ c1 … c10                (ring 1 — 10 children)
+  //   │   cN → gNa, gNb          (ring 2 — 2 children each)
+  //   │   c1 → g1a, g1b, x1      (x1 also ring 2)
+  //   │   x1 → x2 → x3 → t1      (t1 = search TARGET, ring 5)
+  //   │   t1 → tc                (target's child — neighborhood)
+  //   └─ g10a → u3a, u3b, u3c    (an UNRELATED ring-3 branch)
+  //
+  // Default proximity set: ring 1 + ring 2 fill completely →
+  // 1 + 10 + 21 = 32 nodes ≥ kProximityNodeBudget (30) → the BFS stops
+  // BEFORE ring 3, so x2, x3, t1, tc and the u3* branch are all
+  // OUTSIDE the default set. The target is 5 hops from the anchor and
+  // 3 hops beyond the default set's frontier (x1).
+  // ═══════════════════════════════════════════════════════════════════
+  group('v5.125 (Step 4) — search jump reveals an offscreen match', () {
+    // Edge tuple helper: (child → parent, 'father') = parent is the
+    // child's father.
+    ({String fromId, String toId, String edgeId, String relationshipKey})
+        _e(String child, String parent, String id) =>
+            (fromId: child, toId: parent, edgeId: id, relationshipKey: 'father');
+
+    ({List<GraphPerson> persons,
+          List<({String fromId, String toId, String edgeId, String relationshipKey})> edges})
+        _buildFamily() {
+      final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[
+        // Ring 1: p0's children.
+        for (var i = 1; i <= 10; i++) _e('c$i', 'p0', 'e-c$i'),
+        // Ring 2: each cN has two children; c1 has a third (x1).
+        for (var i = 1; i <= 10; i++) ...[
+          _e('g${i}a', 'c$i', 'e-g${i}a'),
+          _e('g${i}b', 'c$i', 'e-g${i}b'),
+        ],
+        _e('x1', 'c1', 'e-x1'),
+        // The chain beyond the default set: x1 → x2 → x3 → t1 → tc.
+        _e('x2', 'x1', 'e-x2'),
+        _e('x3', 'x2', 'e-x3'),
+        _e('t1', 'x3', 'e-t1'), // t1 = the search TARGET.
+        _e('tc', 't1', 'e-tc'),
+        // An unrelated branch off g10a (ring 3 — outside default set).
+        _e('u3a', 'g10a', 'e-u3a'),
+        _e('u3b', 'g10a', 'e-u3b'),
+        _e('u3c', 'g10a', 'e-u3c'),
+      ];
+      final ids = <String>{
+        for (final e in edges) e.fromId,
+        for (final e in edges) e.toId,
+      };
+      return (
+        persons: [
+          for (final id in ids)
+            GraphPerson(id: id, name: 'Person $id', isAnchor: id == 'p0'),
+        ],
+        edges: edges,
+      );
+    }
+
+    /// childrenOf adjacency built the way the canvas builds it
+    /// (parent-labeled edges: toPerson is fromPerson's parent).
+    Map<String, Set<String>> _childrenOf(List<({String fromId, String toId, String edgeId, String relationshipKey})> edges) {
+      final childrenOf = <String, Set<String>>{};
+      for (final e in edges) {
+        childrenOf.putIfAbsent(e.toId, () => <String>{}).add(e.fromId);
+      }
+      return childrenOf;
+    }
+
+    test('search jump: 5-hop offscreen target — path revealed, unrelated '
+        'branch untouched, focus set to target', () {
+      RelationshipEngine.instance.invalidateCache();
+      final family = _buildFamily();
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final proximityNotifier = container.read(proximityGraphProvider.notifier);
+      final searchNotifier = container.read(graphSearchProvider.notifier);
+      final focusNotifier = container.read(graphFocusProvider.notifier);
+
+      // Initialize the proximity set exactly like the canvas does.
+      proximityNotifier.initialize(
+        anchorId: 'p0',
+        allPersons: {
+          for (final p in family.persons) p.id,
+        },
+        adjacency: buildAdjacency(family.edges),
+        edges: family.edges,
+      );
+
+      final defaultVisible = container.read(proximityGraphProvider).visibleIds;
+      // Precondition: the default set stops at ring 2 — the target and
+      // the unrelated ring-3 nodes are NOT visible.
+      expect(defaultVisible, containsAll(['p0', 'c1', 'x1']));
+      expect(defaultVisible, isNot(contains('t1')));
+      expect(defaultVisible, isNot(contains('x2')));
+      expect(defaultVisible, isNot(contains('u3a')));
+
+      // The search bar produced results; the user taps the target.
+      // This is the EXACT sequence _focusOnMember performs.
+      searchNotifier.setResults('Person t1', ['t1']);
+      searchNotifier.selectMatch('t1');
+      final revealed = searchNotifier.revealOffscreenMatch(
+        targetPersonId: 't1',
+        persons: family.persons,
+        edges: family.edges,
+        proximityNotifier: proximityNotifier,
+      );
+      focusNotifier.focus(
+        personId: 't1',
+        personName: 'Person t1',
+        edges: [
+          for (final e in family.edges) (fromId: e.fromId, toId: e.toId),
+        ],
+        currentViewport: null,
+      );
+
+      // (a) The path nodes become visible (shortest path
+      // p0 → c1 → x1 → x2 → x3 → t1, plus the target's neighborhood tc).
+      expect(revealed, containsAll(['x2', 'x3', 't1', 'tc']));
+      final visible = container.read(proximityGraphProvider).visibleIds;
+      expect(visible, containsAll(['p0', 'c1', 'x1', 'x2', 'x3', 't1', 'tc']));
+      // The reveal is scoped — the unrelated ring-3 branch stays hidden.
+      expect(visible, isNot(contains('u3a')));
+      expect(visible, isNot(contains('u3b')));
+      expect(visible, isNot(contains('u3c')));
+      // The reveal path is recorded for the canvas's collapse protection.
+      expect(searchNotifier.state.revealedPathIds,
+          containsAll(['x2', 'x3', 't1', 'tc']));
+
+      // (b) No unrelated branch's collapse state changes: with the
+      // post-reveal candidate set still under kNodeBudget (36 ≤ 50),
+      // the density-collapse pass (the canvas's single authority)
+      // produces NO collapsed branches — same as before the jump.
+      final collapse = BranchCollapseNotifier();
+      final revisionBefore = collapse.state.revision;
+      collapse.computeDensityCollapse(
+        visibleNodeIds: visible,
+        childrenOf: _childrenOf(family.edges),
+        personNameOf: (id) => 'Person $id',
+        allEdges: family.edges,
+        protectedIds: {
+          // The canvas's protected set (focus + neighbours + search
+          // matches + the revealed path).
+          ...container.read(graphFocusProvider).firstDegreeIds,
+          ...container.read(graphFocusProvider).secondDegreeIds,
+          if (container.read(graphSearchProvider).isActive)
+            ...container.read(graphSearchProvider).matchIdSet,
+          ...container.read(graphSearchProvider).revealedPathIds,
+        },
+      );
+      expect(collapse.state.collapsedBranches, isEmpty,
+          reason: 'Under the node budget the jump must not create any '
+              'collapsed branch');
+      expect(collapse.state.revision, revisionBefore,
+          reason: 'Collapse state must be untouched by the search jump');
+      expect(collapse.state.allHiddenMemberIds, isEmpty);
+
+      // (c) focusedPersonId ends up set to the target.
+      expect(container.read(graphFocusProvider).focusedPersonId, 't1');
+    });
+
+    test('search jump: revealed path is protected when the candidate set '
+        'exceeds the node budget', () {
+      RelationshipEngine.instance.invalidateCache();
+      final family = _buildFamily();
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final proximityNotifier = container.read(proximityGraphProvider.notifier);
+      final searchNotifier = container.read(graphSearchProvider.notifier);
+
+      proximityNotifier.initialize(
+        anchorId: 'p0',
+        allPersons: {
+          for (final p in family.persons) p.id,
+        },
+        adjacency: buildAdjacency(family.edges),
+        edges: family.edges,
+      );
+
+      searchNotifier.setResults('Person t1', ['t1']);
+      searchNotifier.selectMatch('t1');
+      searchNotifier.revealOffscreenMatch(
+        targetPersonId: 't1',
+        persons: family.persons,
+        edges: family.edges,
+        proximityNotifier: proximityNotifier,
+      );
+      final searchState = container.read(graphSearchProvider);
+
+      // Simulate a canvas whose candidate set exceeds kNodeBudget (e.g.
+      // a bigger family, or padding from other rings): pad the visible
+      // set with unrelated leaf nodes past 50.
+      final candidates = <String>{
+        ...container.read(proximityGraphProvider).visibleIds,
+        'u3a', 'u3b', 'u3c',
+        for (var i = 0; i < 20; i++) 'pad$i',
+      };
+      expect(candidates.length, greaterThan(kNodeBudget));
+
+      final collapse = BranchCollapseNotifier();
+      collapse.computeDensityCollapse(
+        visibleNodeIds: candidates,
+        childrenOf: _childrenOf(family.edges),
+        personNameOf: (id) => 'Person $id',
+        allEdges: family.edges,
+        protectedIds: {
+          't1',
+          ...searchState.matchIdSet,
+          ...searchState.revealedPathIds,
+        },
+      );
+
+      // The density pass may collapse unrelated subtrees to meet the
+      // budget — but NEVER a node on the revealed path.
+      expect(collapse.state.collapsedBranches, isNotEmpty,
+          reason: 'A 59-node candidate set must trigger density collapse');
+      for (final branch in collapse.state.collapsedBranches) {
+        for (final hidden in branch.hiddenMemberIds) {
+          expect(searchState.revealedPathIds, isNot(contains(hidden)),
+              reason: 'Hidden member $hidden is on the revealed search '
+                  'jump path — the path must survive the density budget');
+        }
+      }
+    });
+
+    test('search jump: target already visible → no reveal, protection '
+        'cleared', () {
+      RelationshipEngine.instance.invalidateCache();
+      final family = _buildFamily();
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final proximityNotifier = container.read(proximityGraphProvider.notifier);
+      final searchNotifier = container.read(graphSearchProvider.notifier);
+
+      proximityNotifier.initialize(
+        anchorId: 'p0',
+        allPersons: {
+          for (final p in family.persons) p.id,
+        },
+        adjacency: buildAdjacency(family.edges),
+        edges: family.edges,
+      );
+
+      // A previous jump left a reveal recorded…
+      searchNotifier.setResults('Person t1', ['t1']);
+      searchNotifier.selectMatch('t1');
+      searchNotifier.revealOffscreenMatch(
+        targetPersonId: 't1',
+        persons: family.persons,
+        edges: family.edges,
+        proximityNotifier: proximityNotifier,
+      );
+      expect(searchNotifier.state.revealedPathIds, isNotEmpty);
+
+      // …then the user jumps to someone already visible (c1, ring 1).
+      final visibleBefore =
+          Set<String>.from(container.read(proximityGraphProvider).visibleIds);
+      final revealed = searchNotifier.revealOffscreenMatch(
+        targetPersonId: 'c1',
+        persons: family.persons,
+        edges: family.edges,
+        proximityNotifier: proximityNotifier,
+      );
+      expect(revealed, isEmpty);
+      expect(searchNotifier.state.revealedPathIds, isEmpty,
+          reason: 'An already-visible target needs no path protection');
+      expect(container.read(proximityGraphProvider).visibleIds, visibleBefore,
+          reason: 'No-op jump must not change the visible set');
+    });
+
+    test('search jump: disconnected target → revealed alone so the camera '
+        'can still center on them', () {
+      RelationshipEngine.instance.invalidateCache();
+      final family = _buildFamily();
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final proximityNotifier = container.read(proximityGraphProvider.notifier);
+      final searchNotifier = container.read(graphSearchProvider.notifier);
+
+      final persons = [
+        ...family.persons,
+        const GraphPerson(id: 'stranger', name: 'Stranger'),
+      ];
+      final allPersons = <String>{
+        for (final p in persons) p.id,
+      };
+      proximityNotifier.initialize(
+        anchorId: 'p0',
+        allPersons: allPersons,
+        adjacency: buildAdjacency(family.edges),
+        edges: family.edges,
+      );
+
+      searchNotifier.setResults('Stranger', ['stranger']);
+      searchNotifier.selectMatch('stranger');
+      final revealed = searchNotifier.revealOffscreenMatch(
+        targetPersonId: 'stranger',
+        persons: persons,
+        edges: family.edges,
+        proximityNotifier: proximityNotifier,
+      );
+
+      expect(revealed, {'stranger'});
+      expect(container.read(proximityGraphProvider).visibleIds,
+          contains('stranger'));
+      expect(searchNotifier.state.revealedPathIds, {'stranger'});
     });
   });
 }

@@ -309,11 +309,25 @@ class RadialLayout {
       // This is an ordering fix inside the existing radial placement
       // step — NOT a new layout algorithm. The same median-heuristic
       // is used by GraphLayoutService._barycenterReorder.
+      //
+      // v5.125 (Step 7): the lookup is now a three-tier FALLBACK chain:
+      //   1. Parent/child relationship to a placed node (the original
+      //      behaviour — strongest signal).
+      //   2. ANY relationship (any key — spouse, in-law, cousin,
+      //      grandparent-in-law, …) to an already-placed node. A person
+      //      whose only connection to the placed set is a
+      //      non-parent/child key (e.g. a father-in-law tied to his
+      //      placed daughter-in-law) previously got NO angle and fell
+      //      through to the end-of-ring fallback — landing far from
+      //      their actual branch (the "Radha Menon / Vikram Mehta
+      //      floating outlier" bug). Tier 2 pulls them into their
+      //      connected node's angular sector.
+      //   3. Neither exists → keep current order (sorted last, stable).
       if (gen.abs() >= 1 && nonSpouseMembers.length > 1) {
         // Build a parent lookup: personId → parent's angle (if placed).
         final parentAngle = <String, double>{};
         for (final person in nonSpouseMembers) {
-          // Find this person's parent in the relationships.
+          // Tier 1: find this person's parent in the relationships.
           for (final r in relationships) {
             String? parentId;
             if (_parentKeys.contains(r.relationshipKey) &&
@@ -330,6 +344,30 @@ class RadialLayout {
                 pPos.dx - center.dx,
               );
               parentAngle[person.id] = angle;
+              break;
+            }
+          }
+          // Tier 2 (v5.125 Step 7): no parent-type relationship to a
+          // placed node — fall back to ANY relationship (any key) to
+          // an already-placed node and use that node's angle. This is
+          // a fallback tier, not a replacement: tier 1 above ran
+          // first and only missing persons reach here.
+          if (parentAngle.containsKey(person.id)) continue;
+          for (final r in relationships) {
+            String? connectedId;
+            if (r.fromPersonId == person.id &&
+                positions.containsKey(r.toPersonId)) {
+              connectedId = r.toPersonId;
+            } else if (r.toPersonId == person.id &&
+                positions.containsKey(r.fromPersonId)) {
+              connectedId = r.fromPersonId;
+            }
+            if (connectedId != null) {
+              final cPos = positions[connectedId]!;
+              parentAngle[person.id] = atan2(
+                cPos.dy - center.dy,
+                cPos.dx - center.dx,
+              );
               break;
             }
           }

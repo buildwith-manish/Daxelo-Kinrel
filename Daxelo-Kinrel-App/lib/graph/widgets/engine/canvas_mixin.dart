@@ -423,6 +423,12 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           ...focusState.secondDegreeIds,
           if (pathFocusState != null) ...pathFocusState.orderedPersonIds,
           if (searchState.isActive) ...searchState.matchIdSet,
+          // v5.125 (Step 4): the search-jump reveal path (offscreen
+          // match → shortest path → target neighborhood) must survive
+          // the density budget — without this, a reveal that pushes the
+          // candidate set past kNodeBudget would immediately re-hide
+          // the very nodes the jump just revealed.
+          ...searchState.revealedPathIds,
           if (selectedPerson != null) selectedPerson,
         };
         // Read the current collapse state (stable from the previous
@@ -795,6 +801,21 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // v83: Also check customColors — if an edge has customColors in
         // the relationship data, use the custom line color instead.
         final String? anchorId = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
+        // v5.125 (Step 6): the anchor's center in the EDGE PAINTER's
+        // coordinate space (positions + the visual-circle Y offset —
+        // the same transform the `positions` map passed to
+        // EdgeSelectionWrapper applies). This drives the
+        // bow-around-the-anchor routing for ring-spanning chords and
+        // the sector fan-out for anchor-incident edges — geometry
+        // only, no colour changes.
+        final Offset? anchorCenterForEdges =
+            (anchorId != null && effectivePositions.containsKey(anchorId))
+                ? Offset(
+                    effectivePositions[anchorId]!.dx,
+                    effectivePositions[anchorId]!.dy +
+                        _FamilyGraphEngineViewState._kCircleCenterYOffset,
+                  )
+                : null;
         final edgeCategories = <String, KinshipEdgeCategory>{};
         final edgeCustomColors = <String, Map<String, dynamic>>{};
         if (anchorId != null) {
@@ -848,6 +869,12 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         _currentEdgeCategories = edgeCategories;
         _currentEdgeCustomColors = edgeCustomColors;
         _currentCoupleUnions = coupleUnions;
+        // v5.125 (Step 6): cache the anchor geometry so the canvas
+        // hit-tester computes midpoints with the SAME bow + fan-out
+        // the painter renders (see _handleEdgeMidpointTap in
+        // interaction_mixin.dart).
+        _currentAnchorId = anchorId;
+        _currentAnchorCenter = anchorCenterForEdges;
         _currentPositionsWithOffset = {
           for (final entry in effectivePositions.entries)
             entry.key: Offset(
@@ -910,6 +937,11 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                   // zoom-driven presentation tier changes.
                   child: EdgeSelectionWrapper(
                     key: ValueKey('edge_layer_${edges.length}_${effectivePositions.length}'),
+                    // v5.125 (Step 6): anchor geometry for the
+                    // bow-around-the-anchor edge routing + sector
+                    // fan-out (geometry only).
+                    anchorId: anchorId,
+                    anchorCenter: anchorCenterForEdges,
                     // BUG 1 FIX: Apply Y offset so edge endpoints connect
                     // to the visual circle center, not the Positioned box
                     // center. The circle is at the TOP of the Column

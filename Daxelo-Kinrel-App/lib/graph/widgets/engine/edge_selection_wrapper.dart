@@ -40,6 +40,11 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
     required this.pathFocusActive,
     this.coupleUnions = const [],
     this.edgeWaypoints = const {},
+    // v5.125 (Step 6): anchor geometry for the bow-around-the-anchor
+    // edge routing + sector fan-out (geometry only — no colour
+    // changes). Null keeps the exact pre-v5.125 curve.
+    this.anchorId,
+    this.anchorCenter,
     this.connectOnOpenActive = false,
     this.connectOnOpenCurrentEdgeId,
     this.connectOnOpenProgress = 0.0,
@@ -92,6 +97,13 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
   /// for each union, and routes parent→child edges through the union
   /// midpoint when the child is a confirmed child of both partners.
   final List<CoupleUnion> coupleUnions;
+
+  /// v5.125 (Step 6): The anchor person's ID + center position (in the
+  /// same coordinate space as [positions]). Passed straight through to
+  /// the painter for the bow-around-the-anchor routing and the
+  /// anchor-sector fan-out.
+  final String? anchorId;
+  final Offset? anchorCenter;
 
   final EdgePathCache cache;
 
@@ -291,6 +303,9 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
         edgeCustomColors: widget.edgeCustomColors,
         coupleUnions: widget.coupleUnions,
         cache: widget.cache,
+        // v5.125 (Step 6): anchor geometry for the edge bow routing.
+        anchorId: widget.anchorId,
+        anchorCenter: widget.anchorCenter,
         selectedEdgeId: selectedEdgeId,
         edgeQuality: widget.edgeQuality,
         graphRevision: widget.graphRevision,
