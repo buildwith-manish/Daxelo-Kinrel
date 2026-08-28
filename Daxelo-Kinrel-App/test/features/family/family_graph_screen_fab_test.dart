@@ -142,8 +142,10 @@ void main() {
         // settles. Pump fixed durations instead (the standard pattern
         // for endless animations). The SECOND pump lets the async layout
         // provider resolve and fire the camera's one-time framing
-        // (_maybeFrame → animateTo); the THIRD flushes that animation's
-        // Timer chain so no pending timers remain at test end.
+        // (_maybeFrame → animateTo). v5.124: animateTo progress is now
+        // tick-cadence driven, so the 300ms framing animation terminates
+        // deterministically within these pumps — no pending Timers at
+        // test end.
         await tester.pump();
         await tester.pump(const Duration(seconds: 2));
         await tester.pump(const Duration(seconds: 1));
@@ -187,8 +189,9 @@ void main() {
           ),
         );
         // v5.123: fixed-duration pumps (endless ambient animations —
-        // pumpAndSettle never settles). The third pump flushes the
-        // camera framing animation's Timer chain (pending-timer guard).
+        // pumpAndSettle never settles). v5.124: the camera framing
+        // animation is tick-cadence driven and terminates within these
+        // pumps (pending-timer guard).
         await tester.pump();
         await tester.pump(const Duration(seconds: 2));
         await tester.pump(const Duration(seconds: 1));

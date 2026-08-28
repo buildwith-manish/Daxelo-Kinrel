@@ -650,15 +650,22 @@ class CameraController extends ChangeNotifier {
     _isAnimating = true;
     notifyListeners();
 
-    // Create a simple animation using Timer-based interpolation.
-    final startTime = DateTime.now();
+    // v5.124: progress is driven by the tick cadence (one 16ms frame
+    // per timer fire) instead of wall-clock DateTime.now(). Under
+    // Flutter's fake-async test binding, pumping advances FAKE time
+    // while DateTime.now() barely moves — a wall-clock animation never
+    // reaches t = 1.0 and its Timer chain keeps rescheduling forever
+    // ("A Timer is still pending" test failures). Cadence-driven
+    // progress is deterministic in tests and frame-locked in
+    // production (no frame jumps on janky devices).
+    const tickIntervalMs = 16;
     final durationMs = duration.inMilliseconds;
+    var elapsedMs = 0;
 
     void tick() {
       if (myGeneration != _animationGeneration) return; // superseded
-      final elapsed =
-          DateTime.now().difference(startTime).inMilliseconds;
-      final t = (elapsed / durationMs).clamp(0.0, 1.0);
+      elapsedMs += tickIntervalMs;
+      final t = (elapsedMs / durationMs).clamp(0.0, 1.0);
       final curvedT = curve.transform(t);
 
       _panX = startPanX + (targetPanX - startPanX) * curvedT;
@@ -670,7 +677,7 @@ class CameraController extends ChangeNotifier {
       notifyListeners();
 
       if (t < 1.0) {
-        Future<void>.delayed(const Duration(milliseconds: 16), tick);
+        Future<void>.delayed(const Duration(milliseconds: tickIntervalMs), tick);
       } else {
         _isAnimating = false;
         _scheduleSave();
@@ -761,12 +768,13 @@ class CameraController extends ChangeNotifier {
     simY.tolerance = SpringPalette.defaultTolerance;
     simZoom.tolerance = SpringPalette.normalizedTolerance;
 
-    final startTime = DateTime.now();
+    // v5.124: tick-cadence progress (one 16ms frame per timer fire)
+    // instead of wall-clock — see animateTo for the full rationale.
+    var elapsedSeconds = 0.0;
 
     void tick() {
       if (myGeneration != _animationGeneration) return; // superseded
-      final elapsedSeconds =
-          DateTime.now().difference(startTime).inMilliseconds / 1000.0;
+      elapsedSeconds += 0.016;
 
       _panX = simX.x(elapsedSeconds);
       _panY = simY.x(elapsedSeconds);
@@ -1092,12 +1100,13 @@ class CameraController extends ChangeNotifier {
       startVelocityY,
     )..tolerance = SpringPalette.defaultTolerance;
 
-    final startTime = DateTime.now();
+    // v5.124: tick-cadence progress (one 16ms frame per timer fire)
+    // instead of wall-clock — see animateTo for the full rationale.
+    var elapsedSeconds = 0.0;
 
     void tick() {
       if (myGeneration != _animationGeneration) return; // superseded
-      final elapsedSeconds =
-          DateTime.now().difference(startTime).inMilliseconds / 1000.0;
+      elapsedSeconds += 0.016;
 
       _panX = simX.x(elapsedSeconds);
       _panY = simY.x(elapsedSeconds);
