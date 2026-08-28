@@ -11,12 +11,25 @@
 //   • selecting a result animates the camera to that node
 //   • if the result is inside a collapsed branch, the branch auto-expands
 //
+// v5.125 (Step 4): selecting a result that is NOT in the visible/
+//   proximity set AT ALL (not loaded — not merely collapsed) reveals
+//   the shortest relationship path from the proximity anchor to them
+//   via [GraphSearchNotifier.revealOffscreenMatch] — see that method
+//   for the reuse contract (existing BFS + existing proximity
+//   expansion, no second path algorithm).
+//
 // This is LOCAL graph interaction state. It does NOT modify
 // relationship data, node positions, or canonical topology.
 
 import 'dart:ui' show Offset;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/relationship/relationship_engine.dart'
+    show RelationshipEngine;
+import '../../core/services/graph_layout_service.dart' show GraphPerson;
+import 'proximity_graph_state.dart'
+    show ProximityGraphNotifier, buildAdjacency;
 
 /// The state of the graph search subsystem.
 @immutable
@@ -27,6 +40,7 @@ class GraphSearchState {
     this.currentIndex = -1,
     this.isActive = false,
     this.revision = 0,
+    this.revealedPathIds = const <String>{},
   });
 
   /// The current search query string.
@@ -46,6 +60,16 @@ class GraphSearchState {
   /// Bumped whenever search state changes. Used by the painter's
   /// shouldRepaint to trigger a repaint.
   final int revision;
+
+  /// v5.125 (Step 4): Person IDs revealed by the LAST search jump to an
+  /// offscreen match — the direct path (anchor → … → target) plus the
+  /// target's immediate neighborhood. Empty when the last selection
+  /// needed no reveal (target already visible / proximity not ready).
+  ///
+  /// The canvas's density-collapse pass includes these in its
+  /// protected-ID set so the node budget never re-hides the very nodes
+  /// the search jump just revealed.
+  final Set<String> revealedPathIds;
 
   static const GraphSearchState empty = GraphSearchState();
 
@@ -68,7 +92,11 @@ class GraphSearchState {
   /// matches, not active. The revision is NOT compared because it
   /// is a monotonically-increasing counter, not a semantic field.
   bool get isEmpty =>
-      query.isEmpty && matchIds.isEmpty && !isActive && currentIndex == -1;
+      query.isEmpty &&
+      matchIds.isEmpty &&
+      !isActive &&
+      currentIndex == -1 &&
+      revealedPathIds.isEmpty;
 
   GraphSearchState copyWith({
     String? query,
@@ -76,6 +104,7 @@ class GraphSearchState {
     int? currentIndex,
     bool? isActive,
     int? revision,
+    Set<String>? revealedPathIds,
   }) {
     return GraphSearchState(
       query: query ?? this.query,
@@ -83,6 +112,7 @@ class GraphSearchState {
       currentIndex: currentIndex ?? this.currentIndex,
       isActive: isActive ?? this.isActive,
       revision: revision ?? this.revision,
+      revealedPathIds: revealedPathIds ?? this.revealedPathIds,
     );
   }
 
@@ -99,7 +129,8 @@ class GraphSearchState {
           other.query == query &&
           _listEquals(other.matchIds, matchIds) &&
           other.currentIndex == currentIndex &&
-          other.isActive == isActive;
+          other.isActive == isActive &&
+          _setEquals(other.revealedPathIds, revealedPathIds);
 
   bool _listEquals(List<String> a, List<String> b) {
     if (a.length != b.length) return false;
@@ -109,13 +140,20 @@ class GraphSearchState {
     return true;
   }
 
+  bool _setEquals(Set<String> a, Set<String> b) {
+    if (a.length != b.length) return false;
+    return a.containsAll(b);
+  }
+
   @override
-  int get hashCode => Object.hash(query, matchIds.length, currentIndex, isActive);
+  int get hashCode => Object.hash(
+      query, matchIds.length, currentIndex, isActive, revealedPathIds.length);
 
   @override
   String toString() =>
       'GraphSearchState(query="$query", matches=${matchIds.length}, '
-      'current=$currentIndex, active=$isActive, rev=$revision)';
+      'current=$currentIndex, active=$isActive, '
+      'revealed=${revealedPathIds.length}, rev=$revision)';
 }
 
 /// StateNotifier that owns the graph search state.
@@ -141,6 +179,11 @@ class GraphSearchNotifier extends StateNotifier<GraphSearchState> {
       currentIndex: matchIds.isEmpty ? -1 : 0,
       isActive: newIsActive,
       revision: state.revision + 1,
+      // v5.125 (Step 4): a new query does NOT undo the last jump's
+      // reveal — the revealed path members are already in the proximity
+      // visible set, and dropping their collapse protection here could
+      // let the density budget re-hide them mid-session.
+      revealedPathIds: state.revealedPathIds,
     );
   }
 
@@ -190,7 +233,12 @@ class GraphSearchNotifier extends StateNotifier<GraphSearchState> {
   /// Now, `clear()` preserves the revision counter and bumps it by 1,
   /// so the painter always sees a monotonically increasing revision.
   void clear() {
-    if (state.query.isEmpty && state.matchIds.isEmpty && !state.isActive) {
+    if (state.query.isEmpty &&
+        state.matchIds.isEmpty &&
+        !state.isActive &&
+        // v5.125 (Step 4): a lingering reveal-path protection set must
+        // also be clearable.
+        state.revealedPathIds.isEmpty) {
       return; // Already cleared — no-op.
     }
     state = GraphSearchState(
@@ -198,6 +246,132 @@ class GraphSearchNotifier extends StateNotifier<GraphSearchState> {
       matchIds: const [],
       currentIndex: -1,
       isActive: false,
+      revision: state.revision + 1,
+      // v5.125 (Step 4): clearing the search ends the jump session —
+      // the reveal-path protection goes with it. (The revealed members
+      // STAY in the proximity visible set — only the density-collapse
+      // protection is dropped.)
+      revealedPathIds: const {},
+    );
+  }
+
+  // ── v5.125 (Step 4): Offscreen-match reveal ─────────────────────────
+
+  /// Reveals a search match that is OUTSIDE the current visible /
+  /// proximity set — i.e. not rendered by the canvas at all (not
+  /// loaded), as opposed to merely hidden inside a collapsed branch,
+  /// which the collapse pipeline's protected-ID set already handles.
+  ///
+  /// Reuse contract (NO second path algorithm):
+  ///   • Path-finding REUSES `RelationshipEngine.instance.resolvePath` —
+  ///     the exact BFS that powers `GraphPathFocusNotifier.resolve`
+  ///     (graph_kinship_path_focus.dart) and the "How we're connected"
+  ///     trace (graph_path_trace_controller.dart via the interaction
+  ///     mixin's `_resolvePathFocus`).
+  ///   • The reveal goes through the EXISTING proximity-expansion
+  ///     mechanisms: [ProximityGraphNotifier.revealPersons] (the bulk
+  ///     sibling of tap-to-expand's `expandFromPerson`) plus
+  ///     [ProximityGraphNotifier.expandFromPerson] for the target's
+  ///     immediate neighborhood — the same semantics as a user tap.
+  ///
+  /// Scope: ONLY the direct path's nodes (anchor → … → target) plus
+  /// that neighborhood are added. No unrelated branch is expanded or
+  /// collapsed. When no path exists (disconnected / data gap) the
+  /// target alone is revealed so the result still renders and the
+  /// camera can center on them.
+  ///
+  /// The revealed IDs are recorded in [GraphSearchState.revealedPathIds]
+  /// so the canvas's density-collapse pass protects them from the node
+  /// budget. Returns the revealed set (empty when no reveal was
+  /// needed — target already visible, proximity not initialized, or
+  /// no anchor).
+  Set<String> revealOffscreenMatch({
+    required String targetPersonId,
+    required List<GraphPerson> persons,
+    required List<({String fromId, String toId, String edgeId, String relationshipKey})>
+        edges,
+    required ProximityGraphNotifier proximityNotifier,
+  }) {
+    final proximity = proximityNotifier.state;
+    if (!proximity.isInitialized) {
+      return const <String>{};
+    }
+    // Already in the visible/proximity set (rendered — possibly behind
+    // a collapse chip, which the canvas's protected IDs handle).
+    if (proximity.visibleIds.contains(targetPersonId)) {
+      _recordRevealedPath(const <String>{});
+      return const <String>{};
+    }
+
+    final anchorId = proximity.anchorId;
+    if (anchorId == null || anchorId == targetPersonId) {
+      return const <String>{};
+    }
+
+    final allPersonIds = <String>{
+      for (final p in persons) p.id,
+    };
+
+    // REUSED BFS: shortest relationship path anchor → target.
+    final pathSteps = RelationshipEngine.instance.resolvePath(
+      viewerPersonId: anchorId,
+      targetPersonId: targetPersonId,
+      persons: persons,
+      relationships: [
+        for (final e in edges)
+          (fromId: e.fromId, toId: e.toId, type: e.relationshipKey),
+      ],
+    );
+
+    if (pathSteps == null || pathSteps.isEmpty) {
+      // No path from the anchor — reveal the target alone so the
+      // search result at least renders and the camera can center on
+      // them.
+      proximityNotifier.revealPersons(
+        personIds: {targetPersonId},
+        allPersons: allPersonIds,
+      );
+      final revealed = <String>{
+        if (allPersonIds.contains(targetPersonId)) targetPersonId,
+      };
+      _recordRevealedPath(revealed);
+      return revealed;
+    }
+
+    // Reveal ONLY the nodes on the direct path (anchor included for
+    // continuity — revealPersons skips already-visible IDs).
+    final pathIds = <String>{
+      anchorId,
+      for (final step in pathSteps) step.personId,
+    };
+    proximityNotifier.revealPersons(
+      personIds: pathIds,
+      allPersons: allPersonIds,
+    );
+
+    // The target's immediate neighborhood — the same incremental
+    // semantics as the existing tap-to-expand, so the jumped-to person
+    // is not an isolated dot.
+    final adjacency = buildAdjacency(edges);
+    proximityNotifier.expandFromPerson(
+      personId: targetPersonId,
+      adjacency: adjacency,
+      allPersons: allPersonIds,
+    );
+
+    final revealed = <String>{
+      ...pathIds,
+      ...?adjacency[targetPersonId],
+    };
+    revealed.retainAll(allPersonIds);
+    _recordRevealedPath(revealed);
+    return revealed;
+  }
+
+  /// Records [ids] as the current reveal-path protection set.
+  void _recordRevealedPath(Set<String> ids) {
+    state = state.copyWith(
+      revealedPathIds: Set.unmodifiable(ids),
       revision: state.revision + 1,
     );
   }

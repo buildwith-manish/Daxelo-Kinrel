@@ -423,6 +423,12 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           ...focusState.secondDegreeIds,
           if (pathFocusState != null) ...pathFocusState.orderedPersonIds,
           if (searchState.isActive) ...searchState.matchIdSet,
+          // v5.125 (Step 4): the search-jump reveal path (offscreen
+          // match → shortest path → target neighborhood) must survive
+          // the density budget — without this, a reveal that pushes the
+          // candidate set past kNodeBudget would immediately re-hide
+          // the very nodes the jump just revealed.
+          ...searchState.revealedPathIds,
           if (selectedPerson != null) selectedPerson,
         };
         // Read the current collapse state (stable from the previous
