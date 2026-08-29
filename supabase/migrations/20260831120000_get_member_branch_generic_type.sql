@@ -118,9 +118,19 @@ BEGIN
       END LOOP;
       -- Exclude the root itself from the "target" set — the
       -- client already has the root, we only want its neighbors.
+      -- NOTE: PL/pgSQL requires `SELECT v FROM unnest(arr) AS v`
+      -- to reference the column; `SELECT unnest WHERE unnest <> x`
+      -- is invalid SQL and throws "column unnest does not exist".
       target_member_ids := ARRAY(
-        SELECT unnest(visited) WHERE unnest <> p_member_id
+        SELECT v FROM unnest(visited) AS v WHERE v <> p_member_id
       );
+      -- Edge case: if the BFS visited only the root itself (no
+      -- neighbors within p_depth hops), target_member_ids will
+      -- be empty — that's fine, the CTEs below will return
+      -- empty nodes/edges which the client handles gracefully.
+      IF target_member_ids IS NULL THEN
+        target_member_ids := ARRAY[]::TEXT[];
+      END IF;
     ELSE
       target_member_ids := ARRAY[]::TEXT[];
   END CASE;
