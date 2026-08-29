@@ -58,14 +58,27 @@ SET search_path = 'public'
 AS $$
 DECLARE
   v_viewer_linked     TEXT;
+  v_auth_uid          TEXT := auth.uid()::text;
   v_result             JSONB;
   v_total_count       INT;
   v_is_branch_scoped  BOOLEAN := FALSE;
 BEGIN
-  -- ── Security: same check as get_viewer_family_graph ──────────────
+  -- ── Security: same check as get_viewer_family_graph, plus an
+  --    explicit NULL-guard on auth.uid() (the existing RPC has a
+  --    latent bug: 'string' != NULL evaluates to NULL in Postgres,
+  --    so the access-denied IF doesn't fire when no JWT is present).
+  --    See: https://github.com/buildwith-manish/Daxelo-Kinrel/security
+  -- -----------------------------------------------------------------
+  IF v_auth_uid IS NULL THEN
+    RETURN jsonb_build_object(
+      'nodes', '[]'::jsonb, 'edges', '[]'::jsonb,
+      'isTruncated', false, 'totalCount', 0,
+      'error', 'Authentication required'
+    );
+  END IF;
+
   -- Validates the viewer Person exists in the family AND is linked to
-  -- the calling auth.uid(). Without this, any authenticated user could
-  -- pass an arbitrary viewer_id and read private family data.
+  -- the calling auth.uid().
   SELECT "linkedUserId" INTO v_viewer_linked
   FROM "Person"
   WHERE id = p_viewer_id
@@ -81,7 +94,7 @@ BEGIN
     );
   END IF;
 
-  IF v_viewer_linked != auth.uid()::text THEN
+  IF v_viewer_linked != v_auth_uid THEN
     RETURN jsonb_build_object(
       'nodes', '[]'::jsonb, 'edges', '[]'::jsonb,
       'isTruncated', false, 'totalCount', 0,
