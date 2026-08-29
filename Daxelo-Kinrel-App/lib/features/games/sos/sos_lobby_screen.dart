@@ -18,8 +18,10 @@ import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/spectator_toggle.dart';
+import 'sos_connection_status.dart';
 import 'sos_models.dart';
 import 'sos_provider.dart';
+import 'sos_reconnecting_banner.dart';
 
 class SosLobbyScreen extends ConsumerStatefulWidget {
   const SosLobbyScreen({super.key, required this.familyId});
@@ -43,6 +45,27 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
         ref.read(sosProvider(widget.familyId).notifier).joinGame(joinId);
       }
     });
+  }
+
+  /// The `?join=<gameId>` query param from the deep-link (chat card tap,
+  /// invite dialog accept, share-code open). Captured at initState so we
+  /// can retry the same join if it fails (network blip, server hiccup)
+  /// without the user having to re-tap the chat card.
+  String? get _joinIdFromRoute =>
+      GoRouterState.of(context).uri.queryParameters['join'];
+
+  /// Retry entry point — branches on whether we got here via a `?join=` deep
+  /// link or via the "Create Game" button. If we have a joinId and no game
+  /// loaded yet, retry the join. Otherwise retry the realtime subscription.
+  Future<void> _retry() async {
+    final notifier = ref.read(sosProvider(widget.familyId).notifier);
+    final state = ref.read(sosProvider(widget.familyId));
+    final joinId = _joinIdFromRoute;
+    if (state.game == null && joinId != null && joinId.isNotEmpty) {
+      await notifier.joinGame(joinId);
+    } else {
+      await notifier.retryConnection();
+    }
   }
 
   Future<void> _createGame() async {
@@ -192,18 +215,34 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
             ),
         ],
       ),
-      body: state.isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: KinrelColors.orange),
-            )
-          : state.error != null && !hasGame
-          ? DKErrorState(
-              message: state.error!,
-              onRetry: () => notifier.createGame(mode: _mode),
-            )
-          : hasGame
-              ? _lobbyView(state, notifier, isHost, canStart)
-              : _setupView(state),
+      body: Column(
+        children: [
+          // Non-blocking connection banner — visible only when the
+          // realtime channel is connecting / reconnecting / errored.
+          // Hidden when status is idle or connected (the common case).
+          SosReconnectingBanner(
+            status: state.connectionStatus,
+            friendlyError: state.friendlyError,
+            onRetry: _retry,
+          ),
+          Expanded(
+            child: state.isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: KinrelColors.orange),
+                  )
+                : state.friendlyError != null && !hasGame
+                ? DKErrorState(
+                    // Use friendlyError, never raw state.error — the raw
+                    // error may contain Postgres / Realtime internals.
+                    message: state.friendlyError!,
+                    onRetry: _retry,
+                  )
+                : hasGame
+                    ? _lobbyView(state, notifier, isHost, canStart)
+                    : _setupView(state),
+          ),
+        ],
+      ),
     );
   }
 
@@ -346,6 +385,51 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
               gameId: state.game!.id,
               familyId: widget.familyId,
             ),
+        // Inline error surface — shown only when a transient error occurs
+        // while the game IS loaded (e.g. startGame() failed with a network
+        // blip). Uses friendlyError, never raw state.error. The banner at
+        // the top of the screen handles connection-status errors; this
+        // handles action-specific errors (start, place, etc.).
+        if (state.friendlyError != null &&
+            state.connectionStatus == SosConnectionStatus.connected) ...[
+          Container(
+            padding: const EdgeInsets.all(KinrelSpacing.md),
+            margin: const EdgeInsets.only(bottom: KinrelSpacing.md),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(KinrelRadius.md),
+              border: Border.all(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.error_outline,
+                    color: Color(0xFFEF4444), size: 18),
+                const SizedBox(width: KinrelSpacing.sm),
+                Expanded(
+                  child: Text(
+                    state.friendlyError!,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12,
+                      color: KinrelColors.textWhite,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _retry,
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFFEF4444),
+                    minimumSize: const Size(44, 28),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ],
         DKButton(
           label: isHost
               ? (canStart
@@ -354,6 +438,7 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
               : 'Waiting for host…',
           variant: DKButtonVariant.gradient,
           fullWidth: true,
+          isLoading: state.isSubmitting,
           onPressed: isHost && canStart
               ? () => notifier.startGame()
               : null,

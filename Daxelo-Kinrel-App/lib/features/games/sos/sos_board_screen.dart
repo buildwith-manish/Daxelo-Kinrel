@@ -17,6 +17,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import 'sos_models.dart';
 import 'sos_provider.dart';
+import 'sos_reconnecting_banner.dart';
 
 class SosBoardScreen extends ConsumerStatefulWidget {
   const SosBoardScreen({
@@ -81,20 +82,39 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
       ),
-      body: state.isLoading && state.game == null
-          ? const Center(
-              child: CircularProgressIndicator(color: KinrelColors.orange),
-            )
-          : state.error != null && state.game == null
-          ? DKErrorState(
-              message: state.error!,
-              onRetry: () => ref
-                  .read(sosProvider(widget.familyId).notifier)
-                  .joinGame(widget.gameId),
-            )
-          : state.isLobby
-              ? _waitingRoom(state, myId)
-              : _gameView(state, myId),
+      body: Column(
+        children: [
+          // Non-blocking connection banner — same as the lobby. Visible
+          // only when the realtime channel is unhealthy. During active
+          // gameplay, a brief "Reconnecting…" strip lets the user know
+          // their opponent's move may be delayed; a "Connection lost" strip
+          // with Retry handles the rare case where the channel closes.
+          SosReconnectingBanner(
+            status: state.connectionStatus,
+            friendlyError: state.friendlyError,
+            onRetry: () => ref
+                .read(sosProvider(widget.familyId).notifier)
+                .retryConnection(),
+          ),
+          Expanded(
+            child: state.isLoading && state.game == null
+                ? const Center(
+                    child: CircularProgressIndicator(color: KinrelColors.orange),
+                  )
+                : state.friendlyError != null && state.game == null
+                ? DKErrorState(
+                    // Use friendlyError, never raw state.error.
+                    message: state.friendlyError!,
+                    onRetry: () => ref
+                        .read(sosProvider(widget.familyId).notifier)
+                        .retryConnection(),
+                  )
+                : state.isLobby
+                    ? _waitingRoom(state, myId)
+                    : _gameView(state, myId),
+          ),
+        ],
+      ),
     );
   }
 
