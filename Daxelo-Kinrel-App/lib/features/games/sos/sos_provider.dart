@@ -31,6 +31,7 @@ class SosState {
     this.isSubmitting = false,
     this.error,
     this.myTeam,
+    this.myUserId,
   });
 
   final SosGame? game;
@@ -41,6 +42,13 @@ class SosState {
   final bool isSubmitting;
   final String? error;
   final SosTeam? myTeam;
+
+  /// The current Supabase auth user id of the local player.
+  ///
+  /// Set by the notifier when state is first built in `createGame` /
+  /// `joinGame`, and preserved across subsequent `copyWith` calls. Used
+  /// by `isMyTurn` to compare against the current turn player's userId.
+  final String? myUserId;
 
   bool get isLobby => game?.isLobby ?? false;
   bool get isActive => game?.isActive ?? false;
@@ -64,7 +72,8 @@ class SosState {
   }
 
   /// Is it my turn?
-  bool get isMyTurn => currentPlayer != null && _myId == currentPlayer!.userId;
+  bool get isMyTurn =>
+      currentPlayer != null && myUserId == currentPlayer!.userId;
 
   /// Get the team scores (4-player mode) or player scores (2-player mode).
   Map<SosTeam, int> get teamScores {
@@ -77,9 +86,6 @@ class SosState {
     return result;
   }
 
-  // Placeholder — set by the notifier on state copies.
-  String? get _myId => null;
-
   SosState copyWith({
     SosGame? game,
     List<SosPlayer>? players,
@@ -90,6 +96,7 @@ class SosState {
     String? error,
     bool clearError = false,
     SosTeam? myTeam,
+    String? myUserId,
   }) =>
       SosState(
         game: game ?? this.game,
@@ -100,6 +107,7 @@ class SosState {
         isSubmitting: isSubmitting ?? this.isSubmitting,
         error: clearError ? null : (error ?? this.error),
         myTeam: myTeam ?? this.myTeam,
+        myUserId: myUserId ?? this.myUserId,
       );
 }
 
@@ -132,7 +140,10 @@ class SosNotifier extends StateNotifier<SosState> {
       state = state.copyWith(error: 'Not signed in');
       return null;
     }
-    state = state.copyWith(isLoading: true, clearError: true);
+    // Inject the real auth user id into state so `isMyTurn` can compare
+    // against the current turn player. Once set here, `copyWith` preserves
+    // it across all subsequent realtime-driven state mutations.
+    state = state.copyWith(isLoading: true, clearError: true, myUserId: myId);
     try {
       final body = {
         'familyId': familyId,
@@ -174,6 +185,7 @@ class SosNotifier extends StateNotifier<SosState> {
         game: game,
         isLoading: false,
         myTeam: myTeam,
+        myUserId: myId,
       );
       _subscribeToRealtime(game.id);
       await _refreshPlayers(game.id);
@@ -193,7 +205,10 @@ class SosNotifier extends StateNotifier<SosState> {
       state = state.copyWith(error: 'Not signed in');
       return false;
     }
-    state = state.copyWith(isLoading: true, clearError: true);
+    // Inject the real auth user id into state so `isMyTurn` can compare
+    // against the current turn player. Once set here, `copyWith` preserves
+    // it across all subsequent realtime-driven state mutations.
+    state = state.copyWith(isLoading: true, clearError: true, myUserId: myId);
     try {
       // Fetch the game
       final gameResp = await client
@@ -244,6 +259,7 @@ class SosNotifier extends StateNotifier<SosState> {
         game: game,
         isLoading: false,
         myTeam: myTeam,
+        myUserId: myId,
       );
       _subscribeToRealtime(gameId);
       await _refreshPlayers(gameId);
