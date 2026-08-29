@@ -45,6 +45,18 @@ class GraphPerson {
   final String? relationship;
   final String? deletedAt;
 
+  /// v5.128: Birth date for deterministic sibling ordering (§2.4).
+  ///
+  /// When non-null, the Tree layout engine sorts siblings by this field
+  /// ascending (oldest first). When null for any sibling in a group,
+  /// the engine falls back to id-ascending sort (ULID/UUID ids are
+  /// typically time-ordered, so this gives reasonable ordering for
+  /// people without a recorded birth date).
+  ///
+  /// The Graph (Radial) engine ignores this field — sibling ordering
+  /// is irrelevant for the ego-centric ring layout.
+  final DateTime? birthDate;
+
   const GraphPerson({
     required this.id,
     required this.name,
@@ -55,6 +67,7 @@ class GraphPerson {
     this.isDeceased = false,
     this.relationship,
     this.deletedAt,
+    this.birthDate,
   });
 }
 

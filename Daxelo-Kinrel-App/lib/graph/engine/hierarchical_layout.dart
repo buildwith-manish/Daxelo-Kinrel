@@ -2,53 +2,61 @@
 //
 // DAXELO KINREL — Hierarchical Layout Engine
 //
-// Traditional top-down tree layout for 3,000–5,000 nodes.
-// Target: 30 FPS at 5,000 nodes.
+// Traditional top-down tree layout for 3,000–10,000+ nodes.
+// Target: 30 FPS at 5,000 nodes; 60 FPS at 10,000 with viewport culling
+// (handled by the view, not this engine — the engine itself is O(V+E)).
 //
 // Design principles:
 //   - Generation levels map to horizontal rows (top = oldest ancestors)
 //   - Same-generation nodes share the same Y coordinate
-//   - Spouses positioned side-by-side on the same level
-//   - Siblings ordered left-to-right beneath their parent
+//   - Couples (married partners) are ONE positioning unit — children
+//     center under the couple's midpoint, not under one individual.
+//   - Siblings ordered left-to-right beneath their parent(s), sorted
+//     by birth date then id for determinism.
 //   - Minimal computation — no force simulation, purely algebraic
 //   - Maximum readability at scale
 //
 // The layout is deterministic: same input always produces same output.
 //
-// v5.126 (Tree fix): ROOT-FINDING + Y ASSIGNMENT REWRITE
-// ------------------------------------------------------
-// Two bugs were silently corrupting the layout:
+// v5.128 (Tree layout correctness): COUPLES + SIBLING ORDER + DEEPER-OF-TWO
+// -----------------------------------------------------------------------
+// Three correctness fixes per the "Tree View — Layout Engine Fix &
+// Scale Implementation Prompt":
 //
-//   BUG 1 — FALSE ROOTS:
-//     The old root-finder walked UP from the anchor only. Any node NOT
-//     visited by that walk (i.e. every descendant of the anchor + every
-//     disconnected component) was then "rescued" by a fallback loop and
-//     added as a separate root. A family with an anchor at gen 0 and
-//     50 descendants would render 50 false root columns at the top row.
-//     Symptom: extremely long horizontal connector lines.
+//   §2.3 COUPLES AS ATOMIC UNIT:
+//     Previously, spouses were positioned side-by-side AFTER the primary
+//     node was placed, but children were centered under the PRIMARY only.
+//     Now: children center under the COUPLE's midpoint (primary + first
+//     spouse). Multi-spouse rule: only the FIRST spouse forms the primary
+//     couple (children center under them); additional spouses are positioned
+//     beside with a visually distinct (dashed) connector — exposed via
+//     `secondarySpouseIds` on the layout result so the painter can render
+//     them differently.
 //
-//     FIX: iterate all persons in one pass; anyone with no parent-edge
-//     in the graph is a root. No anchor-based walk, no fallback loop.
+//   §2.4 SIBLING ORDERING (DETERMINISTIC):
+//     Previously, `node.children` populated in whatever order childMap
+//     iterated — non-deterministic across app sessions. Now: sort
+//     siblings by `birthDate` ascending (nulls last), then by `id`
+//     ascending as the final tiebreak. Adding a new person to a family
+//     never reshuffles existing siblings' left-right order.
 //
-//   BUG 2 — INCONSISTENT Y:
-//     The old Y-assignment used `y = parentY + levelSpacing` recursion
-//     (top-down DFS). But roots were initialized with
-//     `padding + (root.generationIndex - minGen) * levelSp` — using
-//     the stale `Person.generationIndex` database field that's almost
-//     always 0 for fresh rows. So roots got one Y, descendants got a
-//     different Y incremented per recursion level — and the two systems
-//     disagreed on shared nodes (a grandchild reached via two paths got
-//     the Y of whichever path the DFS visited first).
+//   §2.5 COUSIN MARRIAGE TIE-BREAK (DEEPER-OF-TWO):
+//     Previously, BFS used "first-write-wins" — whichever path reached
+//     a node first set its gen. For cousin marriages (two people from
+//     different lineages marry, their descendants can be reached via two
+//     paths at different depths), this gave inconsistent gens depending
+//     on traversal order. Now: iterative max-propagation — gen =
+//     max(parents.gen) + 1, with multiple passes until stable. Spouses
+//     also take the max of both partners' lineages (the couple "floats
+//     up" to the deeper of the two).
 //
-//     FIX: do a single BFS from ALL roots simultaneously. Each node
-//     gets a `bfsGen = parent.bfsGen + 1` exactly once. Spouses inherit
-//     their partner's bfsGen if they don't have one yet. Then Y is
-//     computed from `bfsGen` directly — no recursion. This is the same
-//     BFS strategy `graph_layout_service.dart` already trusts over the
-//     stale generationIndex field.
+// v5.126 (prior fix, kept): ROOT-FINDING + Y ASSIGNMENT REWRITE
+// -------------------------------------------------------------
+//   §2.1 ONE-PASS ROOT FINDING: a person is a root iff they have no
+//     parent-edge in the graph. No anchor walk, no fallback loop.
 //
-// Both fixes use the SAME algorithm pattern as the production radial
-// layout, so Tree and Graph agree on what "generation" means.
+//   §2.2 Y FROM BFS GEN: Y = padding + (bfsGen - minBfsGen) * levelSp.
+//     No `y = parentY + levelSp` recursion. Single source of truth.
 
 import 'dart:math';
 
@@ -85,12 +93,6 @@ class HierarchicalLayoutConfig {
   final bool compact;
 
   const HierarchicalLayoutConfig({
-    // v5.127: defaults re-tuned for the new rounded-rect Tree node
-    // shape (120×72, 5:3 aspect). The old defaults (60/160/30/100/100×120)
-    // were sized for circular nodes — they over-spaced the new cards.
-    // Callers that pass explicit configs (e.g. treeLayoutProvider,
-    // TreePdfExporter) override these; the defaults are kept sensible
-    // for any future caller.
     this.siblingSpacing = 20.0,
     this.levelSpacing = 110.0,
     this.spouseGap = 8.0,
@@ -148,7 +150,17 @@ class _TreeNode {
   /// children get 1, and so on. Spouses inherit their partner's bfsGen
   /// if they don't have one yet. Y is computed from this number — never
   /// from the stale `Person.generationIndex` field.
+  ///
+  /// v5.128: With the deeper-of-two rule, bfsGen may be updated multiple
+  /// times during iterative max-propagation. The final value is the
+  /// deepest gen reachable via any path from any root.
   int? bfsGen;
+
+  /// v5.128 §2.3: True if this node is a SECONDARY spouse (index >= 1
+  /// in their partner's spouses list). The painter renders secondary
+  /// spouse edges with a dashed connector to distinguish them from
+  /// the primary couple.
+  bool isSecondarySpouse = false;
 
   _TreeNode(this.person);
 }
@@ -157,27 +169,19 @@ class _TreeNode {
 // HIERARCHICAL LAYOUT
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Hierarchical tree layout engine for family graphs with 3,000–5,000 nodes.
+/// Hierarchical tree layout engine for family graphs with 3,000–10,000+ nodes.
 ///
-/// Computes a traditional top-down tree layout where:
-///   - Roots (persons with no parent-edges) are placed at the top row
-///   - Each BFS generation is one horizontal row below the previous
-///   - Spouses are positioned side-by-side on the same row
-///   - Children are centered beneath their parent(s)
-///
-/// Three-pass algorithm:
-///   Pass 1: One-pass root finding (anyone with no parent-edge is a root).
-///   Pass 2: Single BFS from all roots simultaneously → assigns each
-///           node a `bfsGen` number. Spouses inherit their partner's
-///           bfsGen if they don't have one yet.
-///   Pass 3: Bottom-up subtree-width computation + top-down X/Y
-///           assignment. Y comes from bfsGen (not from parent's Y).
-///
-/// Usage:
-/// ```dart
-/// final layout = HierarchicalLayout();
-/// final result = layout.compute(persons: persons, relationships: relationships);
-/// ```
+/// Algorithm (v5.128):
+///   Pass 1: One-pass root finding — anyone with no parent-edge is a root.
+///   Pass 2: Iterative max-propagation BFS — assigns each node a `bfsGen`
+///           that's the MAX of (parents.gen + 1) across all paths. Handles
+///           cousin marriages correctly (deeper-of-two rule, §2.5).
+///           Spouses take the max of both partners' lineages.
+///   Pass 3: Sort siblings by birthDate asc, then id asc (§2.4).
+///   Pass 4: Bottom-up subtree-width computation (couples as one unit, §2.3).
+///   Pass 5: Top-down X + Y assignment. Y from bfsGen; X centered under
+///           the couple's midpoint (primary + first spouse), not the
+///           primary alone.
 class HierarchicalLayout {
   HierarchicalLayoutConfig _config;
 
@@ -208,11 +212,16 @@ class HierarchicalLayout {
   ///
   /// Returns a [GraphLayoutResult] with positions, canvas dimensions,
   /// and ring radii (repurposed as level Y-coordinates for compatibility).
+  ///
+  /// [secondarySpouseIds] (output parameter, populated by this method)
+  /// contains the IDs of all spouses beyond the first for each couple —
+  /// the painter should render their edges with a dashed connector.
   GraphLayoutResult compute({
     required List<GraphPerson> persons,
     required List<GraphRelationship> relationships,
     String? anchorPersonId,
     bool? compact,
+    Set<String>? secondarySpouseIds,
   }) {
     if (persons.isEmpty) {
       return const GraphLayoutResult(
@@ -263,34 +272,61 @@ class HierarchicalLayout {
     }
 
     // Link spouses + children into _TreeNode objects for the X-assignment pass.
+    // v5.128 §2.4: children + spouses are SORTED deterministically here so
+    // downstream passes don't need to re-sort.
     for (final person in persons) {
       final node = treeNodeMap[person.id]!;
 
-      final spouses = spouseMap[person.id] ?? [];
-      for (final spouseId in spouses) {
+      // Spouses — sort by birthDate asc (nulls last), then id asc.
+      // The FIRST spouse in this sorted list is the "primary spouse" —
+      // they form the couple unit with this node for child centering (§2.3).
+      final spouseIds = spouseMap[person.id] ?? [];
+      final sortedSpouseNodes = <_TreeNode>[];
+      for (final spouseId in spouseIds) {
         final spouseNode = treeNodeMap[spouseId];
-        if (spouseNode != null && !node.spouses.contains(spouseNode)) {
+        if (spouseNode != null) {
+          sortedSpouseNodes.add(spouseNode);
+        }
+      }
+      sortedSpouseNodes.sort(_siblingSortComparator);
+      // Deduplicate (a spouse edge stored bidirectionally could double-add).
+      for (final spouseNode in sortedSpouseNodes) {
+        if (!node.spouses.contains(spouseNode)) {
           node.spouses.add(spouseNode);
         }
       }
 
-      final children = childMap[person.id] ?? [];
-      for (final childId in children) {
+      // Children — sort by birthDate asc (nulls last), then id asc.
+      // This determines left-to-right order beneath the parent.
+      final childIds = childMap[person.id] ?? [];
+      final sortedChildNodes = <_TreeNode>[];
+      for (final childId in childIds) {
         final childNode = treeNodeMap[childId];
-        if (childNode != null && !node.children.contains(childNode)) {
+        if (childNode != null) {
+          sortedChildNodes.add(childNode);
+        }
+      }
+      sortedChildNodes.sort(_siblingSortComparator);
+      for (final childNode in sortedChildNodes) {
+        if (!node.children.contains(childNode)) {
           node.children.add(childNode);
         }
       }
     }
 
+    // v5.128 §2.3: Mark secondary spouses (index >= 1) for the painter.
+    // The first spouse forms the primary couple; additional spouses get
+    // a dashed connector.
+    final secondarySpouses = secondarySpouseIds ?? <String>{};
+    for (final node in treeNodeMap.values) {
+      for (var i = 1; i < node.spouses.length; i++) {
+        final spouse = node.spouses[i];
+        spouse.isSecondarySpouse = true;
+        secondarySpouses.add(spouse.person.id);
+      }
+    }
+
     // ── Step 2: One-pass root finding ────────────────────────────────
-    // v5.126 BUG FIX: the old code walked UP from the anchor and treated
-    // any unvisited person as a "disconnected root". This added every
-    // descendant of the anchor as a separate root column — creating the
-    // "very long lines" symptom the user reported.
-    //
-    // The fix is one clean pass: a person is a root iff they have no
-    // parent-edge in the graph. No anchor walk, no fallback loop.
     final rootNodes = <_TreeNode>[];
     for (final person in persons) {
       final parents = parentMap[person.id];
@@ -306,17 +342,12 @@ class HierarchicalLayout {
       rootNodes.add(treeNodeMap[anchor.id]!);
     }
 
-    // ── Step 3: Single BFS from ALL roots simultaneously ────────────
-    // v5.126 BUG FIX: Y used to be assigned via `childY = y + levelSp`
-    // recursion, but roots were initialized with a Y derived from the
-    // STALE `Person.generationIndex` DB field. The two systems
-    // disagreed on shared nodes — a node reachable via two paths got
-    // the Y of whichever path the DFS visited first.
-    //
-    // The fix: BFS from all roots simultaneously, assign each node a
-    // `bfsGen` exactly once. Spouses inherit their partner's bfsGen if
-    // they don't have one yet. Y is then computed from bfsGen directly.
-    _assignBfsGenerations(rootNodes, treeNodeMap, spouseMap, childMap);
+    // ── Step 3: Iterative max-propagation BFS (deeper-of-two rule) ────
+    // v5.128 §2.5: For cousin marriages, a node can be reached via two
+    // paths at different depths. The "deeper-of-two" rule says: take
+    // the MAX gen across all paths. This requires iterative propagation
+    // until no changes (Bellman-Ford-style longest path).
+    _assignBfsGenerationsDeeperOfTwo(rootNodes, treeNodeMap, parentMap);
 
     // Determine BFS generation range (used for Y computation + ringRadii)
     int minBfsGen = 1 << 30;
@@ -327,8 +358,6 @@ class HierarchicalLayout {
       if (g < minBfsGen) minBfsGen = g;
       if (g > maxBfsGen) maxBfsGen = g;
     }
-    // If every node was unreachable (no BFS reached them), fall back
-    // to gen 0 so the Y computation doesn't blow up.
     if (minBfsGen > maxBfsGen) {
       minBfsGen = 0;
       maxBfsGen = 0;
@@ -343,6 +372,8 @@ class HierarchicalLayout {
     // ── Step 5: Top-down X + Y assignment ───────────────────────────
     // X comes from the subtree-width recursion (per-root side-by-side).
     // Y comes from bfsGen directly — NO `y + levelSp` recursion.
+    // v5.128 §2.3: children center under the COUPLE's midpoint
+    // (primary + first spouse), not under the primary alone.
     final positions = <String, Offset>{};
     final ringRadii = <int, double>{};
     final ringAngleOffsets = <int, double>{};
@@ -351,8 +382,11 @@ class HierarchicalLayout {
     final positionVisited = <String>{};
 
     for (final root in rootNodes) {
-      // Root Y = padding + (0 - 0) * levelSp = padding (top of canvas).
-      // Children get Y = padding + (bfsGen - minBfsGen) * levelSp.
+      // v5.128: Skip roots already visited as a spouse of another root
+      // (couples share a row — only one of them is the layout "root").
+      if (positionVisited.contains(root.person.id)) {
+        continue;
+      }
       final rootY = _yForBfsGen(root.bfsGen ?? 0, minBfsGen, levelSp);
       _assignPositions(
         root,
@@ -378,9 +412,7 @@ class HierarchicalLayout {
     final canvasWidth = maxX + _config.padding + _config.nodeWidth;
     final canvasHeight = maxY + _config.padding + _config.nodeHeight;
 
-    // Fill ringRadii with Y positions per BFS generation (1-indexed
-    // offset from minBfsGen). Consumers (e.g. camera focus) use this
-    // to know each row's Y without re-running the layout.
+    // Fill ringRadii with Y positions per BFS generation.
     for (var gen = minBfsGen; gen <= maxBfsGen; gen++) {
       ringRadii[gen] = _yForBfsGen(gen, minBfsGen, levelSp);
     }
@@ -396,63 +428,114 @@ class HierarchicalLayout {
 
   // ── Private helpers ───────────────────────────────────────────────
 
-  /// Y coordinate for a node with the given BFS generation.
+  /// v5.128 §2.4: Sibling/spouse sort comparator.
   ///
-  /// v5.126: Y comes from bfsGen directly — NOT from `parentY + levelSp`
-  /// recursion. This eliminates the inconsistency between roots (which
-  /// previously used the stale generationIndex field) and descendants
-  /// (which previously used parent's Y + levelSp).
+  /// Sort by:
+  ///   1. birthDate ascending (nulls last) — oldest first
+  ///   2. id ascending (string compare) — stable tiebreak
+  ///
+  /// This must be deterministic across app sessions and across re-layouts
+  /// so adding a new person doesn't reshuffle existing siblings.
+  int _siblingSortComparator(_TreeNode a, _TreeNode b) {
+    final bdA = a.person.birthDate;
+    final bdB = b.person.birthDate;
+    if (bdA != null && bdB != null) {
+      final cmp = bdA.compareTo(bdB);
+      if (cmp != 0) return cmp;
+    } else if (bdA != null && bdB == null) {
+      return -1; // A has birthDate → comes first
+    } else if (bdA == null && bdB != null) {
+      return 1; // B has birthDate → comes first
+    }
+    // Both null OR same birthDate → id tiebreak.
+    return a.person.id.compareTo(b.person.id);
+  }
+
+  /// Y coordinate for a node with the given BFS generation.
   double _yForBfsGen(int bfsGen, int minBfsGen, double levelSp) {
     return _config.padding + (bfsGen - minBfsGen) * levelSp;
   }
 
-  /// Single BFS from all roots simultaneously.
+  /// v5.128 §2.5: Iterative max-propagation BFS.
   ///
-  /// - Each root gets `bfsGen = 0`.
-  /// - Each unvisited child gets `bfsGen = parent.bfsGen + 1`.
-  /// - Each unvisited spouse inherits their partner's `bfsGen` (so
-  ///   spouses land on the same row — they're at the "same generation"
-  ///   in the visual tree even if the kinship dataset disagrees).
+  /// For each node: gen = max(parents.gen) + 1, or 0 if no parents.
+  /// For each couple: both partners take max(genA, genB).
   ///
-  /// Uses an explicit queue (no recursion — survives 5,000-node chains
-  /// without stack overflow). A node is visited exactly once; if a
-  /// second path reaches it, the BFS skips it. This is what makes Y
-  /// assignment consistent regardless of which path found the node
-  /// first.
-  void _assignBfsGenerations(
+  /// Iterates until no changes (handles cousin marriages correctly —
+  /// a node reachable via two paths at different depths gets the deeper
+  /// gen, propagated consistently to descendants).
+  ///
+  /// Uses an iterative fixpoint algorithm (Bellman-Ford longest path)
+  /// with a safety cap on iterations to prevent infinite loops on cycles.
+  /// For typical family data with sparse cousin-marriage cycles, this
+  /// converges in 3-5 iterations.
+  void _assignBfsGenerationsDeeperOfTwo(
     List<_TreeNode> roots,
     Map<String, _TreeNode> treeNodeMap,
-    Map<String, List<String>> spouseMap,
-    Map<String, List<String>> childMap,
+    Map<String, List<String>> parentMap,
   ) {
-    final queue = List<_TreeNode>.of(roots);
+    // Initialize roots
     for (final root in roots) {
       root.bfsGen = 0;
     }
 
-    while (queue.isNotEmpty) {
-      final node = queue.removeAt(0);
+    // Iterate until stable. Safety cap: 100 iterations (more than enough
+    // for any realistic family graph — even a 100-generation chain
+    // converges in 100 passes).
+    var changed = true;
+    var iterations = 0;
+    const maxIterations = 100;
+    while (changed && iterations < maxIterations) {
+      changed = false;
+      iterations++;
 
-      // Spouses inherit this node's bfsGen (and we still queue them so
-      // THEIR spouses/children get visited too).
-      final spouseIds = spouseMap[node.person.id] ?? [];
-      for (final spouseId in spouseIds) {
-        final spouseNode = treeNodeMap[spouseId];
-        if (spouseNode == null) continue;
-        if (spouseNode.bfsGen == null) {
-          spouseNode.bfsGen = node.bfsGen;
-          queue.add(spouseNode);
+      // Parent → child propagation: child.gen = max(parents.gen) + 1
+      for (final entry in treeNodeMap.entries) {
+        final node = entry.value;
+        final parentIds = parentMap[node.person.id];
+        if (parentIds == null || parentIds.isEmpty) {
+          // Root — stays 0 (already set above)
+          if (node.bfsGen != 0) {
+            node.bfsGen = 0;
+            changed = true;
+          }
+          continue;
+        }
+        int maxParentGen = -1;
+        for (final pid in parentIds) {
+          final p = treeNodeMap[pid];
+          if (p?.bfsGen != null && p!.bfsGen! > maxParentGen) {
+            maxParentGen = p.bfsGen!;
+          }
+        }
+        if (maxParentGen >= 0) {
+          final newGen = maxParentGen + 1;
+          if (node.bfsGen == null || newGen > node.bfsGen!) {
+            node.bfsGen = newGen;
+            changed = true;
+          }
         }
       }
 
-      // Children get parent.bfsGen + 1.
-      final childIds = childMap[node.person.id] ?? [];
-      for (final childId in childIds) {
-        final childNode = treeNodeMap[childId];
-        if (childNode == null) continue;
-        if (childNode.bfsGen == null) {
-          childNode.bfsGen = (node.bfsGen ?? 0) + 1;
-          queue.add(childNode);
+      // Spouse propagation: couples take max of both partners' lineages.
+      // This is what makes the couple "float up" to the deeper of the two
+      // spouses' generations — required for cousin marriages where one
+      // spouse comes from a shallower lineage and the other from a deeper one.
+      for (final node in treeNodeMap.values) {
+        if (node.bfsGen == null) continue;
+        for (final spouse in node.spouses) {
+          if (spouse.bfsGen == null) continue;
+          final maxGen = node.bfsGen! > spouse.bfsGen!
+              ? node.bfsGen!
+              : spouse.bfsGen!;
+          if (node.bfsGen != maxGen) {
+            node.bfsGen = maxGen;
+            changed = true;
+          }
+          if (spouse.bfsGen != maxGen) {
+            spouse.bfsGen = maxGen;
+            changed = true;
+          }
         }
       }
     }
@@ -471,8 +554,10 @@ class HierarchicalLayout {
 
   /// Compute the subtree width for each node (bottom-up).
   ///
-  /// A leaf node's width = nodeWidth + spouseGap * spouseCount.
-  /// A parent's width = sum of children widths (with spacing).
+  /// v5.128 §2.3: The subtree width INCLUDES all spouses (primary +
+  /// secondary) — they're part of the same horizontal unit. Children
+  /// centering (in _assignPositions) uses this width but centers under
+  /// the primary couple's midpoint only.
   double _computeSubtreeWidth(
     _TreeNode node,
     double spacing,
@@ -483,8 +568,11 @@ class HierarchicalLayout {
     }
     visited.add(node.person.id);
 
-    // Base width: this node + spouses
-    final spouseWidth = node.spouses.length * (_config.nodeWidth + _config.spouseGap);
+    // Base width: this node + ALL spouses (primary + secondary).
+    // The couple is one horizontal unit; children center under the
+    // primary couple's midpoint (handled in _assignPositions).
+    final spouseCount = node.spouses.length;
+    final spouseWidth = spouseCount * (_config.nodeWidth + _config.spouseGap);
     final ownWidth = _config.nodeWidth + spouseWidth;
 
     if (node.children.isEmpty) {
@@ -505,10 +593,11 @@ class HierarchicalLayout {
 
   /// Assign x,y positions to each node (top-down).
   ///
-  /// v5.126: Y comes from `bfsGen` (looked up via _yForBfsGen), NOT
-  /// from `parentY + levelSpacing`. This eliminates the inconsistency
-  /// between roots (which used the stale generationIndex) and descendants
-  /// (which used parent Y + levelSpacing).
+  /// v5.128 §2.3: Children center under the COUPLE's midpoint (primary +
+  /// first spouse), not under the primary alone. This is the key change
+  /// that makes children visually belong to BOTH parents, not just one.
+  ///
+  /// Y comes from `bfsGen` (looked up via _yForBfsGen).
   void _assignPositions(
     _TreeNode node,
     double centerX,
@@ -529,7 +618,21 @@ class HierarchicalLayout {
     node.y = y;
     positions[node.person.id] = Offset(centerX, y);
 
+    // v5.128 §2.3: Compute the couple's midpoint.
+    // Primary is at `centerX`. First spouse (index 0) is at
+    //   centerX + (nodeWidth + spouseGap)
+    // Couple midpoint = (primary center + first spouse center) / 2
+    //   = centerX + (nodeWidth + spouseGap) / 2
+    // If no spouses, couple midpoint = primary center (unchanged behavior).
+    final hasSpouses = node.spouses.isNotEmpty;
+    final coupleMidpointX = hasSpouses
+        ? centerX + (_config.nodeWidth + _config.spouseGap) / 2
+        : centerX;
+
     // Position spouses to the right (same Y).
+    // v5.128 §2.3: ALL spouses (primary + secondary) get positioned
+    // to the right of the primary. The painter renders secondary
+    // spouses (index >= 1) with a dashed connector.
     var spouseX = centerX + _config.nodeWidth + _config.spouseGap;
     for (final spouse in node.spouses) {
       if (visited.contains(spouse.person.id)) continue;
@@ -541,12 +644,10 @@ class HierarchicalLayout {
       spouseX += _config.nodeWidth + _config.spouseGap;
     }
 
-    // Position children centered below this node. X uses the
-    // subtree-width recursion (per-root side-by-side). Y for each
-    // child comes from their own bfsGen via _yForBfsGen.
+    // Position children centered under the COUPLE's midpoint (§2.3).
     if (node.children.isEmpty) return;
 
-    double childStartX = centerX - node.subtreeWidth / 2;
+    double childStartX = coupleMidpointX - node.subtreeWidth / 2;
 
     for (final child in node.children) {
       if (visited.contains(child.person.id)) {
@@ -559,9 +660,7 @@ class HierarchicalLayout {
       _assignPositions(
         child,
         childCenterX,
-        // rootY param is now unused for Y computation — kept for
-        // API stability. Each node computes its own Y from bfsGen.
-        y,
+        y, // unused for Y computation — kept for API stability
         positions,
         visited,
         spacing,

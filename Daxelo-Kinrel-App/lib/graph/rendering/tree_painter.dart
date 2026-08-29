@@ -26,6 +26,8 @@
 // Reuses the relationship-key sets defined on [HierarchicalLayout] so the
 // painter and the layout engine agree on what counts as a "parent" edge.
 
+import 'dart:math' show sqrt;
+
 import 'package:flutter/material.dart';
 
 /// A painter that draws orthogonal connectors between Tree view nodes.
@@ -41,11 +43,12 @@ class TreePainter extends CustomPainter {
   TreePainter({
     required this.positions,
     required this.edges,
-    this.nodeSize = const Size(96.0, 96.0),
+    this.nodeSize = const Size(120.0, 72.0),
     this.color = const Color(0x66E2E8F0),
     this.strokeWidth = 1.5,
     this.focusedPersonId,
     this.hiddenPersonIds = const {},
+    this.secondarySpouseIds = const {},
   });
 
   /// Map<personId, Offset> — the center coordinates of each Tree node.
@@ -73,6 +76,12 @@ class TreePainter extends CustomPainter {
   /// Set of person IDs whose subtree is currently collapsed. Edges to
   /// hidden persons are skipped (they'd draw connectors to nowhere).
   final Set<String> hiddenPersonIds;
+
+  /// v5.128 §2.3: Set of person IDs that are SECONDARY spouses (index >= 1
+  /// in their partner's spouses list). The painter renders their edges
+  /// with a DASHED connector to distinguish them from the primary couple.
+  /// Empty by default (no secondary spouses).
+  final Set<String> secondarySpouseIds;
 
   static const Set<String> _spouseKeys = {
     'spouse', 'husband', 'wife', 'partner',
@@ -125,10 +134,23 @@ class TreePainter extends CustomPainter {
 
       final key = edge.relationshipKey.toLowerCase();
 
+      // v5.128 §2.3: secondary spouses get a DASHED connector.
+      final isSecondarySpouseEdge =
+          secondarySpouseIds.contains(edge.fromId) ||
+              secondarySpouseIds.contains(edge.toId);
+
       if (_spouseKeys.contains(key)) {
-        _drawSpouseConnector(canvas, fromPos, toPos, paint);
+        if (isSecondarySpouseEdge) {
+          _drawSpouseConnectorDashed(canvas, fromPos, toPos, paint);
+        } else {
+          _drawSpouseConnector(canvas, fromPos, toPos, paint);
+        }
       } else if (_parentKeys.contains(key) || _childKeys.contains(key)) {
-        _drawParentChildConnector(canvas, fromPos, toPos, paint);
+        if (isSecondarySpouseEdge) {
+          _drawParentChildConnectorDashed(canvas, fromPos, toPos, paint);
+        } else {
+          _drawParentChildConnector(canvas, fromPos, toPos, paint);
+        }
       }
       // Other relationship types (e.g. 'sibling', 'uncle') are not drawn
       // as connectors — the Tree view emphasizes structural lineage over
@@ -210,6 +232,76 @@ class TreePainter extends CustomPainter {
         Offset(to.dx - halfWidth, to.dy),
         paint,
       );
+    }
+  }
+
+  /// v5.128 §2.3: Dashed variant of [_drawSpouseConnector] for secondary
+  /// spouses. Uses 4dp dash / 3dp gap to visually distinguish from the
+  /// primary couple's solid connector.
+  void _drawSpouseConnectorDashed(
+    Canvas canvas,
+    Offset from,
+    Offset to,
+    Paint paint,
+  ) {
+    final halfWidth = nodeSize.width / 2;
+    if ((from.dy - to.dy).abs() < 1.0) {
+      _drawDashedLine(
+        canvas,
+        Offset(from.dx + halfWidth, from.dy),
+        Offset(to.dx - halfWidth, to.dy),
+        paint,
+      );
+    } else {
+      final midX = (from.dx + to.dx) / 2;
+      _drawDashedLine(
+        canvas,
+        Offset(from.dx + halfWidth, from.dy),
+        Offset(midX, from.dy),
+        paint,
+      );
+      _drawDashedLine(
+        canvas,
+        Offset(midX, from.dy),
+        Offset(midX, to.dy),
+        paint,
+      );
+      _drawDashedLine(
+        canvas,
+        Offset(midX, to.dy),
+        Offset(to.dx - halfWidth, to.dy),
+        paint,
+      );
+    }
+  }
+
+  /// v5.128 §2.3: Helper — draws a single dashed line segment.
+  /// 4dp dash, 3dp gap (visually distinct from solid lines at typical
+  /// zoom levels).
+  void _drawDashedLine(
+    Canvas canvas,
+    Offset from,
+    Offset to,
+    Paint paint,
+  ) {
+    const dashLength = 4.0;
+    const gapLength = 3.0;
+    final dx = to.dx - from.dx;
+    final dy = to.dy - from.dy;
+    final totalLength = (dx * dx + dy * dy);
+    if (totalLength <= 0) return;
+    final distance = sqrt(totalLength);
+    final stepX = dx / distance;
+    final stepY = dy / distance;
+    var pos = 0.0;
+    while (pos < distance) {
+      final dashEnd = (pos + dashLength).clamp(0.0, distance);
+      canvas.drawLine(
+        Offset(from.dx + stepX * pos, from.dy + stepY * pos),
+        Offset(from.dx + stepX * dashEnd, from.dy + stepY * dashEnd),
+        paint,
+      );
+      pos += dashLength + gapLength;
     }
   }
 
@@ -368,12 +460,65 @@ class TreePainter extends CustomPainter {
     );
   }
 
+  /// v5.128 §2.3: Dashed variant of [_drawParentChildConnector] — used
+  /// when one endpoint is a secondary spouse (rare, but supported for
+  /// completeness). Same orthogonal geometry, dashed rendering.
+  void _drawParentChildConnectorDashed(
+    Canvas canvas,
+    Offset from,
+    Offset to,
+    Paint paint,
+  ) {
+    final halfHeight = nodeSize.height / 2;
+
+    final Offset parent;
+    final Offset child;
+    if (from.dy <= to.dy) {
+      parent = from;
+      child = to;
+    } else {
+      parent = to;
+      child = from;
+    }
+
+    if ((parent.dx - child.dx).abs() < 1.0) {
+      _drawDashedLine(
+        canvas,
+        Offset(parent.dx, parent.dy + halfHeight),
+        Offset(child.dx, child.dy - halfHeight),
+        paint,
+      );
+      return;
+    }
+
+    final midY = (parent.dy + child.dy) / 2;
+    _drawDashedLine(
+      canvas,
+      Offset(parent.dx, parent.dy + halfHeight),
+      Offset(parent.dx, midY),
+      paint,
+    );
+    _drawDashedLine(
+      canvas,
+      Offset(parent.dx, midY),
+      Offset(child.dx, midY),
+      paint,
+    );
+    _drawDashedLine(
+      canvas,
+      Offset(child.dx, midY),
+      Offset(child.dx, child.dy - halfHeight),
+      paint,
+    );
+  }
+
   @override
   bool shouldRepaint(covariant TreePainter oldDelegate) {
     return oldDelegate.positions != positions ||
         oldDelegate.edges != edges ||
         oldDelegate.focusedPersonId != focusedPersonId ||
         oldDelegate.hiddenPersonIds != hiddenPersonIds ||
+        oldDelegate.secondarySpouseIds != secondarySpouseIds ||
         oldDelegate.nodeSize != nodeSize ||
         oldDelegate.color != color ||
         oldDelegate.strokeWidth != strokeWidth;

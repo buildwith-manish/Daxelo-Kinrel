@@ -47,6 +47,15 @@ import '../rendering/tree_pdf_exporter.dart';
 /// its circular nodes and own sizing.
 const Size kTreeNodeSize = Size(120.0, 72.0);
 
+/// v5.128: Layout result — positions + the set of secondary-spouse IDs
+/// (so the painter can render their edges with dashed connectors per §2.3).
+class _TreeLayoutResult {
+  const _TreeLayoutResult({required this.positions, this.secondarySpouseIds = const {}});
+
+  final Map<String, Offset> positions;
+  final Set<String> secondarySpouseIds;
+}
+
 /// Computes the hierarchical layout for a family's tree data.
 ///
 /// Watches `familyTreeProvider` for data changes and re-computes positions
@@ -54,10 +63,12 @@ const Size kTreeNodeSize = Size(120.0, 72.0);
 /// for typical family sizes; the engine header claims 30 FPS at 5,000
 /// nodes).
 final treeLayoutProvider =
-    Provider.family<Map<String, Offset>, String>((ref, familyId) {
+    Provider.family<_TreeLayoutResult, String>((ref, familyId) {
   final treeAsync = ref.watch(familyTreeProvider(familyId));
   final tree = treeAsync.valueOrNull;
-  if (tree == null || tree.persons.isEmpty) return const {};
+  if (tree == null || tree.persons.isEmpty) {
+    return const _TreeLayoutResult(positions: {});
+  }
 
   // Build GraphPerson list (HierarchicalLayout's input type).
   final graphPersons = <GraphPerson>[];
@@ -66,6 +77,14 @@ final treeLayoutProvider =
     final id = (p['id'] ?? '').toString();
     final isViewer = (p['isViewer'] as bool?) ?? false;
     if (isViewer) viewerId = id;
+    // v5.128 §2.4: parse birthDate for deterministic sibling ordering.
+    // Falls back to null — the layout handles nulls by sorting after
+    // non-nulls, with id-ascending as the final tiebreak.
+    DateTime? birthDate;
+    final rawDob = p['dateOfBirth'];
+    if (rawDob is String && rawDob.isNotEmpty) {
+      birthDate = DateTime.tryParse(rawDob);
+    }
     graphPersons.add(GraphPerson(
       id: id,
       name: (p['name'] ?? '').toString(),
@@ -74,6 +93,7 @@ final treeLayoutProvider =
       isAnchor: (p['isAnchor'] as bool?) ?? false,
       photoUrl: p['photoUrl'] as String?,
       isDeceased: (p['isDeceased'] as bool?) ?? false,
+      birthDate: birthDate,
     ));
   }
 
@@ -97,17 +117,6 @@ final treeLayoutProvider =
   final layout = HierarchicalLayout(
     config: HierarchicalLayoutConfig(
       // v5.127: re-tuned for the new 120×72 rounded-rect node shape.
-      // - siblingSpacing=20 leaves a small horizontal gap between
-      //   adjacent sibling cards (was 110 for the old 96-wide circle —
-      //   too generous now that the cards are wider and naturally
-      //   spaced by their own width).
-      // - levelSpacing=110 vertical between generation rows (was 170 —
-      //   the new card is shorter at 72 vs 96, so less vertical room
-      //   needed for connectors).
-      // - spouseGap=8 (was 28) — spouses are now side-by-side cards,
-      //   not circular rings touching; 8dp gap reads as "coupled".
-      //   The old 28 was tuned for circle rings whose visual edge was
-      //   at the radius, not the diameter.
       siblingSpacing: 20.0,
       levelSpacing: 110.0,
       spouseGap: 8.0,
@@ -117,12 +126,20 @@ final treeLayoutProvider =
     ),
   );
 
+  // v5.128 §2.3: the layout engine populates this set with the IDs of
+  // all secondary spouses (index >= 1 in their partner's spouses list).
+  // We thread it through to the painter for dashed-edge rendering.
+  final secondarySpouseIds = <String>{};
   final result = layout.compute(
     persons: graphPersons,
     relationships: graphRels,
     anchorPersonId: anchorId,
+    secondarySpouseIds: secondarySpouseIds,
   );
-  return result.positions;
+  return _TreeLayoutResult(
+    positions: result.positions,
+    secondarySpouseIds: secondarySpouseIds,
+  );
 });
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -167,7 +184,9 @@ class _FamilyTreeViewState extends ConsumerState<FamilyTreeView> {
   @override
   Widget build(BuildContext context) {
     final treeAsync = ref.watch(familyTreeProvider(widget.familyId));
-    final positions = ref.watch(treeLayoutProvider(widget.familyId));
+    final layoutResult = ref.watch(treeLayoutProvider(widget.familyId));
+    final positions = layoutResult.positions;
+    final secondarySpouseIds = layoutResult.secondarySpouseIds;
     final collapseState = ref.watch(branchCollapseProvider);
     final focusState = ref.watch(graphFocusProvider);
     final selectedId = ref.watch(selectedNodeProvider);
@@ -256,6 +275,7 @@ class _FamilyTreeViewState extends ConsumerState<FamilyTreeView> {
               positions: visiblePositions,
               edges: edges,
               hiddenPersonIds: hiddenIds,
+              secondarySpouseIds: secondarySpouseIds,
               focusedPersonId: focusState.focusedPersonId,
               selectedPersonId: selectedId,
               persons: tree.persons,
@@ -439,13 +459,25 @@ class _FamilyTreeViewState extends ConsumerState<FamilyTreeView> {
 
 // ═══════════════════════════════════════════════════════════════════════
 // TREE CANVAS — the actual paint surface
+//
+// v5.128 §3.2: Viewport culling. At 10,000+ nodes, rendering one Flutter
+// widget per person janks regardless of correct layout math. This widget
+// listens to the TransformationController (pan/zoom) and only builds
+// widgets whose position falls inside the current visible viewport rect,
+// expanded by a margin to avoid pop-in during fast scrolls.
+//
+// The connectors (TreePainter) still paint ALL edges — painting is cheap
+// (one Canvas draw call per edge, batched by the GPU). It's the per-node
+// Widget build + layout pass that's expensive at scale, so only that is
+// culled.
 // ═══════════════════════════════════════════════════════════════════════
 
-class _TreeCanvas extends StatelessWidget {
+class _TreeCanvas extends StatefulWidget {
   const _TreeCanvas({
     required this.positions,
     required this.edges,
     required this.hiddenPersonIds,
+    required this.secondarySpouseIds,
     required this.focusedPersonId,
     required this.selectedPersonId,
     required this.persons,
@@ -457,6 +489,7 @@ class _TreeCanvas extends StatelessWidget {
   final Map<String, Offset> positions;
   final List<({String fromId, String toId, String relationshipKey})> edges;
   final Set<String> hiddenPersonIds;
+  final Set<String> secondarySpouseIds;
   final String? focusedPersonId;
   final String? selectedPersonId;
   final List<Map<String, dynamic>> persons;
@@ -466,22 +499,107 @@ class _TreeCanvas extends StatelessWidget {
       onLongPressNode;
 
   @override
+  State<_TreeCanvas> createState() => _TreeCanvasState();
+}
+
+class _TreeCanvasState extends State<_TreeCanvas> {
+  /// v5.128 §3.2: Visible viewport rect in CANVAS coordinates (i.e.
+  /// already inverse-transformed from screen space). Updated on every
+  /// pan/zoom via the TransformationController listener.
+  Rect? _visibleRect;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.transformController.addListener(_onTransformChanged);
+    // Initial computation — defer to next frame when LayoutBuilder has
+    // the viewport size.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _onTransformChanged());
+  }
+
+  @override
+  void didUpdateWidget(_TreeCanvas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.transformController != widget.transformController) {
+      oldWidget.transformController.removeListener(_onTransformChanged);
+      widget.transformController.addListener(_onTransformChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.transformController.removeListener(_onTransformChanged);
+    super.dispose();
+  }
+
+  /// Recompute the visible viewport rect in canvas coordinates.
+  void _onTransformChanged() {
+    if (!mounted) return;
+    final mq = MediaQuery.of(context);
+    final viewportSize = mq.size;
+
+    // The TransformationController's matrix maps canvas → screen.
+    // We need the inverse: screen → canvas. Clamp the inverse to identity
+    // if the matrix is singular (e.g. scale 0, which InteractiveViewer
+    // never actually reaches).
+    final matrix = widget.transformController.value;
+    final inverse = Matrix4.tryInvert(matrix);
+    if (inverse == null) {
+      setState(() => _visibleRect = null);
+      return;
+    }
+
+    // Screen viewport (0,0)→(viewportSize) → canvas via inverse.
+    final screenCorners = [
+      Offset.zero,
+      Offset(viewportSize.width, 0),
+      Offset(0, viewportSize.height),
+      Offset(viewportSize.width, viewportSize.height),
+    ];
+    double minX = double.infinity, minY = double.infinity;
+    double maxX = -double.infinity, maxY = -double.infinity;
+    for (final corner in screenCorners) {
+      final canvas = MatrixUtils.transformPoint(inverse, corner);
+      if (canvas.dx < minX) minX = canvas.dx;
+      if (canvas.dy < minY) minY = canvas.dy;
+      if (canvas.dx > maxX) maxX = canvas.dx;
+      if (canvas.dy > maxY) maxY = canvas.dy;
+    }
+    // Expand by a margin (2× node size) to avoid pop-in during fast scrolls.
+    final margin = kTreeNodeSize.longestSide * 2;
+    final newRect = Rect.fromLTRB(
+      minX - margin,
+      minY - margin,
+      maxX + margin,
+      maxY + margin,
+    );
+    if (_visibleRect != newRect) {
+      setState(() => _visibleRect = newRect);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (positions.isEmpty) {
+    if (widget.positions.isEmpty) {
       return const SizedBox.shrink();
     }
 
     // Compute canvas bounds.
     double maxX = 0, maxY = 0;
-    for (final pos in positions.values) {
+    for (final pos in widget.positions.values) {
       if (pos.dx > maxX) maxX = pos.dx;
       if (pos.dy > maxY) maxY = pos.dy;
     }
     final canvasWidth = maxX + kTreeNodeSize.width + 80;
     final canvasHeight = maxY + kTreeNodeSize.height + 80;
 
+    // v5.128 §3.2: viewport culling — only build node widgets whose
+    // position falls inside the visible rect. The painter still paints
+    // ALL edges (cheap), only the widget build/layout is culled.
+    final visibleRect = _visibleRect;
+
     return InteractiveViewer(
-      transformationController: transformController,
+      transformationController: widget.transformController,
       constrained: false,
       boundaryMargin: const EdgeInsets.all(double.infinity),
       minScale: 0.3,
@@ -492,29 +610,47 @@ class _TreeCanvas extends StatelessWidget {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            // Layer 1: connectors (painter).
+            // Layer 1: connectors (painter) — paints ALL edges.
             CustomPaint(
               size: Size(canvasWidth, canvasHeight),
               painter: TreePainter(
-                positions: positions,
-                edges: edges,
-                hiddenPersonIds: hiddenPersonIds,
-                focusedPersonId: focusedPersonId,
+                positions: widget.positions,
+                edges: widget.edges,
+                hiddenPersonIds: widget.hiddenPersonIds,
+                secondarySpouseIds: widget.secondarySpouseIds,
+                focusedPersonId: widget.focusedPersonId,
                 nodeSize: kTreeNodeSize,
               ),
             ),
-            // Layer 2: positioned node widgets.
-            for (final person in persons)
-              if (positions.containsKey(person['id'])) _buildNode(person),
+            // Layer 2: positioned node widgets — culled to viewport.
+            // v5.128 §3.2: at 10,000 nodes, building one widget per
+            // person janks. Only build widgets inside the visible rect.
+            for (final person in widget.persons)
+              if (widget.positions.containsKey(person['id']))
+                _maybeBuildNode(person, visibleRect) ?? const SizedBox.shrink(),
           ],
         ),
       ),
     );
   }
 
+  /// v5.128 §3.2: Build the node widget only if its position falls inside
+  /// the visible viewport rect (or if no rect is computed yet — fall back
+  /// to building everything to avoid an empty canvas on first paint).
+  Widget? _maybeBuildNode(Map<String, dynamic> person, Rect? visibleRect) {
+    final id = person['id'] as String;
+    final pos = widget.positions[id]!;
+    if (visibleRect != null && !visibleRect.contains(pos)) {
+      // Cull — outside viewport. The painter still draws the connector
+      // endpoint, but no widget is built. This is what scales to 10k+.
+      return null;
+    }
+    return _buildNode(person);
+  }
+
   Widget _buildNode(Map<String, dynamic> person) {
     final id = person['id'] as String;
-    final pos = positions[id]!;
+    final pos = widget.positions[id]!;
     final name = (person['name'] as String?) ?? '';
     final photoUrl = person['avatarUrl'] as String?;
     final isDeceased = (person['isDeceased'] as bool?) ?? false;
@@ -523,8 +659,8 @@ class _TreeCanvas extends StatelessWidget {
     final restricted = (person['restricted'] as bool?) ?? false;
     final gender = person['gender'] as String?;
 
-    final isSelected = selectedPersonId == id;
-    final isFocused = focusedPersonId == id;
+    final isSelected = widget.selectedPersonId == id;
+    final isFocused = widget.focusedPersonId == id;
 
     return Positioned(
       left: pos.dx - kTreeNodeSize.width / 2,
@@ -532,8 +668,8 @@ class _TreeCanvas extends StatelessWidget {
       width: kTreeNodeSize.width,
       height: kTreeNodeSize.height,
       child: GestureDetector(
-        onTap: () => onTapNode(id, person),
-        onLongPress: () => onLongPressNode(id, person),
+        onTap: () => widget.onTapNode(id, person),
+        onLongPress: () => widget.onLongPressNode(id, person),
         child: _TreeNode(
           name: name,
           photoUrl: photoUrl,

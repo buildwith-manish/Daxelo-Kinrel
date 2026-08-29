@@ -597,6 +597,317 @@ void main() {
   });
 
   // ═════════════════════════════════════════════════════════════════════
+  // v5.128: Couples-as-unit + sibling ordering + cousin-marriage tie-break.
+  // ═════════════════════════════════════════════════════════════════════
+  group('HierarchicalLayout v5.128 couples + siblings + cousin marriages', () {
+    test('§2.3: children center under the COUPLE midpoint, not the primary', () {
+      // A + B are spouses (a couple). They have two children, C and D.
+      // Without the §2.3 fix, children would center under A's X.
+      // With the fix, children center under the midpoint of (A, B).
+      final layout = HierarchicalLayout();
+
+      final persons = [
+        GraphPerson(id: 'a', name: 'A', generationIndex: 0),
+        GraphPerson(id: 'b', name: 'B', generationIndex: 0),
+        GraphPerson(id: 'c', name: 'C', generationIndex: 1),
+        GraphPerson(id: 'd', name: 'D', generationIndex: 1),
+      ];
+
+      final relationships = [
+        GraphRelationship(
+            id: 'r1', fromPersonId: 'a', toPersonId: 'b', relationshipKey: 'spouse'),
+        GraphRelationship(
+            id: 'r2', fromPersonId: 'c', toPersonId: 'a', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r3', fromPersonId: 'c', toPersonId: 'b', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r4', fromPersonId: 'd', toPersonId: 'a', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r5', fromPersonId: 'd', toPersonId: 'b', relationshipKey: 'parent'),
+      ];
+
+      final result = layout.compute(
+        persons: persons,
+        relationships: relationships,
+        anchorPersonId: 'a',
+      );
+
+      expect(result.positions.length, 4);
+
+      final xA = result.positions['a']!.dx;
+      final xB = result.positions['b']!.dx;
+      final xC = result.positions['c']!.dx;
+      final xD = result.positions['d']!.dx;
+
+      // Couple midpoint = (xA + xB) / 2.
+      final coupleMidpoint = (xA + xB) / 2;
+      // Children's centroid = (xC + xD) / 2 should equal the couple midpoint.
+      final childrenCentroid = (xC + xD) / 2;
+      expect((childrenCentroid - coupleMidpoint).abs(), lessThan(1.0),
+          reason: 'Children should center under the couple midpoint, not under A. '
+              'Couple midpoint=$coupleMidpoint, children centroid=$childrenCentroid.');
+    });
+
+    test('§2.4: siblings sort by birthDate ascending (oldest first)', () {
+      // Three siblings: born 1990, 1985, 1995. Should be ordered:
+      // 1985 (oldest, leftmost) → 1990 → 1995 (youngest, rightmost).
+      final layout = HierarchicalLayout();
+
+      final persons = [
+        GraphPerson(id: 'parent', name: 'Parent', generationIndex: 0),
+        GraphPerson(
+            id: 'child_1990',
+            name: 'C2',
+            generationIndex: 1,
+            birthDate: DateTime(1990, 1, 1)),
+        GraphPerson(
+            id: 'child_1985',
+            name: 'C1',
+            generationIndex: 1,
+            birthDate: DateTime(1985, 1, 1)),
+        GraphPerson(
+            id: 'child_1995',
+            name: 'C3',
+            generationIndex: 1,
+            birthDate: DateTime(1995, 1, 1)),
+      ];
+
+      final relationships = [
+        GraphRelationship(
+            id: 'r1', fromPersonId: 'child_1990', toPersonId: 'parent', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r2', fromPersonId: 'child_1985', toPersonId: 'parent', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r3', fromPersonId: 'child_1995', toPersonId: 'parent', relationshipKey: 'parent'),
+      ];
+
+      final result = layout.compute(
+        persons: persons,
+        relationships: relationships,
+        anchorPersonId: 'parent',
+      );
+
+      // All three siblings should be positioned.
+      expect(result.positions.length, 4);
+
+      // X order: oldest (1985) → 1990 → 1995 (youngest).
+      // Children sorted ASC by birthDate, so the oldest is leftmost.
+      final x1985 = result.positions['child_1985']!.dx;
+      final x1990 = result.positions['child_1990']!.dx;
+      final x1995 = result.positions['child_1995']!.dx;
+
+      expect(x1985, lessThan(x1990),
+          reason: '1985 (oldest) should be left of 1990');
+      expect(x1990, lessThan(x1995),
+          reason: '1990 should be left of 1995 (youngest)');
+    });
+
+    test('§2.4: siblings without birthDate sort by id ascending (stable)', () {
+      // No birthDates on any sibling — fall back to id sort.
+      final layout = HierarchicalLayout();
+
+      final persons = [
+        GraphPerson(id: 'parent', name: 'Parent', generationIndex: 0),
+        GraphPerson(id: 'child_zeta', name: 'Z', generationIndex: 1),
+        GraphPerson(id: 'child_alpha', name: 'A', generationIndex: 1),
+        GraphPerson(id: 'child_mike', name: 'M', generationIndex: 1),
+      ];
+
+      final relationships = [
+        GraphRelationship(
+            id: 'r1', fromPersonId: 'child_zeta', toPersonId: 'parent', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r2', fromPersonId: 'child_alpha', toPersonId: 'parent', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r3', fromPersonId: 'child_mike', toPersonId: 'parent', relationshipKey: 'parent'),
+      ];
+
+      final result = layout.compute(
+        persons: persons,
+        relationships: relationships,
+        anchorPersonId: 'parent',
+      );
+
+      // X order: alpha → mike → zeta (alphabetical by id).
+      final xAlpha = result.positions['child_alpha']!.dx;
+      final xMike = result.positions['child_mike']!.dx;
+      final xZeta = result.positions['child_zeta']!.dx;
+
+      expect(xAlpha, lessThan(xMike),
+          reason: 'alpha should be left of mike (id-asc fallback)');
+      expect(xMike, lessThan(xZeta),
+          reason: 'mike should be left of zeta (id-asc fallback)');
+    });
+
+    test('§2.5: cousin marriage — child takes deeper of two lineages', () {
+      // Cousin marriage scenario:
+      //   root1 (gen 0) → child1 (gen 1) → grandchild1 (gen 2)
+      //   root2 (gen 0) → child2 (gen 1) → grandchild2 (gen 2)
+      //   grandchild1 + grandchild2 marry (cousins)
+      //   Their kid (greatGrandchild) has TWO paths:
+      //     via grandchild1 (gen 2 → greatGrandchild gen 3)
+      //     via grandchild2 (gen 2 → greatGrandchild gen 3)
+      //   Both paths give gen 3, so this is the trivial case.
+      //
+      // The interesting case is when one lineage is deeper:
+      //   root1 (gen 0) → A (gen 1) → B (gen 2) → C (gen 3)
+      //   root2 (gen 0) → D (gen 1)
+      //   C + D marry (one is gen 3, one is gen 1)
+      //   Their kid E should be gen 4 (deeper+1), NOT gen 2 (shallower+1).
+      final layout = HierarchicalLayout();
+
+      final persons = [
+        GraphPerson(id: 'root1', name: 'R1', generationIndex: 0),
+        GraphPerson(id: 'root2', name: 'R2', generationIndex: 0),
+        GraphPerson(id: 'a', name: 'A', generationIndex: 1),
+        GraphPerson(id: 'b', name: 'B', generationIndex: 2),
+        GraphPerson(id: 'c', name: 'C', generationIndex: 3),
+        GraphPerson(id: 'd', name: 'D', generationIndex: 1),
+        GraphPerson(id: 'e', name: 'E (child of mixed-depth couple)', generationIndex: 4),
+      ];
+
+      final relationships = [
+        // Lineage 1: root1 → A → B → C (depth 3)
+        GraphRelationship(
+            id: 'r1', fromPersonId: 'a', toPersonId: 'root1', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r2', fromPersonId: 'b', toPersonId: 'a', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r3', fromPersonId: 'c', toPersonId: 'b', relationshipKey: 'parent'),
+        // Lineage 2: root2 → D (depth 1)
+        GraphRelationship(
+            id: 'r4', fromPersonId: 'd', toPersonId: 'root2', relationshipKey: 'parent'),
+        // C + D marry (cousin marriage — different depths)
+        GraphRelationship(
+            id: 'r5', fromPersonId: 'c', toPersonId: 'd', relationshipKey: 'spouse'),
+        // E is child of C and D.
+        GraphRelationship(
+            id: 'r6', fromPersonId: 'e', toPersonId: 'c', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r7', fromPersonId: 'e', toPersonId: 'd', relationshipKey: 'parent'),
+      ];
+
+      final result = layout.compute(
+        persons: persons,
+        relationships: relationships,
+        anchorPersonId: 'root1',
+      );
+
+      expect(result.positions.length, 7);
+
+      // E should be at gen 4 (deeper of C=3, D=1, +1).
+      // The Y of E should be greater than the Y of C (gen 3) and greater
+      // than the Y of D (gen 1, after spouse propagation to gen 3).
+      final yE = result.positions['e']!.dy;
+      final yC = result.positions['c']!.dy;
+      final yD = result.positions['d']!.dy;
+
+      // C and D are a couple → same Y (spouse propagation).
+      expect(yC, equals(yD),
+          reason: 'C and D are spouses → same Y (couple takes deeper gen)');
+
+      // E is one generation below the couple.
+      expect(yE, greaterThan(yC),
+          reason: 'E should be below C (one generation deeper than the couple)');
+
+      // Verify the deeper-of-two rule: D's natural lineage is gen 1,
+      // but as C's spouse, D should "float up" to gen 3 (C's depth).
+      // Without the §2.5 fix, D would stay at gen 1 and E at gen 2.
+      final yRoot1 = result.positions['root1']!.dy;
+      final yRoot2 = result.positions['root2']!.dy;
+      final yA = result.positions['a']!.dy;
+
+      // Roots at gen 0 (same Y).
+      expect(yRoot1, equals(yRoot2));
+      // A is at gen 1.
+      expect(yA, greaterThan(yRoot1));
+      // D should be at gen 3 (deeper-of-two), NOT gen 1.
+      // Y of D should be much larger than Y of A (gen 1).
+      expect(yD, greaterThan(yA),
+          reason: 'D should be at gen 3 (deeper-of-two spouse propagation), '
+              'not gen 1 (its own lineage). Y of D should be > Y of A (gen 1).');
+    });
+
+    test('§5 determinism: re-layout produces identical positions', () {
+      // Re-running the layout with the same input should produce
+      // byte-for-byte identical positions. This is the determinism
+      // check from the acceptance criteria.
+      final layout = HierarchicalLayout();
+
+      final persons = [
+        GraphPerson(id: 'a', name: 'A', generationIndex: 0, birthDate: DateTime(1950)),
+        GraphPerson(id: 'b', name: 'B', generationIndex: 0, birthDate: DateTime(1952)),
+        GraphPerson(id: 'c', name: 'C', generationIndex: 1, birthDate: DateTime(1980)),
+        GraphPerson(id: 'd', name: 'D', generationIndex: 1, birthDate: DateTime(1982)),
+        GraphPerson(id: 'e', name: 'E', generationIndex: 2, birthDate: DateTime(2005)),
+      ];
+
+      final relationships = [
+        GraphRelationship(
+            id: 'r1', fromPersonId: 'a', toPersonId: 'b', relationshipKey: 'spouse'),
+        GraphRelationship(
+            id: 'r2', fromPersonId: 'c', toPersonId: 'a', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r3', fromPersonId: 'c', toPersonId: 'b', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r4', fromPersonId: 'd', toPersonId: 'a', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r5', fromPersonId: 'e', toPersonId: 'c', relationshipKey: 'parent'),
+      ];
+
+      final result1 = layout.compute(persons: persons, relationships: relationships);
+      final result2 = layout.compute(persons: persons, relationships: relationships);
+
+      // Positions should be identical.
+      expect(result2.positions.length, equals(result1.positions.length));
+      for (final id in result1.positions.keys) {
+        expect(result2.positions[id], equals(result1.positions[id]),
+            reason: 'Position for $id should be deterministic across re-layouts');
+      }
+      // Canvas dimensions should be identical.
+      expect(result2.canvasWidth, equals(result1.canvasWidth));
+      expect(result2.canvasHeight, equals(result1.canvasHeight));
+    });
+
+    test('§2.3 multi-spouse: secondary spouse flagged for dashed connector', () {
+      // A has TWO spouses: B (primary) and C (secondary).
+      // The layout should mark C as a secondary spouse so the painter
+      // can render its edge with a dashed connector.
+      final layout = HierarchicalLayout();
+
+      final persons = [
+        GraphPerson(id: 'a', name: 'A', generationIndex: 0),
+        GraphPerson(id: 'b', name: 'B (primary spouse)', generationIndex: 0),
+        GraphPerson(id: 'c', name: 'C (secondary spouse)', generationIndex: 0),
+      ];
+
+      final relationships = [
+        GraphRelationship(
+            id: 'r1', fromPersonId: 'a', toPersonId: 'b', relationshipKey: 'spouse'),
+        GraphRelationship(
+            id: 'r2', fromPersonId: 'a', toPersonId: 'c', relationshipKey: 'spouse'),
+      ];
+
+      final secondarySpouseIds = <String>{};
+      layout.compute(
+        persons: persons,
+        relationships: relationships,
+        anchorPersonId: 'a',
+        secondarySpouseIds: secondarySpouseIds,
+      );
+
+      // Exactly ONE spouse should be flagged as secondary (the second one).
+      expect(secondarySpouseIds.length, 1,
+          reason: 'Only the second spouse should be secondary; the first is primary.');
+      // The flagged ID should be either 'b' or 'c' (whichever sorts second).
+      // Sort order is by birthDate then id; both null here so id-asc:
+      // 'b' first, 'c' second. So 'c' is the secondary.
+      expect(secondarySpouseIds.contains('c'), true,
+          reason: 'c (id-asc second) should be flagged as the secondary spouse.');
+    });
+  });
+
+  // ═════════════════════════════════════════════════════════════════════
   // v5.126: PDF exporter tests (vector + paginated).
   // ═════════════════════════════════════════════════════════════════════
   group('TreePdfExporter', () {
