@@ -139,6 +139,53 @@ describe('CanonicalIdService (v3.0 §4)', () => {
       expect(r.canonicalId).toBe('DERIVED');
       expect(r.isDerived).toBe(true);
     });
+
+    // ── Latin transliteration coverage ──────────────────────────
+    // Most Indian users type kinship terms in English keyboard
+    // (e.g. "appa" instead of "அப்பா"). The canonical ID layer
+    // must recognise Latin transliterations for every supported
+    // locale, not just native script.
+    it('maps Hindi Latin "pita" → PARENT', () => {
+      expect(service.normalizeToCanonical('pita', 'hi').canonicalId).toBe('PARENT');
+    });
+    it('maps Hindi Latin "papa" → PARENT', () => {
+      expect(service.normalizeToCanonical('papa', 'hi').canonicalId).toBe('PARENT');
+    });
+    it('maps Hindi Latin "maa" → PARENT', () => {
+      expect(service.normalizeToCanonical('maa', 'hi').canonicalId).toBe('PARENT');
+    });
+    it('maps Hindi Latin "chacha" → DERIVED (uncle paternal)', () => {
+      const r = service.normalizeToCanonical('chacha', 'hi');
+      expect(r.canonicalId).toBe('DERIVED');
+      expect(r.isDerived).toBe(true);
+    });
+    it('maps Hindi Latin "bhai" → DERIVED (brother)', () => {
+      const r = service.normalizeToCanonical('bhai', 'hi');
+      expect(r.canonicalId).toBe('DERIVED');
+      expect(r.isDerived).toBe(true);
+    });
+    it('maps Hindi Latin "sasur" → DERIVED (father-in-law)', () => {
+      const r = service.normalizeToCanonical('sasur', 'hi');
+      expect(r.canonicalId).toBe('DERIVED');
+      expect(r.isDerived).toBe(true);
+    });
+
+    it('maps Tamil Latin "appa" → PARENT', () => {
+      expect(service.normalizeToCanonical('appa', 'ta').canonicalId).toBe('PARENT');
+    });
+    it('maps Tamil Latin "amma" → PARENT', () => {
+      expect(service.normalizeToCanonical('amma', 'ta').canonicalId).toBe('PARENT');
+    });
+    it('maps Tamil Latin "thatha" → DERIVED (grandfather)', () => {
+      const r = service.normalizeToCanonical('thatha', 'ta');
+      expect(r.canonicalId).toBe('DERIVED');
+      expect(r.isDerived).toBe(true);
+    });
+    it('maps Tamil Latin "chithappa" → DERIVED (uncle paternal)', () => {
+      const r = service.normalizeToCanonical('chithappa', 'ta');
+      expect(r.canonicalId).toBe('DERIVED');
+      expect(r.isDerived).toBe(true);
+    });
   });
 
   describe('normalizeToCanonical — Unknown input', () => {
