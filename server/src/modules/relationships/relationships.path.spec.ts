@@ -4,6 +4,9 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { KinrelGateway } from '../gateway/kinrel.gateway';
 import { GraphService } from '../graph/graph.service';
 import { GraphEngineService } from '../graph/graph-engine.service';
+import { RelationshipValidator } from './relationship.validator';
+import { RelationshipNormalizerService } from '../kinship/relationship-normalizer.service';
+import { CanonicalIdService } from '../kinship/canonical-id.service';
 import {
   ForbiddenException,
   BadRequestException,
@@ -44,6 +47,46 @@ const mockGraphService = {
 
 const mockGraphEngineService = {
   findPath: jest.fn(),
+  invalidateCache: jest.fn(),
+};
+
+// v3.0 — mock the new services with realistic implementations
+const mockValidator = {
+  validate: jest.fn(() => ({ valid: true, failures: [] })),
+  validateOrThrow: jest.fn(() => {}),
+};
+
+const mockNormalizer = {
+  normalize: jest.fn((term: string) => ({
+    fundamentalEdge: 'parent',
+    direction: 'forward',
+    isDerived: false,
+    isUnknown: false,
+    canonical: {
+      canonicalId: 'PARENT',
+      isDerived: false,
+      matchedInput: term,
+      matchedLocale: 'en',
+      englishLabel: term.charAt(0).toUpperCase() + term.slice(1),
+    },
+    missingEdges: [],
+    englishLabel: term,
+  })),
+  isFundamentalEdge: jest.fn((k: string) => ['parent', 'spouse', 'adoptive_parent', 'step_parent'].includes(k)),
+  listFundamentalEdges: jest.fn(() => ['parent', 'spouse', 'adoptive_parent', 'step_parent']),
+};
+
+const mockCanonicalIdService = {
+  normalizeToCanonical: jest.fn((input: string) => ({
+    canonicalId: 'PARENT',
+    isDerived: false,
+    direction: 'forward',
+    matchedInput: input,
+    matchedLocale: 'en',
+    englishLabel: input,
+  })),
+  listFundamentalCanonicalIds: jest.fn(() => ['PARENT', 'SPOUSE', 'ADOPTIVE_PARENT', 'STEP_PARENT']),
+  listSupportedLocales: jest.fn(() => ['en', 'hi', 'ta', 'te', 'kn', 'bn', 'mr', 'gu']),
 };
 
 // ── Fixtures ────────────────────────────────────────────────────────────
@@ -66,6 +109,9 @@ describe('RelationshipsService — getRelationshipPath (v2.2)', () => {
         { provide: KinrelGateway, useValue: mockGateway },
         { provide: GraphService, useValue: mockGraphService },
         { provide: GraphEngineService, useValue: mockGraphEngineService },
+        { provide: RelationshipValidator, useValue: mockValidator },
+        { provide: RelationshipNormalizerService, useValue: mockNormalizer },
+        { provide: CanonicalIdService, useValue: mockCanonicalIdService },
       ],
     }).compile();
 

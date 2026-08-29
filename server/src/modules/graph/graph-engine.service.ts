@@ -127,11 +127,57 @@ const FUNDAMENTAL_EDGES = new Set([
   'step_parent',
 ]);
 
+// v3.0 §13.2 — Adjacency cache TTL (60 seconds)
+const ADJACENCY_CACHE_TTL_MS = 60_000;
+
+// v3.0 §3.3 — Deterministic path priority: blood > adoptive > step > inLaw
+// Lower number = higher priority (preferred first).
+const PRIORITY_BLOOD = 0;
+const PRIORITY_ADOPTIVE = 1;
+const PRIORITY_STEP = 2;
+const PRIORITY_INLAW = 3;
+
+function priorityForPrimitive(p: TraversePrimitive): number {
+  switch (p) {
+    case 'UP_PARENT':
+    case 'DOWN_CHILD':
+      return PRIORITY_BLOOD;
+    case 'UP_ADOPTIVE_PARENT':
+      return PRIORITY_ADOPTIVE;
+    case 'UP_STEP_PARENT':
+      return PRIORITY_STEP;
+    case 'SPOUSE':
+      return PRIORITY_INLAW;
+    default:
+      return PRIORITY_INLAW;
+  }
+}
+
+function pathPriority(path: TraversePrimitive[]): number {
+  // Sum of primitives' priorities — lower is better (blood preferred).
+  // For comparison across paths of equal length, this is a stable sort key.
+  let sum = 0;
+  for (const p of path) sum += priorityForPrimitive(p);
+  return sum;
+}
+
+// ── Cached Adjacency (per family, TTL 60s) ────────────────────────────
+
+interface CachedAdjacency {
+  adjacency: Record<string, AdjacencyEntry[]>;
+  persons: PersonRecord[];
+  expiresAt: number;
+}
+
 // ── Service ───────────────────────────────────────────────────────────
 
 @Injectable()
 export class GraphEngineService {
   private readonly logger = new Logger(GraphEngineService.name);
+
+  // v3.0 §13.2 — In-memory adjacency cache, keyed by familyId.
+  // TTL = 60s. Invalidated on any relationship mutation via invalidateCache().
+  private readonly adjacencyCache = new Map<string, CachedAdjacency>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -149,7 +195,7 @@ export class GraphEngineService {
     if (fromPersonId === toPersonId) return null;
 
     const { persons, relationships } = await this.loadFamilyGraph(familyId);
-    const adjacency = this.buildAdjacency(relationships);
+    const adjacency = this.buildAdjacencyFromCacheOrFresh(familyId, relationships);
 
     const bfsResult = this.findShortestPath(fromPersonId, toPersonId, adjacency);
     if (!bfsResult) return null;
@@ -183,7 +229,7 @@ export class GraphEngineService {
     }
 
     const { persons, relationships } = await this.loadFamilyGraph(familyId);
-    const adjacency = this.buildAdjacency(relationships);
+    const adjacency = this.buildAdjacencyFromCacheOrFresh(familyId, relationships);
 
     const bfsResult = this.findShortestPath(fromPersonId, toPersonId, adjacency);
     if (!bfsResult) {
@@ -230,7 +276,7 @@ export class GraphEngineService {
     personId: string,
   ): Promise<ComputedRelationship[]> {
     const { persons, relationships } = await this.loadFamilyGraph(familyId);
-    const adjacency = this.buildAdjacency(relationships);
+    const adjacency = this.buildAdjacencyFromCacheOrFresh(familyId, relationships);
 
     const results: ComputedRelationship[] = [];
 
@@ -278,7 +324,7 @@ export class GraphEngineService {
    */
   async getAncestors(familyId: string, personId: string): Promise<PersonRecord[]> {
     const { persons, relationships } = await this.loadFamilyGraph(familyId);
-    const adjacency = this.buildAdjacency(relationships);
+    const adjacency = this.buildAdjacencyFromCacheOrFresh(familyId, relationships);
 
     const ancestors: PersonRecord[] = [];
     const visited = new Set<string>([personId]);
@@ -307,7 +353,7 @@ export class GraphEngineService {
    */
   async getDescendants(familyId: string, personId: string): Promise<PersonRecord[]> {
     const { persons, relationships } = await this.loadFamilyGraph(familyId);
-    const adjacency = this.buildAdjacency(relationships);
+    const adjacency = this.buildAdjacencyFromCacheOrFresh(familyId, relationships);
 
     const descendants: PersonRecord[] = [];
     const visited = new Set<string>([personId]);
@@ -415,17 +461,37 @@ export class GraphEngineService {
 
   /**
    * v4.1: Invalidate the in-memory graph cache for a family.
-   * Currently a no-op since loadFamilyGraph queries the DB directly (no cache).
-   * Kept for API compat with graph.service.ts which calls this on mutations.
+   * v3.0 §13.2: Now actually invalidates the 60-second adjacency cache
+   * (previously a no-op). Called by RelationshipsService on every
+   * relationship mutation.
    */
-  invalidateCache(_familyId: string): void {
-    // No-op — loadFamilyGraph always reads from DB
+  invalidateCache(familyId: string): void {
+    if (this.adjacencyCache.has(familyId)) {
+      this.adjacencyCache.delete(familyId);
+      this.logger.debug(`Adjacency cache invalidated for family ${familyId}`);
+    }
   }
 
   private async loadFamilyGraph(familyId: string): Promise<{
     persons: PersonRecord[];
     relationships: { id: string; fromId: string; toId: string; relationshipKey: string }[];
   }> {
+    // v3.0 §13.2 — Try the adjacency cache first.
+    const cached = this.adjacencyCache.get(familyId);
+    const now = Date.now();
+    if (cached && cached.expiresAt > now) {
+      // Reconstruct relationships array from cached adjacency? No —
+      // callers (buildAdjacency etc.) only need the adjacency + persons.
+      // We return the cached structure, but the relationships field
+      // is unused downstream once adjacency is built. To keep the
+      // contract stable, we return an empty relationships array and
+      // rely on the cached adjacency.
+      return {
+        persons: cached.persons,
+        relationships: [],
+      };
+    }
+
     const [personRows, relationshipRows] = await Promise.all([
       this.prisma.person.findMany({
         where: { familyId, deletedAt: null },
@@ -437,15 +503,40 @@ export class GraphEngineService {
       }),
     ]);
 
-    return {
-      persons: personRows.map((p) => ({ id: p.id, name: p.name, gender: p.gender })),
-      relationships: relationshipRows.map((r) => ({
-        id: r.id,
-        fromId: r.fromPersonId,
-        toId: r.toPersonId,
-        relationshipKey: r.relationshipKey,
-      })),
-    };
+    const persons = personRows.map((p) => ({ id: p.id, name: p.name, gender: p.gender }));
+    const relationships = relationshipRows.map((r) => ({
+      id: r.id,
+      fromId: r.fromPersonId,
+      toId: r.toPersonId,
+      relationshipKey: r.relationshipKey,
+    }));
+
+    // Build + cache the adjacency for 60s.
+    const adjacency = this.buildAdjacencyFromCacheOrFresh(familyId, relationships);
+    this.adjacencyCache.set(familyId, {
+      adjacency,
+      persons,
+      expiresAt: now + ADJACENCY_CACHE_TTL_MS,
+    });
+
+    return { persons, relationships };
+  }
+
+  /**
+   * v3.0 §13.2 — Build adjacency from the cached structure if available.
+   * Falls through to the inline buildAdjacency when cache is empty.
+   */
+  private buildAdjacencyFromCacheOrFresh(
+    familyId: string,
+    relationships: { fromId: string; toId: string; relationshipKey: string }[],
+  ): Record<string, AdjacencyEntry[]> {
+    // If the cache is fresh, loadFamilyGraph already returned an empty
+    // relationships array; we need to use the cached adjacency directly.
+    const cached = this.adjacencyCache.get(familyId);
+    if (cached && cached.expiresAt > Date.now() && cached.adjacency) {
+      return cached.adjacency;
+    }
+    return this.buildAdjacency(relationships);
   }
 
   // ── Private: Adjacency List ─────────────────────────────────────────
@@ -511,7 +602,176 @@ export class GraphEngineService {
 
   // ── Private: BFS ────────────────────────────────────────────────────
 
+  /**
+   * v3.0 §3.3 — Find the SHORTEST path between two persons.
+   *
+   * When multiple shortest paths of equal length exist, applies the
+   * deterministic priority: blood > adoptive > step > inLaw.
+   *
+   * Algorithm: standard BFS to discover the shortest distance, then a
+   * second pass to enumerate all shortest paths of that exact length,
+   * then pick the one with the lowest path-priority score.
+   *
+   * Cycle detection is enabled throughout. Max traversal depth = 8.
+   */
   private findShortestPath(
+    fromId: string,
+    toId: string,
+    adjacency: Record<string, AdjacencyEntry[]>,
+  ): BfsResult | null {
+    // Phase 1: standard BFS to find the shortest distance.
+    // (We also collect each reachable node's distance from `fromId`.)
+    const dist = new Map<string, number>();
+    dist.set(fromId, 0);
+    const queue: string[] = [fromId];
+    let shortestDistance = -1;
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const d = dist.get(current) ?? 0;
+
+      if (current === toId && d > 0) {
+        shortestDistance = d;
+        break;
+      }
+
+      if (d >= MAX_DEPTH) continue;
+
+      const neighbors = adjacency[current] || [];
+      for (const n of neighbors) {
+        if (dist.has(n.neighborId)) continue;
+        dist.set(n.neighborId, d + 1);
+        queue.push(n.neighborId);
+      }
+    }
+
+    if (shortestDistance <= 0) return null;
+
+    // Phase 2: DFS-enumerate all paths of length === shortestDistance
+    // from `fromId` to `toId`. Cap the enumeration to prevent
+    // pathological blow-ups on dense graphs.
+    const allPaths: TraversePrimitive[][] = [];
+    const allVisited: string[][] = [];
+    const MAX_ENUMERATED_PATHS = 64;
+    this.enumerateAllShortestPaths(
+      fromId,
+      toId,
+      adjacency,
+      dist,
+      shortestDistance,
+      [],
+      [fromId],
+      new Set<string>([fromId]),
+      allPaths,
+      allVisited,
+      MAX_ENUMERATED_PATHS,
+    );
+
+    if (allPaths.length === 0) {
+      // Fallback to single-path BFS if enumeration failed (shouldn't happen,
+      // but defensive).
+      return this.findShortestPathSimple(fromId, toId, adjacency);
+    }
+
+    // Phase 3: pick the path with the lowest priority score.
+    // blood (0) > adoptive (1) > step (2) > inLaw (3).
+    // Ties broken by lexical ordering of the path pattern for determinism.
+    let bestIdx = 0;
+    let bestPriority = pathPriority(allPaths[0]);
+    let bestPattern = allPaths[0].join('_');
+    for (let i = 1; i < allPaths.length; i++) {
+      const p = pathPriority(allPaths[i]);
+      const pat = allPaths[i].join('_');
+      if (
+        p < bestPriority ||
+        (p === bestPriority && pat < bestPattern)
+      ) {
+        bestIdx = i;
+        bestPriority = p;
+        bestPattern = pat;
+      }
+    }
+
+    return {
+      path: allPaths[bestIdx],
+      visitedNodes: allVisited[bestIdx],
+    };
+  }
+
+  /**
+   * Enumerate all paths of length === targetDistance from `current` to `target`.
+   * Uses distance map from Phase 1 to prune any step that doesn't reduce
+   * distance to target by exactly 1 (so we only walk along shortest paths).
+   */
+  private enumerateAllShortestPaths(
+    current: string,
+    target: string,
+    adjacency: Record<string, AdjacencyEntry[]>,
+    dist: Map<string, number>,
+    targetDistance: number,
+    pathSoFar: TraversePrimitive[],
+    visitedSoFar: string[],
+    visitedSet: Set<string>,
+    outPaths: TraversePrimitive[][],
+    outVisited: string[][],
+    cap: number,
+  ): void {
+    if (outPaths.length >= cap) return;
+
+    if (pathSoFar.length === targetDistance) {
+      if (current === target) {
+        outPaths.push([...pathSoFar]);
+        outVisited.push([...visitedSoFar]);
+      }
+      return;
+    }
+
+    if (pathSoFar.length > targetDistance) return;
+
+    const neighbors = adjacency[current] || [];
+    for (const n of neighbors) {
+      if (visitedSet.has(n.neighborId)) continue;
+
+      // v3.0 §3.2 — Only follow edges that lead to nodes which are
+      // exactly one step closer to the target (per the BFS distance map).
+      // This prunes any detour and keeps enumeration bounded.
+      const expectedDist = (dist.get(current) ?? 0) + 1;
+      const neighborDist = dist.get(n.neighborId) ?? Infinity;
+      if (neighborDist !== expectedDist) continue;
+
+      // Also require: neighbor must be on a path that can still reach target
+      // within the remaining distance budget. Since BFS distance is the
+      // shortest from `fromId`, and target distance is `targetDistance`,
+      // the only valid neighbors are those whose dist === expectedDist.
+      visitedSet.add(n.neighborId);
+      pathSoFar.push(n.primitive);
+      visitedSoFar.push(n.neighborId);
+
+      this.enumerateAllShortestPaths(
+        n.neighborId,
+        target,
+        adjacency,
+        dist,
+        targetDistance,
+        pathSoFar,
+        visitedSoFar,
+        visitedSet,
+        outPaths,
+        outVisited,
+        cap,
+      );
+
+      pathSoFar.pop();
+      visitedSoFar.pop();
+      visitedSet.delete(n.neighborId);
+    }
+  }
+
+  /**
+   * Fallback single-path BFS — used when path enumeration fails for
+   * some reason. Identical to the pre-v3.0 algorithm.
+   */
+  private findShortestPathSimple(
     fromId: string,
     toId: string,
     adjacency: Record<string, AdjacencyEntry[]>,

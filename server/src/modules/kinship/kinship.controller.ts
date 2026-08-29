@@ -1,15 +1,22 @@
 import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { KinshipService } from './kinship.service';
 import { KinshipQueryDto } from './dto/kinship-query.dto';
 import { GraphEngineService, KinshipSignature } from '../graph/graph-engine.service';
+import { CanonicalIdService, CanonicalResolution } from './canonical-id.service';
+import { RelationshipNormalizerService, NormalizationResult } from './relationship-normalizer.service';
 
+@ApiTags('kinship')
 @Controller('v1/kinship')
 @UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 export class KinshipController {
   constructor(
     private readonly kinshipService: KinshipService,
     private readonly graphEngineService: GraphEngineService,
+    private readonly canonicalIdService: CanonicalIdService,
+    private readonly normalizerService: RelationshipNormalizerService,
   ) {}
 
   @Get()
@@ -116,11 +123,6 @@ export class KinshipController {
   /**
    * v4.1: GET /v1/kinship/vocab/browse
    * Browse the full 9,552-row vocabulary (replaces the 51-entry array).
-   *
-   * Query params:
-   *   lang      — ISO 639-1 language code (default: en)
-   *   category  — filter by category (direct_ancestor, sibling, cousin, in_law, ...)
-   *   limit     — max results (default: 100, max: 1000)
    */
   @Get('vocab/browse')
   async vocabBrowse(
@@ -143,5 +145,155 @@ export class KinshipController {
   @Get('vocab/stats')
   async vocabStats() {
     return this.kinshipService.vocabularyStats();
+  }
+
+  // ── v3.0 NEW ENDPOINTS (spec §4 + §8 + §10) ──────────────────────────
+
+  /**
+   * v3.0 §4: GET /v1/kinship/canonical
+   * Maps a user-input kinship term to its Canonical Relationship ID.
+   *
+   * Query: term (e.g. "appa"), locale (e.g. "ta")
+   * Returns: CanonicalResolution with canonicalId + direction + englishLabel
+   */
+  @Get('canonical')
+  async canonicalize(
+    @Query('term') term: string,
+    @Query('locale') locale: string = 'en',
+  ): Promise<CanonicalResolution> {
+    return this.canonicalIdService.normalizeToCanonical(term, locale);
+  }
+
+  /**
+   * v3.0 §8: GET /v1/kinship/normalize
+   * Maps a user-input kinship term to the fundamental edge to store.
+   *
+   * Query: term (e.g. "wife"), locale (e.g. "en")
+   * Returns: NormalizationResult with fundamentalEdge + direction + isDerived
+   *          For derived terms, missingEdges describes what to add instead.
+   */
+  @Get('normalize')
+  async normalize(
+    @Query('term') term: string,
+    @Query('locale') locale: string = 'en',
+  ): Promise<NormalizationResult> {
+    return this.normalizerService.normalize(term, locale);
+  }
+
+  /**
+   * v3.0 §10: GET /v1/kinship/auto-detect
+   * Auto-detect the relationship between two persons in a family.
+   *
+   * Implements the full auto-detection workflow:
+   *   1. Build shortest path (BFS, max depth 8) between personA and personB.
+   *   2. Build KinshipSignature from the path.
+   *   3. Resolve the term via Vocabulary Mapper.
+   *   4. Normalize to fundamental edge (if applicable).
+   *   5. Return detected relationship + suggested storage action.
+   *
+   * If the path doesn't exist (insufficient graph info), returns the
+   * list of fundamental edges the user can pick from to start linking.
+   */
+  @Get('auto-detect')
+  async autoDetect(
+    @Query('familyId') familyId: string,
+    @Query('personAId') personAId: string,
+    @Query('personBId') personBId: string,
+    @Query('locale') locale: string = 'en',
+  ) {
+    if (personAId === personBId) {
+      return {
+        detected: false,
+        self: true,
+        message: 'Cannot auto-detect a self-relationship.',
+        suggestedEdges: this.normalizerService.listFundamentalEdges(),
+      };
+    }
+
+    // Step 1-2: Find shortest path + build signature
+    const pathResult = await this.graphEngineService.findPath(
+      familyId,
+      personAId,
+      personBId,
+    );
+
+    if (!pathResult.found || !pathResult.signature) {
+      return {
+        detected: false,
+        self: false,
+        message: 'Insufficient graph information to auto-detect a relationship. Please pick a fundamental edge to add.',
+        suggestedEdges: this.normalizerService.listFundamentalEdges(),
+        canonicalIds: this.canonicalIdService.listFundamentalCanonicalIds(),
+        supportedLocales: this.canonicalIdService.listSupportedLocales(),
+      };
+    }
+
+    // Step 3: Resolve term via Vocabulary Mapper (or engine fallback)
+    let term = pathResult.result?.term ?? 'Unknown';
+    let termFallback = true;
+    if (locale && locale !== 'en') {
+      const vocabResult = await this.kinshipService.resolveSignature(
+        pathResult.signature,
+        locale,
+      );
+      if (vocabResult) {
+        term = vocabResult.term;
+        termFallback = false;
+      }
+    } else {
+      // Try English vocab
+      const vocabResult = await this.kinshipService.resolveSignature(
+        pathResult.signature,
+        'en',
+      );
+      if (vocabResult) {
+        term = vocabResult.term;
+        termFallback = false;
+      }
+    }
+
+    // Step 4: Normalize — derive the fundamental edge from the signature
+    const fundamentalEdge = pathResult.signature.pathPattern === 'UP_PARENT' || pathResult.signature.pathPattern === 'DOWN_CHILD'
+      ? 'parent'
+      : pathResult.signature.pathPattern === 'SPOUSE'
+        ? 'spouse'
+        : pathResult.signature.pathPattern === 'UP_ADOPTIVE_PARENT'
+          ? 'adoptive_parent'
+          : pathResult.signature.pathPattern === 'UP_STEP_PARENT'
+            ? 'step_parent'
+            : null;
+
+    // Step 5: Return detected relationship
+    return {
+      detected: true,
+      self: false,
+      term,
+      termEn: pathResult.result?.term ?? 'Unknown',
+      termFallback,
+      fundamentalEdge,
+      isDerived: fundamentalEdge === null,
+      direction:
+        pathResult.signature.pathPattern === 'DOWN_CHILD' ? 'reverse'
+          : pathResult.signature.pathPattern === 'SPOUSE' ? 'bidirectional'
+          : 'forward',
+      signature: pathResult.signature,
+      path: pathResult.path,
+      distance: pathResult.distance,
+      suggestedAction: fundamentalEdge
+        ? `Add a ${fundamentalEdge} edge from person A to person B to store this relationship.`
+        : 'This is a derived relationship — add the underlying fundamental edges (parent/spouse) and the engine will derive this term automatically.',
+    };
+  }
+
+  /**
+   * v3.0 §4: GET /v1/kinship/canonical/languages
+   * Returns the list of locales supported by the canonical ID layer.
+   */
+  @Get('canonical/languages')
+  async canonicalLanguages() {
+    return {
+      locales: this.canonicalIdService.listSupportedLocales(),
+      canonicalIds: this.canonicalIdService.listFundamentalCanonicalIds(),
+    };
   }
 }

@@ -13,6 +13,9 @@ import { KinrelGateway } from '../gateway/kinrel.gateway';
 import { CreateRelationshipDto } from './dto/create-relationship.dto';
 import { GraphService } from '../graph/graph.service';
 import { GraphEngineService } from '../graph/graph-engine.service';
+import { RelationshipValidator } from './relationship.validator';
+import { RelationshipNormalizerService } from '../kinship/relationship-normalizer.service';
+import { CanonicalIdService } from '../kinship/canonical-id.service';
 import { Prisma } from '@prisma/client';
 
 const ROLE_HIERARCHY: Record<string, number> = {
@@ -22,12 +25,46 @@ const ROLE_HIERARCHY: Record<string, number> = {
   admin: 4,
 };
 
-// Core relationship types — only these should be stored in the database
-// Extended types are computed dynamically by GraphEngineService
+// v3.0 §2 — Allowed relationship keys for storage.
+// Includes the four fundamental canonical IDs (parent, spouse,
+// adoptive_parent, step_parent) PLUS the legacy gendered keys
+// (father/mother/son/daughter/husband/wife/brother/sister) for
+// backward compatibility. All legacy keys are normalized to a
+// canonical ID via the RelationshipNormalizerService before storage.
 const ALLOWED_CORE_KEYS = new Set([
+  // v3.0 canonical IDs (preferred)
+  'parent', 'spouse', 'adoptive_parent', 'step_parent',
+  // Legacy gendered keys (still accepted for backward compat)
   'father', 'mother', 'son', 'daughter',
   'brother', 'sister', 'husband', 'wife',
 ]);
+
+// v3.0 §2 — Map legacy keys to their canonical ID (for edgeType column).
+// Returns the EdgeType enum string for Prisma. Falls back to PARENT for
+// anything not explicitly mapped (defensive — should not happen).
+const KEY_TO_CANONICAL_ID: Record<string, 'PARENT' | 'SPOUSE' | 'ADOPTIVE_PARENT' | 'STEP_PARENT'> = {
+  parent: 'PARENT',
+  father: 'PARENT',
+  mother: 'PARENT',
+  son: 'PARENT',
+  daughter: 'PARENT',
+  spouse: 'SPOUSE',
+  husband: 'SPOUSE',
+  wife: 'SPOUSE',
+  adoptive_parent: 'ADOPTIVE_PARENT',
+  step_parent: 'STEP_PARENT',
+};
+
+// v3.0 §2 — Map a normalized canonical ID to the legacy relationshipKey
+// the UI uses for the forward direction. (Spouse stays 'spouse'; parent
+// direction uses 'father'/'mother' depending on the from-person's gender,
+// but for storage we just use 'parent' as the canonical key.)
+const CANONICAL_TO_KEY: Record<string, string> = {
+  PARENT: 'parent',
+  SPOUSE: 'spouse',
+  ADOPTIVE_PARENT: 'adoptive_parent',
+  STEP_PARENT: 'step_parent',
+};
 
 const INVERSE_RELATIONSHIP_MAP: Record<string, (toGender?: string | null) => string> = {
   father: (toGender) => toGender === 'female' ? 'daughter' : 'son',
@@ -39,6 +76,11 @@ const INVERSE_RELATIONSHIP_MAP: Record<string, (toGender?: string | null) => str
   wife: () => 'husband',
   brother: (toGender) => toGender === 'female' ? 'sister' : 'brother',
   sister: (toGender) => toGender === 'female' ? 'sister' : 'brother',
+  // v3.0 canonical IDs — inverses are symmetric (per spec §11)
+  parent: () => 'parent',
+  spouse: () => 'spouse',
+  adoptive_parent: () => 'adoptive_parent',
+  step_parent: () => 'step_parent',
   grandfather: (toGender) => toGender === 'female' ? 'granddaughter' : 'grandson',
   grandmother: (toGender) => toGender === 'female' ? 'granddaughter' : 'grandson',
   grandson: () => 'grandfather',
@@ -87,6 +129,12 @@ export class RelationshipsService {
     private graphService: GraphService,
     @Inject(forwardRef(() => GraphEngineService))
     private graphEngineService: GraphEngineService,
+    @Inject(forwardRef(() => RelationshipValidator))
+    private readonly validator: RelationshipValidator,
+    @Inject(forwardRef(() => RelationshipNormalizerService))
+    private readonly normalizer: RelationshipNormalizerService,
+    @Inject(forwardRef(() => CanonicalIdService))
+    private readonly canonicalIdService: CanonicalIdService,
   ) {}
 
   /** Creates a bidirectional relationship between two persons in the family. */
@@ -97,7 +145,31 @@ export class RelationshipsService {
       throw new BadRequestException('Cannot create a self-relationship');
     }
 
-    // Validate: only core relationship types are allowed for new relationships
+    // v3.0 §8 — Normalize the input term via the Relationship Normalizer.
+    // This catches derived terms (grandfather, uncle, cousin) and asks the
+    // user for the underlying fundamental edge instead.
+    const normalized = this.normalizer.normalize(dto.relationshipKey, 'en');
+    if (normalized.isUnknown) {
+      throw new BadRequestException(
+        `Unrecognized relationship term "${dto.relationshipKey}". ` +
+        `Allowed: parent, spouse, adoptive_parent, step_parent ` +
+        `(or legacy: father, mother, son, daughter, husband, wife, brother, sister).`,
+      );
+    }
+    if (normalized.isDerived) {
+      // Spec §8.2: trace back to the missing fundamental edge and tell the
+      // user what to add instead.
+      const missingList = normalized.missingEdges
+        .map(m => `${m.edge} (${m.note})`)
+        .join('; ');
+      throw new BadRequestException(
+        `"${dto.relationshipKey}" is a DERIVED relationship — the engine ` +
+        `computes it automatically once the underlying fundamental edges ` +
+        `exist. Please add: ${missingList}`,
+      );
+    }
+
+    // Validate: only fundamental + legacy core keys are allowed for new relationships
     // Extended types (grandfather, uncle, etc.) are computed dynamically by GraphEngineService
     if (!ALLOWED_CORE_KEYS.has(dto.relationshipKey)) {
       throw new BadRequestException(
@@ -122,6 +194,24 @@ export class RelationshipsService {
       throw new NotFoundException('Target person not found in this family');
     }
 
+    // v3.0 §12 — Run the validator (circular ancestry, invalid spouse,
+    // contradictory, etc.). Uses a snapshot of existing edges.
+    const existingEdges = await this.prisma.relationship.findMany({
+      where: { familyId, isActive: true },
+      select: { fromPersonId: true, toPersonId: true, relationshipKey: true },
+    });
+    this.validator.validateOrThrow({
+      familyId,
+      fromPersonId: dto.fromPersonId,
+      toPersonId: dto.toPersonId,
+      edge: normalized.fundamentalEdge ?? 'parent',
+      existingEdges: existingEdges.map(e => ({
+        fromPersonId: e.fromPersonId,
+        toPersonId: e.toPersonId,
+        edge: e.relationshipKey,
+      })),
+    });
+
     const existingForward = await this.prisma.relationship.findFirst({
       where: {
         familyId,
@@ -136,6 +226,7 @@ export class RelationshipsService {
     }
 
     const inverseKey = getInverseKey(dto.relationshipKey, toPerson.gender);
+    const edgeTypeEnum = KEY_TO_CANONICAL_ID[dto.relationshipKey] ?? 'PARENT';
 
     const result = await this.prisma.$transaction(async (tx) => {
       const forward = await tx.relationship.create({
@@ -144,6 +235,8 @@ export class RelationshipsService {
           fromPersonId: dto.fromPersonId,
           toPersonId: dto.toPersonId,
           relationshipKey: dto.relationshipKey,
+          // v3.0 §2: store the canonical edge type (PARENT | SPOUSE | ADOPTIVE_PARENT | STEP_PARENT)
+          edgeType: edgeTypeEnum,
           direction: 'from',
           isActive: true,
         },
@@ -155,6 +248,8 @@ export class RelationshipsService {
           fromPersonId: dto.toPersonId,
           toPersonId: dto.fromPersonId,
           relationshipKey: inverseKey,
+          // v3.0 §2 + §11: the inverse edge shares the same edge type
+          edgeType: edgeTypeEnum,
           direction: 'from',
           isActive: true,
         },
@@ -271,6 +366,9 @@ export class RelationshipsService {
 
     // Invalidate Redis flat graph cache so next fetch reflects new relationship
     await this.graphService.invalidateFlatGraphCache(familyId);
+    // v3.0 §13.2: invalidate the in-memory adjacency cache so the next
+    // graph traversal reflects the new edge.
+    this.graphEngineService.invalidateCache(familyId);
 
     return this.formatRelationship(result);
   }
@@ -386,6 +484,9 @@ export class RelationshipsService {
 
     // Invalidate Redis flat graph cache so next fetch reflects deleted relationship
     await this.graphService.invalidateFlatGraphCache(familyId);
+    // v3.0 §13.2: invalidate the in-memory adjacency cache so the next
+    // graph traversal reflects the deleted edge.
+    this.graphEngineService.invalidateCache(familyId);
 
     return { deleted: true, relationshipId };
   }
