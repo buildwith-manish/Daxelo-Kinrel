@@ -136,6 +136,44 @@ class TreePainter extends CustomPainter {
     }
   }
 
+  /// v5.126: Adapter-based paint for the PDF exporter.
+  ///
+  /// Same connector geometry as [paint], but writes to a [TreeCanvasAdapter]
+  /// instead of a Flutter `Canvas`. The PDF exporter wraps a `PdfGraphics`
+  /// in a `PdfTreeCanvasAdapter` and calls this method to produce a
+  /// vector PDF — pixel-crisp at any zoom, no rasterization.
+  ///
+  /// Public so the exporter (in a sibling file) can call it without
+  /// duplicating the connector-drawing logic.
+  void paintToAdapter(TreeCanvasAdapter adapter) {
+    if (positions.isEmpty || edges.isEmpty) return;
+
+    const focusColor = Color(0xFFFFB547);
+
+    for (final edge in edges) {
+      final fromPos = positions[edge.fromId];
+      final toPos = positions[edge.toId];
+      if (fromPos == null || toPos == null) continue;
+      if (hiddenPersonIds.contains(edge.fromId) ||
+          hiddenPersonIds.contains(edge.toId)) {
+        continue;
+      }
+
+      final touchesFocus = focusedPersonId != null &&
+          (focusedPersonId == edge.fromId || focusedPersonId == edge.toId);
+      final lineColor = touchesFocus ? focusColor : color;
+      final lineStroke = touchesFocus ? strokeWidth * 1.6 : strokeWidth;
+
+      final key = edge.relationshipKey.toLowerCase();
+
+      if (_spouseKeys.contains(key)) {
+        _drawSpouseConnectorAdapter(adapter, fromPos, toPos, lineColor, lineStroke);
+      } else if (_parentKeys.contains(key) || _childKeys.contains(key)) {
+        _drawParentChildConnectorAdapter(adapter, fromPos, toPos, lineColor, lineStroke);
+      }
+    }
+  }
+
   /// Draws a horizontal line between two same-row spouses. The line
   /// terminates at each node's horizontal edge (not the center).
   void _drawSpouseConnector(
@@ -171,6 +209,46 @@ class TreePainter extends CustomPainter {
         Offset(midX, to.dy),
         Offset(to.dx - halfWidth, to.dy),
         paint,
+      );
+    }
+  }
+
+  /// v5.126: Adapter-based variant of [_drawSpouseConnector] for the PDF
+  /// exporter. Mirrors the geometry exactly so PDF + screen match.
+  void _drawSpouseConnectorAdapter(
+    TreeCanvasAdapter adapter,
+    Offset from,
+    Offset to,
+    Color color,
+    double strokeWidth,
+  ) {
+    final halfWidth = nodeSize.width / 2;
+    if ((from.dy - to.dy).abs() < 1.0) {
+      adapter.drawLine(
+        Offset(from.dx + halfWidth, from.dy),
+        Offset(to.dx - halfWidth, to.dy),
+        color,
+        strokeWidth,
+      );
+    } else {
+      final midX = (from.dx + to.dx) / 2;
+      adapter.drawLine(
+        Offset(from.dx + halfWidth, from.dy),
+        Offset(midX, from.dy),
+        color,
+        strokeWidth,
+      );
+      adapter.drawLine(
+        Offset(midX, from.dy),
+        Offset(midX, to.dy),
+        color,
+        strokeWidth,
+      );
+      adapter.drawLine(
+        Offset(midX, to.dy),
+        Offset(to.dx - halfWidth, to.dy),
+        color,
+        strokeWidth,
       );
     }
   }
@@ -237,6 +315,59 @@ class TreePainter extends CustomPainter {
     );
   }
 
+  /// v5.126: Adapter-based variant of [_drawParentChildConnector] for the
+  /// PDF exporter. Mirrors the geometry exactly so PDF + screen match.
+  void _drawParentChildConnectorAdapter(
+    TreeCanvasAdapter adapter,
+    Offset from,
+    Offset to,
+    Color color,
+    double strokeWidth,
+  ) {
+    final halfHeight = nodeSize.height / 2;
+
+    final Offset parent;
+    final Offset child;
+    if (from.dy <= to.dy) {
+      parent = from;
+      child = to;
+    } else {
+      parent = to;
+      child = from;
+    }
+
+    if ((parent.dx - child.dx).abs() < 1.0) {
+      adapter.drawLine(
+        Offset(parent.dx, parent.dy + halfHeight),
+        Offset(child.dx, child.dy - halfHeight),
+        color,
+        strokeWidth,
+      );
+      return;
+    }
+
+    final midY = (parent.dy + child.dy) / 2;
+
+    adapter.drawLine(
+      Offset(parent.dx, parent.dy + halfHeight),
+      Offset(parent.dx, midY),
+      color,
+      strokeWidth,
+    );
+    adapter.drawLine(
+      Offset(parent.dx, midY),
+      Offset(child.dx, midY),
+      color,
+      strokeWidth,
+    );
+    adapter.drawLine(
+      Offset(child.dx, midY),
+      Offset(child.dx, child.dy - halfHeight),
+      color,
+      strokeWidth,
+    );
+  }
+
   @override
   bool shouldRepaint(covariant TreePainter oldDelegate) {
     return oldDelegate.positions != positions ||
@@ -246,5 +377,43 @@ class TreePainter extends CustomPainter {
         oldDelegate.nodeSize != nodeSize ||
         oldDelegate.color != color ||
         oldDelegate.strokeWidth != strokeWidth;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v5.126: Canvas adapter — abstraction over Flutter's `Canvas` and the
+// `pdf` package's `PdfGraphics`. Lets the same TreePainter draw to both
+// screen (raster) and PDF (vector) without duplicating connector geometry.
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Minimal canvas abstraction used by [TreePainter.paintToAdapter].
+///
+/// Two implementations:
+///   - [FlutterTreeCanvasAdapter] wraps a Flutter `Canvas` (used by the
+///     in-app Tree view — preserves the existing `CustomPainter.paint`
+///     codepath, no behavior change).
+///   - [PdfTreeCanvasAdapter] wraps a `PdfGraphics` (used by the PDF
+///     exporter in `tree_pdf_exporter.dart`).
+abstract class TreeCanvasAdapter {
+  /// Draw a single line segment from [from] to [to] with the given
+  /// [color] and [strokeWidth]. Both coordinates are in the layout's
+  /// canonical space (origin top-left, Y increases downward).
+  void drawLine(Offset from, Offset to, Color color, double strokeWidth);
+}
+
+/// Adapter that writes to a Flutter `Canvas` (the in-app Tree view).
+class FlutterTreeCanvasAdapter implements TreeCanvasAdapter {
+  FlutterTreeCanvasAdapter(this._canvas);
+
+  final Canvas _canvas;
+
+  @override
+  void drawLine(Offset from, Offset to, Color color, double strokeWidth) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    _canvas.drawLine(from, to, paint);
   }
 }

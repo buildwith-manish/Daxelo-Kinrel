@@ -22,6 +22,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:printing/printing.dart';
 
 import '../../core/constants/brand_colors.dart';
 import '../../core/services/graph_layout_service.dart';
@@ -35,6 +36,7 @@ import '../engine/hierarchical_layout.dart';
 import '../interaction/branch_collapse_state.dart' show branchCollapseProvider;
 import '../interaction/graph_focus_state.dart' show graphFocusProvider;
 import '../rendering/tree_painter.dart';
+import '../rendering/tree_pdf_exporter.dart';
 
 /// The size of a Tree node tile (avatar + name). Both layout + painter
 /// must agree on this number so connectors terminate at the node edge.
@@ -230,16 +232,35 @@ class _FamilyTreeViewState extends ConsumerState<FamilyTreeView> {
         final visiblePositions = Map<String, Offset>.from(positions)
           ..removeWhere((id, _) => hiddenIds.contains(id));
 
-        return _TreeCanvas(
-          positions: visiblePositions,
-          edges: edges,
-          hiddenPersonIds: hiddenIds,
-          focusedPersonId: focusState.focusedPersonId,
-          selectedPersonId: selectedId,
-          persons: tree.persons,
-          transformController: _transformController,
-          onTapNode: _onTapNode,
-          onLongPressNode: _onLongPressNode,
+        return Stack(
+          children: [
+            // The Tree canvas itself — fills the available area.
+            _TreeCanvas(
+              positions: visiblePositions,
+              edges: edges,
+              hiddenPersonIds: hiddenIds,
+              focusedPersonId: focusState.focusedPersonId,
+              selectedPersonId: selectedId,
+              persons: tree.persons,
+              transformController: _transformController,
+              onTapNode: _onTapNode,
+              onLongPressNode: _onLongPressNode,
+            ),
+
+            // v5.126: "Export to PDF" FAB — bottom-right.
+            // Generates a vector PDF by re-running HierarchicalLayout +
+            // TreePainter against a PdfCanvas. Paginated by generation
+            // row. Pixel-crisp at any zoom (no rasterization).
+            Positioned(
+              right: 16,
+              bottom: (MediaQuery.of(context).padding.bottom + 80),
+              child: _ExportPdfFab(
+                familyId: widget.familyId,
+                persons: tree.persons,
+                relationships: tree.relationships,
+              ),
+            ),
+          ],
         );
       },
     );
@@ -637,6 +658,134 @@ class _TreeNode extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v5.126: EXPORT-TO-PDF FAB
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Floating action button that exports the current family tree to a
+/// vector PDF (paginated by generation row).
+///
+/// Pipeline:
+///   1. Convert tree.persons (List<Map<String, dynamic>>) → List<GraphPerson>
+///   2. Convert tree.relationships → List<GraphRelationship>
+///   3. Call TreePdfExporter.export() → Uint8List
+///   4. Hand the bytes to Printing.sharePdf() (native platform share sheet)
+///
+/// The exporter RE-RUNS HierarchicalLayout + TreePainter against a
+/// PdfCanvas — it does NOT screenshot the phone screen. So the PDF is:
+///   - Vector (pixel-crisp at any zoom)
+///   - Paginated by generation row
+///   - Always shows the WHOLE tree (not just the visible subset)
+class _ExportPdfFab extends StatefulWidget {
+  const _ExportPdfFab({
+    required this.familyId,
+    required this.persons,
+    required this.relationships,
+  });
+
+  final String familyId;
+  final List<Map<String, dynamic>> persons;
+  final List<Map<String, dynamic>> relationships;
+
+  @override
+  State<_ExportPdfFab> createState() => _ExportPdfFabState();
+}
+
+class _ExportPdfFabState extends State<_ExportPdfFab> {
+  bool _isExporting = false;
+
+  Future<void> _export() async {
+    if (_isExporting) return;
+    setState(() => _isExporting = true);
+
+    try {
+      // Convert the tree data to the typed objects the exporter expects.
+      final graphPersons = <GraphPerson>[];
+      String? viewerId;
+      for (final p in widget.persons) {
+        final id = (p['id'] ?? '').toString();
+        if ((p['isViewer'] as bool?) ?? false) viewerId = id;
+        graphPersons.add(GraphPerson(
+          id: id,
+          name: (p['name'] ?? '').toString(),
+          gender: p['gender'] as String?,
+          generationIndex: (p['generationIndex'] as int?) ?? 0,
+          isAnchor: (p['isAnchor'] as bool?) ?? false,
+          photoUrl: p['photoUrl'] as String?,
+          isDeceased: (p['isDeceased'] as bool?) ?? false,
+        ));
+      }
+
+      final graphRels = <GraphRelationship>[];
+      for (final r in widget.relationships) {
+        graphRels.add(GraphRelationship(
+          id: (r['id'] ?? '').toString(),
+          fromPersonId: (r['fromPersonId'] ?? '').toString(),
+          toPersonId: (r['toPersonId'] ?? '').toString(),
+          relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
+        ));
+      }
+
+      // Run the export (async — pdf.save() returns a Future).
+      // We use a await Future.delayed(Duration.zero) to let the
+      // "Exporting..." spinner paint before the (possibly slow)
+      // layout + PDF generation runs on the UI isolate.
+      await Future.delayed(Duration.zero);
+
+      final exporter = TreePdfExporter();
+      final bytes = await exporter.export(
+        persons: graphPersons,
+        relationships: graphRels,
+        anchorPersonId: viewerId,
+        familyName: 'Kinrel Family',
+      );
+
+      if (!mounted) return;
+
+      // Hand the bytes to the platform share sheet.
+      // filename: familyId-pageroots-TIMESTAMP.pdf so each export is unique.
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'kinrel-tree-${widget.familyId.substring(0, 8)}.pdf',
+        subject: 'Kinrel Family Tree',
+      );
+    } catch (e, st) {
+      debugPrint('[ExportPdf] error: $e\n$st');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Export failed: $e'),
+          backgroundColor: KinrelColors.darkCard,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FloatingActionButton.small(
+      heroTag: 'tree_export_pdf_${widget.familyId}',
+      backgroundColor: KinrelColors.darkCard,
+      foregroundColor: KinrelColors.orange,
+      elevation: 4,
+      onPressed: _isExporting ? null : _export,
+      tooltip: 'Export to PDF',
+      child: _isExporting
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: KinrelColors.orange,
+              ),
+            )
+          : const Icon(Icons.picture_as_pdf_outlined, size: 20),
     );
   }
 }

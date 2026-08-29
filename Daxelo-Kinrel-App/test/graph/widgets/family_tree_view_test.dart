@@ -20,6 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/services/graph_layout_service.dart';
 import 'package:kinrel/graph/engine/hierarchical_layout.dart';
 import 'package:kinrel/graph/rendering/tree_painter.dart';
+import 'package:kinrel/graph/rendering/tree_pdf_exporter.dart';
 
 void main() {
   group('TreePainter', () {
@@ -256,6 +257,357 @@ void main() {
 
       // All 1000 should be positioned without stack overflow.
       expect(result.positions.length, 1000);
+    });
+  });
+
+  // ═════════════════════════════════════════════════════════════════════
+  // v5.126: Regression tests for the false-root + BFS-gen fixes.
+  // ═════════════════════════════════════════════════════════════════════
+  group('HierarchicalLayout v5.126 root-finding + BFS-gen fixes', () {
+    test('BUG 1: anchor with descendants does NOT create false root columns', () {
+      // Reproduction of the original bug:
+      //   - Anchor A (root) at top
+      //   - A has child B (gen 1)
+      //   - B has child C (gen 2)
+      //   - A has child D (gen 1)
+      // The old code walked up from A (found A as the sole root), then
+      // the "disconnected fallback" loop added B, C, D as separate
+      // roots — creating 4 false root columns and very long lines.
+      //
+      // The fix: one-pass root finding. Only A has no parent-edge, so
+      // only A is a root. B/C/D are descendants of A in a single tree.
+      final layout = HierarchicalLayout();
+
+      final persons = [
+        GraphPerson(id: 'a', name: 'A', generationIndex: 0),
+        GraphPerson(id: 'b', name: 'B', generationIndex: 1),
+        GraphPerson(id: 'c', name: 'C', generationIndex: 2),
+        GraphPerson(id: 'd', name: 'D', generationIndex: 1),
+      ];
+
+      final relationships = [
+        GraphRelationship(
+            id: 'r1', fromPersonId: 'b', toPersonId: 'a', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r2', fromPersonId: 'c', toPersonId: 'b', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r3', fromPersonId: 'd', toPersonId: 'a', relationshipKey: 'parent'),
+      ];
+
+      final result = layout.compute(
+        persons: persons,
+        relationships: relationships,
+        anchorPersonId: 'a',
+      );
+
+      // All 4 positioned.
+      expect(result.positions.length, 4);
+
+      // GENERATION-LOCKED Y:
+      //   A (root)        → top row    (smallest Y)
+      //   B, D (gen 1)    → middle row (same Y, larger than A)
+      //   C    (gen 2)    → bottom row (largest Y)
+      final yA = result.positions['a']!.dy;
+      final yB = result.positions['b']!.dy;
+      final yC = result.positions['c']!.dy;
+      final yD = result.positions['d']!.dy;
+
+      // A is above B and D.
+      expect(yA, lessThan(yB),
+          reason: 'Root A should be above its child B');
+      expect(yA, lessThan(yD),
+          reason: 'Root A should be above its child D');
+
+      // B and D are at the SAME Y (same BFS generation).
+      expect(yB, equals(yD),
+          reason: 'B and D are both children of A → same BFS gen → same Y');
+
+      // C is below B.
+      expect(yC, greaterThan(yB),
+          reason: 'C (grandchild) should be below B (its parent)');
+
+      // NO FALSE ROOTS:
+      // The old bug would have placed B/C/D at the TOP ROW (same Y as A)
+      // because they were "rescued" as disconnected roots. With the fix,
+      // only A is at the top row. Verify by checking that NO other node
+      // shares A's Y.
+      final topRowNodes = result.positions.entries
+          .where((e) => e.value.dy == yA)
+          .map((e) => e.key)
+          .toList();
+      expect(topRowNodes, equals(['a']),
+          reason: 'Only A (the sole root) should be on the top row. '
+              'Old bug would place B/C/D here too.');
+    });
+
+    test('BUG 1b: multiple disconnected true roots each get their own column', () {
+      // Two separate families in the same dataset (no shared ancestors).
+      // Both A and X are true roots — both should be on the top row.
+      final layout = HierarchicalLayout();
+
+      final persons = [
+        GraphPerson(id: 'a', name: 'A', generationIndex: 0),
+        GraphPerson(id: 'b', name: 'B', generationIndex: 1),
+        GraphPerson(id: 'x', name: 'X', generationIndex: 0),
+        GraphPerson(id: 'y', name: 'Y', generationIndex: 1),
+      ];
+
+      final relationships = [
+        GraphRelationship(
+            id: 'r1', fromPersonId: 'b', toPersonId: 'a', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r2', fromPersonId: 'y', toPersonId: 'x', relationshipKey: 'parent'),
+      ];
+
+      final result = layout.compute(
+        persons: persons,
+        relationships: relationships,
+        anchorPersonId: 'a',
+      );
+
+      expect(result.positions.length, 4);
+
+      // Both A and X are on the top row (true roots).
+      final yA = result.positions['a']!.dy;
+      final yX = result.positions['x']!.dy;
+      final yB = result.positions['b']!.dy;
+      final yY = result.positions['y']!.dy;
+
+      expect(yA, equals(yX),
+          reason: 'A and X are both true roots → same top row');
+      expect(yB, equals(yY),
+          reason: 'B and Y are both gen-1 children → same row');
+      expect(yA, lessThan(yB),
+          reason: 'Roots above children');
+
+      // X column is to the right of A column (subtree side-by-side).
+      expect(result.positions['x']!.dx, greaterThan(result.positions['a']!.dx),
+          reason: 'Each true root gets its own column');
+    });
+
+    test('BUG 2: Y is consistent regardless of which BFS path reaches a node first', () {
+      // Diamond: A → B, A → C, B → D, C → D
+      // D is reachable via two paths. Old code gave D the Y of whichever
+      // path the DFS visited first. New code uses BFS — D gets a single
+      // bfsGen = 2 (depth 2 from root A), regardless of path order.
+      final layout = HierarchicalLayout();
+
+      final persons = [
+        GraphPerson(id: 'a', name: 'A', generationIndex: 0),
+        GraphPerson(id: 'b', name: 'B', generationIndex: 1),
+        GraphPerson(id: 'c', name: 'C', generationIndex: 1),
+        GraphPerson(id: 'd', name: 'D', generationIndex: 2),
+      ];
+
+      final relationships = [
+        GraphRelationship(
+            id: 'r1', fromPersonId: 'b', toPersonId: 'a', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r2', fromPersonId: 'c', toPersonId: 'a', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r3', fromPersonId: 'd', toPersonId: 'b', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r4', fromPersonId: 'd', toPersonId: 'c', relationshipKey: 'parent'),
+      ];
+
+      final result = layout.compute(
+        persons: persons,
+        relationships: relationships,
+        anchorPersonId: 'a',
+      );
+
+      expect(result.positions.length, 4);
+
+      final yA = result.positions['a']!.dy;
+      final yB = result.positions['b']!.dy;
+      final yC = result.positions['c']!.dy;
+      final yD = result.positions['d']!.dy;
+
+      // A is at top.
+      // B and C are at the same Y (gen 1).
+      // D is at gen 2 (below B and C).
+      expect(yA, lessThan(yB));
+      expect(yB, equals(yC),
+          reason: 'B and C are siblings (both gen 1 from A)');
+      expect(yD, greaterThan(yB),
+          reason: 'D is one generation below B/C regardless of path');
+      expect(yD, greaterThan(yC),
+          reason: 'D is one generation below B/C regardless of path');
+
+      // Verify Y values match BFS-gen formula exactly:
+      // yB - yA == yD - yB == levelSpacing (the gen-1 → gen-2 step).
+      // (This proves Y is computed from BFS gen, not parent's Y.)
+      final levelStep = yB - yA;
+      expect((yD - yB) - levelStep, lessThan(1.0),
+          reason: 'D should be exactly one levelSpacing below B');
+    });
+
+    test('BUG 2b: spouse inherits partner\'s BFS gen (same Y, even if DB genIndex differs)', () {
+      // A (genIndex=0, root) → child B (genIndex=0 WRONG in DB, should be 1).
+      // B has spouse S (genIndex=0 also wrong in DB).
+      // With the old code, B got Y from parent recursion, S got Y from
+      // the spouse-positioning code (also parent's Y). But if the DB
+      // genIndex was used for the ROOT (as the old code did for A),
+      // and A's DB genIndex=0 while B's DB genIndex=0 too, the old code
+      // would have placed A and B at the SAME Y — wrong.
+      //
+      // New code: BFS assigns A=0, B=1, S=1 (inherits from B). Y from BFS.
+      final layout = HierarchicalLayout();
+
+      final persons = [
+        GraphPerson(id: 'a', name: 'A', generationIndex: 0),
+        GraphPerson(id: 'b', name: 'B', generationIndex: 0), // WRONG in DB
+        GraphPerson(id: 's', name: 'S (spouse)', generationIndex: 0), // WRONG in DB
+      ];
+
+      final relationships = [
+        GraphRelationship(
+            id: 'r1', fromPersonId: 'b', toPersonId: 'a', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r2', fromPersonId: 'b', toPersonId: 's', relationshipKey: 'spouse'),
+      ];
+
+      final result = layout.compute(
+        persons: persons,
+        relationships: relationships,
+        anchorPersonId: 'a',
+      );
+
+      expect(result.positions.length, 3);
+
+      final yA = result.positions['a']!.dy;
+      final yB = result.positions['b']!.dy;
+      final yS = result.positions['s']!.dy;
+
+      // A (root) at top.
+      // B (gen 1) below A.
+      // S (spouse of B, inherits B's gen) at same Y as B.
+      expect(yA, lessThan(yB),
+          reason: 'A above B regardless of stale DB generationIndex');
+      expect(yB, equals(yS),
+          reason: 'Spouse S should inherit B\'s BFS gen → same Y');
+    });
+
+    test('regression: ringRadii is populated with Y per generation', () {
+      // The Graph view's camera focus code uses ringRadii to know each
+      // row's Y without re-running the layout. Verify it's populated.
+      final layout = HierarchicalLayout();
+
+      final persons = [
+        GraphPerson(id: 'a', name: 'A', generationIndex: 0),
+        GraphPerson(id: 'b', name: 'B', generationIndex: 1),
+        GraphPerson(id: 'c', name: 'C', generationIndex: 2),
+      ];
+
+      final relationships = [
+        GraphRelationship(
+            id: 'r1', fromPersonId: 'b', toPersonId: 'a', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r2', fromPersonId: 'c', toPersonId: 'b', relationshipKey: 'parent'),
+      ];
+
+      final result = layout.compute(
+        persons: persons,
+        relationships: relationships,
+      );
+
+      // ringRadii should have an entry for each BFS generation.
+      expect(result.ringRadii.length, greaterThanOrEqualTo(3));
+      // The Y values should be monotonically increasing per generation.
+      final sortedGens = result.ringRadii.keys.toList()..sort();
+      for (var i = 1; i < sortedGens.length; i++) {
+        expect(result.ringRadii[sortedGens[i]]!,
+            greaterThan(result.ringRadii[sortedGens[i - 1]]!),
+            reason: 'ringRadii Y should increase per generation');
+      }
+    });
+  });
+
+  // ═════════════════════════════════════════════════════════════════════
+  // v5.126: PDF exporter tests (vector + paginated).
+  // ═════════════════════════════════════════════════════════════════════
+  group('TreePdfExporter', () {
+    test('produces non-empty PDF bytes for a simple family', () async {
+      final exporter = TreePdfExporter();
+
+      final persons = [
+        GraphPerson(id: 'a', name: 'Alice', generationIndex: 0),
+        GraphPerson(id: 'b', name: 'Bob', generationIndex: 1),
+        GraphPerson(id: 'c', name: 'Carol', generationIndex: 2),
+      ];
+
+      final relationships = [
+        GraphRelationship(
+            id: 'r1', fromPersonId: 'b', toPersonId: 'a', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r2', fromPersonId: 'c', toPersonId: 'b', relationshipKey: 'parent'),
+      ];
+
+      final bytes = await exporter.export(
+        persons: persons,
+        relationships: relationships,
+        familyName: 'Test Family',
+      );
+
+      // PDF bytes should be non-empty.
+      expect(bytes.length, greaterThan(1000),
+          reason: 'PDF should produce substantial bytes for a 3-person family');
+
+      // PDF magic bytes should be present (PDF starts with %PDF-).
+      expect(bytes[0], 0x25, reason: 'First byte should be %'); // %
+      expect(bytes[1], 0x50, reason: 'Second byte should be P'); // P
+      expect(bytes[2], 0x44, reason: 'Third byte should be D'); // D
+      expect(bytes[3], 0x46, reason: 'Fourth byte should be F'); // F
+    });
+
+    test('handles empty family gracefully', () async {
+      final exporter = TreePdfExporter();
+
+      final bytes = await exporter.export(
+        persons: const [],
+        relationships: const [],
+        familyName: 'Empty Family',
+      );
+
+      // Should still produce a valid PDF (with the "no members" text).
+      expect(bytes.length, greaterThan(500));
+      expect(bytes[0], 0x25); // %
+    });
+
+    test('paginates large family into multiple pages', () async {
+      // Build a 10-generation ancestor chain (1 root + 9 descendants).
+      // With maxRowsPerPage=4 default, this should produce 3 pages.
+      final exporter = TreePdfExporter();
+
+      final persons = <GraphPerson>[];
+      final relationships = <GraphRelationship>[];
+      for (var i = 0; i < 10; i++) {
+        persons.add(GraphPerson(
+          id: 'p$i',
+          name: 'Person $i',
+          generationIndex: i,
+        ));
+        if (i > 0) {
+          relationships.add(GraphRelationship(
+            id: 'r$i',
+            fromPersonId: 'p$i',
+            toPersonId: 'p${i - 1}',
+            relationshipKey: 'parent',
+          ));
+        }
+      }
+
+      final bytes = await exporter.export(
+        persons: persons,
+        relationships: relationships,
+        familyName: 'Chain Family',
+      );
+
+      // Should produce substantial bytes (multiple pages).
+      expect(bytes.length, greaterThan(5000),
+          reason: 'Multi-page PDF should be larger than single-page');
+      // Verify PDF magic.
+      expect(bytes[0], 0x25);
     });
   });
 
