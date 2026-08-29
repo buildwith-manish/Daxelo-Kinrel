@@ -153,12 +153,21 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
           },
         });
 
-        await this.prisma.familyMember.create({
-          data: {
+        // NOTE: A Postgres trigger `trg_enroll_family_creator` (migration
+        // 20260616162005) auto-inserts a FamilyMember(role='owner') row
+        // whenever a Family is inserted with createdBy set. The manual
+        // create() used to throw P2002 on (familyId, userId) because the
+        // trigger had already inserted. Switched to upsert() with no-op
+        // update — defends against the trigger being absent in a fresh
+        // DB, while not fighting it when it's present.
+        await this.prisma.familyMember.upsert({
+          where: { familyId_userId: { familyId: family.id, userId: user.id } },
+          create: {
             familyId: family.id,
             userId: user.id,
-            role: 'admin',
+            role: 'owner',
           },
+          update: {},
         });
       } catch (createError) {
         // Race condition: user might have been created by another request

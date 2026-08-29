@@ -94,12 +94,21 @@ export class AuthService {
         },
       });
 
-      await tx.familyMember.create({
-        data: {
+      // NOTE: A Postgres trigger `trg_enroll_family_creator` (migration
+      // 20260616162005) auto-inserts a FamilyMember(rowner) row whenever a
+      // Family row is inserted with createdBy set. The manual create()
+      // below used to throw P2002 on (familyId, userId) because the
+      // trigger had already inserted. Switched to upsert() with no-op
+      // update — defends against the trigger being absent in a fresh
+      // DB, while not fighting it when it's present.
+      await tx.familyMember.upsert({
+        where: { familyId_userId: { familyId: family.id, userId: user.id } },
+        create: {
           familyId: family.id,
           userId: user.id,
-          role: 'admin',
+          role: 'owner',
         },
+        update: {},
       });
 
       return { user, familyId: family.id };
