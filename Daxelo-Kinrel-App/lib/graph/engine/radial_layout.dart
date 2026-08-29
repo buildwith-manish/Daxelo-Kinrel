@@ -115,20 +115,53 @@ class RadialLayout {
 
   // ── Relationship key sets ─────────────────────────────────────────
 
+  // v5.131 (Bug 2 fix, direction classification): the original key
+  // sets only covered the 4 canonical fundamental edges (parent/spouse/
+  // child/sibling). Custom + step/adoptive/foster/half relationship keys
+  // — exactly the kinds of keys that surface in the "+N" chips for
+  // StepMother / HalfBrother / YakFather — were not recognized, so
+  // `_computeDirection` returned 0 and the node was misclassified as
+  // "same generation as anchor" even when it was actually an ancestor
+  // or descendant. The fix expands the key sets to recognize all
+  // parent-type and child-type variants. (BFS in `_computeHopDistance`
+  // already traverses any edge regardless of key — this fix only
+  // affects direction sign, not reachability.)
   static const Set<String> _spouseKeys = {
     'spouse', 'husband', 'wife', 'partner',
+    'fiancé', 'fiancée', 'fiance', 'fiancee',
   };
 
   static const Set<String> _siblingKeys = {
     'sibling', 'brother', 'sister',
+    'half_brother', 'half_sister', 'halfbrother', 'halfsister',
+    'step_brother', 'step_sister', 'stepbrother', 'stepsister',
+    'adopted_brother', 'adopted_sister', 'foster_brother', 'foster_sister',
+    'elder_brother', 'elder_sister', 'younger_brother', 'younger_sister',
   };
 
   static const Set<String> _parentKeys = {
     'parent', 'father', 'mother',
+    'step_father', 'step_mother', 'stepfather', 'stepmother',
+    'adoptive_father', 'adoptive_mother', 'adopted_father', 'adopted_mother',
+    'foster_father', 'foster_mother',
+    'biological_father', 'biological_mother',
+    'guardian_father', 'guardian_mother',
+    // v5.131: truly custom keys (e.g. test fixtures like "yak_father")
+    // are NOT in this set — they fall through to direction=0 (same-
+    // generation as anchor). That's a direction misclassification but
+    // not a pile-up: Bug 2's peripheral-ring fix catches unreachable
+    // nodes, and reachable custom-key nodes still get a unique hop
+    // distance. The trade-off is intentional — fragile suffix-matching
+    // (e.g. treating "father_in_law" as ancestor because it ends with
+    // "father") would be a worse bug than misclassifying custom keys.
   };
 
   static const Set<String> _childKeys = {
     'child', 'son', 'daughter',
+    'step_son', 'step_daughter', 'stepson', 'stepdaughter',
+    'adoptive_son', 'adoptive_daughter', 'adopted_son', 'adopted_daughter',
+    'foster_son', 'foster_daughter',
+    'biological_son', 'biological_daughter',
   };
 
   // ── Public API ────────────────────────────────────────────────────
@@ -212,20 +245,48 @@ class RadialLayout {
     //   - spouse/sibling → same ring as the connected person
     final hopDistance = _computeHopDistance(anchor.id, persons, relationships);
 
+    // v5.131 (Bug 2 fix): Compute the maximum reachable hop distance
+    // BEFORE assigning signed generations. Unreachable nodes (no path
+    // from the anchor through the visible-edge subgraph) previously
+    // fell through to `hopDistance[id] ?? 0`, landing them on ring 0
+    // alongside the anchor. When several such nodes existed (e.g. a
+    // branch fetch returned persons without their connecting edges),
+    // they all piled up at the anchor's position — the "fanned pile"
+    // observed when revealing step/adoptive/half branches.
+    //
+    // Now: unreachable nodes get sent to a peripheral ring one hop
+    // beyond the deepest reachable ring (maxHop + 1, positive
+    // direction). They still render on the lower semicircle, evenly
+    // spaced, far from the anchor — no pile-up, and they're visually
+    // distinct as "loose ends" waiting for their connecting edges to
+    // arrive (which usually happens on the next layout pass after
+    // the fetch completes).
+    int maxHop = 0;
+    for (final h in hopDistance.values) {
+      if (h > maxHop) maxHop = h;
+    }
+    final peripheralRing = maxHop + 1;
+
     // Assign signed generation: positive for descendants, negative for
     // ancestors, 0 for same-generation (spouse/sibling/anchor).
     final signedGen = <String, int>{};
     for (final person in persons) {
-      final hops = hopDistance[person.id] ?? 0;
       if (person.id == anchor.id) {
         signedGen[person.id] = 0;
-      } else {
-        // Determine direction from the relationship connecting this
-        // person to the anchor's neighborhood. Default to positive
-        // (descendant) if we can't determine.
-        final direction = _computeDirection(person.id, anchor.id, relationships);
-        signedGen[person.id] = direction == -1 ? -hops : hops;
+        continue;
       }
+      final hops = hopDistance[person.id];
+      if (hops == null) {
+        // v5.131: unreachable from anchor in the current visible-edge
+        // subgraph — banish to the peripheral ring instead of ring 0.
+        signedGen[person.id] = peripheralRing;
+        continue;
+      }
+      // Determine direction from the relationship connecting this
+      // person to the anchor's neighborhood. Default to positive
+      // (descendant) if we can't determine.
+      final direction = _computeDirection(person.id, anchor.id, relationships);
+      signedGen[person.id] = direction == -1 ? -hops : hops;
     }
 
     final generationGroups = <int, List<GraphPerson>>{};

@@ -812,8 +812,18 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
   /// v5.115: Maps a relationship key from `CollapsedBranch.relationshipKey`
   /// to the branch_type parameter expected by `get_member_branch`.
   ///
-  /// Returns null for keys that don't map to a branch type (the caller
-  /// should skip the fetch in that case).
+  /// v5.131 (Bug 1 fix): now returns `'generic'` instead of `null` for
+  /// unrecognized keys. The server's `get_member_branch` RPC was extended
+  /// (migration 20260831120000) to accept `'generic'` and run a BFS up to
+  /// `p_depth` hops regardless of relationship-key label — so a chip with
+  /// a custom/test key like `YakFather`, `StepMother`, or `HalfBrother`
+  /// now actually fetches its hidden members instead of silently
+  /// no-op'ing.
+  ///
+  /// Returning `null` previously caused `_fetchAndExpandBranch` to skip
+  /// the `fetchBranchAndMerge` call entirely; the subsequent
+  /// `revealPersons()` then found nothing to reveal (the hidden members
+  /// weren't in `flat.persons`) and the chip visually did nothing.
   static String? branchTypeForRelationshipKey(String key) {
     final k = key.toLowerCase().trim();
     if (k == 'mother' || k == 'maternal_grandmother' ||
@@ -835,7 +845,11 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     if (k == 'grandson' || k == 'granddaughter' || k == 'grandchild') {
       return 'grandchildren';
     }
-    return null;
+    // v5.131: universal fallback — server-side BFS fetches all neighbors
+    // within p_depth hops regardless of relationship-type label. Always
+    // returns a non-null so _fetchAndExpandBranch always calls
+    // fetchBranchAndMerge (no more "chip taps do nothing" dead-ends).
+    return 'generic';
   }
 
   /// v67 (BUG-12): Infers the generation index for a newly-added member

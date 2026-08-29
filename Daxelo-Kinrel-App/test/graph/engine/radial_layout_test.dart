@@ -328,5 +328,142 @@ void main() {
                 'son1) must share son1\'s block');
       });
     });
+
+    // ═══════════════════════════════════════════════════════════════════
+    // v5.131 (Bug 2 fix): unreachable nodes must NOT pile up on ring 0.
+    //
+    // Scenario: a branch fetch returns persons whose connecting edges
+    // haven't yet been merged into the visible-edge subgraph (or the
+    // edges have unrecognized custom keys that BFS over `_parentKeys`
+    // doesn't follow). Previously these nodes defaulted to ring 0 and
+    // piled up at the anchor's position — the "fanned pile" seen with
+    // step/adoptive/half/custom-key branches.
+    //
+    // The fix banishes unreachable nodes to a peripheral ring one hop
+    // beyond the deepest reachable ring (maxHop + 1, positive direction).
+    // They still render on the lower semicircle, evenly spaced — no
+    // pile-up at the anchor.
+    // ═══════════════════════════════════════════════════════════════════
+    group('v5.131 (Bug 2 fix) — unreachable nodes go to peripheral ring', () {
+      test('multiple unreachable nodes do NOT land on ring 0', () {
+        // Anchor + 1 reachable child (so maxHop=1, peripheralRing=2).
+        // Three unreachable persons — they must all go to ring 2,
+        // NOT to ring 0 (where the anchor sits).
+        final persons = [
+          _person('anchor', isAnchor: true),
+          _person('child'),
+          _person('orphan1'),
+          _person('orphan2'),
+          _person('orphan3'),
+        ];
+        // Only the anchor→child edge exists. The orphans have NO edges.
+        final rels = [
+          _rel('r1', 'anchor', 'child', 'child'),
+        ];
+
+        final result = layout.compute(persons: persons, relationships: rels);
+
+        // Sanity: every input person received a position.
+        for (final p in persons) {
+          expect(result.positions.containsKey(p.id), isTrue,
+              reason: '${p.id} missing from layout result');
+        }
+
+        // Anchor sits at the canvas centre (ring 0).
+        final anchorPos = result.positions['anchor']!;
+        // Child sits on ring 1 (radius > 0, lower semicircle).
+        final childPos = result.positions['child']!;
+        final childDist = sqrt(
+          pow(childPos.dx - anchorPos.dx, 2) +
+              pow(childPos.dy - anchorPos.dy, 2),
+        );
+        expect(childDist, greaterThan(0),
+            reason: 'Child must not sit on top of the anchor');
+
+        // Orphans must NOT sit on top of the anchor — they go to the
+        // peripheral ring (maxHop + 1 = 2). They should be at the
+        // same radial distance as ring 2, which is strictly greater
+        // than ring 1's distance.
+        final ring1Radius = childDist;
+        for (final orphanId in ['orphan1', 'orphan2', 'orphan3']) {
+          final orphanPos = result.positions[orphanId]!;
+          final orphanDist = sqrt(
+            pow(orphanPos.dx - anchorPos.dx, 2) +
+                pow(orphanPos.dy - anchorPos.dy, 2),
+          );
+          expect(orphanDist, greaterThan(ring1Radius),
+              reason: '$orphanId must sit on the peripheral ring (radius '
+                  '> ring 1), not on ring 0. Got radius $orphanDist, '
+                  'ring 1 = $ring1Radius.');
+        }
+
+        // No two orphans may share the same coordinates (they must be
+        // spread evenly across the peripheral ring's arc).
+        final orphanPositions = [
+          result.positions['orphan1']!,
+          result.positions['orphan2']!,
+          result.positions['orphan3']!,
+        ];
+        for (var i = 0; i < orphanPositions.length; i++) {
+          for (var j = i + 1; j < orphanPositions.length; j++) {
+            expect(
+              orphanPositions[i],
+              isNot(equals(orphanPositions[j])),
+              reason: 'Two unreachable nodes must not share the same '
+                  'coordinates — pile-up regression',
+            );
+          }
+        }
+      });
+
+      test('an unreachable node is placed in the lower semicircle '
+          '(positive peripheral ring)', () {
+        // Single anchor + single orphan (no edges).
+        // peripheralRing = 0 + 1 = 1. Orphan goes to ring 1, lower
+        // semicircle (Y > anchor Y).
+        final persons = [
+          _person('anchor', isAnchor: true),
+          _person('orphan'),
+        ];
+        final result =
+            layout.compute(persons: persons, relationships: const []);
+
+        final anchorY = result.positions['anchor']!.dy;
+        final orphanY = result.positions['orphan']!.dy;
+
+        expect(orphanY, greaterThan(anchorY),
+            reason: 'Unreachable orphan must sit in the lower semicircle '
+                '(positive peripheral ring), not on top of the anchor.');
+      });
+
+      test('reachable nodes are unaffected by the peripheral-ring change',
+          () {
+        // The original _smallFamily fixture: anchor + father + mother +
+        // child. Everyone is reachable. PeripherhalRing=2 (maxHop=1, +1)
+        // but no node should land there.
+        final fam = _smallFamily();
+        final result = layout.compute(persons: fam.persons, relationships: fam.rels);
+
+        // Re-check the original invariants still hold.
+        expect(result.positions.length, fam.persons.length);
+
+        final anchorY = result.positions['anchor']!.dy;
+        expect(result.positions['father']!.dy, lessThan(anchorY));
+        expect(result.positions['mother']!.dy, lessThan(anchorY));
+        expect(result.positions['child']!.dy, greaterThan(anchorY));
+
+        // Ring radii unchanged: 0 for ring 0, equal positive value for
+        // ring -1 and ring 1, and ring 2 should NOT exist in this case
+        // (no unreachable nodes).
+        expect(result.ringRadii[0], 0.0);
+        expect(result.ringRadii[-1], greaterThan(0));
+        expect(result.ringRadii[1], greaterThan(0));
+        expect(result.ringRadii[-1], closeTo(result.ringRadii[1]!, 1e-9));
+        expect(result.ringRadii.containsKey(2), isFalse,
+            reason: 'Peripheral ring (2) must not exist when every node '
+                'is reachable — it only materializes when an unreachable '
+                'node is present.');
+      });
+    });
   });
 }

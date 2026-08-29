@@ -148,9 +148,9 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     return style.color ?? KinrelColors.orange;
   }
 
-  /// v5.115 (Task 1) + v5.123 (Step 3): Fetches the branch via
-  /// get_member_branch RPC, then expands it in the collapse state AND
-  /// reveals its members in the proximity set.
+  /// v5.115 (Task 1) + v5.123 (Step 3) + v5.131 (Bug 1 fix): Fetches the
+  /// branch via get_member_branch RPC, then expands it in the collapse
+  /// state AND reveals its members in the proximity set.
   ///
   /// This is the LAZY FETCH path: only the tapped branch's nodes/edges
   /// are loaded from Supabase, not the whole family. After the fetch
@@ -168,17 +168,27 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
   /// their chips and their nodes keep their positions; only the tapped
   /// branch's members are added.
   ///
-  /// If the branchType can't be determined from the relationshipKey
-  /// (e.g. for custom/unrecognized keys), falls back to the old
-  /// behavior of just expanding without fetching (the nodes may
-  /// already be in the FlatGraphResult from the initial load).
+  /// v5.131 (Bug 1 fix): `branchTypeForRelationshipKey` now always
+  /// returns a non-null value (it falls back to `'generic'` for
+  /// unrecognized keys). The fetch therefore ALWAYS runs — previously
+  /// a custom key like `YakFather` made `branchType` null, the fetch
+  /// was skipped, and the subsequent `revealPersons()` found nothing
+  /// to reveal because the hidden members were never in `flat.persons`.
   Future<void> _fetchAndExpandBranch(CollapsedBranch branch) async {
-    // Map the relationship key to a branch type for the RPC.
+    // Map the relationship key to a branch type for the RPC. As of
+    // v5.131 this is guaranteed non-null (the fallback is 'generic').
     final branchType = FamilyGraphNotifier.branchTypeForRelationshipKey(
         branch.relationshipKey);
+    assert(branchType != null,
+      'branchTypeForRelationshipKey must never return null after v5.131; '
+      'received null for key="${branch.relationshipKey}". This means '
+      'the fallback was reverted — restore the generic-case return.');
 
     if (branchType != null) {
-      // Fetch only this branch's nodes/edges from Supabase.
+      // Fetch only this branch's nodes/edges from Supabase. For
+      // unrecognized relationship keys this hits the 'generic' branch
+      // type which does a BFS up to depth=2 hops regardless of label
+      // (migration 20260831120000).
       await ref.read(familyGraphProvider(widget.familyId).notifier)
           .fetchBranchAndMerge(
         rootPersonId: branch.rootPersonId,
