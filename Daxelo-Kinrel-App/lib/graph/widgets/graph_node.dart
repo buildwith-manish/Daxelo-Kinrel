@@ -756,6 +756,14 @@ class _GraphNodeState extends ConsumerState<GraphNode>
         // Wrap in FittedBox(scaleDown) so long names shrink to fit instead
         // of clipping. maxLines:1 + ellipsis remains as the final fallback
         // when scaling would make the text unreadably small.
+        //
+        // UX (v5.130): Tweaked letter-spacing (0.15 → 0.25) and text
+        // shadow (blurRadius 4 → 5, color black54 → black87) so the
+        // name reads more clearly against busy graph backgrounds
+        // (overlapping edges, ambient particles, birthday glows). The
+        // stronger shadow gives the text a small lift off the canvas
+        // without looking heavy. Font family, weight, and size are
+        // unchanged — this is purely a contrast/legibility tweak.
         if (!widget.isAnonymous)
           FittedBox(
             fit: BoxFit.scaleDown,
@@ -766,10 +774,10 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                 fontSize: 14.0,
                 fontWeight: FontWeight.w600,
                 color: KinrelColors.textWhite,
-                letterSpacing: 0.15, // §5: subtle letter-spacing for hierarchy
+                letterSpacing: 0.25, // §5: subtle letter-spacing for hierarchy
                 shadows: const [
                   // §5: text-shadow for legibility over busy bg
-                  Shadow(blurRadius: 4, color: Colors.black54),
+                  Shadow(blurRadius: 5, color: Colors.black87),
                 ],
               ),
               textAlign: TextAlign.center,
@@ -823,6 +831,12 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   /// (and unit tests that don't have a camera) keep working.
   Widget _buildRelationLabel() {
     // The base label widget — identical to the pre-v104 rendering.
+    //
+    // UX (v5.130): Added a subtle text shadow (blurRadius 3, black54)
+    // so the relation label stays readable when it overlaps with edges
+    // or other nodes' circles. Matches the name label's shadow family
+    // for visual consistency, just slightly lighter to keep the
+    // secondary/informational tone of the relation label.
     final labelWidget = FittedBox(
       fit: BoxFit.scaleDown,
       child: Text(
@@ -834,6 +848,9 @@ class _GraphNodeState extends ConsumerState<GraphNode>
           color: widget.relationLabel == 'You'
               ? KinshipEdgeColors.kSelfNodeColor
               : _borderColor,
+          shadows: const [
+            Shadow(blurRadius: 3, color: Colors.black54),
+          ],
         ),
         textAlign: TextAlign.center,
         maxLines: 1,

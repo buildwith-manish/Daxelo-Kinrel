@@ -60,8 +60,14 @@ class GraphMiniMap extends StatelessWidget {
   final void Function(Offset graphSpaceTarget)? onTap;
 
   /// Mini-map dimensions.
-  static const double width = 80.0;
-  static const double height = 60.0;
+  ///
+  /// UX (v5.130): Enlarged from 80×60 → 96×72 (+20%) so the mini-map is
+  /// easier to spot in the corner, dots are more legible at a glance, and
+  /// the viewport rectangle reads more clearly when the user is panning
+  /// far from the anchor. The container remains compact enough to stay
+  /// out of the way of the bottom toolbar and FAB cluster.
+  static const double width = 96.0;
+  static const double height = 72.0;
 
   @override
   Widget build(BuildContext context) {
@@ -81,15 +87,32 @@ class GraphMiniMap extends StatelessWidget {
               width: width,
               height: height,
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(6),
+                // UX (v5.130): Softened background alpha (0.7 → 0.55) so the
+                // mini-map blends with the canvas instead of looking like a
+                // floating black box, while still providing enough contrast
+                // for the white node dots.
+                color: Colors.black.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  width: 1,
+                  // UX (v5.130): Stronger border (0.2 → 0.32 alpha, 1 → 1.25
+                  // width) so the mini-map outline stays visible over bright
+                  // graph clusters.
+                  color: Colors.white.withValues(alpha: 0.32),
+                  width: 1.25,
                 ),
+                // UX (v5.130): Subtle drop-shadow lifts the mini-map off the
+                // canvas so it doesn't disappear against busy backgrounds
+                // (birthday glows, ambient particles, dark clusters).
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x66000000),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(5),
+                borderRadius: BorderRadius.circular(7),
                 child: CustomPaint(
                   painter: _MiniMapPainter(
                     positions: positions,
@@ -181,15 +204,19 @@ class _MiniMapPainter extends CustomPainter {
       );
     }
 
-    // Draw all nodes as 1px dots.
-    final dotPaint = Paint()..color = Colors.white.withValues(alpha: 0.6);
+    // Draw all nodes as small dots.
+    // UX (v5.130): Slightly larger + more opaque dots (1.0 → 1.2 radius,
+    // 0.6 → 0.7 alpha) so individual members read more clearly in dense
+    // regions. Anchor dot is enlarged (1.8 → 2.4) for stronger orientation
+    // cue — the anchor is the "You are here" of the graph.
+    final dotPaint = Paint()..color = Colors.white.withValues(alpha: 0.7);
     final anchorPaint = Paint()..color = const Color(0xFFE8612A);
     for (final entry in positions.entries) {
       final pos = toMini(entry.value);
       final isAnchor = entry.key == anchorId;
       canvas.drawCircle(
         pos,
-        isAnchor ? 1.8 : 1.0,
+        isAnchor ? 2.4 : 1.2,
         isAnchor ? anchorPaint : dotPaint,
       );
     }
@@ -199,10 +226,17 @@ class _MiniMapPainter extends CustomPainter {
     final vpTopLeft = toMini(Offset(viewport.left, viewport.top));
     final vpBottomRight = toMini(Offset(viewport.right, viewport.bottom));
     final vpRect = Rect.fromPoints(vpTopLeft, vpBottomRight);
+    // UX (v5.130): Stronger viewport rectangle (1.0 → 1.5 stroke, plus a
+    // subtle translucent fill) so the user can locate their current view
+    // at a glance even when the rectangle is small (zoomed in) or
+    // overlapping dense node clusters.
+    final vpFillPaint = Paint()
+      ..color = const Color(0xFF4A90E2).withValues(alpha: 0.10);
+    canvas.drawRect(vpRect, vpFillPaint);
     final vpPaint = Paint()
       ..color = const Color(0xFF4A90E2)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
+      ..strokeWidth = 1.5;
     canvas.drawRect(vpRect, vpPaint);
   }
 

@@ -44,8 +44,13 @@ class TreePainter extends CustomPainter {
     required this.positions,
     required this.edges,
     this.nodeSize = const Size(120.0, 72.0),
-    this.color = const Color(0x66E2E8F0),
-    this.strokeWidth = 1.5,
+    // UX (v5.130): Bumped default color alpha from 0x66 → 0x88 (40% → 53%
+    // opacity) and stroke width from 1.5 → 1.8 so connectors are easier
+    // to trace at typical zoom levels. The previous values made sibling
+    // and parent-child edges almost invisible against the dark canvas
+    // in dense regions. Geometry / shape / dash patterns unchanged.
+    this.color = const Color(0x88E2E8F0),
+    this.strokeWidth = 1.8,
     this.focusedPersonId,
     this.hiddenPersonIds = const {},
     this.secondarySpouseIds = const {},
@@ -113,9 +118,14 @@ class TreePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
+    // UX (v5.130): Focus-edge stroke multiplier bumped from 1.6 → 1.85 so
+    // the focused person's connections stand out more clearly against the
+    // surrounding default edges. Combined with the brighter default color,
+    // this strengthens the visual hierarchy between primary (focused) and
+    // secondary (default) relationship lines.
     final focusPaint = Paint()
       ..color = const Color(0xFFFFB547)
-      ..strokeWidth = strokeWidth * 1.6
+      ..strokeWidth = strokeWidth * 1.85
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
@@ -189,7 +199,9 @@ class TreePainter extends CustomPainter {
       final touchesFocus = focusedPersonId != null &&
           (focusedPersonId == edge.fromId || focusedPersonId == edge.toId);
       final lineColor = touchesFocus ? focusColor : color;
-      final lineStroke = touchesFocus ? strokeWidth * 1.6 : strokeWidth;
+      // UX (v5.130): Focus-edge stroke multiplier aligned with the on-screen
+      // painter (1.85 instead of 1.6) so PDF exports match the live view.
+      final lineStroke = touchesFocus ? strokeWidth * 1.85 : strokeWidth;
 
       final key = edge.relationshipKey.toLowerCase();
 

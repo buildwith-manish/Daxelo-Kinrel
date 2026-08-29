@@ -33,7 +33,13 @@
 /// fully visible across most of the zoom range. The user wants the
 /// full graph node experience at every zoom level — labels should
 /// only fade when the graph gets very small.
-const double kLabelFullyVisibleZoom = 0.5;
+///
+/// v5.130 (UX REVIEW): Lowered further from 0.5 → 0.45 so the labels
+/// snap to full opacity slightly earlier when the user zooms in. This
+/// reduces the "labels still look faint" perception in the 0.45–0.5
+/// zoom band (a common resting zoom for medium graphs). The change is
+/// presentation-only — the fade maths are unchanged.
+const double kLabelFullyVisibleZoom = 0.45;
 
 /// The zoom at or below which the relationship label is FULLY HIDDEN
 /// (opacity = 0.0).
@@ -41,7 +47,14 @@ const double kLabelFullyVisibleZoom = 0.5;
 /// v5.112 (USER FEEDBACK): Lowered from 0.6 to 0.25 so labels remain
 /// visible much longer. They only fully disappear at very low zoom
 /// where the text would be unreadable anyway.
-const double kLabelFullyHiddenZoom = 0.25;
+///
+/// v5.130 (UX REVIEW): Lowered from 0.25 → 0.20 so labels persist a
+/// little longer when zooming out — this gives the user extra time to
+/// orient themselves in dense regions before labels fully fade. The
+/// fade span stays at 0.25 (0.45 − 0.20), so the linear fade slope is
+/// unchanged; only the band shifts down by 0.05. The smooth fade
+/// maths are unchanged.
+const double kLabelFullyHiddenZoom = 0.20;
 
 /// Computes the relationship-label opacity for the given [zoom].
 ///

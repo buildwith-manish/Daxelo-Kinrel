@@ -1788,16 +1788,26 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         if (dy > maxDistY) maxDistY = dy;
       }
       // The zoom must be low enough that 2*maxDist fits in the viewport.
-      // Add 200px padding for node circles + labels.
-      final targetZoomX = (_viewportSize.width - 200) / (2 * maxDistX + 1);
-      final targetZoomY = (_viewportSize.height - 200) / (2 * maxDistY + 1);
+      // UX (v5.130): Reduced padding from 200 → 160 so the initial frame
+      // uses more of the available viewport — previously the graph looked
+      // unnecessarily sparse with too much empty space around it on first
+      // open. 160px still leaves enough room for the largest node circles
+      // (anchor diameter ≈ 90px) + name labels (~16px) + relation label
+      // (~12px) on every side without clipping.
+      const kFramePadding = 160.0;
+      final targetZoomX = (_viewportSize.width - kFramePadding) / (2 * maxDistX + 1);
+      final targetZoomY = (_viewportSize.height - kFramePadding) / (2 * maxDistY + 1);
       var fitZoom = targetZoomX < targetZoomY ? targetZoomX : targetZoomY;
-      // Clamp to a reasonable range: don't zoom in too far (max 1.5)
-      // and don't zoom out too far (min 0.4 so nodes are still legible).
-      // v5.121d: Raised min from 0.15 to 0.4 — at 0.15 nodes were
-      // too small to read (dots instead of circles with initials).
-      if (fitZoom > 1.5) fitZoom = 1.5;
-      if (fitZoom < 0.4) fitZoom = 0.4;
+      // UX (v5.130): Widened the zoom clamp range from [0.4, 1.5] →
+      // [0.35, 1.3]. Lowering the floor to 0.35 lets large families
+      // zoom out one more step so all members fit on screen instead
+      // of being clipped at the edges. Lowering the ceiling from 1.5 →
+      // 1.3 stops small families from being over-zoomed on first open
+      // (which made the graph feel "in your face" and lost surrounding
+      // context). The 0.35 floor still keeps nodes legible (above the
+      // 0.28 MINI enter threshold).
+      if (fitZoom > 1.3) fitZoom = 1.3;
+      if (fitZoom < 0.35) fitZoom = 0.35;
 
       // Center on the anchor at the computed zoom.
       final focusCircleCenter = Offset(

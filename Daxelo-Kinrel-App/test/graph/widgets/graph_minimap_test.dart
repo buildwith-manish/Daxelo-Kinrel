@@ -11,9 +11,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('P4.1 — GraphMiniMap dimensions', () {
-    test('mini-map dimensions are 80x60', () {
-      expect(GraphMiniMap.width, equals(80.0));
-      expect(GraphMiniMap.height, equals(60.0));
+    test('mini-map dimensions are 96x72 (v5.130 UX enlargement)', () {
+      // UX (v5.130): Enlarged from 80×60 → 96×72 for better legibility.
+      expect(GraphMiniMap.width, equals(96.0));
+      expect(GraphMiniMap.height, equals(72.0));
     });
   });
 
