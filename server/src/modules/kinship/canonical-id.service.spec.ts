@@ -19,7 +19,7 @@ describe('CanonicalIdService (v3.0 §4)', () => {
     it('maps "dad", "papa", "pop" aliases to PARENT', () => {
       for (const term of ['dad', 'papa', 'pop', 'pa']) {
         const r = service.normalizeToCanonical(term, 'en');
-        expect(r.canonicalId).toBe('PARENT', `failed for term "${term}"`);
+        expect(r.canonicalId).toBe('PARENT');
       }
     });
 
