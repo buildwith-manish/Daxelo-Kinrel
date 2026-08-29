@@ -41,6 +41,7 @@ import '../../../graph/interaction/graph_focus_state.dart'
 import '../../../graph/interaction/expand_collapse.dart'
     show expandCollapseProvider;
 import '../../../graph/widgets/family_graph_engine_view.dart';
+import '../../../graph/widgets/family_tree_view.dart';
 import '../../../graph/widgets/graph_tutorial_overlay.dart';
 import '../../../graph/widgets/search_bar.dart';
 import '../../../graph/widgets/unlinked_members_sheet.dart'; // v5.9
@@ -50,6 +51,8 @@ import '../../../graph/widgets/graph_relationship_labels.dart' show GraphPersonD
 import '../../../graph/widgets/pending_invitations_sheet.dart';
 import '../../../graph/interaction/indirect_relation_provider.dart'
     show indirectRelationIdsProvider, hasSeenIndirectBadgeProvider;
+// v5.125 (Family Space §5): Graph ↔ Tree tab bar.
+import 'widgets/family_space_tab_bar.dart';
 import '../../family/presentation/providers/graph_pending_invitations_provider.dart';
 // v5.22: Rearrange-mode toggle (personal layout overrides + edge midpoint bow).
 // v5.34: also imports saveAllOverridesTriggerProvider + resetUnsavedOverridesTriggerProvider.
@@ -97,10 +100,17 @@ class FamilyGraphScreen extends ConsumerStatefulWidget {
     super.key,
     required this.familyId,
     this.familyName,
+    this.initialTab,
   });
 
   final String familyId;
   final String? familyName;
+
+  /// v5.125 (Family Space §5): optional initial tab — set by deep links
+  /// like `/family/:id/graph?tab=tree` (redirected from the retired
+  /// `/family-tree?familyId=X` route). When non-null, the Family Space
+  /// opens directly on that tab instead of the default (Graph).
+  final String? initialTab;
 
   @override
   ConsumerState<FamilyGraphScreen> createState() => _FamilyGraphScreenState();
@@ -149,6 +159,17 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   void initState() {
     super.initState();
     _restoreTransformState();
+    // v5.125 (Family Space §5): Apply the optional initial tab from the
+    // deep-link query param (?tab=tree). This runs in initState so the
+    // very first paint lands on the right tab — no flash of the default
+    // Graph tab before switching.
+    if (widget.initialTab == 'tree') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(familySpaceTabProvider.notifier).state =
+            FamilySpaceTab.tree;
+      });
+    }
     // v5.26 (Task 1b): listen for rearrangeModeProvider true->ON
     // transitions to (re)show the banner + arm the 4s auto-hide timer.
     // We do this in initState via ref.listenToSelf so the listener
@@ -860,6 +881,12 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         // filter bar occupied. The graph expands to fill the space.
         Column(
           children: [
+            // v5.125 (Family Space §5): Graph ↔ Tree ↔ Map tab bar.
+            // Persistent segmented control at the top — survives tab
+            // switches via IndexedStack below.
+            if (!ref.watch(rearrangeModeProvider))
+              FamilySpaceTabBar(familyId: widget.familyId),
+
             if (graph.isTruncated) _buildTruncationBanner(graph),
 
             // P3.7: "On this day" banner — shows when any persons have
@@ -867,17 +894,29 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             if (_onThisDayCount(graph) > 0) _buildOnThisDayBanner(graph),
 
             Expanded(
-              // v4.18: Removed the Padding wrapper (v4.17) that created a
-              // visible dark rectangle at the bottom. The graph canvas now
-              // extends to the full height. The stats panel + toolbar are
-              // drawn as Positioned overlays on top with semi-transparent
-              // backgrounds, so they remain visible. The graph's gradient
-              // background fills the entire area — no visible rectangle.
-              child: FamilyGraphEngineView(
-                familyId: widget.familyId,
-                recenterKey: _recenterKey,
-                bottomChromeHeight: bottomChromeHeight,
-                topChromeHeight: 0, // AppBar already excluded by Scaffold
+              // v5.125 (Family Space §5): IndexedStack so switching tabs
+              // does NOT rebuild/refetch the other view — camera state,
+              // scroll position, and selection all survive tab switches.
+              // The Tree tab is built lazily on first activation (its
+              // `familyTreeProvider` only fetches when first watched).
+              child: IndexedStack(
+                index: ref.watch(familySpaceTabProvider) == FamilySpaceTab.tree
+                    ? 1
+                    : 0,
+                children: [
+                  // Index 0: Graph view (existing radial engine).
+                  FamilyGraphEngineView(
+                    familyId: widget.familyId,
+                    recenterKey: _recenterKey,
+                    bottomChromeHeight: bottomChromeHeight,
+                    topChromeHeight: 0, // AppBar already excluded by Scaffold
+                  ),
+                  // Index 1: Tree view (generation-locked hierarchy).
+                  FamilyTreeView(
+                    familyId: widget.familyId,
+                    bottomChromeHeight: bottomChromeHeight,
+                  ),
+                ],
               ),
             ),
           ],

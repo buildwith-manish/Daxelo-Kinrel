@@ -190,7 +190,9 @@ import '../../features/pulse/presentation/celebrations_screen.dart';
 import '../../features/pulse/presentation/family_legacy_screen.dart';
 import '../../features/kinrel_intelligence/presentation/kinrel_screen.dart';
 import '../../core/constants/feature_flags.dart';
-import '../../presentation/screens/family_tree/family_tree_screen.dart';
+// v5.125 (Family Space §5): FamilyTreeScreen deleted — its route now
+// redirects to /family/:id/graph?tab=tree (see /family-tree route below).
+// import '../../presentation/screens/family_tree/family_tree_screen.dart';
 import '../../presentation/screens/premium/paywall_screen.dart';
 import '../../presentation/screens/debug/engagement_dashboard.dart';
 import '../config/app_environment.dart';
@@ -980,12 +982,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       // /family/:id (FamilyDetailScreen) instead of /family/:id/hub.
       GoRoute(
         path: '/family-tree',
-        pageBuilder: (context, state) => _fastFadePage(
-          key: state.pageKey,
-          child: FamilyTreeScreen(
-            familyId: state.uri.queryParameters['familyId'],
-          ),
-        ),
+        // v5.125 (Family Space §5): retired as an independent destination.
+        // Redirects to the production graph route, optionally with
+        // `?tab=tree` to land on the Tree view. The old `FamilyTreeScreen`
+        // was a 103-line wrapper around `FamilyGraphEngineView` (the same
+        // widget at `/family/:id/graph`), so this redirect preserves
+        // existing deep links without loss of functionality.
+        redirect: (context, state) {
+          final familyId = state.uri.queryParameters['familyId'];
+          final tab = state.uri.queryParameters['tab'] ?? 'tree';
+          if (familyId == null || familyId.isEmpty) {
+            return '/'; // no family context — fall back to home
+          }
+          return '/family/$familyId/graph?tab=$tab';
+        },
+        // No builder — redirect takes precedence. (No `FamilyTreeScreen`
+        // widget rendered anymore; the screen file is deleted.)
       ),
       GoRoute(
         path: '/family/:id/path-finder',
@@ -1025,6 +1037,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: FamilyGraphScreen(
             familyId: state.pathParameters['id']!,
             familyName: state.uri.queryParameters['name'],
+            // v5.125 (Family Space §5): deep-link ?tab=tree lands on
+            // the Tree view (redirected from /family-tree).
+            initialTab: state.uri.queryParameters['tab'],
           ),
         ),
       ),

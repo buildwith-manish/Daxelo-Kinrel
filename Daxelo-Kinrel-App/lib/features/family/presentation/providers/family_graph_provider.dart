@@ -50,6 +50,9 @@ import '../../../../graph/interaction/proximity_graph_state.dart'
 // v5.123 (Step 1): disclosure level drives the force-relaxation opt-in.
 import '../../../../graph/interaction/expand_collapse.dart'
     show expandCollapseProvider, DisclosureLevel;
+// v5.125 (Family Space): Tree shares the same realtime invalidation as
+// Graph (§1 non-negotiable — one cache invalidation path, two renderers).
+import 'family_tree_provider.dart' show familyTreeProvider;
 
 /// Provider for the Drift database instance.
 /// Used by [FamilyGraphNotifier] to persist graph data locally.
@@ -1761,8 +1764,14 @@ final graphRealtimeProvider =
   void invalidateIfNeeded() {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 1500), () {
-      debugPrint('[graphRealtimeProvider] Invalidating graph for $familyId (debounced)');
+      debugPrint('[graphRealtimeProvider] Invalidating graph + tree for $familyId (debounced)');
+      // §1 non-negotiable: ONE cache invalidation path, TWO renderers.
+      // Both `familyGraphProvider` and `familyTreeProvider` read from
+      // the same Person+Relationship tables — invalidating both on
+      // Realtime changes is what makes a member added from either view
+      // appear in the other without a manual refresh (§8 acceptance #1).
       ref.invalidate(familyGraphProvider(familyId));
+      ref.invalidate(familyTreeProvider(familyId));
     });
   }
 

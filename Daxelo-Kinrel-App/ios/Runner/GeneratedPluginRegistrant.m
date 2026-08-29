@@ -24,6 +24,12 @@
 @import connectivity_plus;
 #endif
 
+#if __has_include(<emoji_picker_flutter/EmojiPickerFlutterPlugin.h>)
+#import <emoji_picker_flutter/EmojiPickerFlutterPlugin.h>
+#else
+@import emoji_picker_flutter;
+#endif
+
 #if __has_include(<file_selector_ios/FileSelectorPlugin.h>)
 #import <file_selector_ios/FileSelectorPlugin.h>
 #else
@@ -222,6 +228,7 @@
   [AppLinksIosPlugin registerWithRegistrar:[registry registrarForPlugin:@"AppLinksIosPlugin"]];
   [AudioSessionPlugin registerWithRegistrar:[registry registrarForPlugin:@"AudioSessionPlugin"]];
   [ConnectivityPlusPlugin registerWithRegistrar:[registry registrarForPlugin:@"ConnectivityPlusPlugin"]];
+  [EmojiPickerFlutterPlugin registerWithRegistrar:[registry registrarForPlugin:@"EmojiPickerFlutterPlugin"]];
   [FileSelectorPlugin registerWithRegistrar:[registry registrarForPlugin:@"FileSelectorPlugin"]];
   [FirebaseAnalyticsPlugin registerWithRegistrar:[registry registrarForPlugin:@"FirebaseAnalyticsPlugin"]];
   [FLTFirebaseCorePlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTFirebaseCorePlugin"]];
