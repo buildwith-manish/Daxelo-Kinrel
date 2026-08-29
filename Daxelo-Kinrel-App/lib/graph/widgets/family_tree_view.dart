@@ -254,7 +254,11 @@ class _FamilyTreeViewState extends ConsumerState<FamilyTreeView> {
           );
         }
 
-        // Initial centering: scroll to the anchor/viewer on first paint.
+        // Initial centering: fit-to-view the anchor's immediate family
+        // (2 generations above + below = ~5 rows). This is the key fix
+        // for the "huge empty canvas" problem — instead of showing the
+        // full 714-member tree at zoom=1.0 (where the user sees empty
+        // space), we compute a focus set and fit it to the viewport.
         if (!_initialCenterDone && positions.isNotEmpty) {
           _initialCenterDone = true;
           final anchorId = tree.persons
@@ -265,7 +269,7 @@ class _FamilyTreeViewState extends ConsumerState<FamilyTreeView> {
                   .firstOrNull?['id'] as String?;
           if (anchorId != null && positions.containsKey(anchorId)) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              _centerOnPerson(anchorId, positions);
+              _fitToFocusSet(anchorId, positions, tree.relationships);
             });
           }
         }
@@ -521,11 +525,114 @@ class _FamilyTreeViewState extends ConsumerState<FamilyTreeView> {
     _transformController.value = Matrix4.identity()..translate(dx, dy);
   }
 
+  /// v5.131: Fit-to-view the anchor's immediate family (focus set).
+  ///
+  /// This is the key fix for the "huge empty canvas" problem. Instead of
+  /// centering on the anchor at zoom=1.0 (which shows a tiny portion of
+  /// a massive canvas), we:
+  ///   1. Compute a BFS from the anchor to find nodes within 2 hops
+  ///      (parents, siblings, spouse, children, grandchildren).
+  ///   2. Compute the bounding box of ONLY those nodes.
+  ///   3. Fit that bounding box into the viewport with a comfortable
+  ///      margin (40dp on all sides).
+  ///   4. Center the result.
+  ///
+  /// The user immediately sees their immediate family on open — no
+  /// empty space, no hunting. They can use Expand All / Levels to
+  /// navigate to distant branches.
+  void _fitToFocusSet(
+    String anchorId,
+    Map<String, Offset> positions,
+    List<Map<String, dynamic>> relationships,
+  ) {
+    if (positions.isEmpty || !positions.containsKey(anchorId)) return;
+
+    // ── Step 1: BFS from anchor, depth ≤ 2 ──
+    // Build adjacency from the raw relationship data.
+    final adjacency = <String, Set<String>>{};
+    for (final r in relationships) {
+      final from = (r['fromPersonId'] ?? '').toString();
+      final to = (r['toPersonId'] ?? '').toString();
+      if (from.isEmpty || to.isEmpty) continue;
+      adjacency.putIfAbsent(from, () => <String>{}).add(to);
+      adjacency.putIfAbsent(to, () => <String>{}).add(from);
+    }
+
+    // BFS: anchor → depth 0, neighbors → depth 1, their neighbors → depth 2
+    final focusSet = <String>{anchorId};
+    final queue = <String>[anchorId];
+    final visited = <String>{anchorId};
+    for (var depth = 0; depth < 2 && queue.isNotEmpty; depth++) {
+      final nextQueue = <String>[];
+      for (final node in queue) {
+        final neighbors = adjacency[node] ?? const {};
+        for (final n in neighbors) {
+          if (!visited.contains(n) && positions.containsKey(n)) {
+            visited.add(n);
+            focusSet.add(n);
+            nextQueue.add(n);
+          }
+        }
+      }
+      queue
+        ..clear()
+        ..addAll(nextQueue);
+    }
+
+    // ── Step 2: Bounding box of focus set ──
+    double minX = double.infinity, minY = double.infinity;
+    double maxX = -double.infinity, maxY = -double.infinity;
+    for (final id in focusSet) {
+      final pos = positions[id];
+      if (pos == null) continue;
+      if (pos.dx < minX) minX = pos.dx;
+      if (pos.dy < minY) minY = pos.dy;
+      if (pos.dx > maxX) maxX = pos.dx;
+      if (pos.dy > maxY) maxY = pos.dy;
+    }
+    if (minX == double.infinity) return;
+
+    // Add node size padding so cards aren't cut off at edges.
+    minX -= kTreeNodeSize.width / 2;
+    maxX += kTreeNodeSize.width / 2;
+    minY -= kTreeNodeSize.height / 2;
+    maxY += kTreeNodeSize.height / 2;
+
+    final contentW = maxX - minX;
+    final contentH = maxY - minY;
+    if (contentW <= 0 || contentH <= 0) return;
+
+    // ── Step 3: Fit to viewport ──
+    final mq = MediaQuery.of(context);
+    final viewportW = mq.size.width - 100; // minus label column + margins
+    final viewportH = mq.size.height - 120; // minus controls bar + margins
+
+    final scaleX = viewportW / contentW;
+    final scaleY = viewportH / contentH;
+    final scale = (scaleX < scaleY ? scaleX : scaleY).clamp(0.3, 2.5);
+
+    // ── Step 4: Center ──
+    final contentCenterX = (minX + maxX) / 2;
+    final contentCenterY = (minY + maxY) / 2;
+    // After scaling, the content center should land at viewport center.
+    // screenX = translateX + scale * contentCenterX = viewportW/2 + 50 (label col offset)
+    // screenY = translateY + scale * contentCenterY = viewportH/2 + 60 (header offset)
+    final dx = (mq.size.width / 2) - (contentCenterX * scale);
+    final dy = (mq.size.height / 2) - (contentCenterY * scale);
+
+    _transformController.value = Matrix4.identity()
+      ..translate(dx, dy)
+      ..scale(scale);
+  }
+
   // ═══════════════════════════════════════════════════════════════════════
   // v5.130 §2.3: Control bar handlers
   // ═══════════════════════════════════════════════════════════════════════
 
   /// Fit: zoom/pan so every currently-expanded node is visible.
+  /// v5.131: Uses the same fit-to-focus-set logic as initial load, but
+  /// fits ALL visible nodes (not just the focus set) so the user can
+  /// see the full tree after expanding branches.
   void _fitToView() {
     final layoutResult = ref.read(treeLayoutProvider(widget.familyId));
     final positions = layoutResult.positions;
@@ -539,26 +646,33 @@ class _FamilyTreeViewState extends ConsumerState<FamilyTreeView> {
       if (pos.dx > maxX) maxX = pos.dx;
       if (pos.dy > maxY) maxY = pos.dy;
     }
-    final contentW = maxX - minX + kTreeNodeSize.width;
-    final contentH = maxY - minY + kTreeNodeSize.height;
+    // Add node size padding.
+    minX -= kTreeNodeSize.width / 2;
+    maxX += kTreeNodeSize.width / 2;
+    minY -= kTreeNodeSize.height / 2;
+    maxY += kTreeNodeSize.height / 2;
+
+    final contentW = maxX - minX;
+    final contentH = maxY - minY;
+    if (contentW <= 0 || contentH <= 0) return;
 
     final mq = MediaQuery.of(context);
-    final viewportW = mq.size.width;
-    final viewportH = mq.size.height;
+    // More generous margins for manual Fit (user explicitly asked to see everything).
+    final viewportW = mq.size.width - 80;
+    final viewportH = mq.size.height - 160;
 
-    final scaleX = (viewportW - 200) / contentW;
-    final scaleY = (viewportH - 200) / contentH;
-    final scale = scaleX < scaleY ? scaleX : scaleY;
-    final clampedScale = scale.clamp(0.3, 2.5);
+    final scaleX = viewportW / contentW;
+    final scaleY = viewportH / contentH;
+    final scale = (scaleX < scaleY ? scaleX : scaleY).clamp(0.3, 2.5);
 
     final contentCenterX = (minX + maxX) / 2;
     final contentCenterY = (minY + maxY) / 2;
-    final dx = (viewportW / 2) - (contentCenterX * clampedScale);
-    final dy = (viewportH / 2) - (contentCenterY * clampedScale);
+    final dx = (mq.size.width / 2) - (contentCenterX * scale);
+    final dy = (mq.size.height / 2) - (contentCenterY * scale);
 
     _transformController.value = Matrix4.identity()
       ..translate(dx, dy)
-      ..scale(clampedScale);
+      ..scale(scale);
   }
 
   /// Center: re-center on the anchor without changing zoom.
