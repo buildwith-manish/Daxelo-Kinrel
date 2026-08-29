@@ -216,6 +216,10 @@ model User {
   // ── Thinking of You back-relations ──
   tapsSent     ThinkingOfYouTap[] @relation("TapsSent")
   tapsReceived ThinkingOfYouTap[] @relation("TapsReceived")
+
+  // v5.129 Sibling Backfill (§3): review-queue audit back-relations.
+  reviewFlagsCreated  RelationshipReviewFlag[] @relation("ReviewFlagCreatedBy")
+  reviewFlagsResolved RelationshipReviewFlag[] @relation("ReviewFlagResolvedBy")
 }
 
 // ── Blocked Users (replaces JSON blockedUserIds anti-pattern) ────────
@@ -713,6 +717,9 @@ model Family {
   analyticsSnapshots           FamilyAnalyticsSnapshot[]     @relation("FamilyAnalyticsSnapshots")
   aiCostBudgets                AICostBudget[]                @relation("FamilyAICostBudget")
 
+  // v5.129 Sibling Backfill (§3): review-queue flags on this family's edges.
+  relationshipReviewFlags       RelationshipReviewFlag[]
+
   @@index([name])
   @@index([familyCode])
   @@index([username])
@@ -756,6 +763,13 @@ model Person {
   sideOfFamily    String? // paternal/maternal/both
   generationIndex Int     @default(0)
   isAnchor        Boolean @default(false)
+  // v5.129 Sibling Backfill: true for auto-created "Unknown parent" stand-ins
+  // generated when a brother/sister edge is added but neither sibling has a
+  // recorded parent. The Tree view renders these with a neutral silhouette +
+  // "Unknown parent" label (visually distinct from real private members).
+  // The placeholder is replaced when a user later adds the real parent's
+  // details or merges it with an existing member.
+  isPlaceholder   Boolean @default(false)
   photoUrl        String?
   photoThumb      String? // Photo thumb: w_80,h_80,c_fill,q_auto,f_auto
   photoCard       String? // Photo card: w_150,h_150,c_fill,q_auto,f_auto
@@ -792,6 +806,12 @@ model Person {
 
   relationshipsFrom Relationship[] @relation("RelationshipFrom")
   relationshipsTo   Relationship[] @relation("RelationshipTo")
+
+  // v5.129 Sibling Backfill (§3): review-queue back-relations.
+  // A single person can be parentA or parentB in at most one pending flag
+  // per source edge (see @@unique on RelationshipReviewFlag).
+  reviewFlagsAsParentA RelationshipReviewFlag[] @relation("ReviewFlagParentA")
+  reviewFlagsAsParentB RelationshipReviewFlag[] @relation("ReviewFlagParentB")
 
   // ── P10.1 — Family Atlas: places linked to this person (optional) ──
   places Place[] @relation("PersonPlaces")
@@ -847,6 +867,7 @@ model Person {
   @@index([deletedAt])
   @@index([familyId, generationIndex])
   @@index([familyId, isAnchor])
+  @@index([familyId, isPlaceholder])
   @@index([linkedUserId])
   @@index([username])
   @@index([familyId])
@@ -1294,6 +1315,11 @@ model Relationship {
   fromPerson Person @relation("RelationshipFrom", fields: [fromPersonId], references: [id], onDelete: Cascade)
   toPerson   Person @relation("RelationshipTo", fields: [toPersonId], references: [id], onDelete: Cascade)
 
+  // v5.129 Sibling Backfill (§3): review flags raised against this edge.
+  // A single edge can have multiple flags (one per reason), each enforced
+  // unique by @@unique([sourceRelationshipId, reason]).
+  reviewFlags RelationshipReviewFlag[] @relation("ReviewFlagSourceRelationship")
+
   // v4.1: prevent duplicate fundamental edges (spec §12 rule 2)
   @@unique([familyId, fromPersonId, toPersonId, edgeType, edgeTemporal], name: "no_duplicate_fundamental_edge")
 
@@ -1306,6 +1332,53 @@ model Relationship {
   @@index([familyId, isActive])
   @@index([familyId, edgeType])
   @@index([familyId, edgeTemporal])
+}
+
+// v5.129 Sibling Backfill (§3): lightweight review-queue flag for the
+// ambiguous case where two siblings BOTH already have different recorded
+// parents. The system does NOT auto-merge parent records in this case
+// (that's a human decision). Instead it writes a row here so an admin /
+// family owner can review and confirm/merge if appropriate.
+//
+// Reasons (initial set — extend as new ambiguous cases arise):
+//   - 'sibling_parent_mismatch'  — two siblings have different fathers/mothers
+//
+// Status lifecycle:
+//   'pending'  → just flagged, awaiting review
+//   'accepted' → admin confirmed the mismatch is correct (no merge needed)
+//   'rejected' → admin dismissed the flag (e.g. it was a false positive)
+//   'superseded' → resolved by a separate edit that made the flag moot
+model RelationshipReviewFlag {
+  id               String   @id @default(cuid())
+  familyId         String
+  // The sibling edge that triggered the flag (forward row).
+  sourceRelationshipId String
+  // The two conflicting parent persons (for the UI to display side-by-side).
+  // In the sibling_parent_mismatch case: parentA = fromPersonId's father/mother,
+  // parentB = toPersonId's father/mother. Both non-null when the flag is
+  // 'sibling_parent_mismatch'.
+  parentAPersonId  String?
+  parentBPersonId  String?
+  reason           String   @default("sibling_parent_mismatch")
+  status           String   @default("pending") // pending | accepted | rejected | superseded
+  note             String?  // optional admin note when resolving
+  createdByUserId  String?
+  resolvedByUserId String?
+  resolvedAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  family            Family            @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  sourceRelationship Relationship       @relation("ReviewFlagSourceRelationship", fields: [sourceRelationshipId], references: [id], onDelete: Cascade)
+  parentA           Person?           @relation("ReviewFlagParentA", fields: [parentAPersonId], references: [id], onDelete: SetNull)
+  parentB           Person?           @relation("ReviewFlagParentB", fields: [parentBPersonId], references: [id], onDelete: SetNull)
+  createdBy         User?             @relation("ReviewFlagCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  resolvedBy        User?             @relation("ReviewFlagResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([sourceRelationshipId, reason], name: "one_flag_per_reason_per_edge")
+  @@index([familyId, status])
+  @@index([familyId, reason, status])
+  @@index([resolvedAt])
 }
 
 // v4.1 (spec §2): The ONLY edge types allowed in the database.

@@ -206,6 +206,33 @@ class HierarchicalLayout {
     'child', 'son', 'daughter', 'grandchild',
   };
 
+  /// v5.129: Sibling labels — when labelAtoB is one of these, the edge
+  /// connects two people at the SAME generation (not parent→child).
+  /// The DB stores ALL non-spouse edges as `relationshipKey='parent'`
+  /// (due to the `relationship_fundamental_edge_check` constraint), so
+  /// the layout engine MUST check `labelAtoB` to distinguish siblings
+  /// from actual parent-child edges.
+  ///
+  /// Without this check, a "brother" edge (relationshipKey='parent',
+  /// labelAtoB='brother') would be treated as a parent-child edge and
+  /// place the brother one generation below — the exact "disconnected/
+  /// misplaced people" bug the user reported.
+  static const Set<String> _siblingLabels = {
+    'brother', 'sister', 'sibling',
+    'elder_brother', 'elder_sister',
+    'younger_brother', 'younger_sister',
+    'step_brother', 'step_sister',
+    'half_brother', 'half_sister',
+  };
+
+  /// v5.129: Returns true if this edge is a sibling edge (same-generation),
+  /// detected via labelAtoB. Falls back to relationshipKey if labelAtoB
+  /// is null (for backward compat with edges that don't have labelAtoB set).
+  bool _isSiblingEdge(GraphRelationship r) {
+    final label = (r.labelAtoB ?? r.relationshipKey).toLowerCase();
+    return _siblingLabels.contains(label);
+  }
+
   // ── Public API ────────────────────────────────────────────────────
 
   /// Compute the hierarchical layout for the given graph data.
@@ -255,9 +282,15 @@ class HierarchicalLayout {
     final spouseMap = <String, List<String>>{};
     final parentMap = <String, List<String>>{}; // childId → parentIds
     final childMap = <String, List<String>>{}; // parentId → childIds
+    final siblingMap = <String, List<String>>{}; // personId → siblingIds (v5.129)
 
     for (final r in relationships) {
-      if (_spouseKeys.contains(r.relationshipKey)) {
+      if (_isSiblingEdge(r)) {
+        // v5.129: Sibling edges connect same-generation people.
+        // DON'T treat as parent-child — add to siblingMap instead.
+        siblingMap.putIfAbsent(r.fromPersonId, () => []).add(r.toPersonId);
+        siblingMap.putIfAbsent(r.toPersonId, () => []).add(r.fromPersonId);
+      } else if (_spouseKeys.contains(r.relationshipKey)) {
         spouseMap.putIfAbsent(r.fromPersonId, () => []).add(r.toPersonId);
         spouseMap.putIfAbsent(r.toPersonId, () => []).add(r.fromPersonId);
       } else if (_parentKeys.contains(r.relationshipKey)) {
@@ -347,7 +380,7 @@ class HierarchicalLayout {
     // paths at different depths. The "deeper-of-two" rule says: take
     // the MAX gen across all paths. This requires iterative propagation
     // until no changes (Bellman-Ford-style longest path).
-    _assignBfsGenerationsDeeperOfTwo(rootNodes, treeNodeMap, parentMap);
+    _assignBfsGenerationsDeeperOfTwo(rootNodes, treeNodeMap, parentMap, siblingMap);
 
     // Determine BFS generation range (used for Y computation + ringRadii)
     int minBfsGen = 1 << 30;
@@ -473,6 +506,7 @@ class HierarchicalLayout {
     List<_TreeNode> roots,
     Map<String, _TreeNode> treeNodeMap,
     Map<String, List<String>> parentMap,
+    Map<String, List<String>> siblingMap,
   ) {
     // Initialize roots
     for (final root in roots) {
@@ -518,9 +552,6 @@ class HierarchicalLayout {
       }
 
       // Spouse propagation: couples take max of both partners' lineages.
-      // This is what makes the couple "float up" to the deeper of the two
-      // spouses' generations — required for cousin marriages where one
-      // spouse comes from a shallower lineage and the other from a deeper one.
       for (final node in treeNodeMap.values) {
         if (node.bfsGen == null) continue;
         for (final spouse in node.spouses) {
@@ -535,6 +566,37 @@ class HierarchicalLayout {
           if (spouse.bfsGen != maxGen) {
             spouse.bfsGen = maxGen;
             changed = true;
+          }
+        }
+      }
+
+      // v5.129: Sibling propagation — siblings take the SAME gen as
+      // each other (max of both). This is the key fix for siblings
+      // stored as relationshipKey='parent' with labelAtoB='brother'.
+      // Without this, a sibling edge would be treated as parent→child
+      // and place the sibling one generation below.
+      for (final node in treeNodeMap.values) {
+        if (node.bfsGen == null) continue;
+        final sibIds = siblingMap[node.person.id];
+        if (sibIds == null || sibIds.isEmpty) continue;
+        for (final sibId in sibIds) {
+          final sib = treeNodeMap[sibId];
+          if (sib == null) continue;
+          if (sib.bfsGen == null) {
+            sib.bfsGen = node.bfsGen;
+            changed = true;
+          } else {
+            final maxGen = node.bfsGen! > sib.bfsGen!
+                ? node.bfsGen!
+                : sib.bfsGen!;
+            if (node.bfsGen != maxGen) {
+              node.bfsGen = maxGen;
+              changed = true;
+            }
+            if (sib.bfsGen != maxGen) {
+              sib.bfsGen = maxGen;
+              changed = true;
+            }
           }
         }
       }

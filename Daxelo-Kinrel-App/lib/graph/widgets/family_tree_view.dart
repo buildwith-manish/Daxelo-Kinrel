@@ -105,6 +105,13 @@ final treeLayoutProvider =
       fromPersonId: (r['fromPersonId'] ?? '').toString(),
       toPersonId: (r['toPersonId'] ?? '').toString(),
       relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
+      // v5.129: parse labelAtoB so the layout engine can distinguish
+      // sibling edges (labelAtoB='brother'/'sister') from parent-child
+      // edges (labelAtoB='father'/'mother'/'son'/'daughter'). Both are
+      // stored as relationshipKey='parent' in the DB due to the
+      // relationship_fundamental_edge_check constraint — only labelAtoB
+      // carries the semantic distinction.
+      labelAtoB: (r['labelAtoB'] as String?) ?? (r['labelBtoA'] as String?),
     ));
   }
 
@@ -312,21 +319,52 @@ class _FamilyTreeViewState extends ConsumerState<FamilyTreeView> {
       final from = (r['fromPersonId'] ?? '').toString();
       final to = (r['toPersonId'] ?? '').toString();
       if (from.isEmpty || to.isEmpty) continue;
-      final key = (r['relationshipKey'] ?? 'unknown').toString().toLowerCase();
-      // Only draw structural-lineage edges in Tree. Skip sibling/uncle/etc.
-      if (!TreePainter.kSpouseKeys.contains(key) &&
-          !TreePainter.kParentKeys.contains(key) &&
-          !TreePainter.kChildKeys.contains(key)) {
-        continue;
+      // v5.129: Use labelAtoB to determine the actual edge type.
+      // The DB stores ALL non-spouse edges as relationshipKey='parent'
+      // (due to the relationship_fundamental_edge_check constraint).
+      // Only labelAtoB carries the semantic distinction:
+      //   labelAtoB='brother'/'sister' → sibling (same-gen, horizontal connector)
+      //   labelAtoB='father'/'mother'/'parent' → parent→child (vertical connector)
+      //   relationshipKey='spouse' → spouse (horizontal connector)
+      final label =
+          ((r['labelAtoB'] as String?) ?? (r['labelBtoA'] as String?) ?? r['relationshipKey'] ?? 'unknown')
+              .toString()
+              .toLowerCase();
+      final dbKey =
+          (r['relationshipKey'] ?? 'unknown').toString().toLowerCase();
+
+      // Classify: sibling, spouse, or parent/child.
+      String edgeType;
+      if (_kSiblingLabels.contains(label)) {
+        edgeType = 'sibling';
+      } else if (TreePainter.kSpouseKeys.contains(dbKey) ||
+          TreePainter.kSpouseKeys.contains(label)) {
+        edgeType = 'spouse';
+      } else if (TreePainter.kParentKeys.contains(dbKey) ||
+          TreePainter.kParentKeys.contains(label) ||
+          TreePainter.kChildKeys.contains(label)) {
+        edgeType = 'parent';
+      } else {
+        continue; // skip non-structural edges
       }
+
       final pairKey = [from, to]..sort();
       final canonical = '${pairKey[0]}|${pairKey[1]}';
       if (seen.contains(canonical)) continue;
       seen.add(canonical);
-      result.add((fromId: from, toId: to, relationshipKey: key));
+      result.add((fromId: from, toId: to, relationshipKey: edgeType));
     }
     return result;
   }
+
+  /// v5.129: Labels that indicate a sibling edge (same-generation).
+  static const Set<String> _kSiblingLabels = {
+    'brother', 'sister', 'sibling',
+    'elder_brother', 'elder_sister',
+    'younger_brother', 'younger_sister',
+    'step_brother', 'step_sister',
+    'half_brother', 'half_sister',
+  };
 
   void _onTapNode(String personId, Map<String, dynamic> person) {
     // Select the node (shared state with Graph view).

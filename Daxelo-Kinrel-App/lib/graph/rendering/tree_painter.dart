@@ -145,6 +145,11 @@ class TreePainter extends CustomPainter {
         } else {
           _drawSpouseConnector(canvas, fromPos, toPos, paint);
         }
+      } else if (key == 'sibling') {
+        // v5.129: Sibling edges — draw a horizontal dashed line between
+        // same-generation siblings. Visually distinct from spouse
+        // (solid) and parent-child (orthogonal tee).
+        _drawSiblingConnector(canvas, fromPos, toPos, paint);
       } else if (_parentKeys.contains(key) || _childKeys.contains(key)) {
         if (isSecondarySpouseEdge) {
           _drawParentChildConnectorDashed(canvas, fromPos, toPos, paint);
@@ -245,6 +250,48 @@ class TreePainter extends CustomPainter {
     Paint paint,
   ) {
     final halfWidth = nodeSize.width / 2;
+    if ((from.dy - to.dy).abs() < 1.0) {
+      _drawDashedLine(
+        canvas,
+        Offset(from.dx + halfWidth, from.dy),
+        Offset(to.dx - halfWidth, to.dy),
+        paint,
+      );
+    } else {
+      final midX = (from.dx + to.dx) / 2;
+      _drawDashedLine(
+        canvas,
+        Offset(from.dx + halfWidth, from.dy),
+        Offset(midX, from.dy),
+        paint,
+      );
+      _drawDashedLine(
+        canvas,
+        Offset(midX, from.dy),
+        Offset(midX, to.dy),
+        paint,
+      );
+      _drawDashedLine(
+        canvas,
+        Offset(midX, to.dy),
+        Offset(to.dx - halfWidth, to.dy),
+        paint,
+      );
+    }
+  }
+
+  /// v5.129: Draws a horizontal dashed line between two same-row
+  /// siblings. Same geometry as the spouse connector, but uses
+  /// dashes to visually distinguish "sibling" from "spouse/partner".
+  void _drawSiblingConnector(
+    Canvas canvas,
+    Offset from,
+    Offset to,
+    Paint paint,
+  ) {
+    final halfWidth = nodeSize.width / 2;
+    // Siblings should be at the same Y (same generation).
+    // If not, draw an L-shape (rare edge case).
     if ((from.dy - to.dy).abs() < 1.0) {
       _drawDashedLine(
         canvas,

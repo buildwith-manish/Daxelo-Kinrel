@@ -13,6 +13,7 @@ import { KinrelGateway } from '../gateway/kinrel.gateway';
 import { CreateRelationshipDto } from './dto/create-relationship.dto';
 import { GraphService } from '../graph/graph.service';
 import { GraphEngineService } from '../graph/graph-engine.service';
+import { Prisma } from '@prisma/client';
 
 const ROLE_HIERARCHY: Record<string, number> = {
   viewer: 1,
@@ -194,7 +195,36 @@ export class RelationshipsService {
           data: { generationIndex: toPerson.generationIndex + 1 },
         });
       } else if (key === 'brother' || key === 'sister') {
-        // Sync sibling to same generation if they have no explicit generationIndex set
+        // v5.129 Sibling Backfill (§1.2): when a sibling edge is added,
+        // backfill the SHARED PARENT so neither sibling is left
+        // parentless in the graph (which would cause the Tree layout
+        // engine's root-finder to float them to the top row, disconnected
+        // from where they actually belong).
+        //
+        // Three branches, in priority order:
+        //   1. One sibling has recorded parents → link the other under
+        //      those same real parents.
+        //   2. Neither sibling has recorded parents → auto-create ONE
+        //      placeholder parent (isPlaceholder: true) and link BOTH
+        //      siblings to it.
+        //   3. Both siblings already have DIFFERENT recorded parents →
+        //      flag for human review (§3). Don't auto-merge.
+        //
+        // All edges created here are marked isInferred: true so downstream
+        // code can distinguish user-added vs system-backfilled edges.
+        await this.backfillSharedParentForSibling(
+          tx,
+          familyId,
+          fromPerson,
+          toPerson,
+          forward.id,
+        );
+
+        // Sync sibling to same generation if one is still at default 0.
+        // (Original behavior preserved as a fallback — the backfill above
+        // also sets generationIndex when it creates a placeholder parent,
+        // but this catches any edge case where the backfill was a no-op
+        // because both siblings already had parents.)
         if (toPerson.generationIndex === 0 && fromPerson.generationIndex !== 0) {
           await tx.person.update({
             where: { id: dto.toPersonId },
@@ -537,5 +567,260 @@ export class RelationshipsService {
       kinshipTermHindi: fresh.kinshipTermHindi ?? null,
       cached: false,
     };
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // v5.129 Sibling Backfill (§1.2 + §3)
+  // ════════════════════════════════════════════════════════════════════
+
+  /**
+   * Backfill a shared parent for a sibling edge so neither sibling is
+   * left parentless in the graph.
+   *
+   * Three branches (§1.2):
+   *   1. One sibling has recorded parents → link the other under those
+   *      same real parents.
+   *   2. Neither sibling has parents → create ONE placeholder parent
+   *      (isPlaceholder: true, gender: null) and link BOTH siblings.
+   *   3. Both siblings already have DIFFERENT parents → flag for review
+   *      (§3), don't auto-merge.
+   *
+   * All edges created here are marked isInferred: true so downstream code
+   * can distinguish user-added vs system-backfilled edges.
+   */
+  private async backfillSharedParentForSibling(
+    tx: Prisma.TransactionClient,
+    familyId: string,
+    fromPerson: { id: string; gender: string | null; generationIndex: number },
+    toPerson: { id: string; gender: string | null; generationIndex: number },
+    forwardRelationshipId: string,
+  ): Promise<void> {
+    // Find existing parents of both siblings.
+    const fromParents = await this.findParentsOf(tx, fromPerson.id);
+    const toParents = await this.findParentsOf(tx, toPerson.id);
+
+    const fromHasParents = fromParents.length > 0;
+    const toHasParents = toParents.length > 0;
+
+    if (fromHasParents && !toHasParents) {
+      // Case 1: fromPerson has parents → link toPerson under them.
+      for (const parent of fromParents) {
+        await this.createParentChildEdgePair(
+          tx, familyId, parent, toPerson,
+        );
+      }
+    } else if (toHasParents && !fromHasParents) {
+      // Case 1 mirror: toPerson has parents → link fromPerson under them.
+      for (const parent of toParents) {
+        await this.createParentChildEdgePair(
+          tx, familyId, parent, fromPerson,
+        );
+      }
+    } else if (!fromHasParents && !toHasParents) {
+      // Case 2: neither has parents → create placeholder parent.
+      const minGen = Math.min(
+        fromPerson.generationIndex,
+        toPerson.generationIndex,
+      );
+      const placeholder = await tx.person.create({
+        data: {
+          familyId,
+          name: 'Unknown parent',
+          isPlaceholder: true,
+          gender: null, // §1.3: unknown, not guessed
+          generationIndex: minGen - 1,
+        },
+      });
+      // Link both siblings to the placeholder.
+      // Use 'father' as the relationshipKey convention — the UI can
+      // relabel to 'mother' later when the user fills in details.
+      await this.createParentChildEdgePair(
+        tx, familyId,
+        { id: placeholder.id, relationshipKey: 'father' },
+        fromPerson,
+      );
+      await this.createParentChildEdgePair(
+        tx, familyId,
+        { id: placeholder.id, relationshipKey: 'father' },
+        toPerson,
+      );
+    } else {
+      // Case 3: both have parents → check if they share any.
+      const fromParentIds = new Set(fromParents.map(p => p.id));
+      const sharedCount = toParents.filter(p => fromParentIds.has(p.id)).length;
+
+      if (sharedCount === 0) {
+        // Different parents → flag for review (§3).
+        // Pick the first parent from each side for the flag's display.
+        const parentA = fromParents[0];
+        const parentB = toParents[0];
+        try {
+          await tx.relationshipReviewFlag.create({
+            data: {
+              familyId,
+              sourceRelationshipId: forwardRelationshipId,
+              parentAPersonId: parentA.id,
+              parentBPersonId: parentB.id,
+              reason: 'sibling_parent_mismatch',
+              status: 'pending',
+            },
+          });
+          this.logger.warn(
+            `Sibling edge ${forwardRelationshipId} flagged for review: ` +
+            `both siblings have different recorded parents ` +
+            `(${parentA.id} vs ${parentB.id}).`,
+          );
+        } catch (err) {
+          // Unique constraint violation = flag already exists. Non-fatal.
+          this.logger.debug(
+            `Review flag already exists for edge ${forwardRelationshipId}: ${(err as Error).message}`,
+          );
+        }
+      }
+      // If they share parents, no action needed — they're already linked
+      // under the same real parents.
+    }
+  }
+
+  /**
+   * Find all parents of [personId] — persons connected via a father/mother
+   * edge (either direction: person→parent "father"/"mother", or
+   * parent→person "son"/"daughter").
+   *
+   * Returns an array of { id, relationshipKey } where relationshipKey
+   * is 'father' or 'mother' (the key describing the parent's relationship
+   * to the child).
+   */
+  private async findParentsOf(
+    tx: Prisma.TransactionClient,
+    personId: string,
+  ): Promise<Array<{ id: string; relationshipKey: string }>> {
+    // Direction 1: person → parent, key = 'father' or 'mother'
+    // (person is fromPersonId, parent is toPersonId)
+    const forwardParentEdges = await tx.relationship.findMany({
+      where: {
+        fromPersonId: personId,
+        relationshipKey: { in: ['father', 'mother'] },
+        isActive: true,
+      },
+      select: {
+        toPersonId: true,
+        relationshipKey: true,
+      },
+    });
+
+    // Direction 2: parent → person, key = 'son' or 'daughter'
+    // (parent is fromPersonId, person is toPersonId)
+    const inverseParentEdges = await tx.relationship.findMany({
+      where: {
+        toPersonId: personId,
+        relationshipKey: { in: ['son', 'daughter'] },
+        isActive: true,
+      },
+      select: {
+        fromPersonId: true,
+        relationshipKey: true,
+      },
+    });
+
+    // Merge + dedupe by parent ID.
+    // For inverse edges, the relationshipKey is 'son'/'daughter' (the
+    // child's relationship to the parent). We need the PARENT's key
+    // ('father'/'mother'). We can't recover it from the inverse key alone
+    // without knowing the parent's gender — but we can look it up.
+    // For simplicity, we store the FORWARD key ('father'/'mother') when
+    // available, and 'father' as a fallback for inverse-only edges.
+    const parentsMap = new Map<string, { id: string; relationshipKey: string }>();
+
+    for (const edge of forwardParentEdges) {
+      if (!parentsMap.has(edge.toPersonId)) {
+        parentsMap.set(edge.toPersonId, {
+          id: edge.toPersonId,
+          relationshipKey: edge.relationshipKey,
+        });
+      }
+    }
+
+    for (const edge of inverseParentEdges) {
+      if (!parentsMap.has(edge.fromPersonId)) {
+        // Inverse edge: key is 'son'/'daughter'. We don't know if the
+        // parent is father or mother without querying their gender.
+        // Use 'father' as a fallback — the createParentChildEdgePair
+        // method will use this key for the new edge. If the parent is
+        // actually female, the user can correct it later via the UI.
+        parentsMap.set(edge.fromPersonId, {
+          id: edge.fromPersonId,
+          relationshipKey: 'father',
+        });
+      }
+    }
+
+    return Array.from(parentsMap.values());
+  }
+
+  /**
+   * Create a bidirectional parent-child edge pair between [parent] and
+   * [child], mirroring the pattern used in members.service.ts:138-158.
+   *
+   * Forward: from=child, to=parent, key=parent.relationshipKey ('father'/'mother')
+   * Inverse: from=parent, to=child, key=getInverseKey(parent.relationshipKey, child.gender)
+   *
+   * Both edges are marked isInferred: true (system-backfilled, not user-added).
+   * Idempotent — checks for existing edge before creating.
+   */
+  private async createParentChildEdgePair(
+    tx: Prisma.TransactionClient,
+    familyId: string,
+    parent: { id: string; relationshipKey: string },
+    child: { id: string; gender: string | null },
+  ): Promise<void> {
+    const forwardKey = parent.relationshipKey; // 'father' or 'mother'
+    const inverseKey = getInverseKey(forwardKey, child.gender); // 'son' or 'daughter'
+
+    // Check for existing forward edge (child → parent).
+    const existingForward = await tx.relationship.findFirst({
+      where: {
+        familyId,
+        fromPersonId: child.id,
+        toPersonId: parent.id,
+        relationshipKey: forwardKey,
+      },
+    });
+    if (!existingForward) {
+      await tx.relationship.create({
+        data: {
+          familyId,
+          fromPersonId: child.id,
+          toPersonId: parent.id,
+          relationshipKey: forwardKey,
+          direction: 'from',
+          isActive: true,
+          isInferred: true, // §1.2: mark as system-backfilled
+        },
+      });
+    }
+
+    // Check for existing inverse edge (parent → child).
+    const existingInverse = await tx.relationship.findFirst({
+      where: {
+        familyId,
+        fromPersonId: parent.id,
+        toPersonId: child.id,
+        relationshipKey: inverseKey,
+      },
+    });
+    if (!existingInverse) {
+      await tx.relationship.create({
+        data: {
+          familyId,
+          fromPersonId: parent.id,
+          toPersonId: child.id,
+          relationshipKey: inverseKey,
+          direction: 'from',
+          isActive: true,
+          isInferred: true,
+        },
+      });
+    }
   }
 }
