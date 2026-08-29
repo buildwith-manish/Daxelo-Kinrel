@@ -275,6 +275,13 @@ class _FamilyTreeViewState extends ConsumerState<FamilyTreeView> {
         final visiblePositions = Map<String, Offset>.from(positions)
           ..removeWhere((id, _) => hiddenIds.contains(id));
 
+        // v5.130 §1: Compute generation labels for the left-edge column.
+        // Groups positions by Y coordinate → one label per row.
+        final generationLabels = _computeGenerationLabels(
+          visiblePositions,
+          tree.persons,
+        );
+
         return Stack(
           children: [
             // The Tree canvas itself — fills the available area.
@@ -291,10 +298,30 @@ class _FamilyTreeViewState extends ConsumerState<FamilyTreeView> {
               onLongPressNode: _onLongPressNode,
             ),
 
-            // v5.126: "Export to PDF" FAB — bottom-right.
-            // Generates a vector PDF by re-running HierarchicalLayout +
-            // TreePainter against a PdfCanvas. Paginated by generation
-            // row. Pixel-crisp at any zoom (no rasterization).
+            // v5.130 §1: Left-edge generation label column.
+            // Fixed-width column on the left, showing "Generation +N / Label"
+            // for each row. Scrolls vertically with the canvas (via transform).
+            _GenerationLabelColumn(
+              labels: generationLabels,
+              transformController: _transformController,
+            ),
+
+            // v5.130 §2.3: Bottom control bar — Fit / Center / Expand All /
+            // Collapse All / Levels.
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 16,
+              child: _TreeControlsBar(
+                onFit: _fitToView,
+                onCenter: _centerOnAnchor,
+                onExpandAll: _expandAll,
+                onCollapseAll: _collapseAll,
+                onLevelsTap: () => _showLevelsMenu(context, generationLabels),
+              ),
+            ),
+
+            // v5.126: "Export to PDF" FAB — bottom-right (above controls bar).
             Positioned(
               right: 16,
               bottom: (MediaQuery.of(context).padding.bottom + 80),
@@ -492,6 +519,143 @@ class _FamilyTreeViewState extends ConsumerState<FamilyTreeView> {
     //  replacement `translateByDouble` is not available in our pinned
     //  SDK — see https://github.com/flutter/flutter/issues/156012.)
     _transformController.value = Matrix4.identity()..translate(dx, dy);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // v5.130 §2.3: Control bar handlers
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// Fit: zoom/pan so every currently-expanded node is visible.
+  void _fitToView() {
+    final layoutResult = ref.read(treeLayoutProvider(widget.familyId));
+    final positions = layoutResult.positions;
+    if (positions.isEmpty) return;
+
+    double minX = double.infinity, minY = double.infinity;
+    double maxX = -double.infinity, maxY = -double.infinity;
+    for (final pos in positions.values) {
+      if (pos.dx < minX) minX = pos.dx;
+      if (pos.dy < minY) minY = pos.dy;
+      if (pos.dx > maxX) maxX = pos.dx;
+      if (pos.dy > maxY) maxY = pos.dy;
+    }
+    final contentW = maxX - minX + kTreeNodeSize.width;
+    final contentH = maxY - minY + kTreeNodeSize.height;
+
+    final mq = MediaQuery.of(context);
+    final viewportW = mq.size.width;
+    final viewportH = mq.size.height;
+
+    final scaleX = (viewportW - 200) / contentW;
+    final scaleY = (viewportH - 200) / contentH;
+    final scale = scaleX < scaleY ? scaleX : scaleY;
+    final clampedScale = scale.clamp(0.3, 2.5);
+
+    final contentCenterX = (minX + maxX) / 2;
+    final contentCenterY = (minY + maxY) / 2;
+    final dx = (viewportW / 2) - (contentCenterX * clampedScale);
+    final dy = (viewportH / 2) - (contentCenterY * clampedScale);
+
+    _transformController.value = Matrix4.identity()
+      ..translate(dx, dy)
+      ..scale(clampedScale);
+  }
+
+  /// Center: re-center on the anchor without changing zoom.
+  void _centerOnAnchor() {
+    final tree = ref.read(familyTreeProvider(widget.familyId)).valueOrNull;
+    if (tree == null) return;
+    final anchorId = tree.persons
+            .where((p) => p['isViewer'] == true)
+            .firstOrNull?['id'] as String? ??
+        tree.persons
+            .where((p) => p['isAnchor'] == true)
+            .firstOrNull?['id'] as String?;
+    if (anchorId == null) return;
+    final positions = ref.read(treeLayoutProvider(widget.familyId)).positions;
+    _centerOnPerson(anchorId, positions);
+  }
+
+  /// Expand All: bulk-expand every collapsed branch.
+  void _expandAll() {
+    final tree = ref.read(familyTreeProvider(widget.familyId)).valueOrNull;
+    if (tree == null) return;
+    final notifier = ref.read(branchCollapseProvider.notifier);
+    for (final p in tree.persons) {
+      final id = p['id'] as String?;
+      if (id != null) notifier.expandBranch(id);
+    }
+  }
+
+  /// Collapse All: bulk-collapse every expanded branch.
+  void _collapseAll() {
+    ref.read(branchCollapseProvider.notifier).clearAll();
+  }
+
+  /// Levels: jump menu — tap a generation label to animate the camera
+  /// to that row, horizontally centered on the anchor's column.
+  void _showLevelsMenu(BuildContext context, List<_GenerationLabel> labels) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Jump to Generation',
+                style: TextStyle(
+                  color: KinrelColors.textWhite,
+                  fontFamily: 'DMSans',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const Divider(color: Color(0x22FFFFFF)),
+            ...labels.map((label) => ListTile(
+                  leading: Text(
+                    label.relativeGen >= 0
+                        ? '+${label.relativeGen}'
+                        : '${label.relativeGen}',
+                    style: TextStyle(
+                      color: KinrelColors.orange,
+                      fontFamily: 'DMSans',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  title: Text(
+                    label.name,
+                    style: const TextStyle(
+                      color: KinrelColors.textWhite,
+                      fontFamily: 'DMSans',
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    final mq = MediaQuery.of(context);
+                    final viewportH = mq.size.height;
+                    final currentScale =
+                        _transformController.value.entry(0, 0);
+                    final dy = (viewportH / 2) - (label.y * currentScale);
+                    final currentTx =
+                        _transformController.value.entry(0, 3);
+                    _transformController.value = Matrix4.identity()
+                      ..translate(currentTx, dy)
+                      ..scale(currentScale);
+                  },
+                )),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -929,6 +1093,362 @@ class _TreeNode extends StatelessWidget {
             fontFamily: 'DMSans',
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v5.130 §1: GENERATION LABEL COLUMN
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A generation label for one row: the relative generation number and
+/// its plain-language name relative to the anchor.
+class _GenerationLabel {
+  const _GenerationLabel({
+    required this.relativeGen,
+    required this.y,
+    required this.name,
+  });
+
+  /// 0 = anchor's generation, -1 = parents, +1 = children, etc.
+  final int relativeGen;
+
+  /// The Y coordinate of this row in canvas space.
+  final double y;
+
+  /// Plain-language name: "You & Siblings", "Parents", "Grandparents", etc.
+  final String name;
+}
+
+/// Computes generation labels from the layout positions.
+///
+/// Groups positions by Y coordinate (clustering within 1pt = same row),
+/// then assigns each row a relative generation number based on its
+/// distance from the anchor's row.
+List<_GenerationLabel> _computeGenerationLabels(
+  Map<String, Offset> positions,
+  List<Map<String, dynamic>> persons,
+) {
+  if (positions.isEmpty) return const [];
+
+  // Collect unique Y values (clustered within 1pt).
+  final rowYs = <double>[];
+  for (final pos in positions.values) {
+    if (rowYs.isEmpty || (pos.dy - rowYs.last).abs() > 1.0) {
+      rowYs.add(pos.dy);
+    }
+  }
+  rowYs.sort();
+
+  // Find the anchor's Y (viewer or isAnchor-flagged person).
+  final anchorPerson = persons
+          .where((p) => p['isViewer'] == true)
+          .firstOrNull ??
+      persons.where((p) => p['isAnchor'] == true).firstOrNull;
+  final anchorId = anchorPerson?['id'] as String?;
+  final anchorY = anchorId != null ? positions[anchorId]?.dy : null;
+
+  // If no anchor found, use the middle row.
+  final anchorRowIdx = anchorY != null
+      ? rowYs.indexWhere((y) => (y - anchorY).abs() < 1.0)
+      : rowYs.length ~/ 2;
+  final effectiveAnchorIdx =
+      anchorRowIdx >= 0 ? anchorRowIdx : rowYs.length ~/ 2;
+
+  // Build labels.
+  final labels = <_GenerationLabel>[];
+  for (var i = 0; i < rowYs.length; i++) {
+    final relGen = i - effectiveAnchorIdx;
+    labels.add(_GenerationLabel(
+      relativeGen: relGen,
+      y: rowYs[i],
+      name: _generationName(relGen),
+    ));
+  }
+  return labels;
+}
+
+/// Returns the plain-language name for a relative generation.
+/// 0 = "You & Siblings", -1 = "Parents", -2 = "Grandparents", etc.
+/// +1 = "Children", +2 = "Grandchildren", etc.
+String _generationName(int relGen) {
+  switch (relGen) {
+    case 0:
+      return 'You & Siblings';
+    case -1:
+      return 'Parents';
+    case -2:
+      return 'Grandparents';
+    case -3:
+      return 'Great Grandparents';
+    case -4:
+      return 'Great Great Grandparents';
+    case 1:
+      return 'Children';
+    case 2:
+      return 'Grandchildren';
+    case 3:
+      return 'Great Grandchildren';
+    case 4:
+      return 'Great Great Grandchildren';
+    default:
+      return relGen < 0
+          ? 'Generation $relGen'
+          : 'Generation +$relGen';
+  }
+}
+
+/// Left-edge label column. Fixed width, scrolls with the canvas.
+///
+/// Renders "Generation +N / Label" text at each row's Y position,
+/// transformed by the same TransformationController as the canvas so
+/// it pans/zooms in sync.
+class _GenerationLabelColumn extends StatefulWidget {
+  const _GenerationLabelColumn({
+    required this.labels,
+    required this.transformController,
+  });
+
+  final List<_GenerationLabel> labels;
+  final TransformationController transformController;
+
+  @override
+  State<_GenerationLabelColumn> createState() => _GenerationLabelColumnState();
+}
+
+class _GenerationLabelColumnState extends State<_GenerationLabelColumn> {
+  @override
+  void initState() {
+    super.initState();
+    widget.transformController.addListener(_onTransform);
+  }
+
+  @override
+  void didUpdateWidget(_GenerationLabelColumn oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.transformController != widget.transformController) {
+      oldWidget.transformController.removeListener(_onTransform);
+      widget.transformController.addListener(_onTransform);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.transformController.removeListener(_onTransform);
+    super.dispose();
+  }
+
+  void _onTransform() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.labels.isEmpty) return const SizedBox.shrink();
+
+    final mq = MediaQuery.of(context);
+    final viewportHeight = mq.size.height;
+
+    // Transform: canvas Y → screen Y.
+    // The transformController maps canvas → screen, so:
+    //   screenY = transform(canvasY)
+    // PDF/Flutter Y goes down, so the transform is:
+    //   screenY = translateY + scale * canvasY
+    // (where translateY is the Y component of the matrix's translation,
+    // and scale is the uniform scale factor.)
+    final matrix = widget.transformController.value;
+    final scaleX = matrix.entry(0, 0);
+    final translateY = matrix.entry(1, 3);
+
+    return Positioned(
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 100,
+      child: ClipRect(
+        child: CustomPaint(
+          size: Size(100, viewportHeight),
+          painter: _GenerationLabelPainter(
+            labels: widget.labels,
+            scaleX: scaleX,
+            translateY: translateY,
+            viewportHeight: viewportHeight,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Painter for the generation label column. Draws text labels at each
+/// row's screen-space Y position.
+class _GenerationLabelPainter extends CustomPainter {
+  _GenerationLabelPainter({
+    required this.labels,
+    required this.scaleX,
+    required this.translateY,
+    required this.viewportHeight,
+  });
+
+  final List<_GenerationLabel> labels;
+  final double scaleX;
+  final double translateY;
+  final double viewportHeight;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Semi-transparent dark background for the label column.
+    final bgPaint = Paint()..color = const Color(0xCC191B2C);
+    canvas.drawRect(Offset.zero & size, bgPaint);
+
+    // Draw each label at its screen-space Y.
+    for (final label in labels) {
+      // Convert canvas Y to screen Y:
+      //   screenY = translateY + scaleX * canvasY
+      // (scaleX = scaleY because InteractiveViewer uses uniform scale.)
+      final screenY = translateY + scaleX * label.y;
+
+      // Skip if outside viewport.
+      if (screenY < -20 || screenY > viewportHeight + 20) continue;
+
+      // Draw the generation number (smaller, orange).
+      final genText = label.relativeGen >= 0
+          ? 'Gen +${label.relativeGen}'
+          : 'Gen ${label.relativeGen}';
+      final genPainter = TextPainter(
+        text: TextSpan(
+          text: genText,
+          style: const TextStyle(
+            color: KinrelColors.orange,
+            fontSize: 9,
+            fontFamily: 'DMSans',
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: 90);
+      genPainter.paint(canvas, Offset(5, screenY - 18));
+
+      // Draw the name (smaller, dim white).
+      final namePainter = TextPainter(
+        text: TextSpan(
+          text: label.name,
+          style: const TextStyle(
+            color: KinrelColors.textSecondaryDark,
+            fontSize: 8,
+            fontFamily: 'DMSans',
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: 90);
+      namePainter.paint(canvas, Offset(5, screenY - 6));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _GenerationLabelPainter oldDelegate) {
+    return oldDelegate.labels != labels ||
+        oldDelegate.scaleX != scaleX ||
+        oldDelegate.translateY != translateY;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v5.130 §2.3: TREE CONTROLS BAR
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Bottom control bar with 5 buttons: Fit, Center, Expand All, Collapse All,
+/// Levels. Matches the reference screenshot's bottom bar layout.
+class _TreeControlsBar extends StatelessWidget {
+  const _TreeControlsBar({
+    required this.onFit,
+    required this.onCenter,
+    required this.onExpandAll,
+    required this.onCollapseAll,
+    required this.onLevelsTap,
+  });
+
+  final VoidCallback onFit;
+  final VoidCallback onCenter;
+  final VoidCallback onExpandAll;
+  final VoidCallback onCollapseAll;
+  final VoidCallback onLevelsTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x33FFFFFF), width: 0.5),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _ControlButton(
+            icon: Icons.fit_screen_outlined,
+            label: 'Fit',
+            onTap: onFit,
+          ),
+          _ControlButton(
+            icon: Icons.center_focus_strong_outlined,
+            label: 'Center',
+            onTap: onCenter,
+          ),
+          _ControlButton(
+            icon: Icons.unfold_more_outlined,
+            label: 'Expand',
+            onTap: onExpandAll,
+          ),
+          _ControlButton(
+            icon: Icons.unfold_less_outlined,
+            label: 'Collapse',
+            onTap: onCollapseAll,
+          ),
+          _ControlButton(
+            icon: Icons.layers_outlined,
+            label: 'Levels',
+            onTap: onLevelsTap,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ControlButton extends StatelessWidget {
+  const _ControlButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 20, color: KinrelColors.orange),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+              color: KinrelColors.textSecondaryDark,
+              fontSize: 9,
+              fontFamily: 'DMSans',
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
