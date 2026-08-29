@@ -38,9 +38,14 @@ import '../interaction/graph_focus_state.dart' show graphFocusProvider;
 import '../rendering/tree_painter.dart';
 import '../rendering/tree_pdf_exporter.dart';
 
-/// The size of a Tree node tile (avatar + name). Both layout + painter
-/// must agree on this number so connectors terminate at the node edge.
-const Size kTreeNodeSize = Size(96.0, 96.0);
+/// The size of a Tree node tile. Both layout + painter must agree on
+/// this number so connectors terminate at the node edge.
+///
+/// v5.127: Changed from square (96×96) to a wider rounded-rectangle
+/// (120×72, 5:3 aspect) to fit avatar + name side-by-side without
+/// cramping. This is a Tree-view-only constant — the Graph view keeps
+/// its circular nodes and own sizing.
+const Size kTreeNodeSize = Size(120.0, 72.0);
 
 /// Computes the hierarchical layout for a family's tree data.
 ///
@@ -91,10 +96,22 @@ final treeLayoutProvider =
 
   final layout = HierarchicalLayout(
     config: HierarchicalLayoutConfig(
-      siblingSpacing: 110.0,
-      levelSpacing: 170.0,
-      spouseGap: 28.0,
-      padding: 80.0,
+      // v5.127: re-tuned for the new 120×72 rounded-rect node shape.
+      // - siblingSpacing=20 leaves a small horizontal gap between
+      //   adjacent sibling cards (was 110 for the old 96-wide circle —
+      //   too generous now that the cards are wider and naturally
+      //   spaced by their own width).
+      // - levelSpacing=110 vertical between generation rows (was 170 —
+      //   the new card is shorter at 72 vs 96, so less vertical room
+      //   needed for connectors).
+      // - spouseGap=8 (was 28) — spouses are now side-by-side cards,
+      //   not circular rings touching; 8dp gap reads as "coupled".
+      //   The old 28 was tuned for circle rings whose visual edge was
+      //   at the radius, not the diameter.
+      siblingSpacing: 20.0,
+      levelSpacing: 110.0,
+      spouseGap: 8.0,
+      padding: 60.0,
       nodeWidth: kTreeNodeSize.width,
       nodeHeight: kTreeNodeSize.height,
     ),
@@ -560,8 +577,28 @@ class _TreeNode extends StatelessWidget {
   final bool isSelected;
   final bool isFocused;
 
+  // v5.127: Tree-view-only node shape constants.
+  //
+  // The card is a rounded rectangle (8dp corner radius, 5:3 aspect:
+  // 120×72 = the kTreeNodeSize). Inside, the avatar is a SMALLER
+  // circle (40dp diameter) inset at the left, vertically centered —
+  // like a contact card. The name + deceased indicator sit to the
+  // right of the avatar, also vertically centered.
+  //
+  // All other visual treatments (color logic, focus pulse, deceased
+  // dot, restricted placeholder) are byte-for-byte identical to the
+  // previous circular design — only the container shape changed.
+  static const double _cardCornerRadius = 8.0;
+  static const double _avatarDiameter = 40.0;
+  static const double _avatarInset = 6.0; // padding around avatar
+  static const double _nameAvatarGap = 8.0;
+
   @override
   Widget build(BuildContext context) {
+    // v5.127: identical color logic to the previous circular design —
+    // only the SHAPE of the container applying it changed (circle →
+    // rounded rectangle). Border width, focus box-shadow, color
+    // selection all preserved verbatim.
     final ringColor = isFocused
         ? KinrelColors.orange
         : isSelected
@@ -572,75 +609,134 @@ class _TreeNode extends StatelessWidget {
                     ? const Color(0xFF7A6F8A)
                     : const Color(0x44FFFFFF);
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Avatar with ring.
-        Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: ringColor,
-              width: isFocused ? 3 : (isSelected || isViewer ? 2 : 1),
+    final borderWidth = isFocused ? 3 : (isSelected || isViewer ? 2 : 1);
+
+    return Container(
+      width: kTreeNodeSize.width,
+      height: kTreeNodeSize.height,
+      // v5.127: rounded rectangle replaces the previous circular
+      // BoxDecoration. 8dp corner radius per the spec; 2-3px border
+      // stroke in the role color (the same color the circular ring
+      // used).
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(_cardCornerRadius),
+        border: Border.all(
+          color: ringColor,
+          width: borderWidth.toDouble(),
+        ),
+        // v5.127: focus box-shadow preserved verbatim from the
+        // previous circular design (same color, blur, spread).
+        boxShadow: isFocused
+            ? [
+                BoxShadow(
+                  color: KinrelColors.orange.withValues(alpha: 0.4),
+                  blurRadius: 12,
+                  spreadRadius: 2,
+                ),
+              ]
+            : null,
+      ),
+      // v5.127: Row layout — avatar left, name right, both vertically
+      // centered. (Previously a Column with avatar on top, name below.)
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: _avatarInset,
+          vertical: _avatarInset,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Avatar — stays CIRCULAR, inset within the rectangular
+            // card (not stretched/cropped to fill corners). Same
+            // ClipOval + Image.network / placeholder logic as before.
+            Container(
+              width: _avatarDiameter,
+              height: _avatarDiameter,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                // v5.127: keep the avatar's own ring (subtle, 1.5px)
+                // so the avatar still reads as a discrete element
+                // inside the card. Color matches the card border so
+                // the two feel cohesive.
+                border: Border.all(
+                  color: ringColor.withValues(alpha: 0.5),
+                  width: 1.5,
+                ),
+              ),
+              child: ClipOval(
+                child: restricted ||
+                        photoUrl == null ||
+                        photoUrl!.isEmpty
+                    ? _placeholderAvatar()
+                    : Image.network(
+                        photoUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _placeholderAvatar(),
+                      ),
+              ),
             ),
-            boxShadow: isFocused
-                ? [
-                    BoxShadow(
-                      color: KinrelColors.orange.withValues(alpha: 0.4),
-                      blurRadius: 12,
-                      spreadRadius: 2,
+            const SizedBox(width: _nameAvatarGap),
+            // Name + deceased indicator — vertically stacked to the
+            // right of the avatar. Same text style, color, weight,
+            // truncation as before. Width bounded by remaining card
+            // width so long names truncate with ellipsis.
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    restricted ? 'Restricted' : name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: restricted
+                          ? KinrelColors.textSecondaryDark
+                              .withValues(alpha: 0.5)
+                          : KinrelColors.textWhite,
+                      fontSize: 11,
+                      fontFamily: 'DMSans',
+                      fontWeight: isViewer || isAnchor
+                          ? FontWeight.w600
+                          : FontWeight.w400,
                     ),
-                  ]
-                : null,
-          ),
-          child: ClipOval(
-            child: restricted || photoUrl == null || photoUrl!.isEmpty
-                ? _placeholderAvatar()
-                : Image.network(
-                    photoUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _placeholderAvatar(),
                   ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        // Name (truncated).
-        SizedBox(
-          width: kTreeNodeSize.width - 4,
-          child: Text(
-            restricted ? 'Restricted' : name,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: restricted
-                  ? KinrelColors.textSecondaryDark.withValues(alpha: 0.5)
-                  : KinrelColors.textWhite,
-              fontSize: 11,
-              fontFamily: 'DMSans',
-              fontWeight:
-                  isViewer || isAnchor ? FontWeight.w600 : FontWeight.w400,
+                  // Deceased indicator (small dot to the LEFT of the
+                  // years line — same color/size as before, just
+                  // repositioned inside the horizontal layout).
+                  if (isDeceased)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          SizedBox(width: 2),
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Color(0xFF7A6F8A),
+                              shape: BoxShape.circle,
+                            ),
+                            child: SizedBox(width: 4, height: 4),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
+          ],
         ),
-        // Deceased indicator (small dot below name).
-        if (isDeceased)
-          Container(
-            width: 4,
-            height: 4,
-            margin: const EdgeInsets.only(top: 2),
-            decoration: const BoxDecoration(
-              color: Color(0xFF7A6F8A),
-              shape: BoxShape.circle,
-            ),
-          ),
-      ],
+      ),
     );
   }
 
+  // v5.127: identical placeholder avatar to the previous design —
+  // female → #7A4F5F, male/other → #4F5F7A, with the initial letter
+  // centered. Only the diameter changed (was 56, now 40) to fit
+  // inside the smaller circular avatar inset.
   Widget _placeholderAvatar() {
     final isFemale = gender?.toLowerCase() == 'female';
     return Container(
@@ -650,9 +746,11 @@ class _TreeNode extends StatelessWidget {
           restricted
               ? '?'
               : (name.isNotEmpty ? name[0].toUpperCase() : '?'),
+          // v5.127: font size reduced from 18 → 14 to fit the smaller
+          // 40dp avatar (was 56dp). Same font, weight, color as before.
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 18,
+            fontSize: 14,
             fontWeight: FontWeight.w600,
             fontFamily: 'DMSans',
           ),

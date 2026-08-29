@@ -521,6 +521,79 @@ void main() {
             reason: 'ringRadii Y should increase per generation');
       }
     });
+
+    // v5.127: regression test for the rounded-rectangle node shape.
+    // The new node is 120×72 (5:3 aspect, wider than tall). This test
+    // verifies the layout math still produces non-overlapping nodes
+    // with the new dimensions — sibling spacing, subtree width, and
+    // level spacing all depend on accurate nodeWidth/nodeHeight.
+    test('v5.127: rounded-rect node dimensions produce non-overlapping siblings', () {
+      final layout = HierarchicalLayout(
+        config: const HierarchicalLayoutConfig(
+          // Use the new defaults (rounded-rect tuned).
+          siblingSpacing: 20.0,
+          levelSpacing: 110.0,
+          spouseGap: 8.0,
+          padding: 60.0,
+          nodeWidth: 120.0,
+          nodeHeight: 72.0,
+        ),
+      );
+
+      // Two siblings under one parent.
+      final persons = [
+        GraphPerson(id: 'parent', name: 'Parent', generationIndex: 0),
+        GraphPerson(id: 'child1', name: 'Child 1', generationIndex: 1),
+        GraphPerson(id: 'child2', name: 'Child 2', generationIndex: 1),
+      ];
+
+      final relationships = [
+        GraphRelationship(
+            id: 'r1', fromPersonId: 'child1', toPersonId: 'parent', relationshipKey: 'parent'),
+        GraphRelationship(
+            id: 'r2', fromPersonId: 'child2', toPersonId: 'parent', relationshipKey: 'parent'),
+      ];
+
+      final result = layout.compute(
+        persons: persons,
+        relationships: relationships,
+        anchorPersonId: 'parent',
+      );
+
+      expect(result.positions.length, 3);
+
+      // Both children should be at the same Y (same BFS generation).
+      final y1 = result.positions['child1']!.dy;
+      final y2 = result.positions['child2']!.dy;
+      expect(y1, equals(y2),
+          reason: 'Siblings must share the same Y (generation-locked)');
+
+      // Children must be BELOW the parent.
+      final yParent = result.positions['parent']!.dy;
+      expect(y1, greaterThan(yParent),
+          reason: 'Children must be below parent');
+
+      // The two children must NOT overlap horizontally.
+      // Each card is 120 wide; centers must be at least 120 apart
+      // (siblingSpacing=20 means they should be ~140 apart).
+      final x1 = result.positions['child1']!.dx;
+      final x2 = result.positions['child2']!.dx;
+      final horizontalGap = (x1 - x2).abs();
+      expect(horizontalGap, greaterThanOrEqualTo(120.0),
+          reason: 'Sibling cards (120 wide each) must not overlap. '
+              'Got gap=$horizontalGap between centers.');
+    });
+
+    test('v5.127: default config matches rounded-rect dimensions', () {
+      // Verify the new defaults are wired correctly — callers that
+      // don't override (e.g. TreePdfExporter) should get the
+      // rounded-rect-tuned values automatically.
+      const config = HierarchicalLayoutConfig();
+      expect(config.nodeWidth, 120.0);
+      expect(config.nodeHeight, 72.0);
+      // 5:3 aspect ratio (wider than tall).
+      expect(config.nodeWidth / config.nodeHeight, closeTo(5.0 / 3.0, 0.01));
+    });
   });
 
   // ═════════════════════════════════════════════════════════════════════

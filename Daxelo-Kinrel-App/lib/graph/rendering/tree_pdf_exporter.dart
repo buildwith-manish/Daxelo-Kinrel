@@ -345,28 +345,82 @@ void _paintPage(
   );
   painter.paintToAdapter(_PdfTreeCanvasAdapter(g));
 
-  // ── Draw nodes (avatar circle + name text) ─────────────────────
-  final avatarRadius = nodeTileSize.width / 2 * 0.6; // 60% of tile
+  // ── Draw nodes (rounded-rect card + inset circular avatar) ──────
+  // v5.127: matches the on-screen Tree node design — the node is now
+  // a rounded rectangle (8dp corner radius, 5:3 aspect = 120×72 at
+  // default size). The avatar is a SMALLER circle inset at the left
+  // of the card. Connectors terminate at the rectangular card edge
+  // (TreePainter uses nodeSize.width/height / 2 — works for both
+  // circles and rectangles since it just stops at the bbox edge).
+  //
+  // Position convention: `pos` is the CENTER of the node tile (same
+  // as on-screen). We translate to the top-left for PDF drawing
+  // because PdfGraphics' drawRRect/drawEllipse use top-left + size.
+  final cardHalfW = nodeTileSize.width / 2;
+  final cardHalfH = nodeTileSize.height / 2;
+  const cardCornerRadius = 8.0;
+
+  // v5.127: avatar is inset within the card. Same proportions as the
+  // on-screen _TreeNode (40dp avatar in a 72dp-tall card → radius 20,
+  // positioned at left edge with 6dp horizontal inset).
+  const avatarDiameter = 40.0;
+  const avatarRadius = avatarDiameter / 2;
+  const avatarInset = 6.0;
 
   for (final person in persons) {
     final pos = positions[person.id];
     if (pos == null) continue;
     if (pos.dy < yStart - 1.0 || pos.dy > yEnd + 1.0) continue;
 
-    // Avatar background (dark fill + light border).
+    // Top-left of the card in PDF coordinates (note: PDF Y goes UP,
+    // our layout Y goes DOWN — but we already applied the Y-flip
+    // transform above, so PDF Y is now also "down from top of canvas".
+    // The drawRRect(x, y, w, h, rv, rh) API takes the BOTTOM-LEFT
+    // corner in untransformed coords, but with our flip applied it's
+    // effectively top-left. So: x = pos.dx - cardHalfW, y = pos.dy - cardHalfH.
+    final cardLeft = pos.dx - cardHalfW;
+    final cardBottom = pos.dy - cardHalfH;
+
+    // v5.127: role color for the card border. Same logic as the
+    // on-screen _TreeNode — for the PDF we don't have focus/selection
+    // state, so we just use the default role color (matches the
+    // non-focused, non-selected on-screen appearance).
+    final cardBorderColor = PdfColor.fromInt(0x44FFFFFF);
+    final avatarFillColor = PdfColor.fromInt(0xFF191B2C);
+    final avatarBorderColor = PdfColor.fromInt(0xFFE8612A);
+
+    // 1. Rounded rectangle card background + border.
     g
-      ..setFillColor(PdfColor.fromInt(0xFF191B2C))
-      ..setStrokeColor(PdfColor.fromInt(0xFFE8612A))
+      ..setFillColor(PdfColor.fromInt(0xFF191B2C)) // darkCard
+      ..setStrokeColor(cardBorderColor)
+      ..setLineWidth(1.0)
+      ..drawRRect(
+        cardLeft,
+        cardBottom,
+        nodeTileSize.width,
+        nodeTileSize.height,
+        cardCornerRadius,
+        cardCornerRadius,
+      )
+      ..fillPath();
+
+    // 2. Inset circular avatar (positioned at left of card,
+    //    vertically centered).
+    final avatarCenterX = cardLeft + avatarInset + avatarRadius;
+    final avatarCenterY = pos.dy; // vertically centered in card
+    g
+      ..setFillColor(avatarFillColor)
+      ..setStrokeColor(avatarBorderColor)
       ..setLineWidth(1.5)
       ..drawEllipse(
-        pos.dx,
-        pos.dy,
+        avatarCenterX,
+        avatarCenterY,
         avatarRadius,
         avatarRadius,
       )
       ..fillPath();
 
-    // Initial letter (centered on the avatar).
+    // 3. Initial letter (centered on the avatar).
     final initial =
         person.name.isNotEmpty ? person.name[0].toUpperCase() : '?';
     g
@@ -375,24 +429,27 @@ void _paintPage(
         bodyFont,
         14,
         initial,
-        pos.dx - 5,
-        pos.dy - 5,
+        avatarCenterX - 5,
+        avatarCenterY - 5,
       );
 
-    // Name (centered, below the avatar).
-    // Truncate to 14 chars to fit the tile width. Use ASCII ellipsis
-    // "..." because Type1 fonts (Helvetica) don't support Unicode.
-    final name = person.name.length > 14
-        ? '${person.name.substring(0, 14)}...'
+    // 4. Name (positioned to the right of the avatar, vertically
+    //    centered). Truncate to 12 chars to fit the remaining card
+    //    width (cardWidth 120 - avatar 40 - insets 12 = 68dp ≈ 12 chars
+    //    at 8pt Helvetica).
+    final name = person.name.length > 12
+        ? '${person.name.substring(0, 12)}...'
         : person.name;
+    final nameX = avatarCenterX + avatarRadius + 8;
+    final nameY = pos.dy - 4; // vertically centered for 8pt text
     g
       ..setFillColor(PdfColor.fromInt(0xFFF5F0EE))
       ..drawString(
         bodyFont,
         8,
         name,
-        pos.dx - (name.length * 3.5),
-        pos.dy - avatarRadius - 12,
+        nameX,
+        nameY,
       );
   }
 

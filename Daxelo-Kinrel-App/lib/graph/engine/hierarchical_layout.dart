@@ -85,12 +85,18 @@ class HierarchicalLayoutConfig {
   final bool compact;
 
   const HierarchicalLayoutConfig({
-    this.siblingSpacing = 60.0,
-    this.levelSpacing = 160.0,
-    this.spouseGap = 30.0,
-    this.padding = 100.0,
-    this.nodeWidth = 100.0,
-    this.nodeHeight = 120.0,
+    // v5.127: defaults re-tuned for the new rounded-rect Tree node
+    // shape (120×72, 5:3 aspect). The old defaults (60/160/30/100/100×120)
+    // were sized for circular nodes — they over-spaced the new cards.
+    // Callers that pass explicit configs (e.g. treeLayoutProvider,
+    // TreePdfExporter) override these; the defaults are kept sensible
+    // for any future caller.
+    this.siblingSpacing = 20.0,
+    this.levelSpacing = 110.0,
+    this.spouseGap = 8.0,
+    this.padding = 60.0,
+    this.nodeWidth = 120.0,
+    this.nodeHeight = 72.0,
     this.compact = false,
   });
 
