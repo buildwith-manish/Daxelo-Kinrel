@@ -497,12 +497,15 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
         for (final child in childrenMap[current] ?? <String>[]) {
           if (visited.add(child)) {
             queue.add(child);
-            final person = flat.persons.firstWhere(
-              (p) => (p['id'] ?? '').toString() == child,
-              orElse: () => <String, dynamic>{},
-            );
-            final name = (person['name'] ?? '').toString();
-            if (name.isNotEmpty) visibleMemberNames.add(name);
+            // Find the person's name from the flat graph data.
+            String? name;
+            for (final p in flat.persons) {
+              if ((p['id'] ?? '').toString() == child) {
+                name = (p['name'] ?? '').toString();
+                break;
+              }
+            }
+            if (name != null && name.isNotEmpty) visibleMemberNames.add(name);
           }
         }
       }
