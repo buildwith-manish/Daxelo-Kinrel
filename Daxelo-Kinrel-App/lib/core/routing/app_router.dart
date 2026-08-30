@@ -711,6 +711,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
     },
     routes: [
+      // ── ROOT (v5.133): '/' has no page of its own. Before this route
+      // existed, a fresh visit to the site root produced GoRouter's
+      // default error page ("GoException: no routes for location: /")
+      // whose "Go to home page" button navigated back to '/' — a dead
+      // end. Redirect the root to /splash, which already owns all
+      // first-run logic (session restore, deep-route verification,
+      // sign-in vs home routing).
+      GoRoute(
+        path: '/',
+        redirect: (context, state) => '/splash',
+      ),
       // ── Auth / Onboarding (fast 200ms fade) ────────────────────────
       GoRoute(
         path: '/splash',

@@ -4,10 +4,9 @@
   "buildCommand": "bash ./vercel-build.sh",
   "outputDirectory": "build/web",
   "installCommand": "bash ./vercel-install.sh",
-  "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
     {
