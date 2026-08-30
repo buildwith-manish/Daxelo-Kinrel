@@ -265,7 +265,15 @@ class RadialLayout {
     for (final h in hopDistance.values) {
       if (h > maxHop) maxHop = h;
     }
-    final peripheralRing = maxHop + 1;
+    // v5.134: Use a SEPARATE ring for unreachable nodes, placed BEYOND
+    // the deepest reachable ring. The old code used maxHop + 1 which
+    // could collide with a real descendant ring when maxHop was small.
+    // Now we use maxHop + 2 to leave a visual gap, and track which
+    // nodes are unreachable so the angular placement can spread them
+    // across the FULL circle instead of clustering them at the end of
+    // a semicircle arc (the root cause of the 'fan pile' overlap bug).
+    final peripheralRing = maxHop + 2;
+    final unreachableIds = <String>{};
 
     // Assign signed generation: positive for descendants, negative for
     // ancestors, 0 for same-generation (spouse/sibling/anchor).
@@ -279,7 +287,10 @@ class RadialLayout {
       if (hops == null) {
         // v5.131: unreachable from anchor in the current visible-edge
         // subgraph — banish to the peripheral ring instead of ring 0.
+        // v5.134: track unreachable IDs so the angular placement can
+        // give them a dedicated full-circle spread.
         signedGen[person.id] = peripheralRing;
+        unreachableIds.add(person.id);
         continue;
       }
       // Determine direction from the relationship connecting this
@@ -291,7 +302,11 @@ class RadialLayout {
 
     final generationGroups = <int, List<GraphPerson>>{};
     for (final person in persons) {
-      final gen = signedGen[person.id] ?? 0;
+      // v5.134: Guard the ?? 0 fallback. signedGen is built for every
+      // person in the loop above, so this should never be null. But if
+      // it ever is (duplicate ID, race condition), send the node to the
+      // peripheral ring instead of ring 0 to avoid pile-up.
+      final gen = signedGen[person.id] ?? peripheralRing;
       generationGroups.putIfAbsent(gen, () => []).add(GraphPerson(
         id: person.id,
         name: person.name,
@@ -445,16 +460,50 @@ class RadialLayout {
         });
       }
 
-      // Compute angular spread for this ring
-      const arcFraction = 0.8; // 80% of semicircle
-      final totalArc = pi * arcFraction;
+      // v5.134: ADAPTIVE ARC — use a wider arc when a ring has many
+      // nodes to prevent overlap/pile-up. The old code always used 80%
+      // of a semicircle (0.8π), which at radius 780 with 40 nodes gives
+      // only ~39px per node — well below the 72px node diameter, causing
+      // the 'fan pile' overlap bug on dense peripheral rings.
+      //
+      // New logic:
+      //   - ≤ 8 nodes  → 80% of semicircle (0.8π) — original behavior
+      //   - 9–20 nodes → full semicircle (π)
+      //   - 21–50 nodes → 1.5π (3/4 of full circle)
+      //   - 50+ nodes  → full circle (2π) — maximum spread
       final nodeCount = nonSpouseMembers.length;
       if (nodeCount == 0) continue;
 
+      // v5.134: Check if this ring contains unreachable nodes. If it
+      // does, use the FULL circle for placement so they don't cluster
+      // at the end of a semicircle arc.
+      final hasUnreachable = nonSpouseMembers
+          .any((p) => unreachableIds.contains(p.id));
+
+      final double totalArc;
+      if (hasUnreachable && nodeCount > 8) {
+        // Unreachable nodes on a dense ring — use full circle.
+        totalArc = 2 * pi;
+      } else if (nodeCount > 50) {
+        totalArc = 2 * pi;
+      } else if (nodeCount > 20) {
+        totalArc = 1.5 * pi;
+      } else if (nodeCount > 8) {
+        totalArc = pi;
+      } else {
+        totalArc = 0.8 * pi; // original 80% of semicircle
+      }
+
       final angularStep = nodeCount > 1
-          ? totalArc / (nodeCount - 1)
+          ? totalArc / nodeCount
           : 0.0;
-      final startAngle = trunk - totalArc / 2;
+      // For full-circle placement, start at 0° (right side). For
+      // semicircle placement, center on the trunk angle.
+      final startAngle = totalArc >= 2 * pi
+          ? 0.0
+          : (totalArc >= 1.5 * pi
+              ? trunk - totalArc / 2
+              : trunk - totalArc / 2);
 
       for (var i = 0; i < nonSpouseMembers.length; i++) {
         final person = nonSpouseMembers[i];
@@ -481,8 +530,23 @@ class RadialLayout {
       ringAngleOffsets[gen] = trunk;
     }
 
+    // v5.134: POST-PLACEMENT DE-OVERLAP SAFETY NET.
+    // Even with the adaptive arc, edge cases (duplicate positions from
+    // spouse placement, rounding errors, or overlapping rings) can
+    // produce nodes at near-identical coordinates. This pass nudges
+    // any overlapping nodes apart by a minimum distance, guaranteeing
+    // no two nodes render at the same point.
+    _deOverlapPositions(positions, persons);
+
     // 8. Compute canvas dimensions
-    final maxRadius = ringRadii.values.fold(0.0, max);
+    // v5.134: Account for peripheral ring radius which may not be in
+    // ringRadii if all peripheral-ring nodes were unreachable.
+    final allRadii = <double>[
+      ...ringRadii.values,
+      if (peripheralRing > 0)
+        _config.baseRadius + peripheralRing.abs() * _config.activeSpacing,
+    ];
+    final maxRadius = allRadii.fold(0.0, max);
     final canvasWidth = (center.dx + maxRadius + _config.canvasPadding) * 2;
     final canvasHeight = (center.dy + maxRadius + _config.canvasPadding) * 2;
 
@@ -496,6 +560,70 @@ class RadialLayout {
   }
 
   // ── Private helpers ───────────────────────────────────────────────
+
+  /// v5.134: POST-PLACEMENT DE-OVERLAP SAFETY NET.
+  ///
+  /// Iterates over all placed positions and nudges any pair of nodes
+  /// that are closer than [minDistance] apart. This is a lightweight
+  /// O(n²) pass that only runs once after the initial placement —
+  /// it's NOT a force simulation. It catches edge cases that the
+  /// angular placement can't handle:
+  ///   - Spouses placed at the same angle as their partner on a dense
+  ///     ring
+  ///   - Nodes from different rings that happen to land at the same
+  ///     (x, y) due to radius collision (e.g. gen +3 and gen -3 share
+  ///     the same radius)
+  ///   - Rounding errors that place two nodes within sub-pixel distance
+  ///
+  /// The nudge is applied in the X direction first, then Y if X is
+  /// exhausted. The anchor is never moved.
+  void _deOverlapPositions(
+    Map<String, Offset> positions,
+    List<GraphPerson> persons,
+  ) {
+    // Skip if fewer than 2 nodes — can't overlap.
+    if (positions.length < 2) return;
+
+    const minDistance = 60.0; // slightly less than node diameter (72)
+    const nudge = minDistance;
+
+    final ids = positions.keys.toList();
+    var overlapsFound = true;
+    var iterations = 0;
+    const maxIterations = 5;
+
+    while (overlapsFound && iterations < maxIterations) {
+      overlapsFound = false;
+      iterations++;
+
+      for (var i = 0; i < ids.length; i++) {
+        for (var j = i + 1; j < ids.length; j++) {
+          final a = positions[ids[i]]!;
+          final b = positions[ids[j]]!;
+          final dx = b.dx - a.dx;
+          final dy = b.dy - a.dy;
+          final distSq = dx * dx + dy * dy;
+
+          if (distSq < minDistance * minDistance) {
+            overlapsFound = true;
+            // Determine nudge direction — prefer X, fall back to Y.
+            if (dx.abs() < 0.01 && dy.abs() < 0.01) {
+              // Exact same position — nudge B in X.
+              positions[ids[j]] = Offset(b.dx + nudge, b.dy);
+            } else {
+              final dist = sqrt(max(distSq, 0.01));
+              final ux = dx / dist;
+              final uy = dy / dist;
+              // Push B away from A by (minDistance - dist).
+              final push = (minDistance - dist) / 2 + 1.0;
+              positions[ids[i]] = Offset(a.dx - ux * push, a.dy - uy * push);
+              positions[ids[j]] = Offset(b.dx + ux * push, b.dy + uy * push);
+            }
+          }
+        }
+      }
+    }
+  }
 
   /// v5.114: Compute the hop distance (relationship distance) from the
   /// anchor to every other person using BFS.

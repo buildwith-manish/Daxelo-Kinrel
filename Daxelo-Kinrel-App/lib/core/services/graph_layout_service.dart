@@ -614,6 +614,31 @@ class GraphLayoutService {
     );
   }
 
+  /// v5.134: Fallback generation for nodes missing from the BFS
+  /// generations map.
+  ///
+  /// The old code used `generations[id] ?? 0` which silently placed
+  /// any unprocessed node at generation band 0 (the anchor's band),
+  /// causing the "fan pile" overlap when multiple newly-revealed
+  /// branch members hadn't been processed by the BFS yet.
+  ///
+  /// This fallback computes a SAFE peripheral generation:
+  /// 1. If the node IS the anchor → 0.
+  /// 2. Otherwise → max(generations.values) + 1, placing it one band
+  ///    beyond the deepest known generation so it never collides with
+  ///    real nodes.
+  /// 3. If generations is empty (shouldn't happen) → 1.
+  int _fallbackGeneration(
+    String id,
+    Map<String, int> generations,
+    String? anchor,
+  ) {
+    if (anchor != null && id == anchor) return 0;
+    if (generations.isEmpty) return 1;
+    final maxGen = generations.values.fold(0, (a, b) => a > b ? a : b);
+    return maxGen + 1;
+  }
+
   // ═══════════════════════════════════════════════════════════════════
   // STEP 1: ASSIGN GENERATIONS VIA BFS
   // ═══════════════════════════════════════════════════════════════════
@@ -1024,7 +1049,7 @@ class GraphLayoutService {
       // ── Ring constraint spring ─────────────────────────────────────
       for (final id in ids) {
         if (id == anchor) continue;
-        final gen = generations[id] ?? 0;
+        final gen = generations[id] ?? _fallbackGeneration(id, generations, anchor);
         final targetR = ringRadii[gen] ?? baseRadius;
         final pos = positions[id]!;
         final currentR = sqrt(pos.dx * pos.dx + pos.dy * pos.dy);
@@ -1111,7 +1136,7 @@ class GraphLayoutService {
     for (final entry in positions.entries) {
       final id = entry.key;
       final pos = entry.value;
-      final gen = generations[id] ?? 0;
+      final gen = generations[id] ?? _fallbackGeneration(id, generations, null);
       // Override Y with fixed band position. Negative gen = above (negative Y),
       // positive gen = below (positive Y), gen 0 = center (Y=0).
       final y = gen * bandHeight;
@@ -1374,8 +1399,8 @@ class GraphLayoutService {
             // from scattering nodes into wrong generations.
             final idA = ids[i];
             final idB = ids[j];
-            final bandYA = (generations[idA] ?? 0) * bandHeight;
-            final bandYB = (generations[idB] ?? 0) * bandHeight;
+            final bandYA = (generations[idA] ?? _fallbackGeneration(idA, generations, null)) * bandHeight;
+            final bandYB = (generations[idB] ?? _fallbackGeneration(idB, generations, null)) * bandHeight;
 
             positions[idA] = Offset(newAx, bandYA);
             positions[idB] = Offset(newBx, bandYB);
@@ -1387,7 +1412,7 @@ class GraphLayoutService {
             // Nodes at the exact same position — nudge B to the right.
             overlapsFound++;
             final idB = ids[j];
-            final bandYB = (generations[idB] ?? 0) * bandHeight;
+            final bandYB = (generations[idB] ?? _fallbackGeneration(idB, generations, null)) * bandHeight;
             final newBx = xs[j] + minDistance;
             positions[idB] = Offset(newBx, bandYB);
             xs[j] = newBx;
