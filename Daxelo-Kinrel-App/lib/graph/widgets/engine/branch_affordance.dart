@@ -590,7 +590,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                   backgroundColor: KinrelColors.orange,
                   foregroundColor: Colors.white,
                 ),
-                icon: const Icon(Icons.fold_less_rounded, size: 18),
+                icon: const Icon(Icons.unfold_less_rounded, size: 18),
                 label: const Text('Collapse this branch'),
                 onPressed: () {
                   Navigator.of(sheetContext).pop();
