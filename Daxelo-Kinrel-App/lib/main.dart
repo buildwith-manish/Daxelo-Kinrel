@@ -47,6 +47,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'core/widgets/offline_banner.dart';
 import 'core/widgets/global_error_widget.dart';
 import 'core/kinship/kinship_service.dart';
+import 'features/family/presentation/providers/family_graph_provider.dart';
 import 'features/profile/data/profile_provider.dart';
 
 import 'core/services/rating_service.dart';
@@ -403,6 +404,19 @@ Future<void> _handleSignOut(WidgetRef ref) async {
     invalidateViewerCache();
     debugPrint('🔐 _handleSignOut: viewer cache cleared');
   } catch (_) {}
+  // v5.135: Clear the ENTIRE graph cache on sign-out. The previous code
+  // only cleared the viewer cache but left FamilyGraphNotifier's in-memory
+  // _cache intact. When a different account signs in on the same device
+  // (or the same account re-signs in after an RLS policy change), the
+  // stale cached graph data from the previous session could be served,
+  // causing a mismatch between the stats panel (which re-fetches) and
+  // the graph engine view (which may use the stale cache).
+  try {
+    FamilyGraphNotifier.clearAllCache();
+    debugPrint('🔐 _handleSignOut: graph cache cleared');
+  } catch (e) {
+    debugPrint('🔐 _handleSignOut: graph cache clear failed: $e');
+  }
 }
 
 class KinrelApp extends ConsumerStatefulWidget {

@@ -464,6 +464,13 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     }
   }
 
+  /// v5.135: Alias for clearCache(null) — clears ALL cached graph data.
+  /// Called on sign-out to ensure a stale cache from a previous session
+  /// doesn't get served to the next user who signs in on the same device.
+  static void clearAllCache() {
+    clearCache(null);
+  }
+
   /// v64 (BUG-1 FIX): Optimistically inject a new person + relationship
   /// edge into the cached [FlatGraphResult] for [familyId].
   ///
@@ -1212,6 +1219,14 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     String familyId,
   ) async {
     try {
+      // v5.135: Log the authenticated user ID and family ID for diagnosing
+      // RLS/access issues. If the direct query returns 0 persons but the
+      // stats show non-zero, this log reveals whether the current session's
+      // user ID matches a FamilyMember row for this family.
+      final currentUserId = client.auth.currentUser?.id;
+      debugPrint('[v5.135] _fetchGraphDirectQuery: familyId=$familyId, '
+          'authUserId=$currentUserId');
+
       // Query all non-deleted persons in this family
       final rawPersons = await client
           .from('Person')
@@ -1220,6 +1235,33 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
           .eq('familyId', familyId)
           .isFilter('deletedAt', null)
           .timeout(const Duration(seconds: 15));
+
+      // v5.135: If the query returned 0 persons, do a diagnostic count
+      // check to determine if this is a genuine empty family or an RLS
+      // access issue. We use a count query which may use a different RLS
+      // policy than the full SELECT.
+      if (rawPersons.isEmpty) {
+        debugPrint('[v5.135] Direct query returned 0 persons for family '
+            '$familyId. Checking if this is an access issue...');
+        try {
+          final countResult = await client
+              .from('Person')
+              .count('exact')
+              .eq('familyId', familyId)
+              .isFilter('deletedAt', null)
+              .timeout(const Duration(seconds: 5));
+          debugPrint('[v5.135] Count query: $countResult persons exist for '
+              'family $familyId. '
+              'If >0, this is an ACCESS ISSUE, not an empty family.');
+          if (countResult > 0) {
+            debugPrint('[v5.135] ACCESS ISSUE CONFIRMED: $countResult persons '
+                'exist but RLS blocked the SELECT. User $currentUserId may not '
+                'have a FamilyMember row for family $familyId.');
+          }
+        } catch (countError) {
+          debugPrint('[v5.135] Count query failed: $countError');
+        }
+      }
 
       // Query all relationships in this family.
       // Strategy: try the optimal filtered query first; if it fails (column

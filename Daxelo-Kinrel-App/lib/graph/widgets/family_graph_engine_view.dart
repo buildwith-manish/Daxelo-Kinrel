@@ -189,7 +189,7 @@ import 'engine/edge_selection_wrapper.dart' show EdgeSelectionWrapper;
 // chips now render via _buildCollapsedBranchChips in
 // branch_affordance.dart.
 import 'engine/offline_banner.dart' show OfflineBanner;
-import 'engine/empty_graph.dart' show EmptyGraph, ErrorRetry;
+import 'engine/empty_graph.dart' show EmptyGraph, ErrorRetry, AccessIssueGraph;
 import 'engine/claim_profile_banner.dart' show ClaimProfileBanner;
 import 'engine/viewer_linked_provider.dart' show isViewerLinkedProvider;
 
@@ -1493,8 +1493,34 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
             ref.invalidate(familyGraphProvider(widget.familyId)),
       ),
       data: (GraphLayoutResult layout) {
-        if (layout.positions.isEmpty || flat == null) {
+        // v5.135: Distinguish between "genuinely empty family" (0 real
+        // members) and "access denied / layout failed" (members exist in
+        // the graph data but positions are empty). The old code showed
+        // the same misleading "No family members yet. Add someone to
+        // start" message in both cases — confusing when the stats panel
+        // simultaneously shows "714 members".
+        //
+        // Logic:
+        //   - flat == null OR flat.persons.isEmpty → genuinely empty
+        //     → EmptyGraph ("add someone to start")
+        //   - flat.persons.isNotEmpty BUT layout.positions.isEmpty
+        //     → access issue / layout failure
+        //     → AccessIssueGraph ("unable to load, try logging out")
+        if (flat == null || flat.persons.isEmpty) {
           return const EmptyGraph();
+        }
+        if (layout.positions.isEmpty) {
+          // Members exist in the graph data but the layout produced no
+          // positions. This is the "RLS blocked the direct query" or
+          // "stale session" case — NOT a genuinely empty family.
+          debugPrint('[v5.135] AccessIssueGraph: flat has '
+              '${flat.persons.length} persons but layout.positions is empty. '
+              'This indicates an access/session issue, not an empty family.');
+          return AccessIssueGraph(
+            reportedMemberCount: flat.persons.length,
+            onRetry: () =>
+                ref.invalidate(familyGraphProvider(widget.familyId)),
+          );
         }
         // v4.16: Removed _onLayoutChanged call — it triggered recenterIfNeeded()
         // which forced the camera back after panning. With free panning, no
