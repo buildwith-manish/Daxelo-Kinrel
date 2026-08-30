@@ -779,19 +779,17 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
               // Fire the same haptic as expanding (symmetric feel).
               GraphHaptics.branchExpand(context);
 
-              // v5.142: Build the childrenOf adjacency map + edges list
-              // needed by manualCollapseBranch.
+              // v5.142: Build the childrenOf adjacency map needed by
+              // manualCollapseBranch. allEdges is optional (null) —
+              // hidden edges will be computed from childrenOf only.
               final flat = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
               if (flat == null) return;
 
               final childrenOf = <String, Set<String>>{};
-              final allEdges = <({String fromId, String toId, String edgeId, String relationshipKey})>[];
               for (final r in flat.relationships) {
                 final fromId = (r['fromPersonId'] ?? '').toString();
                 final toId = (r['toPersonId'] ?? '').toString();
-                final edgeId = (r['id'] ?? '').toString();
                 final key = (r['relationshipKey'] ?? '').toString();
-                allEdges.add((fromId: fromId, toId: toId, edgeId: edgeId, relationshipKey: key));
                 // parent-type: from is child, to is parent
                 if (key == 'parent' || key == 'father' || key == 'mother' ||
                     key == 'adoptive_parent' || key == 'step_parent') {
@@ -822,7 +820,6 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                     .manualCollapseBranch(
                       rootPersonId: rootPersonId,
                       childrenOf: childrenOf,
-                      allEdges: allEdges,
                       personNameOf: personNameOf,
                     );
               }

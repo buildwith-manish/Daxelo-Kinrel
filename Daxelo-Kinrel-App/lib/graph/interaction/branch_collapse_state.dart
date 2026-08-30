@@ -518,7 +518,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
   void manualCollapseBranch({
     required String rootPersonId,
     required Map<String, Set<String>> childrenOf,
-    required List<({String fromId, String toId, String edgeId, String relationshipKey})> allEdges,
+    List<({String fromId, String toId, String edgeId, String relationshipKey})>? allEdges,
     required String Function(String personId) personNameOf,
     Set<String> protectedIds = const {},
   }) {
@@ -545,13 +545,15 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     // hidden set, or one endpoint is a descendant and the other is
     // the root).
     final hiddenEdgeIds = <String>{};
-    for (final e in allEdges) {
-      if (descendants.contains(e.fromId) &&
-          (descendants.contains(e.toId) || e.toId == rootPersonId)) {
-        hiddenEdgeIds.add(e.edgeId);
-      } else if (descendants.contains(e.toId) &&
-          (descendants.contains(e.fromId) || e.fromId == rootPersonId)) {
-        hiddenEdgeIds.add(e.edgeId);
+    if (allEdges != null) {
+      for (final e in allEdges) {
+        if (descendants.contains(e.fromId) &&
+            (descendants.contains(e.toId) || e.toId == rootPersonId)) {
+          hiddenEdgeIds.add(e.edgeId);
+        } else if (descendants.contains(e.toId) &&
+            (descendants.contains(e.fromId) || e.fromId == rootPersonId)) {
+          hiddenEdgeIds.add(e.edgeId);
+        }
       }
     }
 
