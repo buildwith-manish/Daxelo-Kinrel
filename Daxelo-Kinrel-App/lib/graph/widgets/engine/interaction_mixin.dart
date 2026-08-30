@@ -1166,28 +1166,21 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       final _role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
       final _canRemove = _role == 'admin' || _role == 'owner';
 
-      // v5.139: Check if this node is an EXPANDED branch root. If so,
+      // v5.140: Check if this node is an EXPANDED branch root. If so,
       // pass BranchCollapseInfo to GraphQuickActions so the combined
       // sheet shows "Collapse this branch" + "Preview full names list"
-      // at the TOP, followed by the standard 5 actions below.
+      // as plain items in the same list as the standard actions.
       // If NOT an expanded branch root, branchCollapseInfo is null and
-      // the sheet shows ONLY the standard 5 actions (no regression).
+      // the sheet shows ONLY the standard actions (no branch items).
       final collapseState = ref.read(branchCollapseProvider);
       BranchCollapseInfo? branchInfo;
       if (collapseState.expandedBranchRoots.contains(nodeId)) {
         // Resolve visible branch members via BFS from rootPersonId.
         final visibleNames = _resolveExpandedBranchMemberNames(flat, nodeId);
-        final preview = visibleNames.take(4).toList(growable: false);
-        final remaining = visibleNames.length - preview.length;
         branchInfo = BranchCollapseInfo(
-          memberCount: visibleNames.length,
-          previewNames: preview,
-          remainingCount: remaining,
           onCollapse: () {
-            GraphHaptics.branchExpand(context);
-            ref.read(branchCollapseProvider.notifier)
-                .collapseBranch(nodeId);
-            ref.invalidate(familyGraphProvider(widget.familyId));
+            // v5.140: Show confirmation dialog before collapsing.
+            _showCollapseConfirmationDialog(context, nodeId, graphPersonData.name);
           },
           onPreviewNames: () {
             _showExpandedBranchNamesList(context, graphPersonData.name, visibleNames);

@@ -719,6 +719,65 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     );
   }
 
+  /// v5.140: Shows a confirmation dialog before collapsing a branch.
+  ///
+  /// The user must explicitly confirm — collapsing hides the branch's
+  /// members and restores the '+N' chip. This prevents accidental
+  /// collapses when the user meant to tap something else.
+  void _showCollapseConfirmationDialog(
+    BuildContext context,
+    String rootPersonId,
+    String rootPersonName,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: KinrelColors.darkCard,
+        title: const Text(
+          'Collapse this branch?',
+          style: TextStyle(
+            color: KinrelColors.textWhite,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: const Text(
+          'These members will be hidden again.',
+          style: TextStyle(
+            color: KinrelColors.textSecondaryDark,
+            fontSize: 14,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: KinrelColors.textSecondaryDark),
+            ),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: KinrelColors.orange,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              // Fire the same haptic as expanding (symmetric feel).
+              GraphHaptics.branchExpand(context);
+              // Collapse the branch — re-hides members + restores chip.
+              ref.read(branchCollapseProvider.notifier)
+                  .collapseBranch(rootPersonId);
+              // Invalidate the graph provider so the layout recomputes.
+              ref.invalidate(familyGraphProvider(widget.familyId));
+            },
+            child: const Text('Collapse'),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// v5.139: Resolves the display names of currently-visible members
   /// of an EXPANDED branch (the root + all descendants in the flat graph).
   /// Used by the combined node action sheet to show the "Collapse this

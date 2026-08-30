@@ -98,35 +98,11 @@ class GraphQuickActions {
               ),
             ),
             const Divider(color: Color(0x1AFFFFFF), height: 1.0),
-            // v5.139: Branch-collapse section — shown ONLY when this node
-            // is an expanded branch root. Placed at the TOP (after header,
-            // before standard actions) so it's immediately visible.
+            // v5.140: Branch items — shown ONLY when this node is an
+            // expanded branch root. Simple plain ListTile items, no
+            // separate rich sheet, no header text, no preview. Just
+            // two extra actions in the same list as everything else.
             if (branchCollapseInfo != null) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-                child: Text(
-                  '${branchCollapseInfo.memberCount} members shown',
-                  style: const TextStyle(
-                    color: KinrelColors.textSecondaryDark,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-              if (branchCollapseInfo.previewNames.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Text(
-                    branchCollapseInfo.remainingCount > 0
-                        ? 'Including ${branchCollapseInfo.previewNames.join(", ")} '
-                            '(+${branchCollapseInfo.remainingCount} more)'
-                        : 'Including ${branchCollapseInfo.previewNames.join(", ")}',
-                    style: const TextStyle(
-                      color: KinrelColors.textWhite,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              // Collapse this branch
               ListTile(
                 leading: const Icon(Icons.unfold_less_rounded,
                     color: KinrelColors.orange),
@@ -142,7 +118,6 @@ class GraphQuickActions {
                   branchCollapseInfo.onCollapse();
                 },
               ),
-              // Preview full names list
               ListTile(
                 leading: const Icon(Icons.list_alt_rounded,
                     color: KinrelColors.tealAccent),
@@ -158,7 +133,6 @@ class GraphQuickActions {
                   branchCollapseInfo.onPreviewNames();
                 },
               ),
-              const Divider(color: Color(0x1AFFFFFF), height: 1.0),
             ],
             // View Profile
             ListTile(
@@ -594,31 +568,22 @@ class _RemoveMemberDialogState extends ConsumerState<_RemoveMemberDialog> {
   }
 }
 
-/// v5.139: Data passed to [GraphQuickActions.show] when the long-pressed
-/// node is an expanded branch root. When provided, the sheet renders the
-/// branch-collapse section at the top (before the standard actions).
+/// v5.140: Data passed to [GraphQuickActions.show] when the long-pressed
+/// node is an expanded branch root. When provided, the sheet renders two
+/// extra plain ListTile items ("Collapse this branch" + "Preview full
+/// names list") in the same list as the standard actions.
 ///
-/// When null (the default for non-branch-root nodes), the branch section
-/// is not rendered at all — no empty gap, no divider.
+/// When null (the default for non-branch-root nodes), neither item is
+/// rendered — the menu looks exactly as it does today.
 class BranchCollapseInfo {
   const BranchCollapseInfo({
-    required this.memberCount,
-    required this.previewNames,
-    required this.remainingCount,
     required this.onCollapse,
     required this.onPreviewNames,
   });
 
-  /// Number of currently-visible members in this branch.
-  final int memberCount;
-
-  /// First 4 member names for the preview text.
-  final List<String> previewNames;
-
-  /// Number of members beyond the preview (memberCount - previewNames.length).
-  final int remainingCount;
-
-  /// Called when the user taps "Collapse this branch".
+  /// Called when the user taps "Collapse this branch". The caller is
+  /// responsible for showing the confirmation dialog before actually
+  /// collapsing.
   final VoidCallback onCollapse;
 
   /// Called when the user taps "Preview full names list".
