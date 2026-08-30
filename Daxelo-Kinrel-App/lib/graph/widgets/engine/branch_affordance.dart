@@ -454,6 +454,268 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     );
   }
 
+  /// v5.138: Action sheet for an EXPANDED branch root node.
+  ///
+  /// When a node that is the root of a currently-expanded branch is
+  /// long-pressed, this sheet opens with a "Collapse this branch" option
+  /// instead of "Expand this branch". The sheet reuses the same layout
+  /// as [_showBranchActionSheet] but with:
+  ///   - Header: "{rootPersonName}'s branch"
+  ///   - Metadata: "{count} members shown · {depth} generation(s) deep"
+  ///   - Primary button: "Collapse this branch" → calls collapseBranch()
+  ///   - Secondary button: "Preview full names list" → same as collapsed sheet
+  ///   - Close button
+  void _showExpandedBranchActionSheet(
+    BuildContext context,
+    String rootPersonId,
+    String rootPersonName,
+  ) {
+    // Resolve the currently-visible members of this branch from the
+    // provider state. After expansion, these members are in flat.persons.
+    final flat = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
+    final List<String> visibleMemberNames = [];
+    int memberCount = 0;
+    if (flat != null) {
+      // Find all persons that are descendants of rootPersonId (the branch
+      // members). We use the relationships to find children recursively.
+      final childrenMap = <String, List<String>>{};
+      for (final r in flat.relationships) {
+        final fromId = (r['fromPersonId'] ?? '').toString();
+        final toId = (r['toPersonId'] ?? '').toString();
+        final key = (r['relationshipKey'] ?? '').toString();
+        // parent-type relationship: from is child, to is parent
+        if (key == 'parent' || key == 'father' || key == 'mother' ||
+            key == 'adoptive_parent' || key == 'step_parent') {
+          childrenMap.putIfAbsent(toId, () => []).add(fromId);
+        }
+      }
+      // BFS from rootPersonId to find all descendants
+      final visited = <String>{rootPersonId};
+      final queue = [rootPersonId];
+      while (queue.isNotEmpty) {
+        final current = queue.removeAt(0);
+        for (final child in childrenMap[current] ?? <String>[]) {
+          if (visited.add(child)) {
+            queue.add(child);
+            final person = flat.persons.firstWhere(
+              (p) => (p['id'] ?? '').toString() == child,
+              orElse: () => <String, dynamic>{},
+            );
+            final name = (person['name'] ?? '').toString();
+            if (name.isNotEmpty) visibleMemberNames.add(name);
+          }
+        }
+      }
+      memberCount = visibleMemberNames.length;
+    }
+
+    final rootName = rootPersonName.trim().isNotEmpty
+        ? rootPersonName.trim()
+        : 'Branch';
+    final preview = visibleMemberNames.take(4).toList(growable: false);
+    final remaining = visibleMemberNames.length - preview.length;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Header ───────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.account_tree_rounded,
+                      color: KinrelColors.orange, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      "$rootName's branch",
+                      style: const TextStyle(
+                        color: KinrelColors.textWhite,
+                        fontFamily: 'DMSans',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close,
+                        color: KinrelColors.textSecondaryDark),
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                  ),
+                ],
+              ),
+            ),
+            // ── Summary: visible count ────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+              child: Text(
+                '$memberCount members shown',
+                style: const TextStyle(
+                  color: KinrelColors.textSecondaryDark,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            // ── 4-name preview ────────────────────────────────────────
+            if (preview.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+                child: Text(
+                  remaining > 0
+                      ? 'Including ${preview.join(", ")} (+$remaining more)'
+                      : 'Including ${preview.join(", ")}',
+                  style: const TextStyle(
+                    color: KinrelColors.textWhite,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 12),
+            // ── Primary action: Collapse this branch ──────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: KinrelColors.orange,
+                  foregroundColor: Colors.white,
+                ),
+                icon: const Icon(Icons.fold_less_rounded, size: 18),
+                label: const Text('Collapse this branch'),
+                onPressed: () {
+                  Navigator.of(sheetContext).pop();
+                  // Fire the SAME haptic as expanding (symmetric feel).
+                  GraphHaptics.branchExpand(sheetContext);
+                  // Collapse the branch — re-hides members + restores chip.
+                  ref.read(branchCollapseProvider.notifier)
+                      .collapseBranch(rootPersonId);
+                  // Invalidate the graph provider so the layout recomputes.
+                  ref.invalidate(familyGraphProvider(widget.familyId));
+                },
+              ),
+            ),
+            // ── Secondary action: Preview full names list ─────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: KinrelColors.textWhite,
+                  side: BorderSide(
+                    color: KinrelColors.textSecondaryDark.withValues(
+                        alpha: 0.5),
+                  ),
+                ),
+                icon: const Icon(Icons.list_alt_rounded, size: 18),
+                label: const Text('Preview full names list'),
+                onPressed: () {
+                  // Build a temporary CollapsedBranch-like object for
+                  // the names list sheet (it only needs names + rootName).
+                  _showExpandedBranchNamesList(
+                      sheetContext, rootName, visibleMemberNames);
+                },
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(sheetContext).pop(),
+              child: const Text(
+                'Close',
+                style:
+                    TextStyle(color: KinrelColors.textSecondaryDark),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// v5.138: Names list sheet for an expanded branch (shows currently-
+  /// visible members instead of hidden members).
+  void _showExpandedBranchNamesList(
+    BuildContext context,
+    String rootName,
+    List<String> names,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (listContext) {
+        final height = MediaQuery.of(listContext).size.height;
+        return SizedBox(
+          height: height * 0.7,
+          child: SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          "$rootName's branch · "
+                              '${names.length} members',
+                          style: const TextStyle(
+                            color: KinrelColors.textWhite,
+                            fontFamily: 'DMSans',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close,
+                            color: KinrelColors.textSecondaryDark),
+                        onPressed: () => Navigator.of(listContext).pop(),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: names.length,
+                    itemBuilder: (ctx, i) => ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: KinrelColors.orange
+                            .withValues(alpha: 0.2),
+                        child: Text(
+                          '${i + 1}',
+                          style: const TextStyle(
+                            color: KinrelColors.orange,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        names[i],
+                        style: const TextStyle(
+                          color: KinrelColors.textWhite,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   /// v5.132: The scrollable full-names sheet for a collapsed branch.
   ///
   /// Lists EVERY hidden member's name (resolved via

@@ -1125,6 +1125,24 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // (see [_handleNodeTapDown]) and must never open the info panel.
     final nodeId = _hitTestNode(details.localPosition, layout);
     if (nodeId != null) {
+      // v5.138: Check if this node is an EXPANDED branch root. If so,
+      // open the "Collapse this branch" action sheet instead of the
+      // normal node menu. This gives users a way to re-collapse a
+      // previously-expanded branch (the chip is gone after expansion,
+      // so the only way to collapse is via long-press on the root node).
+      final collapseState = ref.read(branchCollapseProvider);
+      if (collapseState.expandedBranchRoots.contains(nodeId)) {
+        // Resolve the node's name from the flat graph data.
+        final personData = flat.persons
+            .where((p) => p['id'] == nodeId)
+            .firstOrNull;
+        final rootName = (personData?['name'] as String?) ?? '';
+        // Fire the branch-menu-open haptic (same as collapsed chip long-press).
+        GraphHaptics.branchMenuOpen(context);
+        _showExpandedBranchActionSheet(context, nodeId, rootName);
+        return;
+      }
+
       // P3.2: clear "menu opening" haptic on long-press.
       GraphHaptics.longPress(context);
 
