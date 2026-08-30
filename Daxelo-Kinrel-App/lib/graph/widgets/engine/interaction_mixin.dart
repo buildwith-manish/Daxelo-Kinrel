@@ -1167,12 +1167,8 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       final _canRemove = _role == 'admin' || _role == 'owner';
 
       // v5.142: Show "Collapse this branch" whenever the node has ANY
-      // visible descendants — regardless of whether they were auto-expanded
-      // or always-visible. This is broader than just undoing auto-expansion:
-      // the user can manually collapse ANY node's descendants on demand.
-      //
-      // The check uses hasVisibleDescendants() which BFS-traverses the
-      // childrenOf adjacency map against the current visible IDs.
+      // descendants in the graph data — regardless of whether they were
+      // auto-expanded or always-visible.
       final collapseState = ref.read(branchCollapseProvider);
       BranchCollapseInfo? branchInfo;
 
@@ -1189,14 +1185,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
         }
       }
 
-      // Get the current visible IDs from the proximity state.
-      final proximityState = ref.read(proximityGraphProvider);
-      final visibleIds = proximityState.visibleIds;
-
-      // Check if this node has visible descendants.
-      final hasDescendants = collapseState.hasVisibleDescendants(
-        nodeId, childrenOf, visibleIds,
-      );
+      // v5.142: Check if this node has any children (descendants).
+      // If it has children, show the collapse option.
+      final hasDescendants = childrenOf[nodeId]?.isNotEmpty ?? false;
 
       if (hasDescendants) {
         // Resolve visible branch members via BFS from rootPersonId.
