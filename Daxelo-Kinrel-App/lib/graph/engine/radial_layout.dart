@@ -466,11 +466,18 @@ class RadialLayout {
       // only ~39px per node — well below the 72px node diameter, causing
       // the 'fan pile' overlap bug on dense peripheral rings.
       //
-      // New logic:
-      //   - ≤ 8 nodes  → 80% of semicircle (0.8π) — original behavior
-      //   - 9–20 nodes → full semicircle (π)
-      //   - 21–50 nodes → 1.5π (3/4 of full circle)
-      //   - 50+ nodes  → full circle (2π) — maximum spread
+      // v5.136: MINIMUM ANGULAR STEP — compute the minimum angular gap
+      // needed so that adjacent nodes on this ring are at least
+      // (nodeDiameter + padding) pixels apart at the current radius.
+      // If the arc would be too small to fit all nodes at this minimum
+      // gap, expand the arc (up to the full circle). If even the full
+      // circle isn't enough, the de-overlap pass will push them apart.
+      //
+      // Logic:
+      //   1. Compute minAngularStep = (nodeDiameter + padding) / radius
+      //   2. Compute requiredArc = nodeCount * minAngularStep
+      //   3. totalArc = max(requiredArc, adaptiveArc, 0.8π)
+      //   4. Cap at 2π (full circle)
       final nodeCount = nonSpouseMembers.length;
       if (nodeCount == 0) continue;
 
@@ -480,19 +487,39 @@ class RadialLayout {
       final hasUnreachable = nonSpouseMembers
           .any((p) => unreachableIds.contains(p.id));
 
-      final double totalArc;
+      // v5.136: Compute the minimum angular step needed for nodes to
+      // not overlap at this radius. nodeDiameter=72, padding=24 → 96px.
+      // At radius 780, minAngularStep = 96/780 ≈ 0.123 rad ≈ 7°.
+      const nodeDiameter = 72.0;
+      const nodePadding = 24.0;
+      final minAngularStep = radius > 0
+          ? (nodeDiameter + nodePadding) / radius
+          : 0.15;
+      final requiredArc = nodeCount > 1
+          ? nodeCount * minAngularStep
+          : 0.0;
+
+      // v5.134 original adaptive arc (for small node counts)
+      final double adaptiveArc;
       if (hasUnreachable && nodeCount > 8) {
-        // Unreachable nodes on a dense ring — use full circle.
-        totalArc = 2 * pi;
+        adaptiveArc = 2 * pi;
       } else if (nodeCount > 50) {
-        totalArc = 2 * pi;
+        adaptiveArc = 2 * pi;
       } else if (nodeCount > 20) {
-        totalArc = 1.5 * pi;
+        adaptiveArc = 1.5 * pi;
       } else if (nodeCount > 8) {
-        totalArc = pi;
+        adaptiveArc = pi;
       } else {
-        totalArc = 0.8 * pi; // original 80% of semicircle
+        adaptiveArc = 0.8 * pi;
       }
+
+      // v5.136: Use the LARGER of requiredArc, adaptiveArc, and 0.8π,
+      // capped at 2π (full circle). This guarantees nodes are spaced
+      // at least minAngularStep apart unless there are so many that
+      // even the full circle can't fit them — in which case the
+      // de-overlap pass handles it.
+      final totalArc = (requiredArc > adaptiveArc ? requiredArc : adaptiveArc)
+          .clamp(0.8 * pi, 2 * pi);
 
       final angularStep = nodeCount > 1
           ? totalArc / nodeCount
@@ -565,9 +592,9 @@ class RadialLayout {
   ///
   /// Iterates over all placed positions and nudges any pair of nodes
   /// that are closer than [minDistance] apart. This is a lightweight
-  /// O(n²) pass that only runs once after the initial placement —
-  /// it's NOT a force simulation. It catches edge cases that the
-  /// angular placement can't handle:
+  /// O(n²) pass that runs after the initial placement — it's NOT a
+  /// force simulation. It catches edge cases that the angular placement
+  /// can't handle:
   ///   - Spouses placed at the same angle as their partner on a dense
   ///     ring
   ///   - Nodes from different rings that happen to land at the same
@@ -575,8 +602,13 @@ class RadialLayout {
   ///     the same radius)
   ///   - Rounding errors that place two nodes within sub-pixel distance
   ///
-  /// The nudge is applied in the X direction first, then Y if X is
-  /// exhausted. The anchor is never moved.
+  /// v5.136: Increased minDistance from 60 to 96 (72px node diameter +
+  /// 24px padding) so nodes NEVER touch, even after branch expansion.
+  /// Increased maxIterations from 5 to 12 to fully resolve cascading
+  /// overlaps in dense graphs (50+ nodes on a single ring).
+  ///
+  /// The nudge pushes both nodes apart along the line connecting them.
+  /// The anchor is never moved.
   void _deOverlapPositions(
     Map<String, Offset> positions,
     List<GraphPerson> persons,
@@ -584,13 +616,19 @@ class RadialLayout {
     // Skip if fewer than 2 nodes — can't overlap.
     if (positions.length < 2) return;
 
-    const minDistance = 60.0; // slightly less than node diameter (72)
-    const nudge = minDistance;
+    // v5.136: node diameter (72) + 24px padding = 96px minimum distance.
+    // This ensures nodes are always clearly separated and readable.
+    const minDistance = 96.0;
+    const minDistanceSq = minDistance * minDistance;
 
     final ids = positions.keys.toList();
     var overlapsFound = true;
     var iterations = 0;
-    const maxIterations = 5;
+    // v5.136: Increased from 5 to 12 iterations. Dense graphs with 40+
+    // newly-revealed nodes need more passes to fully resolve cascading
+    // overlaps — each pass fixes one layer, but fixing one overlap can
+    // create a new one with a neighbor, requiring another pass.
+    const maxIterations = 12;
 
     while (overlapsFound && iterations < maxIterations) {
       overlapsFound = false;
@@ -604,18 +642,19 @@ class RadialLayout {
           final dy = b.dy - a.dy;
           final distSq = dx * dx + dy * dy;
 
-          if (distSq < minDistance * minDistance) {
+          if (distSq < minDistanceSq) {
             overlapsFound = true;
-            // Determine nudge direction — prefer X, fall back to Y.
             if (dx.abs() < 0.01 && dy.abs() < 0.01) {
               // Exact same position — nudge B in X.
-              positions[ids[j]] = Offset(b.dx + nudge, b.dy);
+              positions[ids[j]] = Offset(b.dx + minDistance, b.dy);
             } else {
               final dist = sqrt(max(distSq, 0.01));
               final ux = dx / dist;
               final uy = dy / dist;
-              // Push B away from A by (minDistance - dist).
-              final push = (minDistance - dist) / 2 + 1.0;
+              // v5.136: Push BOTH nodes apart symmetrically by enough
+              // to reach minDistance, plus a small extra to prevent
+              // re-collision on the next iteration.
+              final push = (minDistance - dist) / 2 + 2.0;
               positions[ids[i]] = Offset(a.dx - ux * push, a.dy - uy * push);
               positions[ids[j]] = Offset(b.dx + ux * push, b.dy + uy * push);
             }

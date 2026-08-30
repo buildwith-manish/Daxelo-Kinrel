@@ -1770,11 +1770,18 @@ final graphLayoutProvider =
 
   final radialLayout = RadialLayout(
     config: const RadialLayoutConfig(
-      ringSpacing: 200.0,
-      compactSpacing: 140.0,
+      // v5.136: Increased ring spacing from 200→260 and compact from
+      // 140→200 to give more room between generation bands. The old
+      // values caused dense clusters where edges from adjacent rings
+      // crossed heavily (the "spaghetti" effect visible in screenshots
+      // of the +4/+9 branch chip area).
+      ringSpacing: 260.0,
+      compactSpacing: 200.0,
       spouseAngularOffset: 90.0,
       canvasPadding: 120.0,
-      baseRadius: 180.0,
+      // v5.136: Increased baseRadius from 180→220 so ring 1 nodes have
+      // more angular room before they start crowding the anchor.
+      baseRadius: 220.0,
       compact: false,
     ),
   );
