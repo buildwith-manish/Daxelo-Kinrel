@@ -329,11 +329,15 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         final relationCategoryById = _cachedRelationCategories!;
         final customColorsByPersonId = _cachedCustomColors!;
 
-        // Expand/collapse filter — empty visible set means "show everything".
-        final Set<String> allowed =
-            _expandCollapse.state.visibleNodeIds.isEmpty
-                ? effectivePositions.keys.toSet()
-                : _expandCollapse.state.visibleNodeIds;
+        // v5.132 (System B REMOVAL): the legacy ExpandCollapseController
+        // allow-list is gone. Its visibleNodeIds was never written by the
+        // real collapse pipeline (branchCollapseProvider /
+        // proximityGraphProvider / computeDensityCollapse), so it was
+        // permanently empty — semantically "show everything". The
+        // rendered candidate set is now simply every node the layout
+        // gave a position; visibility filtering is owned by the
+        // proximity set + density-collapse hidden sets below.
+        final Set<String> allowed = effectivePositions.keys.toSet();
 
         // v99: Build RAW edge tuples from flat.relationships BEFORE
         // visibility filtering. These are needed for computeCollapse

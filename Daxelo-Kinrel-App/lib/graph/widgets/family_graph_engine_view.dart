@@ -59,8 +59,10 @@ import '../data/graph_data_models.dart' show GraphEdgeData;
 import '../data/position_memory.dart' show PositionMemory;
 import '../engine/edge_dedup.dart' show DedupedEdge, EdgeDeduplicator;
 import '../interaction/camera_controller.dart' show CameraController;
-import '../interaction/expand_collapse.dart'
-    show ExpandCollapseController, ExpandCollapseState;
+// v5.132 (System B REMOVAL): the ExpandCollapseController import was
+// removed along with the engine view's private _expandCollapse store —
+// the real collapse pipeline is branchCollapseProvider +
+// proximityGraphProvider (see branch_affordance.dart).
 import '../interaction/haptic_language.dart' show GraphHaptics;
 import '../interaction/keyboard_navigation_controller.dart'
     show handleGraphKeyEvent;
@@ -182,7 +184,10 @@ import 'engine/node_mini_painter.dart' show NodeMiniPainter;
 import 'engine/node_micro_painter.dart' show NodeMicroPainter;
 import 'engine/engine_edge_painter.dart' show EngineEdgePainter;
 import 'engine/edge_selection_wrapper.dart' show EdgeSelectionWrapper;
-import 'engine/branch_affordance_chip.dart' show BranchAffordanceChip;
+// v5.132 (System B REMOVAL): BranchAffordanceChip (the legacy per-node
+// "+N" chip) was deleted with _withBranchAffordance — the ONLY branch
+// chips now render via _buildCollapsedBranchChips in
+// branch_affordance.dart.
 import 'engine/offline_banner.dart' show OfflineBanner;
 import 'engine/empty_graph.dart' show EmptyGraph, ErrorRetry;
 import 'engine/claim_profile_banner.dart' show ClaimProfileBanner;
@@ -296,7 +301,13 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   late final PositionMemory _positionMemory;
   late final CameraController _camera;
   late final ViewportCuller _culler;
-  late final ExpandCollapseController _expandCollapse;
+  // v5.132 (System B REMOVAL): the private ExpandCollapseController
+  // (_expandCollapse) was deleted. Its visibleNodeIds set was only ever
+  // written by the dead _toggleSubtree path and never by the real
+  // density-collapse pipeline (branchCollapseProvider /
+  // proximityGraphProvider / computeDensityCollapse) — the store was
+  // permanently empty, i.e. "show everything", and its per-node
+  // "+N" chips rendered but did nothing on tap.
   final EdgePathCache _edgePathCache = EdgePathCache();
 
   /// Wraps the on-screen graph so it can be captured for share/export.
@@ -605,8 +616,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       bufferPixels: 300,
       rebuildThreshold: 80,
     );
-    _expandCollapse =
-        ExpandCollapseController(const ExpandCollapseState());
+    // v5.132: no ExpandCollapseController here anymore (System B).
 
     // v5.123 (DISPOSE FIX): Capture the global interaction-state notifiers
     // now (ref is valid in initState) so dispose() can clear them without
@@ -768,7 +778,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         ..setFamilyId(widget.familyId);
       _culler.invalidate();
       _edgePathCache.clear();
-      _expandCollapse.updateVisibleNodes(<String>{});
       // v5.117: Reset the proximity graph state when switching families
       // so the new family's anchor + 2-hop neighborhood is computed
       // fresh (not the stale set from the previous family).
@@ -823,7 +832,6 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _camera.removeListener(_onCameraChanged);
     _camera.dispose();
     _culler.dispose();
-    _expandCollapse.dispose();
     _positionMemory.dispose();
     // v5.27 Task 1: dispose the reset animation controller.
     _resetController?.removeStatusListener(_onResetAnimationStatus);

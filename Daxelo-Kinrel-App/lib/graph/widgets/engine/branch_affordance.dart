@@ -2,9 +2,22 @@
 // Extracted from family_graph_engine_view.dart to keep the main file
 // under ~900 lines.
 //
-// Contains the collapsed-branch chip builder, the per-node +N branch
-// affordance wrapper, hidden-descendant counting, and the post-expand
-// camera adjustment logic.
+// Contains the collapsed-branch chip builder (System A — the ONLY
+// branch-chip rendering path in the app), the lazy per-branch
+// fetch-and-expand pipeline, and the long-press action sheet +
+// full-names preview sheets.
+//
+// v5.132 (System B REMOVAL): the legacy per-node "+N" affordance
+// wrapper (_withBranchAffordance → _handleBranchExpand →
+// _toggleSubtree via ExpandCollapseController) was deleted. That path
+// rendered chips that read a state store NOTHING in the real collapse
+// pipeline ever writes (branchCollapseProvider /
+// proximityGraphProvider / computeDensityCollapse), so its chips
+// silently did nothing on tap. Every collapse trigger now renders
+// through _buildCollapsedBranchChips below:
+//   • density-collapse branches (computeDensityCollapse)
+//   • fundamental-relationship collapse (computeCollapse)
+//   • recursive sub-branches at extreme scale (_computeSubBranches)
 
 part of '../family_graph_engine_view.dart';
 
@@ -21,11 +34,20 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
   /// appends a short label (the branch root's name, e.g. "Mother")
   /// when space permits (width-capped, single line, ellipsized).
   ///
-  /// Tapping the chip expands JUST that branch: the existing
-  /// `expandBranch` path in branch_collapse_state.dart (plus the lazy
-  /// per-branch `get_member_branch` fetch from v5.115). No other
-  /// branch's collapse state changes, and the expansion is incremental
-  /// — unrelated branches keep their chips and positions.
+  /// GESTURES (v5.132):
+  ///   • Tap        → instant single-branch expand via
+  ///                  _fetchAndExpandBranch (lazy per-branch
+  ///                  get_member_branch fetch + proximity reveal +
+  ///                  expandBranch). No other branch's collapse state
+  ///                  changes.
+  ///   • Long-press → _showBranchActionSheet: branch root name, hidden
+  ///                  count, generation depth, a 4-name preview, and
+  ///                  buttons to expand the branch or preview the full
+  ///                  hidden-names list WITHOUT expanding.
+  ///
+  /// The GestureDetector uses HitTestBehavior.opaque so the compact
+  /// visual chip always receives taps reliably (no transparent gaps
+  /// swallowing hit events in the graph Stack).
   List<Widget> _buildCollapsedBranchChips(
     GraphLayoutResult layout,
     BranchCollapseState collapseState,
@@ -42,7 +64,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       if (pos == null) continue;
 
       // Position the chip slightly below and to the right of the root node.
-      var chipLeft = pos.dx + 40;
+      final chipLeft = pos.dx + 40;
       var chipTop =
           pos.dy + _FamilyGraphEngineViewState._kCircleCenterYOffset + 40;
 
@@ -71,63 +93,84 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       chips.add(Positioned(
         left: chipLeft,
         top: chipTop,
-        child: GestureDetector(
-          onTap: () {
-            // P3.2: "branch opening" haptic on branch expand.
-            GraphHaptics.branchExpand(context);
-            // v5.115 (Task 1) + v5.123 (Step 3): Fetch ONLY this branch
-            // via get_member_branch RPC, then expand. This is a lazy
-            // fetch — only the tapped branch's nodes/edges are loaded,
-            // never the whole family, and unrelated branches are not
-            // re-fetched or re-laid-out.
-            _fetchAndExpandBranch(branch);
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            constraints: const BoxConstraints(maxWidth: 190),
-            decoration: BoxDecoration(
-              color: KinrelColors.darkBackground.withValues(alpha: 0.92),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: chipAccentColor.withValues(alpha: 0.6),
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.4),
-                  blurRadius: 6,
-                  offset: const Offset(1, 2),
+        child: Semantics(
+          button: true,
+          label:
+              'Expand ${shortLabel.isEmpty ? 'collapsed' : shortLabel} branch: '
+              '${branch.hiddenCount} hidden family members. '
+              'Double-tap to expand. Long-press for branch details and '
+              'the full names list.',
+          child: GestureDetector(
+            // v5.132: opaque hit-testing — the visual chip is compact,
+            // but every pixel inside its bounds must register the tap /
+            // long-press so chips never "silently do nothing".
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              // P3.2: "branch opening" haptic on branch expand.
+              GraphHaptics.branchExpand(context);
+              // v5.115 (Task 1) + v5.123 (Step 3): Fetch ONLY this branch
+              // via get_member_branch RPC, then expand. This is a lazy
+              // fetch — only the tapped branch's nodes/edges are loaded,
+              // never the whole family, and unrelated branches are not
+              // re-fetched or re-laid-out.
+              _fetchAndExpandBranch(branch);
+            },
+            // v5.132: long-press → rich branch action sheet (details +
+            // expand + full-names preview). Fires the DISTINCT
+            // branchMenuOpen double-pulse haptic so users can feel the
+            // difference between the instant expand (tap) and the
+            // richer interaction (long-press).
+            onLongPress: () {
+              GraphHaptics.branchMenuOpen(context);
+              _showBranchActionSheet(context, branch);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              constraints: const BoxConstraints(maxWidth: 190),
+              decoration: BoxDecoration(
+                color: KinrelColors.darkBackground.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: chipAccentColor.withValues(alpha: 0.6),
+                  width: 1.2,
                 ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.unfold_more,
-                  size: 14,
-                  color: chipAccentColor,
-                ),
-                const SizedBox(width: 6),
-                // v5.123 (Step 3): Lead with "+{count}", then append the
-                // short label when space permits (single line,
-                // ellipsized). The generation depth stays available via
-                // the branch tooltip semantics below.
-                Flexible(
-                  child: Text(
-                    shortLabel.isEmpty
-                        ? '+${branch.hiddenCount}'
-                        : '+${branch.hiddenCount} · $shortLabel',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 6,
+                    offset: const Offset(1, 2),
                   ),
-                ),
-              ],
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.unfold_more,
+                    size: 14,
+                    color: chipAccentColor,
+                  ),
+                  const SizedBox(width: 6),
+                  // v5.123 (Step 3): Lead with "+{count}", then append the
+                  // short label when space permits (single line,
+                  // ellipsized). The generation depth stays available via
+                  // the branch tooltip semantics below.
+                  Flexible(
+                    child: Text(
+                      shortLabel.isEmpty
+                          ? '+${branch.hiddenCount}'
+                          : '+${branch.hiddenCount} · $shortLabel',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -138,14 +181,16 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
 
   /// v5.105: Returns the accent color for a collapsed-branch chip
   /// based on the branch's relationshipKey. Falls back to orange
-  /// (the original color) when the key is empty or unrecognized.
+  /// (the original color) when the key is empty.
   Color _chipColorForBranch(CollapsedBranch branch) {
     if (branch.relationshipKey.isEmpty) {
       return KinrelColors.orange;
     }
     // Map the relationship key to a category color.
-    final style = KinshipEdgeStyleResolver.styleFor(branch.relationshipKey);
-    return style.color ?? KinrelColors.orange;
+    // (KinshipEdgeStyle.color is non-nullable — the resolver always
+    // returns a color, including for unknown keys via its default
+    // style, so no null fallback is needed here.)
+    return KinshipEdgeStyleResolver.styleFor(branch.relationshipKey).color;
   }
 
   /// v5.115 (Task 1) + v5.123 (Step 3) + v5.131 (Bug 1 fix): Fetches the
@@ -169,33 +214,27 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
   /// branch's members are added.
   ///
   /// v5.131 (Bug 1 fix): `branchTypeForRelationshipKey` now always
-  /// returns a non-null value (it falls back to `'generic'` for
-  /// unrecognized keys). The fetch therefore ALWAYS runs — previously
-  /// a custom key like `YakFather` made `branchType` null, the fetch
-  /// was skipped, and the subsequent `revealPersons()` found nothing
-  /// to reveal because the hidden members were never in `flat.persons`.
+  /// returns a valid branch type (it falls back to `'generic'` for
+  /// unrecognized keys — non-nullable return type since v5.132). The
+  /// fetch therefore ALWAYS runs — previously a custom key like
+  /// `YakFather` made `branchType` null, the fetch was skipped, and
+  /// the subsequent `revealPersons()` found nothing to reveal because
+  /// the hidden members were never in `flat.persons`.
   Future<void> _fetchAndExpandBranch(CollapsedBranch branch) async {
-    // Map the relationship key to a branch type for the RPC. As of
-    // v5.131 this is guaranteed non-null (the fallback is 'generic').
+    // Map the relationship key to a branch type for the RPC. Never
+    // null: unrecognized keys resolve to the 'generic' BFS fallback.
     final branchType = FamilyGraphNotifier.branchTypeForRelationshipKey(
         branch.relationshipKey);
-    assert(branchType != null,
-      'branchTypeForRelationshipKey must never return null after v5.131; '
-      'received null for key="${branch.relationshipKey}". This means '
-      'the fallback was reverted — restore the generic-case return.');
-
-    if (branchType != null) {
-      // Fetch only this branch's nodes/edges from Supabase. For
-      // unrecognized relationship keys this hits the 'generic' branch
-      // type which does a BFS up to depth=2 hops regardless of label
-      // (migration 20260831120000).
-      await ref.read(familyGraphProvider(widget.familyId).notifier)
-          .fetchBranchAndMerge(
-        rootPersonId: branch.rootPersonId,
-        branchType: branchType,
-        depth: 2,
-      );
-    }
+    // Fetch only this branch's nodes/edges from Supabase. For
+    // unrecognized relationship keys this hits the 'generic' branch
+    // type which does a BFS up to depth=2 hops regardless of label
+    // (migration 20260831120000).
+    await ref.read(familyGraphProvider(widget.familyId).notifier)
+        .fetchBranchAndMerge(
+      rootPersonId: branch.rootPersonId,
+      branchType: branchType,
+      depth: 2,
+    );
 
     // v5.123 (Step 3): Reveal the branch's members in the proximity
     // set FIRST (incremental — only this branch's hidden members plus
@@ -221,156 +260,301 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
         .expandBranch(branch.rootPersonId);
   }
 
-  /// v92 (PART 19): Wraps [node] in a Stack and overlays a "+N"
-  /// collapsed-branch affordance chip when the node has hidden
-  /// descendants. The chip is positioned at the bottom-right of the
-  /// node box, outside the visual circle, so it does not cover the
-  /// initials, name, or midpoint bead.
-  ///
-  /// The chip is only shown when:
-  ///   • the node has hidden descendants (descendants not in the
-  ///     current visible set)
-  ///   • the node is rendered at FULL LOD (the chip is meaningless
-  ///     at CHIP/DOT LOD where every node is already a dot)
-  ///
-  /// Tapping the chip calls `_toggleSubtree` to reveal the branch,
-  /// then gently adjusts the camera if the revealed branch would be
-  /// mostly outside the viewport.
-  Widget _withBranchAffordance(Widget node, String nodeId, FlatGraphResult flat) {
-    final hiddenCount = _hiddenDescendantsCount(nodeId, flat);
-    if (hiddenCount <= 0) return node;
+  // ═══════════════════════════════════════════════════════════════════
+  // v5.132: LONG-PRESS ACTION SHEET + FULL-NAMES PREVIEW
+  // ═══════════════════════════════════════════════════════════════════
 
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        node,
-        // Position the chip at the bottom-right corner of the node box,
-        // just outside the visual circle. The visual circle is ~72px
-        // diameter centered at the top of the 140×176 box; the chip
-        // sits at the bottom-right where it won't overlap the face
-        // or the name.
-        Positioned(
-          right: -4,
-          bottom: 28,
-          child: BranchAffordanceChip(
-            count: hiddenCount,
-            // v5.115 (Task 2): Pass branch context to the chip so it
-            // shows "Label · Count · NG" instead of just "+count".
-            // These fields come from the CollapsedBranch model and
-            // are already computed — no new data fetch needed.
-            label: null, // per-node chip doesn't have a branch label
-            memberCount: hiddenCount,
-            generationDepth: null, // per-node chip doesn't track depth
-            onTap: () => _handleBranchExpand(nodeId, flat),
-          ),
+  /// v5.132: Resolves the display names of a branch's hidden members.
+  ///
+  /// Names come from the CURRENT provider state
+  /// (`familyGraphProvider(familyId)`) — the same FlatGraphResult the
+  /// canvas renders. For members that have not been fetched yet (the
+  /// proximity view truncates large families, so distant branch
+  /// members may not be in `flat.persons`), the RAW person ID is
+  /// returned as a fallback (shortened for display). After
+  /// `_fetchAndExpandBranch` has run at least once for the branch,
+  /// `fetchBranchAndMerge` has merged the full names into the state
+  /// and this resolver returns real names for every member.
+  List<String> _resolveHiddenMemberNames(CollapsedBranch branch) {
+    final flat = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
+
+    // id → display name map from the current (possibly truncated) data.
+    final namesById = <String, String>{};
+    if (flat != null) {
+      for (final p in flat.persons) {
+        final id = (p['id'] ?? '').toString();
+        final name = ((p['name'] as String?) ?? '').trim();
+        if (id.isNotEmpty) namesById[id] = name;
+      }
+    }
+
+    final names = <String>[];
+    for (final id in branch.hiddenMemberIds) {
+      final name = namesById[id];
+      if (name != null && name.isNotEmpty) {
+        names.add(name);
+      } else {
+        // Not fetched yet → raw-ID fallback. Shortened so the list
+        // stays readable; the full name appears after the branch has
+        // been fetched once (fetchBranchAndMerge).
+        names.add(id.length > 10 ? '${id.substring(0, 10)}…' : id);
+      }
+    }
+    // Deterministic display order (hiddenMemberIds is a Set — its
+    // iteration order is traversal-dependent, not user-friendly).
+    names.sort();
+    return names;
+  }
+
+  /// v5.132: The long-press action sheet for a collapsed branch.
+  ///
+  /// Shows the branch summary (root name, hidden count, generation
+  /// depth), a 4-name preview of the hidden members, and three
+  /// actions:
+  ///   • Expand this branch       → _fetchAndExpandBranch (instant
+  ///                               single-branch expand, same as a
+  ///                               chip tap)
+  ///   • Preview full names list → _showFullNamesList — a separate
+  ///                               scrollable sheet of ALL hidden
+  ///                               names that does NOT expand the
+  ///                               branch on the canvas
+  ///   • Close
+  ///
+  /// The sheet itself NEVER expands anything — expansion only happens
+  /// through the explicit "Expand this branch" button.
+  void _showBranchActionSheet(BuildContext context, CollapsedBranch branch) {
+    final names = _resolveHiddenMemberNames(branch);
+    final rootName = branch.rootPersonName.trim().isNotEmpty
+        ? branch.rootPersonName.trim()
+        : branch.branchLabel;
+    final depth = branch.hiddenGenerationDepth;
+    final hasDepth = depth > 0;
+    final preview = names.take(4).toList(growable: false);
+    final remaining = names.length - preview.length;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Header: branch root name + close ─────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+              child: Row(
+                children: [
+                  Icon(Icons.account_tree_rounded,
+                      color: _chipColorForBranch(branch), size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      rootName.isEmpty
+                          ? 'Collapsed branch'
+                          : "$rootName's branch",
+                      style: const TextStyle(
+                        color: KinrelColors.textWhite,
+                        fontFamily: 'DMSans',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close,
+                        color: KinrelColors.textSecondaryDark),
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                  ),
+                ],
+              ),
+            ),
+            // ── Summary: hidden count + generation depth ──────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+              child: Text(
+                hasDepth
+                    ? '${branch.hiddenCount} hidden members · '
+                        '$depth generation${depth == 1 ? '' : 's'} deep'
+                    : '${branch.hiddenCount} hidden members',
+                style: const TextStyle(
+                  color: KinrelColors.textSecondaryDark,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            // ── 4-name preview ────────────────────────────────────────
+            if (preview.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+                child: Text(
+                  remaining > 0
+                      ? 'Including ${preview.join(", ")} (+$remaining more)'
+                      : 'Including ${preview.join(", ")}',
+                  style: const TextStyle(
+                    color: KinrelColors.textWhite,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 12),
+            // ── Actions ───────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: KinrelColors.orange,
+                  foregroundColor: Colors.white,
+                ),
+                icon: const Icon(Icons.unfold_more_rounded, size: 18),
+                label: const Text('Expand this branch'),
+                onPressed: () {
+                  Navigator.of(sheetContext).pop();
+                  // Same haptic + pipeline as a direct chip tap.
+                  GraphHaptics.branchExpand(sheetContext);
+                  _fetchAndExpandBranch(branch);
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: KinrelColors.textWhite,
+                  side: BorderSide(
+                    color: KinrelColors.textSecondaryDark.withValues(
+                        alpha: 0.5),
+                  ),
+                ),
+                icon: const Icon(Icons.list_alt_rounded, size: 18),
+                label: const Text('Preview full names list'),
+                // Opens the names sheet ON TOP of this one — the
+                // branch is NOT expanded on the canvas; closing the
+                // names sheet returns here so the user can still
+                // expand via the button above.
+                onPressed: () =>
+                    _showFullNamesList(sheetContext, branch, names),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(sheetContext).pop(),
+              child: const Text(
+                'Close',
+                style:
+                    TextStyle(color: KinrelColors.textSecondaryDark),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
-      ],
+      ),
     );
   }
 
-  /// v92 (PART 19): Computes the number of hidden descendants for
-  /// [nodeId] — i.e. descendants that are NOT in the current visible
-  /// set managed by ExpandCollapseController.
+  /// v5.132: The scrollable full-names sheet for a collapsed branch.
   ///
-  /// Returns 0 when:
-  ///   • the node has no descendants at all
-  ///   • all descendants are already visible
-  ///   • the visible set is empty (meaning "show everything")
-  int _hiddenDescendantsCount(String nodeId, FlatGraphResult flat) {
-    final allDescendants = _descendantsOf(nodeId, flat);
-    if (allDescendants.isEmpty) return 0;
+  /// Lists EVERY hidden member's name (resolved via
+  /// [_resolveHiddenMemberNames] — raw-ID fallbacks for members that
+  /// haven't been fetched yet). This sheet is a PREVIEW ONLY: it never
+  /// expands the branch on the canvas, so the user can browse who is
+  /// inside the branch without changing the graph.
+  void _showFullNamesList(
+    BuildContext context,
+    CollapsedBranch branch,
+    List<String> names,
+  ) {
+    final rootName = branch.rootPersonName.trim().isNotEmpty
+        ? branch.rootPersonName.trim()
+        : branch.branchLabel;
 
-    // When visibleNodeIds is empty, the controller treats it as
-    // "show everything" — so nothing is hidden.
-    final visible = _expandCollapse.state.visibleNodeIds;
-    if (visible.isEmpty) return 0;
-
-    int hidden = 0;
-    for (final d in allDescendants) {
-      if (!visible.contains(d)) hidden++;
-    }
-    return hidden;
-  }
-
-  /// v92 (PART 19): Handle a tap on the +N branch affordance chip.
-  /// Reveals the hidden branch via the existing `_toggleSubtree`
-  /// architecture, then gently adjusts the camera if the revealed
-  /// branch would be mostly outside the viewport.
-  void _handleBranchExpand(String nodeId, FlatGraphResult flat) {
-    // Reduced motion → reveal immediately (no camera animation).
-    final bool reduced = MediaQuery.disableAnimationsOf(context);
-
-    // Reveal the branch via the existing toggle architecture.
-    _toggleSubtree(nodeId);
-
-    // After the layout rebuilds, gently adjust the camera to bring
-    // the newly-revealed descendants into view. We defer this to the
-    // next frame so the new positions are available.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _maybeAdjustCameraAfterExpand(nodeId, flat, reduced);
-    });
-  }
-
-  /// v92 (PART 19): After a branch is expanded, check whether the
-  /// newly-revealed descendants are mostly outside the viewport. If
-  /// so, gently pan the camera (preserving zoom) to bring them in.
-  void _maybeAdjustCameraAfterExpand(
-      String nodeId, FlatGraphResult flat, bool reduced) {
-    if (_viewportSize == Size.zero) return;
-
-    final layoutAsync = ref.read(graphLayoutProvider(widget.familyId));
-    final layout = layoutAsync.valueOrNull;
-    if (layout == null) return;
-
-    final descendants = _descendantsOf(nodeId, flat);
-    if (descendants.isEmpty) return;
-
-    // Compute the bounding box of the revealed descendants.
-    final revealedPositions = <Offset>[];
-    for (final d in descendants) {
-      final pos = layout.positions[d];
-      if (pos != null) revealedPositions.add(pos);
-    }
-    if (revealedPositions.isEmpty) return;
-
-    // Build the bounding box by folding the positions.
-    var bounds = Rect.fromPoints(
-      revealedPositions.first,
-      revealedPositions.first,
-    );
-    for (final pos in revealedPositions.skip(1)) {
-      bounds = Rect.fromPoints(
-        Offset(
-            min(bounds.left, pos.dx), min(bounds.top, pos.dy)),
-        Offset(
-            max(bounds.right, pos.dx), max(bounds.bottom, pos.dy)),
-      );
-    }
-
-    // Expand the bounds a bit for padding.
-    final paddedBounds = bounds.inflate(80);
-
-    // Check if the bounds are mostly outside the current viewport.
-    final viewport = _camera.computeViewport(_viewportSize);
-    final intersection = paddedBounds.intersect(viewport);
-    final visibleArea = intersection.width * intersection.height;
-    final totalArea = paddedBounds.width * paddedBounds.height;
-    if (totalArea <= 0) return;
-
-    // If >50% of the revealed bounds are outside the viewport, pan.
-    final visibleFraction = visibleArea / totalArea;
-    if (visibleFraction > 0.5) return;
-
-    // Pan the camera to center on the revealed bounds' center.
-    // P3.1: route through the spring-based animator so the pan settles
-    // with a cinematic spring instead of a curve tween.
-    final center = paddedBounds.center;
-    _camera.animateToWithSpring(
-      -center.dx * _camera.zoomLevel + _viewportSize.width / 2,
-      -center.dy * _camera.zoomLevel + _viewportSize.height / 2,
-      _camera.zoomLevel,
-      reducedMotion: reduced,
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (listContext) {
+        final height = MediaQuery.of(listContext).size.height;
+        return SizedBox(
+          height: height * 0.7,
+          child: SafeArea(
+            child: Column(
+              children: [
+                // ── Header ───────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          rootName.isEmpty
+                              ? 'Hidden members (${names.length})'
+                              : "$rootName's branch · "
+                                  '${names.length} hidden',
+                          style: const TextStyle(
+                            color: KinrelColors.textWhite,
+                            fontFamily: 'DMSans',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close,
+                            color: KinrelColors.textSecondaryDark),
+                        onPressed: () => Navigator.of(listContext).pop(),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(
+                    color: KinrelColors.textSecondaryDark, height: 1),
+                // ── Scrollable names list ────────────────────────────
+                Expanded(
+                  child: names.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No hidden members found.',
+                            style: TextStyle(
+                              color: KinrelColors.textSecondaryDark,
+                              fontSize: 13,
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 8, horizontal: 20),
+                          itemCount: names.length,
+                          separatorBuilder: (_, __) => const SizedBox(
+                              height: 2),
+                          itemBuilder: (context, index) => Row(
+                            children: [
+                              const Icon(Icons.person_outline_rounded,
+                                  size: 16,
+                                  color: KinrelColors.textSecondaryDark),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  names[index],
+                                  style: const TextStyle(
+                                    color: KinrelColors.textWhite,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

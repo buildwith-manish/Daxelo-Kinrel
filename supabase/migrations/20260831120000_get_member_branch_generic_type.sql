@@ -11,6 +11,32 @@
 --           set. With 'generic', the client always has a fallback that
 --           fetches ALL relationships involving p_member_id and returns
 --           their connected persons + their inter-edges.
+--
+-- ⚠⚠⚠ KEEP IN SYNC WITH THE FLUTTER CLIENT ⚠⚠⚠
+--
+-- This SQL function and FamilyGraphNotifier.branchTypeForRelationshipKey()
+-- (Daxelo-Kinrel-App/lib/features/family/presentation/providers/
+-- family_graph_provider.dart) form a CONTRACT. Every p_branch_type
+-- CASE arm implemented here must be a string the Dart mapper can
+-- return, and every string the Dart mapper returns must be a CASE arm
+-- implemented here:
+--
+--   SQL CASE arm         ← →  Dart mapper returns
+--   ─────────────────────────────────────────────
+--   WHEN 'maternal'      ← →  'maternal'
+--   WHEN 'paternal'      ← →  'paternal'
+--   WHEN 'cousins'       ← →  'cousins'
+--   WHEN 'inLaws'        ← →  'inLaws'
+--   WHEN 'grandchildren' ← →  'grandchildren'
+--   WHEN 'generic'       ← →  'generic' (universal fallback)
+--
+-- ANY new relationship key or branch type added in ONE place MUST be
+-- reflected in the other in the SAME change. A branch_type that is
+-- sent by the client but not implemented here falls into the ELSE arm
+-- below, returns an empty {nodes, edges} payload, and the "+N" chip
+-- tap silently does nothing — the exact class of bug (v5.131 Bug 1)
+-- this migration fixed. The 'generic' arm is the universal safety
+-- net — NEVER remove it.
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION get_member_branch(
@@ -196,4 +222,7 @@ COMMENT ON FUNCTION get_member_branch(TEXT, TEXT, INT) IS
   'Returns a JSONB {nodes, edges} payload of family members connected to p_member_id. '
   'p_branch_type is one of: maternal, paternal, cousins, inLaws, grandchildren, generic. '
   'generic (v5.131) does a BFS up to p_depth hops regardless of relationship type — used '
-  'by the Flutter client as a fallback when the chip relationship key is unrecognized.';
+  'by the Flutter client as a fallback when the chip relationship key is unrecognized. '
+  'KEEP IN SYNC with FamilyGraphNotifier.branchTypeForRelationshipKey() in the Flutter app: '
+  'any branch_type added on the client MUST have a matching CASE arm here (and vice versa), '
+  'otherwise branch-chip taps silently return empty sets. See migration header for the table.';

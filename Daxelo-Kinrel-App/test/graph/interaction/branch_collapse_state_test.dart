@@ -542,4 +542,172 @@ void main() {
       expect(calls.length, 2);
     });
   });
+
+  // ────────────────────────────────────────────────────────────────────
+  // v5.132 — RECURSIVE SUB-BRANCHES AT SCALE (regression test for the
+  // "+N inside +N" flow). A graph larger than kNodeBudget where a
+  // single root's subtree itself exceeds the budget must produce a
+  // top-level branch PLUS nested sub-branches; expanding the top
+  // branch reveals the sub-branch roots, and the NEXT density pass
+  // re-collapses around them as fresh standalone '+N' chips.
+  // ────────────────────────────────────────────────────────────────────
+  group('v5.132 — recursive sub-branch collapse at scale', () {
+    // Builds a 160-person graph: root → 4 children, each with a
+    // 39-person subtree. The whole graph is > kNodeBudget (50) and the
+    // root's subtree alone (159) is also > kNodeBudget, forcing
+    // recursive sub-clustering.
+    ({Set<String> persons, List<({String fromId, String toId, String edgeId, String relationshipKey})> edges, Map<String, Set<String>> childrenOf})
+        buildScaleGraph() {
+      final persons = <String>{'root'};
+      final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[];
+      final childrenOf = <String, Set<String>>{};
+      var edgeSeq = 0;
+      void addChild(String parent, String child) {
+        persons.add(child);
+        edges.add((fromId: child, toId: parent, edgeId: 'e${edgeSeq++}', relationshipKey: 'parent'));
+        childrenOf.putIfAbsent(parent, () => <String>{}).add(child);
+      }
+
+      // root → 4 children; each child → 38 descendants (3 levels).
+      for (var c = 0; c < 4; c++) {
+        final childId = 'child-$c';
+        addChild('root', childId);
+        for (var d = 0; d < 38; d++) {
+          final parent = d < 4
+              ? childId
+              : 'child-$c-${(d - 4) ~/ 4}'; // fan out under child-0..3
+          final id = 'child-$c-$d';
+          addChild(parent, id);
+        }
+      }
+      return (persons: persons, edges: edges, childrenOf: childrenOf);
+    }
+
+    test('a subtree larger than kNodeBudget produces nested sub-branches',
+        () {
+      final g = buildScaleGraph();
+      notifier.computeDensityCollapse(
+        visibleNodeIds: g.persons,
+        childrenOf: g.childrenOf,
+        personNameOf: (id) => 'Person $id',
+        allEdges: g.edges,
+      );
+
+      expect(notifier.state.collapsedBranches, isNotEmpty,
+          reason: '160-person graph is over budget — must collapse');
+      final topBranch = notifier.state.collapsedBranches.first;
+      expect(topBranch.subBranches, isNotEmpty,
+          reason: 'The root subtree (159 members) exceeds kNodeBudget — '
+              'v5.106 requires recursive sub-clustering');
+      // Every sub-branch root must be a DIRECT child of the top root.
+      for (final sub in topBranch.subBranches) {
+        expect(g.childrenOf[topBranch.rootPersonId], contains(sub.rootPersonId));
+      }
+    });
+
+    test('expanding a branch removes its chip AND reveals the sub-branch '
+        'roots so the next pass yields fresh "+N" chips inside it', () {
+      final g = buildScaleGraph();
+      // First pass: top branch + sub-branches.
+      notifier.computeDensityCollapse(
+        visibleNodeIds: g.persons,
+        childrenOf: g.childrenOf,
+        personNameOf: (id) => 'Person $id',
+        allEdges: g.edges,
+      );
+      final topBranch = notifier.state.collapsedBranches.first;
+      final subRoots =
+          topBranch.subBranches.map((s) => s.rootPersonId).toSet();
+
+      // The user taps the "+N" chip → expandBranch runs (System A:
+      // _fetchAndExpandBranch → expandBranch). The top branch's chip
+      // disappears and its members join the visible candidate set.
+      notifier.expandBranch(topBranch.rootPersonId);
+      expect(
+        notifier.state.collapsedBranches
+            .where((b) => b.rootPersonId == topBranch.rootPersonId),
+        isEmpty,
+        reason: 'Expanding a branch removes its chip',
+      );
+      expect(notifier.state.expandedBranchRoots,
+          contains(topBranch.rootPersonId));
+
+      // The revealed candidate set now includes the sub-branch roots
+      // and their own subtrees (this is what revealPersons does in the
+      // engine view: root + all hiddenMemberIds join the visible set).
+      final revealed = <String>{
+        topBranch.rootPersonId,
+        ...topBranch.hiddenMemberIds,
+      };
+      expect(revealed.containsAll(subRoots), isTrue,
+          reason: 'The revealed set must contain the sub-branch roots — '
+              'they become the NEW chip roots after re-collapse');
+
+      // Second density pass over the revealed set: the top root is in
+      // expandedBranchRoots (skipped), but its children's subtrees are
+      // each still over budget → NEW standalone '+N' chips appear
+      // INSIDE the expanded area. This is the recursive "+N inside +N"
+      // behavior from the v5.132 regression checklist.
+      notifier.computeDensityCollapse(
+        visibleNodeIds: revealed,
+        childrenOf: g.childrenOf,
+        personNameOf: (id) => 'Person $id',
+        allEdges: g.edges,
+      );
+
+      // The top branch must NOT come back...
+      expect(
+        notifier.state.collapsedBranches
+            .where((b) => b.rootPersonId == topBranch.rootPersonId),
+        isEmpty,
+        reason: 'User-expanded branches are never auto-collapsed again',
+      );
+      // ...but at least one nested branch must now be a top-level chip.
+      final nestedChips = notifier.state.collapsedBranches
+          .where((b) => subRoots.contains(b.rootPersonId))
+          .toList();
+      expect(nestedChips, isNotEmpty,
+          reason: 'After expanding the outer branch, the sub-branch roots '
+              'must render their own "+N" chips (recursive reveal)');
+      // And each nested chip hides a real, non-trivial subtree.
+      for (final chip in nestedChips) {
+        expect(chip.hiddenCount, greaterThanOrEqualTo(3));
+        expect(chip.relationshipKey, isNotNull);
+      }
+    });
+
+    test('unrelated branches keep their chips when one branch expands', () {
+      final g = buildScaleGraph();
+      notifier.computeDensityCollapse(
+        visibleNodeIds: g.persons,
+        childrenOf: g.childrenOf,
+        personNameOf: (id) => 'Person $id',
+        allEdges: g.edges,
+      );
+      final before = notifier.state.collapsedBranches
+          .map((b) => b.rootPersonId)
+          .toSet();
+      expect(before.length, greaterThanOrEqualTo(1));
+      if (before.length < 2) {
+        // Single-branch graph: expanding it leaves nothing — still assert
+        // the expansion path is clean.
+        notifier.expandBranch(before.first);
+        expect(notifier.state.collapsedBranches, isEmpty);
+        return;
+      }
+      final expandMe = before.first;
+      final untouched = before.skip(1).toSet();
+
+      notifier.expandBranch(expandMe);
+
+      expect(
+        notifier.state.collapsedBranches
+            .map((b) => b.rootPersonId)
+            .toSet()
+            .containsAll(untouched),
+        isTrue,
+        reason: 'Expanding ONE branch must not touch unrelated branches',
+      );
+    });
+  });
 }

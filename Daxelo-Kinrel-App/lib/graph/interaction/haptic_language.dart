@@ -12,7 +12,11 @@
 //   longPress       mediumImpact     — clear "menu opening" feel
 //   focusEnter      heavyImpact      — clear "moment" feel on focus
 //   focusExit       lightImpact      — gentle release on focus exit
-//   branchExpand    mediumImpact     — branch opening
+//   branchExpand    mediumImpact     — branch opening (chip TAP)
+//   branchMenuOpen  selectionClick + — branch ACTION SHEET (chip
+//                   mediumImpact       LONG-PRESS): distinct double-
+//                                      pulse so users feel the richer
+//                                      interaction was triggered
 //   pathTraceStep   selectionClick   — rhythmic footsteps along path
 //   compareComplete heavyImpact      — clear "answer" feel on compare
 //
@@ -75,6 +79,26 @@ class GraphHaptics {
   /// "Branch opening" haptic on branch expand.
   static Future<void> branchExpand(BuildContext context) =>
       _maybe(context, HapticFeedback.mediumImpact);
+
+  /// v5.132: "Branch action sheet opening" haptic on LONG-PRESS of a
+  /// collapsed-branch chip.
+  ///
+  /// Distinct from [branchExpand] (a single medium impact, fired on
+  /// chip TAP): this fires a double pulse — a soft selection tick,
+  /// then the medium "menu opening" impact ~60 ms later — so users
+  /// can FEEL that the long-press triggered the richer interaction
+  /// (branch details + full-names preview) rather than the plain
+  /// instant expand.
+  ///
+  /// The reduced-motion flag is read from [context] ONCE,
+  /// synchronously, BEFORE the delay — the context is never used
+  /// across an async gap.
+  static Future<void> branchMenuOpen(BuildContext context) async {
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    await _maybeNoContext(reduced, HapticFeedback.selectionClick);
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    await _maybeNoContext(reduced, HapticFeedback.mediumImpact);
+  }
 
   /// Clear "answer" haptic when the compare sheet opens.
   static Future<void> compareComplete(BuildContext context) =>

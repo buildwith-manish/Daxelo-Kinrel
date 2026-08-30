@@ -812,6 +812,30 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
   /// v5.115: Maps a relationship key from `CollapsedBranch.relationshipKey`
   /// to the branch_type parameter expected by `get_member_branch`.
   ///
+  /// ⚠️⚠️⚠️ KEEP IN SYNC WITH THE DATABASE ⚠️⚠️⚠️
+  ///
+  /// This function and the SQL function `get_member_branch` (see
+  /// supabase/migrations/20260831120000_get_member_branch_generic_type.sql)
+  /// form a CONTRACT: every branch_type string returned here must be a
+  /// `p_branch_type` CASE arm the SQL function actually implements.
+  ///
+  ///   This function returns      → SQL must implement
+  ///   ──────────────────────────────────────────────
+  ///   'maternal'                 → WHEN 'maternal'
+  ///   'paternal'                 → WHEN 'paternal'
+  ///   'cousins'                  → WHEN 'cousins'
+  ///   'inLaws'                   → WHEN 'inLaws'
+  ///   'grandchildren'            → WHEN 'grandchildren'
+  ///   'generic' (fallback)       → WHEN 'generic' (BFS fallback)
+  ///
+  /// ANY new relationship key or branch type added in ONE place MUST be
+  /// reflected in the other in the SAME change, otherwise chip taps
+  /// silently no-op again (the exact Bug-1 class this file fixed in
+  /// v5.131): an unrecognized branch_type hits the SQL `ELSE` arm,
+  /// returns an empty {nodes, edges} payload, and the chip appears to
+  /// do nothing. The 'generic' fallback below is the safety net for
+  /// unknown keys — NEVER remove it.
+  ///
   /// v5.131 (Bug 1 fix): now returns `'generic'` instead of `null` for
   /// unrecognized keys. The server's `get_member_branch` RPC was extended
   /// (migration 20260831120000) to accept `'generic'` and run a BFS up to
@@ -824,7 +848,11 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
   /// the `fetchBranchAndMerge` call entirely; the subsequent
   /// `revealPersons()` then found nothing to reveal (the hidden members
   /// weren't in `flat.persons`) and the chip visually did nothing.
-  static String? branchTypeForRelationshipKey(String key) {
+  ///
+  /// v5.132: the return type is now NON-NULLABLE (`String`, was
+  /// `String?`) — the compiler enforces the v5.131 invariant that the
+  /// fallback always resolves to a valid branch type.
+  static String branchTypeForRelationshipKey(String key) {
     final k = key.toLowerCase().trim();
     if (k == 'mother' || k == 'maternal_grandmother' ||
         k == 'maternal_grandfather' || k.startsWith('maternal')) {

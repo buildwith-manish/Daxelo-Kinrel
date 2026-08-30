@@ -1,53 +1,19 @@
 // lib/graph/widgets/engine/subtree_mixin.dart
 // P0.4: Extracted from family_graph_engine_view.dart.
-// Contains the _toggleSubtree method — expand/collapse subtree logic.
+// Contains relation-label/anchor resolution helpers for the engine view.
+//
+// v5.132 (System B REMOVAL): _toggleSubtree and _descendantsOf were
+// deleted — they fed the legacy ExpandCollapseController state store
+// that the real collapse pipeline (branchCollapseProvider /
+// proximityGraphProvider) never writes. Branch expand/collapse now
+// flows exclusively through _fetchAndExpandBranch in
+// branch_affordance.dart.
 
 part of '../family_graph_engine_view.dart';
 
-/// Mixin containing subtree toggle logic for _FamilyGraphEngineViewState.
+/// Mixin containing subtree/anchor resolution helpers for
+/// _FamilyGraphEngineViewState.
 extension _SubtreeMethods on _FamilyGraphEngineViewState {
-  void _toggleSubtree(String id) {
-    final flat = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
-    if (flat == null) return;
-
-    final all = <String>{
-      for (final Map<String, dynamic> p in flat.persons)
-        if (p['id'] != null) p['id'] as String,
-    };
-    final Set<String> visible = _expandCollapse.state.visibleNodeIds.isEmpty
-        ? Set<String>.of(all)
-        : Set<String>.of(_expandCollapse.state.visibleNodeIds);
-
-    final Set<String> descendants = _descendantsOf(id, flat);
-    final bool isExpanded = descendants.any(visible.contains);
-    if (isExpanded) {
-      visible.removeAll(descendants);
-    } else {
-      visible.addAll(descendants);
-    }
-    _expandCollapse.updateVisibleNodes(visible);
-    _culler.invalidate();
-    if (mounted) setState(() {});
-  }
-
-  Set<String> _descendantsOf(String root, FlatGraphResult flat) {
-    final children = <String, List<String>>{};
-    for (final Map<String, dynamic> r in flat.relationships) {
-      final s = r['fromPersonId'] as String?;
-      final t = r['toPersonId'] as String?;
-      if (s == null || t == null) continue;
-      children.putIfAbsent(s, () => <String>[]).add(t);
-    }
-    final out = <String>{};
-    final queue = <String>[...?children[root]];
-    while (queue.isNotEmpty) {
-      final String n = queue.removeLast();
-      if (out.add(n)) {
-        queue.addAll(children[n] ?? const <String>[]);
-      }
-    }
-    return out;
-  }
 
   /// v2.2: Computes a relation label for every person in the graph from
   /// the VIEWER's perspective using [RelationshipEngine.resolveKey].

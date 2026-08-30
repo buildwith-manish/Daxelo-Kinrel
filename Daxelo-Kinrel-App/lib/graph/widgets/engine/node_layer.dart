@@ -136,7 +136,13 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
           child: RepaintBoundary(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
-              child: _withBranchAffordance(node, id, flat),
+              // v5.132 (System B REMOVAL): the legacy per-node
+              // "+N" affordance wrapper (_withBranchAffordance) is
+              // gone — per-node chips read the dead
+              // ExpandCollapseController store and never worked.
+              // Collapsed-branch chips are rendered EXCLUSIVELY by
+              // _buildCollapsedBranchChips (branch_affordance.dart).
+              child: node,
             ),
           ),
         ),
