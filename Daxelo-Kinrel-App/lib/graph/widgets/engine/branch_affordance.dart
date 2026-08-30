@@ -719,6 +719,59 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     );
   }
 
+  /// v5.139: Resolves the display names of currently-visible members
+  /// of an EXPANDED branch (the root + all descendants in the flat graph).
+  /// Used by the combined node action sheet to show the "Collapse this
+  /// branch" section with a name preview.
+  ///
+  /// Performs a BFS from [rootPersonId] through parent-type relationships
+  /// (parent/father/mother/adoptive_parent/step_parent) to find all
+  /// descendants. Returns their display names in BFS order.
+  List<String> _resolveExpandedBranchMemberNames(
+    dynamic flat,
+    String rootPersonId,
+  ) {
+    final List<String> visibleMemberNames = [];
+    if (flat == null) return visibleMemberNames;
+
+    // Build children map from relationships.
+    final childrenMap = <String, List<String>>{};
+    final relationships = flat.relationships as List;
+    for (final r in relationships) {
+      final fromId = (r['fromPersonId'] ?? '').toString();
+      final toId = (r['toPersonId'] ?? '').toString();
+      final key = (r['relationshipKey'] ?? '').toString();
+      // parent-type: from is child, to is parent
+      if (key == 'parent' || key == 'father' || key == 'mother' ||
+          key == 'adoptive_parent' || key == 'step_parent') {
+        childrenMap.putIfAbsent(toId, () => []).add(fromId);
+      }
+    }
+
+    // Build id → name map.
+    final namesById = <String, String>{};
+    for (final p in flat.persons as List) {
+      final id = (p['id'] ?? '').toString();
+      final name = ((p['name'] as String?) ?? '').trim();
+      if (id.isNotEmpty) namesById[id] = name;
+    }
+
+    // BFS from root.
+    final visited = <String>{rootPersonId};
+    final queue = [rootPersonId];
+    while (queue.isNotEmpty) {
+      final current = queue.removeAt(0);
+      for (final child in childrenMap[current] ?? <String>[]) {
+        if (visited.add(child)) {
+          queue.add(child);
+          final name = namesById[child];
+          if (name != null && name.isNotEmpty) visibleMemberNames.add(name);
+        }
+      }
+    }
+    return visibleMemberNames;
+  }
+
   /// v5.132: The scrollable full-names sheet for a collapsed branch.
   ///
   /// Lists EVERY hidden member's name (resolved via

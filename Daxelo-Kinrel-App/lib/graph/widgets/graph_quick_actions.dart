@@ -42,16 +42,11 @@ import 'relationship_picker_flow.dart'; // v5.10: shared picker flow
 class GraphQuickActions {
   GraphQuickActions._();
 
-  /// Shows the quick-actions sheet for [person].
-  ///
-  /// Callers should pass the person's [GraphPersonData] — the sheet
-  /// displays the name and provides 'View Profile', 'Edit',
-  /// 'Focus on person', and 'Remove Member' actions.
-  ///
-  /// [familyId] is required for the Remove Member action.
-  /// [isOwner] controls whether the Remove Member option is shown.
-  /// [isSelf] prevents the owner from removing themselves.
-  /// [ref] is required for the Focus action (sets graphFocusProvider).
+  /// v5.139: Optional branch-collapse info for the combined action sheet.
+  /// When provided, the sheet shows "Collapse this branch" + "Preview full
+  /// names list" at the TOP (after the header, before standard actions).
+  /// When null (default), the sheet shows only the standard actions —
+  /// exactly as it did before v5.138.
   static void show(
     BuildContext context,
     GraphPersonData person, {
@@ -61,6 +56,8 @@ class GraphQuickActions {
     WidgetRef? ref,
     void Function(String personId, String personName)? onFocusPerson,
     void Function(String personId)? onViewRelationship,
+    // v5.139: Branch-collapse section (shown ONLY for expanded branch roots).
+    BranchCollapseInfo? branchCollapseInfo,
   }) {
     showModalBottomSheet(
       context: context,
@@ -101,6 +98,68 @@ class GraphQuickActions {
               ),
             ),
             const Divider(color: Color(0x1AFFFFFF), height: 1.0),
+            // v5.139: Branch-collapse section — shown ONLY when this node
+            // is an expanded branch root. Placed at the TOP (after header,
+            // before standard actions) so it's immediately visible.
+            if (branchCollapseInfo != null) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                child: Text(
+                  '${branchCollapseInfo.memberCount} members shown',
+                  style: const TextStyle(
+                    color: KinrelColors.textSecondaryDark,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              if (branchCollapseInfo.previewNames.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Text(
+                    branchCollapseInfo.remainingCount > 0
+                        ? 'Including ${branchCollapseInfo.previewNames.join(", ")} '
+                            '(+${branchCollapseInfo.remainingCount} more)'
+                        : 'Including ${branchCollapseInfo.previewNames.join(", ")}',
+                    style: const TextStyle(
+                      color: KinrelColors.textWhite,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              // Collapse this branch
+              ListTile(
+                leading: const Icon(Icons.unfold_less_rounded,
+                    color: KinrelColors.orange),
+                title: const Text(
+                  'Collapse this branch',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  branchCollapseInfo.onCollapse();
+                },
+              ),
+              // Preview full names list
+              ListTile(
+                leading: const Icon(Icons.list_alt_rounded,
+                    color: KinrelColors.tealAccent),
+                title: const Text(
+                  'Preview full names list',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  branchCollapseInfo.onPreviewNames();
+                },
+              ),
+              const Divider(color: Color(0x1AFFFFFF), height: 1.0),
+            ],
             // View Profile
             ListTile(
               leading:
@@ -533,4 +592,35 @@ class _RemoveMemberDialogState extends ConsumerState<_RemoveMemberDialog> {
       );
     }
   }
+}
+
+/// v5.139: Data passed to [GraphQuickActions.show] when the long-pressed
+/// node is an expanded branch root. When provided, the sheet renders the
+/// branch-collapse section at the top (before the standard actions).
+///
+/// When null (the default for non-branch-root nodes), the branch section
+/// is not rendered at all — no empty gap, no divider.
+class BranchCollapseInfo {
+  const BranchCollapseInfo({
+    required this.memberCount,
+    required this.previewNames,
+    required this.remainingCount,
+    required this.onCollapse,
+    required this.onPreviewNames,
+  });
+
+  /// Number of currently-visible members in this branch.
+  final int memberCount;
+
+  /// First 4 member names for the preview text.
+  final List<String> previewNames;
+
+  /// Number of members beyond the preview (memberCount - previewNames.length).
+  final int remainingCount;
+
+  /// Called when the user taps "Collapse this branch".
+  final VoidCallback onCollapse;
+
+  /// Called when the user taps "Preview full names list".
+  final VoidCallback onPreviewNames;
 }

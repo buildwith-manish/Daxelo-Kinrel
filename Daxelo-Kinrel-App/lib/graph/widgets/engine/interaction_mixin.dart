@@ -1138,24 +1138,6 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // (see [_handleNodeTapDown]) and must never open the info panel.
     final nodeId = _hitTestNode(details.localPosition, layout);
     if (nodeId != null) {
-      // v5.138: Check if this node is an EXPANDED branch root. If so,
-      // open the "Collapse this branch" action sheet instead of the
-      // normal node menu. This gives users a way to re-collapse a
-      // previously-expanded branch (the chip is gone after expansion,
-      // so the only way to collapse is via long-press on the root node).
-      final collapseState = ref.read(branchCollapseProvider);
-      if (collapseState.expandedBranchRoots.contains(nodeId)) {
-        // Resolve the node's name from the flat graph data.
-        final personData = flat.persons
-            .where((p) => p['id'] == nodeId)
-            .firstOrNull;
-        final rootName = (personData?['name'] as String?) ?? '';
-        // Fire the branch-menu-open haptic (same as collapsed chip long-press).
-        GraphHaptics.branchMenuOpen(context);
-        _showExpandedBranchActionSheet(context, nodeId, rootName);
-        return;
-      }
-
       // P3.2: clear "menu opening" haptic on long-press.
       GraphHaptics.longPress(context);
 
@@ -1183,6 +1165,36 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       // v99 (Phase 8): Resolve role from provider — not hardcoded.
       final _role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
       final _canRemove = _role == 'admin' || _role == 'owner';
+
+      // v5.139: Check if this node is an EXPANDED branch root. If so,
+      // pass BranchCollapseInfo to GraphQuickActions so the combined
+      // sheet shows "Collapse this branch" + "Preview full names list"
+      // at the TOP, followed by the standard 5 actions below.
+      // If NOT an expanded branch root, branchCollapseInfo is null and
+      // the sheet shows ONLY the standard 5 actions (no regression).
+      final collapseState = ref.read(branchCollapseProvider);
+      BranchCollapseInfo? branchInfo;
+      if (collapseState.expandedBranchRoots.contains(nodeId)) {
+        // Resolve visible branch members via BFS from rootPersonId.
+        final visibleNames = _resolveExpandedBranchMemberNames(flat, nodeId);
+        final preview = visibleNames.take(4).toList(growable: false);
+        final remaining = visibleNames.length - preview.length;
+        branchInfo = BranchCollapseInfo(
+          memberCount: visibleNames.length,
+          previewNames: preview,
+          remainingCount: remaining,
+          onCollapse: () {
+            GraphHaptics.branchExpand(context);
+            ref.read(branchCollapseProvider.notifier)
+                .collapseBranch(nodeId);
+            ref.invalidate(familyGraphProvider(widget.familyId));
+          },
+          onPreviewNames: () {
+            _showExpandedBranchNamesList(context, graphPersonData.name, visibleNames);
+          },
+        );
+      }
+
       GraphQuickActions.show(
         context,
         graphPersonData,
@@ -1192,6 +1204,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
         ref: ref,
         onFocusPerson: _onFocusPerson,
         onViewRelationship: _onViewRelationship,
+        branchCollapseInfo: branchInfo,
       );
       return;
     }

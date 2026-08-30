@@ -164,7 +164,7 @@ import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, OnThisDayEv
 import 'graph_minimap.dart' show GraphMiniMap;
 import 'graph_outline_view.dart' show GraphOutlineView;
 import 'graph_legend.dart' show GraphLegend;
-import 'graph_quick_actions.dart' show GraphQuickActions;
+import 'graph_quick_actions.dart' show GraphQuickActions, BranchCollapseInfo;
 import 'graph_relationship_labels.dart' show GraphPersonData;
 import '../interaction/relationship_linking_state.dart'
     show
