@@ -1238,28 +1238,32 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
 
       // v5.135: If the query returned 0 persons, do a diagnostic count
       // check to determine if this is a genuine empty family or an RLS
-      // access issue. We use a count query which may use a different RLS
-      // policy than the full SELECT.
+      // access issue. We fetch a limited sample (up to 1 row) to see if
+      // ANY data is accessible — if even 1 row comes back, the family
+      // isn't genuinely empty and the 0-row result above was an RLS/
+      // session issue.
       if (rawPersons.isEmpty) {
         debugPrint('[v5.135] Direct query returned 0 persons for family '
             '$familyId. Checking if this is an access issue...');
         try {
-          final countResult = await client
+          final sampleResult = await client
               .from('Person')
-              .count('exact')
+              .select('id')
               .eq('familyId', familyId)
               .isFilter('deletedAt', null)
+              .limit(1)
               .timeout(const Duration(seconds: 5));
-          debugPrint('[v5.135] Count query: $countResult persons exist for '
+          final sampleCount = sampleResult.length;
+          debugPrint('[v5.135] Sample query: $sampleCount rows returned for '
               'family $familyId. '
               'If >0, this is an ACCESS ISSUE, not an empty family.');
-          if (countResult > 0) {
-            debugPrint('[v5.135] ACCESS ISSUE CONFIRMED: $countResult persons '
-                'exist but RLS blocked the SELECT. User $currentUserId may not '
+          if (sampleCount > 0) {
+            debugPrint('[v5.135] ACCESS ISSUE CONFIRMED: persons '
+                'exist but RLS blocked the full SELECT. User $currentUserId may not '
                 'have a FamilyMember row for family $familyId.');
           }
         } catch (countError) {
-          debugPrint('[v5.135] Count query failed: $countError');
+          debugPrint('[v5.135] Sample query failed: $countError');
         }
       }
 

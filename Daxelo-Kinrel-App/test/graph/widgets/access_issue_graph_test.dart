@@ -11,7 +11,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:daxelo_kinrel/graph/widgets/engine/empty_graph.dart';
+import 'package:kinrel/graph/widgets/engine/empty_graph.dart';
 
 void main() {
   group('v5.135: AccessIssueGraph', () {

@@ -3,7 +3,6 @@
 // v5.135: Added distinct AccessIssueGraph state for RLS/access-denied cases.
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// v5.135: The genuinely-empty state — the family has 0 real members.
 /// Shows the "add someone to start" prompt.
