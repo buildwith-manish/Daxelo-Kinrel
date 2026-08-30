@@ -1166,26 +1166,32 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       final _role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
       final _canRemove = _role == 'admin' || _role == 'owner';
 
-      // v5.140: Check if this node is an EXPANDED branch root. If so,
-      // pass BranchCollapseInfo to GraphQuickActions so the combined
-      // sheet shows "Collapse this branch" + "Preview full names list"
-      // as plain items in the same list as the standard actions.
-      // If NOT an expanded branch root, branchCollapseInfo is null and
-      // the sheet shows ONLY the standard actions (no branch items).
+      // v5.140: Check if this node is an EXPANDED branch root with
+      // VISIBLE descendants that can actually be collapsed. Only then
+      // do we show "Collapse this branch" + "Preview full names list".
+      // If the node has no expanded child branch (or the branch has no
+      // visible descendants), branchCollapseInfo is null and the sheet
+      // shows ONLY the standard actions — no disabled/greyed buttons.
       final collapseState = ref.read(branchCollapseProvider);
       BranchCollapseInfo? branchInfo;
       if (collapseState.expandedBranchRoots.contains(nodeId)) {
         // Resolve visible branch members via BFS from rootPersonId.
         final visibleNames = _resolveExpandedBranchMemberNames(flat, nodeId);
-        branchInfo = BranchCollapseInfo(
-          onCollapse: () {
-            // v5.140: Show confirmation dialog before collapsing.
-            _showCollapseConfirmationDialog(context, nodeId, graphPersonData.name);
-          },
-          onPreviewNames: () {
-            _showExpandedBranchNamesList(context, graphPersonData.name, visibleNames);
-          },
-        );
+        // v5.141: Only show branch items if there are actual visible
+        // descendants to collapse/preview. If the branch root has no
+        // visible descendants (edge case: data not yet loaded, or the
+        // branch was collapsed by another path), don't show the items.
+        if (visibleNames.isNotEmpty) {
+          branchInfo = BranchCollapseInfo(
+            onCollapse: () {
+              // v5.140: Show confirmation dialog before collapsing.
+              _showCollapseConfirmationDialog(context, nodeId, graphPersonData.name);
+            },
+            onPreviewNames: () {
+              _showExpandedBranchNamesList(context, graphPersonData.name, visibleNames);
+            },
+          );
+        }
       }
 
       GraphQuickActions.show(
