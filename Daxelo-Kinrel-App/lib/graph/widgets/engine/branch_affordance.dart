@@ -256,8 +256,16 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     // Expand the branch in the collapse state — removes it from the
     // collapsed set and adds the root to expandedBranchRoots so it
     // won't be auto-collapsed again.
-    ref.read(branchCollapseProvider.notifier)
-        .expandBranch(branch.rootPersonId);
+    // v5.142: If this is a manually-collapsed branch, use expandManualBranch
+    // (removes from manuallyCollapsedRoots instead of expandedBranchRoots).
+    final collapseState = ref.read(branchCollapseProvider);
+    if (collapseState.manuallyCollapsedRoots.contains(branch.rootPersonId)) {
+      ref.read(branchCollapseProvider.notifier)
+          .expandManualBranch(branch.rootPersonId);
+    } else {
+      ref.read(branchCollapseProvider.notifier)
+          .expandBranch(branch.rootPersonId);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -724,6 +732,11 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
   /// The user must explicitly confirm — collapsing hides the branch's
   /// members and restores the '+N' chip. This prevents accidental
   /// collapses when the user meant to tap something else.
+  ///
+  /// v5.142: Uses manualCollapseBranch() which works for ANY node with
+  /// visible descendants — not just previously-expanded branch roots.
+  /// The manually-collapsed branch stays collapsed even through graph
+  /// recalculations (separate from the auto-collapse system).
   void _showCollapseConfirmationDialog(
     BuildContext context,
     String rootPersonId,
@@ -765,9 +778,55 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
               Navigator.of(dialogContext).pop();
               // Fire the same haptic as expanding (symmetric feel).
               GraphHaptics.branchExpand(context);
-              // Collapse the branch — re-hides members + restores chip.
-              ref.read(branchCollapseProvider.notifier)
-                  .collapseBranch(rootPersonId);
+
+              // v5.142: Build the childrenOf adjacency map + edges list
+              // needed by manualCollapseBranch.
+              final flat = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
+              if (flat == null) return;
+
+              final childrenOf = <String, Set<String>>{};
+              final allEdges = <({String fromId, String toId, String edgeId, String relationshipKey})>[];
+              for (final r in flat.relationships) {
+                final fromId = (r['fromPersonId'] ?? '').toString();
+                final toId = (r['toPersonId'] ?? '').toString();
+                final edgeId = (r['id'] ?? '').toString();
+                final key = (r['relationshipKey'] ?? '').toString();
+                allEdges.add((fromId: fromId, toId: toId, edgeId: edgeId, relationshipKey: key));
+                // parent-type: from is child, to is parent
+                if (key == 'parent' || key == 'father' || key == 'mother' ||
+                    key == 'adoptive_parent' || key == 'step_parent') {
+                  childrenOf.putIfAbsent(toId, () => <String>{}).add(fromId);
+                }
+              }
+
+              String personNameOf(String id) {
+                for (final p in flat.persons) {
+                  if ((p['id'] ?? '').toString() == id) {
+                    return ((p['name'] as String?) ?? '').trim();
+                  }
+                }
+                return '';
+              }
+
+              // v5.142: If this was an auto-expanded branch, use collapseBranch
+              // (removes from expandedBranchRoots). Otherwise, use
+              // manualCollapseBranch (adds to manuallyCollapsedRoots).
+              final collapseState = ref.read(branchCollapseProvider);
+              if (collapseState.expandedBranchRoots.contains(rootPersonId)) {
+                // Auto-expanded branch — just undo the expansion.
+                ref.read(branchCollapseProvider.notifier)
+                    .collapseBranch(rootPersonId);
+              } else {
+                // Manually collapse — works for ANY node with descendants.
+                ref.read(branchCollapseProvider.notifier)
+                    .manualCollapseBranch(
+                      rootPersonId: rootPersonId,
+                      childrenOf: childrenOf,
+                      allEdges: allEdges,
+                      personNameOf: personNameOf,
+                    );
+              }
+
               // Invalidate the graph provider so the layout recomputes.
               ref.invalidate(familyGraphProvider(widget.familyId));
             },

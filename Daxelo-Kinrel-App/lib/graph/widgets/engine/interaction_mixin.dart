@@ -1166,21 +1166,41 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       final _role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
       final _canRemove = _role == 'admin' || _role == 'owner';
 
-      // v5.140: Check if this node is an EXPANDED branch root with
-      // VISIBLE descendants that can actually be collapsed. Only then
-      // do we show "Collapse this branch" + "Preview full names list".
-      // If the node has no expanded child branch (or the branch has no
-      // visible descendants), branchCollapseInfo is null and the sheet
-      // shows ONLY the standard actions — no disabled/greyed buttons.
+      // v5.142: Show "Collapse this branch" whenever the node has ANY
+      // visible descendants — regardless of whether they were auto-expanded
+      // or always-visible. This is broader than just undoing auto-expansion:
+      // the user can manually collapse ANY node's descendants on demand.
+      //
+      // The check uses hasVisibleDescendants() which BFS-traverses the
+      // childrenOf adjacency map against the current visible IDs.
       final collapseState = ref.read(branchCollapseProvider);
       BranchCollapseInfo? branchInfo;
-      if (collapseState.expandedBranchRoots.contains(nodeId)) {
+
+      // Build childrenOf adjacency from the flat graph data.
+      final childrenOf = <String, Set<String>>{};
+      for (final r in flat.relationships) {
+        final fromId = (r['fromPersonId'] ?? '').toString();
+        final toId = (r['toPersonId'] ?? '').toString();
+        final key = (r['relationshipKey'] ?? '').toString();
+        // parent-type: from is child, to is parent
+        if (key == 'parent' || key == 'father' || key == 'mother' ||
+            key == 'adoptive_parent' || key == 'step_parent') {
+          childrenOf.putIfAbsent(toId, () => <String>{}).add(fromId);
+        }
+      }
+
+      // Get the current visible IDs from the proximity state.
+      final proximityState = ref.read(proximityGraphProvider);
+      final visibleIds = proximityState.visibleIds;
+
+      // Check if this node has visible descendants.
+      final hasDescendants = collapseState.hasVisibleDescendants(
+        nodeId, childrenOf, visibleIds,
+      );
+
+      if (hasDescendants) {
         // Resolve visible branch members via BFS from rootPersonId.
         final visibleNames = _resolveExpandedBranchMemberNames(flat, nodeId);
-        // v5.141: Only show branch items if there are actual visible
-        // descendants to collapse/preview. If the branch root has no
-        // visible descendants (edge case: data not yet loaded, or the
-        // branch was collapsed by another path), don't show the items.
         if (visibleNames.isNotEmpty) {
           branchInfo = BranchCollapseInfo(
             onCollapse: () {

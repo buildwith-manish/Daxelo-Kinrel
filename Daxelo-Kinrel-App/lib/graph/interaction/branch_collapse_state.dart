@@ -139,6 +139,7 @@ class BranchCollapseState {
   const BranchCollapseState({
     this.collapsedBranches = const <CollapsedBranch>[],
     this.expandedBranchRoots = const <String>{},
+    this.manuallyCollapsedRoots = const <String>{},
     this.revision = 0,
   });
 
@@ -148,6 +149,13 @@ class BranchCollapseState {
   /// Branch roots that the user has explicitly expanded (should NOT
   /// be auto-collapsed again). Tracked per family.
   final Set<String> expandedBranchRoots;
+
+  /// v5.142: Branch roots that the user has MANUALLY collapsed via the
+  /// node long-press menu. These stay collapsed even if they contain
+  /// protected nodes (first-degree relatives, search matches, etc.)
+  /// that the auto-algorithm would never hide. Separated from
+  /// auto-collapsed branches so the two systems don't interfere.
+  final Set<String> manuallyCollapsedRoots;
 
   /// Bumped whenever collapse state changes. Used by the painter's
   /// shouldRepaint.
@@ -200,11 +208,13 @@ class BranchCollapseState {
   BranchCollapseState copyWith({
     List<CollapsedBranch>? collapsedBranches,
     Set<String>? expandedBranchRoots,
+    Set<String>? manuallyCollapsedRoots,
     int? revision,
   }) {
     return BranchCollapseState(
       collapsedBranches: collapsedBranches ?? this.collapsedBranches,
       expandedBranchRoots: expandedBranchRoots ?? this.expandedBranchRoots,
+      manuallyCollapsedRoots: manuallyCollapsedRoots ?? this.manuallyCollapsedRoots,
       revision: revision ?? this.revision,
     );
   }
@@ -259,6 +269,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     state = BranchCollapseState(
       collapsedBranches: state.collapsedBranches,
       expandedBranchRoots: merged,
+      manuallyCollapsedRoots: state.manuallyCollapsedRoots,
       revision: state.revision + 1,
     );
   }
@@ -313,6 +324,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
         state = BranchCollapseState(
           collapsedBranches: const [],
           expandedBranchRoots: state.expandedBranchRoots,
+      manuallyCollapsedRoots: state.manuallyCollapsedRoots,
           revision: state.revision + 1,
         );
       }
@@ -372,6 +384,9 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       if (rootId == focusPersonId) continue;
       // Skip if the user has explicitly expanded this branch.
       if (state.expandedBranchRoots.contains(rootId)) continue;
+      // v5.142: Skip if manually collapsed — the auto-algorithm must
+      // NOT re-collapse or re-expand a manually-collapsed branch.
+      if (state.manuallyCollapsedRoots.contains(rootId)) continue;
       // Skip if already part of another collapsed branch.
       if (alreadyHidden.contains(rootId)) continue;
 
@@ -433,6 +448,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     state = BranchCollapseState(
       collapsedBranches: newBranches,
       expandedBranchRoots: state.expandedBranchRoots,
+      manuallyCollapsedRoots: state.manuallyCollapsedRoots,
       revision: state.revision + 1,
     );
   }
@@ -459,6 +475,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     state = BranchCollapseState(
       collapsedBranches: newBranches,
       expandedBranchRoots: newExpanded,
+      manuallyCollapsedRoots: state.manuallyCollapsedRoots,
       revision: state.revision + 1,
     );
     // v5.123 (Step 5): persist the user's expansion choice.
@@ -472,11 +489,133 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       ..remove(rootPersonId);
     state = state.copyWith(
       expandedBranchRoots: newExpanded,
+      manuallyCollapsedRoots: state.manuallyCollapsedRoots,
       revision: state.revision + 1,
     );
     // The actual re-collapse happens on the next computeCollapse call.
     // v5.123 (Step 5): persist the user's re-collapse choice.
     onExpansionChanged?.call(rootPersonId, false);
+  }
+
+  /// v5.142: Manually collapse ANY node's descendants on demand.
+  ///
+  /// Unlike [collapseBranch] (which only undoes a previous auto-expand),
+  /// this method works for ANY node that currently has visible descendants
+  /// — including nodes that were never auto-collapsed (protected
+  /// first-degree relatives, always-visible nodes, etc.).
+  ///
+  /// The manually-collapsed root is added to [manuallyCollapsedRoots],
+  /// which is SEPARATE from the auto-collapse system. The auto-algorithm
+  /// (computeCollapse/computeDensityCollapse) will NOT re-expand a
+  /// manually-collapsed branch even if it contains protected nodes.
+  ///
+  /// [childrenOf] is the parent→children adjacency map (same one used by
+  /// computeCollapse/computeDensityCollapse).
+  /// [allEdges] is the full edge list (for computing hidden edges).
+  /// [personNameOf] resolves a person ID to their display name.
+  /// [protectedIds] are persons that should stay visible even inside a
+  /// manually-collapsed subtree (the root itself is always visible).
+  void manualCollapseBranch({
+    required String rootPersonId,
+    required Map<String, Set<String>> childrenOf,
+    required List<({String fromId, String toId, String edgeId, String relationshipKey})> allEdges,
+    required String Function(String personId) personNameOf,
+    Set<String> protectedIds = const {},
+  }) {
+    // Compute the descendant subtree (same BFS as computeCollapse).
+    final descendants = _descendantsExcluding(rootPersonId, childrenOf, {rootPersonId, ...protectedIds});
+    if (descendants.isEmpty) return; // Nothing to collapse.
+
+    // v5.142: Recursive collapse — remove any nested expanded branch
+    // roots that are inside this subtree. This prevents orphaned inner
+    // chips from being left exposed after the outer branch collapses.
+    final nestedExpandedRoots = state.expandedBranchRoots
+        .where((id) => descendants.contains(id))
+        .toSet();
+    final newExpanded = Set<String>.from(state.expandedBranchRoots)
+      ..removeAll(nestedExpandedRoots);
+
+    // Also remove any existing collapsed branches whose root is inside
+    // this subtree (they'll be absorbed into the new outer collapse).
+    final newCollapsedBranches = state.collapsedBranches
+        .where((b) => !descendants.contains(b.rootPersonId) && b.rootPersonId != rootPersonId)
+        .toList();
+
+    // Compute hidden edges (edges where both endpoints are in the
+    // hidden set, or one endpoint is a descendant and the other is
+    // the root).
+    final hiddenEdgeIds = <String>{};
+    for (final e in allEdges) {
+      if (descendants.contains(e.fromId) &&
+          (descendants.contains(e.toId) || e.toId == rootPersonId)) {
+        hiddenEdgeIds.add(e.edgeId);
+      } else if (descendants.contains(e.toId) &&
+          (descendants.contains(e.fromId) || e.fromId == rootPersonId)) {
+        hiddenEdgeIds.add(e.edgeId);
+      }
+    }
+
+    final rootName = personNameOf(rootPersonId);
+    final depth = _maxDepth(rootPersonId, childrenOf, descendants);
+    final label = _generateBranchLabel(rootName, descendants.length);
+
+    // Create the manual collapse branch.
+    final manualBranch = CollapsedBranch(
+      id: '${rootPersonId}_manual_branch',
+      rootPersonId: rootPersonId,
+      rootPersonName: rootName,
+      hiddenMemberIds: descendants,
+      hiddenEdgeIds: hiddenEdgeIds,
+      visibleMemberCount: 1,
+      hiddenGenerationDepth: depth,
+      branchLabel: label,
+      relationshipKey: '',
+    );
+
+    // Add to manuallyCollapsedRoots + collapsedBranches.
+    final newManual = Set<String>.from(state.manuallyCollapsedRoots)
+      ..add(rootPersonId);
+
+    state = BranchCollapseState(
+      collapsedBranches: [...newCollapsedBranches, manualBranch],
+      expandedBranchRoots: newExpanded,
+      manuallyCollapsedRoots: newManual,
+      revision: state.revision + 1,
+    );
+  }
+
+  /// v5.142: Expand a manually-collapsed branch. Removes the root from
+  /// [manuallyCollapsedRoots] and removes the manual CollapsedBranch.
+  /// The descendants become visible again on the next render.
+  void expandManualBranch(String rootPersonId) {
+    final newManual = Set<String>.from(state.manuallyCollapsedRoots)
+      ..remove(rootPersonId);
+    final newBranches = state.collapsedBranches
+        .where((b) => b.rootPersonId != rootPersonId || b.id != '${rootPersonId}_manual_branch')
+        .toList();
+    state = state.copyWith(
+      collapsedBranches: newBranches,
+      manuallyCollapsedRoots: newManual,
+      revision: state.revision + 1,
+    );
+  }
+
+  /// v5.142: Check if a node has any visible descendants on the canvas.
+  /// Used to decide whether to show "Collapse this branch" in the
+  /// long-press menu.
+  bool hasVisibleDescendants(
+    String personId,
+    Map<String, Set<String>> childrenOf,
+    Set<String> visibleIds,
+  ) {
+    final children = childrenOf[personId];
+    if (children == null || children.isEmpty) return false;
+    for (final child in children) {
+      if (visibleIds.contains(child)) return true;
+      // Recursively check grandchildren.
+      if (hasVisibleDescendants(child, childrenOf, visibleIds)) return true;
+    }
+    return false;
   }
 
   /// Clear all collapse state — called when switching families.
@@ -536,6 +675,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
         state = BranchCollapseState(
           collapsedBranches: const [],
           expandedBranchRoots: state.expandedBranchRoots,
+      manuallyCollapsedRoots: state.manuallyCollapsedRoots,
           revision: state.revision + 1,
         );
       }
@@ -571,6 +711,8 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
 
       // Skip if user has manually expanded this root.
       if (state.expandedBranchRoots.contains(rootId)) continue;
+      // v5.142: Skip if manually collapsed — don't touch it.
+      if (state.manuallyCollapsedRoots.contains(rootId)) continue;
 
       // Compute the subtree to collapse (BFS through childrenOf).
       final subtreeMembers = <String>{};
@@ -640,6 +782,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     state = BranchCollapseState(
       collapsedBranches: newBranches,
       expandedBranchRoots: state.expandedBranchRoots,
+      manuallyCollapsedRoots: state.manuallyCollapsedRoots,
       revision: state.revision + 1,
     );
   }
