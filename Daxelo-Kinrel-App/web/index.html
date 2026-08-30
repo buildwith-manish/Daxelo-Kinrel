@@ -168,6 +168,44 @@
       height: 100%;
       display: block;
     }
+    /* v5.133 — CRITICAL FIX: Pointer-event plumbing for Flutter Web.
+       Without these rules, <flt-glass-pane> defaults to display:inline
+       with 0×0 size, so the engine's pointer-event sink never receives
+       any clicks/taps/drags — the entire app appears "frozen" even
+       though it renders correctly. The Flutter team's default template
+       ships these rules inside flutter.js, but the custom index.html
+       in this repo was missing them.
+
+       Symptoms fixed:
+         • Sign-in form visible but no input field can be focused
+         • Branch chips visible but tap does nothing
+         • Graph drag/pan/zoom all dead
+         • "Zero pointer events reaching even a plain Material button"
+
+       Rule 1: <flutter-view> must fill the viewport. The engine
+               creates it with position:absolute;inset:0 but only
+               when its parent has a definite size.
+       Rule 2: <flt-glass-pane> must fill <flutter-view>. Without
+               this rule it stays at display:inline / 0×0 and the
+               shadow-DOM canvas inside it has no hit region.
+       Rule 3: <flt-scene-host> gets pointer-events:none from the
+               engine inline style (intentional — the glass-pane is
+               the actual pointer target). We keep that, but make
+               sure the glass-pane itself can receive events. */
+    flutter-view {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    flt-glass-pane {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
     /* Ensure the maplibre map container (which maplibre_web appends to
        document.body) doesn't overlap the Flutter UI. The plugin creates
        a div with 100% width/height and appends it to body — we need to
