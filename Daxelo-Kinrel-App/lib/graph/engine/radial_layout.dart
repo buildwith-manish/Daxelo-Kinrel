@@ -829,6 +829,16 @@ class RadialLayout {
     Set<String> placed,
   ) {
     final spouses = spouseMap[person.id] ?? [];
+    // v5.136: Use a distance-based spouse offset instead of the raw
+    // spouseAngularOffset (90°). The old code used 90/radius radians,
+    // which at radius 480 gives only 90px — barely below the 96px
+    // minimum distance. Now we compute the angular offset from the
+    // desired arc distance (nodeDiameter + padding = 96px) so spouses
+    // are always at least 96px apart from their partner.
+    const nodeDiameter = 72.0;
+    const spouseGap = 24.0;
+    const spouseArcDistance = nodeDiameter + spouseGap; // 96px
+
     for (var i = 0; i < spouses.length; i++) {
       final spouseId = spouses[i];
       if (positions.containsKey(spouseId)) {
@@ -839,8 +849,12 @@ class RadialLayout {
       final spousePerson = personById[spouseId];
       if (spousePerson == null) continue;
 
-      // Angular offset: 90dp / radius gives radians, with sign alternating
-      final angularOffset = (_config.spouseAngularOffset / radius) * (i + 1);
+      // v5.136: Compute angular offset from the desired arc distance.
+      // angularOffset = arcDistance / radius (in radians)
+      // Multiply by (i+1) so multiple spouses stack at increasing offsets.
+      final angularOffset = radius > 0
+          ? (spouseArcDistance / radius) * (i + 1)
+          : 0.15 * (i + 1);
       final spouseAngle = baseAngle + angularOffset;
 
       final x = center.dx + radius * cos(spouseAngle);
