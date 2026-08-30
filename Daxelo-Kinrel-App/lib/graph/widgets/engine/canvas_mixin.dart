@@ -1202,6 +1202,12 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             // (convert screen pos → graph space → check if inside any
             // node circle) and handle the tap directly.
             onTapDown: (details) => _handleCanvasTapDown(details, layout, flat, viewerPersonId),
+            // v5.137: onTap fires ONLY for quick taps (not long-presses).
+            // This is where branch chip expansion happens — we record the
+            // hit in onTapDown but defer the expand to onTap so that
+            // long-pressing a chip opens the action sheet instead of
+            // expanding the branch.
+            onTap: () => _handleCanvasTap(),
             onLongPressStart: (details) => _handleNodeLongPress(details, layout, flat, viewerPersonId),
             // P2.4: Two-node select-and-compare drag gesture.
             onLongPressMoveUpdate: (details) => _handleCompareDragUpdate(details, layout),

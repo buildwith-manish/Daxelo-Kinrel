@@ -394,6 +394,12 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // and route them to the same handlers the chip would have called.
   List<CollapsedBranch> _currentCollapsedBranches = const [];
 
+  // v5.137: Records which branch chip was hit during onTapDown, so the
+  // onTap callback (which fires only for quick taps, NOT long-presses)
+  // can expand the correct branch. This prevents the chip from expanding
+  // on pointer-down (which would prevent long-press from ever firing).
+  CollapsedBranch? _pendingChipTapBranch;
+
   // Phase 6 (hit-test parity): Cache the current couple unions so the
   // tap hit-tester can apply the SAME union-redirect the painter applies
   // to the rendered bezier curve. Without this, tapping a parent→child

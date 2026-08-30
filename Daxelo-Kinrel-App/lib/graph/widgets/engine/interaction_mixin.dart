@@ -644,15 +644,34 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // GestureDetector loses the gesture arena to the parent's
     // ScaleGestureRecognizer, so we must intercept chip taps here at the
     // parent level (same pattern as the v72 node hit-test fix).
+    //
+    // IMPORTANT: We do NOT expand the branch here. onTapDown fires
+    // IMMEDIATELY on pointer-down, which would prevent the long-press
+    // handler from ever firing (the branch would already be expanded
+    // before the 500ms long-press threshold is reached). Instead, we
+    // record the hit and let the onTap callback (which only fires for
+    // quick taps, NOT long-presses) do the actual expansion.
     final branch = _hitTestBranchChip(details.localPosition, layout);
     if (branch != null) {
-      // Fire the SAME haptic + expand handler the chip's onTap would have called.
-      GraphHaptics.branchExpand(context);
-      _fetchAndExpandBranch(branch);
+      _pendingChipTapBranch = branch;
       return;
     }
 
     _handleNodeTapDown(details, layout, flat, viewerPersonId);
+  }
+
+  /// v5.137: Fires when a quick tap is recognized (pointer released before
+  /// the long-press threshold). If a branch chip was hit during onTapDown,
+  /// expand it now. This ensures chips expand on tap but NOT on long-press
+  /// (long-press opens the action sheet instead).
+  void _handleCanvasTap() {
+    if (ref.read(rearrangeModeProvider)) return;
+    final branch = _pendingChipTapBranch;
+    _pendingChipTapBranch = null;
+    if (branch != null) {
+      GraphHaptics.branchExpand(context);
+      _fetchAndExpandBranch(branch);
+    }
   }
 
   /// v92 (PART 17): Geometric hit-test for edge midpoints. Returns the
@@ -1058,6 +1077,10 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // GestureDetector loses the gesture arena to the parent's
     // ScaleGestureRecognizer, so we must intercept chip long-presses here
     // at the parent level (same pattern as the v72 node hit-test fix).
+    //
+    // Clear the pending chip tap so the onTap callback does NOT also fire
+    // the expand (long-press should open the action sheet, NOT expand).
+    _pendingChipTapBranch = null;
     final branch = _hitTestBranchChip(details.localPosition, layout);
     if (branch != null) {
       // Fire the SAME haptic + action sheet handler the chip's onLongPress
