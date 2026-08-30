@@ -400,6 +400,15 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // on pointer-down (which would prevent long-press from ever firing).
   CollapsedBranch? _pendingChipTapBranch;
 
+  // v5.137.2: Timer that fires the chip expand after 500ms if no long-press
+  // was recognized. On Flutter Web, the ScaleGestureRecognizer wins the
+  // gesture arena, which means Flutter's built-in tap/long-press distinction
+  // is unreliable — onTap can fire even after a long hold. This timer-based
+  // approach gives us precise control: if the timer fires (no long-press
+  // happened within 500ms), expand the branch. If onLongPressStart fires
+  // first, cancel the timer and open the action sheet instead.
+  Timer? _chipExpandTimer;
+
   // Phase 6 (hit-test parity): Cache the current couple unions so the
   // tap hit-tester can apply the SAME union-redirect the painter applies
   // to the rendered bezier curve. Without this, tapping a parent→child

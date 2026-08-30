@@ -645,15 +645,24 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // ScaleGestureRecognizer, so we must intercept chip taps here at the
     // parent level (same pattern as the v72 node hit-test fix).
     //
-    // IMPORTANT: We do NOT expand the branch here. onTapDown fires
-    // IMMEDIATELY on pointer-down, which would prevent the long-press
-    // handler from ever firing (the branch would already be expanded
-    // before the 500ms long-press threshold is reached). Instead, we
-    // record the hit and let the onTap callback (which only fires for
-    // quick taps, NOT long-presses) do the actual expansion.
+    // v5.137.2: DON'T expand immediately. Start a 500ms timer instead.
+    // If the timer fires (no long-press happened), expand the branch.
+    // If onLongPressStart fires first, it cancels the timer and opens
+    // the action sheet. This is the reliable way to distinguish tap from
+    // long-press on Flutter Web where the gesture arena is unreliable.
     final branch = _hitTestBranchChip(details.localPosition, layout);
     if (branch != null) {
       _pendingChipTapBranch = branch;
+      _chipExpandTimer?.cancel();
+      _chipExpandTimer = Timer(const Duration(milliseconds: 500), () {
+        // Timer fired — no long-press happened. Expand the branch.
+        final b = _pendingChipTapBranch;
+        _pendingChipTapBranch = null;
+        if (b != null) {
+          GraphHaptics.branchExpand(context);
+          _fetchAndExpandBranch(b);
+        }
+      });
       return;
     }
 
@@ -661,17 +670,16 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   }
 
   /// v5.137: Fires when a quick tap is recognized (pointer released before
-  /// the long-press threshold). If a branch chip was hit during onTapDown,
-  /// expand it now. This ensures chips expand on tap but NOT on long-press
-  /// (long-press opens the action sheet instead).
+  /// the long-press threshold). Kept for backward compatibility but the
+  /// actual chip expansion is now handled by the timer in _handleCanvasTapDown.
   void _handleCanvasTap() {
     if (ref.read(rearrangeModeProvider)) return;
-    final branch = _pendingChipTapBranch;
-    _pendingChipTapBranch = null;
-    if (branch != null) {
-      GraphHaptics.branchExpand(context);
-      _fetchAndExpandBranch(branch);
-    }
+    // v5.137.2: The timer-based approach in _handleCanvasTapDown handles
+    // the expand. Cancel the pending timer here (pointer was released
+    // quickly = tap, but the timer may not have fired yet).
+    // Actually, DON'T cancel — let the timer fire. The timer is the
+    // reliable signal. This method is kept as a no-op for the onTap
+    // callback so Flutter's gesture arena doesn't complain.
   }
 
   /// v92 (PART 17): Geometric hit-test for edge midpoints. Returns the
@@ -1078,8 +1086,9 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // ScaleGestureRecognizer, so we must intercept chip long-presses here
     // at the parent level (same pattern as the v72 node hit-test fix).
     //
-    // Clear the pending chip tap so the onTap callback does NOT also fire
-    // the expand (long-press should open the action sheet, NOT expand).
+    // v5.137.2: Cancel the expand timer — the long-press was recognized,
+    // so we should open the action sheet instead of expanding the branch.
+    _chipExpandTimer?.cancel();
     _pendingChipTapBranch = null;
     final branch = _hitTestBranchChip(details.localPosition, layout);
     if (branch != null) {
