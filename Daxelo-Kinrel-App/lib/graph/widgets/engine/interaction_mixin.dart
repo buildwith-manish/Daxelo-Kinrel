@@ -650,20 +650,33 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // If onLongPressStart fires first, it cancels the timer and opens
     // the action sheet. This is the reliable way to distinguish tap from
     // long-press on Flutter Web where the gesture arena is unreliable.
+    //
+    // v5.138.2: Guard against stale chip cache. If the branch is already
+    // in expandedBranchRoots, DON'T start the expand timer — the chip is
+    // gone and the user might be long-pressing the root NODE to collapse.
     final branch = _hitTestBranchChip(details.localPosition, layout);
     if (branch != null) {
-      _pendingChipTapBranch = branch;
-      _chipExpandTimer?.cancel();
-      _chipExpandTimer = Timer(const Duration(milliseconds: 500), () {
-        // Timer fired — no long-press happened. Expand the branch.
-        final b = _pendingChipTapBranch;
+      // v5.138.2: Skip if already expanded (stale cache / chip gone).
+      final collapseState = ref.read(branchCollapseProvider);
+      if (collapseState.expandedBranchRoots.contains(branch.rootPersonId)) {
         _pendingChipTapBranch = null;
-        if (b != null) {
-          GraphHaptics.branchExpand(context);
-          _fetchAndExpandBranch(b);
-        }
-      });
-      return;
+        _chipExpandTimer?.cancel();
+        // Fall through to node tap handler — the user might be tapping
+        // the root node of an already-expanded branch.
+      } else {
+        _pendingChipTapBranch = branch;
+        _chipExpandTimer?.cancel();
+        _chipExpandTimer = Timer(const Duration(milliseconds: 500), () {
+          // Timer fired — no long-press happened. Expand the branch.
+          final b = _pendingChipTapBranch;
+          _pendingChipTapBranch = null;
+          if (b != null) {
+            GraphHaptics.branchExpand(context);
+            _fetchAndExpandBranch(b);
+          }
+        });
+        return;
+      }
     }
 
     _handleNodeTapDown(details, layout, flat, viewerPersonId);
