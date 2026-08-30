@@ -348,7 +348,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       if (pos == null) continue;
 
       final chipLeft = pos.dx + 40;
-      var chipTop = pos.dy + _kCircleCenterYOffset + 40;
+      var chipTop = pos.dy + _FamilyGraphEngineViewState._kCircleCenterYOffset + 40;
 
       // Reproduce the collision-avoidance stacking
       while (placedRects.any((r) => r.overlaps(
