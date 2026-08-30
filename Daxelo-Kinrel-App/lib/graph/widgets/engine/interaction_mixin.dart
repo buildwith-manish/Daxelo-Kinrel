@@ -317,6 +317,62 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     return bestId;
   }
 
+  /// v5.137: Geometric hit-test for branch chips.
+  ///
+  /// On Flutter Web, the parent GestureDetector's ScaleGestureRecognizer
+  /// wins the gesture arena for any pointer sequence, so the branch chip's
+  /// own onTap/onLongPress never fire (same bug that affected nodes before
+  /// the v72 geometric hit-test fix).
+  ///
+  /// This method reproduces the chip's on-screen rect using the SAME
+  /// geometry formula as _buildCollapsedBranchChips in branch_affordance.dart:
+  ///   chipLeft = pos.dx + 40
+  ///   chipTop = pos.dy + _kCircleCenterYOffset + 40 (+ 36px per collision)
+  ///
+  /// Returns the CollapsedBranch whose chip rect contains [screenPos],
+  /// or null if no chip is hit.
+  CollapsedBranch? _hitTestBranchChip(Offset screenPos, GraphLayoutResult layout) {
+    if (_currentCollapsedBranches.isEmpty) return null;
+    final graphPos = _screenToGraphSpace(screenPos);
+
+    // Reproduce the chip placement logic from branch_affordance.dart.
+    // We must use the SAME positions map the chip builder uses
+    // (layout.positions, NOT _currentPositionsWithOffset) because the
+    // chip builder uses layout.positions directly.
+    final placedRects = <Rect>[];
+    const chipWidth = 200.0;
+    const chipHeight = 32.0;
+
+    for (final branch in _currentCollapsedBranches) {
+      final pos = layout.positions[branch.rootPersonId];
+      if (pos == null) continue;
+
+      final chipLeft = pos.dx + 40;
+      var chipTop = pos.dy + _kCircleCenterYOffset + 40;
+
+      // Reproduce the collision-avoidance stacking
+      while (placedRects.any((r) => r.overlaps(
+          Rect.fromLTWH(chipLeft, chipTop, chipWidth, chipHeight)))) {
+        chipTop += 36;
+      }
+      placedRects.add(Rect.fromLTWH(chipLeft, chipTop, chipWidth, chipHeight));
+
+      // Check if the graph-space tap point falls inside this chip rect.
+      // Use a slightly larger hit area (padding) for easier tapping.
+      const hitPadding = 8.0;
+      final hitRect = Rect.fromLTWH(
+        chipLeft - hitPadding,
+        chipTop - hitPadding,
+        chipWidth + hitPadding * 2,
+        chipHeight + hitPadding * 2,
+      );
+      if (hitRect.contains(graphPos)) {
+        return branch;
+      }
+    }
+    return null;
+  }
+
   /// v91 (PART 13): Computes the set of edge IDs that should be dimmed
   /// when relationship focus mode is active.
   ///
@@ -583,6 +639,19 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // Tapping should NOT trigger Focus Mode, open profile details,
     // or perform any standard graph actions.
     if (ref.read(rearrangeModeProvider)) return;
+
+    // v5.137: Branch chip hit-test FIRST. On Flutter Web, the chip's own
+    // GestureDetector loses the gesture arena to the parent's
+    // ScaleGestureRecognizer, so we must intercept chip taps here at the
+    // parent level (same pattern as the v72 node hit-test fix).
+    final branch = _hitTestBranchChip(details.localPosition, layout);
+    if (branch != null) {
+      // Fire the SAME haptic + expand handler the chip's onTap would have called.
+      GraphHaptics.branchExpand(context);
+      _fetchAndExpandBranch(branch);
+      return;
+    }
+
     _handleNodeTapDown(details, layout, flat, viewerPersonId);
   }
 
@@ -982,6 +1051,19 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     final isRearranging = ref.read(rearrangeModeProvider);
     if (isRearranging) {
       _handleRearrangeLongPressStart(details, layout, flat);
+      return;
+    }
+
+    // v5.137: Branch chip hit-test FIRST. On Flutter Web, the chip's own
+    // GestureDetector loses the gesture arena to the parent's
+    // ScaleGestureRecognizer, so we must intercept chip long-presses here
+    // at the parent level (same pattern as the v72 node hit-test fix).
+    final branch = _hitTestBranchChip(details.localPosition, layout);
+    if (branch != null) {
+      // Fire the SAME haptic + action sheet handler the chip's onLongPress
+      // would have called.
+      GraphHaptics.branchMenuOpen(context);
+      _showBranchActionSheet(context, branch);
       return;
     }
 

@@ -887,6 +887,17 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             ),
         };
 
+        // v5.137: Cache the current collapsed branches so the parent-level
+        // geometric hit-tester can intercept branch chip taps. On Flutter
+        // Web, the chip's own GestureDetector loses the gesture arena to
+        // the parent's ScaleGestureRecognizer, so taps/long-presses on
+        // chips silently do nothing. By caching the collapsed branches
+        // here, the interaction_mixin's _hitTestBranchChip can reproduce
+        // the chip's on-screen rect and route taps to _fetchAndExpandBranch
+        // and long-presses to _showBranchActionSheet — the same handlers
+        // the chip's own GestureDetector would have called.
+        _currentCollapsedBranches = densityCollapseState.collapsedBranches;
+
         // Build the (transform-independent) content once. The AnimatedBuilder
         // below re-applies only the camera Transform per frame, so the cached
         // raster is reused while panning/zooming.

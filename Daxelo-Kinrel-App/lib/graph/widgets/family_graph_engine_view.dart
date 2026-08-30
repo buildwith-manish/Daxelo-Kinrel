@@ -386,6 +386,14 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   Map<String, KinshipEdgeCategory> _currentEdgeCategories = const {};
   Map<String, Map<String, dynamic>> _currentEdgeCustomColors = const {};
 
+  // v5.137: Cache the current collapsed branches so the canvas tap
+  // handler can do geometric hit-testing on branch chips. On Flutter
+  // Web, the parent GestureDetector's ScaleGestureRecognizer wins the
+  // gesture arena, so the chip's own onTap/onLongPress never fire.
+  // This cache lets the parent-level hit-tester intercept chip taps
+  // and route them to the same handlers the chip would have called.
+  List<CollapsedBranch> _currentCollapsedBranches = const [];
+
   // Phase 6 (hit-test parity): Cache the current couple unions so the
   // tap hit-tester can apply the SAME union-redirect the painter applies
   // to the rendered bezier curve. Without this, tapping a parent→child
