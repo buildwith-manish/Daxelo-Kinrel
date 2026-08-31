@@ -145,24 +145,17 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // v5.143: Show a spinner instead of the unfold icon when
-                  // this chip is in the optimistic loading state (tap fired,
-                  // RPC in flight). Gives sub-100ms visual feedback.
-                  if (_optimisticLoadingChipRootId == branch.rootPersonId)
-                    SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation(chipAccentColor),
-                      ),
-                    )
-                  else
-                    Icon(
-                      Icons.unfold_more,
-                      size: 14,
-                      color: chipAccentColor,
-                    ),
+                  // v5.143: Show a different icon when this chip is in the
+                  // optimistic loading state (tap fired, RPC in flight).
+                  // Gives sub-100ms visual feedback without needing a
+                  // Material ancestor for CircularProgressIndicator.
+                  Icon(
+                    _optimisticLoadingChipRootId == branch.rootPersonId
+                        ? Icons.hourglass_top
+                        : Icons.unfold_more,
+                    size: 14,
+                    color: chipAccentColor,
+                  ),
                   const SizedBox(width: 6),
                   // v5.123 (Step 3): Lead with "+{count}", then append the
                   // short label when space permits (single line,
