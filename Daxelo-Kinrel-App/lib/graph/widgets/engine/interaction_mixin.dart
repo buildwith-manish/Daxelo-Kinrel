@@ -1166,9 +1166,16 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       final _role = ref.read(currentUserFamilyRoleProvider(widget.familyId));
       final _canRemove = _role == 'admin' || _role == 'owner';
 
-      // v5.142: Show "Collapse this branch" whenever the node has ANY
-      // descendants in the graph data — regardless of whether they were
-      // auto-expanded or always-visible.
+      // v5.144: Show "Collapse this branch" ONLY when the node has
+      // VISIBLE descendants currently rendered on the canvas — not
+      // just any children in the full family data.
+      //
+      // The old v5.142 check `childrenOf[nodeId]?.isNotEmpty` was true
+      // for nearly every node in a 714-member family because almost
+      // everyone has children *somewhere* in the tree. The fix uses the
+      // existing `hasVisibleDescendants()` method from
+      // branch_collapse_state.dart, which checks against the set of
+      // currently-rendered node IDs (layout.positions.keys).
       final collapseState = ref.read(branchCollapseProvider);
       BranchCollapseInfo? branchInfo;
 
@@ -1185,13 +1192,23 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
         }
       }
 
-      // v5.142: Check if this node has any children (descendants).
-      // If it has children, show the collapse option.
-      final hasDescendants = childrenOf[nodeId]?.isNotEmpty ?? false;
+      // v5.144: Use hasVisibleDescendants with the set of currently-
+      // rendered node IDs (layout.positions.keys). This ensures
+      // "Collapse this branch" only appears when there are actual
+      // visible children on the canvas to collapse — not when children
+      // exist only in the unloaded/hidden family data.
+      final visibleIds = layout.positions.keys.toSet();
+      final notifier = ref.read(branchCollapseProvider.notifier);
+      final hasDescendants = notifier.hasVisibleDescendants(
+        nodeId, childrenOf, visibleIds,
+      );
 
       if (hasDescendants) {
-        // Resolve visible branch members via BFS from rootPersonId.
-        final visibleNames = _resolveExpandedBranchMemberNames(flat, nodeId);
+        // v5.144: Pass visibleIds so the BFS only returns names of
+        // descendants that are actually visible on the canvas.
+        final visibleNames = _resolveExpandedBranchMemberNames(
+          flat, nodeId, visibleIds: visibleIds,
+        );
         if (visibleNames.isNotEmpty) {
           branchInfo = BranchCollapseInfo(
             onCollapse: () {

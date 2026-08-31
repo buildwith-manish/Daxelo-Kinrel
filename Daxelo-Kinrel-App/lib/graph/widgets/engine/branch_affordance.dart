@@ -855,13 +855,20 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
   /// Used by the combined node action sheet to show the "Collapse this
   /// branch" section with a name preview.
   ///
+  /// v5.144: Now scopes the BFS to only return names of descendants
+  /// that are CURRENTLY VISIBLE on the canvas (in [visibleIds]). This
+  /// ensures the preview-names list matches exactly what "Collapse this
+  /// branch" would actually hide — not the entire family dataset.
+  ///
   /// Performs a BFS from [rootPersonId] through parent-type relationships
   /// (parent/father/mother/adoptive_parent/step_parent) to find all
-  /// descendants. Returns their display names in BFS order.
+  /// descendants. Returns their display names in BFS order, but ONLY
+  /// for descendants whose IDs are in [visibleIds].
   List<String> _resolveExpandedBranchMemberNames(
     dynamic flat,
-    String rootPersonId,
-  ) {
+    String rootPersonId, {
+    Set<String>? visibleIds,
+  }) {
     final List<String> visibleMemberNames = [];
     if (flat == null) return visibleMemberNames;
 
@@ -887,16 +894,26 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       if (id.isNotEmpty) namesById[id] = name;
     }
 
-    // BFS from root.
+    // BFS from root — only traverse through visible nodes.
     final visited = <String>{rootPersonId};
     final queue = [rootPersonId];
     while (queue.isNotEmpty) {
       final current = queue.removeAt(0);
       for (final child in childrenMap[current] ?? <String>[]) {
         if (visited.add(child)) {
+          // v5.144: Only add to results if this child is currently
+          // visible on the canvas. Still traverse through it to find
+          // deeper visible descendants, but don't include it in the
+          // names list if it's hidden.
+          final isVisible = visibleIds == null || visibleIds.contains(child);
+          if (isVisible) {
+            final name = namesById[child];
+            if (name != null && name.isNotEmpty) visibleMemberNames.add(name);
+          }
+          // Continue BFS through this child even if it's not visible
+          // (it might have visible grandchildren that are rendered
+          // because they were independently expanded or are protected).
           queue.add(child);
-          final name = namesById[child];
-          if (name != null && name.isNotEmpty) visibleMemberNames.add(name);
         }
       }
     }
