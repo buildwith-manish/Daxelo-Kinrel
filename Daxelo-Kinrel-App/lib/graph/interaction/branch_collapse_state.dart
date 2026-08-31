@@ -286,8 +286,15 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
   /// labels (e.g. Sunita Sharma).
   ///
   /// [relationships] is a List<Map<String, dynamic>> where each map has
-  /// 'fromPersonId', 'toPersonId', and 'relationshipKey' (or
-  /// 'labelAtoB' as fallback) fields.
+  /// 'fromPersonId', 'toPersonId', and 'labelAtoB' (or 'relationshipKey'
+  /// as fallback) fields.
+  ///
+  /// v5.147: Uses labelAtoB as the PRIMARY field (not relationshipKey)
+  /// because labelAtoB always describes the relationship in a fixed,
+  /// consistent direction (from A to B), while relationshipKey can flip
+  /// depending on viewer perspective. This prevents the collapse feature
+  /// from mistakenly treating the central person (Manish) as a child of
+  /// the node being collapsed, which would hide his connecting line.
   ///
   /// Returns a Map<String, Set<String>> where the key is a parent's
   /// person ID and the value is the set of their children's person IDs.
@@ -299,7 +306,10 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       final fromId = (r['fromPersonId'] ?? '').toString();
       final toId = (r['toPersonId'] ?? '').toString();
       if (fromId.isEmpty || toId.isEmpty) continue;
-      final key = ((r['relationshipKey'] ?? r['labelAtoB'] ?? '') as String)
+      // v5.147: labelAtoB is PRIMARY — it's always in a fixed direction
+      // (A sees B as X). relationshipKey is the fallback for older
+      // records that may not have labelAtoB populated.
+      final key = ((r['labelAtoB'] ?? r['relationshipKey'] ?? '') as String)
           .toLowerCase()
           .trim();
 

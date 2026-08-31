@@ -70,15 +70,34 @@ void main() {
       expect(childrenOf['parent1'], containsAll(['child1', 'child2', 'child3', 'child4']));
     });
 
-    test('handles labelAtoB as fallback when relationshipKey is empty', () {
+    test('handles labelAtoB as PRIMARY field (v5.147 fix)', () {
+      // v5.147: labelAtoB is the PRIMARY field, relationshipKey is fallback.
+      // This test verifies that when BOTH fields exist but disagree on
+      // direction, labelAtoB wins — because it's always in a fixed
+      // direction while relationshipKey can flip.
       final relationships = [
-        {'id': 'r1', 'fromPersonId': 'parent1', 'toPersonId': 'child1', 'relationshipKey': '', 'labelAtoB': 'son'},
-        {'id': 'r2', 'fromPersonId': 'child2', 'toPersonId': 'parent1', 'labelAtoB': 'father'},
+        // labelAtoB='son' (child-type, from is parent) but
+        // relationshipKey='father' (parent-type, to is parent).
+        // labelAtoB should win: fromPersonId is the parent.
+        {'id': 'r1', 'fromPersonId': 'parent1', 'toPersonId': 'child1',
+         'labelAtoB': 'son', 'relationshipKey': 'father'},
       ];
 
       final childrenOf = BranchCollapseNotifier.buildChildrenOf(relationships);
 
-      expect(childrenOf['parent1'], containsAll(['child1', 'child2']));
+      // With labelAtoB='son', parent1 is the parent (from is parent)
+      expect(childrenOf['parent1'], containsAll(['child1']));
+      expect(childrenOf.containsKey('child1'), false);
+    });
+
+    test('falls back to relationshipKey when labelAtoB is absent', () {
+      final relationships = [
+        {'id': 'r1', 'fromPersonId': 'child1', 'toPersonId': 'parent1', 'relationshipKey': 'father'},
+      ];
+
+      final childrenOf = BranchCollapseNotifier.buildChildrenOf(relationships);
+
+      expect(childrenOf['parent1'], containsAll(['child1']));
     });
 
     test('does NOT treat non-parent/child keys as children', () {
