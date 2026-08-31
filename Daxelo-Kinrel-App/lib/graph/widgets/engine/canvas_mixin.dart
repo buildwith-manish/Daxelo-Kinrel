@@ -821,26 +821,48 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 : null;
         final edgeCategories = <String, KinshipEdgeCategory>{};
         final edgeCustomColors = <String, Map<String, dynamic>>{};
-        if (anchorId != null) {
-          for (final deduped in edges) {
-            final e = deduped.edge;
-            // Check for custom colors on this edge
-            final customColors = customColorsByPersonId[e.sourceId] ??
-                customColorsByPersonId[e.targetId];
-            if (customColors != null) {
-              edgeCustomColors[e.id] = customColors;
-            }
-            // Determine which endpoint is the anchor and which is the
-            // relative. Use the relative's authoritative category.
-            KinshipEdgeCategory? cat;
+        // v5.150: Resolve a kinship category for EVERY edge, not just
+        // anchor-incident ones. Previously, edges where neither endpoint
+        // was the anchor got no category, causing the painter to fall
+        // back to styleFor(relationshipKey) which always returned
+        // blue/parent for non-spouse edges. Now we use the
+        // relationCategoryById map (which is anchor-relative) for BOTH
+        // endpoints and pick the more meaningful category.
+        for (final deduped in edges) {
+          final e = deduped.edge;
+          // Check for custom colors on this edge
+          final customColors = customColorsByPersonId[e.sourceId] ??
+              customColorsByPersonId[e.targetId];
+          if (customColors != null) {
+            edgeCustomColors[e.id] = customColors;
+          }
+
+          // v5.150: Resolve category for this edge.
+          KinshipEdgeCategory? cat;
+
+          // Priority 1: If one endpoint is the anchor, use the OTHER
+          // endpoint's category (the relative's relationship to the
+          // viewer). This is the most accurate.
+          if (anchorId != null) {
             if (e.sourceId == anchorId) {
               cat = relationCategoryById[e.targetId];
             } else if (e.targetId == anchorId) {
               cat = relationCategoryById[e.sourceId];
             }
-            if (cat != null) {
-              edgeCategories[e.id] = cat;
-            }
+          }
+
+          // Priority 2: For non-anchor-incident edges, use the target's
+          // category (the person farther from the anchor) — this gives
+          // the edge the color of the more distant relative, which is
+          // more visually meaningful than the intermediate person.
+          // Fall back to the source's category if target has none.
+          if (cat == null) {
+            cat = relationCategoryById[e.targetId] ??
+                relationCategoryById[e.sourceId];
+          }
+
+          if (cat != null) {
+            edgeCategories[e.id] = cat;
           }
         }
 
