@@ -1212,8 +1212,10 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
         if (visibleNames.isNotEmpty) {
           branchInfo = BranchCollapseInfo(
             onCollapse: () {
-              // v5.140: Show confirmation dialog before collapsing.
-              _showCollapseConfirmationDialog(context, nodeId, graphPersonData.name);
+              // v5.145: Pass visibleNames so the dialog shows real names.
+              _showCollapseConfirmationDialog(
+                context, nodeId, graphPersonData.name, visibleNames,
+              );
             },
             onPreviewNames: () {
               _showExpandedBranchNamesList(context, graphPersonData.name, visibleNames);

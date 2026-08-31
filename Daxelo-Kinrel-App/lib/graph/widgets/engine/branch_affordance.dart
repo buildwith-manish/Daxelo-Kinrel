@@ -757,7 +757,33 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     BuildContext context,
     String rootPersonId,
     String rootPersonName,
+    List<String> visibleNames,
   ) {
+    // v5.145: Format the member names into a natural-language sentence.
+    // ≤ 4 names: "Name1, Name2, Name3, and Name4 will be hidden."
+    // > 4 names: "Name1, Name2, Name3, and N others will be hidden."
+    // Fallback: "These members will be hidden again." if names empty.
+    String message;
+    if (visibleNames.isEmpty) {
+      message = 'These members will be hidden again.';
+    } else if (visibleNames.length <= 4) {
+      if (visibleNames.length == 1) {
+        message = '${visibleNames[0]} will be hidden.';
+      } else if (visibleNames.length == 2) {
+        message = '${visibleNames[0]} and ${visibleNames[1]} will be hidden.';
+      } else {
+        final allButLast = visibleNames.sublist(0, visibleNames.length - 1);
+        final last = visibleNames.last;
+        message = '${allButLast.join(", ")}, and $last will be hidden.';
+      }
+    } else {
+      // > 4: show first 3 + count
+      final first3 = visibleNames.sublist(0, 3);
+      final remaining = visibleNames.length - 3;
+      message = '${first3.join(", ")}, and $remaining other'
+          '${remaining == 1 ? "" : "s"} will be hidden.';
+    }
+
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -770,9 +796,9 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
             fontWeight: FontWeight.w600,
           ),
         ),
-        content: const Text(
-          'These members will be hidden again.',
-          style: TextStyle(
+        content: Text(
+          message,
+          style: const TextStyle(
             color: KinrelColors.textSecondaryDark,
             fontSize: 14,
           ),
