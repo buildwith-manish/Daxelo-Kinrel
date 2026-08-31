@@ -504,20 +504,12 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // v5.123: the input is the PRE-hiding candidate set (positions ∩
         // allow-list) so the computation is a fixed point — see the
         // stabilization comment above.
-        // Build childrenOf adjacency from labelAtoB parent edges.
-        final childrenOfAdj = <String, Set<String>>{};
-        for (final Map<String, dynamic> r in flat.relationships) {
-          final label = (r['labelAtoB'] as String?) ??
-              (r['relationshipKey'] as String?) ?? '';
-          if (label == 'father' || label == 'mother' || label == 'parent') {
-            final from = r['fromPersonId'] as String?;
-            final to = r['toPersonId'] as String?;
-            if (from != null && to != null) {
-              // "toPerson is fromPerson's parent" → fromPerson is child of toPerson
-              childrenOfAdj.putIfAbsent(to, () => <String>{}).add(from);
-            }
-          }
-        }
+        // v5.146: Use the shared buildChildrenOf which handles BOTH
+        // parent-type (father/mother/parent) AND child-type (son/daughter/child)
+        // relationship directions, plus labelAtoB as fallback key.
+        final childrenOfAdj = BranchCollapseNotifier.buildChildrenOf(
+          flat.relationships,
+        );
         // Build person name resolver.
         String personNameResolver(String pid) {
           for (final p in flat.persons) {

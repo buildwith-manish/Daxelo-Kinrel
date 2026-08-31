@@ -240,6 +240,80 @@ class BranchCollapseState {
 class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
   BranchCollapseNotifier() : super(BranchCollapseState.empty);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // v5.146: SHARED childrenOf BUILDER — handles BOTH relationship directions
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// v5.146: Relationship keys where the SECOND person (toPersonId) is
+  /// the parent and the FIRST person (fromPersonId) is the child.
+  /// e.g. "A → B, key=father" means "B is A's father" → A is child of B.
+  static const Set<String> _parentTypeKeys = {
+    'parent', 'father', 'mother',
+    'adoptive_parent', 'adoptive_father', 'adoptive_mother',
+    'adopted_father', 'adopted_mother',
+    'step_parent', 'step_father', 'step_mother',
+    'stepfather', 'stepmother',
+    'foster_father', 'foster_mother',
+    'biological_father', 'biological_mother',
+  };
+
+  /// v5.146: Relationship keys where the FIRST person (fromPersonId) is
+  /// the parent and the SECOND person (toPersonId) is the child.
+  /// e.g. "A → B, key=son" means "B is A's son" → B is child of A.
+  static const Set<String> _childTypeKeys = {
+    'child', 'son', 'daughter',
+    'adoptive_son', 'adoptive_daughter',
+    'adopted_son', 'adopted_daughter',
+    'step_son', 'step_daughter',
+    'stepson', 'stepdaughter',
+    'foster_son', 'foster_daughter',
+    'biological_son', 'biological_daughter',
+  };
+
+  /// v5.146: Builds a parent→children adjacency map from a list of
+  /// relationship maps (as returned by FlatGraphResult.relationships).
+  ///
+  /// Handles BOTH relationship directions:
+  /// - parent-type keys (father, mother, parent, adoptive_parent,
+  ///   step_parent, etc.): toPersonId is the parent, fromPersonId is
+  ///   the child.
+  /// - child-type keys (son, daughter, child, adoptive_son, step_son,
+  ///   etc.): fromPersonId is the parent, toPersonId is the child.
+  ///
+  /// This replaces 5 separate duplicated lookups that all missed the
+  /// child-type direction, causing "Collapse this branch" to silently
+  /// fail for nodes whose descendants were entered using son/daughter
+  /// labels (e.g. Sunita Sharma).
+  ///
+  /// [relationships] is a List<Map<String, dynamic>> where each map has
+  /// 'fromPersonId', 'toPersonId', and 'relationshipKey' (or
+  /// 'labelAtoB' as fallback) fields.
+  ///
+  /// Returns a Map<String, Set<String>> where the key is a parent's
+  /// person ID and the value is the set of their children's person IDs.
+  static Map<String, Set<String>> buildChildrenOf(
+    List<dynamic> relationships,
+  ) {
+    final childrenOf = <String, Set<String>>{};
+    for (final r in relationships) {
+      final fromId = (r['fromPersonId'] ?? '').toString();
+      final toId = (r['toPersonId'] ?? '').toString();
+      if (fromId.isEmpty || toId.isEmpty) continue;
+      final key = ((r['relationshipKey'] ?? r['labelAtoB'] ?? '') as String)
+          .toLowerCase()
+          .trim();
+
+      if (_parentTypeKeys.contains(key)) {
+        // toPerson is the parent, fromPerson is the child
+        childrenOf.putIfAbsent(toId, () => <String>{}).add(fromId);
+      } else if (_childTypeKeys.contains(key)) {
+        // fromPerson is the parent, toPerson is the child
+        childrenOf.putIfAbsent(fromId, () => <String>{}).add(toId);
+      }
+    }
+    return childrenOf;
+  }
+
   /// v5.123 (Step 5): Optional persistence hook — invoked whenever a
   /// branch's expansion state changes via [expandBranch] (true) or
   /// [collapseBranch] (false). The engine view wires this to

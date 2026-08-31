@@ -1179,18 +1179,10 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       final collapseState = ref.read(branchCollapseProvider);
       BranchCollapseInfo? branchInfo;
 
-      // Build childrenOf adjacency from the flat graph data.
-      final childrenOf = <String, Set<String>>{};
-      for (final r in flat.relationships) {
-        final fromId = (r['fromPersonId'] ?? '').toString();
-        final toId = (r['toPersonId'] ?? '').toString();
-        final key = (r['relationshipKey'] ?? '').toString();
-        // parent-type: from is child, to is parent
-        if (key == 'parent' || key == 'father' || key == 'mother' ||
-            key == 'adoptive_parent' || key == 'step_parent') {
-          childrenOf.putIfAbsent(toId, () => <String>{}).add(fromId);
-        }
-      }
+      // v5.146: Use the shared buildChildrenOf which handles BOTH
+      // parent-type (father/mother/parent) AND child-type (son/daughter/child)
+      // relationship directions.
+      final childrenOf = BranchCollapseNotifier.buildChildrenOf(flat.relationships);
 
       // v5.144: Use hasVisibleDescendants with the set of currently-
       // rendered node IDs (layout.positions.keys). This ensures

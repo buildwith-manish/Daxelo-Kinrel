@@ -500,19 +500,13 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     final List<String> visibleMemberNames = [];
     int memberCount = 0;
     if (flat != null) {
-      // Find all persons that are descendants of rootPersonId (the branch
-      // members). We use the relationships to find children recursively.
-      final childrenMap = <String, List<String>>{};
-      for (final r in flat.relationships) {
-        final fromId = (r['fromPersonId'] ?? '').toString();
-        final toId = (r['toPersonId'] ?? '').toString();
-        final key = (r['relationshipKey'] ?? '').toString();
-        // parent-type relationship: from is child, to is parent
-        if (key == 'parent' || key == 'father' || key == 'mother' ||
-            key == 'adoptive_parent' || key == 'step_parent') {
-          childrenMap.putIfAbsent(toId, () => []).add(fromId);
-        }
-      }
+      // v5.146: Use the shared buildChildrenOf which handles BOTH
+      // parent-type and child-type relationship directions.
+      final childrenOfSet = BranchCollapseNotifier.buildChildrenOf(flat.relationships);
+      final childrenMap = <String, List<String>>{
+        for (final entry in childrenOfSet.entries)
+          entry.key: entry.value.toList(),
+      };
       // BFS from rootPersonId to find all descendants
       final visited = <String>{rootPersonId};
       final queue = [rootPersonId];
@@ -827,17 +821,9 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
               final flat = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
               if (flat == null) return;
 
-              final childrenOf = <String, Set<String>>{};
-              for (final r in flat.relationships) {
-                final fromId = (r['fromPersonId'] ?? '').toString();
-                final toId = (r['toPersonId'] ?? '').toString();
-                final key = (r['relationshipKey'] ?? '').toString();
-                // parent-type: from is child, to is parent
-                if (key == 'parent' || key == 'father' || key == 'mother' ||
-                    key == 'adoptive_parent' || key == 'step_parent') {
-                  childrenOf.putIfAbsent(toId, () => <String>{}).add(fromId);
-                }
-              }
+              // v5.146: Use the shared buildChildrenOf which handles BOTH
+              // parent-type and child-type relationship directions.
+              final childrenOf = BranchCollapseNotifier.buildChildrenOf(flat.relationships);
 
               String personNameOf(String id) {
                 for (final p in flat.persons) {
@@ -898,19 +884,13 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     final List<String> visibleMemberNames = [];
     if (flat == null) return visibleMemberNames;
 
-    // Build children map from relationships.
-    final childrenMap = <String, List<String>>{};
-    final relationships = flat.relationships as List;
-    for (final r in relationships) {
-      final fromId = (r['fromPersonId'] ?? '').toString();
-      final toId = (r['toPersonId'] ?? '').toString();
-      final key = (r['relationshipKey'] ?? '').toString();
-      // parent-type: from is child, to is parent
-      if (key == 'parent' || key == 'father' || key == 'mother' ||
-          key == 'adoptive_parent' || key == 'step_parent') {
-        childrenMap.putIfAbsent(toId, () => []).add(fromId);
-      }
-    }
+    // v5.146: Use the shared buildChildrenOf which handles BOTH
+    // parent-type and child-type relationship directions.
+    final childrenOfSet = BranchCollapseNotifier.buildChildrenOf(flat.relationships as List);
+    final childrenMap = <String, List<String>>{
+      for (final entry in childrenOfSet.entries)
+        entry.key: entry.value.toList(),
+    };
 
     // Build id → name map.
     final namesById = <String, String>{};
