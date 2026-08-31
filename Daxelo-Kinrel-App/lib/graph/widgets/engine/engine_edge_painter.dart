@@ -789,7 +789,13 @@ class EngineEdgePainter extends CustomPainter {
       final KinshipEdgeCategory? edgeCat = edgeCategories[e.id];
       final style = edgeCat != null
           ? KinshipEdgeStyleResolver.styleForCategory(edgeCat)
-          : KinshipEdgeStyleResolver.styleFor(e.relationshipKey);
+          // v5.149: Use labelAtoB (the rich label, e.g. "brother",
+          // "aunt", "cousin") as the PRIMARY key for color resolution
+          // when no category is available. Falls back to relationshipKey
+          // (the fundamental DB key, always "parent" for non-spouse
+          // edges) only when labelAtoB is absent.
+          : KinshipEdgeStyleResolver.styleFor(
+              e.labelAtoB ?? e.relationshipKey);
 
       // v83: Apply custom colors if available
       final Color edgeColor;

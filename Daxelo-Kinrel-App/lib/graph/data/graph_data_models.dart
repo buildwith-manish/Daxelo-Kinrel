@@ -191,6 +191,7 @@ class GraphEdgeData {
     required this.sourceId,
     required this.targetId,
     required this.relationshipKey,
+    this.labelAtoB,
     this.isPrivate = false,
   });
 
@@ -205,6 +206,14 @@ class GraphEdgeData {
 
   /// Relationship type key (e.g. "father", "spouse", "child").
   final String relationshipKey;
+
+  /// v5.149: The rich label (e.g. "brother", "aunt", "cousin") that
+  /// describes the relationship from sourceId's perspective. This is
+  /// the PRIMARY field for kinship color resolution — relationshipKey
+  /// is the fundamental DB key (always "parent" for non-spouse edges
+  /// due to the relationship_fundamental_edge_check constraint) and
+  /// cannot distinguish siblings, aunts, cousins, etc.
+  final String? labelAtoB;
 
   /// Whether this relationship is marked private.
   final bool isPrivate;
@@ -235,9 +244,9 @@ class GraphEdgeData {
         fromPersonId: sourceId,
         toPersonId: targetId,
         relationshipKey: relationshipKey,
-        // v5.99: Pass labelAtoB so the layout BFS can use specific labels
-        // for generation lookup (e.g. 'brother' → gen 0, not 'parent' → gen -1).
-        labelAtoB: relationshipKey,
+        // v5.149: Use the actual labelAtoB (not relationshipKey) so the
+        // layout BFS can use specific labels for generation lookup.
+        labelAtoB: labelAtoB ?? relationshipKey,
       );
 }
 

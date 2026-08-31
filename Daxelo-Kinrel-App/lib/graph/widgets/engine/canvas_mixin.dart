@@ -748,6 +748,13 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             sourceId: s,
             targetId: t,
             relationshipKey: relKey,
+            // v5.149: Populate labelAtoB so the edge painter can resolve
+            // the correct kinship color for non-anchor-incident edges.
+            // labelAtoB is the rich label (e.g. "brother", "aunt") that
+            // carries the semantic distinction, while relationshipKey is
+            // the fundamental DB key (always "parent" for non-spouse edges).
+            labelAtoB: (r['labelAtoB'] as String?) ??
+                (r['relationshipKey'] as String?),
             isPrivate: r['isPrivate'] as bool? ?? false,
           ));
         }
