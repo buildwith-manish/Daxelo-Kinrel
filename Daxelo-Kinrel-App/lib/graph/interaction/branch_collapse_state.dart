@@ -631,7 +631,11 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       ..removeAll(nestedExpandedRoots);
 
     // Also remove any existing collapsed branches whose root is inside
-    // this subtree (they'll be absorbed into the new outer collapse).
+    // this subtree OR whose root IS the same rootPersonId (prevents
+    // duplicate chips — one '_branch' auto + one '_manual_branch').
+    // v5.151: The old code only checked b.rootPersonId != rootPersonId,
+    // which kept existing auto-branches with the same root, creating a
+    // stray duplicate chip alongside the new manual chip.
     final newCollapsedBranches = state.collapsedBranches
         .where((b) => !descendants.contains(b.rootPersonId) && b.rootPersonId != rootPersonId)
         .toList();

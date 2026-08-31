@@ -852,8 +852,23 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                     );
               }
 
-              // Invalidate the graph provider so the layout recomputes.
-              ref.invalidate(familyGraphProvider(widget.familyId));
+              // v5.151: DO NOT invalidate familyGraphProvider here.
+              // The collapse state is PRESENTATION state — the canvas_mixin
+              // already watches branchCollapseProvider and will rebuild when
+              // it changes. Invalidating familyGraphProvider causes an ASYNC
+              // refetch that races with the collapse state update: the first
+              // rebuild after invalidation uses STALE graph data, and
+              // computeDensityCollapse on that rebuild may not correctly
+              // preserve the manual branches because the childrenOf map is
+              // built from stale data. This race is why the first tap
+              // appeared to do nothing — the collapse was applied but then
+              // immediately wiped by the stale-data rebuild.
+              //
+              // The canvas_mixin's build method already reads
+              // branchCollapseProvider (line 576) and applies the hidden
+              // IDs (line 577-585) on every rebuild. Since
+              // branchCollapseProvider is a StateNotifier, its state change
+              // triggers a rebuild automatically — no invalidation needed.
             },
             child: const Text('Collapse'),
           ),
