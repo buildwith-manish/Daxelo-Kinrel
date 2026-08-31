@@ -155,6 +155,36 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           // user hasn't dragged anything yet on first load).
         }
 
+        // v5.143: Branch expand/collapse animation lerp.
+        //
+        // When a branch is expanded, newly-revealed nodes animate from
+        // the chip's position (_branchAnimationOrigin) outward to their
+        // computed final positions over ~280ms easeOut. This masks
+        // layout-computation latency behind smooth motion.
+        //
+        // Only nodes in _branchAnimatingNodeIds are affected — all
+        // other nodes stay at their final positions (no visual change).
+        // Edges redraw automatically each frame since they derive paths
+        // from positions.
+        //
+        // Reduced-motion: _startBranchExpandAnimation skips setting
+        // _animatingBranchExpand=true if reduced motion is active, so
+        // this block is a no-op.
+        if (_animatingBranchExpand && _branchAnimatingNodeIds.isNotEmpty) {
+          final progress = _branchAnimationProgress;
+          for (final nodeId in _branchAnimatingNodeIds) {
+            final finalPos = effectivePositions[nodeId];
+            if (finalPos != null) {
+              effectivePositions[nodeId] = Offset(
+                _branchAnimationOrigin.dx * (1.0 - progress) +
+                    finalPos.dx * progress,
+                _branchAnimationOrigin.dy * (1.0 - progress) +
+                    finalPos.dy * progress,
+              );
+            }
+          }
+        }
+
         // v5.27 Task 1: Reset animation lerp.
         //
         // If a reset animation is in progress (_animatingReset is true),

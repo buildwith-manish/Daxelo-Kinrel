@@ -627,6 +627,20 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   bool _animatingLoad = false;
   bool _hasPlayedLoadAnimation = false;
 
+  // v5.143: Branch expand/collapse animation controller.
+  // 280ms easeOut — animates newly-revealed nodes from the chip's
+  // position outward to their computed final positions on expand,
+  // and reverses (nodes converge to chip position) on collapse.
+  // This masks layout-computation latency behind smooth motion.
+  AnimationController? _branchExpandController;
+  bool _animatingBranchExpand = false;
+  Set<String> _branchAnimatingNodeIds = {};
+  Offset _branchAnimationOrigin = Offset.zero;
+  double _branchAnimationProgress = 1.0;
+  // v5.143: Optimistic chip loading state — set immediately on tap
+  // before the RPC returns, so the user gets sub-100ms feedback.
+  String? _optimisticLoadingChipRootId;
+
   @override
   void initState() {
     super.initState();
@@ -685,6 +699,15 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     );
     _loadController!.addStatusListener(_onLoadAnimationStatus);
     _loadController!.addListener(_onLoadAnimationTick);
+
+    // v5.143: Branch expand/collapse animation controller.
+    // 280ms easeOut for smooth node reveal/converge.
+    _branchExpandController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+    _branchExpandController!.addStatusListener(_onBranchExpandStatus);
+    _branchExpandController!.addListener(_onBranchExpandTick);
     // v5.27 Task 1: watch the reset trigger counter — bumped by
     // LayoutOverridesService before each reset DB write. We use
     // ref.listenManual (not watch) so we run a callback on change
@@ -871,6 +894,11 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _loadController?.removeListener(_onLoadAnimationTick);
     _loadController?.dispose();
     _loadController = null;
+    // v5.143: Dispose branch expand animation controller.
+    _branchExpandController?.removeStatusListener(_onBranchExpandStatus);
+    _branchExpandController?.removeListener(_onBranchExpandTick);
+    _branchExpandController?.dispose();
+    _branchExpandController = null;
     // v5.72 (ZOOM LOOP FIX): Clear focus state when the graph widget is
     // disposed. The graphFocusProvider is a GLOBAL provider that survives
     // screen exits — without this clear, the focused person ID persists
@@ -1287,6 +1315,50 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     if (!mounted) return;
     _animatingLoad = false;
     setState(() {});
+  }
+
+  // ── v5.143 — Branch expand/collapse animation callbacks ─────────
+
+  void _onBranchExpandTick() {
+    if (!mounted) return;
+    _branchAnimationProgress = Curves.easeOut.transform(
+      _branchExpandController!.value,
+    );
+    _rearrangeDragRevision++;
+    setState(() {});
+  }
+
+  void _onBranchExpandStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    if (!mounted) return;
+    _animatingBranchExpand = false;
+    _branchAnimatingNodeIds = {};
+    _branchAnimationProgress = 1.0;
+    setState(() {});
+  }
+
+  /// v5.143: Starts the branch expand animation.
+  /// [origin] is the chip's graph-space position (where the chip was).
+  /// [revealedNodeIds] are the IDs of the newly-revealed nodes that
+  /// should animate from [origin] to their computed final positions.
+  void _startBranchExpandAnimation(
+    Offset origin,
+    Set<String> revealedNodeIds,
+  ) {
+    if (!mounted || revealedNodeIds.isEmpty) return;
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    if (reduced) {
+      // Skip animation — nodes appear at final positions immediately.
+      _branchAnimationProgress = 1.0;
+      _animatingBranchExpand = false;
+      _branchAnimatingNodeIds = {};
+      return;
+    }
+    _branchAnimationOrigin = origin;
+    _branchAnimatingNodeIds = revealedNodeIds;
+    _animatingBranchExpand = true;
+    _branchAnimationProgress = 0.0;
+    _branchExpandController!.forward(from: 0.0);
   }
 
   /// v5.30 Issue 2: On first render with non-empty saved overrides,

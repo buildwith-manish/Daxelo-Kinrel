@@ -145,11 +145,24 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.unfold_more,
-                    size: 14,
-                    color: chipAccentColor,
-                  ),
+                  // v5.143: Show a spinner instead of the unfold icon when
+                  // this chip is in the optimistic loading state (tap fired,
+                  // RPC in flight). Gives sub-100ms visual feedback.
+                  if (_optimisticLoadingChipRootId == branch.rootPersonId)
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(chipAccentColor),
+                      ),
+                    )
+                  else
+                    Icon(
+                      Icons.unfold_more,
+                      size: 14,
+                      color: chipAccentColor,
+                    ),
                   const SizedBox(width: 6),
                   // v5.123 (Step 3): Lead with "+{count}", then append the
                   // short label when space permits (single line,
@@ -221,6 +234,19 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
   /// the subsequent `revealPersons()` found nothing to reveal because
   /// the hidden members were never in `flat.persons`.
   Future<void> _fetchAndExpandBranch(CollapsedBranch branch) async {
+    // v5.143: Optimistic UI — set the loading state IMMEDIATELY so the
+    // user gets sub-100ms feedback. The chip will show a pulse animation
+    // while the RPC is in flight.
+    _optimisticLoadingChipRootId = branch.rootPersonId;
+    setState(() {});
+
+    // Record the chip's graph-space position for the expand animation.
+    final layoutResult = ref.read(graphLayoutProvider(widget.familyId)).valueOrNull;
+    final rootPos = layoutResult?.positions[branch.rootPersonId];
+    final chipOrigin = rootPos != null
+        ? Offset(rootPos.dx + 40, rootPos.dy + _kCircleCenterYOffset + 40)
+        : Offset.zero;
+
     // Map the relationship key to a branch type for the RPC. Never
     // null: unrecognized keys resolve to the 'generic' BFS fallback.
     final branchType = FamilyGraphNotifier.branchTypeForRelationshipKey(
@@ -235,6 +261,9 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       branchType: branchType,
       depth: 2,
     );
+
+    // v5.143: Clear the optimistic loading state — data has arrived.
+    _optimisticLoadingChipRootId = null;
 
     // v5.123 (Step 3): Reveal the branch's members in the proximity
     // set FIRST (incremental — only this branch's hidden members plus
@@ -266,6 +295,15 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       ref.read(branchCollapseProvider.notifier)
           .expandBranch(branch.rootPersonId);
     }
+
+    // v5.143: Start the expand animation — animate newly-revealed nodes
+    // from the chip's position outward to their computed final positions.
+    // This masks layout-computation latency behind smooth motion.
+    // Use a post-frame callback so the layout has settled first.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _startBranchExpandAnimation(chipOrigin, branch.hiddenMemberIds);
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════
