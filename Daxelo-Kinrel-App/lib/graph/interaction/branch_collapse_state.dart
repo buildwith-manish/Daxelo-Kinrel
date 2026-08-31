@@ -404,11 +404,16 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     // infinite rebuild oscillation that hid proximity nodes with
     // positions, the "edges ending at empty points" bug).
     if (familyMemberCount <= kNodeBudget) {
-      if (state.collapsedBranches.isNotEmpty) {
+      // v5.148: Preserve manually-collapsed branches — they must survive
+      // the small-graph bypass because the user explicitly collapsed them.
+      final manualBranches = state.collapsedBranches
+          .where((b) => state.manuallyCollapsedRoots.contains(b.rootPersonId))
+          .toList();
+      if (state.collapsedBranches.length != manualBranches.length) {
         state = BranchCollapseState(
-          collapsedBranches: const [],
+          collapsedBranches: manualBranches,
           expandedBranchRoots: state.expandedBranchRoots,
-      manuallyCollapsedRoots: state.manuallyCollapsedRoots,
+          manuallyCollapsedRoots: state.manuallyCollapsedRoots,
           revision: state.revision + 1,
         );
       }
@@ -529,8 +534,14 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       return; // No change → no mutation → no rebuild cycle.
     }
 
+    // v5.148: Preserve manually-collapsed branches.
+    final manualBranchesToKeep = state.collapsedBranches
+        .where((b) => state.manuallyCollapsedRoots.contains(b.rootPersonId) &&
+            !newBranches.any((nb) => nb.rootPersonId == b.rootPersonId))
+        .toList();
+
     state = BranchCollapseState(
-      collapsedBranches: newBranches,
+      collapsedBranches: [...newBranches, ...manualBranchesToKeep],
       expandedBranchRoots: state.expandedBranchRoots,
       manuallyCollapsedRoots: state.manuallyCollapsedRoots,
       revision: state.revision + 1,
@@ -755,13 +766,17 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     Map<String, String>? categoryOf,
     Set<String>? protectedIds,
   }) {
-    // Small-set bypass: if within budget, clear any existing branches.
+    // Small-set bypass: if within budget, clear any existing auto branches.
+    // v5.148: Preserve manually-collapsed branches.
     if (visibleNodeIds.length <= kNodeBudget) {
-      if (state.collapsedBranches.isNotEmpty) {
+      final manualBranches = state.collapsedBranches
+          .where((b) => state.manuallyCollapsedRoots.contains(b.rootPersonId))
+          .toList();
+      if (state.collapsedBranches.length != manualBranches.length) {
         state = BranchCollapseState(
-          collapsedBranches: const [],
+          collapsedBranches: manualBranches,
           expandedBranchRoots: state.expandedBranchRoots,
-      manuallyCollapsedRoots: state.manuallyCollapsedRoots,
+          manuallyCollapsedRoots: state.manuallyCollapsedRoots,
           revision: state.revision + 1,
         );
       }
@@ -865,8 +880,16 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       return;
     }
 
+    // v5.148: Preserve manually-collapsed branches alongside the
+    // auto-collapsed newBranches. Without this, the density collapse
+    // would wipe out manually-collapsed branches on every rebuild.
+    final manualBranchesToKeep = state.collapsedBranches
+        .where((b) => state.manuallyCollapsedRoots.contains(b.rootPersonId) &&
+            !newBranches.any((nb) => nb.rootPersonId == b.rootPersonId))
+        .toList();
+
     state = BranchCollapseState(
-      collapsedBranches: newBranches,
+      collapsedBranches: [...newBranches, ...manualBranchesToKeep],
       expandedBranchRoots: state.expandedBranchRoots,
       manuallyCollapsedRoots: state.manuallyCollapsedRoots,
       revision: state.revision + 1,
