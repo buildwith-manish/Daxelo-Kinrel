@@ -488,10 +488,11 @@ class RadialLayout {
           .any((p) => unreachableIds.contains(p.id));
 
       // v5.136: Compute the minimum angular step needed for nodes to
-      // not overlap at this radius. nodeDiameter=72, padding=24 → 96px.
-      // At radius 780, minAngularStep = 96/780 ≈ 0.123 rad ≈ 7°.
+      // not overlap at this radius. nodeDiameter=72, padding=48 → 120px.
+      // v5.153: Increased padding from 24→48 to match the new minDistance.
+      // At radius 780, minAngularStep = 120/780 ≈ 0.154 rad ≈ 8.8°.
       const nodeDiameter = 72.0;
-      const nodePadding = 24.0;
+      const nodePadding = 48.0;
       final minAngularStep = radius > 0
           ? (nodeDiameter + nodePadding) / radius
           : 0.15;
@@ -616,19 +617,20 @@ class RadialLayout {
     // Skip if fewer than 2 nodes — can't overlap.
     if (positions.length < 2) return;
 
-    // v5.136: node diameter (72) + 24px padding = 96px minimum distance.
-    // This ensures nodes are always clearly separated and readable.
-    const minDistance = 96.0;
+    // v5.153: node diameter (72) + 48px padding = 120px minimum distance.
+    // The old 96px (24px padding) was too small — labels extend ~20px
+    // below the node, so 24px edge-to-edge meant labels overlapped.
+    // 48px padding gives enough room for labels + breathing space.
+    const minDistance = 120.0;
     const minDistanceSq = minDistance * minDistance;
 
     final ids = positions.keys.toList();
     var overlapsFound = true;
     var iterations = 0;
-    // v5.136: Increased from 5 to 12 iterations. Dense graphs with 40+
-    // newly-revealed nodes need more passes to fully resolve cascading
-    // overlaps — each pass fixes one layer, but fixing one overlap can
-    // create a new one with a neighbor, requiring another pass.
-    const maxIterations = 12;
+    // v5.153: Increased from 12 to 20 iterations. Dense chains (like
+    // SP→KS→MG→MM→AJ→SI→RI) need more passes to fully resolve because
+    // each push creates a new overlap with the next node in the chain.
+    const maxIterations = 20;
 
     while (overlapsFound && iterations < maxIterations) {
       overlapsFound = false;
@@ -783,8 +785,8 @@ class RadialLayout {
     // alternate sides.
     final anchorSpouses = spouseMap[anchor.id] ?? [];
     const nodeDiameter = 72.0;
-    const spouseGap = 24.0;
-    const spouseOffset = nodeDiameter + spouseGap; // 96dp
+    const spouseGap = 48.0; // v5.153: increased to match minDistance padding
+    const spouseOffset = nodeDiameter + spouseGap; // v5.153: 72+48=120dp
     for (var i = 0; i < anchorSpouses.length; i++) {
       final spouseId = anchorSpouses[i];
       if (positions.containsKey(spouseId)) continue;
@@ -836,8 +838,8 @@ class RadialLayout {
     // desired arc distance (nodeDiameter + padding = 96px) so spouses
     // are always at least 96px apart from their partner.
     const nodeDiameter = 72.0;
-    const spouseGap = 24.0;
-    const spouseArcDistance = nodeDiameter + spouseGap; // 96px
+    const spouseGap = 48.0; // v5.153: increased to match minDistance padding
+    const spouseArcDistance = nodeDiameter + spouseGap; // v5.153: 120px
 
     for (var i = 0; i < spouses.length; i++) {
       final spouseId = spouses[i];
