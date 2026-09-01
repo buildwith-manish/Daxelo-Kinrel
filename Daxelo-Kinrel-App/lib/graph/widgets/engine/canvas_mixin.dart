@@ -689,12 +689,22 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
               !effectivePositions.containsKey(t)) {
             continue;
           }
-          // v5.105: Skip edges that are hidden by collapsed branches.
-          // An edge is hidden if either endpoint is a hidden member
-          // (densityHiddenIds) OR the edge ID is in the hidden edge set.
+          // v5.105/v5.153: Skip edges that are hidden by collapsed branches.
+          // An edge is hidden if BOTH endpoints are hidden members, OR
+          // the edge ID is in the hidden edge set.
+          // v5.153 FIX: The old code skipped edges if EITHER endpoint was
+          // hidden, which left visible nodes with zero edges when all
+          // their partners were hidden. Now we only skip when BOTH are
+          // hidden — edges from a visible node to a hidden node are kept
+          // so the visible node stays connected. The painter already
+          // checks effectivePositions, so the line draws correctly to
+          // the hidden node's position (which is fine — it looks like a
+          // line going toward the branch chip area).
           final edgeId = r['id']?.toString();
-          if (densityHiddenIds.contains(s) || densityHiddenIds.contains(t)) {
-            continue;
+          final sHidden = densityHiddenIds.contains(s);
+          final tHidden = densityHiddenIds.contains(t);
+          if (sHidden && tHidden) {
+            continue; // Both endpoints hidden — skip
           }
           if (edgeId != null && densityHiddenEdgeIds.contains(edgeId)) {
             continue;
@@ -781,65 +791,68 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // selection + lateral offsets for parallel edges.
         final edges = List<DedupedEdge>.from(EdgeDeduplicator.deduplicate(rawEdges));
 
-        // v5.152: SAFEGUARD — ensure every visible node has at least one
-        // rendered edge connecting it to the graph. After branch collapse,
-        // some visible nodes may have had ALL their edges hidden (because
-        // all their relationship partners were inside the collapsed branch).
-        // This leaves them as isolated floating circles with no lines.
+        // v5.152/v5.153: SAFEGUARD — ensure every visible node has at
+        // least one rendered edge connecting it to ANOTHER VISIBLE node.
+        // After branch collapse, some visible nodes may have had all
+        // their edges go to hidden nodes. The v5.153 fix (keeping edges
+        // where one endpoint is hidden) should handle most cases, but
+        // this safeguard catches any remaining edge cases.
         //
-        // Fix: after edge filtering + dedup, check if any visible node has
-        // zero edges. If so, find its most direct relationship from the
-        // original flat.relationships (even if the other endpoint is hidden)
-        // and add a "lifeline" edge so the node stays visually connected.
-        // The lifeline edge connects to the nearest visible ancestor or the
-        // branch root — it's the single most relevant connection.
+        // v5.153 FIX: The lifeline edge MUST connect to a VISIBLE node
+        // (not a hidden one). The old code connected to hidden nodes,
+        // causing "dangling" lines that went to positions with no
+        // rendered circle.
         if (edges.isNotEmpty) {
-          // Build a set of all node IDs that have at least one edge.
           final nodesWithEdges = <String>{};
           for (final deduped in edges) {
             nodesWithEdges.add(deduped.edge.sourceId);
             nodesWithEdges.add(deduped.edge.targetId);
           }
-          // Check each visible node — if it has no edges, add a lifeline.
           for (final visibleId in visible) {
             if (nodesWithEdges.contains(visibleId)) continue;
-            // Find the most direct relationship for this node from the
-            // raw data. Prefer edges where the OTHER endpoint is also
-            // visible (so the line connects two visible nodes). If none,
-            // connect to the nearest visible node via BFS through hidden
-            // nodes.
+            // Find a relationship where the OTHER endpoint is ALSO visible.
             String? bestTarget;
             for (final r in flat.relationships) {
               final s = (r['fromPersonId'] ?? '').toString();
               final t = (r['toPersonId'] ?? '').toString();
-              if (s == visibleId && visible.contains(t)) {
+              if (s == visibleId && visible.contains(t) &&
+                  effectivePositions.containsKey(t)) {
                 bestTarget = t;
                 break;
               }
-              if (t == visibleId && visible.contains(s)) {
+              if (t == visibleId && visible.contains(s) &&
+                  effectivePositions.containsKey(s)) {
                 bestTarget = s;
                 break;
               }
             }
-            // If no visible-to-visible edge, try connecting to the branch
-            // root of the collapsed branch that hid this node's neighbors.
+            // If no direct visible-to-visible edge, try BFS through
+            // hidden nodes to find the nearest visible relative.
             if (bestTarget == null) {
-              for (final r in flat.relationships) {
-                final s = (r['fromPersonId'] ?? '').toString();
-                final t = (r['toPersonId'] ?? '').toString();
-                // Connect to any node that has a position (even if hidden)
-                if (s == visibleId && effectivePositions.containsKey(t)) {
-                  bestTarget = t;
-                  break;
-                }
-                if (t == visibleId && effectivePositions.containsKey(s)) {
-                  bestTarget = s;
-                  break;
+              final visited = <String>{visibleId};
+              final queue = <String>[visibleId];
+              while (queue.isNotEmpty && bestTarget == null) {
+                final current = queue.removeAt(0);
+                for (final r in flat.relationships) {
+                  final s = (r['fromPersonId'] ?? '').toString();
+                  final t = (r['toPersonId'] ?? '').toString();
+                  String? neighbor;
+                  if (s == current) neighbor = t;
+                  else if (t == current) neighbor = s;
+                  else continue;
+                  if (visited.add(neighbor)) {
+                    if (visible.contains(neighbor) &&
+                        effectivePositions.containsKey(neighbor) &&
+                        neighbor != visibleId) {
+                      bestTarget = neighbor;
+                      break;
+                    }
+                    queue.add(neighbor);
+                  }
                 }
               }
             }
-            if (bestTarget != null && effectivePositions.containsKey(bestTarget)) {
-              // Add a lifeline edge.
+            if (bestTarget != null) {
               final lifelineEdge = GraphEdgeData(
                 id: 'lifeline_$visibleId',
                 sourceId: visibleId,
