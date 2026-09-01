@@ -63,6 +63,18 @@ import '../engine/edge_dedup.dart' show DedupedEdge, EdgeDeduplicator;
 // in interaction_mixin.dart so the dim logic is unit-testable.
 import '../engine/edge_dim_hierarchy.dart'
     show computeDimmedEdgeIds, EdgeDimHierarchyInput;
+// v5.x (chip-placement fix): pure helper for branch-chip placement
+// (anchor below the parent node's name label, multi-direction
+// collision avoidance against chips + node circles + name labels).
+// Shared by _buildCollapsedBranchChips (branch_affordance.dart) and
+// _hitTestBranchChip (interaction_mixin.dart) so the rendered chip
+// and the tap target can never drift apart.
+import '../engine/branch_chip_layout.dart'
+    show
+        placeBranchChips,
+        nodeBoxForPosition,
+        BranchChipPlacement,
+        BranchChipPlacementRequest;
 import '../interaction/camera_controller.dart' show CameraController;
 // v5.132 (System B REMOVAL): the ExpandCollapseController import was
 // removed along with the engine view's private _expandCollapse store —

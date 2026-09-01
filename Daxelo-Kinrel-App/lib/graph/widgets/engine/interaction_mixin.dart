@@ -324,10 +324,12 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   /// own onTap/onLongPress never fire (same bug that affected nodes before
   /// the v72 geometric hit-test fix).
   ///
-  /// This method reproduces the chip's on-screen rect using the SAME
-  /// geometry formula as _buildCollapsedBranchChips in branch_affordance.dart:
-  ///   chipLeft = pos.dx + 40
-  ///   chipTop = pos.dy + _kCircleCenterYOffset + 40 (+ 36px per collision)
+  /// v5.x (chip-placement fix): this method now calls the SAME pure
+  /// helper (_computeBranchChipPlacements → placeBranchChips in
+  /// lib/graph/engine/branch_chip_layout.dart) that
+  /// _buildCollapsedBranchChips uses. The rendered chip position and
+  /// the tap target can never drift apart — the bug pattern that
+  /// recurred every time the two sites duplicated the formula.
   ///
   /// Returns the CollapsedBranch whose chip rect contains [screenPos],
   /// or null if no chip is hit.
@@ -335,36 +337,33 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     if (_currentCollapsedBranches.isEmpty) return null;
     final graphPos = _screenToGraphSpace(screenPos);
 
-    // Reproduce the chip placement logic from branch_affordance.dart.
-    // We must use the SAME positions map the chip builder uses
-    // (layout.positions, NOT _currentPositionsWithOffset) because the
-    // chip builder uses layout.positions directly.
-    final placedRects = <Rect>[];
-    const chipWidth = 200.0;
-    const chipHeight = 32.0;
+    // Build a throwaway BranchCollapseState so we can reuse the same
+    // _computeBranchChipPlacements helper the chip builder uses. We
+    // only need the collapsedBranches field — the other fields are
+    // irrelevant for placement (the helper only reads collapsedBranches).
+    final throwawayState = BranchCollapseState(
+      collapsedBranches: _currentCollapsedBranches,
+    );
+    final placements = _computeBranchChipPlacements(layout, throwawayState);
+    if (placements.isEmpty) return null;
+
+    // Build a quick lookup: branchId → placement.
+    final placementByBranchId = <String, BranchChipPlacement>{
+      for (final p in placements) p.request.branchId: p,
+    };
 
     for (final branch in _currentCollapsedBranches) {
-      final pos = layout.positions[branch.rootPersonId];
-      if (pos == null) continue;
+      final placement = placementByBranchId[branch.id];
+      if (placement == null) continue;
+      final rect = placement.rect;
 
-      final chipLeft = pos.dx + 40;
-      var chipTop = pos.dy + _FamilyGraphEngineViewState._kCircleCenterYOffset + 40;
-
-      // Reproduce the collision-avoidance stacking
-      while (placedRects.any((r) => r.overlaps(
-          Rect.fromLTWH(chipLeft, chipTop, chipWidth, chipHeight)))) {
-        chipTop += 36;
-      }
-      placedRects.add(Rect.fromLTWH(chipLeft, chipTop, chipWidth, chipHeight));
-
-      // Check if the graph-space tap point falls inside this chip rect.
       // Use a slightly larger hit area (padding) for easier tapping.
       const hitPadding = 8.0;
       final hitRect = Rect.fromLTWH(
-        chipLeft - hitPadding,
-        chipTop - hitPadding,
-        chipWidth + hitPadding * 2,
-        chipHeight + hitPadding * 2,
+        rect.left - hitPadding,
+        rect.top - hitPadding,
+        rect.width + hitPadding * 2,
+        rect.height + hitPadding * 2,
       );
       if (hitRect.contains(graphPos)) {
         return branch;

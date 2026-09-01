@@ -24,8 +24,8 @@ part of '../family_graph_engine_view.dart';
 /// Mixin containing collapsed-branch affordance logic for
 /// _FamilyGraphEngineViewState.
 extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
-  /// v102 (BUG-2 FIX) + v5.123 (Step 3): Builds positioned chips for
-  /// each collapsed branch.
+  /// v102 (BUG-2 FIX) + v5.123 (Step 3) + v5.x (chip-placement fix):
+  /// Builds positioned chips for each collapsed branch.
   ///
   /// Every [CollapsedBranch] renders a PERSISTENTLY VISIBLE chip at its
   /// attachment point on the canvas — a direct child of the graph Stack,
@@ -33,6 +33,22 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
   /// The chip LEADS with "+{count}" (the number of hidden members) and
   /// appends a short label (the branch root's name, e.g. "Mother")
   /// when space permits (width-capped, single line, ellipsized).
+  ///
+  /// v5.x (CHIP-PLACEMENT FIX): chips are now anchored CENTERED ON
+  /// their parent node, just below the name label (was: a fixed
+  /// diagonal offset of +40,+40 from the node center, which pushed
+  /// chips onto neighbouring nodes' circles/labels). Collision
+  /// avoidance now considers:
+  ///   • every other placed chip
+  ///   • every visible node's full 140×176 bounding box (circle +
+  ///     name label + badges) — so chips never overlap another
+  ///     person's circle or name label
+  /// Multi-direction search: straight down (preferred), then below +
+  /// slightly left, then below + slightly right, then above the node.
+  /// If every candidate collides, the chip is placed at the
+  /// least-overlap candidate and a leader line is drawn back to the
+  /// parent node's center so the user can still see which person the
+  /// chip belongs to.
   ///
   /// GESTURES (v5.132):
   ///   • Tap        → instant single-branch expand via
@@ -54,29 +70,27 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
   ) {
     if (collapseState.collapsedBranches.isEmpty) return const [];
 
-    // v5.105: Track placed chip positions to avoid overlap.
-    // If two chips would overlap, offset the second one vertically.
-    final placedRects = <Rect>[];
+    // v5.x (chip-placement fix): delegate placement to the pure
+    // helper so the rendered chip and the canvas hit-test target
+    // always agree (the helper is shared between this builder and
+    // _hitTestBranchChip in interaction_mixin.dart).
+    final placements = _computeBranchChipPlacements(layout, collapseState);
+    if (placements.isEmpty) return const [];
+
+    // Build a quick lookup: branchId → placement so we can map the
+    // helper's results back to the branch objects (the helper sorts
+    // branches deterministically but returns in the request order).
+    final placementByBranchId = <String, BranchChipPlacement>{
+      for (final p in placements) p.request.branchId: p,
+    };
+
     final chips = <Widget>[];
-
     for (final branch in collapseState.collapsedBranches) {
-      final pos = layout.positions[branch.rootPersonId];
-      if (pos == null) continue;
-
-      // Position the chip slightly below and to the right of the root node.
-      final chipLeft = pos.dx + 40;
-      var chipTop =
-          pos.dy + _FamilyGraphEngineViewState._kCircleCenterYOffset + 40;
-
-      // v5.105: Collision avoidance — if this chip would overlap an
-      // already-placed chip, push it down by 30px increments until it fits.
-      const chipWidth = 200.0; // approximate
-      const chipHeight = 32.0;  // approximate
-      while (placedRects.any((r) => r.overlaps(
-          Rect.fromLTWH(chipLeft, chipTop, chipWidth, chipHeight)))) {
-        chipTop += 36; // stack vertically
-      }
-      placedRects.add(Rect.fromLTWH(chipLeft, chipTop, chipWidth, chipHeight));
+      final placement = placementByBranchId[branch.id];
+      if (placement == null) continue;
+      final chipLeft = placement.rect.left;
+      final chipTop = placement.rect.top;
+      final needsLeader = placement.needsLeaderLine;
 
       // v5.105: Use the dominant kinship category color for the chip
       // border/accent instead of hardcoded orange. The category is
@@ -90,7 +104,126 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
           ? branch.rootPersonName.trim()
           : branch.branchLabel;
 
-      chips.add(Positioned(
+      final chipWidget = GestureDetector(
+        // v5.132: opaque hit-testing — the visual chip is compact,
+        // but every pixel inside its bounds must register the tap /
+        // long-press so chips never "silently do nothing".
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          // P3.2: "branch opening" haptic on branch expand.
+          GraphHaptics.branchExpand(context);
+          // v5.115 (Task 1) + v5.123 (Step 3): Fetch ONLY this branch
+          // via get_member_branch RPC, then expand. This is a lazy
+          // fetch — only the tapped branch's nodes/edges are loaded,
+          // never the whole family, and unrelated branches are not
+          // re-fetched or re-laid-out.
+          _fetchAndExpandBranch(branch);
+        },
+        // v5.132: long-press → rich branch action sheet (details +
+        // expand + full-names preview). Fires the DISTINCT
+        // branchMenuOpen double-pulse haptic so users can feel the
+        // difference between the instant expand (tap) and the
+        // richer interaction (long-press).
+        onLongPress: () {
+          GraphHaptics.branchMenuOpen(context);
+          _showBranchActionSheet(context, branch);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          constraints: const BoxConstraints(maxWidth: 190),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkBackground.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: chipAccentColor.withValues(alpha: 0.6),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 6,
+                offset: const Offset(1, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // v5.143: Show a different icon when this chip is in the
+              // optimistic loading state (tap fired, RPC in flight).
+              // Gives sub-100ms visual feedback without needing a
+              // Material ancestor for CircularProgressIndicator.
+              Icon(
+                _optimisticLoadingChipRootId == branch.rootPersonId
+                    ? Icons.hourglass_top
+                    : Icons.unfold_more,
+                size: 14,
+                color: chipAccentColor,
+              ),
+              const SizedBox(width: 6),
+              // v5.123 (Step 3): Lead with "+{count}", then append the
+              // short label when space permits (single line,
+              // ellipsized). The generation depth stays available via
+              // the branch tooltip semantics below.
+              Flexible(
+                child: Text(
+                  shortLabel.isEmpty
+                      ? '+${branch.hiddenCount}'
+                      : '+${branch.hiddenCount} · $shortLabel',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // v5.x (leader line): when the chip had to be placed far from
+      // its parent node, draw a thin leader line from the chip's top
+      // edge back to the parent node's visual circle center so the
+      // user can see which person the chip belongs to. The line is
+      // drawn as a Positioned CustomPaint above the chip widget.
+      final widgets = <Widget>[];
+      if (needsLeader) {
+        final parentPos = layout.positions[branch.rootPersonId];
+        if (parentPos != null) {
+          final leaderStart = Offset(
+            parentPos.dx,
+            parentPos.dy +
+                _FamilyGraphEngineViewState._kCircleCenterYOffset,
+          );
+          final leaderEnd = Offset(
+            placement.rect.center.dx,
+            placement.rect.top,
+          );
+          widgets.add(Positioned(
+            // The leader line is drawn in its own Positioned that
+            // covers the bounding box of the leader start+end. It
+            // doesn't intercept taps (the chip widget on top does).
+            left: min(leaderStart.dx, leaderEnd.dx) - 1.0,
+            top: min(leaderStart.dy, leaderEnd.dy) - 1.0,
+            width: (leaderEnd.dx - leaderStart.dx).abs() + 2.0,
+            height: (leaderEnd.dy - leaderStart.dy).abs() + 2.0,
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: _BranchChipLeaderPainter(
+                  start: leaderStart,
+                  end: leaderEnd,
+                  color: chipAccentColor.withValues(alpha: 0.5),
+                ),
+              ),
+            ),
+          ));
+        }
+      }
+
+      widgets.add(Positioned(
         left: chipLeft,
         top: chipTop,
         child: Semantics(
@@ -100,89 +233,57 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
               '${branch.hiddenCount} hidden family members. '
               'Double-tap to expand. Long-press for branch details and '
               'the full names list.',
-          child: GestureDetector(
-            // v5.132: opaque hit-testing — the visual chip is compact,
-            // but every pixel inside its bounds must register the tap /
-            // long-press so chips never "silently do nothing".
-            behavior: HitTestBehavior.opaque,
-            onTap: () {
-              // P3.2: "branch opening" haptic on branch expand.
-              GraphHaptics.branchExpand(context);
-              // v5.115 (Task 1) + v5.123 (Step 3): Fetch ONLY this branch
-              // via get_member_branch RPC, then expand. This is a lazy
-              // fetch — only the tapped branch's nodes/edges are loaded,
-              // never the whole family, and unrelated branches are not
-              // re-fetched or re-laid-out.
-              _fetchAndExpandBranch(branch);
-            },
-            // v5.132: long-press → rich branch action sheet (details +
-            // expand + full-names preview). Fires the DISTINCT
-            // branchMenuOpen double-pulse haptic so users can feel the
-            // difference between the instant expand (tap) and the
-            // richer interaction (long-press).
-            onLongPress: () {
-              GraphHaptics.branchMenuOpen(context);
-              _showBranchActionSheet(context, branch);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              constraints: const BoxConstraints(maxWidth: 190),
-              decoration: BoxDecoration(
-                color: KinrelColors.darkBackground.withValues(alpha: 0.92),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: chipAccentColor.withValues(alpha: 0.6),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    blurRadius: 6,
-                    offset: const Offset(1, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // v5.143: Show a different icon when this chip is in the
-                  // optimistic loading state (tap fired, RPC in flight).
-                  // Gives sub-100ms visual feedback without needing a
-                  // Material ancestor for CircularProgressIndicator.
-                  Icon(
-                    _optimisticLoadingChipRootId == branch.rootPersonId
-                        ? Icons.hourglass_top
-                        : Icons.unfold_more,
-                    size: 14,
-                    color: chipAccentColor,
-                  ),
-                  const SizedBox(width: 6),
-                  // v5.123 (Step 3): Lead with "+{count}", then append the
-                  // short label when space permits (single line,
-                  // ellipsized). The generation depth stays available via
-                  // the branch tooltip semantics below.
-                  Flexible(
-                    child: Text(
-                      shortLabel.isEmpty
-                          ? '+${branch.hiddenCount}'
-                          : '+${branch.hiddenCount} · $shortLabel',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          child: chipWidget,
         ),
       ));
+      chips.addAll(widgets);
     }
     return chips;
+  }
+
+  /// v5.x (chip-placement fix): delegate to the pure helper in
+  /// lib/graph/engine/branch_chip_layout.dart so the placement
+  /// logic is unit-testable AND shared with the canvas hit-tester
+  /// (see _hitTestBranchChip in interaction_mixin.dart — calls the
+  /// SAME helper so the rendered chip and the tap target can never
+  /// drift apart).
+  List<BranchChipPlacement> _computeBranchChipPlacements(
+    GraphLayoutResult layout,
+    BranchCollapseState collapseState,
+  ) {
+    if (collapseState.collapsedBranches.isEmpty) return const [];
+
+    // Build the placement requests from the collapsed branches.
+    final requests = <BranchChipPlacementRequest>[];
+    for (final branch in collapseState.collapsedBranches) {
+      final pos = layout.positions[branch.rootPersonId];
+      if (pos == null) continue;
+      requests.add(BranchChipPlacementRequest(
+        branchId: branch.id,
+        rootPersonId: branch.rootPersonId,
+        rootPosition: pos,
+      ));
+    }
+    if (requests.isEmpty) return const [];
+
+    // Build the node-box list for collision avoidance. Use EVERY
+    // node that has a position (not just the visible ones — the
+    // helper is called once per build with the full positions map,
+    // so we can avoid every node's bounding box, including
+    // off-screen ones that are still in the layout. This is the
+    // correct behavior because the parent camera Transform scales
+    // everything together; chips must avoid nodes regardless of
+    // whether they're currently in the viewport culler's visible
+    // set.
+    final allNodeBoxes = <Rect>[
+      for (final entry in layout.positions.entries)
+        nodeBoxForPosition(entry.value),
+    ];
+
+    return placeBranchChips(
+      requests: requests,
+      allNodeBoxes: allNodeBoxes,
+    );
   }
 
   /// v5.105: Returns the accent color for a collapsed-branch chip
@@ -1044,4 +1145,84 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       },
     );
   }
+}
+
+/// v5.x (chip-placement fix): painter for the thin leader line drawn
+/// from a branch chip back to its parent node's center, when the chip
+/// had to be placed far enough from the node that visual tethering
+/// alone wouldn't make the ownership clear.
+///
+/// The line is drawn as a 1px dashed stroke in the chip's accent
+/// color (passed by the caller) at 50% alpha. Dashed (not solid)
+/// so it reads as a "leader line" rather than an edge / relationship
+/// line — important so users don't confuse it with the kinship edges
+/// rendered by the EngineEdgePainter.
+class _BranchChipLeaderPainter extends CustomPainter {
+  _BranchChipLeaderPainter({
+    required this.start,
+    required this.end,
+    required this.color,
+  });
+
+  /// Graph-space start point of the leader line (the parent node's
+  /// visual circle center).
+  final Offset start;
+
+  /// Graph-space end point of the leader line (the chip's top-center).
+  final Offset end;
+
+  /// The chip's accent color at 50% alpha — matches the chip's
+  /// border color so the user can see the chip ↔ leader line ↔ node
+  /// association.
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // The leader line is drawn in the COORDINATE SPACE of the
+    // Positioned widget that wraps this painter — which has its
+    // top-left at (min(start, end) - 1). So we translate start/end
+    // into the local space before drawing.
+    final localStart = start - Offset(
+      min(start.dx, end.dx) - 1.0,
+      min(start.dy, end.dy) - 1.0,
+    );
+    final localEnd = end - Offset(
+      min(start.dx, end.dx) - 1.0,
+      min(start.dy, end.dy) - 1.0,
+    );
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..strokeCap = StrokeCap.round;
+
+    // Dashed line — 4px dash, 3px gap. We walk the line in arc-length
+    // steps. The line is short (typically 30–80px), so the loop is
+    // cheap.
+    final dx = localEnd.dx - localStart.dx;
+    final dy = localEnd.dy - localStart.dy;
+    final length = sqrt(dx * dx + dy * dy);
+    if (length < 1.0) return;
+    final ux = dx / length;
+    final uy = dy / length;
+
+    const dashLen = 4.0;
+    const gapLen = 3.0;
+    var pos = 0.0;
+    while (pos < length) {
+      final dashEnd = pos + dashLen;
+      final p0 = Offset(localStart.dx + ux * pos, localStart.dy + uy * pos);
+      final p1 = Offset(
+        localStart.dx + ux * dashEnd.clamp(0.0, length),
+        localStart.dy + uy * dashEnd.clamp(0.0, length),
+      );
+      canvas.drawLine(p0, p1, paint);
+      pos += dashLen + gapLen;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _BranchChipLeaderPainter old) =>
+      start != old.start || end != old.end || color != old.color;
 }
