@@ -38,6 +38,10 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
     required this.dimmedEdgeIds,
     required this.pathFocusedEdgeIds,
     required this.pathFocusActive,
+    // v5.x (Feature 3 — labels on demand): when non-null AND
+    // [pathFocusActive] is true, the painter renders small relationship-
+    // type labels near the midpoint of each path edge.
+    this.pathFocusLabels,
     this.coupleUnions = const [],
     this.edgeWaypoints = const {},
     // v5.125 (Step 6): anchor geometry for the bow-around-the-anchor
@@ -134,6 +138,15 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
   /// v92 (PART 14): True when a path focus is active (target selected
   /// and path resolved). When false, `pathFocusedEdgeIds` is ignored.
   final bool pathFocusActive;
+
+  /// v5.x (Feature 3 — labels on demand): Optional map of edge ID →
+  /// relationship-type label (e.g. "Father", "Sister", "Uncle"). When
+  /// non-null AND [pathFocusActive] is true, the painter renders a
+  /// small text label near the midpoint of every path-focused edge.
+  /// The label is NOT rendered by default — only when the user has
+  /// selected a node AND a path has been resolved. This is the
+  /// "labels on demand, not always-on" behavior the user asked for.
+  final Map<String, String>? pathFocusLabels;
 
   @override
   ConsumerState<EdgeSelectionWrapper> createState() =>
@@ -320,6 +333,10 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
             ? widget.pathFocusedEdgeIds
             : null,
         pathFocusActive: widget.pathFocusActive,
+        // v5.x (Feature 3 — labels on demand): pass the labels map
+        // through to the painter. The painter only renders labels
+        // when pathFocusActive is true AND the map is non-null.
+        pathFocusLabels: widget.pathFocusLabels,
         traceEdgeId: traceState.traceActive ? traceState.currentEdgeId : null,
         traceProgress: traceState.traceActive ? traceState.traceProgress : 0.0,
         traceActive: traceState.traceActive,

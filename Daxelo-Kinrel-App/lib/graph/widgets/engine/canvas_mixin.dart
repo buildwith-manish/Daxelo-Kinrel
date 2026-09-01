@@ -1175,6 +1175,14 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     // unrelated edges dim.
                     pathFocusedEdgeIds: pathFocus?.orderedEdgeIds.toSet(),
                     pathFocusActive: pathFocus != null,
+                    // v5.x (Feature 3 — labels on demand): when a path
+                    // is focused, build a map of edge ID → relationship
+                    // label (e.g. "father", "sister", "uncle") so the
+                    // painter can render small labels near the midpoint
+                    // of each path edge. The labels are NOT rendered
+                    // when pathFocus is null (default state) — this is
+                    // the "labels on demand, not always-on" behavior.
+                    pathFocusLabels: _buildPathFocusLabels(pathFocus),
                     // v5.27 Task 2: Connect-on-open animation state.
                     // The engine view state's _connectOnOpenController
                     // (a second GraphPathTraceController instance —
@@ -1532,6 +1540,42 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         },
       ),
     ];
+  }
+
+  /// v5.x (Feature 3 — labels on demand): builds a map of edge ID →
+  /// relationship-type label for every edge in the resolved path
+  /// focus. Called once per build (cheap) when [pathFocus] is non-
+  /// null. The painter uses this map to render small labels near the
+  /// midpoint of each path edge.
+  ///
+  /// The label for each edge comes from the path focus's [steps] —
+  /// each step (after the viewer) carries a [relationshipType]
+  /// (e.g. "father", "sister", "uncle") and the edge ID connecting
+  /// the previous step to this step. We map edge ID → relationship
+  /// type so the painter can render "father" near the midpoint of
+  /// the edge connecting the viewer to their father, etc.
+  ///
+  /// Returns null when [pathFocus] is null (the painter treats null
+  /// as "no labels to render" — the default state).
+  ///
+  /// Returns null when the path focus has no steps with relationship
+  /// types (e.g. viewer is target — shouldn't happen here because
+  /// _resolvePathFocus returns null in that case, but defensive).
+  Map<String, String>? _buildPathFocusLabels(GraphKinshipPathFocus? pathFocus) {
+    if (pathFocus == null) return null;
+    if (pathFocus.steps.isEmpty) return null;
+    final labels = <String, String>{};
+    for (final step in pathFocus.steps) {
+      if (step.edgeId == null) continue; // first step (viewer)
+      if (step.relationshipType.isEmpty) continue;
+      // Capitalize the first letter for readability ("father" → "Father").
+      // Avoid title-casing every word — single-word labels read better
+      // with just the first letter capitalized.
+      final label = step.relationshipType[0].toUpperCase() +
+          step.relationshipType.substring(1);
+      labels[step.edgeId!] = label;
+    }
+    return labels.isEmpty ? null : labels;
   }
 
 }
