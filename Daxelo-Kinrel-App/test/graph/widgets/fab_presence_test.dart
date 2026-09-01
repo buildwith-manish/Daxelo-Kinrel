@@ -5,10 +5,19 @@
 // v4 (2026-06-18) updates:
 //   - Zoom In / Zoom Out icons were REMOVED from the AppBar per user
 //     request. Zoom is now handled exclusively by pinch gestures and
-//     double-tap-to-zoom in the GraphPanZoom widget.
+//     double-tap-to-zoom in the engine view's interaction_mixin.dart
+//     (ScaleGestureRecognizer on a Listener widget — see the v9
+//     Android fix in lib/graph/widgets/engine/interaction_mixin.dart).
 //   - The two zoom-related tests were replaced with tests that verify
 //     the zoom icons are NOT present (so we don't regress by re-adding
 //     them).
+//
+// v5.x (dead-code cleanup): these comments previously claimed
+// GraphPanZoom handled the gestures. GraphPanZoom was never
+// instantiated — the real gesture handlers live in
+// interaction_mixin.dart (which replaced GraphPanZoom with a
+// Listener + ScaleGestureRecognizer approach). Comments corrected
+// here too so the test file does not lie about the code path.
 //
 // Verifies:
 //   - No FloatingActionButton exists in FamilyGraphScreen
@@ -95,7 +104,10 @@ void main() {
         await tester.pump(const Duration(seconds: 1));
 
         // The zoom_in icon should NOT be present — we removed it in v4
-        // in favor of pinch-to-zoom gestures handled by GraphPanZoom.
+        // in favor of pinch-to-zoom gestures handled by the engine
+        // view's interaction_mixin.dart (ScaleGestureRecognizer on a
+        // Listener widget). GraphPanZoom is dead code — never
+        // instantiated.
         expect(find.byIcon(Icons.zoom_in_rounded), findsNothing);
       },
     );
@@ -113,7 +125,10 @@ void main() {
         await tester.pump(const Duration(seconds: 1));
 
         // The zoom_out icon should NOT be present — we removed it in v4
-        // in favor of pinch-to-zoom gestures handled by GraphPanZoom.
+        // in favor of pinch-to-zoom gestures handled by the engine
+        // view's interaction_mixin.dart (ScaleGestureRecognizer on a
+        // Listener widget). GraphPanZoom is dead code — never
+        // instantiated.
         expect(find.byIcon(Icons.zoom_out_rounded), findsNothing);
       },
     );

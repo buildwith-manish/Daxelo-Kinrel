@@ -6,7 +6,10 @@
 //
 // v7 changes (2026-06-18, responding to user feedback):
 //   - Removed Zoom In / Zoom Out buttons from AppBar
-//   - Pinch-to-zoom is now the only zoom method (handled by GraphPanZoom v4)
+//   - Pinch-to-zoom is the only zoom method (handled by the engine
+//     view's interaction_mixin via ScaleGestureRecognizer on a
+//     Listener widget — see family_graph_engine_view.dart and its
+//     part files canvas_mixin.dart / interaction_mixin.dart)
 //   - Double-tap-to-zoom (toggle 1x ↔ 2.5x) also available
 //   - Graph can be freely moved across the entire canvas (no clamping)
 //   - Removed "No relationships in database" warning banner
@@ -14,11 +17,31 @@
 //   - Kinship dataset (5,359 relationships × 15 languages) preloaded
 //     at app startup so the Add Member flow has it ready
 //
+// v5.x (dead-code cleanup) — fixes misleading comments + dead files:
+//   - The header used to claim pinch-zoom was "handled by GraphPanZoom
+//     v4" and the body comments claimed the same. GraphPanZoom was
+//     never actually instantiated in this screen — the real pan/zoom
+//     logic lives in interaction_mixin.dart via a Listener +
+//     ScaleGestureRecognizer (the v9 Android fix). The misleading
+//     comments have been corrected.
+//   - graph_pan_zoom.dart has been deleted (truly dead — never
+//     instantiated, never even exported via graph.dart).
+//   - control_bar.dart has been deleted (also never instantiated; if
+//     it had been wired up, the unsafe `(cameraController as dynamic)
+//     .zoomIn()` etc. wrapped in silent `catch (_) {}` blocks would
+//     have made zoom/fit/focus buttons fail completely silently).
+//   - filter_panel.dart has been deleted (orphaned — the filter
+//     button in the bottom dock only flipped a state flag without
+//     showing any UI; the GraphFilterPanel it was supposed to show
+//     was never rendered). The existing graphFocusProvider "Isolate
+//     Connections" feature already covers the actual filter UX users
+//     need.
+//
 // Features:
 //   - AppBar: [Back] [Family Name] --- [Add Member]
-//   - Bottom toolbar: Center, Add Member (primary), Filter, Help
-//   - Passes graph data directly to FamilyGraphWidget (no double-fetch)
-//   - Custom GraphPanZoom (v4) — pinch, pan, double-tap, no clamping
+//   - Bottom toolbar: Center, Add Member (primary), Help (Legend)
+//   - Passes graph data directly to FamilyGraphEngineView (no double-fetch)
+//   - Pan/zoom via interaction_mixin.dart's Listener + ScaleGestureRecognizer
 //   - Graph state persistence (zoom/position) via SharedPreferences
 //   - Responsive, safe-area aware, no overflow issues
 //   - Real-time updates via Supabase Realtime
@@ -35,6 +58,18 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+// v5.x (legend wiring fix): explicit imports for the legend + kinship
+// category resolution. The legend was previously imported into
+// family_graph_engine_view.dart but never rendered anywhere — now
+// this screen actually shows it (toggled by the bottom dock's
+// Help/Legend button).
+import '../../../core/kinship/kinship_edge_style.dart'
+    show KinshipEdgeCategory, KinshipEdgeClassifier;
+// v5.x (legend wiring fix): GraphLegend is now actually rendered by
+// this screen — was previously imported into
+// family_graph_engine_view.dart but never instantiated. Other graph
+// exports (PersonData, EmptyState, etc.) continue to come through
+// this barrel, so no `show` clause is used.
 import '../../../graph/graph.dart';
 import '../../../graph/interaction/graph_focus_state.dart'
     show graphFocusProvider, PathSelectPhase;
@@ -88,7 +123,17 @@ import '../../../graph/interaction/proximity_graph_state.dart'
     show proximityGraphProvider;
 import '../../../graph/interaction/graph_search_state.dart'
     show graphSearchProvider;
-import 'widgets/relationship_legend.dart';
+// v5.x (legend wiring fix): GraphLegend is now actually rendered by
+// this screen — toggled by the bottom dock's Help/Legend button
+// (which previously only flipped a state flag without showing any
+// UI). The legend is wired directly to _showLegend state for
+// simplicity; no Riverpod provider needed since the legend is
+// ephemeral UI state local to this screen.
+// v5.x (dead-code cleanup): widgets/relationship_legend.dart import
+// removed — the file was orphaned (RelationshipLegend was never
+// instantiated anywhere) and has been deleted. GraphLegend from
+// graph/widgets/graph_legend.dart (via the graph.dart barrel above)
+// is the single legend widget now, wired into this screen.
 import 'widgets/stats_panel.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -127,8 +172,10 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   /// Whether the relationship legend is visible.
   bool _showLegend = false;
 
-  /// Whether the filter panel is visible in the bottom toolbar context.
-  bool _filterVisible = false;
+  // v5.x (dead-code cleanup): _filterVisible removed — the Filter
+  // button was the only consumer and it has been removed too (see
+  // the bottom dock builder). The GraphFilterPanel it was supposed
+  // to toggle was orphaned code.
 
   /// Whether the search overlay is visible.
   bool _showSearch = false;
@@ -244,9 +291,18 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   // ── Zoom helpers ───────────────────────────────────────────────────
   //
   // v4 (2026-06-18): _zoomIn() and _zoomOut() removed. Zoom is now
-  // exclusively via pinch gestures handled by GraphPanZoom.
-  // Double-tap-to-zoom (toggle 1x ↔ 2.5x) is also handled by
-  // GraphPanZoom, so users have a one-finger zoom option too.
+  // exclusively via pinch gestures handled by the engine view's
+  // interaction_mixin.dart (ScaleGestureRecognizer on a Listener
+  // widget — see the v9 Android fix in
+  // lib/graph/widgets/engine/interaction_mixin.dart).
+  // Double-tap-to-zoom (toggle 1x ↔ 2.5x) is also handled there,
+  // so users have a one-finger zoom option too.
+  //
+  // v5.x (dead-code cleanup): these comments previously claimed
+  // GraphPanZoom handled the gestures — but GraphPanZoom was never
+  // instantiated in this screen. The real gesture handlers live in
+  // interaction_mixin.dart (the Listener + ScaleGestureRecognizer
+  // path that replaced GraphPanZoom). Comments corrected.
 
   /// Centers the graph on the root/anchor user by triggering re-centering
   /// in the FamilyGraphWidget via recenterKey.
@@ -412,10 +468,71 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
                 },
                 onClose: () => setState(() => _showSearch = false),
               ),
+            // v5.x (legend wiring fix): the GraphLegend widget is now
+            // ACTUALLY RENDERED here — toggled by the bottom dock's
+            // Help/Legend button. Before this fix, the button only
+            // flipped a _showLegend state flag and highlighted itself;
+            // the GraphLegend widget was imported but never
+            // instantiated (the user could not see what the node
+            // colors / edge types meant).
+            //
+            // The legend computes the present kinship categories from
+            // the currently-loaded graph data so the panel only shows
+            // sections relevant to what's on screen (was: the legend
+            // always showed all 8 sections + spouse even on a tiny
+            // graph where most were irrelevant).
+            //
+            // We hide the legend during Rearrange mode (matches the
+            // other overlays' distraction-free gate).
+            if (_showLegend &&
+                !ref.watch(rearrangeModeProvider) &&
+                graphAsync.hasValue)
+              GraphLegend(
+                isVisible: _showLegend,
+                onToggle: () => setState(() => _showLegend = !_showLegend),
+                presentCategories:
+                    _computePresentLegendCategories(graphAsync.value!),
+              ),
           ],
         ),
       ),
     );
+  }
+
+  /// v5.x (legend wiring fix): compute the set of kinship categories
+  /// actually present in the currently-loaded graph so the legend
+  /// panel only shows sections relevant to what's on screen.
+  ///
+  /// Combines two sources:
+  ///   1. The server-computed `kinshipCategory` on each person (via
+  ///      `KinshipEdgeClassifier.fromServerCategory`) — for the
+  ///      person's role relative to the viewer.
+  ///   2. The `relationshipKey` on each relationship (via
+  ///      `KinshipEdgeClassifier.classify`) — for the edge type.
+  ///
+  /// Returns an empty set when both sources yield nothing (the legend
+  /// then falls back to showing the full reference legend — matches
+  /// the GraphLegend's `presentCategories.isEmpty` contract).
+  Set<KinshipEdgeCategory> _computePresentLegendCategories(
+      FlatGraphResult graph) {
+    final categories = <KinshipEdgeCategory>{};
+    // Person categories — server-computed role relative to viewer.
+    for (final p in graph.persons) {
+      final rawCat = p['kinshipCategory'] as String?;
+      if (rawCat == null) continue;
+      final cat = KinshipEdgeClassifier.fromServerCategory(rawCat);
+      if (cat != null) categories.add(cat);
+    }
+    // Relationship categories — edge type from the relationshipKey.
+    for (final r in graph.relationships) {
+      final key = (r['relationshipKey'] ?? '').toString();
+      if (key.isEmpty) continue;
+      categories.add(KinshipEdgeClassifier.classify(key));
+    }
+    // The viewer is always present — add the `self` category so the
+    // legend's "You" section is always relevant.
+    categories.add(KinshipEdgeCategory.self);
+    return categories;
   }
 
   /// v5.115 (Task 3): Centers the camera on the member with [memberId].
@@ -535,9 +652,17 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
   // ── AppBar ────────────────────────────────────────────────────────
   //
   // v4 (2026-06-18): Removed Zoom In / Zoom Out buttons per user request.
-  // Users now zoom naturally with two-finger pinch gestures. The custom
-  // GraphPanZoom widget handles pinch-to-zoom, two-finger panning, and
-  // double-tap-to-zoom — no on-screen zoom buttons needed.
+  // Users now zoom naturally with two-finger pinch gestures. The
+  // engine view's interaction_mixin.dart handles pinch-to-zoom,
+  // two-finger panning, and double-tap-to-zoom via a Listener +
+  // ScaleGestureRecognizer — no on-screen zoom buttons needed.
+  //
+  // v5.x (dead-code cleanup): this comment previously claimed
+  // GraphPanZoom handled the gestures. GraphPanZoom was never
+  // instantiated in this screen — the real gesture handlers live in
+  // interaction_mixin.dart (the v9 Android fix replaced GraphPanZoom
+  // with a Listener + ScaleGestureRecognizer approach). Comment
+  // corrected.
   //
   // Layout: [Back] [Family Name] --- [Add Member]
 
@@ -1940,15 +2065,13 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
           ),
           // Divider
           _divider(),
-          // Filter
-          _toolbarButton(
-            icon: Icons.filter_list_rounded,
-            tooltip: 'Filter',
-            onPressed: () {
-              setState(() => _filterVisible = !_filterVisible);
-            },
-            highlighted: _filterVisible,
-          ),
+          // v5.x (dead-code cleanup): the Filter button was removed.
+          // It only flipped a _filterVisible state flag and
+          // highlighted itself — the GraphFilterPanel it was supposed
+          // to show was never wired up (filter_panel.dart was orphaned
+          // — the existing graphFocusProvider "Isolate Connections"
+          // feature already covers the actual filter UX users need).
+          // Removing the button eliminates the misleading UI.
           // Divider
           _divider(),
           // Help / Legend

@@ -51,7 +51,13 @@ export 'widgets/family_graph_engine_view.dart';
 export 'widgets/graph_node.dart';
 export 'widgets/empty_state.dart';
 export 'widgets/search_bar.dart';
-export 'widgets/filter_panel.dart';
+// v5.x (dead-code cleanup): filter_panel.dart and control_bar.dart
+// exports removed. Both were orphaned — GraphFilterPanel was never
+// rendered (its filter button only flipped a state flag without
+// showing any UI) and GraphControlBar was never instantiated (its
+// unsafe `(cameraController as dynamic).zoomIn()` calls would have
+// failed silently if it had been wired up). The files have been
+// deleted; the existing graphFocusProvider "Isolate Connections"
+// feature already covers the actual filter UX users need.
 export 'widgets/graph_legend.dart';
-export 'widgets/control_bar.dart';
 export 'widgets/onboarding_flow.dart';

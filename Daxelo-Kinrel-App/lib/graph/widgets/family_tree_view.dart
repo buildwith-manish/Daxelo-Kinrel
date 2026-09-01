@@ -25,6 +25,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
 
 import '../../core/constants/brand_colors.dart';
+// v5.x (avatar-cache fix): family_tree_view.dart now uses the same
+// CachedAvatar path the engine view uses (downsampling, 7-day memory
+// cache, shimmer placeholder, graceful fallback). Was: raw
+// Image.network with an errorBuilder — worked but skipped the
+// caching/downsampling so avatar-heavy Tree views were slower and
+// heavier on memory than the Graph view.
+import '../../core/widgets/cached_avatar.dart';
 import '../../core/services/graph_layout_service.dart';
 import '../../features/family/presentation/providers/family_graph_provider.dart'
     show FlatGraphResult, familyGraphProvider, selectedNodeProvider;
@@ -1101,8 +1108,19 @@ class _TreeNode extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // Avatar — stays CIRCULAR, inset within the rectangular
-            // card (not stretched/cropped to fill corners). Same
-            // ClipOval + Image.network / placeholder logic as before.
+            // card (not stretched/cropped to fill corners).
+            // v5.x (avatar-cache fix): uses CachedAvatar (the same
+            // cached, downsampled, shimmer-placeholder path the
+            // engine view uses). Was: raw Image.network with an
+            // errorBuilder — worked but skipped the caching/
+            // downsampling so avatar-heavy Tree views were slower
+            // and heavier on memory than the Graph view.
+            //
+            // CachedAvatar handles the null/empty URL + error
+            // fallback internally (falls back to a person icon), so
+            // we no longer need the `restricted || photoUrl == null`
+            // ternary or the explicit errorBuilder here. The outer
+            // Container is kept for the colored ring.
             Container(
               width: _avatarDiameter,
               height: _avatarDiameter,
@@ -1118,14 +1136,20 @@ class _TreeNode extends StatelessWidget {
                 ),
               ),
               child: ClipOval(
+                // v5.x: when restricted or no photo URL, the
+                // _placeholderAvatar() still renders (matches the
+                // pre-fix behavior — CachedAvatar's default
+                // person-icon fallback would lose the gender-tinted
+                // background + initial letter that's specific to
+                // this view).
                 child: restricted ||
                         photoUrl == null ||
                         photoUrl!.isEmpty
                     ? _placeholderAvatar()
-                    : Image.network(
-                        photoUrl!,
+                    : CachedAvatar(
+                        imageUrl: photoUrl,
+                        radius: _avatarDiameter / 2,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _placeholderAvatar(),
                       ),
               ),
             ),

@@ -180,7 +180,10 @@ import 'graph_node.dart' show GraphNode, NodeState;
 import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, OnThisDayEventType, showOnThisDayEventSheet;
 import 'graph_minimap.dart' show GraphMiniMap;
 import 'graph_outline_view.dart' show GraphOutlineView;
-import 'graph_legend.dart' show GraphLegend;
+// v5.x (legend wiring fix): the GraphLegend import was unused — the
+// legend widget is now rendered by the parent family_graph_screen
+// (toggled by the bottom dock's Help/Legend button), not by this
+// engine view. Removed to keep the import list accurate.
 import 'graph_quick_actions.dart' show GraphQuickActions, BranchCollapseInfo;
 import 'graph_relationship_labels.dart' show GraphPersonData;
 import '../interaction/relationship_linking_state.dart'
@@ -2156,24 +2159,14 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     }
   }
 
-  /// v2.2: Returns the set of kinship categories present in the current
-  /// graph. Used by the legend to show only relevant rows.
-  ///
-  /// Iterates all edges in [flat] and classifies each by its
-  /// relationship key. Returns an empty set if [flat] is null.
-  Set<KinshipEdgeCategory> _presentCategories(FlatGraphResult? flat) {
-    if (flat == null) return <KinshipEdgeCategory>{};
-    final cats = <KinshipEdgeCategory>{};
-    for (final Map<String, dynamic> r in flat.relationships) {
-      final key = r['relationshipKey'] as String?;
-      if (key != null && key.isNotEmpty) {
-        cats.add(KinshipEdgeClassifier.classify(key));
-      }
-    }
-    // Always include 'self' so the viewer's own node color is documented.
-    cats.add(KinshipEdgeCategory.self);
-    return cats;
-  }
+  // v5.x (legend wiring fix): the _presentCategories helper that used
+  // to live here has been removed. The legend is now rendered by the
+  // parent family_graph_screen.dart, which has its own
+  // _computePresentLegendCategories helper (combines server-computed
+  // person kinshipCategory + relationship relationshipKey — more
+  // accurate than this helper which only looked at relationshipKey).
+  // Removing the dead helper eliminates the unused_element warning
+  // and keeps the engine view's API surface focused on rendering.
 }
 
 // ── Painters ────────────────────────────────────────────────────────────────

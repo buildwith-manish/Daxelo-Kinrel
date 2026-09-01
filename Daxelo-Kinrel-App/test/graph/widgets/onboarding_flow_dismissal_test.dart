@@ -3,11 +3,30 @@
 // Regression test for BUG-1: Onboarding overlay dismissal persistence.
 // Updated for SharedPreferences-backed AsyncNotifier provider.
 //
-// Verifies that:
-//   1. OnboardingFlow with memberCount=1 shows "Grow your graph"
-//   2. Tapping "Skip" dismisses the overlay (widget → SizedBox.shrink)
-//   3. After dismissal, the overlay does NOT reappear on re-pump
-//   4. onboardingDismissedProvider persists 'test-family' in its Set
+// v5.x (test/impl drift cleanup): the previous version of this file
+// tested the OLD model where `memberCount=1` showed the 'addFamily'
+// step ("Grow your graph"). The current `OnboardingFlow._resolveStep`
+// (see lib/graph/widgets/onboarding_flow.dart line 236) returns
+// `OnboardingStep.completed` for `memberCount >= 1` — any user who
+// already has a profile immediately completes onboarding, no overlay
+// shown. This file now tests the ACTUAL current behavior:
+//   - memberCount == 0 → shows the "createProfile" step (the only
+//     step still rendered for brand-new users).
+//   - memberCount >= 1 → no onboarding overlay (the widget returns
+//     SizedBox.shrink).
+//   - Skip on the createProfile step is NOT offered (only the
+//     addFamily step is skippable; createProfile is mandatory).
+//   - The dismissal provider is irrelevant for memberCount >= 1
+//     because the widget never shows the overlay in the first place.
+//
+// Verifies:
+//   1. OnboardingFlow with memberCount=0 shows the createProfile step
+//      (not "Grow your graph" — that step is dead).
+//   2. OnboardingFlow with memberCount=1 does NOT show any overlay
+//      (SizedBox.shrink).
+//   3. OnboardingFlow with memberCount=5 does NOT show any overlay.
+//   4. Different familyId is irrelevant for memberCount >= 1 (the
+//      widget gates on memberCount, not familyId).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,152 +39,170 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(setupNativePluginMocks);
   tearDownAll(tearDownNativePluginMocks);
-  // Pre-existing test/implementation drift: OnboardingFlow._resolveStep(1)
-  // now returns OnboardingStep.completed (see onboarding_flow.dart line 237),
-  // so memberCount=1 immediately dismisses the overlay. These tests were
-  // written against an older model where memberCount=1 showed the 'addFamily'
-  // step ("Grow your graph"). Skipping the whole group until the tests are
-  // updated to match the current step-resolution logic.
-  group(
-    'OnboardingFlow dismissal regression (BUG-1)',
-    skip: 'Pre-existing test/impl drift — see PR description',
-    () {
-    /// Helper: builds the OnboardingFlow inside a ProviderScope so
-    /// that Riverpod providers are available during the test.
-    Widget buildTestWidget({
-      required String familyId,
-      required int memberCount,
-      List<Override> overrides = const [],
-    }) {
-      return ProviderScope(
-        overrides: overrides,
-        child: MaterialApp(
-          home: Scaffold(
-            body: OnboardingFlow(
-              familyId: familyId,
-              memberCount: memberCount,
-            ),
+
+  // Helper: builds the OnboardingFlow inside a ProviderScope so
+  // that Riverpod providers are available during the test.
+  Widget buildTestWidget({
+    required String familyId,
+    required int memberCount,
+    List<Override> overrides = const [],
+  }) {
+    return ProviderScope(
+      overrides: overrides,
+      child: MaterialApp(
+        home: Scaffold(
+          body: OnboardingFlow(
+            familyId: familyId,
+            memberCount: memberCount,
           ),
         ),
+      ),
+    );
+  }
+
+  group('OnboardingFlow dismissal regression (BUG-1) — current behavior', () {
+    testWidgets(
+        'memberCount == 0 shows the createProfile onboarding step '
+        '(the only step still rendered for brand-new users)', (tester) async {
+      await tester.pumpWidget(buildTestWidget(
+        familyId: 'test-family',
+        memberCount: 0,
+      ));
+      await tester.pump(const Duration(seconds: 1));
+
+      // The createProfile step should render SOMETHING — the widget
+      // tree should contain at least one Text descendant (the step's
+      // title or body copy). We don't assert the exact text because
+      // the step's copy may evolve; we only assert the overlay IS
+      // visible (memberCount=0 → createProfile step).
+      expect(find.byType(OnboardingFlow), findsOneWidget);
+      // The onboarding overlay should NOT be empty (SizedBox.shrink).
+      // We verify by checking that at least one Text widget is
+      // rendered inside the OnboardingFlow tree.
+      final textFinder = find.descendant(
+        of: find.byType(OnboardingFlow),
+        matching: find.byType(Text),
       );
-    }
+      expect(textFinder, findsWidgets,
+          reason: 'memberCount=0 should render the createProfile step, '
+              'which contains Text widgets (title, body, etc.)');
+    });
 
     testWidgets(
-      'Step 1: OnboardingFlow with memberCount=1 shows "Grow your graph"',
-      (tester) async {
-        await tester.pumpWidget(buildTestWidget(
-          familyId: 'test-family',
-          memberCount: 1,
-        ));
-        await tester.pump(const Duration(seconds: 1));
+        'memberCount == 1 does NOT show the onboarding overlay '
+        '(SizedBox.shrink — _resolveStep returns completed for '
+        'memberCount >= 1)', (tester) async {
+      await tester.pumpWidget(buildTestWidget(
+        familyId: 'test-family',
+        memberCount: 1,
+      ));
+      await tester.pump(const Duration(seconds: 1));
 
-        // memberCount=1 → step addFamily → title is "Grow your graph"
-        expect(find.text('Grow your graph'), findsOneWidget);
-      },
-    );
-
-    testWidgets(
-      'Step 2-5: Tapping Skip dismisses the overlay (SizedBox.shrink)',
-      (tester) async {
-        await tester.pumpWidget(buildTestWidget(
-          familyId: 'test-family',
-          memberCount: 1,
-        ));
-        await tester.pump(const Duration(seconds: 1));
-
-        // Verify overlay is visible before skip
-        expect(find.text('Grow your graph'), findsOneWidget);
-
-        // Find and tap the Skip button
-        final skipFinder = find.text('Skip');
-        expect(skipFinder, findsOneWidget, reason: 'Skip button must be present for addFamily step');
-        await tester.tap(skipFinder);
-
-        // Allow state rebuild after tap
-        await tester.pump();
-
-        // After skip, _permanentlyDismissed is set to true and the widget
-        // returns SizedBox.shrink, so "Grow your graph" must be gone
-        expect(
-          find.text('Grow your graph'),
-          findsNothing,
-          reason: 'Overlay must disappear after Skip is tapped',
-        );
-      },
-    );
+      // The widget should render NOTHING — no overlay, no Text.
+      // _resolveStep(1) returns OnboardingStep.completed → the
+      // build method returns SizedBox.shrink.
+      final textFinder = find.descendant(
+        of: find.byType(OnboardingFlow),
+        matching: find.byType(Text),
+      );
+      expect(textFinder, findsNothing,
+          reason: 'memberCount=1 → _resolveStep returns completed → '
+              'no onboarding overlay should be rendered. The OLD '
+              'test asserted "Grow your graph" was visible here; '
+              'that step is dead code now.');
+    });
 
     testWidgets(
-      'Step 6-7: Re-pumping the widget from scratch does not show overlay '
-      'because onboardingDismissedProvider contains the familyId',
-      (tester) async {
-        // First: show and skip the overlay so the provider records dismissal
-        await tester.pumpWidget(buildTestWidget(
-          familyId: 'test-family',
-          memberCount: 1,
-        ));
-        await tester.pump(const Duration(seconds: 1));
-        expect(find.text('Grow your graph'), findsOneWidget);
+        'memberCount == 5 (well-populated family) does NOT show '
+        'the onboarding overlay', (tester) async {
+      await tester.pumpWidget(buildTestWidget(
+        familyId: 'test-family',
+        memberCount: 5,
+      ));
+      await tester.pump(const Duration(seconds: 1));
 
-        await tester.tap(find.text('Skip'));
-        await tester.pump(const Duration(seconds: 1));
-
-        // Verify dismissed
-        expect(find.text('Grow your graph'), findsNothing);
-
-        // Now read the provider state via the ProviderScope container
-        final container = ProviderScope.containerOf(
-          tester.element(find.byType(Scaffold)),
-        );
-        final dismissedAsync = container.read(onboardingDismissedProvider);
-        expect(
-          dismissedAsync.valueOrNull?.contains('test-family') ?? false,
-          isTrue,
-          reason: 'onboardingDismissedProvider must contain "test-family" after skip',
-        );
-
-        // Re-pump the widget from scratch with same familyId
-        // The provider already has 'test-family' in its dismissed set,
-        // so the widget should check _isDismissedForFamily → true → SizedBox.shrink
-        await tester.pumpWidget(buildTestWidget(
-          familyId: 'test-family',
-          memberCount: 1,
-        ));
-        await tester.pump(const Duration(seconds: 1));
-
-        // The overlay must NOT reappear
-        expect(
-          find.text('Grow your graph'),
-          findsNothing,
-          reason: 'Overlay must not reappear after dismissal is persisted in provider',
-        );
-      },
-    );
+      final textFinder = find.descendant(
+        of: find.byType(OnboardingFlow),
+        matching: find.byType(Text),
+      );
+      expect(textFinder, findsNothing,
+          reason: 'memberCount=5 → _resolveStep returns completed → '
+              'no onboarding overlay should be rendered');
+    });
 
     testWidgets(
-      'BUG-1 regression: Different familyId shows onboarding independently',
-      (tester) async {
-        // Dismiss 'test-family'
-        await tester.pumpWidget(buildTestWidget(
-          familyId: 'test-family',
-          memberCount: 1,
-        ));
-        await tester.pump(const Duration(seconds: 1));
-        await tester.tap(find.text('Skip'));
-        await tester.pump(const Duration(seconds: 1));
+        'Different familyId is irrelevant for memberCount >= 1 '
+        '(the widget gates on memberCount, not familyId — '
+        'BUG-1 regression: any user with at least one member '
+        'never sees onboarding)', (tester) async {
+      // First family — memberCount=1 → no overlay.
+      await tester.pumpWidget(buildTestWidget(
+        familyId: 'test-family',
+        memberCount: 1,
+      ));
+      await tester.pump(const Duration(seconds: 1));
+      expect(
+        find.descendant(
+          of: find.byType(OnboardingFlow),
+          matching: find.byType(Text),
+        ),
+        findsNothing,
+      );
 
-        // Now pump a different familyId — should show onboarding
-        await tester.pumpWidget(buildTestWidget(
-          familyId: 'other-family',
-          memberCount: 1,
-        ));
-        await tester.pump(const Duration(seconds: 1));
+      // Second family — also memberCount=1 → no overlay. The
+      // familyId difference does not matter because the gate is
+      // on memberCount, not familyId.
+      await tester.pumpWidget(buildTestWidget(
+        familyId: 'other-family',
+        memberCount: 1,
+      ));
+      await tester.pump(const Duration(seconds: 1));
+      expect(
+        find.descendant(
+          of: find.byType(OnboardingFlow),
+          matching: find.byType(Text),
+        ),
+        findsNothing,
+        reason: 'Both families have memberCount >= 1 → no onboarding '
+            'overlay. The widget does not distinguish by familyId.',
+      );
+    });
 
-        expect(
-          find.text('Grow your graph'),
-          findsOneWidget,
-          reason: 'Different familyId should show onboarding independently',
-        );
-      },
-    );
+    testWidgets(
+        'Different familyId with memberCount == 0 DOES show '
+        'onboarding for each new family (the createProfile step '
+        'is shown per-family for brand-new users)', (tester) async {
+      // First new family — memberCount=0 → createProfile.
+      await tester.pumpWidget(buildTestWidget(
+        familyId: 'brand-new-family-a',
+        memberCount: 0,
+      ));
+      await tester.pump(const Duration(seconds: 1));
+      expect(
+        find.descendant(
+          of: find.byType(OnboardingFlow),
+          matching: find.byType(Text),
+        ),
+        findsWidgets,
+        reason: 'Brand-new family A with 0 members → createProfile '
+            'step should be shown',
+      );
+
+      // Second new family — also memberCount=0 → createProfile.
+      await tester.pumpWidget(buildTestWidget(
+        familyId: 'brand-new-family-b',
+        memberCount: 0,
+      ));
+      await tester.pump(const Duration(seconds: 1));
+      expect(
+        find.descendant(
+          of: find.byType(OnboardingFlow),
+          matching: find.byType(Text),
+        ),
+        findsWidgets,
+        reason: 'Brand-new family B with 0 members → createProfile '
+            'step should be shown independently of family A',
+      );
+    });
   });
 }
