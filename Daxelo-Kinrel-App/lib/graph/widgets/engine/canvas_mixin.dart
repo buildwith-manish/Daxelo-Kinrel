@@ -779,7 +779,84 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
 
         // v64 (BUG-2 FIX): Deduplicate with smart category-strength
         // selection + lateral offsets for parallel edges.
-        final edges = EdgeDeduplicator.deduplicate(rawEdges);
+        final edges = List<DedupedEdge>.from(EdgeDeduplicator.deduplicate(rawEdges));
+
+        // v5.152: SAFEGUARD — ensure every visible node has at least one
+        // rendered edge connecting it to the graph. After branch collapse,
+        // some visible nodes may have had ALL their edges hidden (because
+        // all their relationship partners were inside the collapsed branch).
+        // This leaves them as isolated floating circles with no lines.
+        //
+        // Fix: after edge filtering + dedup, check if any visible node has
+        // zero edges. If so, find its most direct relationship from the
+        // original flat.relationships (even if the other endpoint is hidden)
+        // and add a "lifeline" edge so the node stays visually connected.
+        // The lifeline edge connects to the nearest visible ancestor or the
+        // branch root — it's the single most relevant connection.
+        if (edges.isNotEmpty) {
+          // Build a set of all node IDs that have at least one edge.
+          final nodesWithEdges = <String>{};
+          for (final deduped in edges) {
+            nodesWithEdges.add(deduped.edge.sourceId);
+            nodesWithEdges.add(deduped.edge.targetId);
+          }
+          // Check each visible node — if it has no edges, add a lifeline.
+          for (final visibleId in visible) {
+            if (nodesWithEdges.contains(visibleId)) continue;
+            // Find the most direct relationship for this node from the
+            // raw data. Prefer edges where the OTHER endpoint is also
+            // visible (so the line connects two visible nodes). If none,
+            // connect to the nearest visible node via BFS through hidden
+            // nodes.
+            String? bestTarget;
+            for (final r in flat.relationships) {
+              final s = (r['fromPersonId'] ?? '').toString();
+              final t = (r['toPersonId'] ?? '').toString();
+              if (s == visibleId && visible.contains(t)) {
+                bestTarget = t;
+                break;
+              }
+              if (t == visibleId && visible.contains(s)) {
+                bestTarget = s;
+                break;
+              }
+            }
+            // If no visible-to-visible edge, try connecting to the branch
+            // root of the collapsed branch that hid this node's neighbors.
+            if (bestTarget == null) {
+              for (final r in flat.relationships) {
+                final s = (r['fromPersonId'] ?? '').toString();
+                final t = (r['toPersonId'] ?? '').toString();
+                // Connect to any node that has a position (even if hidden)
+                if (s == visibleId && effectivePositions.containsKey(t)) {
+                  bestTarget = t;
+                  break;
+                }
+                if (t == visibleId && effectivePositions.containsKey(s)) {
+                  bestTarget = s;
+                  break;
+                }
+              }
+            }
+            if (bestTarget != null && effectivePositions.containsKey(bestTarget)) {
+              // Add a lifeline edge.
+              final lifelineEdge = GraphEdgeData(
+                id: 'lifeline_$visibleId',
+                sourceId: visibleId,
+                targetId: bestTarget,
+                relationshipKey: 'parent',
+                labelAtoB: 'parent',
+              );
+              edges.add(DedupedEdge(
+                edge: lifelineEdge,
+                lateralOffset: 0.0,
+                parallelCount: 1,
+              ));
+              nodesWithEdges.add(visibleId);
+              nodesWithEdges.add(bestTarget);
+            }
+          }
+        }
 
         // Phase 6: Derive couple unions from the SAME deduped edge list
         // the painter will iterate. This is the SINGLE place unions are
