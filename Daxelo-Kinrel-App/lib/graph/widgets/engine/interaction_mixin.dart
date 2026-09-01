@@ -373,124 +373,80 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     return null;
   }
 
-  /// v91 (PART 13): Computes the set of edge IDs that should be dimmed
-  /// when relationship focus mode is active.
+  /// v91 (PART 13) + v5.x (Feature 2): Computes the set of edge IDs
+  /// that should be rendered at the dimmed alpha by the painter.
   ///
-  /// When a node is selected, DIRECTLY CONNECTED edges retain normal
-  /// (or increased) clarity, while UNRELATED edges gently reduce
-  /// opacity by ~30%. The selected edge (if any) and any sweep edge
-  /// are never dimmed.
+  /// History:
+  ///   • v91 — selection-based first-degree dim (subtle 15%).
+  ///   • v5.65 — "Isolate Connections" focus mode, dim = 18%.
+  ///   • v5.67 — selection-based dim REMOVED (leftover selection after
+  ///     "Show all" caused "edges stay dimmed after exit").
+  ///   • v5.x (Feature 2) — RE-INTRODUCED in inverted form: the DEFAULT
+  ///     state is now dim (~18%); tapping a node brightens ITS direct
+  ///     connections to full opacity; tapping empty canvas clears the
+  ///     selection and returns to the dimmed default. See the full
+  ///     contract in the body below.
   ///
-  /// v5.65 (ISOLATE CONNECTIONS): When a person is FOCUSED (via
-  /// graphFocusProvider), the dimming now uses ONLY the focused
-  /// person + their FIRST-DEGREE (direct) connections. Everything
-  /// else — including 2nd-degree relatives — is dimmed to a low
-  /// opacity (~18%). This is the "Isolate connections" feature:
-  /// the user picks a person, and only that person + their direct
-  /// relationships stay fully visible; the rest of the graph fades
-  /// into the background to reduce visual noise.
+  /// When focus/search/selection is active, the connected edges stay
+  /// bright and the UNCONNECTED edges are dimmed. When NOTHING is
+  /// active, ALL edges are dimmed (the new default-dim state).
   ///
-  /// Previously (v95 Phase 1), the dimming kept 1st+2nd degree
-  /// bright. The user found this too permissive — they wanted to
-  /// see ONLY the direct connections, with everything else faded.
-  /// The 2nd-degree set is still computed (used by GraphFocusState
-  /// for other purposes like path focus) but is no longer used for
-  /// dimming.
+  /// The selected EDGE (selectedEdgeId, set by tapping a midpoint dot)
+  /// and any sweep / path-focus / trace edges are NEVER dimmed — the
+  /// painter's `isDimmed` check excludes them by construction.
+  /// v5.x (Feature 2): Re-introduced selection-based + default-dim edge
+  /// hierarchy. The previous v5.67 behavior returned `null` (no dimming)
+  /// when no focus/search was active — every edge was at full opacity
+  /// unless the user explicitly turned on "Isolate Connections". The
+  /// user's spec inverts this: the DEFAULT state should already be dim
+  /// (~15–25% opacity), and tapping a node should BRIGHTEN that node's
+  /// directly-connected edges to full opacity while everything else
+  /// stays dim. Tapping empty canvas clears the selection and returns
+  /// everything to the dimmed default.
   ///
-  /// When no person is focused, falls back to the selection-based
-  /// first-degree dim (the v91 behavior).
+  /// Resolution priority (highest first):
+  ///   1. Search active → dim edges NOT connected to any match
+  ///      (unchanged from v96 Phase 5).
+  ///   2. Focus (Isolate Connections) active → dim edges NOT directly
+  ///      incident to the focused person (unchanged from v5.65).
+  ///   3. Selection only (no focus/search) → dim edges NOT directly
+  ///      incident to the selected node (selectedNodeProvider). NEW.
+  ///   4. Nothing active → dim ALL edges (the new default-dim state).
+  ///      NEW.
   ///
-  /// Returns `null` when no node is selected AND no person is focused,
-  /// so the painter can short-circuit the dim check entirely.
+  /// Notes:
+  ///   • The painter's existing dimAlpha (=0.18) sits inside the user's
+  ///     requested 15–25% range — unchanged.
+  ///   • Dimming reduces the alpha of the category colour (it does NOT
+  ///     replace the colour with gray) — the painter's existing
+  ///     `edgeColor.withValues(alpha: edgeAlpha * dimAlpha)` already
+  ///     does this. The category colour is preserved at reduced alpha,
+  ///     exactly as the user asked.
+  ///   • Selected edge (selectedEdgeId), sweep edge, path-focused edges,
+  ///     and trace edges are NEVER dimmed — the painter's `isDimmed`
+  ///     check already excludes them.
+  ///   • Returns `null` ONLY when there are no edges to dim (e.g. the
+  ///     edge list is empty). The painter treats null as "no dimming"
+  ///     — this is the only way to short-circuit when there's nothing
+  ///     to render anyway.
   Set<String>? _computeDimmedEdgeIds(List<DedupedEdge> edges) {
+    // v5.x (Feature 2): delegate to the pure helper so the dim hierarchy
+    // is unit-testable without mounting a widget tree. The resolution
+    // priority (search → focus → selection → default-dim) and the four
+    // cases are documented in lib/graph/engine/edge_dim_hierarchy.dart.
     final focusState = ref.read(graphFocusProvider);
-    final String? focusedPerson = focusState.focusedPersonId;
     final searchState = ref.read(graphSearchProvider);
-
-    // v96 (Phase 5): When search is active, dim edges that are NOT
-    // connected to any matching node. Matching nodes stay bright
-    // regardless of focus state.
-    if (searchState.isActive && searchState.matchIds.isNotEmpty) {
-      final connected = <String>{};
-      final matchSet = searchState.matchIdSet;
-      for (final deduped in edges) {
-        final e = deduped.edge;
-        if (matchSet.contains(e.sourceId) || matchSet.contains(e.targetId)) {
-          connected.add(e.id);
-        }
-      }
-      if (connected.length == edges.length) return null;
-      final dimmed = <String>{};
-      for (final deduped in edges) {
-        if (!connected.contains(deduped.edge.id)) {
-          dimmed.add(deduped.edge.id);
-        }
-      }
-      return dimmed;
-    }
-
-    if (focusedPerson != null) {
-      // v5.66 (BUG 2 FIX): An edge stays bright ONLY if at least one
-      // endpoint is the FOCUSED PERSON themselves — NOT just any
-      // 1st-degree relative.
-      //
-      // Previously (v5.65), an edge stayed bright if EITHER endpoint was
-      // in {focusedPerson ∪ firstDegreeIds}. This was too permissive:
-      // when isolating MA (whose 1st-degree relatives include both JD
-      // and HD), the JD↔HD spouse edge stayed bright because both JD
-      // and HD were in the emphasised set — even though that edge does
-      // NOT connect MA to anyone. The user reported this as "the
-      // connection line between two dimmed, unrelated nodes does not
-      // dim."
-      //
-      // The fix: only keep edges bright if they DIRECTLY involve the
-      // focused person (sourceId == focusedPerson OR targetId ==
-      // focusedPerson). Edges between two 1st-degree relatives (e.g.
-      // JD↔HD when isolating MA) are now dimmed, matching the node
-      // dimming (both JD and HD nodes are bright, but the edge between
-      // them fades since it's not part of the focused person's direct
-      // relationship circle).
-      //
-      // The NODE-level dimming (node_builders.dart) is unchanged: the
-      // focused person + their 1st-degree neighbours stay at full
-      // opacity. Only the EDGE dimming is stricter here.
-      final connected = <String>{};
-      for (final deduped in edges) {
-        final e = deduped.edge;
-        if (e.sourceId == focusedPerson || e.targetId == focusedPerson) {
-          connected.add(e.id);
-        }
-      }
-      if (connected.length == edges.length) return null;
-      final dimmed = <String>{};
-      for (final deduped in edges) {
-        if (!connected.contains(deduped.edge.id)) {
-          dimmed.add(deduped.edge.id);
-        }
-      }
-      return dimmed;
-    }
-
-    // v5.67 (BUG 1 FIX): The selection-based dimming fallback has been
-    // REMOVED. Previously, when no person was focused (isolation off)
-    // but a node was selected (selectedNodeProvider non-null), edges
-    // NOT connected to the selected node were dimmed. This was a v91
-    // behavior designed for a subtle 15% dim (dimAlpha was 0.85).
-    //
-    // With v5.65's stronger dimAlpha (0.18 = 82% reduction), this
-    // fallback became too aggressive: after "Show all" cleared the
-    // focus, the selectedNodeProvider still had a value (from the
-    // long-press that opened the menu), so edges stayed dimmed even
-    // though the user had exited isolation mode. The user reported:
-    // "Show all restores nodes but not connection lines."
-    //
-    // The fix: node selection (tap) should ONLY highlight the node
-    // visually — it should NOT dim edges. Edge dimming is now EXCLUSIVELY
-    // driven by the Isolate Connections feature (focus mode). When no
-    // person is focused, ALL edges are at full opacity.
-    //
-    // Returns null (nothing to dim) when no person is focused.
-    return null;
+    final selectedNodeId = ref.read(selectedNodeProvider);
+    return computeDimmedEdgeIds(
+      edges,
+      EdgeDimHierarchyInput(
+        searchMatchNodeIds:
+            searchState.isActive ? searchState.matchIdSet : null,
+        searchIsActive: searchState.isActive,
+        focusedPersonId: focusState.focusedPersonId,
+        selectedNodeId: selectedNodeId,
+      ),
+    );
   }
 
   /// v92 (PARTS 14–16): Resolve the viewer→target kinship path.
@@ -627,7 +583,13 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
   /// [_handleNodeLongPress]). This prevents accidental opens when the
   /// user is just trying to select a node near a connection.
   ///
-  /// If no node hits, the tap is a no-op (canvas background tap).
+  /// v5.x (Feature 2): If no node and no branch chip is hit, the tap is
+  /// an "empty canvas" tap — CLEAR the selected node so the edge dim
+  /// hierarchy returns to the default-dim state (every edge dimmed).
+  /// This is the "Deselecting (tapping empty canvas) returns everything
+  /// to the dimmed default state" behavior the user asked for. The
+  /// previously-tapped node's direct edges stop being brightened; the
+  /// whole graph returns to the calm default state.
   void _handleCanvasTapDown(
     TapDownDetails details,
     GraphLayoutResult layout,
@@ -680,6 +642,27 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     }
 
     _handleNodeTapDown(details, layout, flat, viewerPersonId);
+
+    // v5.x (Feature 2): Empty-canvas tap → clear the selection so the
+    // edge dim hierarchy returns to the default-dim state. _handleNodeTapDown
+    // above returns early if no node was hit, so by the time we reach here
+    // with no node selection change, the tap missed every node. We clear
+    // selectedNodeProvider so the painter's `_computeDimmedEdgeIds` falls
+    // through to the "dim ALL edges" default state.
+    //
+    // Guard: only clear when something was previously selected (avoids
+    // spurious rebuilds / state writes when there's nothing to clear).
+    // Also: don't clear during a branch-chip tap (that early-returns
+    // above), and don't clear during a node tap that DID hit a node
+    // (selectedNodeProvider was just set to the new node ID by
+    // _handleNodeTapDown — clearing it would undo the user's tap).
+    final hitNodeId = _hitTestNode(details.localPosition, layout);
+    if (hitNodeId == null) {
+      final currentSelection = ref.read(selectedNodeProvider);
+      if (currentSelection != null) {
+        ref.read(selectedNodeProvider.notifier).state = null;
+      }
+    }
   }
 
   /// v5.137: Fires when a quick tap is recognized (pointer released before
@@ -807,6 +790,10 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
             deduped.lateralOffset + (anchorFanOuts[e.id] ?? 0.0),
         waypointDelta: waypointDelta,
         anchorCenter: _currentAnchorCenter,
+        // v5.x (Feature 1): pass the edge ID so the per-edge deterministic
+        // dot t-variation is applied here too — the hit-test target stays
+        // EXACTLY where the painter renders the marker (no drift).
+        edgeId: e.id,
       );
 
       final dist = (visualMid - graphPos).distance;

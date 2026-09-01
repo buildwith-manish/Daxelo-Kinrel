@@ -263,23 +263,40 @@ void main() {
     test(
         'midpoint is painted at the VISUAL midpoint of the rendered '
         'bezier curve (within tolerance)', () {
-      // Edge e2 goes from (0,0) to (0,100)... no wait — e2 goes from
-      // c=(100,0) to d=(100,100). v5.45: ALL edges bow perpendicular
-      // by 25% of distance (clamped [15,100]) — there are NO straight
-      // edges anymore. The marker must sit on the CURVE's arc-length
-      // midpoint (EngineEdgePainter.computeVisualMidpoint — the single
-      // source of truth), NOT on the geometric straight-line midpoint.
+      // Edge e2 goes from c=(100,0) to d=(100,100). v5.45: ALL edges bow
+      // perpendicular by 25% of distance (clamped [15,100]) — there are
+      // NO straight edges anymore. The marker must sit on the CURVE's
+      // arc-length midpoint (EngineEdgePainter.computeVisualMidpoint —
+      // the single source of truth), NOT on the geometric straight-line
+      // midpoint.
       //
-      // For a vertical edge of length 100 the bow is 25px to the LEFT
-      // (perp of direction 90° is 180°), so the visual midpoint is at
-      // (100 − 18.75, 50) ≈ (81.25, 50).
+      // v5.x (Feature 1): the curve now ALSO applies a per-edge
+      // deterministic phase (bow direction ±perp + small magnitude
+      // scale derived from the FNV-1a hash of the edge ID), AND the dot
+      // marker is placed at a per-edge deterministic t-parameter in
+      // [0.4, 0.6] (instead of always t=0.5). Both variations are pure
+      // functions of the edge ID — the same edge always renders the
+      // same way — but they mean the visual midpoint is no longer a
+      // hardcoded (81.25, 50) value.
+      //
+      // The expected position is therefore computed from the SAME
+      // helper the painter uses (computeVisualMidpoint with the edge
+      // ID), so the test stays robust to any future tuning of the per-
+      // edge phase / t-variation. Anything else would drift from the
+      // rendered curve.
       final canvas = _RecordingCanvas();
       final painter = buildPainter(tier: EdgeQuality.dot);
       painter.paint(canvas, const Size(1000, 1000));
 
       // The expected position comes from the SAME helper the painter
-      // uses — anything else would drift from the rendered curve.
-      const expected = Offset(81.25, 50.0);
+      // uses (with the edge ID 'e2' so the per-edge phase + t-variation
+      // are applied identically to the paint loop). Anything else would
+      // drift from the rendered curve.
+      final expected = EngineEdgePainter.computeVisualMidpoint(
+        const Offset(100, 0),
+        const Offset(100, 100),
+        edgeId: 'e2',
+      );
       Offset? closest;
       double closestDist = double.infinity;
       for (final c in canvas.circleCenters) {
@@ -294,8 +311,109 @@ void main() {
       expect(closestDist, lessThan(2.0),
           reason:
               'Midpoint circle should sit on the bezier arc-length '
-              'midpoint $expected (v5.45 bow), got $closest '
-              '(dist $closestDist)');
+              'midpoint $expected (v5.45 bow + v5.x per-edge phase + '
+              'per-edge t-variation), got $closest (dist $closestDist)');
+    });
+
+    test(
+        'v5.x (Feature 1) — per-edge curve phase gives different solo '
+        'edges different bow directions / magnitudes (no two solo '
+        'edges between different pairs overlap exactly)', () {
+      // Two solo edges with the SAME geometry but DIFFERENT IDs must
+      // produce DIFFERENT visual midpoints — this is the whole point
+      // of the per-edge phase: nearly-parallel edges between different
+      // node pairs fan out instead of stacking on top of each other.
+      //
+      // We pick two IDs whose FNV-1a hashes fall on opposite sides of
+      // zero so the direction test is unambiguous. The actual hash
+      // values are deterministic — if either ID's hash changes the test
+      // picks new IDs, but the CONTRACT (different IDs → different
+      // positions) is what's being verified.
+      const s = Offset(0, 0);
+      const t = Offset(100, 0);
+      final midA = EngineEdgePainter.computeVisualMidpoint(
+          s, t, edgeId: 'edge-aaaa');
+      final midB = EngineEdgePainter.computeVisualMidpoint(
+          s, t, edgeId: 'edge-bbbb');
+      // The two midpoints must NOT be exactly equal — the per-edge
+      // phase differentiates them.
+      expect(midA, isNot(equals(midB)),
+          reason: 'Two solo edges with different IDs must produce '
+              'different visual midpoints (per-edge phase variation)');
+      // And the difference must be visible (at least 2px).
+      expect((midA - midB).distance, greaterThan(2.0),
+          reason: 'Per-edge phase variation must be visually '
+              'significant (≥2px) so nearly-parallel edges actually '
+              'fan out, not just differ in sub-pixel rounding');
+    });
+
+    test(
+        'v5.x (Feature 1) — same edge ID always produces the same '
+        'visual midpoint on every call (deterministic, no jitter)', () {
+      // The per-edge phase is a pure function of the edge ID — calling
+      // computeVisualMidpoint with the same inputs must always return
+      // the same position. This is the "no jitter on re-render"
+      // contract.
+      const s = Offset(50, 0);
+      const t = Offset(150, 100);
+      final mid1 =
+          EngineEdgePainter.computeVisualMidpoint(s, t, edgeId: 'stable');
+      final mid2 =
+          EngineEdgePainter.computeVisualMidpoint(s, t, edgeId: 'stable');
+      expect(mid1, equals(mid2),
+          reason: 'Same edge ID + same endpoints must produce the '
+              'same visual midpoint on every call (deterministic per-'
+              'edge phase, no jitter)');
+    });
+
+    test(
+        'v5.x (Feature 1) — user-dragged midpoint (waypointDelta) '
+        'keeps t=0.5 and ignores the per-edge t-variation (drag '
+        'contract preserved)', () {
+      // The drag/hit-test parity contract: when the user has dragged
+      // the marker (waypointDelta != Offset.zero), the per-edge
+      // t-variation is DISABLED inside computeVisualMidpoint — the
+      // t-parameter stays at 0.5 so the dot position is stable across
+      // renders and identical between the painter and the hit-tester.
+      //
+      // We verify this by computing the visual midpoint with the SAME
+      // waypoints but DIFFERENT edge IDs. If the per-edge t-variation
+      // were (incorrectly) applied in the waypoint case, different
+      // edge IDs would yield different midpoints. With the contract
+      // preserved, the edge ID is ignored and all results are equal.
+      //
+      // (Note: the v5.62 cubic-bezier math places the PARAMETER t=0.5
+      // point at exactly linearMid + delta; the arc-length t=0.5 point
+      // used by PathMetric is close to but not exactly that for non-
+      // symmetric curves. That is a pre-existing implementation detail
+      // of the drag visual and is unchanged by Feature 1 — what
+      // matters for the contract is that painter and hit-tester agree,
+      // which they do because both call this same helper.)
+      const s = Offset(0, 0);
+      const t = Offset(100, 0);
+      const dragDelta = Offset(-15.0, 25.0);
+      final midNoId = EngineEdgePainter.computeVisualMidpoint(
+        s, t,
+        waypointDelta: dragDelta,
+      );
+      final midWithId = EngineEdgePainter.computeVisualMidpoint(
+        s, t,
+        waypointDelta: dragDelta,
+        edgeId: 'some-edge-id',
+      );
+      final midOtherId = EngineEdgePainter.computeVisualMidpoint(
+        s, t,
+        waypointDelta: dragDelta,
+        edgeId: 'a-totally-different-id',
+      );
+      expect(midWithId, equals(midNoId),
+          reason: 'In the waypoint case, the edge ID must be IGNORED '
+              '— the per-edge t-variation is disabled. The midpoint '
+              'with an edge ID must equal the midpoint with no edge ID.');
+      expect(midOtherId, equals(midNoId),
+          reason: 'Different edge IDs in the waypoint case must ALL '
+              'produce the same midpoint — the per-edge t-variation '
+              'is disabled when waypointDelta is non-zero.');
     });
   });
 }

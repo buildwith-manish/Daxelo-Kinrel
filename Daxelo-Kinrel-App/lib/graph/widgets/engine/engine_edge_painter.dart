@@ -87,6 +87,57 @@ class EngineEdgePainter extends CustomPainter {
     _midpointImageCache.clear();
   }
 
+  // ── v5.x (Feature 1): per-edge deterministic curve + dot phase ──────
+  //
+  // These helpers spread nearly-parallel edges apart (curve phase) and
+  // spread dot markers along their curves (midpoint t-phase) so neither
+  // stacks into a single visual band — the visual problem the user
+  // reported where many edges look like one straight line and where
+  // multiple edges' midpoint dots merge into one blob.
+  //
+  // Both helpers are PURE functions of the edge ID. The same edge
+  // always curves the same way and places its dot at the same point on
+  // every render, so the layout NEVER jitters on re-render. This is the
+  // "deterministic, not random" contract the user asked for (mirrors
+  // how D3.js / Gephi derive per-edge offsets from a stable hash).
+  //
+  // The curve phase modulates the perpendicular bow direction (±perp)
+  // and a small magnitude scale (1.0–1.3) for SOLO edges only — parallel
+  // edges (lateralOffset != 0) and user-dragged edges (waypointDelta != 0)
+  // keep the EXACT existing geometry so the v64 parallel-edge separation
+  // and the v5.62 drag/marker-parity contract are both preserved.
+  //
+  // The midpoint t-phase moves the dot marker to a small offset from
+  // t=0.5 (within [0.4, 0.6]) on the rendered curve. Used only when the
+  // edge is in its default state (no user drag) so the drag contract
+  // (B(0.5) == linearMid + delta) is unchanged when the user is
+  // interacting with the marker.
+
+  /// FNV-1a-inspired deterministic hash of [edgeId] mapped to [-1, 1].
+  /// Stable across renders, platforms, and Dart versions (no
+  /// Object.hashCode, which is randomized per-instance in Dart). Used by
+  /// [_perEdgePhase] callers (the curve bow direction + magnitude and
+  /// the midpoint t-offset) so each edge gets a unique-but-stable phase.
+  static double _perEdgePhase(String edgeId) {
+    var hash = 0x811C9DC5; // FNV-1a 32-bit offset basis
+    for (final c in edgeId.codeUnits) {
+      hash ^= c;
+      hash = (hash * 0x01000193) & 0xFFFFFFFF; // FNV-1a 32-bit prime
+    }
+    // Take the positive 31 bits and normalize to [0, 1], then to [-1, 1].
+    final double normalized = (hash & 0x7FFFFFFF) / 0x7FFFFFFF;
+    return normalized * 2.0 - 1.0;
+  }
+
+  /// Per-edge midpoint t-parameter in [0.4, 0.6], derived from [edgeId].
+  /// Small symmetric variation around 0.5 so two edges with similar
+  /// geometry don't land dot markers at the same screen position. The
+  /// variation is intentionally small (±0.1) so the dot still reads as
+  /// the visual center of the edge.
+  static double _perEdgeMidpointT(String edgeId) {
+    return 0.5 + _perEdgePhase(edgeId) * 0.1;
+  }
+
   EngineEdgePainter({
     required this.positions,
     required this.edges,
@@ -254,7 +305,13 @@ class EngineEdgePainter extends CustomPainter {
       Offset waypointDelta = Offset.zero,
       // v5.125 (Step 6): see the Step 6 doc block below the
       // waypointDelta branch.
-      Offset? anchorCenter}) {
+      Offset? anchorCenter,
+      // v5.x (Feature 1): per-edge deterministic curve phase — fans out
+      // nearly-parallel SOLO edges by varying the bow direction and
+      // magnitude per-edge. Null (the default) keeps the exact pre-v5.x
+      // geometry — backward compatible for every existing construction
+      // site and test. See the per-edge phase doc block above.
+      String? edgeId}) {
     final double dy = t.dy - s.dy;
     final double dx = t.dx - s.dx;
     final double distance = (s - t).distance;
@@ -276,10 +333,47 @@ class EngineEdgePainter extends CustomPainter {
     // 25% of the distance, clamped to [15, 100]. This guarantees a
     // clearly visible curve at any zoom level and any distance.
     // The lateralOffset (for parallel edges) adds extra separation.
+    //
+    // v5.x (Feature 1): for SOLO edges (lateralOffset == 0) with no
+    // user drag (waypointDelta == 0) AND a non-null [edgeId], apply a
+    // per-edge deterministic phase to the bow direction and magnitude
+    // so nearly-parallel solo edges fan out instead of stacking on top
+    // of each other (the "many straight lines through one straight line"
+    // effect the user reported). The phase is a pure function of edgeId
+    // → stable across renders (no jitter on re-render).
+    //
+    //   • direction: phase >= 0 → +perp, phase < 0 → −perp
+    //   • magnitude scale: 1.0 + 0.3 × |phase|  (range [1.0, 1.3])
+    //
+    // The scale never drops below 1.0 so the bow is never smaller than
+    // the existing 15–100px floor — no edge becomes "nearly straight".
+    //
+    // Parallel edges (lateralOffset != 0) and user-dragged edges
+    // (waypointDelta != 0) keep the EXACT pre-v5.x bow direction and
+    // magnitude — the v64 parallel-edge separation and the v5.62 drag
+    // contract are both preserved.
+    final double bowDir;
+    final double bowMagScale;
+    if (lateralOffset != 0.0) {
+      // Parallel edges: existing behaviour — direction alternates by
+      // lateralOffset sign, magnitude grows with |lateralOffset|.
+      bowDir = lateralOffset >= 0 ? 1.0 : -1.0;
+      bowMagScale = 1.0;
+    } else if (edgeId != null && waypointDelta == Offset.zero) {
+      // v5.x (Feature 1): solo edge — apply per-edge deterministic phase.
+      final double phase = _perEdgePhase(edgeId);
+      bowDir = phase >= 0 ? 1.0 : -1.0;
+      bowMagScale = 1.0 + 0.3 * phase.abs();
+    } else {
+      // Default (no edgeId — e.g. tests calling _bezier directly): keep
+      // the exact pre-v5.x behaviour — always +perp, base magnitude.
+      bowDir = 1.0;
+      bowMagScale = 1.0;
+    }
     final double bowMagnitude =
-        (distance * 0.25).clamp(15.0, 100.0) + lateralOffset.abs();
-    // Bow direction: solo edges bow in +perp; parallel edges alternate.
-    final Offset bow = perp * (lateralOffset >= 0 ? bowMagnitude : -bowMagnitude);
+        (distance * 0.25).clamp(15.0, 100.0) * bowMagScale +
+            lateralOffset.abs();
+    final Offset bow = perp * (bowDir * bowMagnitude);
 
     // v5.62: If the user dragged the midpoint, use a CUBIC bezier
     // whose t=0.5 point is EXACTLY at (linearMid + waypointDelta).
@@ -602,12 +696,28 @@ class EngineEdgePainter extends CustomPainter {
   /// routing inside [_bezier] — pass the SAME value the painter passes
   /// or the marker and the tap target drift apart (see the parity notes
   /// on [_bezier]).
+  ///
+  /// v5.x (Feature 1): [edgeId] enables the per-edge deterministic dot
+  /// t-variation. When non-null AND [waypointDelta] is Offset.zero (the
+  /// default state — no user drag), the marker is rendered at the
+  /// per-edge t-parameter ([_perEdgeMidpointT], in [0.4, 0.6]) instead
+  /// of the exact 0.5 midpoint. This spreads dot markers along their
+  /// curves so two edges with similar geometry don't land dots at the
+  /// same screen position (the "mid-edge dots merging" problem).
+  ///
+  /// When [waypointDelta] is non-zero (the user has dragged the marker),
+  /// the marker is rendered at exactly t=0.5 of the waypoint curve —
+  /// which by construction equals `linearMid + waypointDelta` (see the
+  /// v5.62 cubic-bezier math in [_bezier]). This preserves the drag/
+  /// hit-test parity contract: the marker sits exactly where the user
+  /// dragged it, and the 48px hit-test radius always finds it.
   static Offset computeVisualMidpoint(
     Offset s,
     Offset t, {
     double lateralOffset = 0.0,
     Offset waypointDelta = Offset.zero,
     Offset? anchorCenter,
+    String? edgeId,
   }) {
     final path = _bezier(
       s,
@@ -615,10 +725,21 @@ class EngineEdgePainter extends CustomPainter {
       lateralOffset: lateralOffset,
       waypointDelta: waypointDelta,
       anchorCenter: anchorCenter,
+      edgeId: edgeId,
     );
+    // v5.x (Feature 1): per-edge t-variation for the dot marker.
+    // When the edge is in its default state (no user drag) AND an
+    // edgeId is provided, use the per-edge deterministic t-parameter so
+    // dot markers naturally spread along their curves. When the user
+    // has dragged the marker (waypointDelta != 0), keep t=0.5 so the
+    // marker sits EXACTLY at the dragged position (the drag contract —
+    // see the v5.62 cubic-bezier math in _bezier).
+    final double tParam = (waypointDelta == Offset.zero && edgeId != null)
+        ? _perEdgeMidpointT(edgeId)
+        : 0.5;
     for (final metric in path.computeMetrics()) {
       if (metric.length > 0) {
-        final tangent = metric.getTangentForOffset(metric.length * 0.5);
+        final tangent = metric.getTangentForOffset(metric.length * tParam);
         if (tangent != null) {
           return tangent.position;
         }
@@ -754,7 +875,10 @@ class EngineEdgePainter extends CustomPainter {
             _bezier(ss, tt,
                 lateralOffset: totalLateralOffset,
                 waypointDelta: waypointDelta,
-                anchorCenter: anchorCenter),
+                anchorCenter: anchorCenter,
+                // v5.x (Feature 1): per-edge deterministic curve phase
+                // so nearly-parallel solo edges fan out.
+                edgeId: e.id),
       );
 
       final bool isSelected = e.id == selectedEdgeId;
@@ -964,6 +1088,9 @@ class EngineEdgePainter extends CustomPainter {
             // anchor fan-out) so the marker sits on the rendered curve.
             lateralOffset: totalLateralOffset,
             waypointDelta: waypointDelta,
+            // v5.x (Feature 1): per-edge deterministic dot t-variation
+            // so two edges with similar geometry don't merge dots.
+            edgeId: e.id,
           );
         }
         continue;
@@ -1101,6 +1228,9 @@ class EngineEdgePainter extends CustomPainter {
           // anchor fan-out) so the marker sits on the rendered curve.
           lateralOffset: totalLateralOffset,
           waypointDelta: waypointDelta,
+          // v5.x (Feature 1): per-edge deterministic dot t-variation
+          // so two edges with similar geometry don't merge dots.
+          edgeId: e.id,
         );
       }
     }
@@ -1467,6 +1597,11 @@ class EngineEdgePainter extends CustomPainter {
     required double dimAlpha,
     required double lateralOffset,
     required Offset waypointDelta,
+    // v5.x (Feature 1): per-edge deterministic dot t-variation. When
+    // non-null AND waypointDelta is Offset.zero, the marker is rendered
+    // at the per-edge t-parameter (in [0.4, 0.6]) instead of the exact
+    // 0.5 midpoint. See [computeVisualMidpoint] for the full contract.
+    String? edgeId,
   }) {
     // v5.62: Use the shared helper so the marker position is IDENTICAL
     // to the position the hit-tester checks. This is the single source
@@ -1474,11 +1609,14 @@ class EngineEdgePainter extends CustomPainter {
     // v5.125 (Step 6): anchorCenter is included so the marker sits on
     // the bowed (around-the-anchor) curve, exactly where the hit-tester
     // looks.
+    // v5.x (Feature 1): edgeId is included so the per-edge t-variation
+    // applied here matches what the hit-tester uses.
     final Offset midPoint = computeVisualMidpoint(
       s, t,
       lateralOffset: lateralOffset,
       waypointDelta: waypointDelta,
       anchorCenter: anchorCenter,
+      edgeId: edgeId,
     );
 
     // Resolve the effective midpoint color.

@@ -58,6 +58,11 @@ import '../../features/family/presentation/providers/family_graph_provider.dart'
 import '../data/graph_data_models.dart' show GraphEdgeData;
 import '../data/position_memory.dart' show PositionMemory;
 import '../engine/edge_dedup.dart' show DedupedEdge, EdgeDeduplicator;
+// v5.x (Feature 2): pure helper for the edge dim hierarchy (search /
+// focus / selection / default-dim). Used by `_computeDimmedEdgeIds`
+// in interaction_mixin.dart so the dim logic is unit-testable.
+import '../engine/edge_dim_hierarchy.dart'
+    show computeDimmedEdgeIds, EdgeDimHierarchyInput;
 import '../interaction/camera_controller.dart' show CameraController;
 // v5.132 (System B REMOVAL): the ExpandCollapseController import was
 // removed along with the engine view's private _expandCollapse store —
