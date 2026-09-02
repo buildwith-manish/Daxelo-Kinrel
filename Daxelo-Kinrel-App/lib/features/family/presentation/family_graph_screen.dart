@@ -439,6 +439,27 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     ref.watch(graphRealtimeProvider(widget.familyId));
     final graphAsync = ref.watch(familyGraphProvider(widget.familyId));
 
+    // v5.x (loading-flash fix): Distinguish "no data yet" (show the
+    // full loading spinner) from "we already have data and are just
+    // refreshing in the background" (keep the graph visible).
+    //
+    // The previous code used graphAsync.when(loading: _buildLoadingState,
+    // ...) which treated EVERY re-fetch after invalidate() as a brand-new
+    // loading state — blanking the entire graph and showing the
+    // full-screen spinner every time graphRealtimeProvider fired
+    // (which happens on any Person/Relationship table change, debounced
+    // 1.5s). The user reported repeated "Loading family graph... please
+    // wait" flashes every few seconds.
+    //
+    // Fix: if we already have data (graphAsync.valueOrNull is non-null),
+    // ALWAYS call _buildDataState with the existing data — even while
+    // graphAsync.isLoading/refreshing in the background. Only fall
+    // through to _buildLoadingState when there is truly NO data yet
+    // (first load for this family). The graph stays visible during
+    // background refreshes — no more blank-screen flashes.
+    final graphData = graphAsync.valueOrNull;
+    final hasData = graphData != null;
+
     return Scaffold(
       // FIX (keyboard-resize): Prevent the keyboard from shrinking the
       // graph body. The graph manages its own layout and camera — a body
@@ -452,11 +473,17 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
       body: GraphTutorialOverlay(
         child: Stack(
           children: [
-            graphAsync.when(
-              loading: _buildLoadingState,
-              error: _buildErrorState,
-              data: _buildDataState,
-            ),
+            // v5.x (loading-flash fix): keep the graph visible during
+            // background refreshes. Only show the loading spinner on the
+            // very first load (no data at all). Errors are still shown
+            // only when there's no existing data (if we have data, we
+            // keep showing it — the error will be retried automatically).
+            if (!hasData && graphAsync.hasError)
+              _buildErrorState(graphAsync.error!, StackTrace.current)
+            else if (!hasData)
+              _buildLoadingState()
+            else
+              _buildDataState(graphData),
             // Search overlay — shown when _showSearch is true.
             if (_showSearch)
               GraphSearchBar(

@@ -19,8 +19,10 @@ import '../database/isar_database.dart';
 import '../database/sync/cache_invalidation.dart';
 import '../family/family_provider.dart';
 import '../services/supabase_service.dart';
-import '../../features/family/presentation/providers/family_graph_provider.dart'
-    show FamilyGraphNotifier, familyGraphProvider;
+// v5.x (loading-flash fix): removed the familyGraphProvider import —
+// the graph provider is no longer invalidated from this file. The
+// sole graph invalidation path is graphRealtimeProvider (which has
+// a 1.5s debounce and is the single authority for graph refreshes).
 import 'realtime_dedup.dart';
 
 // ── Realtime Subscription Service ─────────────────────────────────
@@ -457,23 +459,25 @@ class RealtimeSubscriptionService {
             // Person is added/deleted by another user or session.
             _ref.invalidate(familyMembershipsProvider(familyId));
             _ref.invalidate(unifiedFamilyRosterProvider(familyId));
-            // v5.2: Refresh the graph provider too — a Person change
-            // affects node rendering on the graph.
-            try {
-              FamilyGraphNotifier.clearCache(familyId);
-              _ref.invalidate(familyGraphProvider(familyId));
-            } catch (_) {}
+            // v5.x (loading-flash fix): REMOVED the direct
+            // familyGraphProvider invalidation here. The graph
+            // provider is invalidated by graphRealtimeProvider
+            // (which has a 1.5s debounce and is the single authority
+            // for graph refreshes). Having TWO independent
+            // invalidation paths (this one at 200ms + graphRealtime
+            // at 1.5s) caused the graph to re-fetch TWICE per
+            // Realtime event, amplifying the loading-flash bug.
+            // graphRealtimeProvider is the sole graph invalidation
+            // path now.
             break;
           case 'Relationship':
             _ref.invalidate(familyRelationshipsProvider(familyId));
             // v5.2: Invalidate the unified roster (relationship edges
             // affect member display in some views).
             _ref.invalidate(unifiedFamilyRosterProvider(familyId));
-            // v5.2: Refresh the graph provider for edge rendering.
-            try {
-              FamilyGraphNotifier.clearCache(familyId);
-              _ref.invalidate(familyGraphProvider(familyId));
-            } catch (_) {}
+            // v5.x (loading-flash fix): REMOVED the direct
+            // familyGraphProvider invalidation here — same reason as
+            // the Person case above. graphRealtimeProvider handles it.
             break;
           case 'FamilyMember':
             // v5.2: Listen for FamilyMember changes (join/leave) so the
