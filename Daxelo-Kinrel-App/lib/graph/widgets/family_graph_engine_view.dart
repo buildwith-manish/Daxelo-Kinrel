@@ -1853,6 +1853,78 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     );
   }
 
+  // v5.x (anchor-centering fix): SHARED centering helper used by BOTH
+  // the initial-load _maybeFrame AND the recenter _maybeRunPending
+  // ResetView. This ensures both paths produce IDENTICAL centering —
+  // no drift or inconsistency between the two, as the user requires.
+  //
+  // Computes the camera pan + zoom so the anchor node's visual circle
+  // center maps to the EXACT center of the VISIBLE DRAWABLE CANVAS
+  // (accounting for the bottom UI chrome — toolbar + stats panel —
+  // that overlays the canvas). The "center" is:
+  //   visibleCenterY = (viewportHeight - bottomChromeHeight) / 2
+  //
+  // NOT the full viewport center (viewportHeight / 2) which would put
+  // the anchor behind the bottom toolbar / stats panel.
+  //
+  // The zoom level is computed to fit the proximity set's bounding box
+  // around the anchor (so first-degree relationships are visible),
+  // clamped to [0.35, 1.3] for readability.
+
+  ({double panX, double panY, double zoom}) _computeAnchorCenteredCamera({
+    required Offset anchorPos,
+    required Size viewportSize,
+    required double bottomChrome,
+    required Map<String, Offset> allPositions,
+  }) {
+    // The visual circle center in graph space (the circle sits at
+    // the top of the node's Column, offset by _kCircleCenterYOffset
+    // from the box center).
+    final focusCircleCenter = Offset(
+      anchorPos.dx,
+      anchorPos.dy + _kCircleCenterYOffset,
+    );
+
+    // Compute a zoom level that fits the proximity set's bounding box
+    // around the anchor. At zoom 1.0, only the anchor is visible
+    // because the canvas is large. We zoom OUT so the anchor + its
+    // neighbors are all visible.
+    double maxDistX = 0;
+    double maxDistY = 0;
+    for (final pos in allPositions.values) {
+      final dx = (pos.dx - anchorPos.dx).abs();
+      final dy = (pos.dy - anchorPos.dy).abs();
+      if (dx > maxDistX) maxDistX = dx;
+      if (dy > maxDistY) maxDistY = dy;
+    }
+    const kFramePadding = 160.0;
+    // Use the VISIBLE canvas height (excluding bottom chrome) for
+    // the Y zoom fit so the graph fills the drawable area, not the
+    // area behind the toolbar.
+    final visibleHeight = viewportSize.height - bottomChrome;
+    final targetZoomX =
+        (viewportSize.width - kFramePadding) / (2 * maxDistX + 1);
+    final targetZoomY =
+        (visibleHeight - kFramePadding) / (2 * maxDistY + 1);
+    var fitZoom = targetZoomX < targetZoomY ? targetZoomX : targetZoomY;
+    if (fitZoom > 1.3) fitZoom = 1.3;
+    if (fitZoom < 0.35) fitZoom = 0.35;
+
+    // The VISIBLE drawable canvas center (accounting for bottom
+    // chrome). The X center is the full viewport width / 2 (no side
+    // chrome on the graph screen). The Y center is the midpoint of
+    // the visible canvas area [0, viewportHeight - bottomChrome].
+    final visibleCenterX = viewportSize.width / 2;
+    final visibleCenterY = (viewportSize.height - bottomChrome) / 2;
+
+    // Pan so the focus node's visual circle center lands at the
+    // visible canvas center.
+    final targetPanX = visibleCenterX - (focusCircleCenter.dx * fitZoom);
+    final targetPanY = visibleCenterY - (focusCircleCenter.dy * fitZoom);
+
+    return (panX: targetPanX, panY: targetPanY, zoom: fitZoom);
+  }
+
   /// v5.75: Centers the graph on the VIEWER'S OWN NODE on fresh load.
   ///
   /// Previously, _maybeFrame called _camera.initialFitOnce which centers on
@@ -1919,57 +1991,25 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     }
 
     if (anchorPos != null) {
-      // v5.x (BUG-2 fix — initial camera centering): on FIRST load,
-      // ALWAYS snap instantly (duration 1ms) instead of animating over
-      // 300ms. The user reported "the anchor node is not centered in
-      // the viewport — it loads shifted toward one side, and I have
-      // to manually pan to bring it to the center." The 300ms
-      // animation meant the user saw the graph at the INITIAL camera
-      // position (pan=0, zoom=1.0) for 300ms before it animated to the
-      // centered position — the initial position shows the graph-space
-      // origin at the top-left corner, which looks off-center.
-      // Snapping instantly on first load means the user never sees the
-      // off-center initial state. The animated transition is reserved
-      // for subsequent focus/recenter actions (where the user
-      // EXPECTS to see the camera move).
-      //
-      // _maybeFrame is only called when _framed is false (first load),
-      // so we always snap here. The 300ms animated transition is used
-      // by _maybeFocusCameraOnNode (the focus/recenter action) instead.
-
-      // v5.121c: Compute a zoom level that fits the proximity set's
-      // bounding box around the anchor. At zoom 1.0, only the anchor
-      // is visible because the canvas is large. We need to zoom OUT
-      // so that the anchor + its neighbors are all visible.
-      double maxDistX = 0;
-      double maxDistY = 0;
-      for (final pos in layout.positions.values) {
-        final dx = (pos.dx - anchorPos.dx).abs();
-        final dy = (pos.dy - anchorPos.dy).abs();
-        if (dx > maxDistX) maxDistX = dx;
-        if (dy > maxDistY) maxDistY = dy;
-      }
-      const kFramePadding = 160.0;
-      final targetZoomX = (_viewportSize.width - kFramePadding) / (2 * maxDistX + 1);
-      final targetZoomY = (_viewportSize.height - kFramePadding) / (2 * maxDistY + 1);
-      var fitZoom = targetZoomX < targetZoomY ? targetZoomX : targetZoomY;
-      if (fitZoom > 1.3) fitZoom = 1.3;
-      if (fitZoom < 0.35) fitZoom = 0.35;
-
-      // Center on the anchor at the computed zoom.
-      final focusCircleCenter = Offset(
-        anchorPos.dx,
-        anchorPos.dy + _kCircleCenterYOffset,
+      // v5.x (anchor-centering fix): use the SHARED centering helper
+      // so the initial load produces IDENTICAL centering to the
+      // recenter button — no drift or inconsistency between the two.
+      // The helper accounts for the bottom UI chrome (toolbar + stats
+      // panel) that overlays the canvas, so the anchor maps to the
+      // center of the VISIBLE drawable canvas, not the full screen
+      // bounds. On initial load, snap INSTANTLY (1ms) so the user
+      // never sees an off-center initial state.
+      final cam = _computeAnchorCenteredCamera(
+        anchorPos: anchorPos,
+        viewportSize: _viewportSize,
+        bottomChrome: widget.bottomChromeHeight,
+        allPositions: layout.positions,
       );
-      final targetPanX =
-          (_viewportSize.width / 2) - (focusCircleCenter.dx * fitZoom);
-      final targetPanY =
-          (_viewportSize.height / 2) - (focusCircleCenter.dy * fitZoom);
 
       _camera.animateTo(
-        targetPanX,
-        targetPanY,
-        fitZoom,
+        cam.panX,
+        cam.panY,
+        cam.zoom,
         duration: const Duration(milliseconds: 1),
         curve: Curves.linear,
       );
@@ -2055,17 +2095,42 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _rearrangeLiveEdgeWaypoints = const {};
     _rearrangeDragRevision++;
 
+    // v5.x (anchor-centering fix): use the SAME shared centering
+    // helper as _maybeFrame (initial load). This ensures the recenter
+    // button produces IDENTICAL centering to the initial load — no
+    // drift or inconsistency between the two, as the user requires.
+    // The previous version called _camera.resetView which used zoom
+    // 1.0 (hardcoded) and centered on the full viewport (not
+    // accounting for bottom chrome). Now both paths use
+    // _computeAnchorCenteredCamera for consistent centering + a
+    // zoom that fits the proximity set.
     final bool reduced = MediaQuery.disableAnimationsOf(context);
-    _camera.resetView(
-      focusNodePosition: focusPosition,
-      // Pass the visual-circle Y offset so the camera centers the
-      // CIRCLE (what the user sees), not the bounding box. The
-      // offset is negative because the circle sits at the top of
-      // the node's Column, above the box center.
-      circleCenterYOffset: _kCircleCenterYOffset,
+    final cam = _computeAnchorCenteredCamera(
+      anchorPos: focusPosition,
       viewportSize: _viewportSize,
-      reducedMotion: reduced,
+      bottomChrome: widget.bottomChromeHeight,
+      allPositions: layout.positions,
     );
+
+    if (reduced) {
+      _camera.animateTo(
+        cam.panX,
+        cam.panY,
+        cam.zoom,
+        duration: const Duration(milliseconds: 1),
+        curve: Curves.linear,
+      );
+    } else {
+      // Smooth animated transition (the user tapped recenter, so
+      // they EXPECT to see the camera move).
+      _camera.animateTo(
+        cam.panX,
+        cam.panY,
+        cam.zoom,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
     _culler.invalidate();
   }
 
