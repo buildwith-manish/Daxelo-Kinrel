@@ -121,6 +121,8 @@ import '../../../core/services/graph_layout_service.dart'
     show GraphPerson;
 import '../../../graph/interaction/proximity_graph_state.dart'
     show proximityGraphProvider;
+import '../../../graph/interaction/branch_collapse_state.dart'
+    show branchCollapseProvider;
 import '../../../graph/interaction/graph_search_state.dart'
     show graphSearchProvider;
 // v5.x (legend wiring fix): GraphLegend is now actually rendered by
@@ -995,7 +997,14 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
     // v5.99: Compute generations using BFS with labelAtoB (specific labels)
     // instead of the stale API generationIndex (which defaults to 0 for all).
     // This matches the fix in graph_layout_service.dart and subtree_mixin.dart.
-    final presentGenerations = _computeGenerationsFromGraph(graph, persons);
+    // v5.x (stats-panel fix): presentGenerations was used by the old
+    // StatsPanel to show the full family's generation count. The
+    // StatsPanel now computes its own generation count from the
+    // DISCLOSED set (not the full family), so this variable is no
+    // longer needed. Left the comment for context — the helper
+    // (_computeGenerationsFromGraph) is still available if needed
+    // elsewhere.
+    // final presentGenerations = _computeGenerationsFromGraph(graph, persons);
 
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
@@ -1202,21 +1211,86 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             right: Directionality.of(context) == TextDirection.rtl ? 16 : null,
             left: Directionality.of(context) == TextDirection.rtl ? null : 16,
             bottom: fabBottomOffset,
-            child: StatsPanel(
-              totalMembers: graph.persons.length,
-              totalConnections: graph.relationships.length,
-              totalGenerations: presentGenerations.length,
-              isTruncated: graph.isTruncated,
-              // v5.116: "View all" opens the IN-GRAPH search overlay
-              // instead of navigating away to the members list. This
-              // keeps the user in the graph context — selecting a
-              // person from search centers the camera on them and
-              // highlights their direct connections.
-              familyId: widget.familyId,
-              onViewAllMembers: () {
-                setState(() => _showSearch = true);
-              },
-            ),
+            child: Builder(builder: (context) {
+              // v5.x (stats-panel fix): compute MEMBERS, LINKS, GENS
+              // from the DISCLOSED/expanded subgraph, not the full
+              // family totals. The disclosed set is the proximity
+              // visibleIds MINUS the density-collapsed hidden IDs.
+              // The "View all X" button still uses the full family
+              // total (graph.persons.length) — only the three stat
+              // numbers change.
+              final proximityState =
+                  ref.watch(proximityGraphProvider);
+              final collapseState =
+                  ref.watch(branchCollapseProvider);
+
+              // Start with the proximity set (the "expanded" nodes).
+              // If proximity is not initialized yet, fall back to
+              // all persons (so the initial frame shows the full
+              // count, which is the pre-proximity behavior).
+              Set<String> disclosedIds;
+              if (proximityState.isInitialized &&
+                  proximityState.visibleIds.isNotEmpty) {
+                disclosedIds = proximityState.visibleIds;
+              } else {
+                disclosedIds = {
+                  for (final p in graph.persons)
+                    (p['id'] ?? '').toString(),
+                };
+              }
+
+              // Remove density-collapsed hidden IDs.
+              disclosedIds = disclosedIds
+                  .where((id) =>
+                      !collapseState.allHiddenMemberIds.contains(id))
+                  .toSet();
+
+              // Count members: the number of disclosed person IDs.
+              final disclosedMembers = disclosedIds.length;
+
+              // Count links: relationships where BOTH endpoints are
+              // in the disclosed set.
+              final disclosedLinks = graph.relationships.where((r) {
+                final from = r['fromPersonId']?.toString();
+                final to = r['toPersonId']?.toString();
+                return from != null &&
+                    to != null &&
+                    disclosedIds.contains(from) &&
+                    disclosedIds.contains(to);
+              }).length;
+
+              // Count generations: distinct generationIndex values
+              // among the disclosed persons.
+              final disclosedGens = <int>{};
+              for (final p in graph.persons) {
+                final id = (p['id'] ?? '').toString();
+                if (disclosedIds.contains(id)) {
+                  final gen =
+                      (p['generationIndex'] as num?)?.toInt() ?? 0;
+                  disclosedGens.add(gen);
+                }
+              }
+
+              return StatsPanel(
+                totalMembers: disclosedMembers,
+                totalConnections: disclosedLinks,
+                totalGenerations: disclosedGens.length,
+                isTruncated: graph.isTruncated,
+                // v5.116: "View all" opens the IN-GRAPH search overlay
+                // instead of navigating away to the members list. This
+                // keeps the user in the graph context — selecting a
+                // person from search centers the camera on them and
+                // highlights their direct connections.
+                // NOTE: "View all" still uses the FULL family total
+                // (graph.persons.length), not the disclosed count —
+                // this button is correctly meant to show the grand
+                // total of all members in the family.
+                familyId: widget.familyId,
+                onViewAllMembers: () {
+                  setState(() => _showSearch = true);
+                },
+              );
+            }),
           ),
 
         // Bottom toolbar — Center, Add Member, Filter, Help
