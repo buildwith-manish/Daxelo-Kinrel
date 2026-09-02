@@ -1275,6 +1275,13 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
                 totalMembers: disclosedMembers,
                 totalConnections: disclosedLinks,
                 totalGenerations: disclosedGens.length,
+                // v5.x (stats-panel fix): pass the FULL family total
+                // for the "View all" button — this is always the
+                // grand total (714), regardless of how many nodes
+                // are currently expanded on screen. The MEMBERS
+                // stat row above uses disclosedMembers (the visible
+                // count), but the button uses the full total.
+                fullFamilyMembers: graph.persons.length,
                 isTruncated: graph.isTruncated,
                 // v5.116: "View all" opens the IN-GRAPH search overlay
                 // instead of navigating away to the members list. This

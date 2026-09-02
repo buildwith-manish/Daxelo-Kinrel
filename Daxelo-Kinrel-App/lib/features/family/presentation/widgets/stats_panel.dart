@@ -40,19 +40,32 @@ class StatsPanel extends StatelessWidget {
     required this.totalMembers,
     required this.totalConnections,
     required this.totalGenerations,
+    required this.fullFamilyMembers,
     this.isTruncated = false,
     this.onViewAllMembers,
     this.familyId,
   });
 
-  /// Total number of members in the graph.
+  /// Number of members currently expanded/visible in the graph view.
+  /// Used for the MEMBERS stat row. Changes as branches are
+  /// expanded or collapsed.
   final int totalMembers;
 
-  /// Total number of connections (edges) in the graph.
+  /// Number of connections (edges) currently visible — both endpoints
+  /// in the disclosed set. Used for the LINKS stat row.
   final int totalConnections;
 
-  /// Total number of generations in the graph.
+  /// Number of distinct generations among the disclosed members.
+  /// Used for the GENS stat row.
   final int totalGenerations;
+
+  /// v5.x (stats-panel fix): The TOTAL number of members in the entire
+  /// family (all 714, regardless of how much of the tree is currently
+  /// expanded on screen). Used ONLY for the "View all X" button label.
+  /// This is distinct from [totalMembers] (which is the disclosed
+  /// count) so the button always shows the grand total while the stat
+  /// rows show the currently-visible count.
+  final int fullFamilyMembers;
 
   /// Whether the graph is truncated (too many nodes to display fully).
   final bool isTruncated;
@@ -125,7 +138,7 @@ class StatsPanel extends StatelessWidget {
                         size: 12, color: KinrelColors.orange),
                     const SizedBox(width: 4),
                     Text(
-                      'View all $totalMembers',
+                      'View all $fullFamilyMembers',
                       style: TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 9,
