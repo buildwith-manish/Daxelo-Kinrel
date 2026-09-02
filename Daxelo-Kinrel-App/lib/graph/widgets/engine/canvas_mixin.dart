@@ -450,6 +450,40 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           ...searchState.revealedPathIds,
           if (selectedPerson != null) selectedPerson,
         };
+
+        // v5.x (node-disappearance fix): ALWAYS protect the anchor
+        // node AND its direct (first-degree) neighbors from density
+        // collapse. These are the "main nodes" the user sees on
+        // initial load — the anchor ("You") + parents, spouse,
+        // children, siblings. They should NEVER be hidden by the
+        // density-collapse budget, even when the proximity set
+        // exceeds kNodeBudget (which can happen when the spouse-pair
+        // invariant adds spouses on top of the BFS-capped set, or
+        // when the family has >50 members who all have positions).
+        //
+        // Without this protection, the density collapse hides nodes
+        // that were visible on the initial render — the user sees
+        // them for a few seconds, then they disappear when the full
+        // dataset loads and the layout recalculates with more
+        // positions, pushing the count above the budget.
+        final protectedAnchorId = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
+        if (protectedAnchorId != null) {
+          protectedCollapseIds.add(protectedAnchorId);
+          // Add the anchor's direct neighbors (first-degree relatives)
+          // from the raw edge list — these are the people connected
+          // to the anchor by a single edge (spouse, parent, child,
+          // sibling). They are the "main nodes" that should stay
+          // visible.
+          for (final r in flat.relationships) {
+            final from = r['fromPersonId']?.toString();
+            final to = r['toPersonId']?.toString();
+            if (from == protectedAnchorId && to != null) {
+              protectedCollapseIds.add(to);
+            } else if (to == protectedAnchorId && from != null) {
+              protectedCollapseIds.add(from);
+            }
+          }
+        }
         // Read the current collapse state (stable from the previous
         // build — the density pass below no-ops when inputs match).
         final collapseState = ref.watch(branchCollapseProvider);
