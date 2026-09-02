@@ -1679,6 +1679,46 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         // The _hasPlayedLoadAnimation flag is a one-time gate — subsequent
         // rebuilds won't re-trigger.
         _maybeStartLoadAnimation(savedOverrides);
+
+        // v5.x (anchor centering wiring fix): call _maybeFrame and
+        // _maybeRecenterOnAnchorDrift HERE in build() — directly in
+        // the data: callback of layoutAsync.when — so they run on
+        // EVERY build where layout data is available, not just when
+        // the LayoutBuilder inside _buildCanvas happens to rebuild.
+        //
+        // _maybeFrame: centers the camera on the anchor the FIRST
+        // time it runs (guarded by _framed). After that it's a cheap
+        // no-op (early return on `if (_framed) return;`).
+        //
+        // _maybeRecenterOnAnchorDrift: on every subsequent build,
+        // compares the anchor's current layout position to
+        // _lastFramedAnchorPos. If it moved >5px (because progressive
+        // data loading completed and the layout was recomputed) AND
+        // the user hasn't manually interacted with the camera
+        // (_userHasInteractedWithCamera == false), re-centers
+        // instantly. This is the fix for the "anchor visible for
+        // 3-5 seconds then disappears" bug — the layout recalculates
+        // when the full dataset loads, moving the anchor off-screen,
+        // and this method follows it back to center.
+        //
+        // Both methods have internal guards (empty positions, zero
+        // viewport size) so they're cheap no-ops on builds where
+        // nothing changed. The viewport size is set by the
+        // LayoutBuilder in _buildCanvas — on the first build it's
+        // still Size.zero, so these calls no-op. On subsequent builds
+        // (after the LayoutBuilder has resolved), the viewport size
+        // is available and the centering actually runs.
+        //
+        // Note: we do NOT call _maybeFrame via addPostFrameCallback
+        // here (that's already done in _buildCanvas). Calling it
+        // directly in build() ensures it also runs on builds where
+        // the LayoutBuilder doesn't rebuild (e.g., a provider
+        // invalidation that changes the layout but not the viewport
+        // constraints). The method is idempotent — double-calling is
+        // safe because _framed guards the one-time init and the
+        // drift check is a cheap distance comparison.
+        _maybeFrame(layout, flat, viewerPersonId);
+        _maybeRecenterOnAnchorDrift(layout, flat, viewerPersonId);
         // Wrap the graph in a Column so the graph expands to fill the space.
         // v4.9: Removed the ClaimProfileBanner — it's no longer rendered here.
         // The claim_profile_banner.dart file is left in place (unused) in case
