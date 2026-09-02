@@ -273,6 +273,58 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
       ringIndex++;
     }
 
+    // v5.x (BUG-2 fix — spouse-pair invariant): always include
+    // spouses of every visible node. Genealogical invariant: you
+    // never show one spouse without the other. Without this post-
+    // pass, the BFS budget can cut a node's spouse out of the
+    // visible set (e.g. Yakshitha — wife of Vivek Patel — when
+    // Vivek is in ring 2 and Yakshitha is in ring 3, ring 3 may
+    // not be added because the soft budget is hit). The user
+    // reported: "Yakshitha only appears when I tap Vivek Patel"
+    // — because the tap triggered _maybeExpandFromPerson(Vivek)
+    // which added his direct neighbors (including Yakshitha) to
+    // the proximity set, finally giving her a layout position.
+    //
+    // The fix: walk every visible node's edges and add any spouse
+    // (key ∈ {spouse, wife, husband, partner}) that's in allPersons.
+    // This is O(visible × adjacency), runs once at init, no per-
+    // frame cost. The added spouses are NOT themselves expanded
+    // (their own non-spouse neighbors are not auto-added) — this
+    // is a targeted spouse-pair fix, not a general expansion.
+    if (edges != null) {
+      final spouseKeys = const {'spouse', 'wife', 'husband', 'partner'};
+      // Build a quick edge lookup: fromId → [toId] for spouse-keyed
+      // edges only. We do this once (not per visible node) to keep
+      // the cost linear in the edge count.
+      final spouseEdges = <String, List<String>>{};
+      for (final e in edges) {
+        if (e.fromId.isEmpty || e.toId.isEmpty) continue;
+        // The stored key is from→to; the inverse is to→from.
+        // Both directions can be spouse (wife ↔ spouse, husband ↔
+        // spouse, spouse ↔ spouse).
+        final inverseKey = inverseTypeMap[e.relationshipKey] ??
+            e.relationshipKey;
+        if (spouseKeys.contains(e.relationshipKey) ||
+            spouseKeys.contains(inverseKey)) {
+          spouseEdges.putIfAbsent(e.fromId, () => []).add(e.toId);
+          spouseEdges.putIfAbsent(e.toId, () => []).add(e.fromId);
+        }
+      }
+      // For every visible node, add its spouse(s) if they're in
+      // allPersons and not already visible.
+      // Iterate over a SNAPSHOT of visible (we're mutating it).
+      final visibleSnapshot = visible.toList();
+      for (final id in visibleSnapshot) {
+        final spouses = spouseEdges[id];
+        if (spouses == null) continue;
+        for (final spouseId in spouses) {
+          if (allPersons.contains(spouseId) && !visible.contains(spouseId)) {
+            visible.add(spouseId);
+          }
+        }
+      }
+    }
+
     return visible;
   }
 

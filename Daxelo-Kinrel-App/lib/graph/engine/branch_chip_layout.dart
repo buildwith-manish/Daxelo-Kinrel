@@ -70,10 +70,17 @@ class BranchChipGeometry {
   static const double chipHeight = 32.0;
 
   /// Vertical gap between the parent node's bounding box and the
-  /// chip's top edge. Small enough that the chip clearly belongs to
-  /// the node above it; large enough that the chip doesn't visually
-  /// touch the name label's descender.
-  static const double anchorGapBelowNode = 8.0;
+  /// chip's top edge.
+  ///
+  /// v5.x (BUG-1 fix — remove floating leader line): changed from 8.0
+  /// to 0.0 so the chip sits VISUALLY ATTACHED to the parent node's
+  /// bottom edge — no empty-space gap, no dangling line. The user
+  /// reported that the previous version (chip + 8px gap + leader line
+  /// for far placements) looked like "a floating single-line-plus-badge
+  /// in empty space that doesn't clearly connect to anything
+  /// meaningful." With zero gap, the chip reads as a label attached to
+  /// the node itself (like a sticky note), not a disconnected element.
+  static const double anchorGapBelowNode = 0.0;
 
   /// Step size for the multi-direction collision search.
   static const double collisionStep = 18.0;
@@ -128,10 +135,18 @@ class BranchChipPlacement {
   /// The graph-space rect where the chip should be rendered.
   final Rect rect;
 
-  /// True when the chip had to be placed far enough from its parent
-  /// node that a leader line should be drawn from the chip back to
-  /// the parent node's center. False in the common case (chip sits
-  /// directly below the name label, no leader line needed).
+  /// v5.x (BUG-1 fix — remove floating leader line): this field is
+  /// kept for API compatibility with existing callers + tests, but
+  /// is now ALWAYS false. The previous version set this to true
+  /// when the chip had to be placed far from its parent node, and
+  /// the caller would draw a dashed leader line from the chip back
+  /// to the parent node's center. The user reported this looked like
+  /// "a floating single-line-plus-badge in empty space that doesn't
+  /// clearly connect to anything meaningful." We now ALWAYS place
+  /// the chip attached to (overlapping) the parent node's bottom
+  /// edge — no leader line is ever drawn. The field remains so we
+  /// don't break callers / tests that read it; they just always see
+  /// false.
   final bool needsLeaderLine;
 }
 
@@ -219,8 +234,15 @@ Rect _parentBoxForRequest(BranchChipPlacementRequest req) {
 
 /// Place a single chip, given the already-placed chips and all node
 /// boxes. Tries the anchor first, then the candidate list. If every
-/// candidate collides, picks the candidate with the least overlap
-/// and marks it for a leader line.
+/// candidate collides, picks the candidate with the least overlap.
+///
+/// v5.x (BUG-1 fix — remove floating leader line): the anchor is now
+/// attached to (overlapping) the parent node's bottom edge — the chip's
+/// vertical center sits at the parent box's bottom edge, so half the
+/// chip is inside the parent box (overlapping the name label area) and
+/// half is below. This makes the chip visually "attached" to the node
+/// — no empty space, no dangling line. `needsLeaderLine` is always
+/// false (kept for API compatibility with existing callers/tests).
 BranchChipPlacement _placeOneChip({
   required BranchChipPlacementRequest request,
   required List<Rect> allNodeBoxes,
@@ -230,7 +252,9 @@ BranchChipPlacement _placeOneChip({
   final anchor = _anchorRect(parentBox);
 
   // Build the candidate list — the anchor first, then the
-  // multi-direction fallbacks.
+  // multi-direction fallbacks. These are ONLY for collision avoidance
+  // against OTHER nodes/chips — the chip's OWN parent box is allowed
+  // to overlap (the chip is intentionally attached to its parent).
   final candidates = <Rect>[anchor];
 
   // 1. Straight down in 18px steps (up to 4).
@@ -258,43 +282,38 @@ BranchChipPlacement _placeOneChip({
   final aboveAnchor = Rect.fromLTWH(
     anchor.left,
     parentBox.top -
-        BranchChipGeometry.chipHeight -
+        BranchChipGeometry.chipHeight +
         BranchChipGeometry.anchorGapBelowNode,
     BranchChipGeometry.chipWidth,
     BranchChipGeometry.chipHeight,
   );
   candidates.add(aboveAnchor);
 
-  // Find the first candidate that doesn't collide with anything.
+  // Find the first candidate that doesn't collide with anything OTHER
+  // than its own parent (the parent overlap is intentional — the chip
+  // is attached to the parent).
+  final otherNodeBoxes =
+      allNodeBoxes.where((b) => b != parentBox).toList();
   for (final candidate in candidates) {
-    if (!_collidesWithAny(candidate, allNodeBoxes, placedChips)) {
-      // Check whether this candidate is far enough from the parent
-      // node that a leader line is needed. The leader-line
-      // threshold is "more than 2 down-steps below the anchor, OR
-      // any lateral offset". This keeps the chip visually tethered
-      // — the user can see which person it belongs to.
-      final dyFromAnchor = candidate.top - anchor.top;
-      final dxFromAnchor = (candidate.left - anchor.left).abs();
-      final needsLeader =
-          dyFromAnchor > BranchChipGeometry.collisionStep * 2 ||
-              dxFromAnchor > 1.0;
+    if (!_collidesWithAny(candidate, otherNodeBoxes, placedChips)) {
+      // v5.x (BUG-1 fix): always return needsLeaderLine: false —
+      // the chip is attached to its parent, no leader line needed.
       return BranchChipPlacement(
         request: request,
         rect: candidate,
-        needsLeaderLine: needsLeader,
+        needsLeaderLine: false,
       );
     }
   }
 
   // Every candidate collides. Pick the candidate with the LEAST
-  // total overlap area (sum of overlaps with all node boxes + all
-  // placed chips). This minimizes the visual mess. Mark for a
-  // leader line so the user can see which person the chip belongs
-  // to.
+  // total overlap area (sum of overlaps with all OTHER node boxes +
+  // all placed chips — the parent box is allowed to overlap).
   Rect? bestCandidate;
   var bestOverlap = double.infinity;
   for (final candidate in candidates) {
-    final overlap = _totalOverlapArea(candidate, allNodeBoxes, placedChips);
+    final overlap =
+        _totalOverlapArea(candidate, otherNodeBoxes, placedChips);
     if (overlap < bestOverlap) {
       bestOverlap = overlap;
       bestCandidate = candidate;
@@ -305,18 +324,27 @@ BranchChipPlacement _placeOneChip({
   return BranchChipPlacement(
     request: request,
     rect: bestCandidate!,
-    needsLeaderLine: true,
+    needsLeaderLine: false, // v5.x (BUG-1 fix): no leader line ever
   );
 }
 
-/// The anchor rect for a chip below the parent node box: centered
-/// horizontally on the parent's center X, top edge just below the
-/// parent's box bottom edge (with the small anchorGapBelowNode gap).
+/// The anchor rect for a chip attached to the parent node's bottom
+/// edge: centered horizontally on the parent's center X, vertical
+/// center at the parent's box bottom (so the chip overlaps the
+/// parent's bottom half — visually attached, not floating).
+///
+/// v5.x (BUG-1 fix — remove floating leader line): the anchor's top
+/// is at `parentBox.bottom - chipHeight/2` (was: `parentBox.bottom +
+/// anchorGapBelowNode`). This places the chip's vertical center
+/// exactly at the parent's bottom edge — half the chip is inside the
+/// parent box (overlapping the name label area, which is fine since
+/// the chip is a compact badge), half is below. The chip reads as a
+/// label ATTACHED to the node, not a disconnected floating element.
 Rect _anchorRect(Rect parentBox) {
   final parentCenterX = parentBox.center.dx;
   return Rect.fromLTWH(
     parentCenterX - BranchChipGeometry.chipWidth / 2,
-    parentBox.bottom + BranchChipGeometry.anchorGapBelowNode,
+    parentBox.bottom - BranchChipGeometry.chipHeight / 2,
     BranchChipGeometry.chipWidth,
     BranchChipGeometry.chipHeight,
   );

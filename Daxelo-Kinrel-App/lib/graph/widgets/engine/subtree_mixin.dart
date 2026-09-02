@@ -22,6 +22,10 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
   ///
   /// Falls back to the stored `relationshipKey` only when no viewer is
   /// available (e.g., anonymous mode), preserving legacy behavior.
+  ///
+  /// v5.x (BUG-3 fix): every node now gets a label (the previous v5.86
+  /// skip for indirect relations has been removed). See the inline
+  /// comment below for the full context.
   Map<String, String> _relationLabels(
     FlatGraphResult flat,
     String? viewerPersonId,
@@ -42,13 +46,30 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
       return labels;
     }
 
-    // v5.86 (CANVAS LABEL FIX): Compute the set of INDIRECT relation
-    // node IDs (distance >= 2 from viewer). These nodes should NOT
-    // show their viewer-relative label on the canvas — only the badge
-    // icon. The actual label (e.g. "Father-in-law") is shown only in
-    // the Connection detail sheet when the user taps the node.
-    final indirectIds = ref.read(
-        indirectRelationIdsProvider(widget.familyId));
+    // v5.x (BUG-3 fix — labels for EVERY node): the previous version
+    // (v5.86) computed the set of INDIRECT relation node IDs (distance
+    // >= 2 from viewer) and SKIPPED label computation for them — those
+    // nodes showed no relationship label on the canvas, only a badge
+    // icon. The user reported: "Relationship labels are missing for
+    // most nodes. Only some nodes show a label describing their
+    // relationship to the anchor/main person — for example, Yakshitha
+    // correctly shows 'Wife' under her name. But most other nodes on
+    // the graph show no relationship label at all."
+    //
+    // The fix: REMOVE the indirect-relation skip. Every node now gets
+    // its computed relationship label (e.g. "Father", "Mother",
+    // "Cousin", "Aunt") underneath its name, the same way "Wife"
+    // appears under Yakshitha. The label is computed from the actual
+    // relationship data via RelationshipEngine.resolveClassification
+    // (NOT hardcoded) and updates correctly when the anchor person
+    // changes (because the engine recomputes from the viewer's
+    // perspective every time).
+    //
+    // The indirect-relation BADGE (the small icon that opens the
+    // Connection detail sheet) is unaffected — it's rendered
+    // separately by GraphNode based on `indirectRelationIdsProvider`.
+    // The badge still appears for indirect relations; we just no
+    // longer suppress the LABEL for them.
 
     // Build typed inputs for RelationshipEngine.
     final graphPersons = <GraphPerson>[
@@ -80,9 +101,9 @@ extension _SubtreeMethods on _FamilyGraphEngineViewState {
     final engine = RelationshipEngine.instance;
     for (final GraphPerson p in graphPersons) {
       if (p.id == viewerPersonId) continue; // viewer's own label is "You"
-      // v5.86: Skip label computation for INDIRECT relations.
-      // Their label is shown only in the Connection sheet, not on canvas.
-      if (indirectIds.contains(p.id)) continue;
+      // v5.x (BUG-3 fix): the v5.86 skip for indirect relations has
+      // been REMOVED — every node now gets a label. See the doc block
+      // above for the full context.
       final classification = engine.resolveClassification(
         viewerPersonId: viewerPersonId,
         targetPersonId: p.id,

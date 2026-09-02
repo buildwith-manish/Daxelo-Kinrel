@@ -90,7 +90,10 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       if (placement == null) continue;
       final chipLeft = placement.rect.left;
       final chipTop = placement.rect.top;
-      final needsLeader = placement.needsLeaderLine;
+      // v5.x (BUG-1 fix): needsLeaderLine is now ALWAYS false — the
+      // chip is attached to its parent, no leader line is ever drawn.
+      // The field is kept for API compatibility with existing callers
+      // + tests but is unused here.
 
       // v5.105: Use the dominant kinship category color for the chip
       // border/accent instead of hardcoded orange. The category is
@@ -184,46 +187,16 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
         ),
       );
 
-      // v5.x (leader line): when the chip had to be placed far from
-      // its parent node, draw a thin leader line from the chip's top
-      // edge back to the parent node's visual circle center so the
-      // user can see which person the chip belongs to. The line is
-      // drawn as a Positioned CustomPaint above the chip widget.
-      final widgets = <Widget>[];
-      if (needsLeader) {
-        final parentPos = layout.positions[branch.rootPersonId];
-        if (parentPos != null) {
-          final leaderStart = Offset(
-            parentPos.dx,
-            parentPos.dy +
-                _FamilyGraphEngineViewState._kCircleCenterYOffset,
-          );
-          final leaderEnd = Offset(
-            placement.rect.center.dx,
-            placement.rect.top,
-          );
-          widgets.add(Positioned(
-            // The leader line is drawn in its own Positioned that
-            // covers the bounding box of the leader start+end. It
-            // doesn't intercept taps (the chip widget on top does).
-            left: min(leaderStart.dx, leaderEnd.dx) - 1.0,
-            top: min(leaderStart.dy, leaderEnd.dy) - 1.0,
-            width: (leaderEnd.dx - leaderStart.dx).abs() + 2.0,
-            height: (leaderEnd.dy - leaderStart.dy).abs() + 2.0,
-            child: IgnorePointer(
-              child: CustomPaint(
-                painter: _BranchChipLeaderPainter(
-                  start: leaderStart,
-                  end: leaderEnd,
-                  color: chipAccentColor.withValues(alpha: 0.5),
-                ),
-              ),
-            ),
-          ));
-        }
-      }
-
-      widgets.add(Positioned(
+      // v5.x (BUG-1 fix — REMOVE LEADER LINE): the previous version
+      // rendered a dashed leader line from the chip back to the
+      // parent node's center when the chip had to be placed far
+      // away. The user reported this looked like "a floating
+      // single-line-plus-badge in empty space that doesn't clearly
+      // connect to anything meaningful." The leader line has been
+      // REMOVED — the chip is now always attached to (overlapping)
+      // the parent node's bottom edge, so no visual tether is needed.
+      // The `_BranchChipLeaderPainter` class has been deleted.
+      chips.add(Positioned(
         left: chipLeft,
         top: chipTop,
         child: Semantics(
@@ -236,7 +209,6 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
           child: chipWidget,
         ),
       ));
-      chips.addAll(widgets);
     }
     return chips;
   }
@@ -1147,82 +1119,12 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
   }
 }
 
-/// v5.x (chip-placement fix): painter for the thin leader line drawn
-/// from a branch chip back to its parent node's center, when the chip
-/// had to be placed far enough from the node that visual tethering
-/// alone wouldn't make the ownership clear.
-///
-/// The line is drawn as a 1px dashed stroke in the chip's accent
-/// color (passed by the caller) at 50% alpha. Dashed (not solid)
-/// so it reads as a "leader line" rather than an edge / relationship
-/// line — important so users don't confuse it with the kinship edges
-/// rendered by the EngineEdgePainter.
-class _BranchChipLeaderPainter extends CustomPainter {
-  _BranchChipLeaderPainter({
-    required this.start,
-    required this.end,
-    required this.color,
-  });
-
-  /// Graph-space start point of the leader line (the parent node's
-  /// visual circle center).
-  final Offset start;
-
-  /// Graph-space end point of the leader line (the chip's top-center).
-  final Offset end;
-
-  /// The chip's accent color at 50% alpha — matches the chip's
-  /// border color so the user can see the chip ↔ leader line ↔ node
-  /// association.
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // The leader line is drawn in the COORDINATE SPACE of the
-    // Positioned widget that wraps this painter — which has its
-    // top-left at (min(start, end) - 1). So we translate start/end
-    // into the local space before drawing.
-    final localStart = start - Offset(
-      min(start.dx, end.dx) - 1.0,
-      min(start.dy, end.dy) - 1.0,
-    );
-    final localEnd = end - Offset(
-      min(start.dx, end.dx) - 1.0,
-      min(start.dy, end.dy) - 1.0,
-    );
-
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0
-      ..strokeCap = StrokeCap.round;
-
-    // Dashed line — 4px dash, 3px gap. We walk the line in arc-length
-    // steps. The line is short (typically 30–80px), so the loop is
-    // cheap.
-    final dx = localEnd.dx - localStart.dx;
-    final dy = localEnd.dy - localStart.dy;
-    final length = sqrt(dx * dx + dy * dy);
-    if (length < 1.0) return;
-    final ux = dx / length;
-    final uy = dy / length;
-
-    const dashLen = 4.0;
-    const gapLen = 3.0;
-    var pos = 0.0;
-    while (pos < length) {
-      final dashEnd = pos + dashLen;
-      final p0 = Offset(localStart.dx + ux * pos, localStart.dy + uy * pos);
-      final p1 = Offset(
-        localStart.dx + ux * dashEnd.clamp(0.0, length),
-        localStart.dy + uy * dashEnd.clamp(0.0, length),
-      );
-      canvas.drawLine(p0, p1, paint);
-      pos += dashLen + gapLen;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _BranchChipLeaderPainter old) =>
-      start != old.start || end != old.end || color != old.color;
-}
+// v5.x (BUG-1 fix — REMOVE LEADER LINE): the `_BranchChipLeaderPainter`
+// class that used to live here has been DELETED. The previous version
+// drew a thin dashed line from the chip back to the parent node's
+// center when the chip had to be placed far away. The user reported
+// this looked like "a floating single-line-plus-badge in empty space
+// that doesn't clearly connect to anything meaningful." The chip is
+// now always attached to (overlapping) the parent node's bottom edge,
+// so no visual tether is needed. The whole painter class + its
+// `paint`/`shouldRepaint` methods (~80 lines) are gone.
