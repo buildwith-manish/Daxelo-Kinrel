@@ -39,6 +39,12 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     _lastFocal = d.focalPoint;
     _baseZoom = _camera.zoomLevel;
     _isPinching = false; // reset; will be set true on first multi-touch update
+    // v5.x (progressive-load fix): mark that the user has manually
+    // interacted with the camera. This prevents the auto-re-centering
+    // from fighting the user's manual pan/zoom — once the user touches
+    // the canvas, the camera respects their position until the next
+    // family switch (which resets the flag).
+    _userHasInteractedWithCamera = true;
     // v5.29 Fix 4: In rearrange mode, a new scale gesture starting
     // (finger down after a prior long-press) should NOT reset the drag
     // — it IS the drag. Do not clear _rearrangeDragId here.

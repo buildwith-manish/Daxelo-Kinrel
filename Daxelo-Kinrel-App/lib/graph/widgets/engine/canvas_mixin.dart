@@ -266,16 +266,31 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // avoids the historical setState-during-build crash.
         // v5.75: Pass flat + viewerPersonId so _maybeFrame can center on the
         // viewer's own node instead of the bounding box center.
-        // v5.118: Reset _framed if the layout went from empty to non-empty
-        // (the proximity set was just initialized on a subsequent build).
-        // Without this, the camera frames on the first (empty) layout and
-        // never re-centers when the actual nodes arrive.
-        if (layout.positions.isNotEmpty && _framed && _lastFramedPositionCount == 0) {
-          _framed = false;
-        }
-        _lastFramedPositionCount = layout.positions.length;
+        //
+        // v5.x (progressive-load fix): REPLACE the dead
+        // _lastFramedPositionCount logic with anchor-drift detection.
+        // The old code tried to detect "empty → non-empty" but only
+        // worked for one specific transition. The new logic:
+        //   1. _maybeFrame runs the FIRST time (when _framed is false)
+        //      and records the anchor's position in _lastFramedAnchorPos.
+        //   2. On EVERY subsequent build, we check if the anchor's
+        //      position has CHANGED from _lastFramedAnchorPos (because
+        //      more data loaded and the layout was recomputed). If it
+        //      has AND the user hasn't manually interacted with the
+        //      camera, we re-center automatically (instant snap).
+        //   3. If the user HAS manually panned/zoomed
+        //      (_userHasInteractedWithCamera == true), we DON'T
+        //      re-center — the camera respects their position.
         WidgetsBinding.instance
             .addPostFrameCallback((_) => _maybeFrame(layout, flat, viewerPersonId));
+
+        // v5.x (progressive-load fix): anchor-drift detection.
+        // Runs on every build (after _framed is true) to catch the
+        // case where progressive data loading triggers a layout
+        // recalculation that moves the anchor off-screen.
+        if (_framed && !_userHasInteractedWithCamera && _viewportSize.width > 0) {
+          _maybeRecenterOnAnchorDrift(layout, flat, viewerPersonId);
+        }
 
         final personById = <String, Map<String, dynamic>>{
           for (final Map<String, dynamic> p in flat.persons)

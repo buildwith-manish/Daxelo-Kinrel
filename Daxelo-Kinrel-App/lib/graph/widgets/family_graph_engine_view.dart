@@ -370,10 +370,25 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
 
   Size _viewportSize = Size.zero;
   bool _framed = false; // one-time initial framing per family
-  /// v5.118: Tracks the position count from the last framing. Used to
-  /// detect when the layout went from empty to non-empty (proximity
-  /// set just initialized) so _maybeFrame can re-center.
-  int _lastFramedPositionCount = 0;
+
+  // v5.x (progressive-load fix): Track whether the user has manually
+  // panned/zoomed the camera. When false, the camera auto-re-centers
+  // on the anchor whenever its layout position changes (which happens
+  // when progressive data loading completes and the layout is
+  // recomputed with the full dataset). When true, the camera respects
+  // the user's manual position and does NOT fight them.
+  //
+  // Set true by _onScaleStart (the user's finger touched the canvas
+  // for a pan/zoom gesture). Reset to false on family switch (so the
+  // new family gets the auto-centering benefit).
+  bool _userHasInteractedWithCamera = false;
+
+  // v5.x (progressive-load fix): The anchor's position as of the last
+  // camera centering. Compared against the anchor's current layout
+  // position on every build — if it moved (because more data loaded
+  // and the layout was recomputed), the camera re-centers (unless the
+  // user has manually interacted).
+  Offset? _lastFramedAnchorPos;
 
   /// v107: Pending Reset View request. Set to true when the user taps
   /// the "Center on Root" / "Reset View" button (recenterKey changes).
@@ -838,7 +853,11 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.familyId != widget.familyId) {
       _framed = false;
-      _lastFramedPositionCount = 0;
+      // v5.x (progressive-load fix): reset the user-interaction flag +
+      // last-framed anchor position on family switch so the new
+      // family gets the auto-centering benefit.
+      _userHasInteractedWithCamera = false;
+      _lastFramedAnchorPos = null;
       _camera
         ..resetInitialFit()
         ..setFamilyId(widget.familyId);
@@ -2013,6 +2032,11 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         duration: const Duration(milliseconds: 1),
         curve: Curves.linear,
       );
+
+      // v5.x (progressive-load fix): record the anchor's position so
+      // the build loop can detect when it changes (because more data
+      // loaded and the layout was recomputed) and re-center.
+      _lastFramedAnchorPos = anchorPos;
     } else {
       // No positions at all — fall back to the old bounding-box fit.
       _camera.initialFitOnce(layout.positions, _viewportSize);
@@ -2020,6 +2044,77 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
 
     _culler.invalidate();
     if (mounted) setState(() {});
+  }
+
+  /// v5.x (progressive-load fix): Detects when the anchor node's layout
+  /// position has changed since the last camera centering (because
+  /// progressive data loading completed and the layout was recomputed
+  /// with the full dataset). When the anchor drifts AND the user hasn't
+  /// manually interacted with the camera, re-center automatically.
+  ///
+  /// This is the fix for the bug where the anchor node is visible for
+  /// 3-5 seconds after open, then disappears when the full dataset
+  /// finishes loading and the layout recalculates — the old code only
+  /// centered once (_framed = true, never runs again), so the anchor's
+  /// new position was off-screen with no camera follow.
+  ///
+  /// The threshold for "meaningful change" is 5px — small enough to
+  /// catch real layout shifts, large enough to avoid re-centering on
+  /// sub-pixel rounding noise.
+  void _maybeRecenterOnAnchorDrift(
+    GraphLayoutResult layout,
+    FlatGraphResult flat,
+    String? viewerPersonId,
+  ) {
+    if (_lastFramedAnchorPos == null) return; // not framed yet
+    if (layout.positions.isEmpty) return;
+
+    // Resolve the anchor's current position (same priority chain as
+    // _maybeFrame: viewer → isAnchor → first person).
+    Offset? currentAnchorPos;
+    if (viewerPersonId != null) {
+      currentAnchorPos = layout.positions[viewerPersonId];
+    }
+    if (currentAnchorPos == null) {
+      final anchorId = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
+      if (anchorId != null) {
+        currentAnchorPos = layout.positions[anchorId];
+      }
+    }
+    if (currentAnchorPos == null && layout.positions.isNotEmpty) {
+      currentAnchorPos = layout.positions.values.first;
+    }
+    if (currentAnchorPos == null) return;
+
+    // Compare against the last-framed position. If the anchor moved
+    // meaningfully (> 5px), re-center.
+    const double kDriftThreshold = 5.0;
+    final drift = (currentAnchorPos - _lastFramedAnchorPos!).distance;
+    if (drift < kDriftThreshold) return; // no meaningful drift
+
+    // The anchor drifted — re-center the camera on the new position.
+    // Use the SAME shared helper as _maybeFrame and the recenter
+    // button, so all three produce identical centering. Snap
+    // instantly (1ms) — this is a background re-centering, not a
+    // user-initiated action, so no animation is needed.
+    final cam = _computeAnchorCenteredCamera(
+      anchorPos: currentAnchorPos,
+      viewportSize: _viewportSize,
+      bottomChrome: widget.bottomChromeHeight,
+      allPositions: layout.positions,
+    );
+
+    _camera.animateTo(
+      cam.panX,
+      cam.panY,
+      cam.zoom,
+      duration: const Duration(milliseconds: 1),
+      curve: Curves.linear,
+    );
+
+    // Record the new position so we don't re-center again until the
+    // NEXT layout change.
+    _lastFramedAnchorPos = currentAnchorPos;
   }
 
   /// v4.16: _onLayoutChanged is now a NO-OP.
@@ -2131,10 +2226,16 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         curve: Curves.easeOutCubic,
       );
     }
+
+    // v5.x (progressive-load fix): record the anchor's position so the
+    // build loop can detect future drift. Also reset the
+    // _userHasInteractedWithCamera flag — a manual recenter is the
+    // user saying "put me back on the anchor", so we re-enable
+    // auto-centering until the next manual pan/zoom.
+    _lastFramedAnchorPos = focusPosition;
+    _userHasInteractedWithCamera = false;
     _culler.invalidate();
   }
-
-  // ── Expand / collapse ────────────────────────────────────────────────────
 
   String _localizeKinshipKey(String key) {
     try {
