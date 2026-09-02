@@ -1212,37 +1212,48 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             left: Directionality.of(context) == TextDirection.rtl ? null : 16,
             bottom: fabBottomOffset,
             child: Builder(builder: (context) {
-              // v5.x (stats-panel fix): compute MEMBERS, LINKS, GENS
-              // from the DISCLOSED/expanded subgraph, not the full
-              // family totals. The disclosed set is the proximity
-              // visibleIds MINUS the density-collapsed hidden IDs.
+              // v5.x (stable-stats fix): compute MEMBERS, LINKS, GENS
+              // from the DISCLOSURE LEVEL — the set of persons NOT
+              // hidden by MANUALLY collapsed branches. This is stable:
+              // it only changes when the user explicitly taps a "+N"
+              // chip to expand or long-presses a node to collapse.
+              //
+              // Previous version read from proximityGraphProvider
+              // (the BFS-expanded proximity set) which changes
+              // constantly during progressive data loading (714 →
+              // 50 → 150 → 50...) and from density-collapsed hidden
+              // IDs which also change as the layout recalculates. Both
+              // are rendering/optimization mechanisms, not disclosure
+              // state — they made the stats panel numbers unstable.
+              //
               // The "View all X" button still uses the full family
               // total (graph.persons.length) — only the three stat
               // numbers change.
-              final proximityState =
-                  ref.watch(proximityGraphProvider);
               final collapseState =
                   ref.watch(branchCollapseProvider);
 
-              // Start with the proximity set (the "expanded" nodes).
-              // If proximity is not initialized yet, fall back to
-              // all persons (so the initial frame shows the full
-              // count, which is the pre-proximity behavior).
-              Set<String> disclosedIds;
-              if (proximityState.isInitialized &&
-                  proximityState.visibleIds.isNotEmpty) {
-                disclosedIds = proximityState.visibleIds;
-              } else {
-                disclosedIds = {
-                  for (final p in graph.persons)
-                    (p['id'] ?? '').toString(),
-                };
+              // The disclosed set: ALL persons MINUS persons hidden by
+              // MANUALLY collapsed branches (user-initiated collapses).
+              // We intentionally do NOT subtract auto-collapsed
+              // (density-driven) branches here — those are a rendering
+              // optimization that changes with layout recalculation,
+              // not a user disclosure choice. The stats should reflect
+              // "what the user has chosen to see", not "what the
+              // renderer decided to cull for performance."
+              final manuallyHiddenIds = <String>{};
+              for (final b in collapseState.collapsedBranches) {
+                if (collapseState.manuallyCollapsedRoots
+                    .contains(b.rootPersonId)) {
+                  manuallyHiddenIds.addAll(b.hiddenMemberIds);
+                }
               }
 
-              // Remove density-collapsed hidden IDs.
-              disclosedIds = disclosedIds
-                  .where((id) =>
-                      !collapseState.allHiddenMemberIds.contains(id))
+              final allPersonIds = <String>{
+                for (final p in graph.persons)
+                  (p['id'] ?? '').toString(),
+              };
+              final disclosedIds = allPersonIds
+                  .where((id) => !manuallyHiddenIds.contains(id))
                   .toSet();
 
               // Count members: the number of disclosed person IDs.
