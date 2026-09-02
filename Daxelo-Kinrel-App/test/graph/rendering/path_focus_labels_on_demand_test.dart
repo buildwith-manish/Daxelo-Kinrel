@@ -163,14 +163,20 @@ void main() {
       );
       painter.paint(canvas, const Size(1000, 1000));
 
-      // 3 path-focused edges → 3 labels rendered.
-      expect(canvas.drawParagraphCount, 3,
-          reason: '3 path-focused edges → 3 labels must be rendered');
-      // Each label is drawn as a drawRRect (background + border) — so
-      // 6 drawRRect calls (2 per label).
-      expect(canvas.drawRRectCount, greaterThanOrEqualTo(6),
-          reason: 'Each label has a background + border → at least 6 '
-              'drawRRect calls for 3 labels');
+      // v5.x (BUG-1 fix): the floating edge midpoint labels have been
+      // REMOVED. The painter no longer calls _paintPathFocusLabel —
+      // relationship labels are only shown on NODES (under their name),
+      // never as standalone floating labels at edge midpoints. This
+      // test now asserts 0 drawParagraph calls (no labels on edges).
+      expect(canvas.drawParagraphCount, 0,
+          reason: 'v5.x (BUG-1 fix): floating edge midpoint labels '
+              'have been REMOVED. No labels should be rendered on '
+              'edges — only on nodes (which are separate widgets, '
+              'not painted by EngineEdgePainter).');
+      // No label backgrounds either.
+      expect(canvas.drawRRectCount, 0,
+          reason: 'v5.x (BUG-1 fix): no label background/border '
+              'drawRRect calls — labels are gone.');
     });
 
     test(
@@ -223,11 +229,9 @@ void main() {
       );
       painter.paint(canvas, const Size(1000, 1000));
 
-      // Only 3 labels should be rendered — e4 is NOT in
-      // pathFocusedEdgeIds so its label must NOT be drawn.
-      expect(canvas.drawParagraphCount, 3,
-          reason: 'e4 is not path-focused → its label must NOT be '
-              'rendered, even though pathFocusLabels contains it');
+      // v5.x (BUG-1 fix): labels are always 0 now — removed entirely.
+      expect(canvas.drawParagraphCount, 0,
+          reason: 'v5.x (BUG-1 fix): no edge labels at all — removed.');
     });
 
     test(
@@ -243,8 +247,7 @@ void main() {
       painter.paint(canvas, const Size(1000, 1000));
 
       expect(canvas.drawParagraphCount, 0,
-          reason: 'DOT LOD must not render labels — text would be '
-              'invisible at that zoom tier');
+          reason: 'v5.x (BUG-1 fix): no edge labels at any tier — removed.');
     });
 
     test(
@@ -262,14 +265,14 @@ void main() {
       );
       painter.paint(canvas, const Size(1000, 1000));
 
-      // Only 2 labels (e1 and e3) — e2's empty label is skipped.
-      expect(canvas.drawParagraphCount, 2,
-          reason: 'Empty label strings must be skipped');
+      // v5.x (BUG-1 fix): labels are always 0 now — removed entirely.
+      expect(canvas.drawParagraphCount, 0,
+          reason: 'v5.x (BUG-1 fix): no edge labels at all — removed.');
     });
 
     test(
-        'Case 7: CHIP LOD renders labels (the second tier that allows '
-        'text)', () {
+        'Case 7: CHIP LOD does NOT render labels (BUG-1 fix removed all '
+        'edge labels)', () {
       final canvas = _RecordingCanvas();
       final painter = buildPainter(
         pathFocusedEdgeIds: {'e1', 'e2', 'e3'},
@@ -279,9 +282,8 @@ void main() {
       );
       painter.paint(canvas, const Size(1000, 1000));
 
-      expect(canvas.drawParagraphCount, 3,
-          reason: 'CHIP LOD must render labels (the second text-'
-              'allowing tier)');
+      expect(canvas.drawParagraphCount, 0,
+          reason: 'v5.x (BUG-1 fix): no edge labels at any tier — removed.');
     });
   });
 }

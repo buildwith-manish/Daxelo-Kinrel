@@ -1093,6 +1093,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
         // v5.91: Split the combined "Inbox" button into two separate,
         // visually paired pill buttons — "Linking" and "Invites".
         // Each pill hides itself entirely when its own count is 0.
+        // v5.x (BUG-2 fix): shifted left by 56px to make room for the
+        // persistent "Recenter" FAB in the top-right corner.
         if (!ref.watch(rearrangeModeProvider))
           Builder(builder: (context) {
             final unlinkedCount =
@@ -1104,7 +1106,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             if (!showLinking && !showInvites) return const SizedBox.shrink();
             return Positioned(
               top: MediaQuery.of(context).padding.top + 8,
-              right: 16,
+              right: 72, // v5.x: shifted left from 16 to make room for FAB
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1129,6 +1131,34 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             onDismiss: () {
               ref.read(hasSeenIndirectBadgeProvider.notifier).state = true;
             },
+          ),
+
+        // v5.x (BUG-2 fix — anchor node visibility): a persistent
+        // "Recenter" FAB in the TOP-RIGHT corner — always visible
+        // (not just when the anchor is off-screen) so the user can
+        // ALWAYS find their way back to the anchor node. The user
+        // reported "neither the anchor node nor any labeled person
+        // node is visible on screen at all — just bare connection
+        // lines cutting across an empty viewport. The user has no
+        // way to tell where they are in the graph or find their way
+        // back to the anchor." The existing bottom toolbar's "Center
+        // on Root" button IS there but isn't discoverable enough.
+        // This FAB is visually prominent (orange, top-right) and
+        // uses the my_location icon (more recognizable than
+        // center_focus_strong_outlined).
+        if (!ref.watch(rearrangeModeProvider))
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            right: 16,
+            child: FloatingActionButton.small(
+              heroTag: 'recenter_anchor_fab',
+              backgroundColor: KinrelColors.darkCard,
+              foregroundColor: KinrelColors.orange,
+              elevation: 4,
+              tooltip: 'Center on You',
+              onPressed: _centerOnRootUser,
+              child: const Icon(Icons.my_location, size: 20),
+            ),
           ),
 
         // REMOVED: Floating legend button (top-right).

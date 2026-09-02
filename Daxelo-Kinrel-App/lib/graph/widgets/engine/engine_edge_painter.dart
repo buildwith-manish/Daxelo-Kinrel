@@ -1300,45 +1300,26 @@ class EngineEdgePainter extends CustomPainter {
         );
       }
 
-      // v5.x (Feature 3 — labels on demand): render a small
-      // relationship-type label near the midpoint of every path-
-      // focused edge. The label is NOT rendered by default — only
-      // when the user has selected a node AND a path has been
-      // resolved (pathFocusActive). This is the "labels on demand,
-      // not always-on" behavior the user asked for.
+      // v5.x (BUG-1 fix — REMOVE floating edge midpoint labels): the
+      // previous version (commit db93991e) rendered small relationship-
+      // type labels (e.g. "Father", "Wife", "Uncle") at the midpoint
+      // of each path-focused edge. The user reported: "a text label
+      // like 'Spouse' appears floating directly on top of a connection
+      // line, sitting at a midpoint dot in empty canvas space,
+      // disconnected from either node. Since neither endpoint node is
+      // currently visible on screen, this label just hangs alone in the
+      // middle of nowhere with no context."
       //
-      // Visibility rules (all must hold):
-      //   • pathFocusActive AND the edge is in pathFocusedEdgeIds.
-      //   • pathFocusLabels contains a non-empty label for this edge.
-      //   • The edge quality tier allows text (full or chip — NOT dot,
-      //     micro, or far). Text would be invisible / unreadable at
-      //     those tiers anyway.
-      //   • The edge is NOT currently being connect-on-open animated
-      //     (skipMidpointForConnectOnOpen) — same rule as the midpoint
-      //     symbol, so the label appears AT THE SAME TIME as the dot.
-      //   • Reduced motion: there is no animation here, so reduced
-      //     motion doesn't change the behavior. The label appears
-      //     statically when the path is focused.
-      if (pathFocusActive &&
-          !skipMidpointForConnectOnOpen &&
-          pathFocusLabels != null &&
-          isPathFocused &&
-          (edgeQuality == EdgeQuality.full ||
-              edgeQuality == EdgeQuality.chip)) {
-        final label = pathFocusLabels![e.id];
-        if (label != null && label.isNotEmpty) {
-          _paintPathFocusLabel(
-            canvas: canvas,
-            s: shortenedSource,
-            t: shortenedTarget,
-            label: label,
-            edgeColor: edgeColor,
-            lateralOffset: totalLateralOffset,
-            waypointDelta: waypointDelta,
-            edgeId: e.id,
-          );
-        }
-      }
+      // The fix: REMOVE the floating edge midpoint label entirely.
+      // Relationship type labels should only ever be shown attached to
+      // a node (under its name, as already happens for nodes like
+      // "Yakshitha — Wife"), never as a standalone floating label
+      // sitting at the midpoint of an edge. The _paintPathFocusLabel
+      // method + the pathFocusLabels field + the _buildPathFocusLabels
+      // helper in canvas_mixin + the pathFocusLabels parameter on
+      // EdgeSelectionWrapper are all kept for API compatibility but
+      // are now UNUSED — the paint loop no longer calls
+      // _paintPathFocusLabel.
     }
 
     // v5.62 (BUG 1 FIX): The separate union-junction orange dot has
