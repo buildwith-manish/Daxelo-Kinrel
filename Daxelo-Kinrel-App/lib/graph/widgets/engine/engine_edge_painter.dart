@@ -855,6 +855,49 @@ class EngineEdgePainter extends CustomPainter {
       );
       final Offset effectiveSource = resolved.source;
       final Offset effectiveTarget = resolved.target;
+
+      // v5.x (BUG-1 fix — edge routing through nodes): shorten both
+      // endpoints so the bezier STARTS and ENDS at the node circle
+      // BOUNDARY, not at the circle center. Previously the line went
+      // from circle-center to circle-center, visually passing through
+      // the node circle — the user reported "connection lines cut
+      // straight across or underneath node circles instead of stopping
+      // cleanly at each node's edge."
+      //
+      // The positions map already has the _kCircleCenterYOffset
+      // applied (see canvas_mixin.dart line 1080), so effectiveSource
+      // and effectiveTarget ARE the visual circle centers. We shorten
+      // each endpoint by the circle radius (36px for regular nodes,
+      // 45px for the anchor — we use 38px as a compromise that clears
+      // the regular circle + a 2px buffer, and is hidden behind the
+      // anchor's larger circle) along the chord direction.
+      //
+      // When the distance between the two centers is less than 2× the
+      // inset (very close nodes), we shorten proportionally to avoid
+      // the endpoints crossing (which would produce a degenerate
+      // zero-length or reversed path).
+      const double kEdgeEndpointInset = 38.0;
+      final Offset chord = effectiveTarget - effectiveSource;
+      final double chordLength = chord.distance;
+      final Offset shortenedSource;
+      final Offset shortenedTarget;
+      if (chordLength > 1.0 && chordLength > kEdgeEndpointInset * 2) {
+        // Normal case: shorten both endpoints by the inset.
+        final Offset dir = chord / chordLength;
+        shortenedSource = effectiveSource + dir * kEdgeEndpointInset;
+        shortenedTarget = effectiveTarget - dir * kEdgeEndpointInset;
+      } else if (chordLength > 1.0) {
+        // Very close nodes: shorten proportionally (half the chord
+        // each side) so the endpoints meet in the middle.
+        final Offset dir = chord / chordLength;
+        final double halfChord = chordLength / 2;
+        shortenedSource = effectiveSource + dir * halfChord;
+        shortenedTarget = effectiveTarget - dir * halfChord;
+      } else {
+        // Degenerate (same position) — no shortening.
+        shortenedSource = effectiveSource;
+        shortenedTarget = effectiveTarget;
+      }
       // v64 (BUG-2 FIX): Pass the lateral offset so parallel edges
       // (e.g. parent + spouse between the same pair) are visually
       // separated instead of stacked on top of each other.
@@ -892,8 +935,8 @@ class EngineEdgePainter extends CustomPainter {
         edgeId: fullCacheId,
         sourceId: e.sourceId,
         targetId: e.targetId,
-        sourcePos: effectiveSource,
-        targetPos: effectiveTarget,
+        sourcePos: shortenedSource,
+        targetPos: shortenedTarget,
         pathFactory: (Offset ss, Offset tt) =>
             _bezier(ss, tt,
                 lateralOffset: totalLateralOffset,
@@ -1097,8 +1140,8 @@ class EngineEdgePainter extends CustomPainter {
           _paintMidpoint(
             canvas: canvas,
             path: path,
-            s: effectiveSource,
-            t: effectiveTarget,
+            s: shortenedSource,
+            t: shortenedTarget,
             midpointSymbol: midpointSymbol,
             customColors: customColors,
             style: style,
@@ -1237,8 +1280,8 @@ class EngineEdgePainter extends CustomPainter {
           // the rendered curve. The primary computation uses path
           // metrics along the cached Path, which was itself built from
           // these effective endpoints — so they agree by construction.
-          s: effectiveSource,
-          t: effectiveTarget,
+          s: shortenedSource,
+          t: shortenedTarget,
           midpointSymbol: midpointSymbol,
           customColors: customColors,
           style: style,
@@ -1286,8 +1329,8 @@ class EngineEdgePainter extends CustomPainter {
         if (label != null && label.isNotEmpty) {
           _paintPathFocusLabel(
             canvas: canvas,
-            s: effectiveSource,
-            t: effectiveTarget,
+            s: shortenedSource,
+            t: shortenedTarget,
             label: label,
             edgeColor: edgeColor,
             lateralOffset: totalLateralOffset,

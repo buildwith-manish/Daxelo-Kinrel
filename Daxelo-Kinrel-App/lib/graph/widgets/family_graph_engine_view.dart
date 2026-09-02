@@ -1919,15 +1919,28 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     }
 
     if (anchorPos != null) {
-      final bool reduced = MediaQuery.disableAnimationsOf(context);
+      // v5.x (BUG-2 fix — initial camera centering): on FIRST load,
+      // ALWAYS snap instantly (duration 1ms) instead of animating over
+      // 300ms. The user reported "the anchor node is not centered in
+      // the viewport — it loads shifted toward one side, and I have
+      // to manually pan to bring it to the center." The 300ms
+      // animation meant the user saw the graph at the INITIAL camera
+      // position (pan=0, zoom=1.0) for 300ms before it animated to the
+      // centered position — the initial position shows the graph-space
+      // origin at the top-left corner, which looks off-center.
+      // Snapping instantly on first load means the user never sees the
+      // off-center initial state. The animated transition is reserved
+      // for subsequent focus/recenter actions (where the user
+      // EXPECTS to see the camera move).
+      //
+      // _maybeFrame is only called when _framed is false (first load),
+      // so we always snap here. The 300ms animated transition is used
+      // by _maybeFocusCameraOnNode (the focus/recenter action) instead.
 
       // v5.121c: Compute a zoom level that fits the proximity set's
       // bounding box around the anchor. At zoom 1.0, only the anchor
       // is visible because the canvas is large. We need to zoom OUT
       // so that the anchor + its neighbors are all visible.
-      //
-      // Compute the bounding box of all positions relative to the anchor,
-      // then find the zoom that fits this box in the viewport.
       double maxDistX = 0;
       double maxDistY = 0;
       for (final pos in layout.positions.values) {
@@ -1936,25 +1949,10 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         if (dx > maxDistX) maxDistX = dx;
         if (dy > maxDistY) maxDistY = dy;
       }
-      // The zoom must be low enough that 2*maxDist fits in the viewport.
-      // UX (v5.130): Reduced padding from 200 → 160 so the initial frame
-      // uses more of the available viewport — previously the graph looked
-      // unnecessarily sparse with too much empty space around it on first
-      // open. 160px still leaves enough room for the largest node circles
-      // (anchor diameter ≈ 90px) + name labels (~16px) + relation label
-      // (~12px) on every side without clipping.
       const kFramePadding = 160.0;
       final targetZoomX = (_viewportSize.width - kFramePadding) / (2 * maxDistX + 1);
       final targetZoomY = (_viewportSize.height - kFramePadding) / (2 * maxDistY + 1);
       var fitZoom = targetZoomX < targetZoomY ? targetZoomX : targetZoomY;
-      // UX (v5.130): Widened the zoom clamp range from [0.4, 1.5] →
-      // [0.35, 1.3]. Lowering the floor to 0.35 lets large families
-      // zoom out one more step so all members fit on screen instead
-      // of being clipped at the edges. Lowering the ceiling from 1.5 →
-      // 1.3 stops small families from being over-zoomed on first open
-      // (which made the graph feel "in your face" and lost surrounding
-      // context). The 0.35 floor still keeps nodes legible (above the
-      // 0.28 MINI enter threshold).
       if (fitZoom > 1.3) fitZoom = 1.3;
       if (fitZoom < 0.35) fitZoom = 0.35;
 
@@ -1968,24 +1966,13 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       final targetPanY =
           (_viewportSize.height / 2) - (focusCircleCenter.dy * fitZoom);
 
-      if (reduced) {
-        // Reduced motion: snap instantly (duration 0).
-        _camera.animateTo(
-          targetPanX,
-          targetPanY,
-          fitZoom,
-          duration: const Duration(milliseconds: 1),
-          curve: Curves.linear,
-        );
-      } else {
-        _camera.animateTo(
-          targetPanX,
-          targetPanY,
-          fitZoom,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic,
-        );
-      }
+      _camera.animateTo(
+        targetPanX,
+        targetPanY,
+        fitZoom,
+        duration: const Duration(milliseconds: 1),
+        curve: Curves.linear,
+      );
     } else {
       // No positions at all — fall back to the old bounding-box fit.
       _camera.initialFitOnce(layout.positions, _viewportSize);
