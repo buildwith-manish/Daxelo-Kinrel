@@ -444,6 +444,10 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // first, cancel the timer and open the action sheet instead.
   Timer? _chipExpandTimer;
 
+  // v5.x (perf fix): Debounce timer for camera-driven widget rebuilds.
+  // See _onCameraChanged — prevents setState on every pan/zoom frame.
+  Timer? _cameraRebuildTimer;
+
   // Phase 6 (hit-test parity): Cache the current couple unions so the
   // tap hit-tester can apply the SAME union-redirect the painter applies
   // to the rendered bezier curve. Without this, tapping a parent→child
@@ -914,6 +918,7 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   @override
   void dispose() {
     _telemetryTimer?.cancel();
+    _cameraRebuildTimer?.cancel(); // v5.x (perf fix)
     _camera.removeListener(_onCameraChanged);
     _camera.dispose();
     _culler.dispose();
@@ -1440,8 +1445,30 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     if (!mounted) return;
     final Rect vp = _graphSpaceViewport();
     final Lod lod = _lodFor(_camera.zoomLevel);
+
+    // v5.x (perf fix): Do NOT call setState() during an active pan/zoom
+    // gesture. The AnimatedBuilder in canvas_mixin already handles
+    // the camera transform repaint — setState here is ONLY needed to
+    // rebuild the node widget list when the visible set changes (new
+    // nodes enter/leave the viewport). Calling setState on every
+    // camera frame during a drag forces a full Element-tree rebuild
+    // (every Positioned node widget), which is the #1 cause of the
+    // "stuck stuttery" panning the user reported.
+    //
+    // Fix: debounce the rebuild — if the culler says a rebuild is
+    // needed, schedule it for the NEXT microtask (not synchronously).
+    // During a fast drag, multiple camera changes arrive before the
+    // next frame, so the debounce coalesces them into a single
+    // rebuild per frame. The AnimatedBuilder handles the transform
+    // in the meantime, so the user sees smooth panning with the
+    // current node set; the node list updates one frame later when
+    // new nodes are needed.
     if (lod != _lastLod || _culler.shouldRebuild(_lastCullViewport, vp)) {
-      setState(() {});
+      // Debounce: only schedule one rebuild per frame.
+      _cameraRebuildTimer?.cancel();
+      _cameraRebuildTimer = Timer(const Duration(milliseconds: 16), () {
+        if (mounted) setState(() {});
+      });
     }
   }
 

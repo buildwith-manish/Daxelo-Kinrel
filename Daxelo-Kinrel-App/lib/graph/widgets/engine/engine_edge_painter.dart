@@ -44,6 +44,16 @@ class EngineEdgePainter extends CustomPainter {
   /// recomputation per edge per frame.
   static final Map<String, ui.Image> _midpointImageCache = {};
 
+  // v5.x (perf fix): Cache Paint objects that use MaskFilter.blur —
+  // the most expensive paint operation. These are keyed by their
+  // visual parameters (color, alpha, blur sigma, stroke width) so
+  // they're only recreated when something visually changes, not on
+  // every camera-driven repaint. The cache is static (shared across
+  // all painter instances) because the same (color, alpha, sigma,
+  // width) tuple always produces the same Paint — no need for
+  // per-instance duplication.
+  static final Map<String, Paint> _blurPaintCache = {};
+
   // ── v5.125 (Step 6): anchor-knot edge geometry constants ───────────
 
   /// Radial gap (px) between the two endpoints' distances from the
@@ -85,6 +95,36 @@ class EngineEdgePainter extends CustomPainter {
   /// Clear the midpoint image cache. Call when theme or DPI changes.
   static void clearMidpointCache() {
     _midpointImageCache.clear();
+  }
+
+  /// v5.x (perf fix): Clear the blur paint cache. Call when theme
+  /// changes (so cached paints with old colors are regenerated).
+  static void clearBlurPaintCache() {
+    _blurPaintCache.clear();
+  }
+
+  /// v5.x (perf fix): Get a cached blur Paint, creating it only if
+  /// the (color, alpha, sigma, strokeWidth) tuple hasn't been seen
+  /// before. This avoids reallocating Paint + MaskFilter.blur on
+  /// every frame during pan/zoom — the blur is computed once and
+  /// reused across frames until the visual parameters change.
+  static Paint _cachedBlurPaint({
+    required int color,
+    required double alpha,
+    required double sigma,
+    required double strokeWidth,
+  }) {
+    final key = '${color}_${alpha.toStringAsFixed(3)}_'
+        '${sigma.toStringAsFixed(2)}_${strokeWidth.toStringAsFixed(2)}';
+    return _blurPaintCache.putIfAbsent(key, () {
+      return Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..color = Color(color).withValues(alpha: alpha)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, sigma)
+        ..strokeCap = StrokeCap.round
+        ..isAntiAlias = true;
+    });
   }
 
   // ── v5.x (Feature 1): per-edge deterministic curve + dot phase ──────
@@ -1379,16 +1419,17 @@ class EngineEdgePainter extends CustomPainter {
     required double ridgeAlpha,
   }) {
     // PASS 1 — contact shadow (only when blur is allowed — never at DOT).
+    // v5.x (perf fix): use cached blur paint to avoid reallocating
+    // MaskFilter.blur on every frame.
     if (shadowSigma > 0) {
       canvas.save();
       canvas.translate(GraphLighting.shadowOffset.dx, GraphLighting.shadowOffset.dy);
-      final shadowPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = bodyWidth + 2.4
-        ..color = Colors.black.withValues(alpha: GraphLighting.shadowAlpha)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, shadowSigma)
-        ..strokeCap = StrokeCap.round
-        ..isAntiAlias = true;
+      final shadowPaint = _cachedBlurPaint(
+        color: Colors.black.value,
+        alpha: GraphLighting.shadowAlpha,
+        sigma: shadowSigma,
+        strokeWidth: bodyWidth + 2.4,
+      );
       canvas.drawPath(path, shadowPaint);
       canvas.restore();
     }
@@ -1451,16 +1492,16 @@ class EngineEdgePainter extends CustomPainter {
     }
 
     // PASS 1 — per-dash contact shadow.
+    // v5.x (perf fix): cached blur paint.
     if (shadowSigma > 0) {
       canvas.save();
       canvas.translate(GraphLighting.shadowOffset.dx, GraphLighting.shadowOffset.dy);
-      final shadowPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = bodyWidth + 2.0
-        ..color = Colors.black.withValues(alpha: GraphLighting.shadowAlpha)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, shadowSigma)
-        ..strokeCap = StrokeCap.round
-        ..isAntiAlias = true;
+      final shadowPaint = _cachedBlurPaint(
+        color: Colors.black.value,
+        alpha: GraphLighting.shadowAlpha,
+        sigma: shadowSigma,
+        strokeWidth: bodyWidth + 2.0,
+      );
       for (final seg in segments) {
         canvas.drawPath(seg, shadowPaint);
       }
@@ -1525,30 +1566,28 @@ class EngineEdgePainter extends CustomPainter {
     // PASS D — Kinrel orange interaction aura (drawn FIRST so it sits
     // underneath the body). Continuous even for dashed edges, but very
     // subtle so dash gaps still read.
+    // v5.x (perf fix): cached blur paint for the orange aura.
     if (shadowSigma > 0) {
-      final auraPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = bodyWidth + GraphLighting.selectedAuraWidthDelta
-        ..color = KinrelColors.orange
-            .withValues(alpha: GraphLighting.selectedAuraAlpha)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, GraphLighting.selectedAuraSigma)
-        ..strokeCap = StrokeCap.round
-        ..isAntiAlias = true;
+      final auraPaint = _cachedBlurPaint(
+        color: KinrelColors.orange.value,
+        alpha: GraphLighting.selectedAuraAlpha,
+        sigma: GraphLighting.selectedAuraSigma,
+        strokeWidth: bodyWidth + GraphLighting.selectedAuraWidthDelta,
+      );
       canvas.drawPath(path, auraPaint);
     }
 
     // PASS A — stronger neutral contact shadow.
+    // v5.x (perf fix): cached blur paint.
     if (shadowSigma > 0) {
       canvas.save();
       canvas.translate(GraphLighting.shadowOffset.dx, GraphLighting.shadowOffset.dy);
-      final shadowPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = bodyWidth + 2.8
-        ..color = Colors.black
-            .withValues(alpha: GraphLighting.selectedShadowAlpha)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, shadowSigma)
-        ..strokeCap = StrokeCap.round
-        ..isAntiAlias = true;
+      final shadowPaint = _cachedBlurPaint(
+        color: Colors.black.value,
+        alpha: GraphLighting.selectedShadowAlpha,
+        sigma: shadowSigma,
+        strokeWidth: bodyWidth + 2.8,
+      );
       canvas.drawPath(path, shadowPaint);
       canvas.restore();
     }
