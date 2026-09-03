@@ -121,8 +121,9 @@ import '../../../core/services/graph_layout_service.dart'
     show GraphPerson;
 import '../../../graph/interaction/proximity_graph_state.dart'
     show proximityGraphProvider;
-import '../../../graph/interaction/branch_collapse_state.dart'
-    show branchCollapseProvider;
+// v5.x (converged-stats fix): removed the branchCollapseProvider import
+// — the stats panel now reads from proximityGraphProvider (the same
+// source that drives layout + rendering), not from branchCollapseProvider.
 import '../../../graph/interaction/graph_search_state.dart'
     show graphSearchProvider;
 // v5.x (legend wiring fix): GraphLegend is now actually rendered by
@@ -1212,51 +1213,63 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
             left: Directionality.of(context) == TextDirection.rtl ? null : 16,
             bottom: fabBottomOffset,
             child: Builder(builder: (context) {
-              // v5.x (stable-stats fix): compute MEMBERS, LINKS, GENS
-              // from the DISCLOSURE LEVEL — the set of persons NOT
-              // hidden by MANUALLY collapsed branches. This is stable:
-              // it only changes when the user explicitly taps a "+N"
-              // chip to expand or long-presses a node to collapse.
+              // v5.x (converged-stats fix): MEMBERS/LINKS/GENS now read
+              // from the SAME source that drives layout + rendering —
+              // proximityGraphProvider.visibleIds. This is the ONLY
+              // system that actually determines which nodes get laid
+              // out and drawn on the canvas (graphLayoutProvider
+              // filters to proximityState.visibleIds at line 1743 of
+              // family_graph_provider.dart).
               //
-              // Previous version read from proximityGraphProvider
-              // (the BFS-expanded proximity set) which changes
-              // constantly during progressive data loading (714 →
-              // 50 → 150 → 50...) and from density-collapsed hidden
-              // IDs which also change as the layout recalculates. Both
-              // are rendering/optimization mechanisms, not disclosure
-              // state — they made the stats panel numbers unstable.
+              // Audit results:
+              // - proximityGraphProvider: DRIVES rendering. BFS-expands
+              //   from anchor, starts at ~30-50 nodes (immediate family
+              //   + ring 2), grows only when user taps to expand
+              //   (expandFromPerson) or when a collapsed branch is
+              //   re-expanded (revealPersons). This is the correct
+              //   source of truth for "what's actually on screen."
+              // - branchCollapseProvider: A rendering optimization
+              //   that auto-hides subtrees when the total exceeds 50.
+              //   NOT a disclosure mechanism — it changes on every
+              //   layout recalculation. Manually-collapsed branches
+              //   are a secondary system for user-initiated hiding.
+              // - expandCollapseProvider (DisclosureLevel): was the
+              //   intended source of truth but was REMOVED in v5.132
+              //   ("System B REMOVAL"). Its visibleNodeIds field was
+              //   never actually wired to the renderer.
               //
-              // The "View all X" button still uses the full family
-              // total (graph.persons.length) — only the three stat
-              // numbers change.
-              final collapseState =
-                  ref.watch(branchCollapseProvider);
+              // The stats panel now reads from proximityGraphProvider
+              // — the same source the layout provider uses. This
+              // ensures MEMBERS/LINKS/GENS always match what's drawn.
+              //
+              // Stability: the proximity set only changes when:
+              //   1. It initializes (first load) — one transition
+              //   2. The user taps to expand (expandFromPerson)
+              //   3. A collapsed branch is re-expanded (revealPersons)
+              // It does NOT change on camera pan/zoom/auto-center.
+              // During progressive data loading, the proximity set
+              // may grow once (when the full edge list arrives and BFS
+              // can reach more neighbors), but this is a single
+              // transition, not the repeated 714 -> 50 -> 150 -> 50
+              // oscillation that the previous approach caused.
+              final proximityState =
+                  ref.watch(proximityGraphProvider);
 
-              // The disclosed set: ALL persons MINUS persons hidden by
-              // MANUALLY collapsed branches (user-initiated collapses).
-              // We intentionally do NOT subtract auto-collapsed
-              // (density-driven) branches here — those are a rendering
-              // optimization that changes with layout recalculation,
-              // not a user disclosure choice. The stats should reflect
-              // "what the user has chosen to see", not "what the
-              // renderer decided to cull for performance."
-              final manuallyHiddenIds = <String>{};
-              for (final b in collapseState.collapsedBranches) {
-                if (collapseState.manuallyCollapsedRoots
-                    .contains(b.rootPersonId)) {
-                  manuallyHiddenIds.addAll(b.hiddenMemberIds);
-                }
+              // Use the proximity visibleIds as the disclosed set.
+              // If not initialized yet, show the full family count
+              // (pre-proximity behavior — one frame only).
+              final Set<String> disclosedIds;
+              if (proximityState.isInitialized &&
+                  proximityState.visibleIds.isNotEmpty) {
+                disclosedIds = proximityState.visibleIds;
+              } else {
+                disclosedIds = {
+                  for (final p in graph.persons)
+                    (p['id'] ?? '').toString(),
+                };
               }
 
-              final allPersonIds = <String>{
-                for (final p in graph.persons)
-                  (p['id'] ?? '').toString(),
-              };
-              final disclosedIds = allPersonIds
-                  .where((id) => !manuallyHiddenIds.contains(id))
-                  .toSet();
-
-              // Count members: the number of disclosed person IDs.
+              // Count members.
               final disclosedMembers = disclosedIds.length;
 
               // Count links: relationships where BOTH endpoints are
@@ -1294,15 +1307,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
                 // count), but the button uses the full total.
                 fullFamilyMembers: graph.persons.length,
                 isTruncated: graph.isTruncated,
-                // v5.116: "View all" opens the IN-GRAPH search overlay
-                // instead of navigating away to the members list. This
-                // keeps the user in the graph context — selecting a
-                // person from search centers the camera on them and
-                // highlights their direct connections.
-                // NOTE: "View all" still uses the FULL family total
-                // (graph.persons.length), not the disclosed count —
-                // this button is correctly meant to show the grand
-                // total of all members in the family.
                 familyId: widget.familyId,
                 onViewAllMembers: () {
                   setState(() => _showSearch = true);
