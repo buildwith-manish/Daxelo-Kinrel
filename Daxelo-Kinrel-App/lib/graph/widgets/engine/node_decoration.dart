@@ -27,6 +27,58 @@ import 'node_state.dart' show NodeState;
 // PSEUDO-3D NODE PAINTER
 // ═══════════════════════════════════════════════════════════════════════
 
+// v5.x (perf fix): Cache Paint objects that use MaskFilter.blur —
+// the most expensive paint operation in this painter. These are
+// keyed by their visual parameters (color, alpha, blur sigma) so
+// they're only recreated when something visually changes, not on
+// every camera-driven repaint. The cache is static (shared across
+// all painter instances) because the same (color, alpha, sigma)
+// tuple always produces the same Paint — no need for per-instance
+// duplication.
+//
+// Without this cache, pinch-zoom re-rasterizes every visible node's
+// RepaintBoundary layer, and each paint call reallocates a Paint +
+// MaskFilter.blur for the shadow, specular micro-highlight, and
+// selection/focus glow — three blur allocations per node per frame.
+// With many nodes visible that's enough to drop frames on mid-tier
+// hardware, even though the visual output is identical to the
+// previous frame. The cache makes the blur allocation a one-time
+// cost per unique visual signature.
+final Map<String, Paint> _nodeBlurPaintCache = {};
+
+/// Clear the node decoration blur paint cache. Call when the theme
+/// changes (so cached paints with old colors are regenerated) or
+/// during hot reload in development.
+void clearNodeBlurPaintCache() {
+  _nodeBlurPaintCache.clear();
+}
+
+/// Get a cached fill-style blur Paint, creating it only if the
+/// (color, alpha, sigma) tuple hasn't been seen before. This avoids
+/// reallocating Paint + MaskFilter.blur on every frame during
+/// pinch-zoom — the blur is computed once and reused across frames
+/// until the visual parameters change.
+///
+/// All three blur allocations in this painter (node shadow, specular
+/// micro-highlight, selection/focus contact glow) are fill-style and
+/// route through this helper. Stroke-style blur paints live in
+/// engine_edge_painter.dart and have their own cache.
+Paint _cachedNodeBlurPaint({
+  required int color,
+  required double alpha,
+  required double sigma,
+}) {
+  final key =
+      '${color}_${alpha.toStringAsFixed(3)}_${sigma.toStringAsFixed(2)}';
+  return _nodeBlurPaintCache.putIfAbsent(key, () {
+    return Paint()
+      ..style = PaintingStyle.fill
+      ..color = Color(color).withValues(alpha: alpha)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, sigma)
+      ..isAntiAlias = true;
+  });
+}
+
 
 // ═══════════════════════════════════════════════════════════════════════
 // PREMIUM OBSIDIAN GLASS MEDALLION — Pseudo-3D Node System v3
@@ -165,12 +217,19 @@ class Pseudo3DNodePainter extends CustomPainter {
 
     // ══ LAYER 1: Contact + ambient shadow ══════════════════════════
     // Neutral dark shadow, offset down-right. NOT coloured.
+    // v5.x (perf fix): cached blur paint — the (black, shadowAlpha,
+    // shadowBlur) tuple is stable per (isAnchor, generationIndex)
+    // combination, so the Paint + MaskFilter.blur is allocated once
+    // per unique signature and reused across all subsequent paint
+    // calls (including every pinch-zoom re-rasterization).
     canvas.drawCircle(
       center + params.shadowOffset,
       r,
-      Paint()
-        ..color = Colors.black.withValues(alpha: params.shadowAlpha)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, params.shadowBlur),
+      _cachedNodeBlurPaint(
+        color: Colors.black.value,
+        alpha: params.shadowAlpha,
+        sigma: params.shadowBlur,
+      ),
     );
 
     // ══ LAYER 2: Extruded side wall ════════════════════════════════
@@ -366,23 +425,37 @@ class Pseudo3DNodePainter extends CustomPainter {
       );
 
       // Micro-highlight spot near top edge
+      // v5.x (perf fix): cached blur paint — sigma is constant 1.5,
+      // alpha varies with specularAlpha (which is itself stable per
+      // isAnchor/generationIndex). The Paint + MaskFilter.blur is
+      // allocated once per unique (white, alpha) signature.
       canvas.drawCircle(
         Offset(center.dx - r * 0.03, center.dy - r * 0.42),
         params.specularThickness * 0.35,
-        Paint()
-          ..color = Colors.white.withValues(alpha: specAlpha * 0.6)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5),
+        _cachedNodeBlurPaint(
+          color: Colors.white.value,
+          alpha: specAlpha * 0.6,
+          sigma: 1.5,
+        ),
       );
     }
 
     // ══ LAYER 8: Contact glow (selected/focused ONLY) ══════════════
     // Tight, behind the object, never washes across face.
+    // v5.x (perf fix): cached blur paint — the (borderColor, glowAlpha,
+    // glowBlur) tuple is stable per (borderColor, nodeState, diameter)
+    // combination. Selected and focused nodes are typically a small
+    // fraction of visible nodes, so this cache entry is created rarely
+    // and reused heavily during pan/zoom of the canvas.
     if (params.glowAlpha > 0) {
-      canvas.drawCircle(center, r + 1.5,
-        Paint()
-          ..color = params.borderColor.withValues(alpha: params.glowAlpha)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, params.glowBlur)
-          ..style = PaintingStyle.fill,
+      canvas.drawCircle(
+        center,
+        r + 1.5,
+        _cachedNodeBlurPaint(
+          color: params.borderColor.value,
+          alpha: params.glowAlpha,
+          sigma: params.glowBlur,
+        ),
       );
     }
 
