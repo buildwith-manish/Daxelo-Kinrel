@@ -256,7 +256,7 @@ class SpousePairForce extends ForceComponent {
 
     _spousePairs = [
       for (final r in relationships)
-        if (spouseKeys.contains(r.relationshipKey))
+        if (spouseKeys.contains(r.relationshipKey.toLowerCase()))
           (from: r.fromPersonId, to: r.toPersonId),
     ];
   }
