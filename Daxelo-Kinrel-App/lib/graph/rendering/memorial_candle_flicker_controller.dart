@@ -12,11 +12,26 @@
 //
 // Reduced motion: the consumer checks `MediaQuery.disableAnimationsOf`
 // and, when true, passes a negative sentinel to the painter (which
-// renders a static candle). The controller still runs so it's ready
-// if the user toggles reduced motion off mid-session.
+// renders a static candle).
 //
 // Performance: only deceased nodes (typically 2-10 in a family) watch
-// this provider. Negligible cost.
+// this provider.
+//
+// v5.x (PERF FIX — dead ticker removal):
+//   • The provider is now `autoDispose` (stops with the graph screen).
+//   • The controller NO LONGER runs `.repeat()`. Same reasoning as
+//     birthday_pulse_controller.dart: the consumer reads `.value`
+//     only during node BUILDS (which happen on cull/LOD changes,
+//     never per animation tick), so the flicker never actually
+//     animated per-frame — the 1s `.repeat()` ticker was scheduling
+//     frames around the clock for a random-snapshot visual. The old
+//     bare-Ticker implementation also ignored TickerMode, so it kept
+//     running with the app backgrounded, and being a plain
+//     (non-autoDispose) provider it ran FOREVER after the first
+//     graph visit — saturating the frame pipeline on every screen.
+//   • The value is pinned to 0.5, which the [_FlameFlickerCurve]
+//     maps to a steady mid-flame (alpha ≈ 0.75). Deceased nodes keep
+//     their candle — at zero continuous CPU cost.
 
 import 'dart:math' as math;
 
@@ -35,10 +50,8 @@ class _MemorialCandleTickerProvider implements TickerProvider {
 /// A [Curve] that produces a flame-like flicker by summing two sines
 /// (2Hz and 3Hz) with a phase offset, then normalizing to [0, 1].
 ///
-/// The controller runs at 1.0s duration with `repeat()` (no reverse),
-/// so the curve sees t ∈ [0, 1] over 1 second. At 2Hz, that's 2 full
-/// cycles per second; at 3Hz, 3 cycles. The sum creates an irregular
-/// but bounded flicker.
+/// Kept for API compatibility and unit tests. With the static-value
+/// controller it evaluates once at t=0.5 (a steady mid-flame).
 class _FlameFlickerCurve extends Curve {
   const _FlameFlickerCurve();
 
@@ -55,18 +68,21 @@ class _FlameFlickerCurve extends Curve {
   }
 }
 
-/// Provides the shared memorial-candle flicker [Animation<double>] (0..1).
+/// Provides the shared memorial-candle flicker [Animation<double>]
+/// (static mid-flame value).
 ///
-/// All deceased nodes watch this animation to drive their candle
-/// flicker in sync. Non-deceased nodes do NOT watch this provider.
+/// All deceased nodes read this value to drive their candle in sync.
+/// Non-deceased nodes do NOT watch this provider.
 ///
-/// The flicker runs at ~3Hz (fast sine) modulated by a 2Hz slow sine
-/// and a 0.5Hz drift — a flame-like, non-mechanical pattern.
-final memorialCandleFlickerProvider = Provider<Animation<double>>((ref) {
+/// v5.x (PERF FIX): autoDispose + no `.repeat()` — see the file
+/// header. The value is a constant mid-flame flicker.
+final memorialCandleFlickerProvider = Provider.autoDispose<Animation<double>>((ref) {
   final controller = AnimationController(
     duration: const Duration(seconds: 1),
     vsync: const _MemorialCandleTickerProvider(),
-  )..repeat();
+    // v5.x (PERF FIX): static mid-flame value — no ticking.
+    value: 0.5,
+  );
   final animation = CurvedAnimation(
     parent: controller,
     curve: const _FlameFlickerCurve(),

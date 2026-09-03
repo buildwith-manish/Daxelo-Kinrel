@@ -20,6 +20,7 @@
 // ChangeNotifier).
 
 import 'dart:math' as math;
+import 'dart:ui' as ui show Picture, PictureRecorder;
 
 import 'package:flutter/material.dart';
 
@@ -161,7 +162,7 @@ class _Bounds {
 }
 
 class _MiniMapPainter extends CustomPainter {
-  const _MiniMapPainter({
+  _MiniMapPainter({
     required this.positions,
     required this.anchorId,
     required this.camera,
@@ -172,6 +173,30 @@ class _MiniMapPainter extends CustomPainter {
   final String? anchorId;
   final CameraController camera;
   final Size viewportSize;
+
+  // v5.x (PERF + STALE-RECT FIX — cached static dot field):
+  //
+  // Two problems with the previous implementation:
+  //
+  //  1. shouldRepaint compared `old.camera != camera` — the SAME
+  //     CameraController instance every time, so it always returned
+  //     false during pan/zoom and the viewport rectangle was FROZEN
+  //     (stale) while the user navigated. It only ever caught up on
+  //     a layout data change.
+  //  2. If that comparison HAD worked, every camera frame would have
+  //     re-issued O(N) drawCircle calls (700+ members = 700+ raster
+  //     commands/frame) just to redraw identical dots.
+  //
+  // The fix addresses both: shouldRepaint now compares the camera's
+  // ACTUAL state (panX/panY/zoom), and the static dot field is
+  // recorded ONCE into a [ui.Picture] keyed by (positions identity,
+  // anchorId, canvas size). Panning/zooming moves only the viewport
+  // rectangle, so those frames replay the cached picture and draw
+  // one rect + one fill — O(1) per frame instead of O(N).
+  static ui.Picture? _cachedDots;
+  static Map<String, Offset>? _cachedDotsPositions;
+  static String? _cachedDotsAnchorId;
+  static Size? _cachedDotsSize;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -204,22 +229,39 @@ class _MiniMapPainter extends CustomPainter {
       );
     }
 
-    // Draw all nodes as small dots.
-    // UX (v5.130): Slightly larger + more opaque dots (1.0 → 1.2 radius,
-    // 0.6 → 0.7 alpha) so individual members read more clearly in dense
-    // regions. Anchor dot is enlarged (1.8 → 2.4) for stronger orientation
-    // cue — the anchor is the "You are here" of the graph.
-    final dotPaint = Paint()..color = Colors.white.withValues(alpha: 0.7);
-    final anchorPaint = Paint()..color = const Color(0xFFE8612A);
-    for (final entry in positions.entries) {
-      final pos = toMini(entry.value);
-      final isAnchor = entry.key == anchorId;
-      canvas.drawCircle(
-        pos,
-        isAnchor ? 2.4 : 1.2,
-        isAnchor ? anchorPaint : dotPaint,
-      );
+    // v5.x (PERF FIX): record the static dot field ONCE per
+    // (positions, anchorId, size) combination; replay it on every
+    // camera-driven repaint. The dots do not change while the camera
+    // pans/zooms — only the viewport rectangle does.
+    final bool dotsDirty = !identical(_cachedDotsPositions, positions) ||
+        _cachedDotsAnchorId != anchorId ||
+        _cachedDotsSize != size ||
+        _cachedDots == null;
+    if (dotsDirty) {
+      final recorder = ui.PictureRecorder();
+      final dotCanvas = Canvas(recorder);
+      // UX (v5.130): Slightly larger + more opaque dots (1.0 → 1.2 radius,
+      // 0.6 → 0.7 alpha) so individual members read more clearly in dense
+      // regions. Anchor dot is enlarged (1.8 → 2.4) for stronger orientation
+      // cue — the anchor is the "You are here" of the graph.
+      final dotPaint = Paint()..color = Colors.white.withValues(alpha: 0.7);
+      final anchorPaint = Paint()..color = const Color(0xFFE8612A);
+      for (final entry in positions.entries) {
+        final pos = toMini(entry.value);
+        final isAnchor = entry.key == anchorId;
+        dotCanvas.drawCircle(
+          pos,
+          isAnchor ? 2.4 : 1.2,
+          isAnchor ? anchorPaint : dotPaint,
+        );
+      }
+      _cachedDots?.dispose();
+      _cachedDots = recorder.endRecording();
+      _cachedDotsPositions = positions;
+      _cachedDotsAnchorId = anchorId;
+      _cachedDotsSize = size;
     }
+    canvas.drawPicture(_cachedDots!);
 
     // Draw viewport rectangle (current camera view in graph-space).
     final viewport = camera.computeViewport(viewportSize);
@@ -242,9 +284,18 @@ class _MiniMapPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MiniMapPainter old) {
-    return old.positions != positions ||
+    // v5.x (STALE-RECT FIX): the old check compared
+    // `old.camera != camera` — always the same instance, so this
+    // returned false during pan/zoom and the viewport rectangle never
+    // followed the camera. Now we compare the camera's actual state
+    // (cheap double compares) so the rect tracks every pan/zoom frame,
+    // while the dot field itself is served from the cached picture
+    // (see [paint]).
+    return !identical(old.positions, positions) ||
         old.anchorId != anchorId ||
-        old.camera != camera ||
-        old.viewportSize != viewportSize;
+        old.viewportSize != viewportSize ||
+        old.camera.panX != camera.panX ||
+        old.camera.panY != camera.panY ||
+        old.camera.zoomLevel != camera.zoomLevel;
   }
 }

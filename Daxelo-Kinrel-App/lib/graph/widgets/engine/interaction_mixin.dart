@@ -53,6 +53,19 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // interim repaint is needed (15% past this baseline).
     _painterActiveGesture = true;
     _lastCommittedZoom = _camera.zoomLevel;
+    // v5.x (PERF FIX — ambient particle gesture pause): stop the
+    // ambient particle ticker for the duration of the gesture so the
+    // pan/zoom gets the ENTIRE frame budget (no competing repaints,
+    // no competing raster work). _onScaleEnd resumes the drift.
+    // The autoDispose controller is only alive while the particle
+    // layer is mounted — exactly when gestures here are possible —
+    // but the read is wrapped defensively anyway (e.g. reduced
+    // motion → the layer never watches → provider not alive).
+    try {
+      ref.read(ambientParticleControllerProvider).stop();
+    } catch (_) {
+      // Provider not alive — nothing to pause.
+    }
     // v5.29 Fix 4: In rearrange mode, a new scale gesture starting
     // (finger down after a prior long-press) should NOT reset the drag
     // — it IS the drag. Do not clear _rearrangeDragId here.
@@ -81,6 +94,17 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       // approach is to just call setState here — Flutter batches
       // multiple setStates in the same frame into a single rebuild.
       setState(() {});
+    }
+
+    // v5.x (PERF FIX — ambient particle gesture pause): the gesture is
+    // over — resume the ambient particle drift (it was paused in
+    // _onScaleStart). Guarded like the pause call: if the provider is
+    // not alive (reduced motion / layer unmounted), there is nothing
+    // to resume.
+    try {
+      ref.read(ambientParticleControllerProvider).repeat();
+    } catch (_) {
+      // Provider not alive — nothing to resume.
     }
 
     // v5.34: New workflow — NO SaveLockPill after each drag. The live
@@ -204,7 +228,14 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       final currentZoom = _camera.zoomLevel;
       final baseline = _lastCommittedZoom > 0 ? _lastCommittedZoom : currentZoom;
       final zoomDelta = (currentZoom - baseline).abs() / baseline;
-      if (zoomDelta > _kZoomCommitThreshold) {
+      // NOTE: extension methods cannot see the extended type's statics
+      // unqualified — `_kZoomCommitThreshold` lives on
+      // _FamilyGraphEngineViewState (family_graph_engine_view.dart) and
+      // MUST be referenced through the class name. The unqualified form
+      // broke `dart2js` on Vercel ("The getter '_kZoomCommitThreshold'
+      // isn't defined for the type '_FamilyGraphEngineViewState'").
+      if (zoomDelta >
+          _FamilyGraphEngineViewState._kZoomCommitThreshold) {
         _zoomCommitRevision++;
         _lastCommittedZoom = currentZoom;
         // setState is debounced by _onCameraChanged (16ms Timer) for

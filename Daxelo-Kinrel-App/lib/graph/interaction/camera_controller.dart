@@ -109,6 +109,30 @@ class CameraController extends ChangeNotifier {
   /// Debounce timer for position persistence.
   Timer? _saveDebounceTimer;
 
+  /// v5.x (PERF FIX — pinch analytics spam): Debounce timer for zoom
+  /// analytics. `zoomTo()` is called on EVERY frame of an active pinch
+  /// gesture (60-120 times/second). Logging a Firebase Analytics event
+  /// per call saturated the platform channel + Firebase's dispatch
+  /// queue on mobile — the single biggest cause of the "graph gets
+  /// stuck when I pinch to zoom a little" report on iOS/Android (web
+  /// was unaffected because analytics is disabled there, which is
+  /// exactly the reported symptom split).
+  ///
+  /// A trailing debounce (800ms after the LAST zoom change) coalesces
+  /// an entire gesture into exactly ONE event carrying the final
+  /// resting zoom level — better data AND zero per-frame cost.
+  Timer? _zoomAnalyticsDebounce;
+
+  /// v5.x (PERF FIX — pinch analytics spam): debounced zoom logger.
+  /// See [_zoomAnalyticsDebounce]. Fire-and-forget — analytics must
+  /// never block or break the camera.
+  void _logZoomAnalyticsDebounced() {
+    _zoomAnalyticsDebounce?.cancel();
+    _zoomAnalyticsDebounce = Timer(const Duration(milliseconds: 800), () {
+      AnalyticsService.instance.logGraphZoomed(_zoomLevel);
+    });
+  }
+
   /// Current family ID for position persistence.
   String? _currentFamilyId;
 
@@ -399,7 +423,14 @@ class CameraController extends ChangeNotifier {
     _clampPan(); // v4.4: re-clamp after zoom (content may shrink/grow)
     _scheduleSave();
 
-    AnalyticsService.instance.logGraphZoomed(_zoomLevel);
+    // v5.x (PERF FIX — pinch analytics spam): was
+    // `AnalyticsService.instance.logGraphZoomed(_zoomLevel)` called
+    // directly here — i.e. on EVERY frame of a pinch gesture. Now
+    // debounced so a whole gesture (even a 10-second pinch) emits
+    // exactly ONE event with the final zoom level, 800ms after the
+    // last zoom change. Removes 60-120 Firebase events/second of
+    // main-thread work from the pinch path.
+    _logZoomAnalyticsDebounced();
 
     notifyListeners();
   }
@@ -1028,6 +1059,7 @@ class CameraController extends ChangeNotifier {
   void dispose() {
     _cancelAnimation();
     _saveDebounceTimer?.cancel();
+    _zoomAnalyticsDebounce?.cancel(); // v5.x (PERF FIX): pending zoom log
     _animationController?.dispose();
     // Flush any pending position save.
     _positionMemory?.flush();
