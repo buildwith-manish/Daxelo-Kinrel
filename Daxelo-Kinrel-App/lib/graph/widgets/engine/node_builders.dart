@@ -43,6 +43,36 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
     // if/else priority logic with ONE source of truth.
     final pathFocusState = ref.watch(graphPathFocusProvider).focus;
     final searchState = ref.watch(graphSearchProvider);
+
+    // v5.x (tap-highlight fix): when a plain tap selects a node (but
+    // focus mode is NOT active), compute the selected node's
+    // first-degree neighbors from the edge list and pass them as
+    // firstDegreeIds. This ensures the person nodes at the other end
+    // of the connecting edges ALSO light up (not just the edges).
+    //
+    // Previously, firstDegreeIds only came from graphFocusProvider
+    // (long-press "Isolate Connections" mode). A plain tap set
+    // selectedNodeProvider but never populated firstDegreeIds — so
+    // the edges dimmed/brightened correctly but the neighbor nodes
+    // stayed at normal opacity, same as unrelated nodes.
+    Set<String>? effectiveFirstDegreeIds = focusState.firstDegreeIds;
+    final bool tapHighlightActive =
+        selectedId != null && focusedId == null && !searchState.isActive;
+    if (tapHighlightActive && flat != null) {
+      // Compute first-degree neighbors of the selected node from the
+      // raw edge list. This is cheap (one pass over the edges).
+      effectiveFirstDegreeIds = <String>{};
+      for (final r in flat.relationships) {
+        final from = r['fromPersonId']?.toString();
+        final to = r['toPersonId']?.toString();
+        if (from == selectedId && to != null) {
+          effectiveFirstDegreeIds.add(to);
+        } else if (to == selectedId && from != null) {
+          effectiveFirstDegreeIds.add(from);
+        }
+      }
+    }
+
     final emphasis = computeEmphasisLevel(
       nodeId: id,
       focusedPersonId: focusedId,
@@ -52,7 +82,7 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
           ? {pathFocusState.viewerPersonId, pathFocusState.targetPersonId}
           : null,
       searchMatchIds: searchState.isActive ? searchState.matchIdSet : null,
-      firstDegreeIds: focusState.firstDegreeIds,
+      firstDegreeIds: effectiveFirstDegreeIds,
       searchActive: searchState.isActive,
       focusActive: focusedId != null,
     );
@@ -76,17 +106,27 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
     // the isolated person's immediate relationship circle stays fully
     // visible.
     //
-    // 2nd-degree relatives ARE faded (unlike the old v95 behavior which
-    // kept them bright). Only the focused person + 1st-degree neighbours
-    // remain at full opacity.
-    //
-    // When no focus is active, opacity stays at 1.0 (no change to the
-    // default rendering).
+    // v5.x (tap-highlight fix): ALSO apply the three-tier hierarchy
+    // on a plain TAP (not just focus mode). When a node is tapped:
+    //   - Tapped node: full opacity (1.0)
+    //   - Direct connections: elevated opacity (0.90)
+    //   - Everyone else: dimmed (0.40) — faintly visible, not hidden
+    // This matches the EmphasisLevel values in emphasis_priority.dart.
+    // The node's emphasis.opacity is already computed above — use it
+    // directly for the opacity. This is the SINGLE source of truth
+    // for both the visual treatment (glow/selected) AND the opacity.
     final double nodeOpacity;
     if (focusedId != null) {
+      // Focus mode (long-press "Isolate Connections"): 18% for
+      // non-isolated nodes, matching the edge dimAlpha.
       final bool isIsolated = id == focusedId ||
           focusState.firstDegreeIds.contains(id);
       nodeOpacity = isIsolated ? 1.0 : 0.18;
+    } else if (tapHighlightActive) {
+      // Plain tap: use the emphasis level's opacity directly.
+      // This gives: selected (1.0), immediateRelative (0.90),
+      // dimmed (0.40) — the three-tier hierarchy the user wants.
+      nodeOpacity = emphasis.opacity;
     } else {
       nodeOpacity = 1.0;
     }

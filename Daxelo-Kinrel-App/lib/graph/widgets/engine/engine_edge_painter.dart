@@ -805,7 +805,23 @@ class EngineEdgePainter extends CustomPainter {
     // selected without focus being active, which is a short-lived
     // state (selection usually leads to opening the info sheet).
     // The stronger 0.18 alpha is acceptable for both cases.
-    const double dimAlpha = 0.18; // v5.65: strong fade for isolation (was 0.85)
+    // v5.x (tap-highlight fix): use a LESS aggressive dim for plain
+    // taps (0.40) vs focus mode (0.18). This gives the three-tier
+    // hierarchy:
+    //   - Focus mode (long-press): selected + connections bright,
+    //     everything else barely visible (0.18)
+    //   - Plain tap: selected + connections bright, everything else
+    //     faintly visible (0.40) — less aggressive, keeps context
+    //
+    // The dimAlpha is determined by whether this is a tap-driven dim
+    // (no focus/search active) or a focus-driven dim. The
+    // _computeDimmedEdgeIds in interaction_mixin returns a non-empty
+    // set when a tap is active (the "default-dim" state from the
+    // v5.x Feature 2 dim hierarchy). We detect tap-vs-focus by
+    // checking whether pathFocusActive is true (focus mode sets it)
+    // — if neither focus nor path is active, the dim is from a tap.
+    final bool focusDrivenDim = pathFocusActive;
+    final double dimAlpha = focusDrivenDim ? 0.18 : 0.40;
 
     // v5.125 (Step 6): Per-edge sector fan-out offsets for edges
     // sharing the ANCHOR endpoint (geometry only — see

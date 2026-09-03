@@ -103,11 +103,18 @@ EmphasisLevel computeEmphasisLevel({
   bool searchActive = false,
   bool focusActive = false,
 }) {
+  // v5.x (tap-highlight fix): also dim unrelated nodes when a plain
+  // tap selection is active (selectedPersonId != null) — not just
+  // when focus/search is active. This creates the three-tier visual
+  // hierarchy on tap: selected (1.0), direct connections (0.90),
+  // everyone else (0.40).
+  final bool tapActive = selectedPersonId != null && !focusActive && !searchActive;
+
   // Start at the lowest level.
   var level = EmphasisLevel.normal;
 
-  // If focus or search is active, a non-emphasised node is dimmed.
-  if (focusActive || searchActive) {
+  // If focus, search, or tap is active, a non-emphasised node is dimmed.
+  if (focusActive || searchActive || tapActive) {
     level = EmphasisLevel.dimmed;
   }
 
