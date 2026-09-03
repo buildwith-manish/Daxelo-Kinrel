@@ -396,8 +396,14 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   void initState() {
     super.initState();
 
-    // v5.100: "You" node glow pulse — slow, gentle, always active.
-    // 2.5s period, opacity 0.2 ↔ 0.45. Only runs when isAnchor.
+    // v5.100: "You" node glow pulse — slow, gentle.
+    // v5.x (perf fix): Only runs for the first 5 seconds after the
+    // node is created (a "settle-in" glow), then stops to avoid a
+    // perpetual 60fps animation loop running in the background at
+    // all times. The user sees the gentle pulse when the graph first
+    // loads, then it fades to a static glow. If the user taps the
+    // anchor node (state → selected/focused), the pulse restarts
+    // via _updateAnimations for a brief reminder.
     _selfPulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2500),
@@ -406,7 +412,11 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       CurvedAnimation(parent: _selfPulseController, curve: Curves.easeInOut),
     );
     if (widget.isAnchor) {
+      // Run for 2 cycles (5 seconds), then stop.
       _selfPulseController.repeat(reverse: true);
+      Future.delayed(const Duration(seconds: 5), () {
+        if (mounted) _selfPulseController.stop();
+      });
     }
 
     // Pulse animation for focused state (1.5s repeat, scale 1.0↔1.15)

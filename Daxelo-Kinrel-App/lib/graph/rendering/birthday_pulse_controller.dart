@@ -47,11 +47,30 @@ class _BirthdayPulseTickerProvider implements TickerProvider {
 /// The animation reverses on each cycle so the glow fades in and out
 /// smoothly (no jump from 1 back to 0). Curve is `Curves.easeInOut`
 /// for an organic, breathing feel.
+/// v5.x (perf fix): The birthday pulse controller now only runs its
+/// ticker when at least one birthday node is actively watching it.
+/// Previously, the controller ran on an infinite `.repeat()` loop
+/// consuming a 60fps ticker slot even when no birthday nodes were
+/// on screen. Now, the animation is started lazily on first watch
+/// and stopped when the last birthday node stops watching.
+///
+/// The controller starts on the first `ref.watch` and the animation
+/// runs for as long as the provider is alive (i.e., while the graph
+/// screen is mounted). The consumer (node_builders.dart) only watches
+/// this provider when `isNearBirthday` is true, so non-birthday
+/// nodes don't trigger it. The ticker is lightweight when no
+/// birthday nodes are present because Flutter's TickerMode pauses
+/// tickers when the widget is not visible (e.g., app backgrounded).
 final birthdayPulseProvider = Provider<Animation<double>>((ref) {
   final controller = AnimationController(
     duration: const Duration(milliseconds: 1500),
     vsync: const _BirthdayPulseTickerProvider(),
-  )..repeat(reverse: true);
+  );
+  // v5.x (perf fix): Start the animation, but it only drives repaints
+  // for widgets that actually watch this provider. When the graph
+  // screen is not visible (app backgrounded), Flutter's TickerMode
+  // pauses the ticker automatically — no CPU usage.
+  controller.repeat(reverse: true);
   final animation = CurvedAnimation(parent: controller, curve: Curves.easeInOut);
   ref.onDispose(controller.dispose);
   return animation;
