@@ -1258,6 +1258,19 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                         _connectOnOpenController?.state.currentEdgeIds ??
                             const <String>{},
                     zoom: _camera.zoomLevel,  // v5.107: zoom-aware stroke
+                    // v5.x (perf fix — pinch-zoom GPU-transform): pass
+                    // the active-gesture flag + commit revision through
+                    // to the painter so it can skip zoom-driven
+                    // repaints during an active pinch (the AnimatedBuilder
+                    // in canvas_mixin already scales the cached raster
+                    // on the GPU via a Matrix4 transform — re-rasterizing
+                    // every edge every frame of the gesture, including
+                    // the O(edges) anchor sector fan-out computation,
+                    // is the architectural bottleneck this fixes).
+                    // See _FamilyGraphEngineViewState for the gesture
+                    // flag + commit-revision lifecycle.
+                    painterActiveGesture: _painterActiveGesture,
+                    zoomCommitRevision: _zoomCommitRevision,
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.

@@ -222,6 +222,10 @@ class EngineEdgePainter extends CustomPainter {
     // not always-on" behavior the user asked for. Null (the default)
     // keeps the exact pre-v5.x behavior — no labels are rendered.
     this.pathFocusLabels,
+    // v5.x (perf fix — pinch-zoom GPU-transform): gesture flag and
+    // commit revision. See the doc block on the fields below.
+    this.painterActiveGesture = false,
+    this.zoomCommitRevision = 0,
   });
 
   final Map<String, Offset> positions;
@@ -335,6 +339,45 @@ class EngineEdgePainter extends CustomPainter {
   /// The painter only reads from this map — it never resolves labels
   /// itself, so it stays a pure function of its inputs.
   final Map<String, String>? pathFocusLabels;
+
+  /// v5.x (perf fix — pinch-zoom GPU-transform): True while the user
+  /// is actively performing a pinch-zoom (or pan) gesture on the
+  /// graph canvas. When true, [shouldRepaint] IGNORES the
+  /// `old.zoom != zoom` check — the AnimatedBuilder in canvas_mixin
+  /// is already scaling the cached raster layer on the GPU via a
+  /// `Matrix4` transform, so re-rasterizing every edge on every
+  /// frame of the gesture is pure CPU waste. Edge strokes will
+  /// visually thicken/thin slightly during the gesture as the cached
+  /// raster scales, then snap to the correct constant-width strokes
+  /// once the gesture ends and a final repaint is committed (see
+  /// [zoomCommitRevision]).
+  ///
+  /// This mirrors the WhatsApp / Instagram pinch-zoom pattern: the
+  /// photo (here, the cached edge raster) is just `Matrix4`-scaled
+  /// during the gesture; nothing re-renders until the finger lifts.
+  ///
+  /// Default false — backward compatible for every existing
+  /// construction site that doesn't pass this field.
+  final bool painterActiveGesture;
+
+  /// v5.x (perf fix — pinch-zoom GPU-transform): Monotonically
+  /// increasing integer bumped by the engine view state to force
+  /// a real repaint (with the current zoom baked into stroke
+  /// widths) at the moments where re-rasterization is actually
+  /// needed:
+  ///
+  ///   • On gesture end (`_onScaleEnd`) — so the resting frame has
+  ///     the correct constant-width strokes.
+  ///   • During a long pinch, when zoom has moved past ~15% past
+  ///     the last committed zoom — so very large pinch excursions
+  ///     still get periodic stroke-width refresh (otherwise a 3×
+  ///     pinch would noticeably over-thicken before snapping back).
+  ///
+  /// The painter always repaints when this revision changes,
+  /// regardless of [painterActiveGesture].
+  ///
+  /// Default 0 — no forced commit. Backward compatible.
+  final int zoomCommitRevision;
 
   // ── Path construction ─────────────────────────────────────────────────
 
@@ -2233,6 +2276,18 @@ class EngineEdgePainter extends CustomPainter {
     //
     // We intentionally do NOT use `identical()` — on Flutter Web
     // (dart2js) it is unreliable across widget rebuilds.
+    //
+    // v5.x (perf fix — pinch-zoom GPU-transform): The `old.zoom != zoom`
+    // check below is GATED on `!painterActiveGesture`. During an
+    // active pinch-zoom gesture, the AnimatedBuilder in canvas_mixin
+    // is scaling the cached raster on the GPU; re-rasterizing every
+    // edge (which reruns the O(edges) anchor sector fan-out
+    // computation) on every frame of the gesture is the architectural
+    // bottleneck the user identified. Edge strokes thicken/thin
+    // slightly during the gesture (acceptable — matches the
+    // WhatsApp/Instagram pinch pattern) and snap to correct
+    // constant-width strokes on gesture end, when the engine view
+    // bumps [zoomCommitRevision] to force one final real repaint.
     return old.graphRevision != graphRevision ||
         old.layoutRevision != layoutRevision ||
         old.edgeVisualRevision != edgeVisualRevision ||
@@ -2259,7 +2314,16 @@ class EngineEdgePainter extends CustomPainter {
         !_sameSet(old.connectOnOpenCurrentEdgeIds,
             connectOnOpenCurrentEdgeIds) ||
         // v5.107: Repaint when zoom changes (stroke width is zoom-dependent)
-        old.zoom != zoom ||
+        // — BUT only when no active gesture is in progress. During a
+        // pinch-zoom, the GPU transform handles the visual update;
+        // the next real repaint is committed via [zoomCommitRevision]
+        // on gesture end (or when the 15% interim threshold is hit).
+        (!painterActiveGesture && old.zoom != zoom) ||
+        // v5.x (perf fix): always repaint when the engine view state
+        // forces a zoom commit (gesture end, or large interim zoom
+        // excursion). This is the "snap back to constant-width
+        // strokes" trigger.
+        old.zoomCommitRevision != zoomCommitRevision ||
         // v5.125 (Step 6): repaint when the anchor geometry changes (the
         // bow-around-the-anchor routing + sector fan-out depend on it).
         old.anchorId != anchorId ||

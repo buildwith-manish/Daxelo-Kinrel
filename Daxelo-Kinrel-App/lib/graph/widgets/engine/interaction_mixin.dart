@@ -45,12 +45,44 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // the canvas, the camera respects their position until the next
     // family switch (which resets the flag).
     _userHasInteractedWithCamera = true;
+    // v5.x (perf fix — pinch-zoom GPU-transform): mark the gesture as
+    // active so the painter skips zoom-driven repaints during the
+    // gesture (the AnimatedBuilder handles the visual update via a
+    // GPU Matrix4 transform). Also record the zoom the painter last
+    // rasterized at — used by _onScaleUpdate to detect when an
+    // interim repaint is needed (15% past this baseline).
+    _painterActiveGesture = true;
+    _lastCommittedZoom = _camera.zoomLevel;
     // v5.29 Fix 4: In rearrange mode, a new scale gesture starting
     // (finger down after a prior long-press) should NOT reset the drag
     // — it IS the drag. Do not clear _rearrangeDragId here.
   }
 
   void _onScaleEnd(ScaleEndDetails d) {
+    // v5.x (perf fix — pinch-zoom GPU-transform): the gesture is over.
+    // Flip the active-gesture flag off and bump the commit revision so
+    // the painter does ONE final real repaint with the resting zoom
+    // baked into stroke widths — this is the "snap back to constant-
+    // width strokes" trigger. We MUST call setState to deliver the
+    // new painter (with painterActiveGesture=false) to the canvas,
+    // otherwise shouldRepaint would not fire (the wrapper would have
+    // the same _painterActiveGesture=true it had last frame).
+    //
+    // Note: this setState is intentionally placed BEFORE the early
+    // return paths below so the gesture-end repaint always happens —
+    // for both the rearrange-drag-release path and the normal
+    // pan/fling-release path.
+    if (_painterActiveGesture) {
+      _painterActiveGesture = false;
+      _zoomCommitRevision++;
+      _lastCommittedZoom = _camera.zoomLevel;
+      // Coalesce with any other setState that happens below by
+      // deferring to a microtask-style guard. The simplest correct
+      // approach is to just call setState here — Flutter batches
+      // multiple setStates in the same frame into a single rebuild.
+      setState(() {});
+    }
+
     // v5.34: New workflow — NO SaveLockPill after each drag. The live
     // override stays in _rearrangeLiveNodeOverrides as an unsaved
     // change. The user clicks the persistent Save button in the top
@@ -149,6 +181,41 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       final box = context.findRenderObject() as RenderBox?;
       final Offset local = box?.globalToLocal(d.focalPoint) ?? d.focalPoint;
       _camera.zoomTo(_baseZoom * d.scale, focalPoint: local);
+
+      // v5.x (perf fix — pinch-zoom GPU-transform): interim stroke-
+      // width refresh during a long pinch. The painter is currently
+      // ignoring zoom changes (painterActiveGesture=true), so the
+      // AnimatedBuilder is scaling the cached edge raster on the
+      // GPU — which is exactly what we want for smooth pinch feel.
+      // But on very large pinch excursions (e.g. 2× → 5×), the
+      // cached raster scales so much that strokes visibly over-
+      // thicken before snapping back. To prevent that, force ONE
+      // real repaint at the current zoom when the pinch has moved
+      // more than [_kZoomCommitThreshold] (15%) past the last
+      // committed zoom, and update the baseline so the next 15%
+      // window is measured incrementally.
+      //
+      // This bumps _zoomCommitRevision, which the painter treats as
+      // an unconditional repaint trigger (independent of the
+      // painterActiveGesture gate). setState is needed to deliver
+      // the new revision value to the painter — without it the
+      // wrapper would have the same revision as last frame and
+      // shouldRepaint would not fire.
+      final currentZoom = _camera.zoomLevel;
+      final baseline = _lastCommittedZoom > 0 ? _lastCommittedZoom : currentZoom;
+      final zoomDelta = (currentZoom - baseline).abs() / baseline;
+      if (zoomDelta > _kZoomCommitThreshold) {
+        _zoomCommitRevision++;
+        _lastCommittedZoom = currentZoom;
+        // setState is debounced by _onCameraChanged (16ms Timer) for
+        // the culler/LOD path, but here we want a near-immediate
+        // repaint — the painter's zoomCommitRevision change is the
+        // ONLY thing that needs to reach the wrapper. setState is
+        // safe to call here because it just schedules a build; if
+        // multiple pinch frames arrive in the same 16ms window,
+        // Flutter coalesces them into a single rebuild.
+        setState(() {});
+      }
     }
   }
 

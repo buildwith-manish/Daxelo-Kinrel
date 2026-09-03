@@ -55,6 +55,11 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
     this.connectOnOpenRevealedEdgeIds = const <String>{},
     this.connectOnOpenCurrentEdgeIds = const <String>{},
     this.zoom = 1.0,
+    // v5.x (perf fix — pinch-zoom GPU-transform): gesture flag +
+    // commit revision forwarded straight through to the painter.
+    // See the painter's field docs for the contract.
+    this.painterActiveGesture = false,
+    this.zoomCommitRevision = 0,
   });
 
   final Map<String, Offset> positions;
@@ -147,6 +152,20 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
   /// selected a node AND a path has been resolved. This is the
   /// "labels on demand, not always-on" behavior the user asked for.
   final Map<String, String>? pathFocusLabels;
+
+  /// v5.x (perf fix — pinch-zoom GPU-transform): True while the user
+  /// is actively performing a pinch-zoom (or pan) gesture on the
+  /// graph canvas. Forwarded straight through to the painter — see
+  /// [EngineEdgePainter.painterActiveGesture] for the contract.
+  final bool painterActiveGesture;
+
+  /// v5.x (perf fix — pinch-zoom GPU-transform): Monotonically
+  /// increasing integer bumped by the engine view state to force a
+  /// real repaint (with current zoom baked into stroke widths) on
+  /// gesture end and on large interim zoom excursions. Forwarded
+  /// straight through to the painter — see
+  /// [EngineEdgePainter.zoomCommitRevision] for the contract.
+  final int zoomCommitRevision;
 
   @override
   ConsumerState<EdgeSelectionWrapper> createState() =>
@@ -355,6 +374,14 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
         connectOnOpenRevealedEdgeIds: widget.connectOnOpenRevealedEdgeIds,
         connectOnOpenCurrentEdgeIds: widget.connectOnOpenCurrentEdgeIds,
         zoom: widget.zoom,  // v5.107: zoom-aware stroke width
+        // v5.x (perf fix — pinch-zoom GPU-transform): forward the
+        // gesture flag + commit revision straight through to the
+        // painter. The painter uses these to skip zoom-driven
+        // repaints during an active pinch (GPU transform handles the
+        // visual update) and to commit one real repaint on gesture
+        // end / large interim zoom excursion.
+        painterActiveGesture: widget.painterActiveGesture,
+        zoomCommitRevision: widget.zoomCommitRevision,
       ),
       child: const SizedBox.expand(),
     );

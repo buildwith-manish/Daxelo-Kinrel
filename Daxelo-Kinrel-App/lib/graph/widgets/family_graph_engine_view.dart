@@ -498,6 +498,51 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// Prevents fling momentum from being applied after a pinch release.
   bool _isPinching = false;
 
+  // v5.x (perf fix — pinch-zoom GPU-transform): The two fields below
+  // are the engine-side counterpart of the painter's
+  // [EngineEdgePainter.painterActiveGesture] +
+  // [EngineEdgePainter.zoomCommitRevision]. Together they make the
+  // pinch-zoom gesture use the SAME GPU-transform fast path that pan
+  // already uses — instead of re-rasterizing every edge on every
+  // frame of the pinch (which reruns the O(edges) anchor sector
+  // fan-out computation and is the architectural bottleneck).
+  //
+  // Lifecycle:
+  //   _onScaleStart     : set _painterActiveGesture = true,
+  //                       _lastCommittedZoom = _camera.zoomLevel
+  //                       (the zoom the painter last rendered at).
+  //   _onScaleUpdate    : if the pinch zoom has moved more than
+  //                       [_kZoomCommitThreshold] (15%) past the last
+  //                       committed zoom, bump _zoomCommitRevision
+  //                       and update _lastCommittedZoom — this gives
+  //                       large pinch excursions a periodic stroke-width
+  //                       refresh so the visual doesn't drift too far
+  //                       before snapping back.
+  //   _onScaleEnd       : set _painterActiveGesture = false and bump
+  //                       _zoomCommitRevision — this commits the one
+  //                       final real repaint at the resting zoom, so
+  //                       the constant-width strokes are correct on
+  //                       the resting frame. setState is called to
+  //                       force the rebuild that delivers the new
+  //                       painter with painterActiveGesture=false.
+  //
+  // During the gesture, the AnimatedBuilder in canvas_mixin scales
+  // the cached edge raster on the GPU via a Matrix4 transform —
+  // exactly like it does for panning. Edge strokes will visually
+  // thicken/thin slightly during the gesture (acceptable — matches
+  // WhatsApp/Instagram pinch behavior), then snap to the correct
+  // constant-width strokes on gesture end.
+  bool _painterActiveGesture = false;
+  int _zoomCommitRevision = 0;
+  /// The zoom level the painter last rasterized at. Used by
+  /// [_onScaleUpdate] to detect when a 15% interim repaint is needed
+  /// during a long pinch.
+  double _lastCommittedZoom = 1.0;
+  /// The interim-commit threshold — if the pinch zoom moves more
+  /// than 15% past the last committed zoom, force one repaint at
+  /// the new zoom baseline (and update _lastCommittedZoom).
+  static const double _kZoomCommitThreshold = 0.15;
+
   /// v2.2: Whether the graph legend panel is visible.
   /// Toggled by the "?" button in the bottom-left corner.
   bool _showLegend = false;
@@ -862,6 +907,14 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       // family gets the auto-centering benefit.
       _userHasInteractedWithCamera = false;
       _lastFramedAnchorPos = null;
+      // v5.x (perf fix — pinch-zoom GPU-transform): reset the gesture
+      // flag + commit revision on family switch so the new family
+      // doesn't inherit a stale "gesture in progress" state if the
+      // user happened to switch families mid-pinch (which can happen
+      // via deep links or provider-driven navigation).
+      _painterActiveGesture = false;
+      _zoomCommitRevision = 0;
+      _lastCommittedZoom = 1.0;
       _camera
         ..resetInitialFit()
         ..setFamilyId(widget.familyId);
@@ -1446,6 +1499,44 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     final Rect vp = _graphSpaceViewport();
     final Lod lod = _lodFor(_camera.zoomLevel);
 
+    // v5.x (perf fix — pinch-zoom GPU-transform): During an active
+    // pinch-zoom gesture, the AnimatedBuilder in canvas_mixin is
+    // scaling the cached raster on the GPU via a Matrix4 transform —
+    // exactly like it does for panning. We must NOT trigger a
+    // setState-based rebuild of the node widget list on every frame
+    // of the gesture; that would defeat the GPU-transform fast path
+    // (the same architectural bottleneck the painter fix addresses).
+    //
+    // The culler's `shouldRebuild` already has a 10% zoom threshold,
+    // but during a fast pinch it still fires multiple times per
+    // second — and each fire runs an O(visible-nodes) cull pass on
+    // the raster thread. We add a stricter gate here for the gesture
+    // window: only allow a culler-driven rebuild when the pinch has
+    // moved more than [_kZoomCommitThreshold] (15%) past the last
+    // committed zoom (matching the painter's interim-commit cadence
+    // — so the culler and the edge painter refresh on the same
+    // schedule during a long pinch). On gesture end, the
+    // _onScaleEnd handler bumps _zoomCommitRevision and calls
+    // setState, which delivers the final correct zoom to both the
+    // culler and the painter in a single coalesced rebuild.
+    if (_painterActiveGesture) {
+      final currentZoom = _camera.zoomLevel;
+      final baseline =
+          _lastCommittedZoom > 0 ? _lastCommittedZoom : currentZoom;
+      final zoomDelta = (currentZoom - baseline).abs() / baseline;
+      if (zoomDelta <= _kZoomCommitThreshold) {
+        // Within the 15% window — the GPU transform carries the
+        // visual update. Skip the culler/LOD rebuild entirely.
+        return;
+      }
+      // Crossed the 15% threshold — let the culler/LOD rebuild path
+      // below run, then update the baseline so the next window is
+      // measured incrementally. (The painter's interim-commit
+      // handler in _onScaleUpdate bumps _zoomCommitRevision on the
+      // same threshold, so both subsystems refresh in lockstep.)
+      _lastCommittedZoom = currentZoom;
+    }
+
     // v5.x (perf fix): Do NOT call setState() during an active pan/zoom
     // gesture. The AnimatedBuilder in canvas_mixin already handles
     // the camera transform repaint — setState here is ONLY needed to
@@ -1492,6 +1583,9 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     //   2. RepaintBoundary — each node is cached as a raster layer
     //   3. EdgePathCache — edge paths are memoized
     //   4. AnimatedBuilder on camera — pan/zoom reuses the cached rasters
+    //   5. v5.x (perf fix): pinch-zoom gesture bypasses painter repaint
+    //      (GPU Matrix4 transform scales the cached raster — see
+    //      [_painterActiveGesture] + [_zoomCommitRevision]).
     //
     // The relation label ("Husband", "You", etc.) still fades smoothly
     // based on zoom via relationLabelOpacityFor — that's just text opacity,
@@ -1499,6 +1593,17 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     //
     // The SemanticTier computation is preserved for backward compat
     // (tests, focus-mode logic) but no longer drives the Lod selection.
+    //
+    // v5.x (perf audit): This hardcoded `Lod.full` return is fine for pan
+    // (cached rasters are reused via GPU transform) and is now fine for
+    // pinch-zoom (same GPU transform path — see the gesture fix). It can
+    // still contribute to per-frame work on very large trees (100+
+    // members) because more full-detail GraphNode widgets are alive for
+    // the culler to juggle on each rebuild. If a specific family still
+    // stutters after the zoom fix, this is the next lever — e.g. re-enable
+    // a `Lod.compact` tier (still premium enough to keep initials/names)
+    // for zoomed-out states so the culler handles fewer widgets per
+    // rebuild. Not the main cause of pinch jank — flagged for future audit.
     final focusActive = ref.read(graphFocusProvider).focusedPersonId != null;
     final thresholds = thresholdsForMemberCount(_currentMemberCount);
     _currentSemanticTier = computeSemanticTier(
