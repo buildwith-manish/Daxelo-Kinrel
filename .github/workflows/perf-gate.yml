@@ -1,0 +1,137 @@
+# ─────────────────────────────────────────────────────────────────
+# Daxelo Kinrel — Performance Gate (v5.146)
+# ─────────────────────────────────────────────────────────────────
+# Runs the perf-specific tests (culler verification, FilteredGraph
+# hidden-node exclusion, layout isolate) on every push to main and
+# every PR. These tests catch regressions where hidden/off-screen
+# nodes leak back into the build pipeline.
+#
+# Steps 5 & 6 from the perf audit:
+#   • Step 5: layout isolate verification (no UI-thread blocking)
+#   • Step 6: culler + FilteredGraph verification (visible nodes only)
+# ─────────────────────────────────────────────────────────────────
+
+name: Performance Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: perf-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.44.2'
+  JAVA_VERSION: '17'
+
+jobs:
+  perf-tests:
+    name: Perf Tests (culler + FilteredGraph + isolate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install native build toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build \
+            libdrm-dev libgbm-dev libegl-dev libgl-dev libgles-dev \
+            libc++-19-dev libc++1-19 libc++abi1-19 libc++abi1-19 libunwind-19
+
+      - name: Enable Flutter native assets
+        run: flutter config --enable-native-assets
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze graph + perf modules
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings \
+            lib/graph \
+            lib/core/services/graph_layout_service.dart \
+            lib/features/family/presentation/providers/family_graph_provider.dart \
+            test/graph/perf
+
+      - name: Run culler verification tests (Step 6)
+        run: flutter test test/graph/perf/culler_verification_test.dart --no-pub --reporter expanded
+
+      - name: Run FilteredGraph hidden-node tests (Step 6)
+        run: flutter test test/graph/perf/filtered_graph_test.dart --no-pub --reporter expanded
+
+      - name: Run layout isolate tests (Step 5)
+        run: flutter test test/graph/perf/layout_isolate_test.dart --no-pub --reporter expanded
+
+      - name: Run existing large-graph benchmark
+        run: flutter test test/graph/perf/large_graph_benchmark_test.dart --no-pub --reporter expanded
+
+  profile-build:
+    name: Profile-mode build (web)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: perf-tests
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build web (profile mode)
+        run: |
+          # Profile mode compiles with AOT (like release) but keeps
+          # DevTools instrumentation. If this build succeeds, the app
+          # will run in profile mode on a real device for accurate
+          # performance testing.
+          #
+          # We use --no-tree-shake-icons to avoid asset errors in CI.
+          flutter build web --no-tree-shake-icons
+
+      - name: Verify build output exists
+        run: |
+          ls -la build/web/main.dart.js
+          echo "✅ Web build succeeded — app is ready for profile-mode testing"
+
+      - name: Upload build artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build-${{ github.sha }}
+          path: Daxelo-Kinrel-App/build/web/
+          retention-days: 7

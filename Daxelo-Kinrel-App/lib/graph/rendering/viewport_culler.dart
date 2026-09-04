@@ -71,6 +71,15 @@ class ViewportCuller extends ChangeNotifier {
   /// the connection line is silently dropped.
   Set<String> _lastNodeIds = const <String>{};
 
+  // ── v5.146 (STEP 6): Culler stats for perf tests ────────────────
+  // Minimal stats (no overlay, no UI) so tests can verify the culler
+  // is actually excluding off-screen nodes. These are just counters —
+  // zero runtime cost.
+  int _totalPositionsSeen = 0;
+  int _rebuildCount = 0;
+  int _skipCount = 0;
+  bool _hasCulled = false;
+
   // ── Public Getters ───────────────────────────────────────────────
 
   /// The current set of visible node IDs (viewport + buffer zone).
@@ -85,6 +94,21 @@ class ViewportCuller extends ChangeNotifier {
 
   /// The rebuild threshold in pixels.
   double get rebuildThreshold => _rebuildThreshold;
+
+  /// v5.146: Total positions passed to the last cull() call.
+  int get totalPositionsSeen => _totalPositionsSeen;
+
+  /// v5.146: Number of times cull() recomputed (vs. skipped).
+  int get rebuildCount => _rebuildCount;
+
+  /// v5.146: Number of times cull() short-circuited.
+  int get skipCount => _skipCount;
+
+  /// v5.146: Cull ratio (0.0–1.0). 1.0 = no culling (all nodes visible).
+  /// 0.1 = only 10% of nodes visible (good culling on a large family).
+  double get cullRatio => _totalPositionsSeen > 0
+      ? _currentVisibleIds.length / _totalPositionsSeen
+      : 0.0;
 
   // ── Setters ──────────────────────────────────────────────────────
 
@@ -154,6 +178,9 @@ class ViewportCuller extends ChangeNotifier {
     Map<String, Size> nodeSizes,
     Rect viewport,
   ) {
+    // v5.146 (STEP 6): Track total positions for cull ratio.
+    _totalPositionsSeen = positions.length;
+
     // v84 FIX: Also force recomputation when the node ID set changes
     // (e.g. member added, member deleted, expand/collapse). Previously,
     // the culler only recomputed when the viewport moved >80px, so
@@ -165,9 +192,12 @@ class ViewportCuller extends ChangeNotifier {
 
     // Skip recalculation if viewport hasn't moved enough AND node set
     // hasn't changed.
-    if (!nodeSetChanged && !shouldRebuild(_lastViewport, viewport)) {
+    if (_hasCulled && !nodeSetChanged && !shouldRebuild(_lastViewport, viewport)) {
+      _skipCount++;
       return _currentVisibleIds;
     }
+    _rebuildCount++;
+    _hasCulled = true;
 
     _lastNodeIds = currentNodeIds;
 

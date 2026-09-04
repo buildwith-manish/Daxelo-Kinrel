@@ -11,7 +11,9 @@ name: Graph Tests
 
 on:
   push:
-    branches: ['agent/**']
+    branches: ['agent/**', 'main']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
