@@ -828,6 +828,15 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   bool _animatingLoad = false;
   bool _hasPlayedLoadAnimation = false;
 
+  // v5.147 (TIER 1C): Avatar pre-warming gate. When the graph data
+  // changes (new family, new member added), we precacheImage all
+  // avatar URLs in parallel so the GraphNode widgets don't show
+  // empty circles for 200-500ms while the network fetch happens.
+  // Reset to false when flat changes (detected by tracking the last
+  // flat identity we prewarmed for).
+  bool _hasPrewarmedAvatars = false;
+  FlatGraphResult? _prewarmedAvatarsFlat;
+
   // v5.143: Branch expand/collapse animation controller.
   // 280ms easeOut — animates newly-revealed nodes from the chip's
   // position outward to their computed final positions on expand,
@@ -1634,6 +1643,52 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     setState(() {});
   }
 
+  /// v5.147 (TIER 1C): Pre-warm avatar cache by calling precacheImage
+  /// for all visible persons' photo URLs in parallel. This eliminates
+  /// the 200-500ms "empty circle" pop-in that happens when GraphNode
+  /// widgets build before their avatars are downloaded.
+  ///
+  /// Runs ONCE per graph-data change (tracked by _prewarmedAvatarsFlat
+  /// identity check). On subsequent rebuilds (pan/zoom), avatars are
+  /// already in the image cache — no-op.
+  void _maybePrewarmAvatars(FlatGraphResult flat) {
+    if (!mounted) return;
+    // Skip if we already prewarmed for this exact flat instance.
+    if (identical(_prewarmedAvatarsFlat, flat) && _hasPrewarmedAvatars) {
+      return;
+    }
+    _prewarmedAvatarsFlat = flat;
+    _hasPrewarmedAvatars = true;
+
+    // Collect all non-null, non-empty photo URLs.
+    final photoUrls = <String>[];
+    for (final p in flat.persons) {
+      final url = p['photoUrl'] as String?;
+      if (url != null && url.isNotEmpty && url.startsWith('http')) {
+        photoUrls.add(url);
+      }
+    }
+    if (photoUrls.isEmpty) return;
+
+    // precacheImage needs a BuildContext — use the current context
+    // via a post-frame callback. We precache in parallel by firing
+    // all calls without awaiting.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      for (final url in photoUrls) {
+        precacheImage(
+          NetworkImage(url),
+          context,
+          onError: (e, stack) {
+            // Silent — avatar load failure is non-fatal (GraphNode
+            // shows a fallback initial circle).
+          },
+        );
+      }
+      debugPrint('[v5.147] Pre-warmed ${photoUrls.length} avatars');
+    });
+  }
+
   /// Rebuild content ONLY when the visible set or LOD tier would change.
   /// Otherwise the AnimatedBuilder pans/zooms the Transform layer for free.
   void _onCameraChanged() {
@@ -1938,6 +1993,16 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         // The _hasPlayedLoadAnimation flag is a one-time gate — subsequent
         // rebuilds won't re-trigger.
         _maybeStartLoadAnimation(savedOverrides);
+
+        // v5.147 (TIER 1C): Pre-warm avatar cache. When the proximity RPC
+        // returns ~22 nodes, immediately call precacheImage for all 22
+        // avatar URLs in parallel. By the time the GraphNode widgets
+        // build, avatars are already in the image cache — no pop-in,
+        // no empty circles for 200-500ms.
+        //
+        // This is gated by _hasPrewarmedAvatars so it only runs ONCE
+        // per graph-data change (not on every rebuild).
+        _maybePrewarmAvatars(flat);
 
         // v5.x (anchor centering wiring fix): call _maybeFrame and
         // _maybeRecenterOnAnchorDrift HERE in build() — directly in

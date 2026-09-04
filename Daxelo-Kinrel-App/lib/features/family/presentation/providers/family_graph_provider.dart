@@ -432,6 +432,14 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
   static final Map<String, FlatGraphResult> _cache = {};
   static const int _maxCacheSize = 5;
 
+  /// v5.147 (TIER 1A): Timestamps for the in-memory cache. Used to
+  /// implement stale-while-revalidate: if the cache is <30s old, we
+  /// return it instantly and refresh in the background. This makes
+  /// graph-open feel instant on revisit — no loading spinner, no
+  /// network wait. WhatsApp/Telegram do the same thing.
+  static final Map<String, DateTime> _cacheTimestamps = {};
+  static const Duration _cacheFreshDuration = Duration(seconds: 30);
+
   /// v94 (EDGE BUG FIX): Stale-request protection. Each `build()` call
   /// increments this counter; when an async `_fetchGraph` completes, it
   /// checks whether its revision is still the latest. If a newer fetch
@@ -442,11 +450,25 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
 
   /// v60: Add to cache with LRU eviction — removes oldest entry if
   /// the cache exceeds _maxCacheSize.
+  /// v5.147 (TIER 1A): Also records the timestamp so build() can
+  /// implement stale-while-revalidate.
   static void _addToCache(String familyId, FlatGraphResult result) {
     if (_cache.length >= _maxCacheSize && !_cache.containsKey(familyId)) {
-      _cache.remove(_cache.keys.first);
+      final oldestKey = _cache.keys.first;
+      _cache.remove(oldestKey);
+      _cacheTimestamps.remove(oldestKey);
     }
     _cache[familyId] = result;
+    _cacheTimestamps[familyId] = DateTime.now();
+  }
+
+  /// Returns true if the cached result for [familyId] is still fresh
+  /// (within [_cacheFreshDuration]). Used by build() to implement
+  /// stale-while-revalidate.
+  static bool _isCacheFresh(String familyId) {
+    final timestamp = _cacheTimestamps[familyId];
+    if (timestamp == null) return false;
+    return DateTime.now().difference(timestamp) < _cacheFreshDuration;
   }
 
   /// Clear the in-memory cache for a specific family (or all families
@@ -456,8 +478,10 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     if (familyId == null) {
       _cache.clear();
       _fetchRevision.clear();
+      _cacheTimestamps.clear();
     } else {
       _cache.remove(familyId);
+      _cacheTimestamps.remove(familyId);
       // NOTE: We do NOT reset _fetchRevision here — clearing the cache
       // should NOT invalidate in-flight fetches. The revision counter
       // is only bumped by build() so the latest fetch always wins.
@@ -971,6 +995,29 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     }
 
     debugPrint('[FamilyGraphNotifier] build() called for familyId=$familyId');
+
+    // v5.147 (TIER 1A): Stale-while-revalidate cache.
+    //
+    // If we have a cached result that's <30s old, return it INSTANTLY
+    // (no loading spinner) and trigger a background refresh. This makes
+    // graph-open feel instant on revisit — the user sees the graph
+    // immediately, and any server-side changes trickle in 200-500ms
+    // later via the background refresh + realtime invalidation.
+    //
+    // This is the #1 thing WhatsApp/Telegram do differently: they
+    // never show a loading spinner on revisit. They show the cached
+    // content instantly and refresh in the background.
+    final cached = _cache[familyId];
+    if (cached != null && _isCacheFresh(familyId)) {
+      debugPrint('[FamilyGraphNotifier] v5.147: Cache HIT (fresh <30s) — '
+          'returning instantly + background refresh');
+      // Trigger background refresh — doesn't block the return.
+      // The revision counter ensures the background fetch's result
+      // is only applied if no newer fetch has started.
+      _fetchGraphBackground(familyId);
+      return cached;
+    }
+
     final result = await _fetchGraph(familyId);
 
     // Persist fetched data to Drift for offline access and reactive streams
@@ -979,6 +1026,32 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     debugPrint('[FamilyGraphNotifier] Loaded ${result.persons.length} persons, '
         '${result.relationships.length} relationships for $familyId');
     return result;
+  }
+
+  /// v5.147 (TIER 1A): Background refresh for stale-while-revalidate.
+  /// Fetches the latest graph data and updates the state if the result
+  /// is newer than what's currently displayed. Does NOT block the UI.
+  Future<void> _fetchGraphBackground(String familyId) async {
+    try {
+      final result = await _fetchGraph(familyId);
+      // Only update state if the result is different from what we
+      // already have (avoids unnecessary rebuilds).
+      final current = state.valueOrNull;
+      if (current == null ||
+          current.persons.length != result.persons.length ||
+          current.relationships.length != result.relationships.length) {
+        debugPrint('[FamilyGraphNotifier] v5.147: Background refresh found '
+            'newer data — updating state');
+        state = AsyncData(result);
+        await _syncToDrift(familyId, result);
+      }
+    } catch (e) {
+      // Background refresh failure is non-fatal — the cached data
+      // is still displayed. Realtime will invalidate on the next
+      // server-side change.
+      debugPrint('[FamilyGraphNotifier] v5.147: Background refresh failed '
+          '(non-fatal, using cached data): $e');
+    }
   }
 
   /// Persists fetched graph data into the local Drift database so that

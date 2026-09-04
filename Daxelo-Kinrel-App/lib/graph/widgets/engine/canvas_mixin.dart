@@ -418,9 +418,27 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
 
         // v99: Watch focus + search + path state BEFORE computing
         // collapse, so collapse has the current protected sets.
-        final focusState = ref.watch(graphFocusProvider);
-        final searchState = ref.watch(graphSearchProvider);
-        final pathFocusState = ref.watch(graphPathFocusProvider).focus;
+        // v5.147 (TIER 1B): Scope focus/search/path watches with .select()
+        // so the canvas only rebuilds when the SPECIFIC fields it cares
+        // about change — not on any focus/search internal state update.
+        // This prevents e.g. a focus-history push (which doesn't affect
+        // the visible set) from triggering a full canvas rebuild.
+        final focusState = ref.watch(graphFocusProvider.select(
+          (s) => (
+            focusedPersonId: s.focusedPersonId,
+            firstDegreeIds: s.firstDegreeIds,
+            secondDegreeIds: s.secondDegreeIds,
+          ),
+        ));
+        final searchState = ref.watch(graphSearchProvider.select(
+          (s) => (
+            isActive: s.isActive,
+            matchIdSet: s.matchIdSet,
+            revealedPathIds: s.revealedPathIds,
+          ),
+        ));
+        final pathFocusState = ref.watch(
+            graphPathFocusProvider.select((s) => s.focus));
         final selectedPerson = ref.read(selectedNodeProvider);
 
         // v5.123 (COLLAPSE PIPELINE STABILIZATION — single authority):
