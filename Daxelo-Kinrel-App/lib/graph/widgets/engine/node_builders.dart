@@ -18,8 +18,16 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
     Map<String, KinshipEdgeCategory> relationCategoryById,
     Map<String, Map<String, dynamic>> customColorsByPersonId,
     String? viewerPersonId,
-    FlatGraphResult? flat,
-  ) {
+    FlatGraphResult? flat, {
+    /// v5.143 (HIDDEN-NODE AUDIT): Pre-computed first-degree neighbor
+    /// IDs for the currently-selected node, built ONCE in canvas_mixin
+    /// via the FilteredGraph adjacency map. When non-null + non-empty
+    /// + tap-highlight is active, this replaces the per-node iteration
+    /// of flat.relationships (1000 edges × 50 nodes = 50,000 ops).
+    /// When null, falls back to the old per-node loop (rare — only
+    /// when _buildFullNode is called from a non-canvas context).
+    Set<String>? precomputedFirstDegreeIds,
+  }) {
     // v2.2: If this node IS the viewer, show "You" as the relation label.
     final bool isViewer = viewerPersonId != null && id == viewerPersonId;
 
@@ -90,16 +98,26 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
     final bool tapHighlightActive =
         selectedId != null && focusedId == null && !searchState.isActive;
     if (tapHighlightActive && flat != null) {
-      // Compute first-degree neighbors of the selected node from the
-      // raw edge list. This is cheap (one pass over the edges).
-      effectiveFirstDegreeIds = <String>{};
-      for (final r in flat.relationships) {
-        final from = r['fromPersonId']?.toString();
-        final to = r['toPersonId']?.toString();
-        if (from == selectedId && to != null) {
-          effectiveFirstDegreeIds.add(to);
-        } else if (to == selectedId && from != null) {
-          effectiveFirstDegreeIds.add(from);
+      // v5.143 (HIDDEN-NODE AUDIT): Use the pre-computed first-degree
+      // IDs from the FilteredGraph adjacency map (passed in from
+      // canvas_mixin) instead of iterating flat.relationships per node.
+      //
+      // OLD: 50 nodes × 1000 edges = 50,000 ops per rebuild
+      // NEW: O(1) — the Set was built once in canvas_mixin
+      if (precomputedFirstDegreeIds != null) {
+        effectiveFirstDegreeIds = precomputedFirstDegreeIds;
+      } else {
+        // Fallback: only hit when _buildFullNode is called from a
+        // non-canvas context (rare — tests, legacy callers).
+        effectiveFirstDegreeIds = <String>{};
+        for (final r in flat.relationships) {
+          final from = r['fromPersonId']?.toString();
+          final to = r['toPersonId']?.toString();
+          if (from == selectedId && to != null) {
+            effectiveFirstDegreeIds.add(to);
+          } else if (to == selectedId && from != null) {
+            effectiveFirstDegreeIds.add(from);
+          }
         }
       }
     }

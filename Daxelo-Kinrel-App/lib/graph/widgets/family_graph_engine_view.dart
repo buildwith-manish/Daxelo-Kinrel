@@ -188,6 +188,21 @@ import '../rendering/relationship_label_opacity.dart'
 // experience on high-end devices.
 import '../rendering/graph_performance_profile.dart'
     show GraphPerformanceProfile;
+// v5.143 (HIDDEN-NODE AUDIT): FilteredGraph — a precomputed,
+// immutable view of the graph containing ONLY visible nodes + edges.
+// This is the single object that replaces the 5-6 iterations of
+// flat.relationships (1000 edges) per rebuild. Built ONCE per
+// graph-data change, memoized on identical(flat).
+import '../rendering/filtered_graph.dart'
+    show
+        FilteredGraph,
+        FilteredRelationship,
+        buildFilteredGraph,
+        setsEqualString;
+// v5.143 (HIDDEN-NODE AUDIT): Lightweight timing logger for the
+// graph pipeline. Logs filter/layout/edges/paint durations when they
+// exceed thresholds or the total exceeds the 16.67ms frame budget.
+import '../rendering/graph_perf_logger.dart' show GraphPerfLogger;
 import 'graph_node.dart' show GraphNode, NodeState;
 import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, OnThisDayEventType, showOnThisDayEventSheet;
 import 'graph_minimap.dart' show GraphMiniMap;
@@ -423,6 +438,87 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   Map<String, KinshipEdgeCategory>? _cachedRelationCategories;
   // v83: Cache custom colors per person (from customColors JSONB column)
   Map<String, Map<String, dynamic>>? _cachedCustomColors;
+
+  // v5.143 (HIDDEN-NODE AUDIT): Cache the FilteredGraph so the 5-6
+  // iterations of flat.relationships (1000 edges) happen ONCE per
+  // graph-data change, NOT once per rebuild. The cache key is the
+  // identity of `flat` + the identity of `effectivePositions` (which
+  // changes on layout recompute even when flat is unchanged) + the
+  // hiddenIds set (which changes on collapse/expand).
+  //
+  // This is the single biggest perf win: previously every pan-triggered
+  // rebuild iterated flat.relationships 5-6 times = 5000-6000 ops,
+  // plus 50,000 for the lifeguard safeguard, plus 50,000 for
+  // _buildFullNode tap-highlight. Now those iterations happen only
+  // when the graph data actually changes.
+  FilteredGraph _filteredGraph = FilteredGraph.empty;
+  FlatGraphResult? _filteredGraphFlat;
+  Map<String, Offset>? _filteredGraphPositions;
+  Set<String>? _filteredGraphHiddenIds;
+  int _filteredGraphVersion = 0;
+
+  // v5.143 (HIDDEN-NODE AUDIT): Cache the FULL adjacency map (all
+  // edges, not just visible) for consumers that run BEFORE density
+  // collapse (anchor-neighbor protection, computeDensityCollapse's
+  // hidden-edge computation). This is memoized on identical(flat) so
+  // it's built ONCE per graph-data change, not once per rebuild.
+  //
+  // Key: personId → list of (otherId, edgeId, relationshipKey, rawRow)
+  // for EVERY edge touching that person (visible or hidden).
+  Map<String, List<({String otherId, String edgeId, String relationshipKey, Map<String, dynamic> rawRow})>>?
+      _cachedFullAdjacency;
+  FlatGraphResult? _cachedFullAdjacencyFlat;
+
+  /// v5.143: Returns the full adjacency map (all edges), cached on
+  /// identical(flat). Used by anchor-neighbor protection + density
+  /// collapse computation which run BEFORE the FilteredGraph is built.
+  Map<String, List<({String otherId, String edgeId, String relationshipKey, Map<String, dynamic> rawRow})>>
+      _fullAdjacency(FlatGraphResult flat) {
+    if (_cachedFullAdjacency != null && identical(_cachedFullAdjacencyFlat, flat)) {
+      return _cachedFullAdjacency!;
+    }
+    final adj =
+        <String, List<({String otherId, String edgeId, String relationshipKey, Map<String, dynamic> rawRow})>>{};
+    for (final r in flat.relationships) {
+      final s = (r['fromPersonId'] ?? '').toString();
+      final t = (r['toPersonId'] ?? '').toString();
+      final edgeId = (r['id'] ?? '').toString();
+      final relationshipKey = (r['relationshipKey'] ?? 'unknown').toString();
+      if (s.isEmpty || t.isEmpty) continue;
+      (adj[s] ??= []).add((
+        otherId: t,
+        edgeId: edgeId,
+        relationshipKey: relationshipKey,
+        rawRow: r,
+      ));
+      (adj[t] ??= []).add((
+        otherId: s,
+        edgeId: edgeId,
+        relationshipKey: relationshipKey,
+        rawRow: r,
+      ));
+    }
+    _cachedFullAdjacency = adj;
+    _cachedFullAdjacencyFlat = flat;
+    return adj;
+  }
+
+  /// v5.143: Returns the first-degree neighbor IDs of [personId] from
+  /// the full (unfiltered) adjacency map. O(1) lookup + O(degree) list
+  /// build. Used by anchor-neighbor protection which runs BEFORE
+  /// density collapse.
+  Set<String> _fullFirstDegreeNeighbors(String personId, FlatGraphResult flat) {
+    final adj = _fullAdjacency(flat);
+    final neighbors = adj[personId];
+    if (neighbors == null || neighbors.isEmpty) return <String>{};
+    return <String>{for (final n in neighbors) n.otherId};
+  }
+
+  /// v5.143 (HIDDEN-NODE AUDIT): The performance logger for the
+  /// current build. Reset at the start of _buildCanvas, finished at
+  /// the end. Logs only when a stage exceeds threshold or the total
+  /// exceeds the 16.67ms frame budget.
+  final GraphPerfLogger _perfLogger = GraphPerfLogger();
 
   // v92 (PART 17): Cache the current deduped edges + positions (with
   // the visual-circle Y offset applied) so the canvas tap handler can

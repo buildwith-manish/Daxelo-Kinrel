@@ -584,8 +584,20 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     }
 
     // Build the GraphPerson list + relationship tuples the engine needs.
+    // v5.143 (HIDDEN-NODE AUDIT): Filter to visible persons (those with
+    // a position in effectivePositions) BEFORE allocating GraphPerson
+    // objects. Previously this allocated 700 GraphPerson objects every
+    // rebuild even though only ~50 had positions. The RelationshipEngine
+    // only needs persons that are reachable from the viewer→target path,
+    // which is a subset of visible persons.
+    //
+    // We use _filteredGraph.personById (the already-filtered person map)
+    // instead of flat.persons. This is the same data, just pre-filtered
+    // to the ~50 visible persons. The path resolution result is identical
+    // because hidden persons can't be on the viewer→target path (the
+    // viewer and target are both visible by definition).
     final persons = <GraphPerson>[];
-    for (final p in flat.persons) {
+    for (final p in _filteredGraph.visiblePersons) {
       persons.add(GraphPerson(
         id: (p['id'] ?? '').toString(),
         name: (p['name'] ?? '').toString(),
@@ -597,12 +609,16 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
         isDeceased: (p['isDeceased'] as bool?) ?? false,
       ));
     }
+    // v5.143: Use _filteredGraph.rawEdgeTuples instead of iterating
+    // flat.relationships. The filtered tuples only contain edges where
+    // both endpoints have positions — the path engine doesn't need
+    // edges to position-less nodes (they can't be on a visible path).
     final relationships = <({String fromId, String toId, String type})>[
-      for (final r in flat.relationships)
+      for (final e in _filteredGraph.rawEdgeTuples)
         (
-          fromId: (r['fromPersonId'] ?? '').toString(),
-          toId: (r['toPersonId'] ?? '').toString(),
-          type: (r['relationshipKey'] ?? 'unknown').toString(),
+          fromId: e.fromId,
+          toId: e.toId,
+          type: e.relationshipKey,
         ),
     ];
 

@@ -35,8 +35,13 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
     Map<String, KinshipEdgeCategory> relationCategoryById,
     Map<String, Map<String, dynamic>> customColorsByPersonId,
     String? viewerPersonId,
-    FlatGraphResult flat,
-  ) {
+    FlatGraphResult flat, {
+    /// v5.143 (HIDDEN-NODE AUDIT): Pre-computed first-degree neighbor
+    /// IDs for the currently-selected node (from the FilteredGraph
+    /// adjacency map). Passed through to _buildFullNode to avoid the
+    /// per-node iteration of flat.relationships.
+    Set<String>? precomputedFirstDegreeIds,
+  }) {
     final Lod lod = _lodFor(_camera.zoomLevel);
 
     // ── v5.111: MINI tier — circle + border + initial (single painter) ──
@@ -98,6 +103,8 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
         // label fade is driven by relationLabelOpacityFor (which fades
         // to 0 at zoom < 0.6, well within the COMPACT range 0.50-0.85).
         // The name remains visible. No additional wiring needed.
+        // v5.143: Pass the pre-computed first-degree IDs so _buildFullNode
+        // doesn't iterate flat.relationships per node.
         node = _buildFullNode(
           id,
           p,
@@ -106,6 +113,7 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
           customColorsByPersonId,
           viewerPersonId,
           flat,
+          precomputedFirstDegreeIds: precomputedFirstDegreeIds,
         );
       } else {
         // Lod.chip — legacy fallback (shouldn't normally be reached

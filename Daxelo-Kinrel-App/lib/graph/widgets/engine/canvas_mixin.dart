@@ -292,6 +292,13 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           _maybeRecenterOnAnchorDrift(layout, flat, viewerPersonId);
         }
 
+        // v5.143 (HIDDEN-NODE AUDIT): Reset the perf logger at the
+        // start of each build. The logger is finished at the end of
+        // _buildCanvas (in the return statement). Only logs when a
+        // stage exceeds its threshold or the total exceeds 16.67ms.
+        _perfLogger.reset();
+        _perfLogger.start('build');
+
         final personById = <String, Map<String, dynamic>>{
           for (final Map<String, dynamic> p in flat.persons)
             if (p['id'] != null) p['id'] as String: p,
@@ -469,20 +476,12 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         final protectedAnchorId = _SubtreeMethods._findAnchorId(flat, viewerPersonId);
         if (protectedAnchorId != null) {
           protectedCollapseIds.add(protectedAnchorId);
-          // Add the anchor's direct neighbors (first-degree relatives)
-          // from the raw edge list — these are the people connected
-          // to the anchor by a single edge (spouse, parent, child,
-          // sibling). They are the "main nodes" that should stay
-          // visible.
-          for (final r in flat.relationships) {
-            final from = r['fromPersonId']?.toString();
-            final to = r['toPersonId']?.toString();
-            if (from == protectedAnchorId && to != null) {
-              protectedCollapseIds.add(to);
-            } else if (to == protectedAnchorId && from != null) {
-              protectedCollapseIds.add(from);
-            }
-          }
+          // v5.143 (HIDDEN-NODE AUDIT): Use the cached full adjacency
+          // map instead of iterating flat.relationships (1000 edges).
+          // The anchor typically has 3-8 direct neighbors, so this is
+          // O(1) lookup + O(degree) = ~8 ops, down from O(1000).
+          protectedCollapseIds.addAll(
+              _fullFirstDegreeNeighbors(protectedAnchorId, flat));
         }
         // Read the current collapse state (stable from the previous
         // build — the density pass below no-ops when inputs match).
@@ -649,6 +648,46 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           visible.add(anchorIdForVisible);
         }
 
+        // v5.143 (HIDDEN-NODE AUDIT): Build the FilteredGraph — a
+        // precomputed, immutable view containing ONLY visible nodes +
+        // edges. This is the SINGLE iteration of flat.relationships
+        // per rebuild (and it's memoized, so on pan/zoom with unchanged
+        // flat it's a no-op).
+        //
+        // Previously, the code below iterated flat.relationships
+        // (~1000 edges) 5-6 times per rebuild:
+        //   1. rawEdgeTuples (L361)
+        //   2. anchor first-degree protection (L477)
+        //   3. childrenOfAdj (L559)
+        //   4. allEdgesForCollapse (L570)
+        //   5. rawEdges filter (L728)
+        //   6. lifeguard safeguard (L854, O(visible × 1000))
+        // Plus _buildFullNode did 50 × 1000 for tap-highlight.
+        //
+        // Now all of those read from _filteredGraph instead. The build
+        // here is O(P + E) = O(700 + 1000) = ~1700 ops ONCE per
+        // graph-data change, then O(1) lookups on every rebuild.
+        _perfLogger.start('filter');
+        if (!identical(_filteredGraphFlat, flat) ||
+            !identical(_filteredGraphPositions, effectivePositions) ||
+            _filteredGraphHiddenIds == null ||
+            !setsEqualString(_filteredGraphHiddenIds!, densityHiddenIds)) {
+          _filteredGraph = buildFilteredGraph(
+            allPersons: flat.persons,
+            allRelationships: flat.relationships,
+            effectivePositions: effectivePositions,
+            hiddenIds: densityHiddenIds,
+          );
+          _filteredGraphFlat = flat;
+          _filteredGraphPositions = effectivePositions;
+          _filteredGraphHiddenIds = densityHiddenIds;
+          _filteredGraphVersion++;
+        }
+        _perfLogger.end('filter');
+        _perfLogger.count('nodes', visible.length);
+        _perfLogger.count('edges', _filteredGraph.edgeCount);
+        _perfLogger.count('total', flat.persons.length);
+
         // Record throttling baselines for _onCameraChanged.
         _lastCullViewport = vp;
         _lastLod = _lodFor(_camera.zoomLevel);
@@ -724,48 +763,32 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         final useSegmentFallback =
             !branchesCollapsed && (visible.length < 200 || currentZoom > 1.5);
 
+        // v5.143 (HIDDEN-NODE AUDIT): Iterate _filteredGraph.visibleRelationships
+        // (~50-150 edges) instead of flat.relationships (~1000 edges).
+        // The FilteredGraph already excluded:
+        //   • edges where either endpoint has no position
+        //   • edges where BOTH endpoints are hidden (density collapse)
+        //   • edges in the densityHiddenEdgeIds set (handled below)
+        // So we only need to apply the viewport-cull test here.
+        //
+        // OLD: O(flat.relationships) = O(1000) per rebuild
+        // NEW: O(visibleRelationships) = O(50-150) per rebuild
+        _perfLogger.start('edges');
         final rawEdges = <GraphEdgeData>[];
-        for (final Map<String, dynamic> r in flat.relationships) {
-          final s = r['fromPersonId'] as String?;
-          final t = r['toPersonId'] as String?;
-          if (s == null || t == null) continue;
-          // v5.116 (Task 6): Skip edges where either endpoint has no
-          // position in the current layout. This prevents "dangling"
-          // edges that converge on points with no rendered node.
-          // The proximity filter (v5.114) means only ~30 nodes have
-          // positions — edges to the other 684 nodes must be dropped.
-          if (!effectivePositions.containsKey(s) ||
-              !effectivePositions.containsKey(t)) {
-            continue;
-          }
-          // v5.105/v5.153: Skip edges that are hidden by collapsed branches.
-          // An edge is hidden if BOTH endpoints are hidden members, OR
-          // the edge ID is in the hidden edge set.
-          // v5.153 FIX: The old code skipped edges if EITHER endpoint was
-          // hidden, which left visible nodes with zero edges when all
-          // their partners were hidden. Now we only skip when BOTH are
-          // hidden — edges from a visible node to a hidden node are kept
-          // so the visible node stays connected. The painter already
-          // checks effectivePositions, so the line draws correctly to
-          // the hidden node's position (which is fine — it looks like a
-          // line going toward the branch chip area).
-          final edgeId = r['id']?.toString();
-          final sHidden = densityHiddenIds.contains(s);
-          final tHidden = densityHiddenIds.contains(t);
-          if (sHidden && tHidden) {
-            continue; // Both endpoints hidden — skip
-          }
-          if (edgeId != null && densityHiddenEdgeIds.contains(edgeId)) {
-            continue;
-          }
+        for (final fr in _filteredGraph.visibleRelationships) {
+          final s = fr.fromId;
+          final t = fr.toId;
+          // v5.143: Skip edges in the hidden edge set (density collapse).
+          // (Both-endpoints-hidden was already filtered by FilteredGraph.)
+          if (densityHiddenEdgeIds.contains(fr.edgeId)) continue;
+
           final sPos = effectivePositions[s];
           final tPos = effectivePositions[t];
+          // v5.143: positions are guaranteed non-null by FilteredGraph,
+          // but keep the defensive check for safety.
           if (sPos == null || tPos == null) {
-            // Position unknown — fall back to the conservative
-            // both-endpoints-visible test so we don't crash.
             if (!_culler.isEdgeVisible(s, t, visible)) continue;
           } else if (useSegmentFallback) {
-            // v5.103: Use the segment-crossing fallback (original behavior)
             if (!_culler.isEdgeVisibleWithViewport(
                   sourceId: s,
                   targetId: t,
@@ -777,46 +800,30 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
               continue;
             }
           } else {
-            // v5.103: Strict mode — both endpoints must be visible.
-            // At low zoom with many edges, this prevents the hairball.
             if (!_culler.isEdgeVisible(s, t, visible)) continue;
           }
-          final relKey = (r['relationshipKey'] ?? 'unknown').toString();
           // v5.69 (DATA CORRUPTION GUARD): Log a warning if the
-          // relationshipKey is not one of the 4 fundamental edge types
-          // required by the DB CHECK constraint. This catches data
-          // corruption from failed update attempts (e.g. a row with
-          // relationshipKey='mother_in_law' that shouldn't be in this
-          // column) BEFORE it silently renders with the wrong style.
-          // The graph still renders the edge (using the fallback
-          // classifier), but the warning makes the corruption visible
-          // in dev logs for diagnosis.
+          // relationshipKey is not one of the 4 fundamental edge types.
+          final relKey = fr.relationshipKey;
           if (relKey != 'parent' &&
               relKey != 'spouse' &&
               relKey != 'adoptive_parent' &&
               relKey != 'step_parent' &&
               relKey != 'unknown') {
             debugPrint('[GRAPH WARNING] Edge $s→$t has non-fundamental '
-                'relationshipKey="$relKey" (expected parent/spouse/'
-                'adoptive_parent/step_parent). This may indicate data '
-                'corruption from a failed relationship update. The edge '
-                'will still render with a fallback style.');
+                'relationshipKey="$relKey". The edge will still render '
+                'with a fallback style.');
           }
           rawEdges.add(GraphEdgeData(
-            id: (r['id'] ?? '$s-$t').toString(),
+            id: fr.edgeId,
             sourceId: s,
             targetId: t,
             relationshipKey: relKey,
-            // v5.149: Populate labelAtoB so the edge painter can resolve
-            // the correct kinship color for non-anchor-incident edges.
-            // labelAtoB is the rich label (e.g. "brother", "aunt") that
-            // carries the semantic distinction, while relationshipKey is
-            // the fundamental DB key (always "parent" for non-spouse edges).
-            labelAtoB: (r['labelAtoB'] as String?) ??
-                (r['relationshipKey'] as String?),
-            isPrivate: r['isPrivate'] as bool? ?? false,
+            labelAtoB: fr.labelAtoB ?? relKey,
+            isPrivate: fr.isPrivate,
           ));
         }
+        _perfLogger.end('edges');
 
         // v70 (FIX): REMOVED the synthetic edge fallback.
         //
@@ -857,26 +864,38 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             nodesWithEdges.add(deduped.edge.sourceId);
             nodesWithEdges.add(deduped.edge.targetId);
           }
+          // v5.143 (HIDDEN-NODE AUDIT): Use _filteredGraph adjacency
+          // for the lifeguard safeguard instead of iterating
+          // flat.relationships. The adjacency map is O(1) lookup per
+          // visible node, so the safeguard is now O(visible × degree)
+          // = O(50 × 5) = 250 ops, down from O(50 × 1000) = 50,000.
+          //
+          // The BFS-through-hidden-nodes path still iterates
+          // flat.relationships (because it needs edges to hidden
+          // nodes, which aren't in the filtered adjacency). But this
+          // path only runs when a visible node has NO visible-to-
+          // visible edge, which is rare (typically only 0-2 nodes).
           for (final visibleId in visible) {
             if (nodesWithEdges.contains(visibleId)) continue;
-            // Find a relationship where the OTHER endpoint is ALSO visible.
+            // O(1) lookup: does this node have any visible neighbor?
             String? bestTarget;
-            for (final r in flat.relationships) {
-              final s = (r['fromPersonId'] ?? '').toString();
-              final t = (r['toPersonId'] ?? '').toString();
-              if (s == visibleId && visible.contains(t) &&
-                  effectivePositions.containsKey(t)) {
-                bestTarget = t;
-                break;
-              }
-              if (t == visibleId && visible.contains(s) &&
-                  effectivePositions.containsKey(s)) {
-                bestTarget = s;
-                break;
+            final adj = _filteredGraph.adjacencyByVisibleId[visibleId];
+            if (adj != null) {
+              for (final a in adj) {
+                if (a.otherId != visibleId &&
+                    visible.contains(a.otherId) &&
+                    effectivePositions.containsKey(a.otherId)) {
+                  bestTarget = a.otherId;
+                  break;
+                }
               }
             }
             // If no direct visible-to-visible edge, try BFS through
             // hidden nodes to find the nearest visible relative.
+            // v5.143: This is the ONLY remaining iteration of
+            // flat.relationships in the build — and it only runs for
+            // nodes with no visible edges (rare). The BFS is bounded
+            // by the hidden-node graph, not the full graph.
             if (bestTarget == null) {
               final visited = <String>{visibleId};
               final queue = <String>[visibleId];
@@ -1297,8 +1316,20 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 // (auto-layout only), causing nodes to stay at their
                 // auto-layout positions while edges used the overridden
                 // positions — creating "detached" connections.
+                // v5.143 (HIDDEN-NODE AUDIT): Pre-compute the selected
+                // node's first-degree neighbors ONCE via the FilteredGraph
+                // adjacency map, then pass to every _buildFullNode call.
+                // This replaces the per-node iteration of flat.relationships
+                // (50 nodes × 1000 edges = 50,000 ops) with a single O(1)
+                // lookup. Only computed when tap-highlight would be active
+                // (a node is selected, no focus, no search).
                 ..._buildNodeLayer(
-                    layout, effectivePositions, visible, personById, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId, flat),
+                    layout, effectivePositions, visible, personById, relationLabelById, relationCategoryById, customColorsByPersonId, viewerPersonId, flat,
+                    precomputedFirstDegreeIds: (selectedPerson != null &&
+                            ref.read(graphFocusProvider).focusedPersonId == null &&
+                            !ref.read(graphSearchProvider).isActive)
+                        ? _filteredGraph.firstDegreeNeighborsOf(selectedPerson)
+                        : null),
                 // v102 (BUG-2 FIX) + v5.123 (Step 3): Collapsed-branch
                 // affordances — ALWAYS-visible "+N" chips.
                 // Render a chip near each collapsed branch root showing
@@ -1317,6 +1348,14 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             ),
           ),
         );
+
+        // v5.143 (HIDDEN-NODE AUDIT): Finish the perf logger. Emits a
+        // single log line when any stage exceeded its threshold or the
+        // total build exceeded the 16.67ms frame budget. The log shows
+        // exactly which stage is the bottleneck:
+        //   [GRAPH PERF] build=18.2ms JANK | filter=0.3ms | edges=2.1ms | nodes=50 | edges=120 | total=700
+        _perfLogger.end('build');
+        _perfLogger.finish();
 
         return DecoratedBox(
           decoration: BoxDecoration(
