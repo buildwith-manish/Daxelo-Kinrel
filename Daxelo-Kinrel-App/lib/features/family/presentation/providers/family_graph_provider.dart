@@ -1059,10 +1059,54 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     _fetchRevision[familyId] = myRevision;
 
     try {
-      // ── Step 1: Always fetch direct query first ──
-      // Direct query is the source of truth — it always returns ALL
-      // non-deleted persons in the family, regardless of relationships
-      // or connectivity.
+      // v5.144 (ARCHITECTURAL FIX): Try the proximity RPC FIRST.
+      // The RPC now returns ONLY the ~22-node proximity set (viewer +
+      // ring 1 + ring 2, capped at 50). This is the primary path —
+      // the client never sees the other 660+ nodes.
+      //
+      // The direct query (all 714 nodes) is used ONLY as a fallback
+      // when the RPC fails. It's also available for "show all" mode
+      // and search-jump targets via _fetchGraphDirectQuery directly.
+      try {
+        final viewerId = await _resolveViewerMemberId(ref, client, familyId);
+        if (viewerId != null) {
+          debugPrint('[FamilyGraphNotifier] v5.144: Calling get_viewer_family_graph (proximity) with viewerId=$viewerId');
+          // v5.144: Pass p_max_nodes=50 so the RPC returns ONLY the
+          // proximity set. The server does the BFS filter — the client
+          // never sees the other 660+ nodes.
+          final response = await client.rpc(
+            'get_viewer_family_graph',
+            params: <String, dynamic>{
+              'p_family_id': familyId,
+              'p_viewer_id': viewerId,
+              'p_max_nodes': 50,
+            },
+          ).timeout(const Duration(seconds: 15));
+
+          // v94: Stale-check after the RPC async gap.
+          if (_fetchRevision[familyId] != myRevision) {
+            debugPrint('[FamilyGraphNotifier] Stale fetch (after RPC) — discarding');
+            return state.valueOrNull ?? const FlatGraphResult(persons: [], relationships: []);
+          }
+
+          final data = response as Map<String, dynamic>?;
+          if (data != null && !data.containsKey('error')) {
+            final rpcResult = FlatGraphResult.fromRpc(data);
+            _addToCache(familyId, rpcResult);
+            debugPrint(
+              '[FamilyGraphNotifier] v5.144 Proximity RPC: Loaded ${rpcResult.persons.length} persons (of ${rpcResult.totalCount ?? '?'}) , '
+              '${rpcResult.relationships.length} relationships for $familyId',
+            );
+            return rpcResult;
+          }
+        }
+      } catch (rpcError) {
+        debugPrint('[FamilyGraphNotifier] v5.144 Proximity RPC failed: $rpcError — falling back to direct query');
+      }
+
+      // ── Fallback: Direct query (all persons) ──
+      // Only reached if the RPC failed. This fetches all 714 nodes —
+      // slower, but ensures the graph still renders.
       final directResult = await _fetchGraphDirectQuery(client, familyId);
 
       if (directResult.persons.isEmpty) {
@@ -1070,64 +1114,12 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
         return const FlatGraphResult(persons: [], relationships: []);
       }
 
-      // v94: Stale-check after the first async gap.
+      // v94: Stale-check after the direct-query async gap.
       if (_fetchRevision[familyId] != myRevision) {
-        debugPrint('[FamilyGraphNotifier] Stale fetch (after direct) — discarding');
+        debugPrint('[FamilyGraphNotifier] Stale fetch (after direct fallback) — discarding');
         return state.valueOrNull ?? directResult;
       }
 
-      // ── Step 2: Try viewer-aware RPC for perspective-resolved labels ──
-      // v2.2: Use the new get_viewer_family_graph RPC which returns
-      // edges with label/labelAtoB/labelBtoA resolved from the viewer's
-      // perspective. Falls back to the direct query result if the RPC
-      // fails or returns fewer persons.
-      try {
-        final viewerId = await _resolveViewerMemberId(ref, client, familyId);
-        if (viewerId != null) {
-          debugPrint('[FamilyGraphNotifier] v2.2: Calling get_viewer_family_graph with viewerId=$viewerId');
-          final response = await client.rpc(
-            'get_viewer_family_graph',
-            params: <String, dynamic>{
-              'p_family_id': familyId,
-              'p_viewer_id': viewerId,
-            },
-          ).timeout(const Duration(seconds: 15));
-
-          // v94: Stale-check after the RPC async gap.
-          if (_fetchRevision[familyId] != myRevision) {
-            debugPrint('[FamilyGraphNotifier] Stale fetch (after RPC) — discarding');
-            return state.valueOrNull ?? directResult;
-          }
-
-          final data = response as Map<String, dynamic>?;
-          if (data != null && !data.containsKey('error')) {
-            final rpcResult = FlatGraphResult.fromRpc(data);
-
-            // v94 (EDGE BUG FIX): Replace count-based merge with
-            // ID/canonical-pair UNION merge. The previous count-based
-            // logic could silently drop the new edge if RPC and direct
-            // had equal relationship counts but different edge sets.
-            // The new merge takes the UNION of all edges by canonical
-            // pair key, preferring direct-query data when the RPC's
-            // edge has a null/unknown relationshipKey.
-            final mergedResult = _mergeGraphResults(
-              rpcResult: rpcResult,
-              directResult: directResult,
-            );
-
-            _addToCache(familyId, mergedResult);
-            debugPrint(
-              '[FamilyGraphNotifier] Viewer RPC: Loaded ${mergedResult.persons.length} persons, '
-              '${mergedResult.relationships.length} relationships for $familyId',
-            );
-            return mergedResult;
-          }
-        }
-      } catch (rpcError) {
-        debugPrint('[FamilyGraphNotifier] Viewer RPC failed: $rpcError, using direct query');
-      }
-
-      // ── Step 3: Return direct query result ──
       _addToCache(familyId, directResult);
       return directResult;
     } on PostgrestException catch (e) {
