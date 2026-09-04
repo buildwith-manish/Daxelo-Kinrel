@@ -26,6 +26,8 @@
 // every camera tick (via an AnimatedBuilder inside the node). It is
 // O(1) — a couple of comparisons + a linear interpolation + a clamp.
 
+import 'package:flutter/widgets.dart';
+
 /// The zoom at or above which the relationship label is FULLY VISIBLE
 /// (opacity = 1.0).
 ///
@@ -128,4 +130,61 @@ bool relationLabelVisibleAt({
         focusActive: focusActive,
       ) >
       0.0;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// v5.140 (PERF): Shared label-opacity InheritedWidget
+// ─────────────────────────────────────────────────────────────────────
+//
+// Previously every visible GraphNode wrapped its relation label in its
+// OWN `AnimatedBuilder(animation: cam, builder: ...)` to fade the label
+// based on zoom. With 50–100 visible nodes that meant 50–100 per-frame
+// subtree rebuilds on every camera tick (60–120 Hz during pan/zoom).
+// Each rebuild allocated FittedBox + Text + TextStyle + Opacity widgets,
+// ran Element diffing, and a layout pass on the FittedBox.
+//
+// This InheritedWidget lets the canvas host ONE AnimatedBuilder on the
+// camera that publishes the precomputed label opacity to all nodes via
+// the inherited value. Nodes read the inherited opacity with zero
+// per-frame subscriptions — they only rebuild when the inherited value
+// actually changes (which is itself throttled by the camera's existing
+// 16ms Timer + culler threshold gate).
+//
+// Backward compatibility: if no `_RelationLabelOpacityScope` is found
+// in the build context (e.g. unit tests, legacy callers), GraphNode
+// falls back to computing the opacity directly from the camera. So
+// callers that don't wrap the canvas in this scope still work — just
+// without the perf benefit.
+
+/// An InheritedWidget that publishes the current relationship-label
+/// opacity to all descendant GraphNodes. Hosted at the canvas level
+/// inside the camera's `AnimatedBuilder`.
+class RelationLabelOpacityScope extends InheritedWidget {
+  /// The precomputed opacity for relation labels at the current zoom
+  /// level. Already accounts for small-family bypass and focus-mode
+  /// bypass (i.e. it's the FINAL opacity — 1.0 means fully visible,
+  /// 0.0 means fully hidden, in between means linear fade).
+  final double opacity;
+
+  const RelationLabelOpacityScope({
+    super.key,
+    required this.opacity,
+    required super.child,
+  });
+
+  /// Returns the inherited opacity, or `null` if no scope is found
+  /// (caller should compute the opacity itself as a fallback).
+  static double? maybeOf(BuildContext context) {
+    final scope = context
+        .dependOnInheritedWidgetOfExactType<RelationLabelOpacityScope>();
+    return scope?.opacity;
+  }
+
+  @override
+  bool updateShouldNotify(RelationLabelOpacityScope oldWidget) {
+    // Avoid notifying descendants when the opacity hasn't changed by
+    // more than a tiny epsilon — prevents rebuilds when the camera
+    // ticks but the rounded opacity is unchanged.
+    return (opacity - oldWidget.opacity).abs() > 0.005;
+  }
 }

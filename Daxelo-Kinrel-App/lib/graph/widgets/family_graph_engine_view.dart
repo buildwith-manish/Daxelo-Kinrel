@@ -176,6 +176,12 @@ import '../rendering/semantic_zoom.dart'
         miniTierRadius,
         microTierRadius;
 import '../rendering/viewport_culler.dart' show ViewportCuller;
+// v5.140 (PERF): RelationLabelOpacityScope hoists label-opacity
+// computation out of per-node AnimatedBuilders into a single
+// canvas-hosted InheritedWidget — eliminates 50–100 per-frame
+// subtree rebuilds during pan/zoom.
+import '../rendering/relationship_label_opacity.dart'
+    show relationLabelOpacityFor, RelationLabelOpacityScope;
 import 'graph_node.dart' show GraphNode, NodeState;
 import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, OnThisDayEventType, showOnThisDayEventSheet;
 import 'graph_minimap.dart' show GraphMiniMap;
@@ -875,7 +881,14 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // currentEdgeId+traceProgress as fade-in alpha instead of the
     // existing sweep semantics.
     _connectOnOpenController = GraphPathTraceController()..attach(this);
-    _connectOnOpenController!.addListener(_onConnectOnOpenTick);
+    // v5.140 (PERF): The connect-on-open controller's tick listener is
+    // now hosted by EdgeSelectionWrapper (passed via the
+    // `connectOnOpenController` constructor param). This means each
+    // animation tick repaints ONLY the edge painter, not the entire
+    // graph canvas. The parent state no longer calls setState on tick.
+    // The parent still OWNS the controller and calls methods on it
+    // (revealAll, startTraceSimultaneous, reducedMotion=, etc.) —
+    // those calls trigger the wrapper's listener via ChangeNotifier.
 
     // v62: Start periodic telemetry — log edge cache + cull stats every
     // 30 seconds so we can monitor production performance.
@@ -982,7 +995,10 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _resetController?.dispose();
     _resetController = null;
     // v5.27 Task 2: dispose the connect-on-open controller.
-    _connectOnOpenController?.removeListener(_onConnectOnOpenTick);
+    // v5.140 (PERF): The tick listener is now hosted by
+    // EdgeSelectionWrapper — no listener to remove here. We still
+    // detach + dispose the controller itself (the wrapper only listens,
+    // it doesn't own the controller).
     _connectOnOpenController?.detach();
     _connectOnOpenController?.dispose();
     _connectOnOpenController = null;
@@ -1260,13 +1276,13 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   }
 
   // ── v5.27 Task 2 — Connect-on-open animation callbacks ──────────
-
-  void _onConnectOnOpenTick() {
-    if (!mounted) return;
-    // Trigger a rebuild so the painter sees the new trace state
-    // (currentEdgeId, traceProgress, completedEdgeIds).
-    setState(() {});
-  }
+  //
+  // v5.140 (PERF): _onConnectOnOpenTick was removed. The connect-on-
+  // open controller's tick listener now lives inside EdgeSelectionWrapper
+  // (added via the `connectOnOpenController` constructor param). This
+  // scopes each animation tick's repaint to JUST the edge painter
+  // instead of the entire graph canvas — eliminating the 1–3s window
+  // of degraded pan/zoom on first graph load.
 
   /// Ordered edge IDs (BFS from the viewer's own anchor node) for the
   /// connect-on-open animation. Used by _maybeStartConnectOnOpen to

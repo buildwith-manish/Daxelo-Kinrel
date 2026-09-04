@@ -126,7 +126,18 @@ extension _NodeLayerMethods on _FamilyGraphEngineViewState {
           ? 0.15
           : 1.0;
 
+      // v5.140 (PERF): Add a stable ValueKey bound to the node id so
+      // Flutter's Element diffing can match old and new GraphNode
+      // widgets across culler rebuilds (which fire every ~50px of pan).
+      // Without this key, when a node enters/leaves the visible set the
+      // list shifts and Flutter mismatches State objects by position —
+      // disposing and recreating GraphNode State (5 AnimationControllers,
+      // gesture detectors, _updateAnimations) for nodes that simply
+      // shifted position. With 100 visible nodes and ~5 entering/leaving
+      // per pan step, this previously caused 25 controller-pair churns
+      // per 50px of panning. The key makes the diff identity-stable.
       widgets.add(Positioned(
+        key: ValueKey<String>('node-$id'),
         left: pos.dx - _FamilyGraphEngineViewState._kNodeSize.width / 2,
         top: pos.dy - _FamilyGraphEngineViewState._kNodeSize.height / 2,
         width: _FamilyGraphEngineViewState._kNodeSize.width,

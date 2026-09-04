@@ -60,6 +60,14 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
     // See the painter's field docs for the contract.
     this.painterActiveGesture = false,
     this.zoomCommitRevision = 0,
+    // v5.140 (PERF): The connect-on-open trace controller. When non-
+    // null, the wrapper listens to the controller's ticks and setStates
+    // INTERNALLY — so connect-on-open animation ticks repaint ONLY the
+    // edge painter, not the entire graph canvas. The parent state no
+    // longer calls setState on tick. The wrapper reads the controller's
+    // current state in build() and overrides the static
+    // connectOnOpen* props below when the controller is active.
+    this.connectOnOpenController,
   });
 
   final Map<String, Offset> positions;
@@ -167,6 +175,10 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
   /// [EngineEdgePainter.zoomCommitRevision] for the contract.
   final int zoomCommitRevision;
 
+  /// v5.140 (PERF): The connect-on-open trace controller. See the
+  /// constructor doc for the contract.
+  final GraphPathTraceController? connectOnOpenController;
+
   @override
   ConsumerState<EdgeSelectionWrapper> createState() =>
       EdgeSelectionWrapperState();
@@ -214,7 +226,24 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
     )..addListener(_onSweepTick);
     _traceController = GraphPathTraceController()..attach(this);
     _traceController.addListener(_onTraceTick);
+    // v5.140 (PERF): Listen to the connect-on-open controller so its
+    // ticks repaint ONLY this wrapper (not the entire graph canvas).
+    // The parent state used to call setState on every tick, which
+    // rebuilt every visible GraphNode + the canvas chrome. Now the
+    // repaint is scoped to just the edge painter.
+    widget.connectOnOpenController?.addListener(_onConnectOnOpenTick);
     // Reduced-motion is resolved per-build via MediaQuery; default false.
+  }
+
+  @override
+  void didUpdateWidget(covariant EdgeSelectionWrapper oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // v5.140: If the controller instance changed (rare — happens on
+    // family switch), rebind the listener.
+    if (oldWidget.connectOnOpenController != widget.connectOnOpenController) {
+      oldWidget.connectOnOpenController?.removeListener(_onConnectOnOpenTick);
+      widget.connectOnOpenController?.addListener(_onConnectOnOpenTick);
+    }
   }
 
   @override
@@ -223,6 +252,9 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
     _sweepController.dispose();
     _traceController.removeListener(_onTraceTick);
     _traceController.dispose();
+    // v5.140: Remove the connect-on-open listener. The controller
+    // itself is owned (and disposed) by the parent state.
+    widget.connectOnOpenController?.removeListener(_onConnectOnOpenTick);
     super.dispose();
   }
 
@@ -231,6 +263,14 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
   }
 
   void _onTraceTick() {
+    if (mounted) setState(() {});
+  }
+
+  /// v5.140 (PERF): Connect-on-open tick handler. Repaints ONLY this
+  /// wrapper (the edge painter) — not the entire graph canvas. This
+  /// is the single biggest win for pan/zoom smoothness during the
+  /// 1–3s connect-on-open animation window on first graph load.
+  void _onConnectOnOpenTick() {
     if (mounted) setState(() {});
   }
 
@@ -327,6 +367,36 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
     // v92 (PART 15): Read the trace state once per build.
     final traceState = _traceController.state;
 
+    // v5.140 (PERF): Read the connect-on-open state directly from the
+    // controller (when present) instead of from the parent-passed
+    // widget.connectOnOpen* props. The parent no longer setState()s
+    // on tick — the controller's listener (added in initState) drives
+    // this wrapper's setState, so the controller is always up-to-date
+    // here. Falls back to the widget props when no controller is
+    // supplied (legacy callers / unit tests).
+    final connController = widget.connectOnOpenController;
+    final bool connectOnOpenActive;
+    final String? connectOnOpenCurrentEdgeId;
+    final double connectOnOpenProgress;
+    final Set<String> connectOnOpenRevealedEdgeIds;
+    final Set<String> connectOnOpenCurrentEdgeIds;
+    if (connController != null) {
+      final s = connController.state;
+      connectOnOpenActive = s.traceActive ||
+          s.completedEdgeIds.isNotEmpty ||
+          s.currentEdgeIds.isNotEmpty;
+      connectOnOpenCurrentEdgeId = s.currentEdgeId;
+      connectOnOpenProgress = s.traceProgress;
+      connectOnOpenRevealedEdgeIds = s.completedEdgeIds;
+      connectOnOpenCurrentEdgeIds = s.currentEdgeIds;
+    } else {
+      connectOnOpenActive = widget.connectOnOpenActive;
+      connectOnOpenCurrentEdgeId = widget.connectOnOpenCurrentEdgeId;
+      connectOnOpenProgress = widget.connectOnOpenProgress;
+      connectOnOpenRevealedEdgeIds = widget.connectOnOpenRevealedEdgeIds;
+      connectOnOpenCurrentEdgeIds = widget.connectOnOpenCurrentEdgeIds;
+    }
+
     return CustomPaint(
       painter: EngineEdgePainter(
         positions: widget.positions,
@@ -368,11 +438,14 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
         // straight through to the painter. The painter branches on
         // connectOnOpenActive to hide non-revealed edges + fade in
         // the current edge over its time slot.
-        connectOnOpenActive: widget.connectOnOpenActive,
-        connectOnOpenCurrentEdgeId: widget.connectOnOpenCurrentEdgeId,
-        connectOnOpenProgress: widget.connectOnOpenProgress,
-        connectOnOpenRevealedEdgeIds: widget.connectOnOpenRevealedEdgeIds,
-        connectOnOpenCurrentEdgeIds: widget.connectOnOpenCurrentEdgeIds,
+        // v5.140 (PERF): Now sourced from the controller directly when
+        // present, so the wrapper's per-tick setState drives the
+        // repaint instead of the parent's.
+        connectOnOpenActive: connectOnOpenActive,
+        connectOnOpenCurrentEdgeId: connectOnOpenCurrentEdgeId,
+        connectOnOpenProgress: connectOnOpenProgress,
+        connectOnOpenRevealedEdgeIds: connectOnOpenRevealedEdgeIds,
+        connectOnOpenCurrentEdgeIds: connectOnOpenCurrentEdgeIds,
         zoom: widget.zoom,  // v5.107: zoom-aware stroke width
         // v5.x (perf fix — pinch-zoom GPU-transform): forward the
         // gesture flag + commit revision straight through to the

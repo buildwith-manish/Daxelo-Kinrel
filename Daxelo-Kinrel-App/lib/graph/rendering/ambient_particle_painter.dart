@@ -76,6 +76,30 @@ class AmbientParticlePainter extends CustomPainter {
   /// so the bounding circle radius is 200 + 20 = 220.
   static const double moteCloudRadius = 220.0;
 
+  /// v5.140 (PERF): Precomputed mote base positions. Previously the
+  /// painter allocated `math.Random(42)` and called `nextDouble()` 25
+  /// times per paint call (60×/sec) — that's 1,500 Random + 1,500
+  /// nextDouble calls/sec just for decorative motes. Now we compute
+  /// the deterministic positions ONCE at class-load and read from
+  /// this list. The painter still uses the seeded sequence, so the
+  /// visual output is byte-identical to before — only the allocation
+  /// pattern changes.
+  static final List<({double angle, double radius, double phase})>
+      _moteBasePositions = _generateMoteBasePositions(25);
+
+  static List<({double angle, double radius, double phase})>
+      _generateMoteBasePositions(int count) {
+    final rng = math.Random(42);
+    return List<({double angle, double radius, double phase})>.generate(
+      count,
+      (i) => (
+        angle: rng.nextDouble() * 2 * math.pi,
+        radius: 80.0 + 120.0 * rng.nextDouble(),
+        phase: i * 0.7, // per-mote phase offset
+      ),
+    );
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     // Viewport culling: skip the entire paint call when the anchor's
@@ -106,16 +130,18 @@ class AmbientParticlePainter extends CustomPainter {
       }
     }
 
-    // Seeded Random so mote positions are stable across frames.
-    // If we used an unseeded Random, the motes would jitter because
-    // a new Random is constructed on every paint call.
-    final rng = math.Random(42);
+    // v5.140 (PERF): Read precomputed mote base positions instead of
+    // allocating a fresh Random(42) on every paint call. Visual output
+    // is byte-identical to the previous implementation.
     const moteColor = Color(0xFF917520); // warm gold
+    final motes = _moteBasePositions;
+    final n = moteCount <= motes.length ? moteCount : motes.length;
 
-    for (int i = 0; i < moteCount; i++) {
-      final angle = rng.nextDouble() * 2 * math.pi;
-      final radius = 80.0 + 120.0 * rng.nextDouble();
-      final phase = i * 0.7; // per-mote phase offset
+    for (int i = 0; i < n; i++) {
+      final m = motes[i];
+      final angle = m.angle;
+      final radius = m.radius;
+      final phase = m.phase;
 
       final double driftX;
       final double driftY;

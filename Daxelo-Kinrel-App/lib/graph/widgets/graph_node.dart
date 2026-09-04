@@ -45,13 +45,13 @@ import 'on_this_day_badge.dart'
 // P12.7 — Kinrel Cameo fallback avatar
 import '../../features/cameo/cameo.dart';
 // v104: smooth relationship-label zoom fade.
+// v5.140: RelationLabelOpacityScope hoists label-opacity computation
+// to the canvas level (one AnimatedBuilder → InheritedWidget).
 import '../interaction/camera_controller.dart' show CameraController;
 import '../rendering/relationship_label_opacity.dart'
     show
         relationLabelOpacityFor,
-        relationLabelVisibleAt,
-        kLabelFullyVisibleZoom,
-        kLabelFullyHiddenZoom;
+        RelationLabelOpacityScope;
 
 // Re-export NodeState so existing importers of graph_node.dart (e.g.
 // family_graph_engine_view.dart, tests) keep resolving the symbol after
@@ -574,11 +574,21 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
   @override
   Widget build(BuildContext context) {
-    // Accessibility: reduced motion & high contrast
-    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    // Accessibility: reduced motion & high contrast.
+    //
+    // v5.140 (PERF): Use the scoped MediaQuery accessors
+    // (`disableAnimationsOf` / `highContrastOf`) instead of
+    // `MediaQuery.of(context).disableAnimations` / `.highContrast`.
+    // The scoped variants subscribe ONLY to the specific field, so
+    // keyboard show/hide, orientation change, or safe-area inset
+    // changes (which mutate other MediaQueryData fields) NO LONGER
+    // rebuild every visible GraphNode. With 100+ visible nodes, this
+    // eliminates hundreds of unnecessary rebuilds on every keyboard
+    // event.
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     // v60: Use local variable for build, but also set the field for
     // helper getters that reference _highContrast.
-    final highContrast = MediaQuery.of(context).highContrast;
+    final highContrast = MediaQuery.highContrastOf(context);
     _highContrast = highContrast;
 
     // Update animation durations for reduced motion
@@ -884,11 +894,31 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       return labelWidget;
     }
 
-    // v104: smooth zoom-fade. The AnimatedBuilder rebuilds ONLY this
-    // tiny label subtree on each camera tick — the rest of the node
-    // (avatar, name, decorations) is NOT rebuilt. This is cheap
-    // (a handful of visible nodes × one FittedBox+Text each per
-    // camera tick) and keeps the fade perfectly smooth.
+    // v5.140 (PERF): Try to read the precomputed label opacity from
+    // the canvas-hosted [RelationLabelOpacityScope] InheritedWidget.
+    // The canvas computes this ONCE per camera tick and publishes it
+    // to all descendant nodes — eliminating the per-node AnimatedBuilder
+    // that previously rebuilt 50–100 label subtrees per camera tick.
+    //
+    // If no scope is present (unit tests, legacy callers that don't
+    // host the canvas), fall back to computing the opacity directly
+    // from the camera. The fallback path uses a tiny AnimatedBuilder
+    // only in that fallback case, so the hot path (production canvas)
+    // has ZERO per-node camera subscriptions.
+    final inheritedOpacity = RelationLabelOpacityScope.maybeOf(context);
+    if (inheritedOpacity != null) {
+      // Skip building the label subtree entirely when it would be
+      // fully invisible — saves a FittedBox+Text layout per node.
+      if (inheritedOpacity <= 0.0) return const SizedBox.shrink();
+      // Avoid an unnecessary Opacity widget when fully visible — the
+      // FittedBox+Text alone is cheaper to composite.
+      if (inheritedOpacity >= 1.0) return labelWidget;
+      return Opacity(opacity: inheritedOpacity, child: labelWidget);
+    }
+
+    // v104 fallback: per-node AnimatedBuilder. Only hit when no
+    // RelationLabelOpacityScope is in the build tree (legacy callers
+    // / unit tests). The hot path above is what production uses.
     return AnimatedBuilder(
       animation: cam,
       builder: (context, child) {

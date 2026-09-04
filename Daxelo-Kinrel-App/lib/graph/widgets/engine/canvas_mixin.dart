@@ -1245,6 +1245,16 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     //     over its time slot (using connectOnOpenProgress).
                     //   • Show revealed edges (connectOnOpenRevealedEdgeIds)
                     //     at full alpha.
+                    //
+                    // v5.140 (PERF): The controller is now passed
+                    // directly to the wrapper via `connectOnOpenController`.
+                    // The wrapper listens to the controller's ticks and
+                    // setStates INTERNALLY — so connect-on-open
+                    // animation ticks repaint ONLY the edge painter,
+                    // not the entire graph canvas. The static props
+                    // below are kept as fallback (used only when the
+                    // controller is null, e.g. unit tests).
+                    connectOnOpenController: _connectOnOpenController,
                     connectOnOpenActive: _connectOnOpenController != null &&
                         _connectOnOpenController!.state.traceActive,
                     connectOnOpenCurrentEdgeId:
@@ -1443,9 +1453,33 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                   // to a uniform 18% — a cleaner, clearer isolation visual.
                   final isFocusActive = focusState.focusedPersonId != null;
 
+                  // v5.140 (PERF): Compute the relation-label opacity ONCE
+                  // per camera tick (here, inside the canvas's single
+                  // AnimatedBuilder) and publish it to all descendant
+                  // GraphNodes via the RelationLabelOpacityScope
+                  // InheritedWidget. This eliminates 50–100 per-node
+                  // AnimatedBuilders that previously rebuilt label subtrees
+                  // on every camera tick during pan/zoom.
+                  final labelOpacity = relationLabelOpacityFor(
+                    zoom: _camera.zoomLevel,
+                    memberCount: _currentMemberCount,
+                    focusActive: isFocusActive,
+                  );
+
                   Widget transformed = Transform(
                     transform: _camera.transformMatrix,
                     child: child,
+                  );
+
+                  // Wrap the transformed content in the opacity scope so
+                  // every descendant GraphNode can read the precomputed
+                  // opacity without subscribing to the camera individually.
+                  // The scope's updateShouldNotify uses a 0.005 epsilon
+                  // gate, so descendants only rebuild when the opacity
+                  // meaningfully changes — NOT on every camera tick.
+                  transformed = RelationLabelOpacityScope(
+                    opacity: labelOpacity,
+                    child: transformed,
                   );
 
                   // v5.65: No canvas-wide ColorFilter / BackdropFilter when

@@ -22,21 +22,52 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
   ) {
     // v2.2: If this node IS the viewer, show "You" as the relation label.
     final bool isViewer = viewerPersonId != null && id == viewerPersonId;
-    // v5.9: Check if this person is "unlinked" (zero relationship edges).
-    final unlinkedIds = ref.watch(unlinkedPersonIdsProvider(widget.familyId));
-    final bool isUnlinked = unlinkedIds.contains(id);
-    // v5.85: Check if this node has an INDIRECT relationship to the
-    // current viewer (not directly connected by a line, but related
-    // through other people). Used to show the interlocking-rings badge.
-    final indirectIds = ref.watch(
-        indirectRelationIdsProvider(widget.familyId));
-    final bool isIndirectRelation = indirectIds.contains(id);
-    // §4: Wire selectedNodeProvider to the node's NodeState so
-    // selection visually highlights the node.
-    final selectedId = ref.watch(selectedNodeProvider);
+
+    // v5.140 (PERF): Use `.select()` on set-returning providers so the
+    // parent state only rebuilds when THIS NODE'S membership in the set
+    // changes — NOT when any other node's membership changes. Previously
+    // any change to unlinkedPersonIds (e.g. a new node being linked
+    // elsewhere in the family) rebuilt every visible GraphNode. With
+    // 100 visible nodes and one node-linking operation, that was 100
+    // wasted rebuilds. Now only the previously-unlinked + newly-linked
+    // nodes rebuild.
+    final bool isUnlinked = ref.watch(
+      unlinkedPersonIdsProvider(widget.familyId)
+          .select((Set<String> s) => s.contains(id)),
+    );
+    final bool isIndirectRelation = ref.watch(
+      indirectRelationIdsProvider(widget.familyId)
+          .select((Set<String> s) => s.contains(id)),
+    );
+
+    // v5.140 (PERF): Scope selectedNodeProvider to whether THIS node is
+    // selected. The full selectedId is still read below (for the tap-
+    // highlight first-degree computation) but that read uses ref.read
+    // which doesn't subscribe — only the boolean scoping matters for
+    // rebuild triggering.
+    final bool isSelected = ref.watch(
+      selectedNodeProvider.select((String? s) => s == id),
+    );
+    final String? selectedId = ref.read(selectedNodeProvider);
+
     // v95 (Phase 1): Wire graphFocusProvider to NodeState.focused.
-    final focusState = ref.watch(graphFocusProvider);
-    final focusedId = focusState.focusedPersonId;
+    // v5.140 (PERF): Scope focus-state watches to only the fields this
+    // node actually reads. The previous `ref.watch(graphFocusProvider)`
+    // subscribed to the entire state object — any change to
+    // firstDegreeIds (e.g. when a different node is focused and its
+    // neighbors are computed) rebuilt every visible GraphNode. Now we
+    // split into:
+    //   - focusedId: the focused person id (or null) — used for emphasis
+    //   - isFirstDegree: whether THIS node is in the first-degree set
+    //     — used for the isolation opacity calc
+    final String? focusedId = ref.watch(
+      graphFocusProvider.select((s) => s.focusedPersonId),
+    );
+    final bool isFirstDegree = ref.watch(
+      graphFocusProvider.select((s) => s.firstDegreeIds.contains(id)),
+    );
+    final Set<String> focusFirstDegreeIds =
+        ref.read(graphFocusProvider).firstDegreeIds;
 
     // v99 (Phase 10): Use the centralized computeEmphasisLevel to
     // determine this node's emphasis. This replaces the old ad-hoc
@@ -55,7 +86,7 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
     // selectedNodeProvider but never populated firstDegreeIds — so
     // the edges dimmed/brightened correctly but the neighbor nodes
     // stayed at normal opacity, same as unrelated nodes.
-    Set<String>? effectiveFirstDegreeIds = focusState.firstDegreeIds;
+    Set<String>? effectiveFirstDegreeIds = focusFirstDegreeIds;
     final bool tapHighlightActive =
         selectedId != null && focusedId == null && !searchState.isActive;
     if (tapHighlightActive && flat != null) {
@@ -93,7 +124,11 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       nodeState = NodeState.focused;
     } else if (emphasis == EmphasisLevel.selected ||
                emphasis == EmphasisLevel.pathNode) {
-      nodeState = NodeState.selected;
+      // v5.140 (PERF): Use the scoped `isSelected` boolean instead of
+      // recomputing `selectedId == id`. Functionally identical.
+      nodeState = (isSelected || emphasis == EmphasisLevel.pathNode)
+          ? NodeState.selected
+          : NodeState.normal;
     } else {
       nodeState = NodeState.normal;
     }
@@ -119,8 +154,9 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
     if (focusedId != null) {
       // Focus mode (long-press "Isolate Connections"): 18% for
       // non-isolated nodes, matching the edge dimAlpha.
-      final bool isIsolated = id == focusedId ||
-          focusState.firstDegreeIds.contains(id);
+      // v5.140 (PERF): Use the scoped `isFirstDegree` boolean instead
+      // of calling `focusState.firstDegreeIds.contains(id)` again.
+      final bool isIsolated = id == focusedId || isFirstDegree;
       nodeOpacity = isIsolated ? 1.0 : 0.18;
     } else if (tapHighlightActive) {
       // Plain tap: use the emphasis level's opacity directly.
