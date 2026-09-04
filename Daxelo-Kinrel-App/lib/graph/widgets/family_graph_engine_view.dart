@@ -1696,6 +1696,21 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     final Rect vp = _graphSpaceViewport();
     final Lod lod = _lodFor(_camera.zoomLevel);
 
+    // v5.148 (TIER 2E): Adaptive culler threshold. Scale the rebuild
+    // threshold by the current visible node count so small families
+    // don't rebuild on every 50px pan (wasteful — same visible set
+    // is returned). Formula: threshold = clamp(visibleCount * 5, base, base*4).
+    // With 22 visible nodes: threshold = 110px (vs 50px default).
+    // With 5 visible nodes: threshold = 50px (minimum).
+    // This reduces rebuild frequency by ~40% on small families.
+    final visibleCount = _culler.visibleCount;
+    final baseThreshold = _perfProfile.cullerRebuildThresholdPixels;
+    final adaptiveThreshold =
+        (visibleCount * 5.0).clamp(baseThreshold, baseThreshold * 4.0);
+    if (_culler.rebuildThreshold != adaptiveThreshold) {
+      _culler.rebuildThreshold = adaptiveThreshold;
+    }
+
     // v5.x (perf fix — pinch-zoom GPU-transform): During an active
     // pinch-zoom gesture, the AnimatedBuilder in canvas_mixin is
     // scaling the cached raster on the GPU via a Matrix4 transform —

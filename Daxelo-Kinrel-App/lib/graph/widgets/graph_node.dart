@@ -370,19 +370,31 @@ class GraphNode extends ConsumerStatefulWidget {
 
 class _GraphNodeState extends ConsumerState<GraphNode>
     with TickerProviderStateMixin {
-  // ── Animation Controllers ───────────────────────────────────────────
+  // ── Animation Controllers (v5.148: lazy-init) ──────────────────────
+  //
+  // v5.148 (TIER 2D): Previously all 5 controllers were created in
+  // initState for EVERY node. With 22 visible nodes that's 110
+  // controllers — all idle, but all consuming memory + ticker slots.
+  // Only 1-2 nodes are ever in a state that needs animations at any
+  // given time (selected, focused, near-birthday, anchor).
+  //
+  // Now each controller is nullable and created ON-DEMAND when the
+  // state is first entered. A normal node creates ZERO controllers.
+  // The anchor creates 1 (_selfPulseController). A focused node
+  // creates 1 (_pulseController). Result: ~4 controllers total
+  // instead of 110.
 
-  late final AnimationController _pulseController;
-  late final AnimationController _shimmerController;
-  late final AnimationController _errorPulseController;
-  late final AnimationController _expandRotateController;
+  AnimationController? _pulseController;
+  AnimationController? _shimmerController;
+  AnimationController? _errorPulseController;
+  AnimationController? _expandRotateController;
   // v5.100: Slow pulse for the "You" node glow (always active)
-  late final AnimationController _selfPulseController;
-  late final Animation<double> _selfPulseAnimation;
+  AnimationController? _selfPulseController;
+  Animation<double>? _selfPulseAnimation;
 
-  late final Animation<double> _pulseAnimation;
-  late final Animation<double> _shimmerAnimation;
-  late final Animation<double> _errorPulseAnimation;
+  Animation<double>? _pulseAnimation;
+  Animation<double>? _shimmerAnimation;
+  Animation<double>? _errorPulseAnimation;
 
   /// Whether high contrast mode is active (updated on build).
   // v60: _highContrast is set in build() from MediaQuery. Using a local
@@ -404,62 +416,29 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     // loads, then it fades to a static glow. If the user taps the
     // anchor node (state → selected/focused), the pulse restarts
     // via _updateAnimations for a brief reminder.
-    _selfPulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2500),
-    );
-    _selfPulseAnimation = Tween<double>(begin: 0.2, end: 0.45).animate(
-      CurvedAnimation(parent: _selfPulseController, curve: Curves.easeInOut),
-    );
+    //
+    // v5.148 (TIER 2D): Only create this controller for the anchor
+    // node. Non-anchor nodes never need it — saves 21 controllers
+    // on a 22-node graph.
     if (widget.isAnchor) {
+      _selfPulseController = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 2500),
+      );
+      _selfPulseAnimation = Tween<double>(begin: 0.2, end: 0.45).animate(
+        CurvedAnimation(parent: _selfPulseController!, curve: Curves.easeInOut),
+      );
       // Run for 2 cycles (5 seconds), then stop.
-      _selfPulseController.repeat(reverse: true);
+      _selfPulseController!.repeat(reverse: true);
       Future.delayed(const Duration(seconds: 5), () {
-        if (mounted) _selfPulseController.stop();
+        if (mounted) _selfPulseController?.stop();
       });
     }
 
-    // Pulse animation for focused state (1.5s repeat, scale 1.0↔1.15)
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-
-    // Shimmer animation for loading state (1.5s repeat).
-    // P3.1: removed the explicit identity easing curve — linear is
-    // the default behavior of `Tween.animate(parent)` without a
-    // CurvedAnimation wrapper. The P3.1 verification check requires
-    // zero occurrences of identity-easing literal references in
-    // lib/graph/. The shimmer genuinely needs uniform motion (constant-
-    // velocity sweep), so we keep the behavior but remove the
-    // redundant explicit curve.
-    _shimmerController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-    _shimmerAnimation = Tween<double>(
-      begin: -1.0,
-      end: 2.0,
-    ).animate(_shimmerController);
-
-    // Error pulse animation for error state (800ms repeat)
-    _errorPulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _errorPulseAnimation = Tween<double>(begin: 1.0, end: 0.5).animate(
-      CurvedAnimation(parent: _errorPulseController, curve: Curves.easeInOut),
-    );
-
-    // Expand rotate animation for expanded state
-    _expandRotateController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-
+    // v5.148: The other 4 controllers (pulse, shimmer, errorPulse,
+    // expandRotate) are created lazily in _updateAnimations() when
+    // the node first enters the corresponding state. This avoids
+    // creating 4×22=88 idle controllers for normal-state nodes.
     _updateAnimations();
   }
 
@@ -472,21 +451,51 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   }
 
   void _updateAnimations() {
-    // Stop all animations first
-    _pulseController.stop();
-    _shimmerController.stop();
-    _errorPulseController.stop();
-    _expandRotateController.stop();
+    // v5.148 (TIER 2D): Lazy-init controllers. Each controller is
+    // created ON-DEMAND when the node first enters the state that
+    // needs it. Normal nodes never create any of these — saving
+    // 4 controllers × 22 nodes = 88 idle controllers.
+
+    // Stop all existing controllers (no-op if null).
+    _pulseController?.stop();
+    _shimmerController?.stop();
+    _errorPulseController?.stop();
+    _expandRotateController?.stop();
 
     switch (widget.nodeState) {
       case NodeState.focused:
-        _pulseController.repeat(reverse: true);
+        // Create the pulse controller lazily.
+        _pulseController ??= AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 1500),
+        );
+        _pulseAnimation ??= Tween<double>(begin: 1.0, end: 1.15).animate(
+          CurvedAnimation(parent: _pulseController!, curve: Curves.easeInOut),
+        );
+        _pulseController!.repeat(reverse: true);
       case NodeState.loading:
-        _shimmerController.repeat();
+        _shimmerController ??= AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 1500),
+        );
+        _shimmerAnimation ??= Tween<double>(begin: -1.0, end: 2.0)
+            .animate(_shimmerController!);
+        _shimmerController!.repeat();
       case NodeState.error:
-        _errorPulseController.repeat(reverse: true);
+        _errorPulseController ??= AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 800),
+        );
+        _errorPulseAnimation ??= Tween<double>(begin: 1.0, end: 0.5).animate(
+          CurvedAnimation(parent: _errorPulseController!, curve: Curves.easeInOut),
+        );
+        _errorPulseController!.repeat(reverse: true);
       case NodeState.expanded:
-        _expandRotateController.forward();
+        _expandRotateController ??= AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 300),
+        );
+        _expandRotateController!.forward();
       case NodeState.normal:
       case NodeState.hover:
       case NodeState.selected:
@@ -496,11 +505,12 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
   @override
   void dispose() {
-    _pulseController.dispose();
-    _shimmerController.dispose();
-    _errorPulseController.dispose();
-    _expandRotateController.dispose();
-    _selfPulseController.dispose();  // v5.100: "You" node glow
+    // v5.148: Only dispose controllers that were actually created.
+    _pulseController?.dispose();
+    _shimmerController?.dispose();
+    _errorPulseController?.dispose();
+    _expandRotateController?.dispose();
+    _selfPulseController?.dispose();  // v5.100: "You" node glow
     super.dispose();
   }
 
@@ -593,10 +603,10 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
     // Update animation durations for reduced motion
     if (reduceMotion) {
-      _pulseController.stop();
-      _shimmerController.stop();
-      _errorPulseController.stop();
-      _expandRotateController.stop();
+      _pulseController?.stop();
+      _shimmerController?.stop();
+      _errorPulseController?.stop();
+      _expandRotateController?.stop();
     }
 
     final effectiveOpacity = widget.isDeceased
@@ -715,13 +725,13 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     final yOffset = widget.generationIndex < 0 && !widget.isAnchor ? -1.5 : 0.0;
 
     // Focused state: pulsing glow
-    if (widget.nodeState == NodeState.focused) {
+    if (widget.nodeState == NodeState.focused && _pulseAnimation != null) {
       return AnimatedBuilder(
-        animation: _pulseAnimation,
+        animation: _pulseAnimation!,
         builder: (context, child) {
           return Transform.translate(
             offset: Offset(0, yOffset),
-            child: Transform.scale(scale: _pulseAnimation.value, child: child),
+            child: Transform.scale(scale: _pulseAnimation!.value, child: child),
           );
         },
         child: _buildNodeContent(),
@@ -737,13 +747,13 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     }
 
     // Error state: red border pulse
-    if (widget.nodeState == NodeState.error) {
+    if (widget.nodeState == NodeState.error && _errorPulseAnimation != null) {
       return AnimatedBuilder(
-        animation: _errorPulseAnimation,
+        animation: _errorPulseAnimation!,
         builder: (context, child) {
           return Transform.translate(
             offset: Offset(0, yOffset),
-            child: Opacity(opacity: _errorPulseAnimation.value, child: child),
+            child: Opacity(opacity: _errorPulseAnimation!.value, child: child),
           );
         },
         child: _buildNodeContent(),
@@ -1009,15 +1019,16 @@ class _GraphNodeState extends ConsumerState<GraphNode>
           // v5.100: "You" node glow — a pulsing gold aura behind the node.
           // Uses a simple AnimatedBuilder on a shared pulse controller
           // (no per-frame gradient — just opacity on a pre-drawn circle).
-          if (widget.isAnchor)
+          // v5.148: _selfPulseAnimation is null for non-anchor nodes.
+          if (widget.isAnchor && _selfPulseAnimation != null)
             Positioned.fill(
               child: AnimatedBuilder(
-                animation: _selfPulseAnimation,
+                animation: _selfPulseAnimation!,
                 builder: (context, child) {
                   return CustomPaint(
                     painter: _SelfNodeGlowPainter(
                       color: KinshipEdgeColors.kSelfNodeColor,
-                      pulse: _selfPulseAnimation.value,
+                      pulse: _selfPulseAnimation!.value,
                       diameter: effectiveDiameter,
                     ),
                   );
@@ -1043,13 +1054,13 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                       child: Container(color: nodeParams.tintColor),
                     ),
                   _buildCircleContent(effectiveDiameter),  // v5.100: use effective diameter
-                  if (widget.nodeState == NodeState.loading)
+                  if (widget.nodeState == NodeState.loading && _shimmerAnimation != null)
                     Positioned.fill(
                       child: AnimatedBuilder(
-                        animation: _shimmerAnimation,
+                        animation: _shimmerAnimation!,
                         builder: (context, child) {
                           return CustomPaint(
-                            painter: ShimmerPainter(_shimmerAnimation.value),
+                            painter: ShimmerPainter(_shimmerAnimation!.value),
                           );
                         },
                       ),
@@ -1200,24 +1211,36 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                     color: KinrelColors.darkCard,
                     border: Border.all(color: _borderColor, width: 1.0),
                   ),
-                  child: AnimatedBuilder(
-                    animation: _expandRotateController,
-                    builder: (context, child) => Transform.rotate(
-                      angle: _expandRotateController.value * pi,
-                      child: child,
-                    ),
-                    child: widget.nodeState == NodeState.expanded
-                        ? Icon(
-                            Icons.expand_less,
-                            size: diameter * 0.2,
-                            color: _borderColor,
-                          )
-                        : Icon(
-                            Icons.expand_more,
-                            size: diameter * 0.2,
-                            color: _borderColor,
+                  child: _expandRotateController != null
+                      ? AnimatedBuilder(
+                          animation: _expandRotateController!,
+                          builder: (context, child) => Transform.rotate(
+                            angle: _expandRotateController!.value * pi,
+                            child: child,
                           ),
-                  ),
+                          child: widget.nodeState == NodeState.expanded
+                              ? Icon(
+                                  Icons.expand_less,
+                                  size: diameter * 0.2,
+                                  color: _borderColor,
+                                )
+                              : Icon(
+                                  Icons.expand_more,
+                                  size: diameter * 0.2,
+                                  color: _borderColor,
+                                ),
+                        )
+                      : (widget.nodeState == NodeState.expanded
+                          ? Icon(
+                              Icons.expand_less,
+                              size: diameter * 0.2,
+                              color: _borderColor,
+                            )
+                          : Icon(
+                              Icons.expand_more,
+                              size: diameter * 0.2,
+                              color: _borderColor,
+                            )),
                 ),
               ),
             ),
