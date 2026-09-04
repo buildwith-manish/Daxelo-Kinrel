@@ -1325,7 +1325,12 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
                 totalMembers: disclosedMembers,
                 totalConnections: disclosedLinks,
                 totalGenerations: disclosedGens.length,
-                fullFamilyMembers: graph.persons.length,
+                // v5.152 (FIX 2): Use totalCount (the TRUE family size from
+                // the RPC) instead of persons.length (the ~45-node proximity
+                // set). The "View All" button should always show the total
+                // number of members in the family graph (714), not the
+                // number currently visible (45).
+                fullFamilyMembers: graph.totalCount ?? graph.persons.length,
                 isTruncated: graph.isTruncated,
                 familyId: widget.familyId,
                 onViewAllMembers: () {
