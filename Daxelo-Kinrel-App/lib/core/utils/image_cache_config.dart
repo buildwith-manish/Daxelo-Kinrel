@@ -4,7 +4,7 @@
 //
 // Configures the global image cache settings for the app:
 //   - 7-day stale time (images stay in disk cache for 7 days)
-//   - 100MB max memory cache size
+//   - Tier-aware max memory cache size (100MB high / 60MB mid / 40MB low)
 //   - Custom CacheManager (KinrelImageCacheManager) shared by all
 //     CachedAvatar / CachedNetworkImage widgets
 //
@@ -14,6 +14,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+
+import 'device_tier.dart' show DeviceTier, DeviceTierCache;
 
 // ════════════════════════════════════════════════════════════════════
 // KINREL IMAGE CACHE MANAGER
@@ -73,20 +75,42 @@ class KinrelImageCacheManager extends CacheManager {
 class ImageCacheConfig {
   ImageCacheConfig._();
 
-  /// Maximum in-memory image cache size in bytes (100 MB).
-  static const int _maxMemoryCacheBytes = 100 * 1024 * 1024;
+  /// v5.141 (LOW-END PERF): Default maximum in-memory image cache size
+  /// in bytes for high-end devices (100 MB). Mid-range devices use 60
+  /// MB, low-end devices use 40 MB. The actual limit is computed in
+  /// [initialize] from [DeviceTierCache].
+  static const int _maxMemoryCacheBytesHigh = 100 * 1024 * 1024;
+  static const int _maxMemoryCacheBytesMid = 60 * 1024 * 1024;
+  static const int _maxMemoryCacheBytesLow = 40 * 1024 * 1024;
 
   /// Whether the cache has been initialized.
   static bool _initialized = false;
 
+  /// Returns the tier-appropriate memory cache limit in bytes.
+  /// Falls back to the mid-range value if the device tier hasn't been
+  /// initialized yet (e.g. web before first frame).
+  static int _tierAppropriateCacheLimit() {
+    switch (DeviceTierCache.instance.tier) {
+      case DeviceTier.high:
+        return _maxMemoryCacheBytesHigh;
+      case DeviceTier.mid:
+        return _maxMemoryCacheBytesMid;
+      case DeviceTier.low:
+        return _maxMemoryCacheBytesLow;
+    }
+  }
+
   /// Initialize the image cache with optimized settings.
   ///
-  /// - Sets the Flutter [imageCache] maximum size to 100 MB
+  /// - Sets the Flutter [imageCache] maximum size based on device tier
+  ///   (100 MB high / 60 MB mid / 40 MB low)
   /// - Warms up the [KinrelImageCacheManager] singleton so it is
   ///   ready when the first [CachedNetworkImage] is built
   /// - Safe to call multiple times (subsequent calls are no-ops)
   static Future<void> initialize() async {
     if (_initialized) return;
+
+    final maxBytes = _tierAppropriateCacheLimit();
 
     // WEB: Skip disk cache initialization on web — flutter_cache_manager
     // uses sqflite + path_provider which don't work on web. The in-memory
@@ -95,10 +119,10 @@ class ImageCacheConfig {
     // (no disk caching) on web, which is acceptable.
     if (kIsWeb) {
       try {
-        PaintingBinding.instance.imageCache.maximumSizeBytes =
-            _maxMemoryCacheBytes;
+        PaintingBinding.instance.imageCache.maximumSizeBytes = maxBytes;
         _initialized = true;
-        debugPrint('✅ ImageCacheConfig: Web mode — memory cache only');
+        debugPrint('✅ ImageCacheConfig: Web mode — memory cache only '
+            '(${(maxBytes / (1024 * 1024)).round()} MB, tier=${DeviceTierCache.instance.tier})');
       } catch (e) {
         debugPrint('⚠️ ImageCacheConfig: Web memory cache setup failed: $e');
       }
@@ -108,8 +132,9 @@ class ImageCacheConfig {
     try {
       // 1. Set memory cache limits for Flutter's in-memory image cache.
       //    This controls how many decoded images are kept in RAM.
-      PaintingBinding.instance.imageCache.maximumSizeBytes =
-          _maxMemoryCacheBytes;
+      //    v5.141: Tier-aware — low-end devices get 40 MB to avoid GC
+      //    pressure on 2–4 GB RAM devices.
+      PaintingBinding.instance.imageCache.maximumSizeBytes = maxBytes;
 
       // 2. Warm up the KinrelImageCacheManager singleton so that
       //    the first CachedNetworkImage doesn't block on lazy init.
@@ -119,7 +144,8 @@ class ImageCacheConfig {
       _initialized = true;
       debugPrint(
         '✅ ImageCacheConfig: Initialized — '
-        '7-day disk cache, 100MB memory limit',
+        '7-day disk cache, ${(maxBytes / (1024 * 1024)).round()} MB memory limit '
+        '(tier=${DeviceTierCache.instance.tier})',
       );
     } catch (e) {
       debugPrint('⚠️ ImageCacheConfig: Could not configure cache: $e');

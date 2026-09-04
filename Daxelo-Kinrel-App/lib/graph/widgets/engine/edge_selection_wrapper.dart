@@ -68,6 +68,11 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
     // current state in build() and overrides the static
     // connectOnOpen* props below when the controller is active.
     this.connectOnOpenController,
+    // v5.141 (LOW-END PERF): Profile-driven edge pass toggles. Passed
+    // straight through to EngineEdgePainter. When false, the painter
+    // skips the corresponding pass entirely.
+    this.allowShadowPass = true,
+    this.allowRidgePass = true,
   });
 
   final Map<String, Offset> positions;
@@ -178,6 +183,11 @@ class EdgeSelectionWrapper extends ConsumerStatefulWidget {
   /// v5.140 (PERF): The connect-on-open trace controller. See the
   /// constructor doc for the contract.
   final GraphPathTraceController? connectOnOpenController;
+
+  /// v5.141 (LOW-END PERF): Profile-driven edge pass toggles. Passed
+  /// straight through to EngineEdgePainter.
+  final bool allowShadowPass;
+  final bool allowRidgePass;
 
   @override
   ConsumerState<EdgeSelectionWrapper> createState() =>
@@ -455,6 +465,10 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
         // end / large interim zoom excursion.
         painterActiveGesture: widget.painterActiveGesture,
         zoomCommitRevision: widget.zoomCommitRevision,
+        // v5.141 (LOW-END PERF): forward profile-driven edge pass
+        // toggles to the painter.
+        allowShadowPass: widget.allowShadowPass,
+        allowRidgePass: widget.allowRidgePass,
       ),
       child: const SizedBox.expand(),
     );

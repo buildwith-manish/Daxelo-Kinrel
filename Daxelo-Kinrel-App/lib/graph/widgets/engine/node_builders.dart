@@ -189,9 +189,13 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       // (now included in the graph RPC) and pass the shared pulse value.
       // Reduced motion → pass -1.0 as a sentinel so the painter uses a
       // static 0.45 alpha instead of reading the pulse.
+      // v5.141 (LOW-END PERF): Also pass -1.0 on low-end devices (the
+      // profile's allowBirthdayPulseAnimation flag is false). The ring
+      // is still visible at the static 0.45 alpha — just not animated.
       isNearBirthday: isNearBirthdayForPerson(p),
       birthdayPulseValue: isNearBirthdayForPerson(p)
-          ? (MediaQuery.disableAnimationsOf(context)
+          ? (MediaQuery.disableAnimationsOf(context) ||
+                  !_perfProfile.allowBirthdayPulseAnimation
               ? -1.0 // sentinel: static glow
               : ref.watch(birthdayPulseProvider).value)
           : 0.0,
@@ -200,8 +204,12 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       // at their center. All deceased nodes share one AnimationController
       // so they flicker in sync. Reduced motion → -1.0 sentinel = static
       // 0.75 alpha.
+      // v5.141 (LOW-END PERF): Also pass -1.0 on low-end devices (the
+      // profile's allowMemorialCandleFlicker flag is false). The candle
+      // is still visible at the static 0.75 alpha — just not flickering.
       memorialCandleFlickerValue: (p['isDeceased'] as bool?) ?? false
-          ? (MediaQuery.disableAnimationsOf(context)
+          ? (MediaQuery.disableAnimationsOf(context) ||
+                  !_perfProfile.allowMemorialCandleFlicker
               ? -1.0 // sentinel: static candle
               : ref.watch(memorialCandleFlickerProvider).value)
           : 0.0,

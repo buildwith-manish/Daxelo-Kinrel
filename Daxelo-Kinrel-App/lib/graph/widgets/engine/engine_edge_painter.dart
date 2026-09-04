@@ -226,6 +226,14 @@ class EngineEdgePainter extends CustomPainter {
     // commit revision. See the doc block on the fields below.
     this.painterActiveGesture = false,
     this.zoomCommitRevision = 0,
+    // v5.141 (LOW-END PERF): Profile-driven edge pass toggles. When
+    // false, the painter skips the corresponding pass entirely —
+    // even if edgeQuality would normally allow it. This lets low-end
+    // devices drop the shadow + ridge passes (the two most expensive
+    // operations) while keeping edgeQuality at chip tier for the
+    // body pass.
+    this.allowShadowPass = true,
+    this.allowRidgePass = true,
   });
 
   final Map<String, Offset> positions;
@@ -359,7 +367,6 @@ class EngineEdgePainter extends CustomPainter {
   /// Default false — backward compatible for every existing
   /// construction site that doesn't pass this field.
   final bool painterActiveGesture;
-
   /// v5.x (perf fix — pinch-zoom GPU-transform): Monotonically
   /// increasing integer bumped by the engine view state to force
   /// a real repaint (with the current zoom baked into stroke
@@ -378,6 +385,23 @@ class EngineEdgePainter extends CustomPainter {
   ///
   /// Default 0 — no forced commit. Backward compatible.
   final int zoomCommitRevision;
+
+  /// v5.141 (LOW-END PERF): When false, the painter skips PASS 1
+  /// (contact shadow) entirely — even if edgeQuality would normally
+  /// allow it. The shadow uses MaskFilter.blur which is the single
+  /// most expensive paint operation. On low-end devices this flag
+  /// is false, halving the edge paint cost.
+  ///
+  /// Default true — backward compatible.
+  final bool allowShadowPass;
+
+  /// v5.141 (LOW-END PERF): When false, the painter skips PASS 3
+  /// (directional light ridge) entirely. The ridge is a subtle
+  /// top-left highlight that's barely visible at phone scale anyway.
+  /// On low-end devices this flag is false.
+  ///
+  /// Default true — backward compatible.
+  final bool allowRidgePass;
 
   // ── Path construction ─────────────────────────────────────────────────
 
@@ -865,8 +889,17 @@ class EngineEdgePainter extends CustomPainter {
 
     // Pre-resolve a few per-frame constants from the lighting contract.
     final bool isDot = edgeQuality == EdgeQuality.dot;
-    final double shadowSigma = edgeQuality.shadowSigma;
-    final double ridgeAlpha = edgeQuality.ridgeAlpha;
+    // v5.141 (LOW-END PERF): If the profile disabled the shadow or
+    // ridge pass, force the corresponding sigma/alpha to 0 so the
+    // paint methods skip that pass entirely. This compounds with
+    // edgeQuality — e.g. on low-end devices edgeQuality is chip
+    // (sigma 1.6, alpha 0.14) but allowShadowPass=false forces
+    // sigma to 0, so PASS 1 is skipped. The body pass (PASS 2) is
+    // always drawn.
+    final double shadowSigma =
+        allowShadowPass ? edgeQuality.shadowSigma : 0.0;
+    final double ridgeAlpha =
+        allowRidgePass ? edgeQuality.ridgeAlpha : 0.0;
 
     // Relationship-focus dimming factor (PART 13). Edges in
     // `dimmedEdgeIds` get this alpha multiplier so unrelated threads
@@ -2333,7 +2366,13 @@ class EngineEdgePainter extends CustomPainter {
         // also implicitly depend on pathFocusActive / pathFocusedEdgeIds
         // which are already checked above). Use the lightweight
         // _sameLabelsMap helper to avoid a deep comparison every frame.
-        !_sameLabelsMap(old.pathFocusLabels, pathFocusLabels);
+        !_sameLabelsMap(old.pathFocusLabels, pathFocusLabels) ||
+        // v5.141 (LOW-END PERF): repaint when the shadow/ridge pass
+        // toggles change (e.g. when a profile hot-reload flips
+        // allowShadowPass). This is rare in production but important
+        // for dev hot-reload correctness.
+        old.allowShadowPass != allowShadowPass ||
+        old.allowRidgePass != allowRidgePass;
   }
 
   /// v5.x (Feature 3): Lightweight path-focus labels map comparison.

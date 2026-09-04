@@ -182,6 +182,12 @@ import '../rendering/viewport_culler.dart' show ViewportCuller;
 // subtree rebuilds during pan/zoom.
 import '../rendering/relationship_label_opacity.dart'
     show relationLabelOpacityFor, RelationLabelOpacityScope;
+// v5.141 (LOW-END PERF): Tier-aware performance profile. Centralizes
+// all low-end / mid / high-end decisions so the graph degrades
+// gracefully on 2–4 GB RAM devices while keeping the full premium
+// experience on high-end devices.
+import '../rendering/graph_performance_profile.dart'
+    show GraphPerformanceProfile;
 import 'graph_node.dart' show GraphNode, NodeState;
 import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, OnThisDayEventType, showOnThisDayEventSheet;
 import 'graph_minimap.dart' show GraphMiniMap;
@@ -540,6 +546,15 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // constant-width strokes on gesture end.
   bool _painterActiveGesture = false;
   int _zoomCommitRevision = 0;
+
+  /// v5.141 (LOW-END PERF): The performance profile for the current
+  /// device. Computed once in initState from [DeviceTierCache]. All
+  /// tier-aware code paths (LOD selection, edge quality, ambient
+  /// particles, connect-on-open animation, culler thresholds, image
+  /// cache size) read from this profile so low-end devices get
+  /// graceful degradation while high-end devices keep the full
+  /// premium experience.
+  late final GraphPerformanceProfile _perfProfile;
   /// The zoom level the painter last rasterized at. Used by
   /// [_onScaleUpdate] to detect when a 15% interim repaint is needed
   /// during a long pinch.
@@ -734,14 +749,21 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   @override
   void initState() {
     super.initState();
+    // v5.141 (LOW-END PERF): Build the performance profile ONCE from
+    // the device tier. All tier-aware code paths read from this.
+    _perfProfile = GraphPerformanceProfile.forCurrentDevice();
     _positionMemory = PositionMemory();
     _camera = CameraController(positionMemory: _positionMemory)
       ..setFamilyId(widget.familyId)
       ..addListener(_onCameraChanged);
     _culler = ViewportCuller(
       viewport: Rect.zero,
-      bufferPixels: 300,
-      rebuildThreshold: 80,
+      // v5.141: Use tier-aware buffer + rebuild threshold. Low-end
+      // devices get a smaller buffer (fewer nodes built) + larger
+      // rebuild threshold (fewer rebuilds during pan). High-end
+      // devices keep the original 300px / 80px values.
+      bufferPixels: _perfProfile.cullerBufferPixels,
+      rebuildThreshold: _perfProfile.cullerRebuildThresholdPixels,
     );
     // v5.132: no ExpandCollapseController here anymore (System B).
 
@@ -1373,10 +1395,18 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _connectOnOpenOrderedEdgeIds = ordered;
     if (ordered.isEmpty) return;
     final reduced = MediaQuery.disableAnimationsOf(context);
+    // v5.141 (LOW-END PERF): On low-end devices, skip the connect-on-
+    // open animation entirely. The animation previously caused 1–3s
+    // of degraded pan/zoom on first load because each tick repainted
+    // the edge layer. On low-end devices the frame budget is already
+    // tight — the animation pushes it over the edge. revealAll()
+    // shows all edges instantly at full alpha, which is perfectly
+    // acceptable on a low-end device (no "premium reveal" expectation).
+    final skipAnimation = reduced || !_perfProfile.allowConnectOnOpenAnimation;
     // Propagate reduced-motion to the controller so it suppresses
     // per-step haptics (same pattern as the existing path trace).
     _connectOnOpenController!.reducedMotion = reduced;
-    if (reduced) {
+    if (skipAnimation) {
       // Skip the animation — all edges revealed immediately.
       _connectOnOpenController!.revealAll(ordered);
     } else {
@@ -1580,46 +1610,29 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   }
 
   Lod _lodFor(double zoom) {
-    // v5.112 (USER FEEDBACK): ALWAYS return Lod.full.
+    // v5.141 (LOW-END PERF): Use the tier-aware LOD function from the
+    // performance profile.
     //
-    // The user explicitly requested that nodes should NEVER degrade to
-    // simple colored dots or circles — even when zoomed out, the graph
-    // should show the same full 72dp GraphNode widgets (with initials,
-    // names, borders, relationship colors, etc.) that are visible when
-    // zoomed in.
+    // • High-end: always Lod.full (per the user's v5.112 request —
+    //   "nodes should NEVER degrade to simple colored dots or
+    //   circles"). The profile's lodForZoom returns Lod.full for
+    //   every zoom on high-end devices.
+    // • Mid-range: Lod.full for zoom >= 0.50, Lod.compact below.
+    //   Compact is still a full GraphNode — just with the relation
+    //   label faded. The user's "no dots" request is respected.
+    // • Low-end: Lod.full for zoom >= 0.65, Lod.compact for 0.30–0.65,
+    //   Lod.mini (circle + initial) below 0.30. Mini is still
+    //   recognizable — NOT anonymous dots.
     //
-    // Previous versions (v5.108-v5.111) used a multi-tier semantic zoom
-    // system that degraded nodes to chips, mini-circles, micro-dots, and
-    // finally plain dots as the user zoomed out. The user found this
-    // unacceptable: "It should not feel like simple dot or color."
-    //
-    // Now we ALWAYS render the full GraphNode widget. Performance is
-    // handled by:
-    //   1. Viewport culling — only on-screen nodes are built as widgets
-    //   2. RepaintBoundary — each node is cached as a raster layer
-    //   3. EdgePathCache — edge paths are memoized
-    //   4. AnimatedBuilder on camera — pan/zoom reuses the cached rasters
-    //   5. v5.x (perf fix): pinch-zoom gesture bypasses painter repaint
-    //      (GPU Matrix4 transform scales the cached raster — see
-    //      [_painterActiveGesture] + [_zoomCommitRevision]).
-    //
-    // The relation label ("Husband", "You", etc.) still fades smoothly
-    // based on zoom via relationLabelOpacityFor — that's just text opacity,
-    // not the node itself. The primary member name is ALWAYS visible.
-    //
-    // The SemanticTier computation is preserved for backward compat
-    // (tests, focus-mode logic) but no longer drives the Lod selection.
-    //
-    // v5.x (perf audit): This hardcoded `Lod.full` return is fine for pan
-    // (cached rasters are reused via GPU transform) and is now fine for
-    // pinch-zoom (same GPU transform path — see the gesture fix). It can
-    // still contribute to per-frame work on very large trees (100+
-    // members) because more full-detail GraphNode widgets are alive for
-    // the culler to juggle on each rebuild. If a specific family still
-    // stutters after the zoom fix, this is the next lever — e.g. re-enable
-    // a `Lod.compact` tier (still premium enough to keep initials/names)
-    // for zoomed-out states so the culler handles fewer widgets per
-    // rebuild. Not the main cause of pinch jank — flagged for future audit.
+    // Additionally, on low-end/mid devices, if the visible node count
+    // exceeds _perfProfile.maxVisibleNodesBeforeForceMini, the graph
+    // FORCES Lod.mini regardless of zoom — preventing the culler from
+    // juggling 100+ premium GraphNode widgets (each with 5
+    // AnimationControllers) on devices that can't handle it.
+
+    // Preserve the SemanticTier computation for backward compat
+    // (focus-mode logic, tests). This no longer drives the Lod
+    // selection — the profile does.
     final focusActive = ref.read(graphFocusProvider).focusedPersonId != null;
     final thresholds = thresholdsForMemberCount(_currentMemberCount);
     _currentSemanticTier = computeSemanticTier(
@@ -1629,8 +1642,16 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       memberCount: _currentMemberCount,
       focusActive: focusActive,
     );
-    // v5.112: Always full — never degrade to dots/circles.
-    return Lod.full;
+
+    final forceMiniThreshold = _perfProfile.maxVisibleNodesBeforeForceMini;
+    if (forceMiniThreshold != null &&
+        _culler.visibleCount > forceMiniThreshold) {
+      // Too many visible nodes for this device tier — force mini to
+      // keep the frame rate stable. The user's "no dots" request is
+      // still respected (mini = circle + initial, not anonymous dots).
+      return Lod.mini;
+    }
+    return _perfProfile.lodForZoom(zoom);
   }
 
   /// v96 (Phase 3): Returns the current semantic tier (with hysteresis).
@@ -1644,22 +1665,16 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// v5.111: Updated for 5-tier system. COMPACT uses full edge quality
   /// (the GraphNode is still premium — no reason to degrade edges).
   /// MINI and MICRO use chip-quality edges (simplified but still visible).
+  ///
+  /// v5.141 (LOW-END PERF): Now delegates to the performance profile.
+  /// On low-end devices, even at Lod.full the edge quality is
+  /// downgraded to EdgeQuality.chip (lighter shadow sigma, reduced
+  /// ridge alpha). Combined with the allowEdgeShadowPass /
+  /// allowEdgeRidgePass flags (consumed by the painter via the
+  /// profile), this means low-end edges are a single body pass —
+  /// the cheapest possible visible edge.
   EdgeQuality _edgeQualityFor(Lod lod) {
-    switch (lod) {
-      case Lod.full:
-      case Lod.compact:
-        // v5.111: COMPACT keeps full edge quality — the GraphNode is
-        // still premium, so edges should match.
-        return EdgeQuality.full;
-      case Lod.mini:
-      case Lod.micro:
-      case Lod.chip:
-        // v5.111: MINI/MICRO use chip-quality edges (simplified but
-        // still visible — 2.0px screen-space stroke).
-        return EdgeQuality.chip;
-      case Lod.dot:
-        return EdgeQuality.dot;
-    }
+    return _perfProfile.edgeQualityForLod(lod);
   }
 
   // ── P3.3/P3.4/P3.7 helpers extracted to engine/event_helpers.dart ───

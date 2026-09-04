@@ -1281,6 +1281,12 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     // flag + commit-revision lifecycle.
                     painterActiveGesture: _painterActiveGesture,
                     zoomCommitRevision: _zoomCommitRevision,
+                    // v5.141 (LOW-END PERF): forward profile-driven
+                    // edge pass toggles. On low-end devices both are
+                    // false — the painter skips PASS 1 (shadow) and
+                    // PASS 3 (ridge), drawing only PASS 2 (body).
+                    allowShadowPass: _perfProfile.allowEdgeShadowPass,
+                    allowRidgePass: _perfProfile.allowEdgeRidgePass,
                   ),
                 ),
                 // Node layer — LOD-dependent. Drawn ON TOP of edges.
@@ -1576,6 +1582,18 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
   /// frame in those cases.
   List<Widget> _buildAmbientParticleLayer(
       GraphLayoutResult layout, FlatGraphResult flat) {
+    // v5.141 (LOW-END PERF): Skip the ambient particle layer entirely
+    // on low-end devices. The motes are purely decorative (25
+    // drawCircle calls per frame + a 6-second repeating
+    // AnimationController). On 2–4 GB RAM devices this constant
+    // tick competes with the graph's own repaints for frame budget.
+    // The anchor node still has its gold border + larger size +
+    // always-visible "You" label, so it remains visually distinct
+    // without the mote cloud.
+    if (!_perfProfile.allowAmbientParticles) {
+      return const [];
+    }
+
     // Find the anchor person's ID.
     final anchorId = flat.persons
         .firstWhere(
