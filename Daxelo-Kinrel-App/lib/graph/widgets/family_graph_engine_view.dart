@@ -188,6 +188,12 @@ import '../rendering/relationship_label_opacity.dart'
 // experience on high-end devices.
 import '../rendering/graph_performance_profile.dart'
     show GraphPerformanceProfile;
+// v5.142 (DIAGNOSTICS): Profile/debug-mode overlay that shows real-
+// time device tier, frame times, culler stats, and profile flags so
+// you can find the actual bottleneck instead of guessing. Compiled
+// out of release builds.
+import '../rendering/graph_performance_diagnostics.dart'
+    show GraphPerformanceDiagnostics;
 import 'graph_node.dart' show GraphNode, NodeState;
 import 'on_this_day_badge.dart' show OnThisDayBadge, OnThisDayEvent, OnThisDayEventType, showOnThisDayEventSheet;
 import 'graph_minimap.dart' show GraphMiniMap;
@@ -2040,6 +2046,23 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
                             setState(() => _showOutlineView = false),
                       ),
                     ),
+                  // v5.142 (DIAGNOSTICS): Performance overlay. Compiled
+                  // out of release builds. In debug/profile mode, long-
+                  // press the top-right corner to toggle. Shows device
+                  // tier, frame times, culler stats, and profile flags
+                  // so you can verify the perf gates are actually
+                  // applied (not silently bypassed by a misdetected
+                  // DeviceTier).
+                  GraphPerformanceDiagnostics(
+                    profile: _perfProfile,
+                    culler: _culler,
+                    cameraZoom: () => _camera.zoomLevel,
+                    currentLod: () => _lodFor(_camera.zoomLevel),
+                    currentEdgeQuality: () =>
+                        _edgeQualityFor(_lodFor(_camera.zoomLevel)),
+                    memberCount: () => _currentMemberCount,
+                    visibleNodeCount: () => _culler.visibleCount,
+                  ),
                 ],
               ),
             ),

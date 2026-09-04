@@ -71,6 +71,46 @@ class ViewportCuller extends ChangeNotifier {
   /// the connection line is silently dropped.
   Set<String> _lastNodeIds = const <String>{};
 
+  // ── v5.142 (DIAGNOSTICS): Culler stats for the perf overlay ──────
+  //
+  // These fields are read by GraphPerformanceDiagnostics to show the
+  // user (in profile/debug mode) whether the culler is actually
+  // excluding off-screen nodes. If `totalPositionsSeen` is 200 but
+  // `visibleCount` is also 200, the culler is NOT culling — which
+  // means either (a) the viewport is mis-aligned with graph-space,
+  // or (b) the blank-screen safety net fired (see `cull()`).
+  //
+  // All fields are updated in `cull()` and reset only when the culler
+  // is constructed or `invalidate()` is called.
+
+  /// Total number of positions passed to the last `cull()` call.
+  /// This is the denominator for the cull ratio
+  /// (`visibleCount / totalPositionsSeen`).
+  int _totalPositionsSeen = 0;
+
+  /// Number of times `cull()` has actually recomputed the visible
+  /// set (vs. returned the cached result). A high count during a
+  /// slow pan indicates the rebuild threshold is too low for this
+  /// device — each rebuild costs O(N) where N = total positions.
+  int _rebuildCount = 0;
+
+  /// Number of times `cull()` has short-circuited (returned the
+  /// cached result without recomputation). A high skip count is
+  /// GOOD — it means the rebuild threshold is doing its job.
+  int _skipCount = 0;
+
+  /// The last reason `cull()` recomputed or skipped. Human-readable,
+  /// shown in the diagnostics overlay so the user can see WHY the
+  /// culler is rebuilding (e.g. "viewport moved 75px > 50px threshold"
+  /// vs "node set changed" vs "skipped: viewport moved 12px < 50px").
+  String _lastActionReason = 'initialized';
+
+  /// v5.142 (DIAGNOSTICS): Whether cull() has been called at least
+  /// once. Used to detect the "first call" case for the reason string
+  /// (since _lastViewport is non-nullable and initialized in the
+  /// constructor, we can't use nullness to detect first call).
+  bool _hasCulled = false;
+
   // ── Public Getters ───────────────────────────────────────────────
 
   /// The current set of visible node IDs (viewport + buffer zone).
@@ -85,6 +125,25 @@ class ViewportCuller extends ChangeNotifier {
 
   /// The rebuild threshold in pixels.
   double get rebuildThreshold => _rebuildThreshold;
+
+  /// v5.142 (DIAGNOSTICS): Total positions passed to the last cull.
+  int get totalPositionsSeen => _totalPositionsSeen;
+
+  /// v5.142 (DIAGNOSTICS): Number of times cull() recomputed.
+  int get rebuildCount => _rebuildCount;
+
+  /// v5.142 (DIAGNOSTICS): Number of times cull() short-circuited.
+  int get skipCount => _skipCount;
+
+  /// v5.142 (DIAGNOSTICS): Human-readable reason for the last action.
+  String get lastActionReason => _lastActionReason;
+
+  /// v5.142 (DIAGNOSTICS): The cull ratio (0.0–1.0). 1.0 means the
+  /// culler is NOT culling (every node is visible). 0.1 means only
+  /// 10% of nodes are visible (good culling on a large family).
+  double get cullRatio => _totalPositionsSeen > 0
+      ? _currentVisibleIds.length / _totalPositionsSeen
+      : 0.0;
 
   // ── Setters ──────────────────────────────────────────────────────
 
@@ -154,6 +213,9 @@ class ViewportCuller extends ChangeNotifier {
     Map<String, Size> nodeSizes,
     Rect viewport,
   ) {
+    // v5.142 (DIAGNOSTICS): Track total positions for the cull ratio.
+    _totalPositionsSeen = positions.length;
+
     // v84 FIX: Also force recomputation when the node ID set changes
     // (e.g. member added, member deleted, expand/collapse). Previously,
     // the culler only recomputed when the viewport moved >80px, so
@@ -163,11 +225,41 @@ class ViewportCuller extends ChangeNotifier {
     final currentNodeIds = positions.keys.toSet();
     final nodeSetChanged = !_setsEqual(_lastNodeIds, currentNodeIds);
 
+    // Compute the viewport displacement for the diagnostics reason
+    // string (helps the user see WHY the culler is rebuilding).
+    final viewportDisplacement = !_hasCulled
+        ? double.infinity
+        : (Offset(
+                  viewport.center.dx - _lastViewport.center.dx,
+                  viewport.center.dy - _lastViewport.center.dy,
+                ))
+                .distance;
+
     // Skip recalculation if viewport hasn't moved enough AND node set
     // hasn't changed.
-    if (!nodeSetChanged && !shouldRebuild(_lastViewport, viewport)) {
+    if (_hasCulled &&
+        !nodeSetChanged &&
+        !shouldRebuild(_lastViewport, viewport)) {
+      _skipCount++;
+      _lastActionReason = 'skipped: viewport moved '
+          '${viewportDisplacement.toStringAsFixed(0)}px '
+          '< ${_rebuildThreshold.toStringAsFixed(0)}px threshold';
       return _currentVisibleIds;
     }
+
+    // Record the reason for this rebuild.
+    if (!_hasCulled) {
+      _lastActionReason = 'rebuilt: first call';
+    } else if (nodeSetChanged) {
+      _lastActionReason = 'rebuilt: node set changed '
+          '(${_lastNodeIds.length} → ${currentNodeIds.length} nodes)';
+    } else {
+      _lastActionReason = 'rebuilt: viewport moved '
+          '${viewportDisplacement.toStringAsFixed(0)}px '
+          '> ${_rebuildThreshold.toStringAsFixed(0)}px threshold';
+    }
+    _rebuildCount++;
+    _hasCulled = true;
 
     _lastNodeIds = currentNodeIds;
 
