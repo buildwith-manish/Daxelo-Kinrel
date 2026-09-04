@@ -458,6 +458,34 @@ class RadialLayout {
           if (bAngle == null) return -1;
           return aAngle.compareTo(bAngle);
         });
+
+        // v5.151 (LAYOUT FIX): Secondary sort by relationship category.
+        // After the parent-angle sort groups siblings together, this
+        // secondary sort ensures that within the same parent-angle
+        // cluster, nodes are further ordered by their relationship
+        // category (spouse → parent → child → sibling → grandparent →
+        // aunt/uncle → cousin → inLaw → extended). This makes the fan
+        // of lines from the anchor read as organized arcs (all siblings
+        // together, all in-laws together) instead of chaotic
+        // interleaved spaghetti.
+        //
+        // The category is derived from the relationship key to the
+        // placed parent (or any placed connection). This is a stable
+        // secondary sort — it only reorders within equal parent-angle
+        // buckets, never across them.
+        nonSpouseMembers.sort((a, b) {
+          final aAngle = parentAngle[a.id];
+          final bAngle = parentAngle[b.id];
+          // If angles differ, keep the primary sort.
+          if (aAngle != null && bAngle != null) {
+            final cmp = aAngle.compareTo(bAngle);
+            if (cmp != 0) return cmp;
+          }
+          // Equal parent angle (or both null) — sort by category rank.
+          final aRank = _categoryRank(a.id, relationships, positions);
+          final bRank = _categoryRank(b.id, relationships, positions);
+          return aRank.compareTo(bRank);
+        });
       }
 
       // v5.134: ADAPTIVE ARC — use a wider arc when a ring has many
@@ -566,6 +594,17 @@ class RadialLayout {
     // no two nodes render at the same point.
     _deOverlapPositions(positions, persons);
 
+    // v5.151 (LAYOUT FIX): Cluster children into tight angular wedges
+    // near their parent's angle. This runs AFTER de-overlap so it can
+    // compact children without worrying about overlaps (de-overlap
+    // already resolved them). The wedge clustering reduces edge
+    // crossings — lines from the anchor to one branch don't cross
+    // lines to another branch.
+    _clusterChildrenIntoWedges(positions, persons, relationships, center);
+    // Re-run de-overlap after wedge clustering — the compaction may
+    // have created new overlaps within a wedge.
+    _deOverlapPositions(positions, persons);
+
     // 8. Compute canvas dimensions
     // v5.134: Account for peripheral ring radius which may not be in
     // ringRadii if all peripheral-ring nodes were unreachable.
@@ -603,6 +642,161 @@ class RadialLayout {
   ///     the same radius)
   ///   - Rounding errors that place two nodes within sub-pixel distance
   ///
+  /// v5.151 (LAYOUT FIX): Returns a rank (0-9) for the relationship
+  /// category of [personId] relative to its placed connections. Lower
+  /// rank = closer relationship = placed earlier in the ring arc.
+  ///
+  /// This is used as a SECONDARY sort key after the parent-angle sort.
+  /// It groups same-category nodes (all siblings, all in-laws) into
+  /// contiguous angular arcs so the fan of lines from the anchor reads
+  /// as organized arcs instead of crossing spaghetti.
+  ///
+  /// Rank mapping (matches kProximityCategoryKeepPriority):
+  ///   0 = self (anchor)
+  ///   1 = spouse
+  ///   2 = parent
+  ///   3 = child
+  ///   4 = sibling
+  ///   5 = grandparent
+  ///   6 = aunt/uncle
+  ///   7 = cousin
+  ///   8 = in-law
+  ///   9 = extended/unknown
+  int _categoryRank(
+    String personId,
+    List<GraphRelationship> relationships,
+    Map<String, Offset> positions,
+  ) {
+    // Find the relationship key to the first placed connection.
+    for (final r in relationships) {
+      if (r.fromPersonId == personId && positions.containsKey(r.toPersonId)) {
+        return _keyToRank(r.relationshipKey);
+      }
+      if (r.toPersonId == personId && positions.containsKey(r.fromPersonId)) {
+        return _keyToRank(r.relationshipKey);
+      }
+    }
+    return 9; // unknown / no placed connection
+  }
+
+  /// Maps a relationship key string to a category rank.
+  int _keyToRank(String key) {
+    if (_spouseKeys.contains(key)) return 1;
+    if (_parentKeys.contains(key)) return 2;
+    if (_childKeys.contains(key)) return 3;
+    if (_siblingKeys.contains(key)) return 4;
+    // Grandparents
+    if (key.contains('grand') && (key.contains('father') || key.contains('mother'))) {
+      return 5;
+    }
+    // Aunt/uncle
+    if (key.contains('uncle') || key.contains('aunt')) return 6;
+    // Cousin
+    if (key.contains('cousin')) return 7;
+    // In-laws
+    if (key.contains('in_law') || key.contains('inlaw') ||
+        key.contains('father_in_law') || key.contains('mother_in_law') ||
+        key.contains('brother_in_law') || key.contains('sister_in_law') ||
+        key.contains('husbands_') || key.contains('wifes_') ||
+        key.contains('sons_wife') || key.contains('daughters_husband')) {
+      return 8;
+    }
+    return 9; // extended / unknown
+  }
+
+  /// v5.151 (LAYOUT FIX): Clusters children of the same parent into a
+  /// tight angular wedge near the parent's angle, instead of spreading
+  /// them across the full ring. This reduces edge crossings — lines
+  /// from the anchor to one branch don't cross lines to another branch.
+  ///
+  /// Called after the initial ring placement to NUDGE children toward
+  /// their parent's angle. The nudge is bounded so it doesn't override
+  /// the de-overlap pass — it only compacts children into a wedge when
+  /// they were spread too far apart.
+  void _clusterChildrenIntoWedges(
+    Map<String, Offset> positions,
+    List<GraphPerson> persons,
+    List<GraphRelationship> relationships,
+    Offset center,
+  ) {
+    // Build: parentId → list of child positions (already placed).
+    final childrenOf = <String, List<String>>{};
+    for (final r in relationships) {
+      if (_parentKeys.contains(r.relationshipKey)) {
+        childrenOf.putIfAbsent(r.toPersonId, () => []).add(r.fromPersonId);
+      }
+      if (_childKeys.contains(r.relationshipKey)) {
+        childrenOf.putIfAbsent(r.fromPersonId, () => []).add(r.toPersonId);
+      }
+    }
+
+    // For each parent with >3 children, compact the children into a
+    // tighter wedge around the parent's angle.
+    for (final entry in childrenOf.entries) {
+      final parentId = entry.key;
+      final childIds = entry.value;
+      if (childIds.length < 4) continue; // only cluster large sibling groups
+      final parentPos = positions[parentId];
+      if (parentPos == null) continue;
+
+      final parentAngle = atan2(
+        parentPos.dy - center.dy,
+        parentPos.dx - center.dx,
+      );
+      final parentRadius = (parentPos - center).distance;
+      if (parentRadius < 1) continue;
+
+      // Collect placed children with their current angles.
+      final placedChildren = <(String, double)>[]; // (id, currentAngle)
+      for (final cid in childIds) {
+        final cpos = positions[cid];
+        if (cpos == null) continue;
+        final cAngle = atan2(cpos.dy - center.dy, cpos.dx - center.dx);
+        placedChildren.add((cid, cAngle));
+      }
+      if (placedChildren.length < 4) continue;
+
+      // Sort children by their current angle.
+      placedChildren.sort((a, b) => a.$2.compareTo(b.$2));
+
+      // Compute the current angular spread (max - min).
+      final minAngle = placedChildren.first.$2;
+      final maxAngle = placedChildren.last.$2;
+      final currentSpread = _angleDistance(maxAngle, minAngle);
+
+      // Target spread: enough to fit all children at minAngularGap.
+      // Don't compact if they're already within a tight wedge.
+      final childRadius = (positions[placedChildren.first.$1]! - center).distance;
+      final minGap = childRadius > 0 ? (72.0 + 48.0) / childRadius : 0.15;
+      final targetSpread = (placedChildren.length * minGap).clamp(minGap, pi * 0.8);
+
+      if (currentSpread <= targetSpread) continue; // already compact
+
+      // Redistribute children evenly within targetSpread, centered on
+      // the parent's angle.
+      final step = placedChildren.length > 1
+          ? targetSpread / (placedChildren.length - 1)
+          : 0.0;
+      final startAngle = parentAngle - targetSpread / 2;
+
+      for (var i = 0; i < placedChildren.length; i++) {
+        final newAngle = startAngle + i * step;
+        final r = (positions[placedChildren[i].$1]! - center).distance;
+        positions[placedChildren[i].$1] = Offset(
+          center.dx + r * cos(newAngle),
+          center.dy + r * sin(newAngle),
+        );
+      }
+    }
+  }
+
+  /// Returns the shortest angular distance between two angles (0..π).
+  double _angleDistance(double a, double b) {
+    var d = (a - b).abs() % (2 * pi);
+    if (d > pi) d = 2 * pi - d;
+    return d;
+  }
+
   /// v5.136: Increased minDistance from 60 to 96 (72px node diameter +
   /// 24px padding) so nodes NEVER touch, even after branch expansion.
   /// Increased maxIterations from 5 to 12 to fully resolve cascading

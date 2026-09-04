@@ -44,7 +44,18 @@ import 'branch_collapse_state.dart' show kNodeBudget;
 /// ~40 nodes) even when that exceeds this number, and deeper rings
 /// complete as whole rings. Partial-ring truncation happens ONLY at
 /// [kProximityHardNodeBudget].
-const int kProximityNodeBudget = 30;
+///
+/// v5.151 (SPARSENESS FIX): Raised from 30 back to 50. The user
+/// reported the default view felt "too sparse" — only 30 nodes
+/// visible on a 700-member family. Matching kNodeBudget (50) means
+/// rings 1+2 fill up to 50 nodes by default instead of stopping at
+/// 30. The hard cap (kProximityHardNodeBudget) is ALSO 50, so the
+/// soft and hard budgets are now aligned — no more "soft 30, hard 50"
+/// confusion. When ring 1+2 exceeds 50, the category-priority
+/// truncation (kProximityCategoryKeepPriority) keeps closer
+/// relationships (spouse/parent/child/sibling) and collapses distant
+/// ones (in-law/extended) into branch chips first.
+const int kProximityNodeBudget = 50;
 
 /// The HARD cap for the default ego-centric view. v5.123 (Step 2):
 /// Matches [kNodeBudget] (the Show-All-path budget) WITHOUT changing
