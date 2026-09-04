@@ -295,20 +295,39 @@ class GraphPerformanceProfile {
   /// High-end: always Lod.full (per user v5.112 request).
   static Lod _alwaysFull(double zoom) => Lod.full;
 
-  /// Mid-range: Lod.full for zoom >= 0.50, Lod.compact below.
-  /// Compact is still a full GraphNode — just with the relation label
-  /// faded. The user's "no dots" request is respected.
+  /// Mid-range: Lod.full for zoom >= 0.70, Lod.compact for 0.45–0.70,
+  /// Lod.mini (single CustomPaint) below 0.45.
+  ///
+  /// v5.149 (TIER 3G): Mid-range now drops to Lod.mini (single-painter
+  /// circle + initial) at < 0.45 zoom instead of staying at compact.
+  /// This gives mid-range devices the single-painter benefit (one
+  /// CustomPaint call for ALL nodes vs one GraphNode widget per node)
+  /// when zoomed out — the exact scenario where pan/zoom is most
+  /// expensive because more nodes are visible.
+  ///
+  /// The trade-off: at < 0.45 zoom, nodes lose their avatars + full
+  /// names + decorations and show as circles + initials. But at that
+  /// zoom level, avatars are too small to see anyway (~15px), so the
+  /// visual loss is minimal. The perf gain is significant: 1 paint
+  /// call vs 22 widget builds + 22 paint calls.
   static Lod _midRangeLod(double zoom) {
-    if (zoom >= 0.50) return Lod.full;
-    return Lod.compact;
+    if (zoom >= 0.70) return Lod.full;
+    if (zoom >= 0.45) return Lod.compact;
+    return Lod.mini;
   }
 
-  /// Low-end: Lod.full for zoom >= 0.65, Lod.compact for 0.30–0.65,
-  /// Lod.mini below 0.30. Mini is a circle + initial letter — still
-  /// recognizable, NOT anonymous dots.
+  /// Low-end: Lod.full for zoom >= 0.80, Lod.compact for 0.45–0.80,
+  /// Lod.mini (single CustomPaint) below 0.45.
+  ///
+  /// v5.149 (TIER 3G): Low-end now uses Lod.full only at near-zoom
+  /// (>= 0.80, was 0.65) and drops to mini sooner (at 0.45, was 0.30).
+  /// This means low-end devices spend most of their zoom range in the
+  /// single-painter tier, getting near-WhatsApp smoothness at the cost
+  /// of avatars (which are too small to see at those zoom levels
+  /// anyway).
   static Lod _lowEndLod(double zoom) {
-    if (zoom >= 0.65) return Lod.full;
-    if (zoom >= 0.30) return Lod.compact;
+    if (zoom >= 0.80) return Lod.full;
+    if (zoom >= 0.45) return Lod.compact;
     return Lod.mini;
   }
 

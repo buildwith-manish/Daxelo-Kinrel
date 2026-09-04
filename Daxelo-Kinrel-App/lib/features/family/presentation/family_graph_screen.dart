@@ -163,7 +163,20 @@ class FamilyGraphScreen extends ConsumerStatefulWidget {
   ConsumerState<FamilyGraphScreen> createState() => _FamilyGraphScreenState();
 }
 
-class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
+class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
+    with AutomaticKeepAliveClientMixin {
+  /// v5.149 (TIER 3F): Keep the graph screen alive when the user
+  /// navigates away (e.g. to Profile, Search, or another tab). Without
+  /// this, the entire screen — camera position, culler state, layout
+  /// cache, FilteredGraph cache — is destroyed and rebuilt from scratch
+  /// on every revisit. With KeepAlive, the State is preserved and the
+  /// user returns to the exact view they left (same pan/zoom, same
+  /// focus, same selection).
+  ///
+  /// This is what WhatsApp/Telegram do — switching tabs doesn't reset
+  /// your scroll position or reload the chat list.
+  @override
+  bool get wantKeepAlive => true;
   /// External TransformationController to drive FamilyGraphWidget zoom/pan.
   final TransformationController _graphTransformController =
       TransformationController();
@@ -402,6 +415,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // v5.149 (TIER 3F): Required for AutomaticKeepAliveClientMixin.
+    super.build(context);
     // Guard: ensure familyId is valid before proceeding
     if (widget.familyId.isEmpty) {
       return Scaffold(
