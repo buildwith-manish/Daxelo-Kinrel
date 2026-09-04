@@ -1104,7 +1104,37 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
 
   // ── Data Fetching ──────────────────────────────────────────────────
 
-  Future<FlatGraphResult> _fetchGraph(String familyId) async {
+  /// v5.150 (SHOW-ALL FIX): Re-fetch with a large p_max_nodes so the
+  /// "Show All Branches" action actually reveals the other 650+ people
+  /// on a 700-member family. This is called from the screen after the
+  /// user confirms the dialog.
+  ///
+  /// This bypasses the stale-while-revalidate cache (because the cache
+  /// holds the 50-node proximity set, not the full graph). It calls the
+  /// RPC with p_max_nodes=10000 (effectively "all"). The server still
+  /// does the BFS filter, but the cap is so high that every reachable
+  /// person is included.
+  ///
+  /// After the fetch, the new result is cached (replacing the proximity
+  /// set) and the state is updated.
+  Future<void> fetchShowAll() async {
+    final familyId = arg;
+    debugPrint('[FamilyGraphNotifier] v5.150 fetchShowAll() — re-fetching with large p_max_nodes');
+    state = const AsyncLoading<FlatGraphResult>();
+    try {
+      final result = await _fetchGraph(familyId, maxNodes: 10000);
+      await _syncToDrift(familyId, result);
+      _addToCache(familyId, result);
+      state = AsyncData(result);
+      debugPrint('[FamilyGraphNotifier] v5.150 fetchShowAll() complete: '
+          '${result.persons.length} persons loaded');
+    } catch (e, st) {
+      debugPrint('[FamilyGraphNotifier] v5.150 fetchShowAll() failed: $e');
+      state = AsyncError(e, st);
+    }
+  }
+
+  Future<FlatGraphResult> _fetchGraph(String familyId, {int maxNodes = 50}) async {
     final client = ref.read(supabaseProvider);
     if (client == null) {
       throw Exception('Supabase client not available');
@@ -1144,15 +1174,16 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
         final viewerId = await _resolveViewerMemberId(ref, client, familyId);
         if (viewerId != null) {
           debugPrint('[FamilyGraphNotifier] v5.144: Calling get_viewer_family_graph (proximity) with viewerId=$viewerId');
-          // v5.144: Pass p_max_nodes=50 so the RPC returns ONLY the
-          // proximity set. The server does the BFS filter — the client
-          // never sees the other 660+ nodes.
+          // v5.144/v5.150: Pass p_max_nodes so the RPC returns ONLY the
+          // proximity set. Default is 50 (proximity view). When the user
+          // taps "Show All Branches", fetchShowAll() calls this with
+          // maxNodes=10000 so every reachable person is included.
           final response = await client.rpc(
             'get_viewer_family_graph',
             params: <String, dynamic>{
               'p_family_id': familyId,
               'p_viewer_id': viewerId,
-              'p_max_nodes': 50,
+              'p_max_nodes': maxNodes,
             },
           ).timeout(const Duration(seconds: 15));
 

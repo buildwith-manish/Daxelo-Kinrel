@@ -338,7 +338,11 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
   /// count over the budget will still be collapsed into chips.
   Future<void> _showAllWithWarning() async {
     final graphData = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
-    final memberCount = graphData?.persons.length ?? 0;
+    // v5.150 (SHOW-ALL FIX): Use totalCount (the TRUE family size from the
+    // RPC) instead of persons.length (which is the ~50-node proximity set
+    // after v5.144). Without this fix, the dialog said "This family has 50
+    // members" instead of 700+.
+    final memberCount = graphData?.totalCount ?? graphData?.persons.length ?? 0;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -380,6 +384,16 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
       //   - semantic zoom (FULL/COMPACT/MINI/MICRO/FAR tiers stay active)
       //   - branch-collapse logic (computeDensityCollapse still runs)
       ref.read(expandCollapseProvider.notifier).expandAll();
+      // v5.150 (SHOW-ALL FIX): Re-fetch with a large p_max_nodes so the
+      // RPC actually returns the other 650+ people. Without this, the
+      // expandAll() call above only flips a local disclosure flag — the
+      // graph still has the ~50-node proximity set in memory and can't
+      // reveal nodes it never fetched.
+      //
+      // fetchShowAll() sets state=loading (showing a spinner), calls the
+      // RPC with p_max_nodes=10000, caches the result, and updates state.
+      // The graph rebuilds automatically when the new data arrives.
+      ref.read(familyGraphProvider(widget.familyId).notifier).fetchShowAll();
     }
   }
 
