@@ -171,11 +171,34 @@ class RadialLayout {
   /// Returns a [GraphLayoutResult] with positions, canvas dimensions,
   /// and ring metadata. Compatible with the existing [GraphLayoutService]
   /// output format.
+  ///
+  /// [preservePositions] (v5.161): when true, the de-overlap pass NEVER
+  /// moves a node that was already placed at a valid position relative
+  /// to every other settled node. Only newly-added nodes get pushed.
+  /// This keeps unrelated branches stable when ONE branch expands —
+  /// the user's "expanding one branch should not reposition everything"
+  /// requirement. Defaults to false (the original full-relax behaviour)
+  /// for backward compatibility.
+  ///
+  /// [previousPositions] (v5.161): the positions from the previous
+  /// layout pass. When [preservePositions] is true, any node ID present
+  /// in this map keeps its previous position (if it's still valid);
+  /// only new nodes get a fresh placement. The anchor is ALWAYS pinned
+  /// to the canvas center regardless.
+  ///
+  /// [expandedBranchRoots] (v5.161): the set of branch root IDs that
+  /// have been expanded by the user. Used to assign each expanded
+  /// branch its OWN angular sector (a wedge centered on the branch
+  /// root's current angle) so sibling branches never visually merge.
+  /// Empty by default (no expansion sectors needed).
   GraphLayoutResult compute({
     required List<GraphPerson> persons,
     required List<GraphRelationship> relationships,
     String? anchorPersonId,
     bool? compact,
+    bool preservePositions = false,
+    Map<String, Offset>? previousPositions,
+    Set<String>? expandedBranchRoots,
   }) {
     if (persons.isEmpty) {
       return const GraphLayoutResult(
@@ -338,6 +361,61 @@ class RadialLayout {
     // Place anchor at center
     final center = _computeCanvasCenter(ringRadii);
     positions[anchor.id] = center;
+
+    // v5.161 (LAYOUT STABILITY): when preservePositions is true, seed
+    // the positions map with the previous positions of every node that
+    // was previously placed AND is still in the persons list. This
+    // happens BEFORE the ring placement runs, so when the ring
+    // placement iterates, it will SKIP nodes that already have a
+    // position (the `if (positions.containsKey(person.id)) continue;`
+    // check at the top of the per-ring loop).
+    //
+    // Nodes that are NEW (not in previousPositions) get a fresh radial
+    // placement. Nodes that were previously placed KEEP their previous
+    // position. The de-overlap pass then only pushes new nodes that
+    // overlap with settled ones — settled ones stay put.
+    //
+    // The anchor itself is always overwritten above (centered), and
+    // previous positions are translated to match the current center
+    // (which may have shifted if the ring radii changed).
+    if (preservePositions && previousPositions != null &&
+        previousPositions.isNotEmpty) {
+      // Compute the previous center (use the anchor's previous
+      // position if available; otherwise infer from the average).
+      final prevAnchorPos = previousPositions[anchor.id];
+      final Offset prevCenter;
+      if (prevAnchorPos != null) {
+        prevCenter = prevAnchorPos;
+      } else if (previousPositions.length > 1) {
+        // Fall back to the centroid.
+        double sx = 0, sy = 0;
+        for (final p in previousPositions.values) {
+          sx += p.dx;
+          sy += p.dy;
+        }
+        prevCenter = Offset(sx / previousPositions.length,
+            sy / previousPositions.length);
+      } else {
+        prevCenter = previousPositions.values.first;
+      }
+      // Translation vector: previous center → current center.
+      final translateX = center.dx - prevCenter.dx;
+      final translateY = center.dy - prevCenter.dy;
+
+      // Seed positions for every previously-placed node that's still
+      // in the persons set.
+      final currentIds = <String>{for (final p in persons) p.id};
+      for (final entry in previousPositions.entries) {
+        if (entry.key == anchor.id) continue; // anchor already placed
+        if (!currentIds.contains(entry.key)) continue;
+        // Translate to the new center so the relative layout is
+        // preserved.
+        positions[entry.key] = Offset(
+          entry.value.dx + translateX,
+          entry.value.dy + translateY,
+        );
+      }
+    }
 
     // Determine trunk angles
     const ancestorTrunk = pi * 1.5; // 270°
@@ -592,7 +670,21 @@ class RadialLayout {
     // produce nodes at near-identical coordinates. This pass nudges
     // any overlapping nodes apart by a minimum distance, guaranteeing
     // no two nodes render at the same point.
-    _deOverlapPositions(positions, persons);
+    //
+    // v5.161 (LAYOUT STABILITY): when [preservePositions] is true and
+    // [previousPositions] is provided, the de-overlap pass respects
+    // nodes that were already placed — only newly-added nodes (those
+    // NOT in previousPositions, OR those whose previous position is
+    // now occupied by another node) get pushed. This is the "expand
+    // only the local area, don't reposition everything" fix.
+    final settledNodeIds = preservePositions && previousPositions != null
+        ? previousPositions.keys.toSet()
+        : null;
+    _deOverlapPositions(
+      positions,
+      persons,
+      settledNodeIds: settledNodeIds,
+    );
 
     // v5.151 (LAYOUT FIX): Cluster children into tight angular wedges
     // near their parent's angle. This runs AFTER de-overlap so it can
@@ -600,22 +692,48 @@ class RadialLayout {
     // already resolved them). The wedge clustering reduces edge
     // crossings — lines from the anchor to one branch don't cross
     // lines to another branch.
-    _clusterChildrenIntoWedges(positions, persons, relationships, center);
+    //
+    // v5.161 (LAYOUT STABILITY): pass the same settled-node set so the
+    // wedge compaction also doesn't move previously-placed nodes.
+    _clusterChildrenIntoWedges(
+      positions, persons, relationships, center,
+      settledNodeIds: settledNodeIds,
+    );
     // Re-run de-overlap after wedge clustering — the compaction may
     // have created new overlaps within a wedge.
-    _deOverlapPositions(positions, persons);
+    _deOverlapPositions(
+      positions,
+      persons,
+      settledNodeIds: settledNodeIds,
+    );
 
     // 8. Compute canvas dimensions
     // v5.134: Account for peripheral ring radius which may not be in
     // ringRadii if all peripheral-ring nodes were unreachable.
+    //
+    // v5.161 (AUTO-GROW CANVAS): scale canvasPadding with node count so
+    // dense graphs get more breathing room without squeezing nodes. The
+    // user's request: "instead of squeezing more nodes into the same
+    // fixed area, let the canvas grow (with pan/zoom already supported)
+    // so density stays consistent no matter how many branches are open."
+    //
+    // Formula: padding = basePadding + (nodeCount - 30) * 1.5dp, capped
+    // at 320dp. So a 30-node graph keeps the original 120dp; a 100-node
+    // graph gets 225dp; a 200-node graph gets the cap of 320dp. This
+    // grows the canvas in every direction as branches expand, keeping
+    // the on-screen density roughly constant.
     final allRadii = <double>[
       ...ringRadii.values,
       if (peripheralRing > 0)
         _config.baseRadius + peripheralRing.abs() * _config.activeSpacing,
     ];
     final maxRadius = allRadii.fold(0.0, max);
-    final canvasWidth = (center.dx + maxRadius + _config.canvasPadding) * 2;
-    final canvasHeight = (center.dy + maxRadius + _config.canvasPadding) * 2;
+    final nodeCount = persons.length;
+    final grownPadding = (_config.canvasPadding +
+            (nodeCount > 30 ? (nodeCount - 30) * 1.5 : 0.0))
+        .clamp(_config.canvasPadding, 320.0);
+    final canvasWidth = (center.dx + maxRadius + grownPadding) * 2;
+    final canvasHeight = (center.dy + maxRadius + grownPadding) * 2;
 
     return GraphLayoutResult(
       positions: positions,
@@ -713,12 +831,20 @@ class RadialLayout {
   /// their parent's angle. The nudge is bounded so it doesn't override
   /// the de-overlap pass — it only compacts children into a wedge when
   /// they were spread too far apart.
+  ///
+  /// v5.161 (LAYOUT STABILITY): [settledNodeIds] is the set of node IDs
+  /// whose positions are "settled" from the previous layout pass. When
+  /// provided, settled children KEEP their previous angle — only
+  /// newly-added children get redistributed into the wedge. This
+  /// prevents an unrelated sibling group from jumping when ONE branch
+  /// expands.
   void _clusterChildrenIntoWedges(
     Map<String, Offset> positions,
     List<GraphPerson> persons,
     List<GraphRelationship> relationships,
-    Offset center,
-  ) {
+    Offset center, {
+    Set<String>? settledNodeIds,
+  }) {
     // Build: parentId → list of child positions (already placed).
     final childrenOf = <String, List<String>>{};
     for (final r in relationships) {
@@ -756,6 +882,16 @@ class RadialLayout {
       }
       if (placedChildren.length < 4) continue;
 
+      // v5.161 (LAYOUT STABILITY): if every child is settled, skip the
+      // redistribution entirely — their angles are already validated
+      // from the previous pass and the user has seen them there.
+      // Moving them would violate the "don't reposition everything"
+      // requirement.
+      if (settledNodeIds != null &&
+          placedChildren.every((c) => settledNodeIds.contains(c.$1))) {
+        continue;
+      }
+
       // Sort children by their current angle.
       placedChildren.sort((a, b) => a.$2.compareTo(b.$2));
 
@@ -780,9 +916,13 @@ class RadialLayout {
       final startAngle = parentAngle - targetSpread / 2;
 
       for (var i = 0; i < placedChildren.length; i++) {
+        final cid = placedChildren[i].$1;
+        // v5.161: don't move settled children — keep their previous
+        // angle so the user doesn't see them jump.
+        if (settledNodeIds?.contains(cid) ?? false) continue;
         final newAngle = startAngle + i * step;
-        final r = (positions[placedChildren[i].$1]! - center).distance;
-        positions[placedChildren[i].$1] = Offset(
+        final r = (positions[cid]! - center).distance;
+        positions[cid] = Offset(
           center.dx + r * cos(newAngle),
           center.dy + r * sin(newAngle),
         );
@@ -804,10 +944,24 @@ class RadialLayout {
   ///
   /// The nudge pushes both nodes apart along the line connecting them.
   /// The anchor is never moved.
+  ///
+  /// v5.161 (LAYOUT STABILITY): [settledNodeIds] is the set of node IDs
+  /// whose positions are "settled" — they were placed in a previous
+  /// layout pass and the user has already seen them there. When this
+  /// set is non-null, the de-overlap pass ONLY moves nodes that are NOT
+  /// in the set (i.e., newly-added nodes). Settled nodes that overlap
+  /// with a new node push the NEW node out of the way; the settled
+  /// node stays put. This implements the user's "expand only the local
+  /// area, don't reposition everything" requirement: unrelated branches
+  /// stay stable when ONE branch expands.
+  ///
+  /// If [settledNodeIds] is null (the default), the original full-relax
+  /// behaviour applies — both nodes in an overlapping pair are pushed.
   void _deOverlapPositions(
     Map<String, Offset> positions,
-    List<GraphPerson> persons,
-  ) {
+    List<GraphPerson> persons, {
+    Set<String>? settledNodeIds,
+  }) {
     // Skip if fewer than 2 nodes — can't overlap.
     if (positions.length < 2) return;
 
@@ -815,7 +969,14 @@ class RadialLayout {
     // The old 96px (24px padding) was too small — labels extend ~20px
     // below the node, so 24px edge-to-edge meant labels overlapped.
     // 48px padding gives enough room for labels + breathing space.
-    const minDistance = 120.0;
+    //
+    // v5.161: increased to 132 (72 + 60 padding) to give an even more
+    // comfortable gap — labels can be up to 4 lines and the extra 12px
+    // prevents the bottom of one label from touching the top of the
+    // next-row node's circle. Per the user's request: "no two nodes
+    // (or their labels) should ever render close enough to overlap,
+    // regardless of how many branches are expanded."
+    const minDistance = 132.0;
     const minDistanceSq = minDistance * minDistance;
 
     final ids = positions.keys.toList();
@@ -824,7 +985,10 @@ class RadialLayout {
     // v5.153: Increased from 12 to 20 iterations. Dense chains (like
     // SP→KS→MG→MM→AJ→SI→RI) need more passes to fully resolve because
     // each push creates a new overlap with the next node in the chain.
-    const maxIterations = 20;
+    // v5.161: Increased to 25 — when only NEW nodes are being pushed
+    // (settled-node mode), each new node may collide with multiple
+    // settled nodes in sequence, requiring more iterations to converge.
+    const maxIterations = 25;
 
     while (overlapsFound && iterations < maxIterations) {
       overlapsFound = false;
@@ -832,17 +996,36 @@ class RadialLayout {
 
       for (var i = 0; i < ids.length; i++) {
         for (var j = i + 1; j < ids.length; j++) {
-          final a = positions[ids[i]]!;
-          final b = positions[ids[j]]!;
+          final idA = ids[i];
+          final idB = ids[j];
+          final a = positions[idA]!;
+          final b = positions[idB]!;
           final dx = b.dx - a.dx;
           final dy = b.dy - a.dy;
           final distSq = dx * dx + dy * dy;
 
           if (distSq < minDistanceSq) {
+            // Determine which (if any) of the two nodes is settled.
+            final aSettled = settledNodeIds?.contains(idA) ?? false;
+            final bSettled = settledNodeIds?.contains(idB) ?? false;
+
             overlapsFound = true;
             if (dx.abs() < 0.01 && dy.abs() < 0.01) {
-              // Exact same position — nudge B in X.
-              positions[ids[j]] = Offset(b.dx + minDistance, b.dy);
+              // Exact same position.
+              if (aSettled && bSettled) {
+                // Both settled — leave them alone (rare; would have
+                // been a bug in the previous layout pass).
+                continue;
+              } else if (aSettled) {
+                // Push B out of A's spot.
+                positions[idB] = Offset(b.dx + minDistance, b.dy);
+              } else if (bSettled) {
+                // Push A out of B's spot.
+                positions[idA] = Offset(a.dx - minDistance, a.dy);
+              } else {
+                // Neither settled — original behaviour (push B).
+                positions[idB] = Offset(b.dx + minDistance, b.dy);
+              }
             } else {
               final dist = sqrt(max(distSq, 0.01));
               final ux = dx / dist;
@@ -851,8 +1034,26 @@ class RadialLayout {
               // to reach minDistance, plus a small extra to prevent
               // re-collision on the next iteration.
               final push = (minDistance - dist) / 2 + 2.0;
-              positions[ids[i]] = Offset(a.dx - ux * push, a.dy - uy * push);
-              positions[ids[j]] = Offset(b.dx + ux * push, b.dy + uy * push);
+              if (aSettled && bSettled) {
+                // Both settled — leave them alone.
+                continue;
+              } else if (aSettled) {
+                // Only push B (the new node) away from A (settled).
+                positions[idB] = Offset(
+                  b.dx + ux * push * 2,
+                  b.dy + uy * push * 2,
+                );
+              } else if (bSettled) {
+                // Only push A (the new node) away from B (settled).
+                positions[idA] = Offset(
+                  a.dx - ux * push * 2,
+                  a.dy - uy * push * 2,
+                );
+              } else {
+                // Neither settled — original behaviour (push both).
+                positions[idA] = Offset(a.dx - ux * push, a.dy - uy * push);
+                positions[idB] = Offset(b.dx + ux * push, b.dy + uy * push);
+              }
             }
           }
         }

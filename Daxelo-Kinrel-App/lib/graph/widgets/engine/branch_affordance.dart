@@ -495,10 +495,23 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
         ref.read(branchCollapseProvider.notifier)
             .expandManualBranch(branch.rootPersonId);
       } else {
-        ref.read(branchCollapseProvider.notifier).expandBranch(
+        // v5.161 (LRU CAP): expandBranch now returns the set of
+        // person IDs that should be concealed if an OLDER expanded
+        // branch was auto-collapsed to make room. Pass that set to
+        // the proximity notifier so the auto-collapsed branch's
+        // revealed members disappear from the canvas — otherwise
+        // they'd stay visible with no bubble covering them.
+        final concealFromLru = ref
+            .read(branchCollapseProvider.notifier)
+            .expandBranch(
               branch.rootPersonId,
               revealedIds: revealedIds,
             );
+        if (concealFromLru.isNotEmpty) {
+          ref.read(proximityGraphProvider.notifier).concealPersons(
+                personIds: concealFromLru,
+              );
+        }
       }
     }
 

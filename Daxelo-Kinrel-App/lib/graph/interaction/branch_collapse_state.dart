@@ -59,6 +59,22 @@ const int kNodeBudget = 50;
 /// stay hidden and are re-zoned into sub-bubbles on the next density pass.
 const int kMaxNodesPerExpansion = 15;
 
+/// v5.161 (CLUTTER REDUCTION): Maximum number of branches the user may
+/// have SIMULTANEOUSLY expanded on the canvas. When this cap is exceeded
+/// by a new expansion, the OLDEST expanded branch (LRU eviction) is
+/// auto-collapsed so the screen doesn't get crowded with dozens of open
+/// branches.
+///
+/// Set to 6 — small enough to keep the on-screen density manageable,
+/// large enough to let the user compare a few sibling branches side by
+/// side. Per the user's request: "if more than a certain number of
+/// branches are expanded at once, let older/less-recently-tapped
+/// branches auto-collapse ... so the screen doesn't get crowded with
+/// dozens of open branches at the same time."
+///
+/// Set to 0 to disable the cap entirely (no auto-collapse).
+const int kMaxSimultaneouslyExpandedBranches = 6;
+
 /// v5.159 (TRAVERSAL SAFETY): Hard upper bound on the number of queue
 /// pops any single graph traversal in this file may perform. Acts as a
 /// fallback guard against pathological topologies (cycles that evade
@@ -709,10 +725,46 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
   /// (tap on the expanded branch) conceals exactly these members —
   /// nested expansions (roots inside this set) are concealed too via
   /// [collapseBranch]'s transitive union.
-  void expandBranch(String rootPersonId, {Set<String>? revealedIds}) {
+  ///
+  /// v5.161 (CLUTTER REDUCTION): enforces the
+  /// [kMaxSimultaneouslyExpandedBranches] cap. When adding
+  /// [rootPersonId] would exceed the cap, the OLDEST entry in
+  /// [expandedBranchRoots] (the first one inserted — Dart's `Set`
+  /// iterates in insertion order, equivalent to LinkedHashSet) is
+  /// auto-collapsed via [collapseBranch]. The newly-tapped branch
+  /// then takes its slot.
+  ///
+  /// Returns the set of person IDs that should be concealed from the
+  /// proximity visible set as a result of any LRU auto-collapse —
+  /// callers (the engine view's _fetchAndExpandBranch) pass this to
+  /// ProximityGraphNotifier.concealPersons so the auto-collapsed
+  /// branch's revealed members disappear from the canvas. Empty when
+  /// no LRU eviction occurred.
+  Set<String> expandBranch(String rootPersonId, {Set<String>? revealedIds}) {
+    // v5.161 (LRU CAP): if the cap is configured (> 0) and adding
+    // this root would exceed it, auto-collapse the oldest expanded
+    // branch FIRST. The oldest is the FIRST entry in the Set
+    // (insertion order, LinkedHashSet semantics).
+    var concealFromLru = const <String>{};
+    if (kMaxSimultaneouslyExpandedBranches > 0 &&
+        !state.expandedBranchRoots.contains(rootPersonId) &&
+        state.expandedBranchRoots.length >=
+            kMaxSimultaneouslyExpandedBranches) {
+      // The first-iterated entry is the oldest (LRU).
+      final oldest = state.expandedBranchRoots.first;
+      // Recursively collapse — this handles transitive nested
+      // expansions AND removes the oldest from expandedBranchRoots.
+      concealFromLru = collapseBranch(oldest);
+      // The recursive collapseBranch bumped the revision; we'll bump
+      // it again below for the new expansion. The state is now
+      // consistent: oldest is gone, room for the new root.
+    }
+
     final newBranches = state.collapsedBranches
         .where((b) => b.rootPersonId != rootPersonId)
         .toList();
+    // v5.161: build newExpanded as a LinkedHashSet so iteration order
+    // matches insertion order — needed for future LRU evictions.
     final newExpanded = Set<String>.from(state.expandedBranchRoots)
       ..add(rootPersonId);
     // v5.159: merge the revealed members under this root.
@@ -731,6 +783,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     );
     // v5.123 (Step 5): persist the user's expansion choice.
     onExpansionChanged?.call(rootPersonId, true);
+    return concealFromLru;
   }
 
   /// Collapse a branch — re-collapses the subtree under [rootPersonId].

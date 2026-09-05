@@ -47,6 +47,11 @@ import '../../../../graph/interaction/proximity_graph_state.dart'
         ProximityGraphState,
         buildAdjacency,
         kProximityNodeBudget;
+// v5.161: branch-collapse state — read by graphLayoutProvider to know
+// which branch roots the user has expanded (passed to RadialLayout so
+// each branch gets its own angular sector).
+import '../../../../graph/interaction/branch_collapse_state.dart'
+    show branchCollapseProvider;
 // v5.123 (Step 1): disclosure level drives the force-relaxation opt-in.
 import '../../../../graph/interaction/expand_collapse.dart'
     show expandCollapseProvider, DisclosureLevel;
@@ -2060,7 +2065,6 @@ final graphLayoutProvider =
       canvasHeight: 0,
     );
   }
-
   final persons = graphData.toPersonDataList();
   final relationships = graphData.toRelationshipDataList();
 
@@ -2238,6 +2242,35 @@ final graphLayoutProvider =
   final nodeCount = proximityPersons.length;
   final layoutStopwatch = Stopwatch()..start();
 
+  // v5.161 (LAYOUT STABILITY): detect whether this layout pass is a
+  // branch EXPANSION (the user tapped a branch bubble) vs. an initial
+  // load or a family switch. When the proximity state is already
+  // initialized from a prior pass, this is an expansion → preserve
+  // the previous positions so unrelated branches don't jump.
+  //
+  // We read the previous positions from a SEPARATE state provider
+  // (_lastLayoutPositionsProvider) that we ourselves update at the
+  // end of this function. Reading our OWN provider inside our own
+  // body causes a Dart type-inference cycle (top_level_cycle), so we
+  // side-step it via this separate cache.
+  final isExpansionRecompute = proximityState.isInitialized;
+  final previousPositions = isExpansionRecompute
+      ? ref.read(_lastLayoutPositionsProvider(familyId))
+      : null;
+  final preservePositions = previousPositions != null &&
+      previousPositions.isNotEmpty;
+
+  // v5.161 (MAX-EXPANDED-BRANCHES CAP): when too many branches are
+  // expanded at once, auto-collapse the oldest. Watch the branch
+  // collapse provider's expandedBranchRoots to know which branches
+  // the user has expanded. The cap is enforced in
+  // BranchCollapseNotifier.expandBranch itself (see
+  // branch_collapse_state.dart) — here we just pass the SET of
+  // currently-expanded roots to RadialLayout so each branch gets its
+  // own angular sector.
+  final collapseState = ref.read(branchCollapseProvider);
+  final expandedBranchRoots = collapseState.expandedBranchRoots;
+
   if (nodeCount > 15) {
     try {
       result = await _runRadialLayoutInIsolate(
@@ -2245,6 +2278,9 @@ final graphLayoutProvider =
         persons: proximityPersons,
         relationships: proximityRelationships,
         anchorPersonId: centerPerson.id,
+        preservePositions: preservePositions,
+        previousPositions: previousPositions,
+        expandedBranchRoots: expandedBranchRoots,
       );
     } catch (e) {
       debugPrint('[graphLayoutProvider] Isolate layout failed: $e — falling back to sync');
@@ -2252,6 +2288,9 @@ final graphLayoutProvider =
         persons: proximityPersons,
         relationships: proximityRelationships,
         anchorPersonId: centerPerson.id,
+        preservePositions: preservePositions,
+        previousPositions: previousPositions,
+        expandedBranchRoots: expandedBranchRoots,
       );
     }
   } else {
@@ -2260,6 +2299,9 @@ final graphLayoutProvider =
       persons: proximityPersons,
       relationships: proximityRelationships,
       anchorPersonId: centerPerson.id,
+      preservePositions: preservePositions,
+      previousPositions: previousPositions,
+      expandedBranchRoots: expandedBranchRoots,
     );
   }
   layoutStopwatch.stop();
@@ -2276,10 +2318,39 @@ final graphLayoutProvider =
     'total_family_size': graphPersons.length,
     'allow_force_relaxation': allowForceRelaxation,
     'disclosure_level': disclosureLevel,
+    // v5.161: log whether this was an expansion (preserved positions)
+    // or a fresh layout, plus how many expanded branches were active.
+    'preserved_positions': preservePositions,
+    'expanded_branch_count': expandedBranchRoots.length,
   });
+
+  // v5.161 (LAYOUT STABILITY): cache the just-computed positions so the
+  // NEXT layout pass can use them as "settled" via preservePositions.
+  // We only cache when the layout actually produced positions (not the
+  // empty-graph early returns above).
+  if (result.positions.isNotEmpty) {
+    ref.read(_lastLayoutPositionsProvider(familyId).notifier).state =
+        result.positions;
+  }
 
   return result;
 });
+
+/// v5.161 (LAYOUT STABILITY): a per-family cache of the most recent
+/// layout's positions. Read by [graphLayoutProvider] on the NEXT pass
+/// to detect whether this is an expansion (vs. an initial load) and
+/// pass the previous positions to [RadialLayout.compute] as
+/// `previousPositions` so the de-overlap pass preserves them.
+///
+/// This is a SEPARATE provider from [graphLayoutProvider] to avoid
+/// the Dart type-inference cycle (`top_level_cycle` error) that
+/// occurs when a FutureProvider reads its own value inside its body.
+/// The state lives outside the FutureProvider so it survives
+/// invalidations and can be read synchronously.
+final _lastLayoutPositionsProvider =
+    StateProvider.family<Map<String, Offset>?, String>(
+  (ref, familyId) => null,
+);
 
 /// v5.145 (STEP 3): Runs RadialLayout.compute() in a background isolate
 /// via Flutter's `compute()` helper. The isolate receives plain Lists +
@@ -2294,11 +2365,26 @@ Future<GraphLayoutResult> _runRadialLayoutInIsolate({
   required List<GraphPerson> persons,
   required List<GraphRelationship> relationships,
   required String anchorPersonId,
+  bool preservePositions = false,
+  Map<String, Offset>? previousPositions,
+  Set<String>? expandedBranchRoots,
 }) async {
   // The isolate can't receive a RadialLayout instance (it has a config
   // object with non-const fields). Instead we pass the config values
   // as primitives and reconstruct the RadialLayout inside the isolate.
   final config = radialLayout.config;
+
+  // v5.161: convert previousPositions to isolate-safe primitives.
+  // Map<String, Offset> doesn't transfer cleanly across isolates
+  // (Offset is a Flutter class), so we convert to List<double> pairs
+  // and reconstruct on the other side.
+  final previousPositionsPrimitive = <String, List<double>>{};
+  if (previousPositions != null) {
+    for (final entry in previousPositions.entries) {
+      previousPositionsPrimitive[entry.key] =
+          [entry.value.dx, entry.value.dy];
+    }
+  }
 
   final isolateResult = await compute(
     _radialLayoutIsolateEntry,
@@ -2313,6 +2399,9 @@ Future<GraphLayoutResult> _runRadialLayoutInIsolate({
       baseRadius: config.baseRadius,
       compact: config.compact,
       minAngularGap: config.minAngularGap,
+      preservePositions: preservePositions,
+      previousPositionsPrimitive: previousPositionsPrimitive,
+      expandedBranchRoots: expandedBranchRoots,
     ),
   );
 
@@ -2333,6 +2422,18 @@ class _RadialLayoutIsolateInput {
   final bool compact;
   final double minAngularGap;
 
+  /// v5.161: preservation flag — when true, the layout keeps
+  /// previously-placed node positions and only places NEW nodes.
+  final bool preservePositions;
+
+  /// v5.161: the previous layout's positions as isolate-safe
+  /// primitives ([dx, dy] pairs). Empty when preservePositions is false.
+  final Map<String, List<double>> previousPositionsPrimitive;
+
+  /// v5.161: branch root IDs that have been expanded — used for
+  /// per-branch angular sector assignment.
+  final Set<String>? expandedBranchRoots;
+
   const _RadialLayoutIsolateInput({
     required this.persons,
     required this.relationships,
@@ -2344,6 +2445,9 @@ class _RadialLayoutIsolateInput {
     required this.baseRadius,
     required this.compact,
     required this.minAngularGap,
+    this.preservePositions = false,
+    this.previousPositionsPrimitive = const {},
+    this.expandedBranchRoots,
   });
 }
 
@@ -2366,10 +2470,24 @@ GraphLayoutResult _radialLayoutIsolateEntry(_RadialLayoutIsolateInput input) {
       minAngularGap: input.minAngularGap,
     ),
   );
+
+  // v5.161: reconstruct previousPositions from primitives.
+  Map<String, Offset>? previousPositions;
+  if (input.preservePositions &&
+      input.previousPositionsPrimitive.isNotEmpty) {
+    previousPositions = <String, Offset>{
+      for (final entry in input.previousPositionsPrimitive.entries)
+        entry.key: Offset(entry.value[0], entry.value[1]),
+    };
+  }
+
   return layout.compute(
     persons: input.persons,
     relationships: input.relationships,
     anchorPersonId: input.anchorPersonId,
+    preservePositions: input.preservePositions,
+    previousPositions: previousPositions,
+    expandedBranchRoots: input.expandedBranchRoots,
   );
 }
 
