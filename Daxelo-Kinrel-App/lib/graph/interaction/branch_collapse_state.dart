@@ -841,6 +841,19 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     // the visible set is under budget. The visible set IS already
     // under budget (proximity cap = 50). The goal is to create bubbles
     // representing the hidden members, not to reduce the visible set.
+    //
+    // v5.156 (CRITICAL FIX): subtreeMembers must ONLY contain
+    // UNPOSITIONED members (those NOT in visibleNodeIds). The old code
+    // collected ALL descendants via _collectSubtreeBFS, including
+    // positioned ones. Then densityHiddenIds included positioned nodes,
+    // and canvas_mixin line 659-661 removed them from the visible set
+    // — dropping the visible count from 50 to 33. The user saw this as
+    // "the system hides some of those 50 visible members and places
+    // them into branch bubbles."
+    //
+    // Now: subtreeMembers EXCLUDES any node in visibleNodeIds. Bubbles
+    // only represent the 664 unpositioned members. The 50 visible
+    // members stay visible.
     for (final rootId in roots) {
       // Skip if user has manually expanded this root.
       if (state.expandedBranchRoots.contains(rootId)) continue;
@@ -855,8 +868,18 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       // subtree (their branch is partially collapsed around them).
       subtreeMembers.removeAll(protected);
 
+      // v5.156 (CRITICAL): Remove ALL positioned/visible nodes from
+      // the hidden set. Bubbles must only represent UNPOSITIONED
+      // members — the 664 that don't have layout positions. Visible
+      // members (the 50 with positions) must NEVER appear in
+      // hiddenMemberIds, because canvas_mixin uses allHiddenMemberIds
+      // to filter the visible set. If a visible node is in
+      // hiddenMemberIds, it gets removed from the canvas → the user
+      // sees the visible count drop.
+      subtreeMembers.removeAll(visibleNodeIds);
+
       // v5.155: Skip if no hidden descendants. This is the key filter —
-      // we only create bubbles for roots that HAVE hidden members.
+      // we only create bubbles for roots that HAVE unpositioned members.
       if (subtreeMembers.isEmpty) continue;
 
       // Compute hidden edges.
