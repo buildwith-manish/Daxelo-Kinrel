@@ -770,9 +770,34 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     Map<String, String>? categoryOf,
     Set<String>? protectedIds,
   }) {
-    // Small-set bypass: if within budget, clear any existing auto branches.
-    // v5.148: Preserve manually-collapsed branches.
-    if (visibleNodeIds.length <= kNodeBudget) {
+    // v5.155 (FIX 2): Reworked bypass. The old check
+    // `if (visibleNodeIds.length <= kNodeBudget) return;` ALWAYS fired
+    // because the proximity RPC returns ≤50 nodes (kProximityHardNodeBudget
+    // == kNodeBudget == 50). This meant zero branches were ever created,
+    // zero bubbles ever rendered — the 664 hidden members were invisible
+    // with no expansion controls.
+    //
+    // New logic: compute the TRUE family size by walking the FULL
+    // childrenOf adjacency (built from allEdges, which contains every
+    // active edge in the family). If the true family size exceeds the
+    // budget, create branches for visible roots that have hidden
+    // descendants — even when the visible set itself is ≤50.
+    //
+    // This ensures: visible members + members in branch bubbles =
+    // total family members. Every hidden member belongs to at least
+    // one visible branch bubble.
+
+    // Compute true subtree sizes against the FULL adjacency.
+    final subtreeSizes = <String, int>{};
+    for (final id in visibleNodeIds) {
+      subtreeSizes[id] = _subtreeSizeBFS(id, childrenOf, visibleNodeIds);
+    }
+    // Count total reachable members (visible + hidden descendants).
+    final totalReachable = visibleNodeIds.length +
+        subtreeSizes.values.fold<int>(0, (a, b) => a + b);
+
+    // Bypass ONLY when the true family size fits the budget.
+    if (totalReachable <= kNodeBudget) {
       final manualBranches = state.collapsedBranches
           .where((b) => state.manuallyCollapsedRoots.contains(b.rootPersonId))
           .toList();
@@ -787,39 +812,42 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       return;
     }
 
+    // The true family size exceeds the budget. We need to create
+    // branch bubbles for visible roots that have hidden descendants,
+    // even if the visible set itself is ≤50.
     final protected = protectedIds ?? const <String>{};
 
-    // We need to collapse. Find roots with the largest subtrees.
     final remaining = Set<String>.from(visibleNodeIds);
     final newBranches = <CollapsedBranch>[];
 
-    // Compute subtree sizes for all visible nodes.
-    final subtreeSizes = <String, int>{};
-    for (final id in visibleNodeIds) {
-      subtreeSizes[id] = _subtreeSizeBFS(id, childrenOf, remaining);
-    }
-
-    // Find roots: visible nodes that have children also in the visible set.
+    // Find roots: visible nodes that have children in the FULL adjacency
+    // (not just visible set). This catches roots whose entire subtree is
+    // unpositioned — the primary case for branch bubbles.
     final roots = visibleNodeIds.where((id) {
-      if (protected.contains(id)) return false; // v5.123: never hide under a protected root
+      if (protected.contains(id)) return false;
       final children = childrenOf[id] ?? {};
-      return children.any((c) => remaining.contains(c));
+      // v5.155: A root is a candidate if it has ANY children in the full
+      // graph (not just visible ones). This ensures branches are created
+      // for roots whose descendants are all unpositioned.
+      return children.isNotEmpty;
     }).toList();
 
     // Sort roots by subtree size, largest first.
     roots.sort((a, b) =>
         (subtreeSizes[b] ?? 0).compareTo(subtreeSizes[a] ?? 0));
 
-    // Collapse subtrees until we're within budget.
+    // v5.155: Create a branch bubble for EVERY visible root that has
+    // hidden descendants (subtreeMembers.length > 0), not just until
+    // the visible set is under budget. The visible set IS already
+    // under budget (proximity cap = 50). The goal is to create bubbles
+    // representing the hidden members, not to reduce the visible set.
     for (final rootId in roots) {
-      if (remaining.length <= kNodeBudget) break;
-
       // Skip if user has manually expanded this root.
       if (state.expandedBranchRoots.contains(rootId)) continue;
       // v5.142: Skip if manually collapsed — don't touch it.
       if (state.manuallyCollapsedRoots.contains(rootId)) continue;
 
-      // Compute the subtree to collapse (BFS through childrenOf).
+      // Compute the subtree to collapse (BFS through FULL childrenOf).
       final subtreeMembers = <String>{};
       _collectSubtreeBFS(rootId, childrenOf, remaining, subtreeMembers);
       subtreeMembers.remove(rootId); // root stays visible
@@ -827,7 +855,9 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       // subtree (their branch is partially collapsed around them).
       subtreeMembers.removeAll(protected);
 
-      if (subtreeMembers.length < 3) continue; // too small to cluster
+      // v5.155: Skip if no hidden descendants. This is the key filter —
+      // we only create bubbles for roots that HAVE hidden members.
+      if (subtreeMembers.isEmpty) continue;
 
       // Compute hidden edges.
       final hiddenEdgeIds = <String>{};
@@ -876,7 +906,10 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
         subBranches: subBranches,       // v5.106: recursive sub-branches
       ));
 
-      remaining.removeAll(subtreeMembers);
+      // v5.155: Do NOT remove subtreeMembers from remaining — they're
+      // unpositioned members, not visible nodes. Removing them would
+      // have no effect (they're not in remaining) but could cause
+      // confusion in future audits.
     }
 
     // Idempotent update.

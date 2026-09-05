@@ -1049,7 +1049,12 @@ class EngineEdgePainter extends CustomPainter {
       // inset (very close nodes), we shorten proportionally to avoid
       // the endpoints crossing (which would produce a degenerate
       // zero-length or reversed path).
-      const double kEdgeEndpointInset = 38.0;
+      //
+      // v5.155 (FIX 1): Changed from 38.0 → 36.0. The node circle
+      // diameter is 72dp → radius is 36px. The old 38px had a 2px
+      // buffer that made lines visibly stop short of the node edge.
+      // Now the line ends exactly at the circle boundary.
+      const double kEdgeEndpointInset = 36.0;
       final Offset chord = effectiveTarget - effectiveSource;
       final double chordLength = chord.distance;
       final Offset shortenedSource;
