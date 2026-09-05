@@ -309,6 +309,105 @@ class FlatGraphResult {
       );
     }).toList();
   }
+
+  /// v5.158 (GATEWAYS): Person IDs that are component gateways.
+  ///
+  /// A gateway is one member of a CONNECTED COMPONENT of the family
+  /// graph that contains NO fetched/known person. The provider augments
+  /// the proximity fetch with these gateway persons (flagged with
+  /// 'isComponentGateway': true in the person map) so they get layout
+  /// positions and can carry branch bubbles for their whole component.
+  ///
+  /// Without gateways, members of disconnected components are
+  /// unreachable: the viewer's proximity BFS never crosses into their
+  /// component, no visible node exists to attach a bubble to, and their
+  /// Person rows are never even fetched.
+  Set<String> get componentGatewayIds => <String>{
+        for (final Map<String, dynamic> p in persons)
+          if (p['isComponentGateway'] == true) (p['id'] ?? '').toString(),
+      };
+
+  /// v5.158 (GATEWAYS): Computes gateway person IDs for every connected
+  /// component of the family graph that has no member in [reachablePersonIds].
+  ///
+  /// Pure function over the FULL edge list ([allRelationships] when
+  /// available, otherwise [relationships]):
+  ///   1. Builds an undirected adjacency over every edge.
+  ///   2. Finds connected components (iterative BFS).
+  ///   3. For each component with NO reachable member, picks the gateway =
+  ///      the member with the MOST edges (degree), tie-broken by the
+  ///      smallest ID for determinism.
+  ///
+  /// [reachablePersonIds] should be the DEFAULT VISIBLE set (the nodes
+  /// the proximity view will actually render) — NOT merely the fetched
+  /// set. A component whose members were fetched but did not make the
+  /// visible set is still unreachable from the canvas and needs a
+  /// gateway.
+  ///
+  /// Returns the gateway IDs sorted ascending (deterministic).
+  static Set<String> computeComponentGateways({
+    required Set<String> reachablePersonIds,
+    required List<Map<String, dynamic>> allEdges,
+  }) {
+    if (allEdges.isEmpty) return const <String>{};
+
+    // Build undirected adjacency + degree counts from every edge.
+    final adjacency = <String, Set<String>>{};
+    for (final e in allEdges) {
+      final from = (e['fromPersonId'] ?? e['sourceId'] ?? '').toString();
+      final to = (e['toPersonId'] ?? e['targetId'] ?? '').toString();
+      if (from.isEmpty || to.isEmpty || from == to) continue;
+      adjacency.putIfAbsent(from, () => <String>{}).add(to);
+      adjacency.putIfAbsent(to, () => <String>{}).add(from);
+    }
+    if (adjacency.isEmpty) return const <String>{};
+
+    final gateways = <String>{};
+    final visited = <String>{};
+
+    // Sorted node list → deterministic component traversal.
+    final nodes = adjacency.keys.toList()..sort();
+    for (final start in nodes) {
+      if (visited.contains(start)) continue;
+
+      // BFS the component containing [start].
+      final component = <String>{start};
+      final queue = <String>[start];
+      var head = 0;
+      while (head < queue.length) {
+        final n = queue[head++];
+        for (final m in adjacency[n] ?? const <String>{}) {
+          if (component.add(m)) queue.add(m);
+        }
+      }
+      visited.addAll(component);
+
+      // Reachable members present → the proximity view can show this
+      // component; no gateway needed.
+      var hasReachable = false;
+      for (final id in component) {
+        if (reachablePersonIds.contains(id)) {
+          hasReachable = true;
+          break;
+        }
+      }
+      if (hasReachable) continue;
+
+      // Gateway = highest-degree member; tie-break by smallest ID.
+      String? best;
+      int bestDegree = -1;
+      final sortedComponent = component.toList()..sort();
+      for (final id in sortedComponent) {
+        final degree = adjacency[id]?.length ?? 0;
+        if (degree > bestDegree) {
+          bestDegree = degree;
+          best = id;
+        }
+      }
+      if (best != null) gateways.add(best);
+    }
+    return gateways;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -627,6 +726,8 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     final updated = FlatGraphResult(
       persons: newPersons,
       relationships: newRelationships,
+      // v5.158: preserve the full edge list through optimistic merges.
+      allRelationships: cached.allRelationships,
       isTruncated: cached.isTruncated,
       totalCount: cached.totalCount,
     );
@@ -719,6 +820,8 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       final updated = FlatGraphResult(
         persons: newPersons,
         relationships: newRelationships,
+        // v5.158: preserve the full edge list through optimistic merges.
+        allRelationships: current.allRelationships,
         isTruncated: current.isTruncated,
         totalCount: current.totalCount,
       );
@@ -849,9 +952,43 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
         }
       }
 
+      // v5.158 (allEdges PRESERVATION): the merged result MUST keep the
+      // full edge list — the density-collapse zone computation depends
+      // on it. The old merge dropped allRelationships, so after the FIRST
+      // branch expansion the collapse system lost every edge beyond the
+      // fetched subgraph: deeper hidden members became unfindable and
+      // their bubbles vanished (the "expansion works once then strands
+      // the remaining members" bug).
+      //
+      // The branch fetch returns a subset of the family's edges, so the
+      // union of (current allRelationships ?? current.relationships) and
+      // the branch edges IS the full edge set — deduped by canonical pair.
+      final baseAllEdges = current.allRelationships ?? current.relationships;
+      final newAllRelationships =
+          List<Map<String, dynamic>>.from(baseAllEdges);
+      final allEdgePairIndex = <String>{};
+      String canonicalPairOf(Map<String, dynamic> r) {
+        final from = (r['fromPersonId'] ?? r['sourceId'] ?? '').toString();
+        final to = (r['toPersonId'] ?? r['targetId'] ?? '').toString();
+        final p = [from, to]..sort();
+        return '${p[0]}|${p[1]}';
+      }
+
+      for (final r in newAllRelationships) {
+        allEdgePairIndex.add(canonicalPairOf(r));
+      }
+      for (final r in branchResult.relationships) {
+        final canonical = canonicalPairOf(r);
+        if (canonical.isNotEmpty && !allEdgePairIndex.contains(canonical)) {
+          newAllRelationships.add(r);
+          allEdgePairIndex.add(canonical);
+        }
+      }
+
       final updated = FlatGraphResult(
         persons: newPersons,
         relationships: newRelationships,
+        allRelationships: newAllRelationships,
         isTruncated: current.isTruncated,
         totalCount: current.totalCount,
       );
@@ -860,7 +997,8 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
 
       debugPrint('[FamilyGraphNotifier] fetchBranchAndMerge: '
           'added ${branchResult.persons.length} persons, '
-          '${branchResult.relationships.length} edges');
+          '${branchResult.relationships.length} edges '
+          '(allEdges: ${newAllRelationships.length})');
 
       // Invalidate layout so positions recompute with new nodes.
       ref.invalidate(graphLayoutProvider(familyId));
@@ -1191,6 +1329,10 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
     _fetchRevision[familyId] = myRevision;
 
     try {
+      // v5.158: resolve the viewer's Person ID once for BOTH paths —
+      // the RPC parameter and the gateway augmentation anchor.
+      final viewerId = await _resolveViewerMemberId(ref, client, familyId);
+
       // v5.144 (ARCHITECTURAL FIX): Try the proximity RPC FIRST.
       // The RPC now returns ONLY the ~22-node proximity set (viewer +
       // ring 1 + ring 2, capped at 50). This is the primary path —
@@ -1200,7 +1342,6 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       // when the RPC fails. It's also available for "show all" mode
       // and search-jump targets via _fetchGraphDirectQuery directly.
       try {
-        final viewerId = await _resolveViewerMemberId(ref, client, familyId);
         if (viewerId != null) {
           debugPrint('[FamilyGraphNotifier] v5.144: Calling get_viewer_family_graph (proximity) with viewerId=$viewerId');
           // v5.144/v5.150: Pass p_max_nodes so the RPC returns ONLY the
@@ -1225,12 +1366,21 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
           final data = response as Map<String, dynamic>?;
           if (data != null && !data.containsKey('error')) {
             final rpcResult = FlatGraphResult.fromRpc(data);
-            _addToCache(familyId, rpcResult);
+            // v5.158 (GATEWAYS): augment the proximity set with gateway
+            // persons for disconnected components BEFORE caching/returning
+            // so every hidden member is reachable via a branch bubble.
+            final augmented = await _augmentWithComponentGateways(
+                client, familyId, rpcResult,
+                viewerPersonId: viewerId);
+            _addToCache(familyId, augmented);
             debugPrint(
-              '[FamilyGraphNotifier] v5.144 Proximity RPC: Loaded ${rpcResult.persons.length} persons (of ${rpcResult.totalCount ?? '?'}) , '
-              '${rpcResult.relationships.length} relationships for $familyId',
+              '[FamilyGraphNotifier] v5.144 Proximity RPC: Loaded ${augmented.persons.length} persons '
+              '(${rpcResult.persons.length} proximity + ${augmented.persons.length - rpcResult.persons.length} gateways, '
+              'of ${rpcResult.totalCount ?? '?'}) , '
+              '${augmented.relationships.length} relationships, '
+              '${augmented.allRelationships?.length ?? 0} allEdges for $familyId',
             );
-            return rpcResult;
+            return augmented;
           }
         }
       } catch (rpcError) {
@@ -1253,8 +1403,15 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
         return state.valueOrNull ?? directResult;
       }
 
-      _addToCache(familyId, directResult);
-      return directResult;
+      // v5.158 (GATEWAYS): the direct query has ALL persons, but the
+      // default view still only renders the viewer's component — flag
+      // gateway persons for the other components so they are reachable.
+      final augmentedDirect = await _augmentWithComponentGateways(
+          client, familyId, directResult,
+          viewerPersonId: viewerId);
+
+      _addToCache(familyId, augmentedDirect);
+      return augmentedDirect;
     } on PostgrestException catch (e) {
       debugPrint('[FamilyGraphNotifier] Supabase error: ${e.message}');
       return _fallbackOrThrow(familyId, e);
@@ -1265,6 +1422,155 @@ class FamilyGraphNotifier extends FamilyAsyncNotifier<FlatGraphResult, String> {
       debugPrint('[FamilyGraphNotifier] Unexpected error: $e');
       return _fallbackOrThrow(familyId, e);
     }
+  }
+
+  /// v5.158 (GATEWAYS): Augments [result] with gateway persons for every
+  /// connected component of the family graph that the DEFAULT VIEW
+  /// cannot render.
+  ///
+  /// Why: the proximity fetch only returns the viewer's neighborhood.
+  /// When the family has multiple disconnected components (e.g. members
+  /// added without relationships linking them to the main tree), the
+  /// other components have NO positioned node — so no branch bubble can
+  /// ever represent them and their members are unreachable. This method
+  /// finds those components and injects ONE gateway member per
+  /// component (flagged 'isComponentGateway': true) into the person
+  /// list so the layout positions it and the collapse system attaches
+  /// a "+N" bubble covering the whole component.
+  ///
+  /// Steps:
+  ///   1. Compute the DEFAULT VISIBLE set exactly the way
+  ///      graphLayoutProvider will (same static helpers, same edge
+  ///      set) — so the gateway decision matches what actually
+  ///      renders.
+  ///   2. Compute connected components over the FULL edge list
+  ///      ([FlatGraphResult.allRelationships] when present).
+  ///   3. For each component with no default-visible member, take the
+  ///      gateway ID (see [FlatGraphResult.computeComponentGateways]).
+  ///   4. Gateway persons missing from the current result are fetched
+  ///      from the Person table (one batched query). Failures are
+  ///      non-fatal — we proceed with whatever data we have.
+  ///   5. Gateway persons present in the result (direct-query path)
+  ///      are simply flagged.
+  Future<FlatGraphResult> _augmentWithComponentGateways(
+    SupabaseClient client,
+    String familyId,
+    FlatGraphResult result, {
+    String? viewerPersonId,
+  }) async {
+    final allEdges = result.allRelationships ?? result.relationships;
+    if (allEdges.isEmpty || result.persons.isEmpty) return result;
+
+    // ── Step 1: default visible set (mirrors graphLayoutProvider) ──
+    final anchorId = ProximityGraphNotifier.resolveDefaultAnchor(
+      persons: result.persons,
+      viewerPersonId: viewerPersonId,
+    );
+    if (anchorId == null) return result;
+
+    final personIds = <String>{
+      for (final p in result.persons) (p['id'] ?? '').toString(),
+    }..remove('');
+
+    // The BFS input must match the layout provider's: the RENDERED edge
+    // set (proximity-filtered on the RPC path), not the full edge list.
+    final bfsEdges =
+        <({String fromId, String toId, String edgeId, String relationshipKey})>[
+      for (final r in result.relationships)
+        (
+          fromId: (r['fromPersonId'] ?? '').toString(),
+          toId: (r['toPersonId'] ?? '').toString(),
+          edgeId: (r['id'] ?? '').toString(),
+          relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
+        ),
+    ];
+    final bfsAdjacency = buildAdjacency(bfsEdges);
+    final defaultVisible = ProximityGraphNotifier.computeDefaultVisibleIds(
+      anchorId: anchorId,
+      allPersons: personIds,
+      adjacency: bfsAdjacency,
+      edges: bfsEdges,
+    );
+    // Conservative fallback: if the default set came back empty (odd
+    // anchor/edge data), treat every fetched person as reachable so we
+    // don't inject gateways for the viewer's own component.
+    final reachable =
+        defaultVisible.isEmpty ? personIds : defaultVisible;
+
+    // ── Step 2/3: gateway IDs for unreachable components ──
+    final gateways = FlatGraphResult.computeComponentGateways(
+      reachablePersonIds: reachable,
+      allEdges: allEdges,
+    );
+    if (gateways.isEmpty) return result;
+
+    debugPrint('[FamilyGraphNotifier] v5.158 gateways: ${gateways.length} '
+        'disconnected components need gateway nodes');
+
+    // ── Step 4: fetch gateway Person rows not already in the result ──
+    final gatewaysToFetch = gateways.difference(personIds);
+    final fetchedGateways = <String, Map<String, dynamic>>{};
+    if (gatewaysToFetch.isNotEmpty) {
+      try {
+        final rows = await client
+            .from('Person')
+            .select('id, name, gender, "generationIndex", "isAnchor", '
+                '"photoUrl", "isDeceased", visibility, username, "familyId"')
+            .eq('familyId', familyId)
+            .inFilter('id', gatewaysToFetch.toList())
+            .isFilter('deletedAt', null)
+            .timeout(const Duration(seconds: 10));
+        for (final dynamic row in rows) {
+          final m = row as Map<String, dynamic>;
+          final id = (m['id'] ?? '').toString();
+          if (id.isNotEmpty) fetchedGateways[id] = m;
+        }
+      } catch (e) {
+        debugPrint('[FamilyGraphNotifier] v5.158 gateway Person fetch '
+            'failed (non-fatal): $e');
+      }
+    }
+
+    // ── Step 5: merge gateway persons into the result ──
+    final newPersons = List<Map<String, dynamic>>.from(result.persons);
+    for (final gw in gateways) {
+      if (personIds.contains(gw)) {
+        // Already present (direct-query path) → just flag it.
+        final idx = newPersons
+            .indexWhere((p) => (p['id'] ?? '').toString() == gw);
+        if (idx >= 0) {
+          newPersons[idx] = {...newPersons[idx], 'isComponentGateway': true};
+        }
+      } else {
+        final row = fetchedGateways[gw];
+        if (row == null) continue; // fetch failed — skip this gateway
+        newPersons.add(<String, dynamic>{
+          'id': row['id'],
+          'name': row['name'],
+          'gender': row['gender'],
+          'generationIndex': row['generationIndex'] ?? 0,
+          'isAnchor': row['isAnchor'] ?? false,
+          'photoUrl': row['photoUrl'],
+          'isDeceased': row['isDeceased'] ?? false,
+          'visibility': row['visibility'],
+          'username': row['username'],
+          'isComponentGateway': true,
+        });
+      }
+    }
+
+    return FlatGraphResult(
+      persons: newPersons,
+      relationships: result.relationships,
+      // Invariant: allRelationships is ALWAYS the full edge list when
+      // known. For the direct-query path it was null — the full
+      // relationship list IS the complete edge set there.
+      allRelationships: result.allRelationships ?? result.relationships,
+      isTruncated: result.isTruncated,
+      totalCount: result.totalCount,
+      paginationOffset: result.paginationOffset,
+      paginationLimit: result.paginationLimit,
+    );
   }
 
   /// v94 (EDGE BUG FIX): Union-merge RPC and direct-query graph results
@@ -1833,11 +2139,16 @@ final graphLayoutProvider =
     // Pure computation — no provider mutation. v5.123 (Step 2): the
     // edge list is passed so the adaptive soft/hard budget can rank
     // candidates by kinship category when truncating at the hard cap.
+    // v5.158 (GATEWAYS): component gateway persons are unioned in so
+    // they get positions on the FIRST layout pass (they are BFS-
+    // unreachable by definition — without this they would never be
+    // positioned and no bubble could cover their component).
     visibleIds = ProximityGraphNotifier.computeDefaultVisibleIds(
       anchorId: centerPerson.id,
       allPersons: allPersonIds,
       adjacency: adjacency,
       edges: allEdges,
+      extraVisibleIds: graphData.componentGatewayIds,
     );
   }
 

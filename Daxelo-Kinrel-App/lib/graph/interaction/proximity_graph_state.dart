@@ -106,6 +106,11 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
   /// when provided it powers the kinship-category keep-priority used
   /// when truncating at the hard cap. Without it, truncation falls
   /// back to BFS discovery order (the old behaviour).
+  /// [extraVisibleIds] — v5.158: person IDs that must be visible even
+  /// though the BFS cannot reach them (component gateway nodes for
+  /// disconnected parts of the family). They are unioned into the
+  /// default set so the layout positions them and the collapse system
+  /// can attach branch bubbles covering their components.
   ///
   /// Computes ring 1 (direct neighbors), ring 2 (neighbors of neighbors),
   /// and ring 3+ (expanding outward until the soft budget is reached).
@@ -124,6 +129,7 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
     required Set<String> allPersons,
     required Map<String, Set<String>> adjacency,
     List<({String fromId, String toId, String edgeId, String relationshipKey})>? edges,
+    Set<String>? extraVisibleIds,
   }) {
     if (!allPersons.contains(anchorId)) {
       state = const ProximityGraphState();
@@ -135,6 +141,7 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
       allPersons: allPersons,
       adjacency: adjacency,
       edges: edges,
+      extraVisibleIds: extraVisibleIds,
     );
 
     state = ProximityGraphState(
@@ -201,6 +208,12 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
   /// [edges] powers the kinship-category keep-priority. Without it,
   /// truncation falls back to BFS discovery order (the old behaviour).
   ///
+  /// [extraVisibleIds] — v5.158: IDs unioned into the result AFTER the
+  /// BFS (component gateways for disconnected parts of the family —
+  /// unreachable via BFS by definition). They bypass the budgets: the
+  /// default view stays "approximately [kProximityNodeBudget]" (the
+  /// gateway count is tiny — one per disconnected component).
+  ///
   /// v5.123: Also extracted so the layout provider can compute the
   /// SAME default set synchronously without mutating this notifier
   /// (which Riverpod forbids during provider initialization — the root
@@ -211,6 +224,7 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
     required Set<String> allPersons,
     required Map<String, Set<String>> adjacency,
     List<({String fromId, String toId, String edgeId, String relationshipKey})>? edges,
+    Set<String>? extraVisibleIds,
   }) {
     if (!allPersons.contains(anchorId)) {
       return const <String>{};
@@ -340,6 +354,18 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
             visible.add(spouseId);
           }
         }
+      }
+    }
+
+    // v5.158 (GATEWAYS): union in the extra visible IDs (component
+    // gateways) AFTER the BFS + spouse invariant. Gateways are by
+    // definition unreachable via BFS, so they can only enter the set
+    // here. They bypass the soft/hard budgets deliberately — one node
+    // per disconnected component keeps the default view at
+    // "approximately 50" while making every hidden member reachable.
+    if (extraVisibleIds != null) {
+      for (final id in extraVisibleIds) {
+        if (allPersons.contains(id)) visible.add(id);
       }
     }
 
