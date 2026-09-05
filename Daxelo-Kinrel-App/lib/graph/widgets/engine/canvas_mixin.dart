@@ -652,6 +652,15 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         final densityHiddenIds = densityCollapseState.allHiddenMemberIds;
         final densityHiddenEdgeIds = densityCollapseState.allHiddenEdgeIds;
 
+        // v5.157 (DEBUG): Log branch bubble creation for verification.
+        debugPrint('[v5.157] Branch bubbles: ${densityCollapseState.collapsedBranches.length} branches, '
+            '${densityHiddenIds.length} hidden members, '
+            'visible=${visiblePreCluster.length}, '
+            'totalReachable=${visiblePreCluster.length + densityHiddenIds.length}');
+        for (final b in densityCollapseState.collapsedBranches.take(5)) {
+          debugPrint('[v5.157]   bubble: +${b.hiddenMemberIds.length} at ${b.rootPersonName}');
+        }
+
         // Apply clustering: remove hidden members from visible set.
         // (visiblePreCluster already excludes the previous build's
         // hidden IDs — with the fixed-point density pass the two sets
