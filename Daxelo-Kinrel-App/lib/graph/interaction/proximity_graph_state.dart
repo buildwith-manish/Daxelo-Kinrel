@@ -244,7 +244,14 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
       final nextRing = <String>[];
       final pending = <String>{};
       for (final ringId in currentRing) {
-        final neighbors = adjacency[ringId] ?? const <String>{};
+        // v5.153 (FIX 1.A): Sort neighbors by ID before iterating so
+        // BFS discovery order is DETERMINISTIC (lexicographic), not
+        // hash-ordered. This makes _keepClosestByCategory's tie-breaker
+        // stable and reproducible — the user was seeing "randomly
+        // selected" nodes because Set<String> iteration order is
+        // hash-based, so the tie-breaker picked different nodes on
+        // different runs.
+        final neighbors = (adjacency[ringId] ?? const <String>{}).toList()..sort();
         for (final neighborId in neighbors) {
           if (!visible.contains(neighborId) &&
               !pending.contains(neighborId) &&

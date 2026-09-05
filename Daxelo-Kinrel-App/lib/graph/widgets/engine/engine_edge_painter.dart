@@ -951,6 +951,47 @@ class EngineEdgePainter extends CustomPainter {
       anchorCenter: anchorCenter,
     );
 
+    // v5.153 (FIX 4.C): Generalized sector fan-out for ALL high-degree
+    // nodes, not just the anchor. The old code only fanned out edges
+    // incident to the anchor — but a grandparent with 8 children, each
+    // of those children having 3 children, produces ~24 grandchild→
+    // grandparent edges fanning into similar angles with NO separation.
+    // This generalizes the fan-out to every node with degree ≥ 4.
+    //
+    // For each high-degree node, compute per-edge fan-out offsets (same
+    // algorithm as computeAnchorSectorFanOuts but centered on that
+    // node's position). Merge into a combined map — when an edge gets
+    // fan-out from both endpoints, take the larger magnitude.
+    final Map<String, double> allFanOuts = Map<String, double>.from(anchorFanOuts);
+    {
+      // Build a degree map: nodeId → count of incident edges.
+      final degreeMap = <String, int>{};
+      for (final d in edges) {
+        degreeMap[d.edge.sourceId] = (degreeMap[d.edge.sourceId] ?? 0) + 1;
+        degreeMap[d.edge.targetId] = (degreeMap[d.edge.targetId] ?? 0) + 1;
+      }
+      // For each high-degree node (≥4 edges), compute fan-outs.
+      for (final entry in degreeMap.entries) {
+        if (entry.value < 4) continue;
+        if (entry.key == anchorId) continue; // already done above
+        final nodePos = positions[entry.key];
+        if (nodePos == null) continue;
+        final nodeFanOuts = computeAnchorSectorFanOuts(
+          edges: edges,
+          positions: positions,
+          anchorId: entry.key,
+          anchorCenter: nodePos,
+        );
+        // Merge: take the larger magnitude for each edge.
+        for (final fo in nodeFanOuts.entries) {
+          final existing = allFanOuts[fo.key] ?? 0.0;
+          if (fo.value.abs() > existing.abs()) {
+            allFanOuts[fo.key] = fo.value;
+          }
+        }
+      }
+    }
+
     for (final DedupedEdge deduped in edges) {
       final GraphEdgeData e = deduped.edge;
       final Offset? s = positions[e.sourceId];
@@ -1046,7 +1087,7 @@ class EngineEdgePainter extends CustomPainter {
       // positions, so suffixing it also protects against a stale
       // cached path when the fan grouping changes but this edge's own
       // endpoints do not move.
-      final double anchorFanOut = anchorFanOuts[e.id] ?? 0.0;
+      final double anchorFanOut = allFanOuts[e.id] ?? 0.0;
       final double totalLateralOffset = deduped.lateralOffset + anchorFanOut;
       final cacheEdgeId = totalLateralOffset != 0.0
           ? '${e.id}__offset_${totalLateralOffset.toStringAsFixed(1)}'

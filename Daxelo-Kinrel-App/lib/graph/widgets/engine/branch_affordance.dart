@@ -67,6 +67,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
   List<Widget> _buildCollapsedBranchChips(
     GraphLayoutResult layout,
     BranchCollapseState collapseState,
+    Set<String> densityHiddenIds,
   ) {
     if (collapseState.collapsedBranches.isEmpty) return const [];
 
@@ -74,7 +75,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     // helper so the rendered chip and the canvas hit-test target
     // always agree (the helper is shared between this builder and
     // _hitTestBranchChip in interaction_mixin.dart).
-    final placements = _computeBranchChipPlacements(layout, collapseState);
+    final placements = _computeBranchChipPlacements(layout, collapseState, densityHiddenIds);
     if (placements.isEmpty) return const [];
 
     // Build a quick lookup: branchId → placement so we can map the
@@ -222,6 +223,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
   List<BranchChipPlacement> _computeBranchChipPlacements(
     GraphLayoutResult layout,
     BranchCollapseState collapseState,
+    Set<String> densityHiddenIds,
   ) {
     if (collapseState.collapsedBranches.isEmpty) return const [];
 
@@ -230,6 +232,11 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     for (final branch in collapseState.collapsedBranches) {
       final pos = layout.positions[branch.rootPersonId];
       if (pos == null) continue;
+      // v5.153 (FIX 2.A): Skip branches whose root is itself hidden by
+      // another collapse. Without this, the chip renders at a "floating"
+      // location with no visible parent circle — the user reported
+      // "hidden or not being displayed correctly."
+      if (densityHiddenIds.contains(branch.rootPersonId)) continue;
       requests.add(BranchChipPlacementRequest(
         branchId: branch.id,
         rootPersonId: branch.rootPersonId,
@@ -238,18 +245,14 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     }
     if (requests.isEmpty) return const [];
 
-    // Build the node-box list for collision avoidance. Use EVERY
-    // node that has a position (not just the visible ones — the
-    // helper is called once per build with the full positions map,
-    // so we can avoid every node's bounding box, including
-    // off-screen ones that are still in the layout. This is the
-    // correct behavior because the parent camera Transform scales
-    // everything together; chips must avoid nodes regardless of
-    // whether they're currently in the viewport culler's visible
-    // set.
+    // v5.153 (FIX 2.B): Build the node-box list for collision avoidance
+    // using ONLY visible nodes (not hidden ones). The old code included
+    // hidden nodes, which pushed chips into worse positions because they
+    // were avoiding invisible nodes.
     final allNodeBoxes = <Rect>[
       for (final entry in layout.positions.entries)
-        nodeBoxForPosition(entry.value),
+        if (!densityHiddenIds.contains(entry.key))
+          nodeBoxForPosition(entry.value),
     ];
 
     return placeBranchChips(
@@ -314,11 +317,21 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     // unrecognized relationship keys this hits the 'generic' branch
     // type which does a BFS up to depth=2 hops regardless of label
     // (migration 20260831120000).
+    //
+    // v5.153 (FIX 3.A): Adaptive depth. The old hard-coded depth: 2
+    // under-fetched large branches — branch.hiddenMemberIds contains
+    // the ENTIRE subtree (can be 4+ generations deep for 50+ member
+    // branches), but depth: 2 only fetched 2 hops. Deeper members
+    // were silently skipped by revealPersons (not in allPersons) and
+    // vanished from the graph. Now: large branches (>20 hidden
+    // members) fetch to depth 4; small branches use depth 2.
+    final hiddenCount = branch.hiddenMemberIds.length;
+    final fetchDepth = hiddenCount > 20 ? 4 : 2;
     await ref.read(familyGraphProvider(widget.familyId).notifier)
         .fetchBranchAndMerge(
       rootPersonId: branch.rootPersonId,
       branchType: branchType,
-      depth: 2,
+      depth: fetchDepth,
     );
 
     // v5.143: Clear the optimistic loading state — data has arrived.

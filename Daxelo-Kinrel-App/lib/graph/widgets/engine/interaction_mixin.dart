@@ -448,7 +448,7 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     final throwawayState = BranchCollapseState(
       collapsedBranches: _currentCollapsedBranches,
     );
-    final placements = _computeBranchChipPlacements(layout, throwawayState);
+    final placements = _computeBranchChipPlacements(layout, throwawayState, _currentDensityHiddenIds);
     if (placements.isEmpty) return null;
 
     // Build a quick lookup: branchId → placement.

@@ -537,6 +537,12 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // and route them to the same handlers the chip would have called.
   List<CollapsedBranch> _currentCollapsedBranches = const [];
 
+  // v5.153 (FIX 2.A): Cache the current density-hidden IDs so the
+  // hit-tester can skip orphaned chips (branches whose root is itself
+  // hidden by another collapse). Updated in canvas_mixin when the
+  // chip list is rebuilt.
+  Set<String> _currentDensityHiddenIds = const {};
+
   // v5.137: Records which branch chip was hit during onTapDown, so the
   // onTap callback (which fires only for quick taps, NOT long-presses)
   // can expand the correct branch. This prevents the chip from expanding

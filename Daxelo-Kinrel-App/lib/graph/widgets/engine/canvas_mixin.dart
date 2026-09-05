@@ -1094,6 +1094,9 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // and long-presses to _showBranchActionSheet — the same handlers
         // the chip's own GestureDetector would have called.
         _currentCollapsedBranches = densityCollapseState.collapsedBranches;
+        // v5.153 (FIX 2.A): Cache the density-hidden IDs so the
+        // hit-tester can skip orphaned chips.
+        _currentDensityHiddenIds = densityHiddenIds;
 
         // Build the (transform-independent) content once. The AnimatedBuilder
         // below re-applies only the camera Transform per frame, so the cached
@@ -1361,7 +1364,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 // computeDensityCollapse ran, so density-created branches
                 // (the ones that actually matter at scale) never got
                 // chips, and already-cleared branches kept stale ones.
-                ..._buildCollapsedBranchChips(layout, densityCollapseState),
+                ..._buildCollapsedBranchChips(layout, densityCollapseState, densityHiddenIds),
               ],
             ),
           ),
