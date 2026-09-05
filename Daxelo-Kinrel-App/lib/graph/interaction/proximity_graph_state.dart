@@ -32,7 +32,7 @@ import '../../core/graph/graph_service.dart' show inverseTypeMap;
 import '../../core/kinship/kinship_edge_style.dart' show KinshipEdgeCategory;
 import '../../core/kinship/structural_kinship_classifier.dart'
     show StructuralKinshipClassifier;
-import 'branch_collapse_state.dart' show kNodeBudget;
+import 'branch_collapse_state.dart' show kNodeBudget, kMaxNodesPerExpansion;
 
 /// The SOFT target for visible nodes in the default ego-centric view.
 /// v5.121d: Reduced from 50 to 30 — at 50 nodes the zoom was too far
@@ -507,6 +507,130 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
       visibleIds: newVisible,
       expandedPersonIds: newExpanded,
     );
+  }
+
+  /// v5.159 (RE-COLLAPSE): Removes a set of persons from the visible set
+  /// — the inverse of [revealPersons]. Used when the user re-collapses an
+  /// expanded branch: the members its expansion revealed are concealed,
+  /// the layout drops their positions, and the next density-collapse pass
+  /// re-zones them under the branch root — restoring the "+N" bubble.
+  ///
+  /// The ANCHOR is never concealed (the ego-centric view must keep its
+  /// center). Ids not currently visible are no-ops. Members that other
+  /// mechanisms made visible (search jump, focus path) are concealed too
+  /// when listed — the caller decides the set; callers today pass exactly
+  /// what the corresponding expansion revealed.
+  void concealPersons({
+    required Set<String> personIds,
+  }) {
+    final current = state;
+    if (personIds.isEmpty) return;
+    final anchor = current.anchorId;
+
+    final newVisible = Set<String>.from(current.visibleIds)
+      ..removeAll(personIds.where((id) => id != anchor));
+    if (newVisible.length == current.visibleIds.length) {
+      return; // Nothing actually concealed — no state change.
+    }
+
+    final newExpanded = Set<String>.from(current.expandedPersonIds)
+      ..removeAll(personIds);
+
+    state = ProximityGraphState(
+      anchorId: anchor,
+      visibleIds: newVisible,
+      expandedPersonIds: newExpanded,
+    );
+  }
+
+  /// v5.159 (NESTED EXPANSION — LEVEL REVEAL): Pure (non-mutating)
+  /// computation of the members ONE branch-bubble tap should reveal.
+  ///
+  /// Contract (the user-facing spec):
+  ///   • Only the IMMEDIATE next level is returned — the hidden members
+  ///     DIRECTLY connected to [rootPersonId] — never the deeper subtree.
+  ///   • The result is capped at [kMaxNodesPerExpansion] (15). When the
+  ///     immediate level has more candidates than the cap, the
+  ///     kinship-closest ones are kept (spouse/parent/child/sibling
+  ///     before distant relations; ties broken by sorted ID for
+  ///     determinism) and the REST are left hidden — the next density
+  ///     pass re-zones them into sub-bubbles (the "split into multiple
+  ///     sub-bubbles instead of rendering them all" requirement).
+  ///   • CONNECTIVITY GUARANTEE (disconnected-node fix): every returned
+  ///     member has at least one edge, present in [edges], to a node
+  ///     that is ALREADY in [visibleIds] — the parent-child line is
+  ///     computable at the exact moment the node is revealed, so a
+  ///     revealed node can never render unlinked.
+  ///   • Only ids present in [allPersons] are eligible (the node's data
+  ///     must be fetched — otherwise it cannot be laid out or named).
+  ///
+  /// [edges] is the FULL family edge list (allRelationships) — it is
+  /// used both for adjacency and for the connecting-key priority.
+  static Set<String> computeNextLevelReveal({
+    required String rootPersonId,
+    required Set<String> visibleIds,
+    required Set<String> allPersons,
+    required List<({String fromId, String toId, String edgeId, String relationshipKey})> edges,
+    int maxNodes = kMaxNodesPerExpansion,
+  }) {
+    if (!allPersons.contains(rootPersonId)) return const <String>{};
+
+    // Immediate hidden neighbours of the root, with the connecting
+    // relationship key (root→neighbour direction, inverse-mapped when
+    // the row points the other way).
+    final candidates = <String, String>{}; // neighbourId → connecting key
+    for (final e in edges) {
+      if (e.fromId.isEmpty || e.toId.isEmpty) continue;
+      String? neighbourId;
+      String key = e.relationshipKey;
+      if (e.fromId == rootPersonId) {
+        neighbourId = e.toId;
+      } else if (e.toId == rootPersonId) {
+        neighbourId = e.fromId;
+        key = inverseTypeMap[e.relationshipKey] ?? e.relationshipKey;
+      } else {
+        continue;
+      }
+      if (visibleIds.contains(neighbourId)) continue; // already visible
+      if (!allPersons.contains(neighbourId)) continue; // not fetched
+      // CONNECTIVITY GUARANTEE: the edge to the root (a visible node) IS
+      // the computable parent line — the candidate qualifies by holding.
+      candidates[neighbourId] = key;
+    }
+    if (candidates.isEmpty) return const <String>{};
+
+    if (candidates.length <= maxNodes) {
+      return Set<String>.from(candidates.keys);
+    }
+
+    // Over the cap: keep the kinship-closest (then deterministic ID).
+    final ranked = candidates.entries.toList()
+      ..sort((a, b) {
+        final byRank = _revealPriorityFor(a.value)
+            .compareTo(_revealPriorityFor(b.value));
+        if (byRank != 0) return byRank;
+        return a.key.compareTo(b.key);
+      });
+    return Set<String>.from(
+      [for (final r in ranked.take(maxNodes)) r.key],
+    );
+  }
+
+  /// v5.159: Keep-priority for one-level reveals — closer family first,
+  /// mirroring [kProximityCategoryKeepPriority]'s intent via the simple
+  /// key set (the full StructuralKinshipClassifier is overkill for a
+  /// single hop, where the key IS the relationship).
+  static int _revealPriorityFor(String key) {
+    const priorities = <String, int>{
+      'spouse': 0, 'wife': 0, 'husband': 0, 'partner': 0,
+      'mother': 1, 'father': 1, 'parent': 1,
+      'son': 2, 'daughter': 2, 'child': 2,
+      'brother': 3, 'sister': 3, 'sibling': 3,
+      'grandmother': 4, 'grandfather': 4, 'grandparent': 4,
+      'aunt': 5, 'uncle': 5,
+      'nephew': 6, 'niece': 6, 'cousin': 6,
+    };
+    return priorities[key.toLowerCase().trim()] ?? 9;
   }
 
   /// v5.123 (Step 5): Reveals an entire branch subtree (the root plus

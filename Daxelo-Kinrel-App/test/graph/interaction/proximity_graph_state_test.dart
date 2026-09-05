@@ -17,6 +17,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kinrel/core/relationship/relationship_engine.dart';
 import 'package:kinrel/core/services/graph_layout_service.dart'
     show GraphPerson;
+import 'package:kinrel/graph/interaction/branch_collapse_state.dart'
+    show kNodeBudget;
 import 'package:kinrel/graph/interaction/proximity_graph_state.dart';
 
 /// Edge tuple matching the production shape used by buildAdjacency.
@@ -71,12 +73,18 @@ void main() {
       // Ring 1 alone exceeds the hard cap → the ring is truncated to
       // 49 nodes, keeping the 25 children (category child, rank 3)
       // BEFORE the in-laws (category inLaw, rank 8).
+      //
+      // v5.159 (TEST REFRESH): IDs are ZERO-PADDED (bil00..bil29) so
+      // the v5.153 deterministic LEXICOGRAPHIC BFS order equals the
+      // numeric order — the original unpadded IDs made 'bil10' sort
+      // before 'bil2', so the "first 24 discovered" were a lexicographic
+      // subset, not bil00..bil23, and the tie-break expectations broke.
       final edges = <_E>[];
       for (var i = 0; i < 25; i++) {
-        edges.add(_e('anchor', 'son$i', 'son'));
+        edges.add(_e('anchor', 'son${i.toString().padLeft(2, '0')}', 'son'));
       }
       for (var i = 0; i < 30; i++) {
-        edges.add(_e('anchor', 'bil$i', 'brother_in_law'));
+        edges.add(_e('anchor', 'bil${i.toString().padLeft(2, '0')}', 'brother_in_law'));
       }
       final allPersons = <String>{'anchor', for (final e in edges) e.fromId, for (final e in edges) e.toId};
       final adjacency = buildAdjacency(edges);
@@ -93,19 +101,19 @@ void main() {
 
       // ALL children survive the truncation.
       for (var i = 0; i < 25; i++) {
-        expect(visible, contains('son$i'),
+        expect(visible, contains('son${i.toString().padLeft(2, '0')}'),
             reason: 'Children must be kept before in-laws');
       }
       // Only 24 of the 30 in-laws fit — and the survivors must be the
-      // FIRST-discovered ones (stable tie-break within the category).
+      // FIRST-discovered ones (zero-padded: lex == numeric order).
       var inLawVisible = 0;
       for (var i = 0; i < 30; i++) {
-        if (visible.contains('bil$i')) inLawVisible++;
+        if (visible.contains('bil${i.toString().padLeft(2, '0')}')) inLawVisible++;
       }
       expect(inLawVisible, 24,
           reason: '50 - anchor - 25 children = 24 in-law slots');
       for (var i = 0; i < 24; i++) {
-        expect(visible, contains('bil$i'),
+        expect(visible, contains('bil${i.toString().padLeft(2, "0")}'),
             reason: 'Ties inside a category keep BFS discovery order');
       }
       expect(visible, isNot(contains('bil29')),
@@ -115,13 +123,14 @@ void main() {
     test('a sibling outranks a sibling-in-law at the hard cap', () {
       // Anchor with 50 direct connections: 25 brothers + 25
       // sisters-in-law. Capacity 49 → all 25 brothers + 24 of 25
-      // sisters-in-law.
+      // sisters-in-law. v5.159: zero-padded IDs so lex order == numeric
+      // order (see the truncation test's refresh note).
       final edges = <_E>[];
       for (var i = 0; i < 25; i++) {
-        edges.add(_e('anchor', 'bro$i', 'brother'));
+        edges.add(_e('anchor', 'bro${i.toString().padLeft(2, '0')}', 'brother'));
       }
       for (var i = 0; i < 25; i++) {
-        edges.add(_e('anchor', 'sil$i', 'sister_in_law'));
+        edges.add(_e('anchor', 'sil${i.toString().padLeft(2, '0')}', 'sister_in_law'));
       }
       final allPersons = <String>{'anchor', for (final e in edges) e.fromId, for (final e in edges) e.toId};
       final adjacency = buildAdjacency(edges);
@@ -135,7 +144,7 @@ void main() {
 
       expect(visible.length, 50);
       for (var i = 0; i < 25; i++) {
-        expect(visible, contains('bro$i'),
+        expect(visible, contains('bro${i.toString().padLeft(2, '0')}'),
             reason: 'Siblings (rank 4) outrank siblings-in-law (rank 8)');
       }
       expect(visible, isNot(contains('sil24')),
@@ -212,10 +221,11 @@ void main() {
     test('without edges, truncation falls back to BFS discovery order '
         '(backward compatible)', () {
       // 60 ring-1 nodes, no edge metadata → keep the first 49
-      // discovered (insertion order of the adjacency set).
+      // discovered. v5.159: zero-padded IDs so the deterministic
+      // lexicographic BFS order equals numeric order (v5.153).
       final edges = <_E>[];
       for (var i = 0; i < 60; i++) {
-        edges.add(_e('anchor', 'n$i', 'son'));
+        edges.add(_e('anchor', 'n${i.toString().padLeft(2, '0')}', 'son'));
       }
       final allPersons = <String>{'anchor', for (final e in edges) e.fromId, for (final e in edges) e.toId};
       final adjacency = buildAdjacency(edges);
@@ -229,7 +239,7 @@ void main() {
 
       expect(visible.length, 50);
       for (var i = 0; i < 49; i++) {
-        expect(visible, contains('n$i'),
+        expect(visible, contains('n${i.toString().padLeft(2, '0')}'),
             reason: 'Without category data, BFS discovery order decides');
       }
       expect(visible, isNot(contains('n49')));
@@ -271,11 +281,19 @@ void main() {
       expect(notifier.state.expandedPersonIds, contains('anchor'));
     });
 
-    test('constants: soft budget < hard cap, hard cap matches kNodeBudget',
-        () {
-      expect(kProximityNodeBudget, 30);
+    test('constants: budgets aligned at the node budget (v5.151)', () {
+      // v5.159 (TEST REFRESH): v5.151 deliberately raised the SOFT
+      // budget from 30 to 50 and aligned it with the hard cap — the
+      // default view felt "too sparse" at 30 on 700-member families.
+      // The old expectation (soft 30 < hard 50) no longer reflects the
+      // product decision; the invariants that still hold:
+      //   • the hard cap equals kNodeBudget (the Show-All ceiling)
+      //   • the soft budget never EXCEEDS the hard cap
+      expect(kProximityNodeBudget, 50);
       expect(kProximityHardNodeBudget, 50);
-      expect(kProximityHardNodeBudget, greaterThan(kProximityNodeBudget));
+      expect(kProximityHardNodeBudget, kNodeBudget);
+      expect(
+          kProximityNodeBudget, lessThanOrEqualTo(kProximityHardNodeBudget));
     });
 
     test('revealPersons (Step 3): bulk branch reveal is incremental and '

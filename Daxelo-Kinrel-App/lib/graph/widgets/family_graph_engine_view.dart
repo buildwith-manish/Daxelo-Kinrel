@@ -105,7 +105,8 @@ import '../interaction/branch_collapse_state.dart'
         BranchCollapseNotifier,
         BranchCollapseState,
         CollapsedBranch,
-        branchCollapseProvider;
+        branchCollapseProvider,
+        kMaxNodesPerExpansion;
 import '../interaction/graph_search_state.dart'
     show
         GraphSearchNotifier,
@@ -856,6 +857,16 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // v5.143: Optimistic chip loading state — set immediately on tap
   // before the RPC returns, so the user gets sub-100ms feedback.
   String? _optimisticLoadingChipRootId;
+
+  // v5.159 (ENTRANCE ANIMATION): person IDs revealed by the most recent
+  // branch-bubble tap that are WAITING for their first layout positions.
+  // The canvas build (canvas_mixin.dart) promotes them into
+  // [_branchAnimatingNodeIds] the moment the layout assigns them
+  // positions and starts the v5.143 controller — so newly revealed
+  // nodes FLY OUT from the bubble instead of popping in, while their
+  // edges follow (edge paths derive from effectivePositions every
+  // frame, keeping node + connecting line GLUED together).
+  Set<String> _pendingEntranceNodeIds = {};
 
   @override
   void initState() {
@@ -1613,6 +1624,42 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _animatingBranchExpand = true;
     _branchAnimationProgress = 0.0;
     _branchExpandController!.forward(from: 0.0);
+  }
+
+  /// v5.159 (ENTRANCE ANIMATION): records the members a branch-bubble
+  /// tap just revealed, plus the bubble's position (the branch root's
+  /// position at tap time) to fly them out from.
+  ///
+  /// Unlike [_startBranchExpandAnimation] (v5.143, never called), this
+  /// does NOT start the controller immediately — the revealed members
+  /// have no positions yet (the layout provider recomputes
+  /// asynchronously after the proximity reveal). The ids sit in
+  /// [_pendingEntranceNodeIds] until the canvas build observes that the
+  /// layout has assigned them positions; it then promotes them into
+  /// [_branchAnimatingNodeIds] and starts the controller — so the
+  /// animation begins at the exact frame the nodes first render, and
+  /// the nodes animate from the bubble's position out to their final
+  /// spots instead of popping in.
+  void _markNodesForEntrance(Set<String> ids, {Offset? origin}) {
+    if (ids.isEmpty) return;
+    if (origin != null && origin != Offset.zero) {
+      _branchAnimationOrigin = origin;
+    }
+    _pendingEntranceNodeIds = Set<String>.of(ids);
+  }
+
+  /// v5.159 (RE-COLLAPSE CLEANUP): cancels any in-flight entrance
+  /// animation. Called when a branch is re-collapsed or manually
+  /// collapsed — the concealed members must not keep flying in (their
+  /// positions vanish with the conceal anyway; this stops the
+  /// controller churn + keeps _branchAnimatingNodeIds from referencing
+  /// concealed ids for the remaining frames).
+  void _cancelEntranceAnimation() {
+    _pendingEntranceNodeIds = {};
+    _branchAnimatingNodeIds = {};
+    _animatingBranchExpand = false;
+    _branchAnimationProgress = 1.0;
+    _branchExpandController?.stop();
   }
 
   /// v5.30 Issue 2: On first render with non-empty saved overrides,

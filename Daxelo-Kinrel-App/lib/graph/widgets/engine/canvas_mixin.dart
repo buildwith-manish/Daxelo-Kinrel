@@ -155,6 +155,62 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           // user hasn't dragged anything yet on first load).
         }
 
+        // v5.159 (ENTRANCE ANIMATION): fly newly revealed nodes out
+        // from their branch bubble.
+        //
+        // _fetchAndExpandBranch records the level-reveal set in
+        // _pendingEntranceNodeIds (with the branch root's position as
+        // the origin). The layout provider assigns those members
+        // positions in a later rebuild — THIS build. Promote every
+        // pending id that now has a position into
+        // _branchAnimatingNodeIds, start the v5.143 controller (once,
+        // deferred to post-frame so the value-set notifyListeners never
+        // fires setState during build), and lerp their positions from
+        // the origin to their final spots by _branchAnimationProgress
+        // (already easeOut-curved by _onBranchExpandTick).
+        //
+        // Edges follow the animated positions automatically (their
+        // paths derive from effectivePositions on every frame) — so a
+        // node and its connecting line always move TOGETHER, satisfying
+        // the atomic node+edge render requirement.
+        //
+        // Reduced motion: skip both the promotion and the lerp — nodes
+        // appear directly at their final (collision-resolved)
+        // positions.
+        if (_pendingEntranceNodeIds.isNotEmpty &&
+            !MediaQuery.disableAnimationsOf(context)) {
+          final promoted = <String>{
+            for (final id in _pendingEntranceNodeIds)
+              if (effectivePositions.containsKey(id)) id,
+          };
+          if (promoted.isNotEmpty) {
+            _pendingEntranceNodeIds.removeAll(promoted);
+            _branchAnimatingNodeIds =
+                Set<String>.of(_branchAnimatingNodeIds)..addAll(promoted);
+            if (!_animatingBranchExpand) {
+              _animatingBranchExpand = true;
+              _branchAnimationProgress = 0.0;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                _branchExpandController?.forward(from: 0.0);
+              });
+            }
+          }
+        }
+        if (_animatingBranchExpand && _branchAnimatingNodeIds.isNotEmpty) {
+          final t = _branchAnimationProgress.clamp(0.0, 1.0);
+          if (t < 1.0) {
+            for (final id in _branchAnimatingNodeIds) {
+              final finalPos = effectivePositions[id];
+              if (finalPos == null) continue;
+              effectivePositions[id] = Offset(
+                _branchAnimationOrigin.dx * (1.0 - t) + finalPos.dx * t,
+                _branchAnimationOrigin.dy * (1.0 - t) + finalPos.dy * t,
+              );
+            }
+          }
+        }
+
         // v5.27 Task 1: Reset animation lerp.
         //
         // If a reset animation is in progress (_animatingReset is true),

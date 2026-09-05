@@ -26,6 +26,7 @@
 //   In-Law: Amber #F59E0B
 //   Extended: Slate #64748B
 
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -390,6 +391,12 @@ class _GraphNodeState extends ConsumerState<GraphNode>
   AnimationController? _expandRotateController;
   // v5.100: Slow pulse for the "You" node glow (always active)
   AnimationController? _selfPulseController;
+  /// v5.159 (TIMER-LEAK FIX): the 5s settle-in stopper for the anchor
+  /// glow pulse. Was `Future.delayed` — uncancellable, so a pending
+  /// timer survived widget disposal and tripped the test framework's
+  /// "A Timer is still pending even after the widget tree was
+  /// disposed" assertion. A real Timer is cancelled in dispose().
+  Timer? _selfPulseStopTimer;
   Animation<double>? _selfPulseAnimation;
 
   Animation<double>? _pulseAnimation;
@@ -430,7 +437,9 @@ class _GraphNodeState extends ConsumerState<GraphNode>
       );
       // Run for 2 cycles (5 seconds), then stop.
       _selfPulseController!.repeat(reverse: true);
-      Future.delayed(const Duration(seconds: 5), () {
+      // v5.159 (TIMER-LEAK FIX): cancellable Timer instead of
+      // Future.delayed — see the _selfPulseStopTimer field doc.
+      _selfPulseStopTimer = Timer(const Duration(seconds: 5), () {
         if (mounted) _selfPulseController?.stop();
       });
     }
@@ -505,6 +514,9 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
   @override
   void dispose() {
+    // v5.159 (TIMER-LEAK FIX): cancel the pending settle-in timer
+    // BEFORE disposing the controller it references.
+    _selfPulseStopTimer?.cancel();
     // v5.148: Only dispose controllers that were actually created.
     _pulseController?.dispose();
     _shimmerController?.dispose();

@@ -108,6 +108,27 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
           ? branch.rootPersonName.trim()
           : branch.branchLabel;
 
+      // v5.159 (RICH BUBBLES): The representative name shown BEFORE the
+      // count — "Geeta Iyer +207". Priority: the branch's resolved
+      // representativeName (root name, else first resolvable hidden
+      // member name), else the short label, else nothing (bare "+N").
+      final representative = (branch.representativeName ?? '').trim();
+      final namePart = representative.isNotEmpty
+          ? representative
+          : shortLabel;
+
+      // v5.159 (RICH BUBBLES): Nesting glyph — a TREE icon when the
+      // hidden members include FURTHER sub-branches (depth ≥ 2:
+      // expanding reveals nodes that themselves carry bubbles), vs a
+      // flat CHEVRON (⌵) when the group is a dead end of direct
+      // people with no deeper levels.
+      final IconData nestingGlyph = branch.hasNestedDescendants
+          ? Icons.account_tree_rounded
+          : Icons.expand_more_rounded;
+      final String nestingSemantics = branch.hasNestedDescendants
+          ? 'Contains further sub-branches inside. '
+          : 'Flat group — direct relatives only, no deeper levels. ';
+
       final chipWidget = GestureDetector(
         // v5.132: opaque hit-testing — the visual chip is compact,
         // but every pixel inside its bounds must register the tap /
@@ -155,25 +176,30 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
             children: [
               // v5.143: Show a different icon when this chip is in the
               // optimistic loading state (tap fired, RPC in flight).
+              // v5.159: otherwise show the NESTING glyph (tree vs flat
+              // chevron) so the user can tell at a glance whether the
+              // group has more levels inside.
               // Gives sub-100ms visual feedback without needing a
               // Material ancestor for CircularProgressIndicator.
               Icon(
                 _optimisticLoadingChipRootId == branch.rootPersonId
                     ? Icons.hourglass_top
-                    : Icons.unfold_more,
+                    : nestingGlyph,
                 size: 14,
                 color: chipAccentColor,
               ),
               const SizedBox(width: 6),
-              // v5.123 (Step 3): Lead with "+{count}", then append the
-              // short label when space permits (single line,
-              // ellipsized). The generation depth stays available via
-              // the branch tooltip semantics below.
+              // v5.159 (RICH BUBBLES): "<name> +<count>" — lead with the
+              // representative name (e.g. "Geeta Iyer +207") so the user
+              // knows WHOSE branch they are expanding, then the exact
+              // hidden-member count. Single line, ellipsized; the
+              // nesting semantics stay available to screen readers via
+              // the Semantics label below.
               Flexible(
                 child: Text(
-                  shortLabel.isEmpty
+                  namePart.isEmpty
                       ? '+${branch.hiddenCount}'
-                      : '+${branch.hiddenCount} · $shortLabel',
+                      : '$namePart +${branch.hiddenCount}',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 12,
@@ -203,8 +229,9 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
         child: Semantics(
           button: true,
           label:
-              'Expand ${shortLabel.isEmpty ? 'collapsed' : shortLabel} branch: '
+              'Expand ${namePart.isEmpty ? 'collapsed' : namePart} branch: '
               '${branch.hiddenCount} hidden family members. '
+              '$nestingSemantics'
               'Double-tap to expand. Long-press for branch details and '
               'the full names list.',
           child: chipWidget,
@@ -342,21 +369,101 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     // v5.143: Clear the optimistic loading state — data has arrived.
     _optimisticLoadingChipRootId = null;
 
-    // v5.123 (Step 3): Reveal the branch's members in the proximity
-    // set FIRST (incremental — only this branch's hidden members plus
-    // the root's own subtree context) so the layout provider gives
-    // them positions and the expansion is actually VISIBLE.
+    // v5.159 (PROGRESSIVE DISCLOSURE — LEVEL REVEAL):
+    //
+    // The OLD behavior revealed EVERY hidden member of the branch in
+    // one tap (a 207-member zone dumped 207 nodes onto the canvas at
+    // once). The NEW contract, per spec:
+    //
+    //   • ONE tap reveals ONLY the immediate next level — the hidden
+    //     members DIRECTLY connected to the branch root — never the
+    //     deeper subtree.
+    //   • The reveal is capped at [kMaxNodesPerExpansion] (15). When
+    //     the immediate level is larger, the kinship-closest 15 are
+    //     revealed and the REST stay hidden — the next density pass
+    //     re-zones them into sub-bubbles attached to the newly
+    //     revealed frontier nodes ("split into multiple sub-bubbles
+    //     instead of rendering them all").
+    //   • CONNECTIVITY GUARANTEE: every revealed member holds an edge,
+    //     present in the fetched data, to a node that is ALREADY
+    //     visible — so the moment a node renders, its connecting line
+    //     to its parent is computable. No "floating node with a +N
+    //     badge and no line" can ever appear.
     final flat = ref.read(familyGraphProvider(widget.familyId)).valueOrNull;
+    var revealedIds = const <String>{};
     if (flat != null) {
+      final allPersons = <String>{
+        for (final p in flat.persons) (p['id'] ?? '').toString(),
+      };
+      // v5.159: The full edge list (allRelationships — the union of the
+      // base graph and every merged branch fetch — when available).
+      final edgesSrc = flat.allRelationships ?? flat.relationships;
+      final fullEdges =
+          <({String fromId, String toId, String edgeId, String relationshipKey})>[
+        for (final Map<String, dynamic> r in edgesSrc)
+          if (r['fromPersonId'] != null &&
+              r['toPersonId'] != null &&
+              r['id'] != null)
+            (
+              fromId: r['fromPersonId'].toString(),
+              toId: r['toPersonId'].toString(),
+              edgeId: r['id'].toString(),
+              relationshipKey: (r['relationshipKey'] as String?) ?? '',
+            ),
+      ];
+      // The visible set INCLUDES the branch root (it is rendered — its
+      // chip is anchored on it), even when the proximity set has not
+      // listed it yet.
+      final visiblePlusRoot = Set<String>.of(
+              ref.read(proximityGraphProvider).visibleIds)
+        ..add(branch.rootPersonId);
+
+      revealedIds = ProximityGraphNotifier.computeNextLevelReveal(
+        rootPersonId: branch.rootPersonId,
+        visibleIds: visiblePlusRoot,
+        allPersons: allPersons,
+        edges: fullEdges,
+      );
+
+      // v5.159 (ZONE FALLBACK): zone bubbles group the hidden members
+      // NEAREST to the root, but those members may hang off OTHER
+      // (visible) zone members rather than off the root itself. When
+      // the root has no hidden direct neighbours, fall back to the
+      // closest hidden members that are adjacent to ANY visible node
+      // (BFS distance from the root, then deterministic ID order) —
+      // the connectivity guarantee still holds for every pick.
+      if (revealedIds.isEmpty && branch.hiddenMemberIds.isNotEmpty) {
+        revealedIds = _computeZoneFallbackReveal(
+          rootPersonId: branch.rootPersonId,
+          hiddenIds: branch.hiddenMemberIds
+              .where(allPersons.contains)
+              .toSet(),
+          visibleIds: visiblePlusRoot,
+          edges: fullEdges,
+        );
+      }
+
+      // v5.123 (Step 3) + v5.159: Reveal ONLY the computed level in
+      // the proximity set so the layout provider gives these members
+      // positions and the expansion is actually VISIBLE.
       ref.read(proximityGraphProvider.notifier).revealPersons(
             personIds: {
               branch.rootPersonId,
-              ...branch.hiddenMemberIds,
+              ...revealedIds,
             },
-            allPersons: {
-              for (final p in flat.persons) (p['id'] ?? '').toString(),
-            },
+            allPersons: allPersons,
           );
+
+      // v5.159 (ENTRANCE ANIMATION): record the revealed members so
+      // the node layer animates them in (fly-out from the branch
+      // root's position) instead of popping. The canvas build promotes
+      // them once the layout assigns positions.
+      final layoutForOrigin =
+          ref.read(graphLayoutProvider(widget.familyId)).valueOrNull;
+      _markNodesForEntrance(
+        revealedIds,
+        origin: layoutForOrigin?.positions[branch.rootPersonId],
+      );
     }
 
     // Expand the branch in the collapse state — removes it from the
@@ -364,15 +471,132 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     // won't be auto-collapsed again.
     // v5.142: If this is a manually-collapsed branch, use expandManualBranch
     // (removes from manuallyCollapsedRoots instead of expandedBranchRoots).
-    final collapseState = ref.read(branchCollapseProvider);
-    if (collapseState.manuallyCollapsedRoots.contains(branch.rootPersonId)) {
-      ref.read(branchCollapseProvider.notifier)
-          .expandManualBranch(branch.rootPersonId);
-    } else {
-      ref.read(branchCollapseProvider.notifier)
-          .expandBranch(branch.rootPersonId);
+    // v5.159: record WHICH members this expansion revealed so a later
+    // re-collapse (collapseBranch) conceals exactly this set.
+    //
+    // v5.159 (EMPTY-REVEAL GUARD): when the reveal set is EMPTY (fetch
+    // returned nothing / no hidden member is currently fetchable), the
+    // chip STAYS — removing the branch would make the bubble vanish
+    // while revealing nothing, leaving hidden members unreachable.
+    // The user can tap again once data has loaded.
+    if (revealedIds.isNotEmpty) {
+      final collapseState = ref.read(branchCollapseProvider);
+      if (collapseState.manuallyCollapsedRoots
+          .contains(branch.rootPersonId)) {
+        ref.read(branchCollapseProvider.notifier)
+            .expandManualBranch(branch.rootPersonId);
+      } else {
+        ref.read(branchCollapseProvider.notifier).expandBranch(
+              branch.rootPersonId,
+              revealedIds: revealedIds,
+            );
+      }
     }
 
+    // v5.159 (SUB-BUBBLES): when the immediate level exceeded the
+    // 15-node cap, the members NOT revealed above are re-zoned by the
+    // density pass (canvas_mixin) into sub-bubbles anchored on the
+    // newly revealed frontier nodes — each tap makes visible progress
+    // while the total on-canvas count stays bounded.
+
+  }
+
+  /// v5.159 (ZONE FALLBACK): picks the hidden members a branch-bubble
+  /// tap should reveal when the branch root has no hidden DIRECT
+  /// neighbours (zone bubbles group by proximity, not by adjacency to
+  /// the root).
+  ///
+  /// Selection: hidden members that have at least one edge to a node
+  /// in [visibleIds] (CONNECTIVITY GUARANTEE — the line to a visible
+  /// parent exists the moment the node renders), ranked by BFS hop
+  /// distance from the branch root (closest first), then by kinship
+  /// priority of the connecting edge, then by ID for determinism.
+  /// Capped at [kMaxNodesPerExpansion]; the rest stay hidden and get
+  /// re-zoned into sub-bubbles on the next density pass.
+  Set<String> _computeZoneFallbackReveal({
+    required String rootPersonId,
+    required Set<String> hiddenIds,
+    required Set<String> visibleIds,
+    required List<
+            ({String fromId, String toId, String edgeId, String relationshipKey})>
+        edges,
+  }) {
+    if (hiddenIds.isEmpty) return const <String>{};
+
+    // Adjacency + hop distance from the root over the FULL edge list.
+    final adjacency = <String, Set<String>>{};
+    for (final e in edges) {
+      if (e.fromId.isEmpty || e.toId.isEmpty) continue;
+      adjacency.putIfAbsent(e.fromId, () => <String>{}).add(e.toId);
+      adjacency.putIfAbsent(e.toId, () => <String>{}).add(e.fromId);
+    }
+    final hopFromRoot = <String, int>{rootPersonId: 0};
+    final queue = <String>[rootPersonId];
+    var head = 0;
+    while (head < queue.length) {
+      final current = queue[head++];
+      final nextHops = hopFromRoot[current]! + 1;
+      for (final n in adjacency[current] ?? const <String>{}) {
+        if (!hopFromRoot.containsKey(n)) {
+          hopFromRoot[n] = nextHops;
+          queue.add(n);
+        }
+      }
+    }
+
+    // Connecting-key priority (mirrors the state layer's ranking so
+    // both paths reveal the same KINDS of members first).
+    const priorities = <String, int>{
+      'spouse': 0, 'wife': 0, 'husband': 0, 'partner': 0,
+      'mother': 1, 'father': 1, 'parent': 1,
+      'son': 2, 'daughter': 2, 'child': 2,
+      'brother': 3, 'sister': 3, 'sibling': 3,
+      'grandmother': 4, 'grandfather': 4, 'grandparent': 4,
+      'aunt': 5, 'uncle': 5,
+      'nephew': 6, 'niece': 6, 'cousin': 6,
+    };
+    int priorityOf(String key) =>
+        priorities[key.toLowerCase().trim()] ?? 9;
+
+    // Candidate = hidden member adjacent to ≥1 VISIBLE node. Track its
+    // best (lowest) connecting priority across all such edges.
+    final candidatePriority = <String, int>{};
+    for (final e in edges) {
+      if (e.fromId.isEmpty || e.toId.isEmpty) continue;
+      String? hiddenSide;
+      String key;
+      if (hiddenIds.contains(e.fromId) &&
+          visibleIds.contains(e.toId)) {
+        hiddenSide = e.fromId;
+        key = e.relationshipKey;
+      } else if (hiddenIds.contains(e.toId) &&
+          visibleIds.contains(e.fromId)) {
+        hiddenSide = e.toId;
+        key = e.relationshipKey;
+      } else {
+        continue;
+      }
+      final rank = priorityOf(key);
+      final existing = candidatePriority[hiddenSide];
+      if (existing == null || rank < existing) {
+        candidatePriority[hiddenSide] = rank;
+      }
+    }
+    if (candidatePriority.isEmpty) return const <String>{};
+
+    final ranked = candidatePriority.keys.toList()
+      ..sort((a, b) {
+        final byHops = (hopFromRoot[a] ?? 1 << 20)
+            .compareTo(hopFromRoot[b] ?? 1 << 20);
+        if (byHops != 0) return byHops;
+        final byPriority = candidatePriority[a]!
+            .compareTo(candidatePriority[b]!);
+        if (byPriority != 0) return byPriority;
+        return a.compareTo(b);
+      });
+    return Set<String>.of(
+      ranked.take(kMaxNodesPerExpansion).toSet(),
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -501,6 +725,51 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                 ),
               ),
             ),
+            // v5.159 (RICH BUBBLES): nesting hint — tells the user
+            // whether one tap reveals a level that itself carries
+            // further bubbles (tree) or a flat dead-end group (⌵).
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+              child: Row(
+                children: [
+                  Icon(
+                    branch.hasNestedDescendants
+                        ? Icons.account_tree_rounded
+                        : Icons.expand_more_rounded,
+                    size: 14,
+                    color: _chipColorForBranch(branch),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      branch.hasNestedDescendants
+                          ? 'Expanding reveals the next level — deeper '
+                              'levels hide behind further bubbles'
+                          : 'Flat group — all hidden members are direct '
+                              'relatives of the next level',
+                      style: const TextStyle(
+                        color: KinrelColors.textSecondaryDark,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // v5.159 (LEVEL REVEAL): one tap reveals at most 15 members.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+              child: Text(
+                branch.hiddenCount > kMaxNodesPerExpansion
+                    ? 'Tap shows the first $kMaxNodesPerExpansion closest '
+                        'members — the rest re-group into new bubbles'
+                    : 'Tap reveals the whole group',
+                style: const TextStyle(
+                  color: KinrelColors.textSecondaryDark,
+                  fontSize: 12,
+                ),
+              ),
+            ),
             // ── 4-name preview ────────────────────────────────────────
             if (preview.isNotEmpty)
               Padding(
@@ -525,7 +794,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                   foregroundColor: Colors.white,
                 ),
                 icon: const Icon(Icons.unfold_more_rounded, size: 18),
-                label: const Text('Expand this branch'),
+                label: const Text('Expand next level'),
                 onPressed: () {
                   Navigator.of(sheetContext).pop();
                   // Same haptic + pipeline as a direct chip tap.
@@ -705,11 +974,31 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                   Navigator.of(sheetContext).pop();
                   // Fire the SAME haptic as expanding (symmetric feel).
                   GraphHaptics.branchExpand(sheetContext);
-                  // Collapse the branch — re-hides members + restores chip.
-                  ref.read(branchCollapseProvider.notifier)
+                  // v5.159 (RE-COLLAPSE): collapseBranch returns the set
+                  // of person IDs the expansion revealed (this root's
+                  // level + any nested expansions inside it). Conceal
+                  // them from the proximity set — they lose their
+                  // positions, and the next density pass re-zones them
+                  // under the root, RESTORING the "+N" bubble with the
+                  // full hidden count.
+                  final concealSet = ref
+                      .read(branchCollapseProvider.notifier)
                       .collapseBranch(rootPersonId);
-                  // Invalidate the graph provider so the layout recomputes.
-                  ref.invalidate(familyGraphProvider(widget.familyId));
+                  if (concealSet.isNotEmpty) {
+                    ref
+                        .read(proximityGraphProvider.notifier)
+                        .concealPersons(personIds: concealSet);
+                  }
+                  // v5.159: stop any in-flight entrance fly-out for the
+                  // members being concealed.
+                  _cancelEntranceAnimation();
+                  // v5.151+ (RACE FIX — same as the collapse dialog):
+                  // DO NOT invalidate familyGraphProvider here. The
+                  // collapse state + proximity conceal are PRESENTATION
+                  // changes; canvas_mixin watches both providers and
+                  // rebuilds synchronously. Invalidation caused an async
+                  // refetch that raced the state update and wiped the
+                  // re-collapse with stale data.
                 },
               ),
             ),
@@ -928,11 +1217,26 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
               // v5.142: If this was an auto-expanded branch, use collapseBranch
               // (removes from expandedBranchRoots). Otherwise, use
               // manualCollapseBranch (adds to manuallyCollapsedRoots).
+              // v5.159 (RE-COLLAPSE): for auto-expanded branches,
+              // collapseBranch returns the conceal set — the members this
+              // branch's expansion(s) revealed. Conceal them from the
+              // proximity set so they lose positions and the next density
+              // pass re-zones them under the root, RESTORING the "+N"
+              // bubble. Manual collapse does not need concealment — the
+              // branch entry itself carries the hidden-member set that
+              // filters the render.
               final collapseState = ref.read(branchCollapseProvider);
               if (collapseState.expandedBranchRoots.contains(rootPersonId)) {
                 // Auto-expanded branch — just undo the expansion.
-                ref.read(branchCollapseProvider.notifier)
+                final concealSet = ref
+                    .read(branchCollapseProvider.notifier)
                     .collapseBranch(rootPersonId);
+                if (concealSet.isNotEmpty) {
+                  ref
+                      .read(proximityGraphProvider.notifier)
+                      .concealPersons(personIds: concealSet);
+                }
+                _cancelEntranceAnimation();
               } else {
                 // Manually collapse — works for ANY node with descendants.
                 ref.read(branchCollapseProvider.notifier)

@@ -263,19 +263,28 @@ void main() {
     ({List<GraphPerson> persons,
           List<({String fromId, String toId, String edgeId, String relationshipKey})> edges})
         _buildFamily() {
+      // v5.159 (TEST REFRESH): sized for the v5.151 budget — the soft
+      // and hard budgets are BOTH 50 now (aligned), and rings 1+2
+      // always fill in full. The original family (10 c × 2 gc = 32
+      // nodes) fit entirely under 50, so t1 was NOT offscreen anymore
+      // and every "jump reveals an offscreen match" precondition
+      // failed. This family lands EXACTLY at 50 after ring 2
+      // (1 + 12 + 36 + 1 = 50): the BFS stops there, the 5-hop target
+      // t1 and the unrelated u3* branch stay hidden.
       final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[
-        // Ring 1: p0's children.
-        for (var i = 1; i <= 10; i++) _e('c$i', 'p0', 'e-c$i'),
-        // Ring 2: each cN has two children; c1 has a third (x1).
-        for (var i = 1; i <= 10; i++) ...[
+        // Ring 1: p0's children (12).
+        for (var i = 1; i <= 12; i++) _e('c$i', 'p0', 'e-c$i'),
+        // Ring 2: each cN has three children (36); c1 has a fourth (x1).
+        for (var i = 1; i <= 12; i++) ...[
           _e('g${i}a', 'c$i', 'e-g${i}a'),
           _e('g${i}b', 'c$i', 'e-g${i}b'),
+          _e('g${i}c', 'c$i', 'e-g${i}c'),
         ],
         _e('x1', 'c1', 'e-x1'),
         // The chain beyond the default set: x1 → x2 → x3 → t1 → tc.
         _e('x2', 'x1', 'e-x2'),
         _e('x3', 'x2', 'e-x3'),
-        _e('t1', 'x3', 'e-t1'), // t1 = the search TARGET.
+        _e('t1', 'x3', 'e-t1'), // t1 = the search TARGET (5 hops).
         _e('tc', 't1', 'e-tc'),
         // An unrelated branch off g10a (ring 3 — outside default set).
         _e('u3a', 'g10a', 'e-u3a'),
@@ -367,12 +376,14 @@ void main() {
       expect(searchNotifier.state.revealedPathIds,
           containsAll(['x2', 'x3', 't1', 'tc']));
 
-      // (b) No unrelated branch's collapse state changes: with the
-      // post-reveal candidate set still under kNodeBudget (36 ≤ 50),
-      // the density-collapse pass (the canvas's single authority)
-      // produces NO collapsed branches — same as before the jump.
+      // (b) v5.159 (TEST REFRESH — v5.151 aligned budget): the post-jump
+      // visible set (54: 50 default + 4 revealed) EXCEEDS the 50-node
+      // budget, so the density pass legitimately re-zones the
+      // still-hidden unrelated u3* branch into a bubble — that is the
+      // current intended design. The invariant that MUST hold: no
+      // collapsed branch ever hides a node the jump revealed (the
+      // revealed path is visible, and hidden = adjacency \ visible).
       final collapse = BranchCollapseNotifier();
-      final revisionBefore = collapse.state.revision;
       collapse.computeDensityCollapse(
         visibleNodeIds: visible,
         childrenOf: _childrenOf(family.edges),
@@ -388,12 +399,19 @@ void main() {
           ...container.read(graphSearchProvider).revealedPathIds,
         },
       );
-      expect(collapse.state.collapsedBranches, isEmpty,
-          reason: 'Under the node budget the jump must not create any '
-              'collapsed branch');
-      expect(collapse.state.revision, revisionBefore,
-          reason: 'Collapse state must be untouched by the search jump');
-      expect(collapse.state.allHiddenMemberIds, isEmpty);
+      final revealedPath = container.read(graphSearchProvider).revealedPathIds;
+      for (final branch in collapse.state.collapsedBranches) {
+        for (final hidden in branch.hiddenMemberIds) {
+          expect(revealedPath, isNot(contains(hidden)),
+              reason: 'Hidden member $hidden is on the revealed search '
+                  'jump path — the path must survive the density budget');
+        }
+      }
+      // Only the unrelated ring-3 branch is re-zoned — never the path.
+      expect(collapse.state.allHiddenMemberIds, contains('u3a'),
+          reason: 'The unrelated hidden branch is zoned into a bubble');
+      expect(collapse.state.allHiddenMemberIds, isNot(contains('t1')));
+      expect(collapse.state.allHiddenMemberIds, isNot(contains('x2')));
 
       // (c) focusedPersonId ends up set to the target.
       expect(container.read(graphFocusProvider).focusedPersonId, 't1');
@@ -432,9 +450,14 @@ void main() {
       // Simulate a canvas whose candidate set exceeds kNodeBudget (e.g.
       // a bigger family, or padding from other rings): pad the visible
       // set with unrelated leaf nodes past 50.
+      // v5.159 (TEST REFRESH): the u3* branch stays OUT of the
+      // candidate set — the density pass's hidden set is exactly
+      // (adjacency \ candidates), so the u3* members must remain
+      // non-candidates to be re-zoned into a branch bubble (the
+      // intended v5.158+ behavior). Adding them to the candidates (the
+      // old shape) made the hidden set empty and no branch ever formed.
       final candidates = <String>{
         ...container.read(proximityGraphProvider).visibleIds,
-        'u3a', 'u3b', 'u3c',
         for (var i = 0; i < 20; i++) 'pad$i',
       };
       expect(candidates.length, greaterThan(kNodeBudget));
@@ -455,7 +478,8 @@ void main() {
       // The density pass may collapse unrelated subtrees to meet the
       // budget — but NEVER a node on the revealed path.
       expect(collapse.state.collapsedBranches, isNotEmpty,
-          reason: 'A 59-node candidate set must trigger density collapse');
+          reason: 'A candidate set over the budget with a still-hidden '
+              'unrelated branch must produce a zone bubble');
       for (final branch in collapse.state.collapsedBranches) {
         for (final hidden in branch.hiddenMemberIds) {
           expect(searchState.revealedPathIds, isNot(contains(hidden)),

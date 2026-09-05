@@ -69,8 +69,8 @@ class OnboardingDismissedNotifier extends AsyncNotifier<Set<String>> {
 
 final onboardingDismissedProvider =
     AsyncNotifierProvider<OnboardingDismissedNotifier, Set<String>>(
-  OnboardingDismissedNotifier.new,
-);
+      OnboardingDismissedNotifier.new,
+    );
 
 // ═══════════════════════════════════════════════════════════════════════
 // ONBOARDING STEP ENUM
@@ -169,13 +169,10 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
-    _slideAnimation = Tween<Offset>(
-      begin: Offset.zero,
-      end: const Offset(1.5, 0.0),
-    ).animate(CurvedAnimation(
-      parent: _slideController,
-      curve: Curves.easeInOut,
-    ));
+    _slideAnimation =
+        Tween<Offset>(begin: Offset.zero, end: const Offset(1.5, 0.0)).animate(
+          CurvedAnimation(parent: _slideController, curve: Curves.easeInOut),
+        );
 
     // Glow pulse animation for new nodes
     _glowController = AnimationController(
@@ -183,10 +180,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
       duration: const Duration(milliseconds: 1500),
     );
     _glowAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _glowController,
-        curve: Curves.easeInOut,
-      ),
+      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
     );
 
     // Celebration scale animation
@@ -195,10 +189,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
       duration: const Duration(milliseconds: 800),
     );
     _celebrationScaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _celebrationController,
-        curve: Curves.elasticOut,
-      ),
+      CurvedAnimation(parent: _celebrationController, curve: Curves.elasticOut),
     );
 
     // Start glow animation for step 1
@@ -280,7 +271,9 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
             _permanentlyDismissed = true;
           });
           // Persist dismissal so onboarding never re-appears for this family
-          ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
+          ref
+              .read(onboardingDismissedProvider.notifier)
+              .dismiss(widget.familyId);
         }
       });
       return;
@@ -357,7 +350,9 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   /// Whether onboarding has been dismissed for this family via the provider.
   /// Defaults to `true` while loading to prevent onboarding flash.
   bool get _isDismissedForFamily {
-    return ref.watch(onboardingDismissedProvider).valueOrNull
+    return ref
+            .watch(onboardingDismissedProvider)
+            .valueOrNull
             ?.contains(widget.familyId) ??
         true;
   }
@@ -379,7 +374,9 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
     if (widget.memberCount >= 1) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          ref.read(onboardingDismissedProvider.notifier).dismiss(widget.familyId);
+          ref
+              .read(onboardingDismissedProvider.notifier)
+              .dismiss(widget.familyId);
           setState(() => _permanentlyDismissed = true);
         }
       });
@@ -398,51 +395,61 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   // ── Step Overlay ───────────────────────────────────────────────────
 
   Widget _buildStepOverlay() {
-    return Positioned(
-      bottom: 80.0,
-      left: 16.0,
-      right: 16.0,
-      child: AnimatedBuilder(
-        animation: _glowAnimation,
-        builder: (context, child) {
-          return Opacity(
-            opacity: 0.7 + (_glowAnimation.value * 0.3),
-            child: child,
-          );
-        },
-        child: Container(
-          padding: const EdgeInsets.all(20.0),
-          decoration: BoxDecoration(
-            color: KinrelColors.darkCard.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(20.0),
-            border: Border.all(
-              color: KinrelColors.orange.withValues(alpha: 0.3),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: KinrelColors.orange.withValues(alpha: 0.1),
-                blurRadius: 20.0,
-                spreadRadius: 4.0,
+    // v5.159 (PARENT-DATA FIX): was `Positioned(bottom: 80, left: 16,
+    // right: 16)` — Positioned is ONLY valid directly inside a Stack,
+    // but the sole call site (onboarding_screen.dart) hosts this flow
+    // inside a Column/Scaffold body. In any non-Stack parent the
+    // ParentDataWidget assertion fires ("Incorrect use of
+    // ParentDataWidget ... MultiChildLayoutParentData") and the
+    // brand-new-user onboarding card crashes. Align + Padding achieves
+    // the identical bottom-anchored, width-capped layout in ANY
+    // parent (Stack, Column, Scaffold body).
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 80.0, left: 16.0, right: 16.0),
+        child: AnimatedBuilder(
+          animation: _glowAnimation,
+          builder: (context, child) {
+            return Opacity(
+              opacity: 0.7 + (_glowAnimation.value * 0.3),
+              child: child,
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.all(20.0),
+            decoration: BoxDecoration(
+              color: KinrelColors.darkCard.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(20.0),
+              border: Border.all(
+                color: KinrelColors.orange.withValues(alpha: 0.3),
+                width: 1.5,
               ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Step indicator
-              _buildStepIndicator(),
+              boxShadow: [
+                BoxShadow(
+                  color: KinrelColors.orange.withValues(alpha: 0.1),
+                  blurRadius: 20.0,
+                  spreadRadius: 4.0,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Step indicator
+                _buildStepIndicator(),
 
-              const SizedBox(height: 16.0),
+                const SizedBox(height: 16.0),
 
-              // Step title and description
-              _buildStepContent(),
+                // Step title and description
+                _buildStepContent(),
 
-              const SizedBox(height: 16.0),
+                const SizedBox(height: 16.0),
 
-              // Action buttons
-              _buildStepActions(),
-            ],
+                // Action buttons
+                _buildStepActions(),
+              ],
+            ),
           ),
         ),
       ),
@@ -472,8 +479,8 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
               color: isCompleted
                   ? KinrelColors.success
                   : isActive
-                      ? KinrelColors.orange
-                      : KinrelColors.border,
+                  ? KinrelColors.orange
+                  : KinrelColors.border,
             ),
           ),
         );
@@ -486,130 +493,126 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow>
   Widget _buildStepContent() {
     return switch (_currentStep) {
       OnboardingStep.createProfile => Column(
-          children: [
-            // Animated teal glow node
-            AnimatedBuilder(
-              animation: _glowAnimation,
-              builder: (context, child) {
-                return Container(
-                  width: 56.0,
-                  height: 56.0,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: KinrelColors.darkCard,
-                    border: Border.all(
-                      color: KinshipEdgeColors.self,
-                      width: 3.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: KinshipEdgeColors.self.withValues(
-                          alpha: _glowAnimation.value * 0.4,
-                        ),
-                        blurRadius: 16.0,
-                        spreadRadius: 4.0,
+        children: [
+          // Animated teal glow node
+          AnimatedBuilder(
+            animation: _glowAnimation,
+            builder: (context, child) {
+              return Container(
+                width: 56.0,
+                height: 56.0,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: KinrelColors.darkCard,
+                  border: Border.all(color: KinshipEdgeColors.self, width: 3.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: KinshipEdgeColors.self.withValues(
+                        alpha: _glowAnimation.value * 0.4,
                       ),
-                    ],
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.person,
-                      size: 28.0,
-                      color: KinshipEdgeColors.self,
+                      blurRadius: 16.0,
+                      spreadRadius: 4.0,
                     ),
+                  ],
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.person,
+                    size: 28.0,
+                    color: KinshipEdgeColors.self,
                   ),
-                );
-              },
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12.0),
+          Text(
+            'Create your profile',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 18.0,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textWhite,
             ),
-            const SizedBox(height: 12.0),
-            Text(
-              'Create your profile',
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 18.0,
-                fontWeight: FontWeight.w700,
-                color: KinrelColors.textWhite,
-              ),
+          ),
+          const SizedBox(height: 4.0),
+          Text(
+            'Your node will appear at the center of your family graph.',
+            style: const TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 13.0,
+              color: KinrelColors.textSilver,
+              height: 1.4,
             ),
-            const SizedBox(height: 4.0),
-            Text(
-              'Your node will appear at the center of your family graph.',
-              style: const TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 13.0,
-                color: KinrelColors.textSilver,
-                height: 1.4,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
       OnboardingStep.addFamily => Column(
-          children: [
-            // Multiple nodes illustration
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildMiniNode(KinshipEdgeColors.parent, Icons.arrow_upward),
-                const SizedBox(width: 8.0),
-                _buildMiniNode(KinshipEdgeColors.self, Icons.person),
-                const SizedBox(width: 8.0),
-                _buildMiniNode(KinshipEdgeColors.spouseEdge, Icons.favorite_outline),
-              ],
-            ),
-            const SizedBox(height: 12.0),
-            Text(
-              'Grow your graph',
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 18.0,
-                fontWeight: FontWeight.w700,
-                color: KinrelColors.textWhite,
+        children: [
+          // Multiple nodes illustration
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildMiniNode(KinshipEdgeColors.parent, Icons.arrow_upward),
+              const SizedBox(width: 8.0),
+              _buildMiniNode(KinshipEdgeColors.self, Icons.person),
+              const SizedBox(width: 8.0),
+              _buildMiniNode(
+                KinshipEdgeColors.spouseEdge,
+                Icons.favorite_outline,
               ),
+            ],
+          ),
+          const SizedBox(height: 12.0),
+          Text(
+            'Grow your graph',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 18.0,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textWhite,
             ),
-            const SizedBox(height: 4.0),
-            Text(
-              'Add parents, spouse, siblings, or children to build your tree.',
-              style: const TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 13.0,
-                color: KinrelColors.textSilver,
-                height: 1.4,
-              ),
-              textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4.0),
+          Text(
+            'Add parents, spouse, siblings, or children to build your tree.',
+            style: const TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 13.0,
+              color: KinrelColors.textSilver,
+              height: 1.4,
             ),
-          ],
-        ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
       OnboardingStep.explore => Column(
-          children: [
-            Icon(
-              Icons.explore,
-              size: 48.0,
-              color: KinrelColors.orange,
+        children: [
+          Icon(Icons.explore, size: 48.0, color: KinrelColors.orange),
+          const SizedBox(height: 12.0),
+          Text(
+            'Explore your family graph',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 18.0,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textWhite,
             ),
-            const SizedBox(height: 12.0),
-            Text(
-              'Explore your family graph',
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 18.0,
-                fontWeight: FontWeight.w700,
-                color: KinrelColors.textWhite,
-              ),
+          ),
+          const SizedBox(height: 4.0),
+          Text(
+            'Pinch to zoom, drag to pan, and tap nodes for details.',
+            style: const TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 13.0,
+              color: KinrelColors.textSilver,
+              height: 1.4,
             ),
-            const SizedBox(height: 4.0),
-            Text(
-              'Pinch to zoom, drag to pan, and tap nodes for details.',
-              style: const TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 13.0,
-                color: KinrelColors.textSilver,
-                height: 1.4,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
       OnboardingStep.completed => const SizedBox.shrink(),
     };
   }

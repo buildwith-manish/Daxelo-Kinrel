@@ -52,6 +52,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// remains the Show-All-path budget.
 const int kNodeBudget = 50;
 
+/// v5.159 (NESTED EXPANSION): Maximum nodes revealed by ONE branch-bubble
+/// tap. When the immediate next level of a branch has more hidden members
+/// than this, only the first [kMaxNodesPerExpansion] are revealed (chosen
+/// by kinship-category priority, then deterministic ID order); the rest
+/// stay hidden and are re-zoned into sub-bubbles on the next density pass.
+const int kMaxNodesPerExpansion = 15;
+
+/// v5.159 (TRAVERSAL SAFETY): Hard upper bound on the number of queue
+/// pops any single graph traversal in this file may perform. Acts as a
+/// fallback guard against pathological topologies (cycles that evade
+/// the visited set, corrupted adjacency maps with duplicate entries) so
+/// a bad dataset can degrade into a truncated result instead of a
+/// freeze. 714-member graphs use ~714 pops; the cap is orders of
+/// magnitude above that but far below anything that could stall a frame.
+const int kMaxGraphTraversalSteps = 100000;
+
 /// A collapsed branch presentation entry.
 ///
 /// Represents one branch that has been visually collapsed into a
@@ -73,6 +89,7 @@ class CollapsedBranch {
     required this.hiddenGenerationDepth,
     required this.branchLabel,
     required this.relationshipKey,
+    this.representativeName,
     this.subBranches = const [],
   });
 
@@ -116,6 +133,30 @@ class CollapsedBranch {
   /// into sub-branches.
   final List<CollapsedBranch> subBranches;
 
+  /// v5.159 (RICH BUBBLES): One representative display name drawn
+  /// alongside the count (e.g. "Geeta Iyer +207") so the user knows
+  /// whose branch they are expanding. Primary source: the branch ROOT
+  /// person's name (always available — the root is a positioned, fetched
+  /// person). Fallback: the first resolvable hidden-member name (used
+  /// only when the root name is unknown, e.g. gateway nodes in rarely
+  /// fetched components). Null when neither is known.
+  final String? representativeName;
+
+  /// v5.159 (RICH BUBBLES): Whether the hidden members of this branch
+  /// include FURTHER sub-branches (nesting) versus a flat group of
+  /// direct people with no deeper levels. Derived from
+  /// [hiddenGenerationDepth]: depth ≥ 2 means at least one hidden
+  /// member sits 2+ hops from the root THROUGH other hidden members —
+  /// i.e. expanding this branch will reveal nodes that themselves carry
+  /// branch bubbles. Depth == 1 means every hidden member is a direct
+  /// neighbour of the root (a "dead end" group of N direct people).
+  ///
+  /// The chip layer renders a distinct glyph for each state so the
+  /// user can tell at a glance: "this group has more levels inside"
+  /// (tree icon) vs. "this group is a dead end with N direct people"
+  /// (flat chevron, ⌵).
+  bool get hasNestedDescendants => hiddenGenerationDepth >= 2;
+
   /// The total hidden count (= hiddenMemberIds.length).
   int get hiddenCount => hiddenMemberIds.length;
 
@@ -140,6 +181,7 @@ class BranchCollapseState {
     this.collapsedBranches = const <CollapsedBranch>[],
     this.expandedBranchRoots = const <String>{},
     this.manuallyCollapsedRoots = const <String>{},
+    this.revealedByBranchRoot = const <String, Set<String>>{},
     this.revision = 0,
   });
 
@@ -157,11 +199,37 @@ class BranchCollapseState {
   /// auto-collapsed branches so the two systems don't interfere.
   final Set<String> manuallyCollapsedRoots;
 
+  /// v5.159 (RE-COLLAPSE): Person IDs revealed by each branch-root
+  /// expansion, keyed by the root whose bubble the user tapped. When a
+  /// branch is re-collapsed (tapping an expanded branch again), the
+  /// UNION of the root's entry plus the entries of any nested expanded
+  /// roots inside it is concealed from the proximity set — hiding
+  /// exactly the members the expansion revealed and (via the next
+  /// density pass) restoring the branch bubble with its full count.
+  ///
+  /// Entries are removed when the root is collapsed or manually
+  /// re-collapsed; ids that later became visible through other
+  /// mechanisms (search jump, path focus) are harmless no-ops at
+  /// conceal time.
+  final Map<String, Set<String>> revealedByBranchRoot;
+
   /// Bumped whenever collapse state changes. Used by the painter's
   /// shouldRepaint.
   final int revision;
 
   static const BranchCollapseState empty = BranchCollapseState();
+
+  /// v5.159 (RE-COLLAPSE): Branch roots that currently support the
+  /// re-collapse affordance — expanded roots with at least one recorded
+  /// revealed member still tracked. The chip layer renders a collapse
+  /// chip ("−N") for these roots when they have no remaining hidden
+  /// zone members (the bubble flips from "+N" expand mode to "−N"
+  /// collapse mode).
+  Map<String, Set<String>> get collapsibleBranchRoots =>
+      <String, Set<String>>{
+        for (final entry in revealedByBranchRoot.entries)
+          if (entry.value.isNotEmpty) entry.key: entry.value,
+      };
 
   /// The set of ALL hidden member IDs across all collapsed branches.
   Set<String> get allHiddenMemberIds {
@@ -209,12 +277,15 @@ class BranchCollapseState {
     List<CollapsedBranch>? collapsedBranches,
     Set<String>? expandedBranchRoots,
     Set<String>? manuallyCollapsedRoots,
+    Map<String, Set<String>>? revealedByBranchRoot,
     int? revision,
   }) {
     return BranchCollapseState(
       collapsedBranches: collapsedBranches ?? this.collapsedBranches,
       expandedBranchRoots: expandedBranchRoots ?? this.expandedBranchRoots,
       manuallyCollapsedRoots: manuallyCollapsedRoots ?? this.manuallyCollapsedRoots,
+      revealedByBranchRoot:
+          revealedByBranchRoot ?? this.revealedByBranchRoot,
       revision: revision ?? this.revision,
     );
   }
@@ -439,6 +510,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
           collapsedBranches: manualBranches,
           expandedBranchRoots: state.expandedBranchRoots,
           manuallyCollapsedRoots: state.manuallyCollapsedRoots,
+          revealedByBranchRoot: state.revealedByBranchRoot,
           revision: state.revision + 1,
         );
       }
@@ -586,16 +658,32 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
 
   /// Expand a branch — removes it from the collapsed set + adds the
   /// root to [expandedBranchRoots] so it won't be auto-collapsed again.
-  void expandBranch(String rootPersonId) {
+  ///
+  /// v5.159 (RE-COLLAPSE): [revealedIds] records WHICH members this
+  /// expansion actually revealed (the immediate next level, capped at
+  /// [kMaxNodesPerExpansion]). The set is merged into
+  /// [BranchCollapseState.revealedByBranchRoot] so a later re-collapse
+  /// (tap on the expanded branch) conceals exactly these members —
+  /// nested expansions (roots inside this set) are concealed too via
+  /// [collapseBranch]'s transitive union.
+  void expandBranch(String rootPersonId, {Set<String>? revealedIds}) {
     final newBranches = state.collapsedBranches
         .where((b) => b.rootPersonId != rootPersonId)
         .toList();
     final newExpanded = Set<String>.from(state.expandedBranchRoots)
       ..add(rootPersonId);
+    // v5.159: merge the revealed members under this root.
+    final newRevealed = Map<String, Set<String>>.from(state.revealedByBranchRoot);
+    if (revealedIds != null && revealedIds.isNotEmpty) {
+      final merged = Set<String>.from(newRevealed[rootPersonId] ?? const <String>{})
+        ..addAll(revealedIds);
+      newRevealed[rootPersonId] = merged;
+    }
     state = BranchCollapseState(
       collapsedBranches: newBranches,
       expandedBranchRoots: newExpanded,
       manuallyCollapsedRoots: state.manuallyCollapsedRoots,
+      revealedByBranchRoot: newRevealed,
       revision: state.revision + 1,
     );
     // v5.123 (Step 5): persist the user's expansion choice.
@@ -604,17 +692,57 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
 
   /// Collapse a branch — re-collapses the subtree under [rootPersonId].
   /// Removes the root from [expandedBranchRoots].
-  void collapseBranch(String rootPersonId) {
+  ///
+  /// v5.159 (RE-COLLAPSE): returns the set of person IDs that should be
+  /// CONCEALED from the proximity visible set — the transitive union of
+  /// this root's recorded revealed members plus the recorded revealed
+  /// members of any nested expanded roots inside it. Callers pass this
+  /// to ProximityGraphNotifier.concealPersons; the next density pass
+  /// then re-zones the concealed members under the root, restoring the
+  /// "+N" bubble with the full hidden count.
+  ///
+  /// (Also removes nested roots from [expandedBranchRoots] and their
+  /// persisted-expansion entries so a subsequent reload does not
+  /// re-reveal them.)
+  Set<String> collapseBranch(String rootPersonId) {
     final newExpanded = Set<String>.from(state.expandedBranchRoots)
       ..remove(rootPersonId);
+    final newRevealed = Map<String, Set<String>>.from(state.revealedByBranchRoot);
+
+    // Transitive closure: collect this root's revealed set plus the
+    // revealed sets of every nested expanded root inside it (one pass
+    // per nesting level — expansions are level-by-level, but the
+    // closure loop handles arbitrary depth defensively; it terminates
+    // because each iteration either grows the frontier or stops).
+    final concealSet = Set<String>.from(newRevealed.remove(rootPersonId) ?? const <String>{});
+    var frontier = Set<String>.from(concealSet);
+    var guard = 0;
+    while (frontier.isNotEmpty && guard++ < kMaxGraphTraversalSteps) {
+      final nextFrontier = <String>{};
+      for (final nestedRoot in newRevealed.keys.toList()) {
+        if (frontier.contains(nestedRoot)) {
+          nextFrontier.addAll(newRevealed.remove(nestedRoot) ?? const <String>{});
+          newExpanded.remove(nestedRoot);
+          // v5.159: persist the nested re-collapse so a reload does not
+          // re-reveal the nested branch.
+          onExpansionChanged?.call(nestedRoot, false);
+        }
+      }
+      // Only ids NOT already in the conceal set can extend the closure.
+      nextFrontier.removeAll(concealSet);
+      concealSet.addAll(nextFrontier);
+      frontier = nextFrontier;
+    }
+
     state = state.copyWith(
       expandedBranchRoots: newExpanded,
       manuallyCollapsedRoots: state.manuallyCollapsedRoots,
+      revealedByBranchRoot: newRevealed,
       revision: state.revision + 1,
     );
-    // The actual re-collapse happens on the next computeCollapse call.
     // v5.123 (Step 5): persist the user's re-collapse choice.
     onExpansionChanged?.call(rootPersonId, false);
+    return concealSet;
   }
 
   /// v5.142: Manually collapse ANY node's descendants on demand.
@@ -702,10 +830,20 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     final newManual = Set<String>.from(state.manuallyCollapsedRoots)
       ..add(rootPersonId);
 
+    // v5.159: drop recorded revealed-sets for every root inside the
+    // manually-collapsed subtree (their members are re-hidden by the
+    // manual branch, so the entries would be stale).
+    final cleanedRevealed = <String, Set<String>>{
+      for (final e in state.revealedByBranchRoot.entries)
+        if (!descendants.contains(e.key) && e.key != rootPersonId)
+          e.key: e.value,
+    };
+
     state = BranchCollapseState(
       collapsedBranches: [...newCollapsedBranches, manualBranch],
       expandedBranchRoots: newExpanded,
       manuallyCollapsedRoots: newManual,
+      revealedByBranchRoot: cleanedRevealed,
       revision: state.revision + 1,
     );
   }
@@ -729,17 +867,32 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
   /// v5.142: Check if a node has any visible descendants on the canvas.
   /// Used to decide whether to show "Collapse this branch" in the
   /// long-press menu.
+  ///
+  /// v5.159 (CYCLE SAFETY): rewritten as an ITERATIVE BFS with a visited
+  /// set + [kMaxGraphTraversalSteps] guard. The old recursive version
+  /// had NO visited set — over an undirected adjacency map (the map
+  /// buildFullAdjacency produces) any two adjacent nodes walked each
+  /// other forever: an A↔B cycle meant infinite recursion and a stack
+  /// overflow; a long descendant chain risked the same.
   bool hasVisibleDescendants(
     String personId,
     Map<String, Set<String>> childrenOf,
     Set<String> visibleIds,
   ) {
-    final children = childrenOf[personId];
-    if (children == null || children.isEmpty) return false;
-    for (final child in children) {
-      if (visibleIds.contains(child)) return true;
-      // Recursively check grandchildren.
-      if (hasVisibleDescendants(child, childrenOf, visibleIds)) return true;
+    final visited = <String>{personId};
+    final queue = <String>[personId];
+    var steps = 0;
+    while (queue.isNotEmpty) {
+      if (steps++ > kMaxGraphTraversalSteps) return false; // safety cap
+      final current = queue.removeLast();
+      final children = childrenOf[current];
+      if (children == null || children.isEmpty) continue;
+      for (final child in children) {
+        if (visibleIds.contains(child)) return true;
+        if (visited.add(child)) {
+          queue.add(child);
+        }
+      }
     }
     return false;
   }
@@ -833,6 +986,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
           collapsedBranches: manualBranches,
           expandedBranchRoots: state.expandedBranchRoots,
           manuallyCollapsedRoots: state.manuallyCollapsedRoots,
+          revealedByBranchRoot: state.revealedByBranchRoot,
           revision: state.revision + 1,
         );
       }
@@ -855,6 +1009,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
           collapsedBranches: manualBranches,
           expandedBranchRoots: state.expandedBranchRoots,
           manuallyCollapsedRoots: state.manuallyCollapsedRoots,
+          revealedByBranchRoot: state.revealedByBranchRoot,
           revision: state.revision + 1,
         );
       }
@@ -910,6 +1065,11 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
         hiddenGenerationDepth: _maxDepth(rootId, childrenOf, members),
         branchLabel: label,
         relationshipKey: dominantKey,
+        // v5.159 (RICH BUBBLES): representative name — the root's own
+        // name when known, else the first resolvable hidden-member
+        // name (sorted for determinism), else null. The chip renders
+        // "<representative> +<count>".
+        representativeName: _representativeNameFor(rootId, rootName, members, personNameOf),
         subBranches: const [],
       ));
     }
@@ -980,8 +1140,15 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
 
     // Standard multi-source BFS: a node's zone is inherited from the
     // source that reached it first (shortest hop distance wins).
+    // v5.159 (TRAVERSAL SAFETY): a hard step cap — the visited map
+    // already guarantees termination on well-formed graphs, but a
+    // corrupted adjacency (e.g. duplicate queue entries injected by a
+    // future bug) would otherwise loop forever. On breach we return
+    // the zones computed so far — a degraded-but-safe result.
     var head = 0;
+    var steps = 0;
     while (head < queue.length) {
+      if (steps++ > kMaxGraphTraversalSteps) break;
       final n = queue[head++];
       final src = zoneOf[n]!;
       final neighbors = adjacency[n];
@@ -998,8 +1165,34 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     return zones;
   }
 
+  /// v5.159 (RICH BUBBLES): Resolves the representative display name for
+  /// a branch chip ("<name> +N"). Priority:
+  ///   1. The branch ROOT's name when non-empty (the user always knows
+  ///      whose branch they are expanding — the root is visible).
+  ///   2. The first hidden-member name that resolves to a real (non-
+  ///      'Unknown') value, iterating members in sorted order for
+  ///      determinism (used when the root's own name is unavailable).
+  ///   3. Null — the chip falls back to a bare "+N".
+  static String? _representativeNameFor(
+    String rootId,
+    String rootName,
+    Set<String> members,
+    String Function(String) personNameOf,
+  ) {
+    if (rootName.trim().isNotEmpty && rootName != 'Unknown') return rootName;
+    final sorted = members.toList()..sort();
+    for (final id in sorted) {
+      final name = personNameOf(id);
+      if (name.trim().isNotEmpty && name != 'Unknown') return name;
+    }
+    return null;
+  }
+
   /// Compute the descendant subtree of [root], excluding any person
   /// in [excludeSet]. Cycle-safe via visited set.
+  /// v5.159 (TRAVERSAL SAFETY): iteration capped at
+  /// [kMaxGraphTraversalSteps] as a fallback against corrupt adjacency
+  /// maps — a breach returns the (partial) result collected so far.
   Set<String> _descendantsExcluding(
     String root,
     Map<String, Set<String>> childrenOf,
@@ -1007,7 +1200,9 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
   ) {
     final result = <String>{};
     final queue = <String>[...?childrenOf[root]];
+    var steps = 0;
     while (queue.isNotEmpty) {
+      if (steps++ > kMaxGraphTraversalSteps) break;
       final n = queue.removeLast();
       if (result.add(n) && !excludeSet.contains(n)) {
         queue.addAll(childrenOf[n] ?? const <String>{});
