@@ -83,6 +83,12 @@ class FlatGraphResult {
   /// Raw relationship data mapped from RPC edges.
   final List<Map<String, dynamic>> relationships;
 
+  /// v5.154: ALL family edges (not just proximity-filtered). Used by
+  /// the collapse system to compute TRUE subtree sizes so branch
+  /// bubbles show the real hidden count (e.g. "+38" not "+3").
+  /// Null when the RPC doesn't return allEdges (legacy callers).
+  final List<Map<String, dynamic>>? allRelationships;
+
   /// Whether the response was truncated (server capped at 5000 nodes).
   final bool isTruncated;
 
@@ -99,6 +105,7 @@ class FlatGraphResult {
   const FlatGraphResult({
     required this.persons,
     required this.relationships,
+    this.allRelationships,
     this.isTruncated = false,
     this.totalCount,
     this.paginationOffset = 0,
@@ -200,12 +207,34 @@ class FlatGraphResult {
     return FlatGraphResult(
       persons: persons,
       relationships: dedupedRelationships,
+      // v5.154: Parse allEdges (ALL family edges for subtree computation).
+      allRelationships: _parseAllEdges(json),
       isTruncated: json['isTruncated'] as bool? ?? false,
       totalCount: json['totalCount'] as int?,
       // P5.1: parse pagination metadata from the paginated RPC.
       paginationOffset: (json['offset'] as num?)?.toInt() ?? 0,
       paginationLimit: (json['limit'] as num?)?.toInt() ?? 0,
     );
+  }
+
+  /// v5.154: Parse the `allEdges` field from the RPC response.
+  /// Returns null if the field is absent (legacy RPC).
+  static List<Map<String, dynamic>>? _parseAllEdges(Map<String, dynamic> json) {
+    final rawAllEdges = json['allEdges'] as List?;
+    if (rawAllEdges == null) return null;
+    return rawAllEdges.map((dynamic e) {
+      final edge = e as Map<String, dynamic>;
+      final sourceId = edge['sourceId'] ?? edge['fromPersonId'];
+      final targetId = edge['targetId'] ?? edge['toPersonId'];
+      final relKey = edge['relationshipKey'] ?? edge['relationshipType'] ?? 'unknown';
+      return <String, dynamic>{
+        'id': edge['id'],
+        'fromPersonId': sourceId,
+        'toPersonId': targetId,
+        'relationshipKey': relKey,
+        'labelAtoB': edge['labelAtoB'],
+      };
+    }).toList();
   }
 
   /// P5.1: Returns true if there are more pages to fetch.

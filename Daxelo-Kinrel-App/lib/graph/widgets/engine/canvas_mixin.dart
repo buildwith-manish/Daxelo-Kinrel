@@ -573,8 +573,16 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // v5.146: Use the shared buildChildrenOf which handles BOTH
         // parent-type (father/mother/parent) AND child-type (son/daughter/child)
         // relationship directions, plus labelAtoB as fallback key.
+        //
+        // v5.154 (BRANCH BUBBLE FIX): Build childrenOf from allRelationships
+        // (ALL family edges) when available, so _collectSubtreeBFS can
+        // traverse the full graph and compute TRUE subtree sizes. This
+        // makes branch bubbles show the real hidden count (e.g. "+38"
+        // instead of "+3") and ensures every hidden member belongs to
+        // a visible branch bubble.
+        final edgesForChildrenOf = flat.allRelationships ?? flat.relationships;
         final childrenOfAdj = BranchCollapseNotifier.buildChildrenOf(
-          flat.relationships,
+          edgesForChildrenOf,
         );
         // Build person name resolver.
         String personNameResolver(String pid) {
@@ -584,8 +592,9 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           return 'Unknown';
         }
         // Build allEdges for hidden edge computation.
+        // v5.154: Use allRelationships (full edge set) when available.
         final allEdgesForCollapse = <({String fromId, String toId, String edgeId, String relationshipKey})>[
-          for (final Map<String, dynamic> r in flat.relationships)
+          for (final Map<String, dynamic> r in edgesForChildrenOf)
             if (r['fromPersonId'] != null && r['toPersonId'] != null && r['id'] != null)
               (
                 fromId: r['fromPersonId'] as String,

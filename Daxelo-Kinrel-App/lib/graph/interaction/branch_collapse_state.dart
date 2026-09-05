@@ -900,7 +900,13 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     );
   }
 
-  /// Compute subtree size via BFS (only counting nodes in [visible]).
+  /// Compute subtree size via BFS.
+  ///
+  /// v5.154 (BRANCH BUBBLE FIX): Previously only counted nodes in
+  /// [visible] — so the "largest subtree" sort used to pick collapse
+  /// roots was wrong (it picked subtrees with many VISIBLE descendants
+  /// instead of subtrees with many TOTAL descendants). Now counts ALL
+  /// descendants so the largest true subtrees get collapsed first.
   int _subtreeSizeBFS(
     String rootId,
     Map<String, Set<String>> childrenOf,
@@ -913,15 +919,28 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       final n = queue.removeLast();
       if (visited.contains(n)) continue;
       visited.add(n);
-      if (visible.contains(n)) count++;
+      if (n != rootId) count++; // count ALL descendants
+      // v5.154: Walk ALL children, not just visible ones.
       for (final child in childrenOf[n] ?? const <String>{}) {
-        if (visible.contains(child)) queue.add(child);
+        if (!visited.contains(child)) queue.add(child);
       }
     }
     return count;
   }
 
-  /// Collect all subtree members via BFS (only nodes in [visible]).
+  /// Collect all subtree members via BFS.
+  ///
+  /// v5.154 (BRANCH BUBBLE FIX): Previously only collected nodes in
+  /// [visible] — so branch bubbles only counted the ~50 positioned
+  /// nodes, NOT the 664 unpositioned descendants. The user saw ~50
+  /// nodes + a few tiny "+3" bubbles instead of bubbles showing the
+  /// true hidden count (e.g. "+38").
+  ///
+  /// Now walks the FULL adjacency (all children, positioned or not)
+  /// so each branch bubble's hiddenMemberIds reflects the TRUE subtree
+  /// size in the canonical graph. The [visible] parameter is kept for
+  /// the budget check (only positioned roots get chips) but is NOT
+  /// used to filter subtree traversal.
   void _collectSubtreeBFS(
     String rootId,
     Map<String, Set<String>> childrenOf,
@@ -934,9 +953,12 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       final n = queue.removeLast();
       if (visited.contains(n)) continue;
       visited.add(n);
-      if (visible.contains(n)) members.add(n);
+      if (n != rootId) members.add(n); // collect ALL descendants
+      // v5.154: Walk ALL children, not just visible ones. This is the
+      // key fix — the 664 unpositioned members are reachable through
+      // the full childrenOf map (built from flat.relationships).
       for (final child in childrenOf[n] ?? const <String>{}) {
-        if (visible.contains(child)) queue.add(child);
+        if (!visited.contains(child)) queue.add(child);
       }
     }
   }
