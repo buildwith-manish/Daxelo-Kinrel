@@ -336,46 +336,60 @@ void main() {
   });
 
   // ────────────────────────────────────────────────────────────────────
-  // v5.123 (Step 3 / pipeline stabilization): computeDensityCollapse is
-  // the SINGLE collapse authority fed the FULL pre-hiding candidate
-  // set. These tests pin the fixed-point (convergence) property and
-  // the protected-ID semantics.
+  // v5.158 (ZONE ASSIGNMENT): computeDensityCollapse is the SINGLE
+  // collapse authority. Bubbles represent the HIDDEN members — nodes
+  // present in the full adjacency but NOT in the visible/positioned
+  // set. Each hidden member belongs to exactly ONE bubble (the
+  // nearest visible node by BFS hop distance), so the sum of all
+  // bubble counts equals the hidden count and no member is ever
+  // unreachable. These tests pin that contract.
   // ────────────────────────────────────────────────────────────────────
   group('v5.123 — Density collapse (single authority, fixed point)', () {
-    /// person-0 with 24 children (person-1..24), each with 2 children
-    /// (person-{i}-0 / person-{i}-1) → 1 + 24 + 48 = 73 candidates.
-    ({Set<String> candidates, Map<String, Set<String>> childrenOf, List<({String fromId, String toId, String edgeId, String relationshipKey})> edges})
-        buildWideTree() {
-      final candidates = <String>{'person-0'};
+    /// v5.158 fixture: person-0 + 24 children are VISIBLE; the 48
+    /// grandchildren are HIDDEN (in the adjacency + edge list, but not
+    /// in the visible/positioned set — exactly like the real family
+    /// where the RPC fetches 45 of 714 members).
+    ///
+    /// Zone expectation: each grandchild person-i-g is 1 hop from its
+    /// parent person-i (visible) → zoned to person-i. person-0 gets no
+    /// zone (grandchildren are nearer to their own parents).
+    ({Set<String> visible, Set<String> allPersons, Map<String, Set<String>> childrenOf, List<({String fromId, String toId, String edgeId, String relationshipKey})> edges})
+        buildWideTreeWithHidden() {
+      final visible = <String>{'person-0'};
+      final allPersons = <String>{'person-0'};
       final childrenOf = <String, Set<String>>{};
       final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[];
       for (var i = 1; i <= 24; i++) {
         final child = 'person-$i';
-        candidates.add(child);
+        visible.add(child);
+        allPersons.add(child);
         childrenOf.putIfAbsent('person-0', () => <String>{}).add(child);
         edges.add((fromId: child, toId: 'person-0', edgeId: 'p$i', relationshipKey: 'parent'));
         for (var g = 0; g < 2; g++) {
           final gc = 'person-$i-$g';
-          candidates.add(gc);
+          allPersons.add(gc); // HIDDEN — not in visible
           childrenOf.putIfAbsent(child, () => <String>{}).add(gc);
           edges.add((fromId: gc, toId: child, edgeId: 'p${i}_$g', relationshipKey: 'parent'));
         }
       }
-      return (candidates: candidates, childrenOf: childrenOf, edges: edges);
+      return (visible: visible, allPersons: allPersons, childrenOf: childrenOf, edges: edges);
     }
 
     test('recomputing with the FULL candidate set is idempotent '
         '(converges — no revision bump)', () {
-      final tree = buildWideTree();
+      final tree = buildWideTreeWithHidden();
 
       notifier.computeDensityCollapse(
-        visibleNodeIds: tree.candidates,
+        visibleNodeIds: tree.visible,
         childrenOf: tree.childrenOf,
         personNameOf: (id) => 'Person $id',
         allEdges: tree.edges,
       );
       expect(notifier.state.collapsedBranches, isNotEmpty,
-          reason: '73 candidates > kNodeBudget must collapse');
+          reason: '48 hidden grandchildren must produce branch bubbles');
+      // v5.158 CONTRACT: every hidden member is zoned exactly once.
+      expect(notifier.state.allHiddenMemberIds.length, 48,
+          reason: 'Bubbles must cover ALL hidden members');
       final revisionAfterFirst = notifier.state.revision;
       final branchesAfterFirst = notifier.state.collapsedBranches.length;
       final hiddenAfterFirst = notifier.state.allHiddenMemberIds.length;
@@ -383,7 +397,7 @@ void main() {
       // v5.123 convergence: recompute with the SAME FULL candidate set
       // (NOT the post-hiding count) → same branches → NO state change.
       notifier.computeDensityCollapse(
-        visibleNodeIds: tree.candidates,
+        visibleNodeIds: tree.visible,
         childrenOf: tree.childrenOf,
         personNameOf: (id) => 'Person $id',
         allEdges: tree.edges,
@@ -405,33 +419,55 @@ void main() {
         allEdges: const [],
       );
       expect(notifier.state.collapsedBranches, isEmpty,
-          reason: '≤ kNodeBudget candidates → bypass');
+          reason: 'No hidden members → no bubbles');
     });
 
-    test('protected IDs are never hidden and never become roots', () {
-      final tree = buildWideTree();
+    test('v5.158: hidden members are partitioned — each belongs to '
+        'exactly ONE bubble (no overlap, no gaps)', () {
+      final tree = buildWideTreeWithHidden();
 
-      // Unprotected baseline: everything under person-0 collapses.
       notifier.computeDensityCollapse(
-        visibleNodeIds: tree.candidates,
+        visibleNodeIds: tree.visible,
         childrenOf: tree.childrenOf,
         personNameOf: (id) => 'Person $id',
         allEdges: tree.edges,
       );
-      expect(notifier.state.allHiddenMemberIds, contains('person-1-0'));
 
-      // Now protect person-1-0 — it must survive the same collapse.
-      final notifier2 = BranchCollapseNotifier();
-      notifier2.computeDensityCollapse(
-        visibleNodeIds: tree.candidates,
+      final branches = notifier.state.collapsedBranches;
+      expect(branches, isNotEmpty);
+      // Every grandchild is zoned to its own parent (nearest visible).
+      for (var i = 1; i <= 24; i++) {
+        final branch =
+            branches.where((b) => b.rootPersonId == 'person-$i').firstOrNull;
+        expect(branch, isNotNull,
+            reason: 'person-$i has 2 hidden children → must have a bubble');
+        expect(branch!.hiddenMemberIds, containsAll({'person-$i-0', 'person-$i-1'}));
+      }
+      // person-0 has NO hidden member nearer to it than to the parents.
+      expect(branches.where((b) => b.rootPersonId == 'person-0'), isEmpty);
+      // Sum of counts == hidden count == 48.
+      final total = branches.fold<int>(0, (a, b) => a + b.hiddenCount);
+      expect(total, 48);
+    });
+
+    test('v5.158: protected (unfetched) members still get zoned — '
+        'protection never makes a member unreachable', () {
+      final tree = buildWideTreeWithHidden();
+
+      // person-1-0 is a search match that hasn't been revealed yet —
+      // it's hidden and "protected". It MUST still belong to a zone so
+      // the user can reach it by expanding that bubble (the search
+      // reveal path makes it visible through its own mechanism).
+      notifier.computeDensityCollapse(
+        visibleNodeIds: tree.visible,
         childrenOf: tree.childrenOf,
         personNameOf: (id) => 'Person $id',
         allEdges: tree.edges,
         protectedIds: {'person-1-0'},
       );
-      expect(notifier2.state.allHiddenMemberIds, isNot(contains('person-1-0')),
-          reason: 'Protected persons stay visible even inside a hidden '
-              'subtree (focus/search/path/selection protection)');
+      expect(notifier.state.allHiddenMemberIds, contains('person-1-0'),
+          reason: 'v5.158: protected-but-unfetched members stay zoned '
+              '(reachable) — zones never hide positioned nodes anyway');
     });
 
     test('computeCollapse budget bypass aligns with density (≤ 50)', () {
@@ -458,61 +494,61 @@ void main() {
   // ────────────────────────────────────────────────────────────────────
   // v5.123 (Step 5): Persisted per-user branch expansion choices.
   //   • seedExpandedBranchRoots applies persisted state ON TOP of the
-  //     default density-collapse computation — a previously expanded
-  //     branch loads already-expanded even when the budget rule would
-  //     have collapsed it.
+  //     density-collapse computation.
   //   • onExpansionChanged fires from expandBranch/collapseBranch so
   //     the engine view can persist (userId, familyId, branchRootId).
+  //
+  // v5.158 (ZONE SEMANTICS): an expanded root is no longer SKIPPED as
+  // a bubble root — if hidden members remain nearest to it, its bubble
+  // must stay (with the smaller count) or those members would become
+  // unreachable. The seeded roots persist so that persisted-expansion
+  // state survives reloads; the density pass simply computes zones
+  // over whatever is visible.
   // ────────────────────────────────────────────────────────────────────
   group('v5.123 (Step 5) — persisted branch expansion', () {
-    test('a seeded (persisted-expanded) branch is NOT re-collapsed by '
-        'the density rule even though the budget would collapse it', () {
-      // 73-candidate wide tree — person-0's subtree collapses by default.
-      final candidates = <String>{'person-0'};
+    test('seeded expansion state survives the density pass, and hidden '
+        'members behind a seeded root keep their bubble (v5.158 zone '
+        'semantics)', () {
+      // person-0 visible; person-1..24 visible; 48 grandchildren hidden.
+      final visible = <String>{'person-0'};
       final childrenOf = <String, Set<String>>{};
       final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[];
       for (var i = 1; i <= 24; i++) {
-        candidates.add('person-$i');
+        visible.add('person-$i');
         childrenOf.putIfAbsent('person-0', () => <String>{}).add('person-$i');
         edges.add((fromId: 'person-$i', toId: 'person-0', edgeId: 'p$i', relationshipKey: 'parent'));
         for (var g = 0; g < 2; g++) {
           final gc = 'person-$i-$g';
-          candidates.add(gc);
           childrenOf.putIfAbsent('person-$i', () => <String>{}).add(gc);
           edges.add((fromId: gc, toId: 'person-$i', edgeId: 'p${i}_$g', relationshipKey: 'parent'));
         }
       }
 
-      // Baseline: without persistence, person-0's branch collapses.
-      final baseline = BranchCollapseNotifier();
-      baseline.computeDensityCollapse(
-        visibleNodeIds: candidates,
-        childrenOf: childrenOf,
-        personNameOf: (id) => 'Person $id',
-        allEdges: edges,
-      );
-      expect(baseline.state.collapsedBranches, isNotEmpty);
-      expect(baseline.state.allHiddenMemberIds, contains('person-1-0'));
-
-      // v5.123 (Step 5): seed the PERSISTED expansion (the user had
-      // expanded person-0's branch in a previous session) BEFORE the
-      // collapse computation runs — the branch must NOT re-collapse.
+      // Seed the PERSISTED expansion (the user had expanded person-0's
+      // branch in a previous session) BEFORE the collapse computation.
       notifier.seedExpandedBranchRoots({'person-0'});
       expect(notifier.state.expandedBranchRoots, contains('person-0'));
 
       notifier.computeDensityCollapse(
-        visibleNodeIds: candidates,
+        visibleNodeIds: visible,
         childrenOf: childrenOf,
         personNameOf: (id) => 'Person $id',
         allEdges: edges,
       );
+
+      // v5.158: person-0 itself gets no zone (grandchildren are nearer
+      // to their own parents) — nothing hides behind an expanded root
+      // here. The seeded root simply doesn't need a bubble.
       expect(
         notifier.state.collapsedBranches
             .where((b) => b.rootPersonId == 'person-0'),
         isEmpty,
-        reason: 'A persisted-expanded branch loads already-expanded — '
-            'the budget rule must skip it');
-      expect(notifier.state.allHiddenMemberIds, isNot(contains('person-1-0')));
+        reason: 'No hidden member is nearest to person-0 → no bubble');
+      // Every hidden grandchild is still reachable via its parent's
+      // bubble (sum of counts == 48).
+      expect(notifier.state.allHiddenMemberIds.length, 48,
+          reason: 'Seeding must not strand hidden members — zones are '
+              'computed regardless of expandedBranchRoots');
 
       // Seeding is idempotent.
       final revision = notifier.state.revision;
@@ -544,20 +580,20 @@ void main() {
   });
 
   // ────────────────────────────────────────────────────────────────────
-  // v5.132 — RECURSIVE SUB-BRANCHES AT SCALE (regression test for the
-  // "+N inside +N" flow). A graph larger than kNodeBudget where a
-  // single root's subtree itself exceeds the budget must produce a
-  // top-level branch PLUS nested sub-branches; expanding the top
-  // branch reveals the sub-branch roots, and the NEXT density pass
-  // re-collapses around them as fresh standalone '+N' chips.
+  // v5.158 — ZONE BUBBLES AT SCALE (replaces the v5.132 recursive
+  // sub-branch tests). A 160-person graph where only the root is
+  // visible must produce ONE bubble on the root covering all 159
+  // hidden members; expanding + revealing part of the graph moves the
+  // bubbles onto the new frontier with smaller counts — the
+  // progressive-expansion contract ("50 → 100 → 250 → … → all").
   // ────────────────────────────────────────────────────────────────────
   group('v5.132 — recursive sub-branch collapse at scale', () {
     // Builds a 160-person graph: root → 4 children, each with a
-    // 39-person subtree. The whole graph is > kNodeBudget (50) and the
-    // root's subtree alone (159) is also > kNodeBudget, forcing
-    // recursive sub-clustering.
-    ({Set<String> persons, List<({String fromId, String toId, String edgeId, String relationshipKey})> edges, Map<String, Set<String>> childrenOf})
-        buildScaleGraph() {
+    // 39-person subtree. Only [visibleOverride] members are visible —
+    // the rest are hidden (unfetched), exactly like the real 714-member
+    // family with a 45-node proximity fetch.
+    ({Set<String> persons, Set<String> visible, List<({String fromId, String toId, String edgeId, String relationshipKey})> edges, Map<String, Set<String>> childrenOf})
+        buildScaleGraph({Set<String>? visibleOverride}) {
       final persons = <String>{'root'};
       final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[];
       final childrenOf = <String, Set<String>>{};
@@ -580,74 +616,61 @@ void main() {
           addChild(parent, id);
         }
       }
-      return (persons: persons, edges: edges, childrenOf: childrenOf);
+      final visible = visibleOverride ?? <String>{'root'};
+      return (persons: persons, visible: visible, edges: edges, childrenOf: childrenOf);
     }
 
-    test('a subtree larger than kNodeBudget produces nested sub-branches',
-        () {
+    test('a subtree larger than kNodeBudget is covered by ONE zone '
+        'bubble showing the true count (v5.158)', () {
       final g = buildScaleGraph();
       notifier.computeDensityCollapse(
-        visibleNodeIds: g.persons,
+        visibleNodeIds: g.visible,
         childrenOf: g.childrenOf,
         personNameOf: (id) => 'Person $id',
         allEdges: g.edges,
       );
 
       expect(notifier.state.collapsedBranches, isNotEmpty,
-          reason: '160-person graph is over budget — must collapse');
-      final topBranch = notifier.state.collapsedBranches.first;
-      expect(topBranch.subBranches, isNotEmpty,
-          reason: 'The root subtree (159 members) exceeds kNodeBudget — '
-              'v5.106 requires recursive sub-clustering');
-      // Every sub-branch root must be a DIRECT child of the top root.
-      for (final sub in topBranch.subBranches) {
-        expect(g.childrenOf[topBranch.rootPersonId], contains(sub.rootPersonId));
-      }
+          reason: '156 hidden members must be covered by a bubble');
+      // v5.158: ONE zone on the root — the whole hidden subtree is
+      // nearest to the only visible node. No recursive sub-branches:
+      // zones partition the hidden set exactly once.
+      final rootBranch = notifier.state.collapsedBranches
+          .where((b) => b.rootPersonId == 'root')
+          .firstOrNull;
+      expect(rootBranch, isNotNull,
+          reason: 'The root is the only visible node → its zone covers '
+              'the entire hidden graph');
+      expect(rootBranch!.hiddenCount, 156,
+          reason: 'The bubble must show the TRUE hidden count (+156) — '
+              'the fixture is 157 persons (root + 4 children + 152 '
+              'descendants)');
     });
 
-    test('expanding a branch removes its chip AND reveals the sub-branch '
-        'roots so the next pass yields fresh "+N" chips inside it', () {
+    test('expanding a branch and revealing its members moves bubbles '
+        'onto the new frontier with smaller counts (progressive '
+        'expansion)', () {
       final g = buildScaleGraph();
-      // First pass: top branch + sub-branches.
+      // First pass: one +159 bubble on the root.
       notifier.computeDensityCollapse(
-        visibleNodeIds: g.persons,
+        visibleNodeIds: g.visible,
         childrenOf: g.childrenOf,
         personNameOf: (id) => 'Person $id',
         allEdges: g.edges,
       );
-      final topBranch = notifier.state.collapsedBranches.first;
-      final subRoots =
-          topBranch.subBranches.map((s) => s.rootPersonId).toSet();
+      final rootBranch = notifier.state.collapsedBranches
+          .where((b) => b.rootPersonId == 'root')
+          .first;
+      expect(rootBranch.hiddenCount, 156);
 
-      // The user taps the "+N" chip → expandBranch runs (System A:
-      // _fetchAndExpandBranch → expandBranch). The top branch's chip
-      // disappears and its members join the visible candidate set.
-      notifier.expandBranch(topBranch.rootPersonId);
-      expect(
-        notifier.state.collapsedBranches
-            .where((b) => b.rootPersonId == topBranch.rootPersonId),
-        isEmpty,
-        reason: 'Expanding a branch removes its chip',
-      );
-      expect(notifier.state.expandedBranchRoots,
-          contains(topBranch.rootPersonId));
+      // The user taps the "+159" chip → _fetchAndExpandBranch runs:
+      // fetchBranchAndMerge + revealPersons(root + some members) +
+      // expandBranch. Simulate the reveal: root + its 4 children are
+      // now fetched and visible.
+      notifier.expandBranch('root');
+      final revealed = <String>{'root', 'child-0', 'child-1', 'child-2', 'child-3'};
 
-      // The revealed candidate set now includes the sub-branch roots
-      // and their own subtrees (this is what revealPersons does in the
-      // engine view: root + all hiddenMemberIds join the visible set).
-      final revealed = <String>{
-        topBranch.rootPersonId,
-        ...topBranch.hiddenMemberIds,
-      };
-      expect(revealed.containsAll(subRoots), isTrue,
-          reason: 'The revealed set must contain the sub-branch roots — '
-              'they become the NEW chip roots after re-collapse');
-
-      // Second density pass over the revealed set: the top root is in
-      // expandedBranchRoots (skipped), but its children's subtrees are
-      // each still over budget → NEW standalone '+N' chips appear
-      // INSIDE the expanded area. This is the recursive "+N inside +N"
-      // behavior from the v5.132 regression checklist.
+      // Second density pass over the revealed set.
       notifier.computeDensityCollapse(
         visibleNodeIds: revealed,
         childrenOf: g.childrenOf,
@@ -655,59 +678,63 @@ void main() {
         allEdges: g.edges,
       );
 
-      // The top branch must NOT come back...
-      expect(
-        notifier.state.collapsedBranches
-            .where((b) => b.rootPersonId == topBranch.rootPersonId),
-        isEmpty,
-        reason: 'User-expanded branches are never auto-collapsed again',
-      );
-      // ...but at least one nested branch must now be a top-level chip.
-      final nestedChips = notifier.state.collapsedBranches
-          .where((b) => subRoots.contains(b.rootPersonId))
-          .toList();
-      expect(nestedChips, isNotEmpty,
-          reason: 'After expanding the outer branch, the sub-branch roots '
-              'must render their own "+N" chips (recursive reveal)');
-      // And each nested chip hides a real, non-trivial subtree.
-      for (final chip in nestedChips) {
-        expect(chip.hiddenCount, greaterThanOrEqualTo(3));
-        expect(chip.relationshipKey, isNotNull);
+      // Every remaining hidden member (157 - 5 = 152) is still zoned.
+      expect(notifier.state.allHiddenMemberIds.length, 152,
+          reason: 'Progressive expansion: 5 visible, 152 hidden, ALL '
+              'still represented by bubbles');
+      // The frontier moved: the four children now carry the bubbles
+      // (their descendants are nearest to them), not the root.
+      for (var c = 0; c < 4; c++) {
+        expect(
+          notifier.state.collapsedBranches
+              .where((b) => b.rootPersonId == 'child-$c'),
+          isNotEmpty,
+          reason: 'child-$c is now the frontier — its descendants are '
+              'zoned to it (new bubbles INSIDE the expanded branch)');
       }
+      final totalAfter =
+          notifier.state.collapsedBranches.fold<int>(0, (a, b) => a + b.hiddenCount);
+      expect(totalAfter, 152,
+          reason: 'Sum of all bubble counts == hidden count (no gaps, '
+              'no double counting)');
     });
 
     test('unrelated branches keep their chips when one branch expands', () {
-      final g = buildScaleGraph();
-      notifier.computeDensityCollapse(
-        visibleNodeIds: g.persons,
-        childrenOf: g.childrenOf,
-        personNameOf: (id) => 'Person $id',
-        allEdges: g.edges,
-      );
-      final before = notifier.state.collapsedBranches
-          .map((b) => b.rootPersonId)
-          .toSet();
-      expect(before.length, greaterThanOrEqualTo(1));
-      if (before.length < 2) {
-        // Single-branch graph: expanding it leaves nothing — still assert
-        // the expansion path is clean.
-        notifier.expandBranch(before.first);
-        expect(notifier.state.collapsedBranches, isEmpty);
-        return;
+      // Two independent hidden clusters behind two visible roots.
+      final persons = <String>{'a', 'b'};
+      final visible = <String>{'a', 'b'};
+      final childrenOf = <String, Set<String>>{};
+      final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[];
+      for (var i = 0; i < 5; i++) {
+        final idA = 'a-$i';
+        final idB = 'b-$i';
+        persons..add(idA)..add(idB);
+        childrenOf.putIfAbsent('a', () => <String>{}).add(idA);
+        childrenOf.putIfAbsent('b', () => <String>{}).add(idB);
+        edges.add((fromId: idA, toId: 'a', edgeId: 'ea$i', relationshipKey: 'parent'));
+        edges.add((fromId: idB, toId: 'b', edgeId: 'eb$i', relationshipKey: 'parent'));
       }
-      final expandMe = before.first;
-      final untouched = before.skip(1).toSet();
+      // a's cluster becomes visible (expanded); b's stays hidden.
+      final visibleAfterExpand = <String>{'a', 'a-0', 'a-1', 'a-2', 'a-3', 'a-4', 'b'};
 
-      notifier.expandBranch(expandMe);
-
-      expect(
-        notifier.state.collapsedBranches
-            .map((b) => b.rootPersonId)
-            .toSet()
-            .containsAll(untouched),
-        isTrue,
-        reason: 'Expanding ONE branch must not touch unrelated branches',
+      notifier.computeDensityCollapse(
+        visibleNodeIds: visibleAfterExpand,
+        childrenOf: childrenOf,
+        personNameOf: (id) => 'Person $id',
+        allEdges: edges,
       );
+
+      // b's bubble survives untouched — 5 hidden members.
+      final bBranch = notifier.state.collapsedBranches
+          .where((b) => b.rootPersonId == 'b')
+          .firstOrNull;
+      expect(bBranch, isNotNull,
+          reason: 'Expanding ONE branch must not touch unrelated branches');
+      expect(bBranch!.hiddenCount, 5);
+      // a's members are all visible now → no bubble on a.
+      expect(
+          notifier.state.collapsedBranches.where((b) => b.rootPersonId == 'a'),
+          isEmpty);
     });
   });
 }

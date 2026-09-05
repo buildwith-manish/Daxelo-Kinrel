@@ -325,10 +325,11 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
   }
 
   /// v5.157: Builds a FULL undirected adjacency map from ALL relationship
-  /// types (parent, child, spouse, sibling, etc.). Used by
-  /// _collectSubtreeBFS and _subtreeSizeBFS to traverse the ENTIRE graph
-  /// — not just parent-child edges — so branch bubbles cover ALL hidden
-  /// members (including spouses, siblings, and their descendants).
+  /// types (parent, child, spouse, sibling, etc.). Used by the
+  /// v5.158 zone-assignment collapse (computeDensityCollapse +
+  /// _computeZones) to traverse the ENTIRE graph — not just
+  /// parent-child edges — so branch bubbles cover ALL hidden members
+  /// (including spouses, siblings, and their descendants).
   ///
   /// This is separate from [buildChildrenOf] because the layout engine
   /// needs parent-child-only hierarchy for ring placement, while the
@@ -753,35 +754,50 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
   // v5.105: DENSITY-DRIVEN BUDGET COLLAPSE
   // ═══════════════════════════════════════════════════════════════════
 
-  /// Density-driven collapse: if [visibleNodeIds] exceeds [kNodeBudget],
-  /// collapse subtrees (largest first) until the visible count is at or
-  /// under budget.
+  /// v5.158 (ZONE-ASSIGNMENT REWRITE): Branch bubbles for ALL hidden
+  /// members with progressive expansion.
   ///
-  /// This is the UNIFIED rule that works at any scale:
-  ///   - Small trees (≤ 50 candidates): zero collapsing (no regression)
-  ///   - Medium (50-500): partial collapsing of large branches
-  ///   - Large (500-10,000+): heavy recursive collapsing
+  /// Semantics (the user-facing contract):
+  ///   • [visibleNodeIds] — every node the layout gave a position
+  ///     (the ~50-node proximity set + any revealed branch members +
+  ///     gateway nodes for disconnected components).
+  ///   • "Hidden members" = every node in the full adjacency that is
+  ///     NOT in [visibleNodeIds]. Bubbles NEVER hide a positioned node.
+  ///   • Each hidden member is assigned to exactly ONE bubble — the
+  ///     visible node closest to it (multi-source BFS, see
+  ///     [_computeZones]). Sum of all bubble counts == hidden count.
+  ///   • Tapping a bubble reveals members near its root; the next
+  ///     recomputation re-zones the remaining hidden members onto the
+  ///     NEW frontier — new bubbles appear inside the expanded branch.
+  ///     Repeating eventually makes every member visible.
   ///
-  /// v5.123 (CONVERGENCE FIX): [visibleNodeIds] must be the FULL
-  /// rendered candidate set (positions ∩ expand/collapse allow-list),
-  /// NOT the count with the current hidden set subtracted. Feeding the
-  /// post-hiding count made this pass clear the very branches it had
-  /// just created on the next build — an infinite rebuild oscillation.
-  /// With the full candidate set the computation is a deterministic
-  /// fixed point: the same inputs produce the same branches, so the
-  /// idempotency check (`_branchesEqual`) no-ops and the pipeline
-  /// converges.
+  /// Why [expandedBranchRoots] is NO LONGER skipped as a root: with
+  /// zone semantics, an expanded root whose zone still has members
+  /// MUST keep its bubble (with the smaller remaining count), or those
+  /// members would become unreachable — the exact "missing branch
+  /// bubbles" bug this rewrite fixes. The old skip made sense when
+  /// expanding meant "show this subtree in full"; it is actively wrong
+  /// when expanding is a progressive, multi-step fetch.
+  ///
+  /// v5.123 (CONVERGENCE): [visibleNodeIds] must be the FULL rendered
+  /// candidate set (positions ∩ allow-list), NOT the post-hiding
+  /// count. The zone computation is a deterministic fixed point — the
+  /// same inputs produce the same branches, so the idempotency check
+  /// (`_branchesEqual`) no-ops and the pipeline converges.
   ///
   /// Parameters:
   /// [visibleNodeIds] — ALL rendered candidate nodes (pre-collapse).
-  /// [childrenOf] — adjacency: personId → children IDs (for subtree sizing).
+  /// [childrenOf] — FULL undirected adjacency over every family edge
+  ///   (see [buildFullAdjacency]). Despite the historical name, this
+  ///   is a plain neighbor map, not a parent→children map.
   /// [personNameOf] — resolves personId → display name for labels.
   /// [allEdges] — all edges (for computing hidden edge IDs).
-  /// [protectedIds] — v5.123: persons that must NEVER be hidden (focus
-  ///   person, first/second-degree neighbours, active path, search
-  ///   matches, selection). Roots inside this set are skipped and the
-  ///   members are excluded from hidden subtrees — this absorbs the
-  ///   focus-protection the canvas used to get from computeCollapse.
+  /// [protectedIds] — kept for API compatibility. Zones never hide
+  ///   positioned nodes, so focus/search/path protection of VISIBLE
+  ///   nodes is inherent. Members that are protected but not yet
+  ///   fetched/positioned still belong to a zone so they stay
+  ///   reachable; the search-jump reveal path makes them visible via
+  ///   its own mechanism.
   void computeDensityCollapse({
     required Set<String> visibleNodeIds,
     required Map<String, Set<String>> childrenOf,
@@ -794,34 +810,21 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     Map<String, String>? categoryOf,
     Set<String>? protectedIds,
   }) {
-    // v5.155 (FIX 2): Reworked bypass. The old check
-    // `if (visibleNodeIds.length <= kNodeBudget) return;` ALWAYS fired
-    // because the proximity RPC returns ≤50 nodes (kProximityHardNodeBudget
-    // == kNodeBudget == 50). This meant zero branches were ever created,
-    // zero bubbles ever rendered — the 664 hidden members were invisible
-    // with no expansion controls.
-    //
-    // New logic: compute the TRUE family size by walking the FULL
-    // childrenOf adjacency (built from allEdges, which contains every
-    // active edge in the family). If the true family size exceeds the
-    // budget, create branches for visible roots that have hidden
-    // descendants — even when the visible set itself is ≤50.
-    //
-    // This ensures: visible members + members in branch bubbles =
-    // total family members. Every hidden member belongs to at least
-    // one visible branch bubble.
+    // ── Step 1: the hidden set — nodes in the full adjacency that are
+    // not positioned/visible. Bubbles represent exactly these members.
+    // NOTE: nodes appear in the adjacency as BOTH keys and set values
+    // (leaf members with no outgoing edges are values-only) — collect
+    // from both sides.
+    final allNodes = <String>{
+      for (final entry in childrenOf.entries) ...{
+        entry.key,
+        ...entry.value,
+      },
+    };
+    final hidden = allNodes.difference(visibleNodeIds);
 
-    // Compute true subtree sizes against the FULL adjacency.
-    final subtreeSizes = <String, int>{};
-    for (final id in visibleNodeIds) {
-      subtreeSizes[id] = _subtreeSizeBFS(id, childrenOf, visibleNodeIds);
-    }
-    // Count total reachable members (visible + hidden descendants).
-    final totalReachable = visibleNodeIds.length +
-        subtreeSizes.values.fold<int>(0, (a, b) => a + b);
-
-    // Bypass ONLY when the true family size fits the budget.
-    if (totalReachable <= kNodeBudget) {
+    if (hidden.isEmpty) {
+      // Family fully visible — clear auto branches (manual ones stay).
       final manualBranches = state.collapsedBranches
           .where((b) => state.manuallyCollapsedRoots.contains(b.rootPersonId))
           .toList();
@@ -836,130 +839,83 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       return;
     }
 
-    // The true family size exceeds the budget. We need to create
-    // branch bubbles for visible roots that have hidden descendants,
-    // even if the visible set itself is ≤50.
-    final protected = protectedIds ?? const <String>{};
+    // ── Step 2: partition the hidden set into zones via multi-source
+    // BFS from every visible node. Every hidden member reachable from
+    // the visible set lands in exactly one zone.
+    final zones = _computeZones(visibleNodeIds, childrenOf);
+    if (zones.isEmpty) {
+      // No hidden member is reachable from any visible node. This can
+      // happen transiently (e.g. the allEdges list is stale). Clear
+      // auto branches so we don't keep stale chips around.
+      final manualBranches = state.collapsedBranches
+          .where((b) => state.manuallyCollapsedRoots.contains(b.rootPersonId))
+          .toList();
+      if (state.collapsedBranches.length != manualBranches.length) {
+        state = BranchCollapseState(
+          collapsedBranches: manualBranches,
+          expandedBranchRoots: state.expandedBranchRoots,
+          manuallyCollapsedRoots: state.manuallyCollapsedRoots,
+          revision: state.revision + 1,
+        );
+      }
+      return;
+    }
 
-    final remaining = Set<String>.from(visibleNodeIds);
+    // ── Step 3: build one CollapsedBranch per non-empty zone.
+    // Sort zones by size (largest first) so the branch list — and the
+    // chip placement order — is stable and deterministic.
+    final zoneRoots = zones.keys.toList()
+      ..sort((a, b) {
+        final bySize = zones[b]!.length.compareTo(zones[a]!.length);
+        if (bySize != 0) return bySize;
+        return a.compareTo(b); // deterministic tie-break
+      });
+
     final newBranches = <CollapsedBranch>[];
-
-    // Find roots: visible nodes that have children in the FULL adjacency
-    // (not just visible set). This catches roots whose entire subtree is
-    // unpositioned — the primary case for branch bubbles.
-    final roots = visibleNodeIds.where((id) {
-      if (protected.contains(id)) return false;
-      final children = childrenOf[id] ?? {};
-      // v5.155: A root is a candidate if it has ANY children in the full
-      // graph (not just visible ones). This ensures branches are created
-      // for roots whose descendants are all unpositioned.
-      return children.isNotEmpty;
-    }).toList();
-
-    // Sort roots by subtree size, largest first.
-    roots.sort((a, b) =>
-        (subtreeSizes[b] ?? 0).compareTo(subtreeSizes[a] ?? 0));
-
-    // v5.155: Create a branch bubble for EVERY visible root that has
-    // hidden descendants (subtreeMembers.length > 0), not just until
-    // the visible set is under budget. The visible set IS already
-    // under budget (proximity cap = 50). The goal is to create bubbles
-    // representing the hidden members, not to reduce the visible set.
-    //
-    // v5.156 (CRITICAL FIX): subtreeMembers must ONLY contain
-    // UNPOSITIONED members (those NOT in visibleNodeIds). The old code
-    // collected ALL descendants via _collectSubtreeBFS, including
-    // positioned ones. Then densityHiddenIds included positioned nodes,
-    // and canvas_mixin line 659-661 removed them from the visible set
-    // — dropping the visible count from 50 to 33. The user saw this as
-    // "the system hides some of those 50 visible members and places
-    // them into branch bubbles."
-    //
-    // Now: subtreeMembers EXCLUDES any node in visibleNodeIds. Bubbles
-    // only represent the 664 unpositioned members. The 50 visible
-    // members stay visible.
-    for (final rootId in roots) {
-      // Skip if user has manually expanded this root.
-      if (state.expandedBranchRoots.contains(rootId)) continue;
-      // v5.142: Skip if manually collapsed — don't touch it.
+    for (final rootId in zoneRoots) {
+      final members = zones[rootId]!;
+      if (members.isEmpty) continue;
+      // v5.142: a manually-collapsed root keeps its MANUAL branch —
+      // the auto zone branch for the same root is skipped to avoid a
+      // duplicate chip (the manual branch covers that root's subtree).
       if (state.manuallyCollapsedRoots.contains(rootId)) continue;
 
-      // Compute the subtree to collapse (BFS through FULL childrenOf).
-      final subtreeMembers = <String>{};
-      _collectSubtreeBFS(rootId, childrenOf, remaining, subtreeMembers);
-      subtreeMembers.remove(rootId); // root stays visible
-      // v5.123: protected persons stay visible even inside a hidden
-      // subtree (their branch is partially collapsed around them).
-      subtreeMembers.removeAll(protected);
-
-      // v5.156 (CRITICAL): Remove ALL positioned/visible nodes from
-      // the hidden set. Bubbles must only represent UNPOSITIONED
-      // members — the 664 that don't have layout positions. Visible
-      // members (the 50 with positions) must NEVER appear in
-      // hiddenMemberIds, because canvas_mixin uses allHiddenMemberIds
-      // to filter the visible set. If a visible node is in
-      // hiddenMemberIds, it gets removed from the canvas → the user
-      // sees the visible count drop.
-      subtreeMembers.removeAll(visibleNodeIds);
-
-      // v5.155: Skip if no hidden descendants. This is the key filter —
-      // we only create bubbles for roots that HAVE unpositioned members.
-      if (subtreeMembers.isEmpty) continue;
-
-      // Compute hidden edges.
+      // Hidden edges: ANY edge that touches a hidden zone member —
+      // including edges to the zone root AND edges to visible nodes
+      // that are not the root (prevents "edges ending at empty
+      // points": a hidden endpoint must never have a rendered edge).
+      // Edges between two hidden members of different zones are added
+      // to both branches; the state-level union dedupes.
       final hiddenEdgeIds = <String>{};
       for (final e in allEdges) {
-        if (subtreeMembers.contains(e.fromId) &&
-            (subtreeMembers.contains(e.toId) || e.toId == rootId)) {
-          hiddenEdgeIds.add(e.edgeId);
-        } else if (subtreeMembers.contains(e.toId) &&
-            (subtreeMembers.contains(e.fromId) || e.fromId == rootId)) {
+        if (members.contains(e.fromId) || members.contains(e.toId)) {
           hiddenEdgeIds.add(e.edgeId);
         }
       }
 
       final rootName = personNameOf(rootId);
-      final label = _generateBranchLabel(rootName, subtreeMembers.length);
+      final label = _generateBranchLabel(rootName, members.length);
 
-      // v5.106: Compute dominant kinship category among subtree members.
-      // This is used for the chip's accent color instead of hardcoded orange.
-      final dominantKey = _dominantCategoryKey(subtreeMembers, categoryOf);
-
-      // v5.106: Recursive sub-clustering. If the subtree is so large
-      // that even after collapsing it, its own children would exceed
-      // kNodeBudget, recurse into the subtree's children to create
-      // nested sub-branches. This ensures the budget holds at 10k+ scale.
-      final subBranches = subtreeMembers.length > kNodeBudget
-          ? _computeSubBranches(
-              rootId: rootId,
-              subtreeMembers: subtreeMembers,
-              childrenOf: childrenOf,
-              personNameOf: personNameOf,
-              allEdges: allEdges,
-              categoryOf: categoryOf,
-            )
-          : const <CollapsedBranch>[];
+      // v5.106: dominant kinship category among zone members — used
+      // for the chip's accent color (falls back to 'parent').
+      final dominantKey = _dominantCategoryKey(members, categoryOf);
 
       newBranches.add(CollapsedBranch(
         id: '${rootId}_branch',
         rootPersonId: rootId,
         rootPersonName: rootName,
-        hiddenMemberIds: Set.unmodifiable(subtreeMembers),
+        hiddenMemberIds: Set.unmodifiable(members),
         hiddenEdgeIds: Set.unmodifiable(hiddenEdgeIds),
         visibleMemberCount: 1,
-        hiddenGenerationDepth: _maxDepth(rootId, childrenOf, subtreeMembers),
+        hiddenGenerationDepth: _maxDepth(rootId, childrenOf, members),
         branchLabel: label,
-        relationshipKey: dominantKey,  // v5.106: was '' — now dominant category
-        subBranches: subBranches,       // v5.106: recursive sub-branches
+        relationshipKey: dominantKey,
+        subBranches: const [],
       ));
-
-      // v5.155: Do NOT remove subtreeMembers from remaining — they're
-      // unpositioned members, not visible nodes. Removing them would
-      // have no effect (they're not in remaining) but could cause
-      // confusion in future audits.
     }
 
-    // Idempotent update.
+    // ── Step 4: idempotent update (no revision bump on identical
+    // inputs — prevents rebuild loops from the build-path caller).
     if (_branchesEqual(newBranches, state.collapsedBranches)) {
       return;
     }
@@ -980,67 +936,66 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     );
   }
 
-  /// Compute subtree size via BFS.
+  /// v5.158 (ZONE ASSIGNMENT): Multi-source BFS zone computation.
   ///
-  /// v5.154 (BRANCH BUBBLE FIX): Previously only counted nodes in
-  /// [visible] — so the "largest subtree" sort used to pick collapse
-  /// roots was wrong (it picked subtrees with many VISIBLE descendants
-  /// instead of subtrees with many TOTAL descendants). Now counts ALL
-  /// descendants so the largest true subtrees get collapsed first.
-  int _subtreeSizeBFS(
-    String rootId,
-    Map<String, Set<String>> childrenOf,
-    Set<String> visible,
+  /// Assigns EVERY hidden member (a node in the full adjacency that is
+  /// NOT in [visibleNodeIds]) to exactly ONE visible "gateway" node —
+  /// the visible node closest to it by hop distance (BFS). Sources are
+  /// seeded in sorted ID order and the queue is FIFO, so the assignment
+  /// is fully DETERMINISTIC.
+  ///
+  /// Returns a map: visibleNodeIds → set of hidden member IDs whose
+  /// nearest visible node is that key. Every hidden node reachable from
+  /// ANY visible node appears in exactly one zone — which guarantees the
+  /// user requirement "all hidden members must be represented through
+  /// branch bubbles" (sum of all zone sizes == number of hidden nodes
+  /// reachable from the visible set).
+  ///
+  /// Why this replaced the per-root full-subtree BFS (v5.154–v5.157):
+  /// walking the FULL undirected adjacency separately from EVERY visible
+  /// root made every bubble claim the same ~all reachable hidden members
+  /// (39 chips each saying "+6" on the 714-member Test family), and any
+  /// hidden member in a disconnected component was unreachable from
+  /// every visible root — so it got NO bubble at all. Zone assignment
+  /// partitions the hidden set exactly once.
+  static Map<String, Set<String>> _computeZones(
+    Set<String> visibleNodeIds,
+    Map<String, Set<String>> adjacency,
   ) {
-    final visited = <String>{};
-    final queue = <String>[rootId];
-    int count = 0;
-    while (queue.isNotEmpty) {
-      final n = queue.removeLast();
-      if (visited.contains(n)) continue;
-      visited.add(n);
-      if (n != rootId) count++; // count ALL descendants
-      // v5.154: Walk ALL children, not just visible ones.
-      for (final child in childrenOf[n] ?? const <String>{}) {
-        if (!visited.contains(child)) queue.add(child);
-      }
-    }
-    return count;
-  }
+    final zones = <String, Set<String>>{};
+    if (visibleNodeIds.isEmpty) return zones;
 
-  /// Collect all subtree members via BFS.
-  ///
-  /// v5.154 (BRANCH BUBBLE FIX): Previously only collected nodes in
-  /// [visible] — so branch bubbles only counted the ~50 positioned
-  /// nodes, NOT the 664 unpositioned descendants. The user saw ~50
-  /// nodes + a few tiny "+3" bubbles instead of bubbles showing the
-  /// true hidden count (e.g. "+38").
-  ///
-  /// Now walks the FULL adjacency (all children, positioned or not)
-  /// so each branch bubble's hiddenMemberIds reflects the TRUE subtree
-  /// size in the canonical graph. The [visible] parameter is kept for
-  /// the budget check (only positioned roots get chips) but is NOT
-  /// used to filter subtree traversal.
-  void _collectSubtreeBFS(
-    String rootId,
-    Map<String, Set<String>> childrenOf,
-    Set<String> visible,
-    Set<String> members,
-  ) {
-    final visited = <String>{};
-    final queue = <String>[rootId];
-    while (queue.isNotEmpty) {
-      final n = queue.removeLast();
-      if (visited.contains(n)) continue;
-      visited.add(n);
-      if (n != rootId) members.add(n); // collect ALL descendants
-      // v5.154: Walk ALL children, not just visible ones. This is the
-      // key fix — the 664 unpositioned members are reachable through
-      // the full childrenOf map (built from flat.relationships).
-      for (final child in childrenOf[n] ?? const <String>{}) {
-        if (!visited.contains(child)) queue.add(child);
+    // zoneOf[n] = the visible source that "owns" n (for visible seeds,
+    // themselves; for hidden nodes, their nearest visible node).
+    final zoneOf = <String, String>{};
+    final queue = <String>[];
+
+    // Seed all visible nodes as BFS sources (sorted → deterministic
+    // tie-break: lexicographically smaller visible IDs win ties).
+    final sources = visibleNodeIds.toList()..sort();
+    for (final s in sources) {
+      zoneOf[s] = s;
+      queue.add(s);
+    }
+
+    // Standard multi-source BFS: a node's zone is inherited from the
+    // source that reached it first (shortest hop distance wins).
+    var head = 0;
+    while (head < queue.length) {
+      final n = queue[head++];
+      final src = zoneOf[n]!;
+      final neighbors = adjacency[n];
+      if (neighbors == null || neighbors.isEmpty) continue;
+      // Sorted iteration for deterministic discovery order.
+      final sortedNeighbors = neighbors.toList()..sort();
+      for (final m in sortedNeighbors) {
+        if (zoneOf.containsKey(m)) continue; // already assigned
+        zoneOf[m] = src;
+        zones.putIfAbsent(src, () => <String>{}).add(m);
+        queue.add(m);
       }
     }
+    return zones;
   }
 
   /// Compute the descendant subtree of [root], excluding any person
@@ -1063,23 +1018,41 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     return result;
   }
 
-  /// Compute the max generation depth of the hidden subtree.
+  /// Compute the max generation depth of the hidden zone.
+  ///
+  /// v5.158 (STACK OVERFLOW FIX): the old implementation used unbounded
+  /// RECURSION with NO visited set. Over the FULL UNDIRECTED adjacency
+  /// (buildFullAdjacency — every edge traversable both ways) any two
+  /// adjacent hidden members walked each other forever, and long chains
+  /// (100+ deep, common in zone members) blew the stack. Rewritten as
+  /// an iterative level-by-level BFS with a visited set — O(V+E), safe
+  /// for any topology.
   int _maxDepth(
     String root,
     Map<String, Set<String>> childrenOf,
     Set<String> hiddenSet,
   ) {
+    if (hiddenSet.isEmpty) return 0;
     int maxDepth = 0;
-    void walk(String node, int depth) {
-      if (depth > maxDepth) maxDepth = depth;
-      for (final child in childrenOf[node] ?? const <String>{}) {
-        if (hiddenSet.contains(child)) {
-          walk(child, depth + 1);
+    final visited = <String>{root};
+    // Level 0: the hidden members adjacent to the root.
+    var level = <String>{
+      for (final n in childrenOf[root] ?? const <String>{})
+        if (hiddenSet.contains(n)) n,
+    };
+    while (level.isNotEmpty) {
+      maxDepth++;
+      final next = <String>{};
+      for (final n in level) {
+        for (final m in childrenOf[n] ?? const <String>{}) {
+          if (hiddenSet.contains(m) && visited.add(m)) {
+            next.add(m);
+          }
         }
       }
+      visited.addAll(level);
+      level = next;
     }
-
-    walk(root, 0);
     return maxDepth;
   }
 
@@ -1124,95 +1097,6 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       }
     }
     return dominant ?? 'parent';
-  }
-
-  /// v5.106: Recursively compute sub-branches for a large collapsed
-  /// subtree. When a single branch has > kNodeBudget members, its
-  /// direct children are each evaluated as potential sub-branch roots.
-  /// This ensures the budget holds at 10k/100k+ scale.
-  List<CollapsedBranch> _computeSubBranches({
-    required String rootId,
-    required Set<String> subtreeMembers,
-    required Map<String, Set<String>> childrenOf,
-    required String Function(String) personNameOf,
-    required List<({String fromId, String toId, String edgeId, String relationshipKey})> allEdges,
-    Map<String, String>? categoryOf,
-  }) {
-    // Find the root's direct children that are in the subtree.
-    final directChildren = (childrenOf[rootId] ?? <String>{})
-        .where((c) => subtreeMembers.contains(c))
-        .toList();
-
-    if (directChildren.isEmpty) return const [];
-
-    // Compute subtree size for each child.
-    final childSubtreeSizes = <String, int>{};
-    for (final child in directChildren) {
-      final childSubtree = <String>{};
-      _collectSubtreeBFS(child, childrenOf, subtreeMembers, childSubtree);
-      childSubtreeSizes[child] = childSubtree.length;
-    }
-
-    // Sort children by subtree size, largest first.
-    directChildren.sort((a, b) =>
-        (childSubtreeSizes[b] ?? 0).compareTo(childSubtreeSizes[a] ?? 0));
-
-    final subBranches = <CollapsedBranch>[];
-    final subHidden = <String>{};
-
-    for (final childId in directChildren) {
-      // Collect this child's subtree.
-      final childSubtree = <String>{};
-      _collectSubtreeBFS(childId, childrenOf, subtreeMembers, childSubtree);
-      childSubtree.remove(childId); // child stays visible as sub-branch root
-
-      if (childSubtree.length < 3) continue; // too small to sub-cluster
-
-      // Compute hidden edges for this sub-branch.
-      final subHiddenEdges = <String>{};
-      for (final e in allEdges) {
-        if (childSubtree.contains(e.fromId) &&
-            (childSubtree.contains(e.toId) || e.toId == childId)) {
-          subHiddenEdges.add(e.edgeId);
-        } else if (childSubtree.contains(e.toId) &&
-            (childSubtree.contains(e.fromId) || e.fromId == childId)) {
-          subHiddenEdges.add(e.edgeId);
-        }
-      }
-
-      final childName = personNameOf(childId);
-      final subLabel = _generateBranchLabel(childName, childSubtree.length);
-      final subDominantKey = _dominantCategoryKey(childSubtree, categoryOf);
-
-      // Recurse if this sub-branch is still too large.
-      final subSubBranches = childSubtree.length > kNodeBudget
-          ? _computeSubBranches(
-              rootId: childId,
-              subtreeMembers: childSubtree,
-              childrenOf: childrenOf,
-              personNameOf: personNameOf,
-              allEdges: allEdges,
-              categoryOf: categoryOf,
-            )
-          : const <CollapsedBranch>[];
-
-      subBranches.add(CollapsedBranch(
-        id: '${childId}_subbranch',
-        rootPersonId: childId,
-        rootPersonName: childName,
-        hiddenMemberIds: Set.unmodifiable(childSubtree),
-        hiddenEdgeIds: Set.unmodifiable(subHiddenEdges),
-        visibleMemberCount: 1,
-        hiddenGenerationDepth: _maxDepth(childId, childrenOf, childSubtree),
-        branchLabel: subLabel,
-        relationshipKey: subDominantKey,
-        subBranches: subSubBranches,
-      ));
-
-      subHidden.addAll(childSubtree);
-    }
-
-    return subBranches;
   }
 }
 

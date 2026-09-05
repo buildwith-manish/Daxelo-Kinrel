@@ -401,6 +401,11 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             // soft/hard budget can rank candidates by kinship category
             // when truncating at the hard cap.
             final proximityEdges = rawEdgeTuples;
+            // v5.158 (GATEWAYS): component gateway persons must join the
+            // proximity visible set (they are BFS-unreachable, so only the
+            // extraVisibleIds union can bring them in). Mirrors the
+            // graphLayoutProvider default computation so both paths agree.
+            final gatewayIds = flat.componentGatewayIds;
             // Mutate AFTER the frame — modifying providers during the
             // build phase is not allowed by Riverpod.
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -411,6 +416,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                     allPersons: proximityAllPersonIds,
                     adjacency: proximityAdjacency,
                     edges: proximityEdges,
+                    extraVisibleIds: gatewayIds,
                   );
             });
           }
@@ -661,13 +667,15 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         final densityHiddenIds = densityCollapseState.allHiddenMemberIds;
         final densityHiddenEdgeIds = densityCollapseState.allHiddenEdgeIds;
 
-        // v5.157 (DEBUG): Log branch bubble creation for verification.
-        debugPrint('[v5.157] Branch bubbles: ${densityCollapseState.collapsedBranches.length} branches, '
+        // v5.158 (VERIFICATION): Log branch bubble state for debugging —
+        // bubbles must cover EVERY hidden member: visible + hidden should
+        // equal the total node count in the full adjacency.
+        debugPrint('[v5.158] Branch bubbles: ${densityCollapseState.collapsedBranches.length} branches, '
             '${densityHiddenIds.length} hidden members, '
             'visible=${visiblePreCluster.length}, '
             'totalReachable=${visiblePreCluster.length + densityHiddenIds.length}');
         for (final b in densityCollapseState.collapsedBranches.take(5)) {
-          debugPrint('[v5.157]   bubble: +${b.hiddenMemberIds.length} at ${b.rootPersonName}');
+          debugPrint('[v5.158]   bubble: +${b.hiddenMemberIds.length} at ${b.rootPersonName}');
         }
 
         // Apply clustering: remove hidden members from visible set.

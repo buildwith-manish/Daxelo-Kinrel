@@ -732,18 +732,24 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // the action sheet. This is the reliable way to distinguish tap from
     // long-press on Flutter Web where the gesture arena is unreliable.
     //
-    // v5.138.2: Guard against stale chip cache. If the branch is already
-    // in expandedBranchRoots, DON'T start the expand timer — the chip is
-    // gone and the user might be long-pressing the root NODE to collapse.
+    // v5.138.2 → v5.158 (ZONE SEMANTICS): the stale-chip guard previously
+    // skipped taps whenever the root was in expandedBranchRoots — under
+    // old "expand reveals the whole subtree" semantics the chip really
+    // was gone. Under v5.158 zone semantics an expanded root CAN still
+    // have a live bubble with REMAINING hidden members (progressive
+    // expansion), and tapping it MUST continue expanding. The correct
+    // staleness check is now: does the branch still exist in the CURRENT
+    // collapsedBranches list? If yes, the chip is real → expand.
     final branch = _hitTestBranchChip(details.localPosition, layout);
     if (branch != null) {
-      // v5.138.2: Skip if already expanded (stale cache / chip gone).
       final collapseState = ref.read(branchCollapseProvider);
-      if (collapseState.expandedBranchRoots.contains(branch.rootPersonId)) {
+      final branchStillExists = collapseState.collapsedBranches
+          .any((b) => b.id == branch.id);
+      if (!branchStillExists) {
+        // Stale chip cache — the branch was collapsed/removed since the
+        // last build. Fall through to the node tap handler.
         _pendingChipTapBranch = null;
         _chipExpandTimer?.cancel();
-        // Fall through to node tap handler — the user might be tapping
-        // the root node of an already-expanded branch.
       } else {
         _pendingChipTapBranch = branch;
         _chipExpandTimer?.cancel();

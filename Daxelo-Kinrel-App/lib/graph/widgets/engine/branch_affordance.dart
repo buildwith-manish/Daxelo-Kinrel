@@ -309,22 +309,27 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     _optimisticLoadingChipRootId = branch.rootPersonId;
     setState(() {});
 
-    // Map the relationship key to a branch type for the RPC. Never
-    // null: unrecognized keys resolve to the 'generic' BFS fallback.
-    final branchType = FamilyGraphNotifier.branchTypeForRelationshipKey(
-        branch.relationshipKey);
-    // Fetch only this branch's nodes/edges from Supabase. For
-    // unrecognized relationship keys this hits the 'generic' branch
-    // type which does a BFS up to depth=2 hops regardless of label
-    // (migration 20260831120000).
+    // v5.158 (ZONE BUBBLES): ALWAYS fetch with the 'generic' branch type.
     //
-    // v5.153 (FIX 3.A): Adaptive depth. The old hard-coded depth: 2
-    // under-fetched large branches — branch.hiddenMemberIds contains
-    // the ENTIRE subtree (can be 4+ generations deep for 50+ member
-    // branches), but depth: 2 only fetched 2 hops. Deeper members
-    // were silently skipped by revealPersons (not in allPersons) and
-    // vanished from the graph. Now: large branches (>20 hidden
-    // members) fetch to depth 4; small branches use depth 2.
+    // The old code mapped the branch's dominant relationship key to a
+    // semantic branch type (maternal/paternal/cousins/inLaws/
+    // grandchildren). But v5.158 zone bubbles represent "the hidden
+    // members nearest to this root" — a MIXED set (spouses, descendants,
+    // siblings of zone members...), not a single semantic branch. The
+    // semantic fetch types return only specific relationship subsets,
+    // so they systematically missed most of the zone's members.
+    //
+    // 'generic' runs a BFS from the root up to [fetchDepth] hops over
+    // EVERY relationship type — exactly the neighborhood the zone
+    // bubble claims to represent. Unrecognized keys ALSO land here
+    // (the v5.131 safety net). This is the only correct fetch mode
+    // for zone bubbles.
+    const branchType = 'generic';
+    // v5.153 (FIX 3.A): Adaptive depth. Large zones fetch 4 hops so a
+    // single tap makes real progress (e.g. a 234-member component),
+    // small zones fetch 2 hops. Deeper members stay hidden and get
+    // re-zoned onto the new frontier — that IS the progressive
+    // expansion behavior.
     final hiddenCount = branch.hiddenMemberIds.length;
     final fetchDepth = hiddenCount > 20 ? 4 : 2;
     await ref.read(familyGraphProvider(widget.familyId).notifier)
