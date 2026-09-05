@@ -580,8 +580,17 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // makes branch bubbles show the real hidden count (e.g. "+38"
         // instead of "+3") and ensures every hidden member belongs to
         // a visible branch bubble.
+        //
+        // v5.157: Use buildFullAdjacency (ALL relationship types —
+        // parent, child, spouse, sibling) instead of buildChildrenOf
+        // (parent-child only). The old buildChildrenOf skipped spouse
+        // and sibling edges, so members connected only through those
+        // edges were unreachable by _collectSubtreeBFS → no bubble
+        // represented them. buildFullAdjacency traverses every edge
+        // type, ensuring ALL 714 members are reachable from the 45
+        // positioned nodes.
         final edgesForChildrenOf = flat.allRelationships ?? flat.relationships;
-        final childrenOfAdj = BranchCollapseNotifier.buildChildrenOf(
+        final childrenOfAdj = BranchCollapseNotifier.buildFullAdjacency(
           edgesForChildrenOf,
         );
         // Build person name resolver.

@@ -324,6 +324,30 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     return childrenOf;
   }
 
+  /// v5.157: Builds a FULL undirected adjacency map from ALL relationship
+  /// types (parent, child, spouse, sibling, etc.). Used by
+  /// _collectSubtreeBFS and _subtreeSizeBFS to traverse the ENTIRE graph
+  /// — not just parent-child edges — so branch bubbles cover ALL hidden
+  /// members (including spouses, siblings, and their descendants).
+  ///
+  /// This is separate from [buildChildrenOf] because the layout engine
+  /// needs parent-child-only hierarchy for ring placement, while the
+  /// bubble coverage system needs the full graph to ensure every hidden
+  /// member is reachable and represented by a bubble.
+  static Map<String, Set<String>> buildFullAdjacency(
+    List<dynamic> relationships,
+  ) {
+    final adjacency = <String, Set<String>>{};
+    for (final r in relationships) {
+      final fromId = (r['fromPersonId'] ?? '').toString();
+      final toId = (r['toPersonId'] ?? '').toString();
+      if (fromId.isEmpty || toId.isEmpty) continue;
+      adjacency.putIfAbsent(fromId, () => <String>{}).add(toId);
+      adjacency.putIfAbsent(toId, () => <String>{}).add(fromId);
+    }
+    return adjacency;
+  }
+
   /// v5.123 (Step 5): Optional persistence hook — invoked whenever a
   /// branch's expansion state changes via [expandBranch] (true) or
   /// [collapseBranch] (false). The engine view wires this to
