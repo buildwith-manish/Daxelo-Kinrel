@@ -191,15 +191,23 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
               const SizedBox(width: 6),
               // v5.159 (RICH BUBBLES): "<name> +<count>" — lead with the
               // representative name (e.g. "Geeta Iyer +207") so the user
-              // knows WHOSE branch they are expanding, then the exact
-              // hidden-member count. Single line, ellipsized; the
-              // nesting semantics stay available to screen readers via
-              // the Semantics label below.
+              // knows WHOSE branch they are expanding, then the count.
+              //
+              // v5.160 (NEXT-LEVEL COUNT): the count is
+              // [CollapsedBranch.nextExpansionCount] — the number of
+              // nodes that will ACTUALLY APPEAR on tap (the immediate
+              // next-level direct hidden neighbours, capped at
+              // [kMaxNodesPerExpansion] = 15) — NOT the full recursive
+              // descendant count. The full count stays available in the
+              // long-press action sheet ("View all" summary panel).
+              // Single line, ellipsized; the nesting semantics stay
+              // available to screen readers via the Semantics label
+              // below.
               Flexible(
                 child: Text(
                   namePart.isEmpty
-                      ? '+${branch.hiddenCount}'
-                      : '$namePart +${branch.hiddenCount}',
+                      ? '+${branch.nextExpansionCount}'
+                      : '$namePart +${branch.nextExpansionCount}',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 12,
@@ -230,7 +238,8 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
           button: true,
           label:
               'Expand ${namePart.isEmpty ? 'collapsed' : namePart} branch: '
-              '${branch.hiddenCount} hidden family members. '
+              '${branch.nextExpansionCount} members will appear on tap. '
+              'Total hidden in this branch: ${branch.hiddenCount}. '
               '$nestingSemantics'
               'Double-tap to expand. Long-press for branch details and '
               'the full names list.',
@@ -711,14 +720,24 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                 ],
               ),
             ),
-            // ── Summary: hidden count + generation depth ──────────────
+            // ── Summary: next-level count + total hidden count + depth ──
+            // v5.160 (NEXT-LEVEL BUBBLE COUNT): this is the "View all"
+            // summary panel — it shows BOTH counts so the user can see
+            // what the tap will do (nextExpansionCount) AND the full
+            // scope of the branch (hiddenCount). The chip itself only
+            // shows nextExpansionCount; this panel is where the total
+            // 714 / 234-style numbers live.
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
               child: Text(
                 hasDepth
-                    ? '${branch.hiddenCount} hidden members · '
+                    ? 'Tap reveals ${branch.nextExpansionCount} '
+                        '${branch.nextExpansionCount == 1 ? 'member' : 'members'} · '
+                        '${branch.hiddenCount} total hidden · '
                         '$depth generation${depth == 1 ? '' : 's'} deep'
-                    : '${branch.hiddenCount} hidden members',
+                    : 'Tap reveals ${branch.nextExpansionCount} '
+                        '${branch.nextExpansionCount == 1 ? 'member' : 'members'} · '
+                        '${branch.hiddenCount} total hidden',
                 style: const TextStyle(
                   color: KinrelColors.textSecondaryDark,
                   fontSize: 13,
@@ -756,14 +775,19 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                 ],
               ),
             ),
-            // v5.159 (LEVEL REVEAL): one tap reveals at most 15 members.
+            // v5.160 (NEXT-LEVEL COUNT): one tap reveals exactly
+            // [nextExpansionCount] members — that count is already on
+            // the chip. When the immediate next level is larger than
+            // [kMaxNodesPerExpansion], the cap kicks in and the rest
+            // re-group into new sub-bubbles on the next density pass.
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
               child: Text(
-                branch.hiddenCount > kMaxNodesPerExpansion
+                branch.nextExpansionCount >= kMaxNodesPerExpansion &&
+                        branch.hiddenCount > kMaxNodesPerExpansion
                     ? 'Tap shows the first $kMaxNodesPerExpansion closest '
                         'members — the rest re-group into new bubbles'
-                    : 'Tap reveals the whole group',
+                    : 'Tap reveals the whole next level',
                 style: const TextStyle(
                   color: KinrelColors.textSecondaryDark,
                   fontSize: 12,

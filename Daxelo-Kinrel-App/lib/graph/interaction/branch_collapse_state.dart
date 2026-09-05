@@ -91,6 +91,7 @@ class CollapsedBranch {
     required this.relationshipKey,
     this.representativeName,
     this.subBranches = const [],
+    this.nextExpansionCount = 0,
   });
 
   /// Unique ID for this collapse entry (typically
@@ -132,6 +133,29 @@ class CollapsedBranch {
   /// kNodeBudget on its own, its children are recursively collapsed
   /// into sub-branches.
   final List<CollapsedBranch> subBranches;
+
+  /// v5.160 (NEXT-LEVEL BUBBLE COUNT): The number of hidden members
+  /// that will ACTUALLY APPEAR on the canvas when the user taps this
+  /// branch's bubble — i.e. the immediate next level only, NOT the
+  /// full recursive descendant count.
+  ///
+  /// Computed as the number of [hiddenMemberIds] that are DIRECTLY
+  /// ADJACENT to [rootPersonId] in the adjacency graph (the depth-1
+  /// hidden neighbours of the root within this branch's zone), capped
+  /// at [kMaxNodesPerExpansion]. When the root has no direct hidden
+  /// neighbours in the zone (the "zone fallback" case), this falls
+  /// back to the count of zone members adjacent to ANY visible node,
+  /// also capped at [kMaxNodesPerExpansion].
+  ///
+  /// Why this exists: the chip text "<name> +<count>" must match what
+  /// the user actually sees appear on tap. Showing "+234" when only 8
+  /// nodes will appear (because [kMaxNodesPerExpansion] = 15 and the
+  /// reveal is depth-1 only) is misleading — it makes the user think
+  /// tapping floods the screen with 234 nodes, when really only a
+  /// handful appear at each step. The full hidden count remains
+  /// available via [hiddenCount] for the "View all" summary panel and
+  /// the full-coverage accounting.
+  final int nextExpansionCount;
 
   /// v5.159 (RICH BUBBLES): One representative display name drawn
   /// alongside the count (e.g. "Geeta Iyer +207") so the user knows
@@ -608,6 +632,16 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       final rootName = personNameOf?.call(rootId) ?? _personName(rootId, allPersons);
       final label = _generateBranchLabel(rootName, descendants.length);
 
+      // v5.160 (NEXT-LEVEL BUBBLE COUNT): the count the chip displays
+      // — only the immediate next-level (direct) hidden neighbours of
+      // the root, NOT the full recursive descendants count.
+      final nextExpansionCount = _computeNextExpansionCount(
+        rootId: rootId,
+        hiddenMembers: descendants,
+        adjacency: childrenOf,
+        visibleNodeIds: alwaysVisible,
+      );
+
       newBranches.add(CollapsedBranch(
         id: '${rootId}_branch',
         rootPersonId: rootId,
@@ -618,6 +652,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
         hiddenGenerationDepth: depth,
         branchLabel: label,
         relationshipKey: '', // could be populated from the edge
+        nextExpansionCount: nextExpansionCount,
       ));
 
       alreadyHidden.addAll(hiddenMemberIds);
@@ -646,10 +681,18 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
   }
 
   /// Lightweight branch-list equality check.
+  ///
+  /// v5.160: also compares [CollapsedBranch.nextExpansionCount] so a
+  /// change in the immediate-next-level count (e.g. the user expanded
+  /// a sibling branch and the zone shrank, leaving fewer direct hidden
+  /// neighbours on this root) is detected as a real change and triggers
+  /// a state update — otherwise the chip text would go stale.
   bool _branchesEqual(List<CollapsedBranch> a, List<CollapsedBranch> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
-      if (a[i].id != b[i].id || a[i].hiddenCount != b[i].hiddenCount) {
+      if (a[i].id != b[i].id ||
+          a[i].hiddenCount != b[i].hiddenCount ||
+          a[i].nextExpansionCount != b[i].nextExpansionCount) {
         return false;
       }
     }
@@ -813,6 +856,16 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     final depth = _maxDepth(rootPersonId, childrenOf, descendants);
     final label = _generateBranchLabel(rootName, descendants.length);
 
+    // v5.160 (NEXT-LEVEL BUBBLE COUNT): the count the chip displays —
+    // only the immediate next-level (direct) hidden neighbours of the
+    // root within the manually-collapsed subtree.
+    final nextExpansionCount = _computeNextExpansionCount(
+      rootId: rootPersonId,
+      hiddenMembers: descendants,
+      adjacency: childrenOf,
+      visibleNodeIds: {rootPersonId, ...protectedIds},
+    );
+
     // Create the manual collapse branch.
     final manualBranch = CollapsedBranch(
       id: '${rootPersonId}_manual_branch',
@@ -824,6 +877,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       hiddenGenerationDepth: depth,
       branchLabel: label,
       relationshipKey: '',
+      nextExpansionCount: nextExpansionCount,
     );
 
     // Add to manuallyCollapsedRoots + collapsedBranches.
@@ -1055,6 +1109,18 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       // for the chip's accent color (falls back to 'parent').
       final dominantKey = _dominantCategoryKey(members, categoryOf);
 
+      // v5.160 (NEXT-LEVEL BUBBLE COUNT): the count the chip displays
+      // — only the immediate next-level (direct) hidden neighbours of
+      // the root within this zone, NOT the full zone size. Falls back
+      // to zone-fallback or empty-reveal guards as documented on
+      // `_computeNextExpansionCount`.
+      final nextExpansionCount = _computeNextExpansionCount(
+        rootId: rootId,
+        hiddenMembers: members,
+        adjacency: childrenOf,
+        visibleNodeIds: visibleNodeIds,
+      );
+
       newBranches.add(CollapsedBranch(
         id: '${rootId}_branch',
         rootPersonId: rootId,
@@ -1071,6 +1137,7 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
         // "<representative> +<count>".
         representativeName: _representativeNameFor(rootId, rootName, members, personNameOf),
         subBranches: const [],
+        nextExpansionCount: nextExpansionCount,
       ));
     }
 
@@ -1211,6 +1278,98 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
     // Remove excluded persons that snuck in before the exclude check.
     result.removeAll(excludeSet);
     return result;
+  }
+
+  /// v5.160 (NEXT-LEVEL BUBBLE COUNT): Computes the number of hidden
+  /// members that will ACTUALLY APPEAR on the canvas when the user
+  /// taps this branch's bubble.
+  ///
+  /// Returns the count of [hiddenMembers] that are DIRECTLY ADJACENT
+  /// to [rootId] in [adjacency] (the depth-1 hidden neighbours of the
+  /// root within this branch's hidden set), capped at
+  /// [kMaxNodesPerExpansion].
+  ///
+  /// When the root has NO direct hidden neighbours in the hidden set
+  /// (the "zone fallback" case — zone bubbles group by proximity, not
+  /// by adjacency to the root), this falls back to the count of hidden
+  /// members adjacent to ANY node in [visibleNodeIds], also capped at
+  /// [kMaxNodesPerExpansion]. This matches the behaviour of
+  /// `_computeZoneFallbackReveal` in `branch_affordance.dart`, which
+  /// is what actually runs on tap when the root has no direct hidden
+  /// neighbours.
+  ///
+  /// When BOTH paths return zero (no hidden member is currently
+  /// revealable), this falls back to the full [hiddenMembers] size
+  /// (capped) — matching the empty-reveal guard in
+  /// `_fetchAndExpandBranch` that keeps the bubble visible so hidden
+  /// members do not become unreachable.
+  ///
+  /// [adjacency] may be either directed or undirected; this method
+  /// checks both directions defensively so it works for the directed
+  /// `childrenOf` map built by `computeCollapse` AND the undirected
+  /// full adjacency built by `computeDensityCollapse`.
+  static int _computeNextExpansionCount({
+    required String rootId,
+    required Set<String> hiddenMembers,
+    required Map<String, Set<String>> adjacency,
+    required Set<String> visibleNodeIds,
+  }) {
+    if (hiddenMembers.isEmpty) return 0;
+
+    // ── Path 1: direct hidden neighbours of the root (preferred —
+    // matches `computeNextLevelReveal` in proximity_graph_state.dart).
+    // Check both directions of the adjacency so this works for the
+    // directed childrenOf map AND the undirected full adjacency.
+    final directHidden = <String>{};
+    final rootNeighbors = adjacency[rootId];
+    if (rootNeighbors != null) {
+      for (final n in rootNeighbors) {
+        if (hiddenMembers.contains(n)) directHidden.add(n);
+      }
+    }
+    // Reverse direction: hidden members whose own adjacency entry
+    // contains the root. Needed for directed maps built only from
+    // (fromId → toId) edges.
+    for (final member in hiddenMembers) {
+      if (member == rootId) continue;
+      final memberNeighbors = adjacency[member];
+      if (memberNeighbors != null && memberNeighbors.contains(rootId)) {
+        directHidden.add(member);
+      }
+    }
+    if (directHidden.isNotEmpty) {
+      return directHidden.length > kMaxNodesPerExpansion
+          ? kMaxNodesPerExpansion
+          : directHidden.length;
+    }
+
+    // ── Path 2 (zone fallback): hidden members adjacent to ANY
+    // visible node. This is what `_computeZoneFallbackReveal` would
+    // actually reveal on tap.
+    final adjacentToVisible = <String>{};
+    for (final member in hiddenMembers) {
+      final neighbors = adjacency[member];
+      if (neighbors == null) continue;
+      for (final n in neighbors) {
+        if (visibleNodeIds.contains(n)) {
+          adjacentToVisible.add(member);
+          break;
+        }
+      }
+    }
+    if (adjacentToVisible.isNotEmpty) {
+      return adjacentToVisible.length > kMaxNodesPerExpansion
+          ? kMaxNodesPerExpansion
+          : adjacentToVisible.length;
+    }
+
+    // ── Path 3 (empty-reveal guard): no hidden member is currently
+    // revealable, but the bubble must stay visible (otherwise hidden
+    // members would become unreachable). Cap at kMaxNodesPerExpansion
+    // so the chip never claims more than what one tap can deliver.
+    return hiddenMembers.length > kMaxNodesPerExpansion
+        ? kMaxNodesPerExpansion
+        : hiddenMembers.length;
   }
 
   /// Compute the max generation depth of the hidden zone.

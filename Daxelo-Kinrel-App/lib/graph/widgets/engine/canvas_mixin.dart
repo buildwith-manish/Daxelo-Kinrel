@@ -731,7 +731,11 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
             'visible=${visiblePreCluster.length}, '
             'totalReachable=${visiblePreCluster.length + densityHiddenIds.length}');
         for (final b in densityCollapseState.collapsedBranches.take(5)) {
-          debugPrint('[v5.158]   bubble: +${b.hiddenMemberIds.length} at ${b.rootPersonName}');
+          // v5.160: log BOTH counts — nextExpansionCount is what the chip
+          // shows, hiddenMemberIds.length is the full zone scope.
+          debugPrint('[v5.158]   bubble: chip=+${b.nextExpansionCount} '
+              '(total hidden=${b.hiddenMemberIds.length}) '
+              'at ${b.rootPersonName}');
         }
 
         // Apply clustering: remove hidden members from visible set.
