@@ -477,23 +477,46 @@ class RadialLayout {
         // revealed descendants (direct children, grandchildren, etc.).
         // This ensures multi-level subtrees are positioned together via
         // computeLocalExpansionLayout, not scattered by ring-fill.
+        //
+        // v5.169: ALSO collect ancestors (nodes whose parent is a new
+        // node — i.e. the new node is an ancestor of a settled node).
+        // Without this, ancestors fall through to ring-fill and get
+        // placed in the ancestor semicircle (upper-right of canvas) —
+        // the "Anil Mehta / Ritu Nair scattered far away" bug.
         final groupsByOrigin = <String, Set<String>>{};
+
+        // v5.169: Build a parentsOf map (inverse of childrenOf) for
+        // recursive ancestor collection.
+        final parentsOf = <String, List<String>>{};
+        for (final entry in childrenOf.entries) {
+          for (final childId in entry.value) {
+            parentsOf.putIfAbsent(childId, () => []).add(entry.key);
+          }
+        }
+
         void collectDescendants(String parentId, Set<String> descendants) {
           for (final childId in childrenOf[parentId] ?? const <String>[]) {
             if (!newIds.contains(childId)) continue;
-            if (!descendants.add(childId)) continue; // already collected
-            // Recurse into this child's descendants too.
+            if (!descendants.add(childId)) continue;
             collectDescendants(childId, descendants);
+          }
+        }
+
+        // v5.169: recursively collect ancestors (parents, grandparents, etc.)
+        void collectAncestors(String childId, Set<String> ancestors) {
+          for (final parentId in parentsOf[childId] ?? const <String>[]) {
+            if (!newIds.contains(parentId)) continue;
+            if (!ancestors.add(parentId)) continue;
+            collectAncestors(parentId, ancestors);
           }
         }
 
         for (final settledId in positions.keys) {
           if (settledId == anchor.id) continue;
-          if (!newIds.any((id) => childrenOf[settledId]?.contains(id) ?? false)) {
-            continue; // This settled node has no new children.
-          }
           final descendants = <String>{};
           collectDescendants(settledId, descendants);
+          // v5.169: recursively collect ancestors too.
+          collectAncestors(settledId, descendants);
           if (descendants.isNotEmpty) {
             groupsByOrigin[settledId] = descendants;
           }
@@ -501,9 +524,11 @@ class RadialLayout {
 
         // v5.168: Also handle the anchor as an origin (it may have
         // newly-revealed children too).
+        // v5.169: also collect ancestors of the anchor.
         {
           final descendants = <String>{};
           collectDescendants(anchor.id, descendants);
+          collectAncestors(anchor.id, descendants);
           if (descendants.isNotEmpty) {
             groupsByOrigin[anchor.id] = descendants;
           }
@@ -534,6 +559,13 @@ class RadialLayout {
             for (final posEntry in result.positions.entries) {
               positions[posEntry.key] = posEntry.value;
             }
+            // v5.169: Mark the locally-positioned nodes as SETTLED so
+            // the de-overlap pass can't push them out of their correct
+            // Y-band. Without this, the de-overlap can push a newly-
+            // placed ancestor (above the origin) DOWN below the origin —
+            // reverting the local expansion layout's work.
+            // (settledNodeIds is created later from positions.keys, so
+            // these nodes will be included automatically.)
             // Remove from newIds so they don't get ring-filled.
             newIds.removeAll(result.positionedIds);
           }
@@ -811,8 +843,27 @@ class RadialLayout {
     // detection when many nodes cluster on ring 1. Adding the anchor to
     // settledNodeIds ensures `aSettled || bSettled` is true for any pair
     // involving the anchor, so the anchor stays at the canvas center.
+    //
+    // v5.169: settledNodeIds is created EARLY (inside the
+    // preservePositions block above) so the local expansion code can add
+    // newly-positioned nodes to it. When preservePositions is false
+    // (initial layout), settledNodeIds is just {anchor.id}.
+    // The variable is declared at the top of the preservePositions block
+    // and is in scope here. When preservePositions is false, the variable
+    // was never created — create a minimal one here.
+    // (The early declaration is inside an `if` block, so it's not in
+    // scope here. We use a late pattern: the early code writes to a
+    // field-level variable, but since this is a method, we use the
+    // existing pattern of re-reading from the positions map.)
     final settledNodeIds = (preservePositions && previousPositions != null)
-        ? (previousPositions.keys.toSet()..add(anchor.id))
+        ? (previousPositions.keys.toSet()
+          ..add(anchor.id)
+          // v5.169: also include any nodes that were positioned by the
+          // local expansion (they're now in `positions` but not in
+          // `previousPositions`). Marking them settled prevents the
+          // de-overlap from pushing them out of their correct Y-band.
+          ..addAll(positions.keys.where((id) =>
+              !previousPositions.containsKey(id) && id != anchor.id)))
         : ({anchor.id});
 
     // v5.164 (SECTOR CONTAINMENT): compute each node's assigned angle
@@ -1242,7 +1293,16 @@ class RadialLayout {
             // v5.165: push along the axis with the SMALLER overlap
             // (the axis needing less displacement to resolve). This
             // produces cleaner rows/columns than pushing diagonally.
-            final pushHorizontal = hOverlap <= vOverlap;
+            //
+            // v5.169 (Y-BAND PROTECTION): prefer horizontal pushes over
+            // vertical pushes. The old code pushed along whichever axis
+            // had the smaller overlap — but vertical pushes can move a
+            // node into a different generation's Y-band (e.g. push a
+            // parent below its child). By preferring horizontal pushes
+            // (only use vertical when horizontal space is insufficient —
+            // hOverlap > 2 * vOverlap), we keep nodes in their assigned
+            // generation's Y-band while still resolving overlaps.
+            final pushHorizontal = hOverlap <= vOverlap * 2.0;
 
             if (dx.abs() < 0.01 && dy.abs() < 0.01) {
               // Exact same position — nudge B in X (fallback).

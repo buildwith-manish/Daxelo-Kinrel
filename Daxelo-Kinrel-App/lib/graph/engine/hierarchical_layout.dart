@@ -138,6 +138,9 @@ class _TreeNode {
   final GraphPerson person;
   final List<_TreeNode> children = [];
   final List<_TreeNode> spouses = [];
+  /// v5.169: parents of this node (for ancestor placement above the origin).
+  /// Used by _assignLocalPositions to walk UPWARD with negative localGen.
+  final List<_TreeNode> parents = [];
 
   /// Computed width of this node's subtree (including spouses).
   double subtreeWidth = 0.0;
@@ -779,7 +782,16 @@ class HierarchicalLayout {
     // Build parent→children + spouse adjacency from the relationships,
     // including ONLY edges where both endpoints are in the revealed set
     // OR one endpoint is the origin.
+    //
+    // v5.169: also build parentsOf (the inverse of childrenOf) so we can
+    // walk UP from the origin to place ancestors above it. This fixes
+    // the "Anil Mehta / Ritu Nair / Nisha Varma scattered to upper-right"
+    // bug — those nodes are ancestors/siblings/in-laws of the branch
+    // root, NOT descendants, so the old code (which only walked downward)
+    // left them for ring-fill, which placed them in the ancestor
+    // semicircle (upper-right of canvas).
     final childrenOf = <String, List<String>>{};
+    final parentsOf = <String, List<String>>{};
     final spouseOf = <String, List<String>>{};
     final relevantIds = <String>{originPersonId, ...revealedIds};
 
@@ -796,9 +808,13 @@ class HierarchicalLayout {
       } else if (_parentKeys.contains(key)) {
         // toPerson is the parent of fromPerson.
         childrenOf.putIfAbsent(toId, () => []).add(fromId);
+        // v5.169: fromPerson's parent is toPerson.
+        parentsOf.putIfAbsent(fromId, () => []).add(toId);
       } else if (_childKeys.contains(key)) {
         // fromPerson is the parent of toPerson.
         childrenOf.putIfAbsent(fromId, () => []).add(toId);
+        // v5.169: toPerson's parent is fromPerson.
+        parentsOf.putIfAbsent(toId, () => []).add(fromId);
       }
     }
 
@@ -823,6 +839,13 @@ class HierarchicalLayout {
       for (final childId in childrenOf[personId] ?? const <String>[]) {
         if (revealedIds.contains(childId) && !visited.contains(childId)) {
           node.children.add(buildNode(childId, visited));
+        }
+      }
+      // v5.169: also walk UP through parents — ancestors of the origin
+      // are placed ABOVE it (negative localGen in _assignLocalPositions).
+      for (final parentId in parentsOf[personId] ?? const <String>[]) {
+        if (revealedIds.contains(parentId) && !visited.contains(parentId)) {
+          node.parents.add(buildNode(parentId, visited));
         }
       }
       for (final spouseId in spouseOf[personId] ?? const <String>[]) {
@@ -894,6 +917,33 @@ class HierarchicalLayout {
       spouse.y = y;
       positions[spouse.person.id] = Offset(spouseX, y);
       spouseX += _config.nodeWidth + _config.spouseGap;
+    }
+
+    // v5.169: Place PARENTS (ancestors) ABOVE this node — negative localGen.
+    // Parents are centered on the same X as this node, one level up.
+    // This prevents ancestors from falling through to ring-fill (which
+    // would place them in the ancestor semicircle — upper-right of canvas).
+    // NOTE: this runs BEFORE the children check below — a node with parents
+    // but no children must still place its parents above it.
+    if (node.parents.isNotEmpty) {
+      var parentX = centerX - (node.parents.length - 1) * spacing / 2;
+      for (final parent in node.parents) {
+        if (visited.contains(parent.person.id)) {
+          parentX += spacing;
+          continue;
+        }
+        _assignLocalPositions(
+          parent,
+          parentX,
+          originY,
+          positions,
+          visited,
+          spacing,
+          levelSpacing,
+          localGen - 1, // ancestors are one level ABOVE (negative direction)
+        );
+        parentX += spacing;
+      }
     }
 
     if (node.children.isEmpty) return;
