@@ -169,22 +169,159 @@ class LocalNotificationService {
     }
   }
 
+  /// Tier 2 / Reply from Notification — Display a chat message
+  /// notification WITH an inline reply action (Android RemoteInput /
+  /// iOS UNTextInputNotificationAction). Tapping the inline reply
+  /// field + typing + sending triggers the [onReply] callback with
+  /// the user's text + the chat context encoded in [replyPayload].
+  ///
+  /// [replyPayload] is a JSON string the reply handler parses to
+  /// identify which chat to send the reply to. Format:
+  ///   {"familyId": "...", "dmUserId": null|"...", "replyToMessageId": null|"..."}
+  ///
+  /// On Android: a "Reply" action button with a text input field
+  /// appears in the notification shade. On iOS: a "Reply" action with
+  /// a text input appears when long-pressing / 3D-touching the
+  /// notification.
+  ///
+  /// The reply is handled by the static [onReply] callback (set by the
+  /// app's main() or a dedicated reply-handler service). The callback
+  /// is responsible for sending the reply via the appropriate chat
+  /// (ChatNotifier for family chat, DirectChatNotifier for DMs).
+  Future<void> showNotificationWithReplyAction({
+    required String title,
+    required String body,
+    required String replyPayload,
+    String? notificationType,
+  }) async {
+    if (!_initialized) {
+      debugPrint('⚠️ LocalNotificationService not initialized, skipping show');
+      return;
+    }
+
+    try {
+      // ── Android ──
+      // Build an AndroidNotificationAction with an
+      // AndroidNotificationActionInput (RemoteInput) so the OS shows
+      // a "Reply" inline-input field in the notification shade. The
+      // reply text comes back via onDidReceiveNotificationResponse
+      // with notificationResponseType = selectedNotificationAction +
+      // a non-null response.input.
+      final androidAction = AndroidNotificationAction(
+        'reply_action', // unique action ID for de-dup in _handle
+        'Reply', // button label
+        showsUserInterface: false, // don't open the app — silent send
+        inputs: const [
+          AndroidNotificationActionInput(
+            allowFreeFormInput: true,
+            label: 'Type a reply…',
+          ),
+        ],
+      );
+
+      final androidDetails = AndroidNotificationDetails(
+        _channelIdForType(notificationType),
+        _channelNameForType(notificationType),
+        channelDescription: _channelDescriptionForType(notificationType),
+        importance: Importance.high,
+        priority: Priority.high,
+        showWhen: true,
+        enableVibration: true,
+        playSound: true,
+        icon: '@mipmap/ic_launcher',
+        actions: [androidAction],
+      );
+
+      // ── iOS ──
+      // DarwinNotificationAction with .textInput type shows a text
+      // field when the user long-presses / 3D-touches the notification.
+      // The reply comes back via the same onDidReceiveNotificationResponse
+      // path, with actionIdentifier = 'reply_action'.
+      final iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        categoryIdentifier: 'reply_category',
+        interruptionLevel: InterruptionLevel.timeSensitive,
+      );
+
+      final details = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+
+      final id = replyPayload.hashCode;
+
+      await _plugin.show(
+        id,
+        title,
+        body,
+        details,
+        payload: replyPayload,
+      );
+
+      logActionBreadcrumb('local_notification_shown_with_reply', {
+        'title': title,
+        'type': notificationType ?? 'unknown',
+      });
+    } catch (e, st) {
+      logError(e, st, reason: 'Failed to show notification with reply action');
+    }
+  }
+
   // ── Notification Tap Handler ───────────────────────────────────
 
   /// Callback invoked when a local notification is tapped.
   /// Set by PushNotificationService to handle deep linking.
   static void Function(NotificationResponse)? onNotificationTap;
 
+  /// Tier 2 / Reply from Notification — callback invoked when the
+  /// user replies inline from a notification. Set by the app's
+  /// reply-handler service (typically in main.dart). Receives:
+  ///   - payload: the JSON string passed to showNotificationWithReplyAction
+  ///   - replyText: the user's typed reply text
+  /// The callback is responsible for sending the reply via the
+  /// appropriate chat.
+  static void Function(String payload, String replyText)? onReply;
+
   void _handleNotificationResponse(NotificationResponse response) {
     final payload = response.payload;
-    debugPrint('📬 Local notification tapped — payload: $payload');
+    debugPrint('📬 Local notification response — type: '
+        '${response.notificationResponseType.name}, payload: $payload');
 
-    logActionBreadcrumb('local_notification_tapped', {
+    logActionBreadcrumb('local_notification_response', {
       'payload': payload ?? 'none',
       'notificationResponseType': response.notificationResponseType.name,
+      'hasReplyText': response.payload != null,
     });
 
-    // Delegate to the external handler (set by PushNotificationService)
+    // ── Tier 2 / Reply from Notification ──
+    // If the response is a notification action AND the user typed a
+    // reply (response.input is non-null + non-empty), route to the
+    // onReply callback with the payload + the typed text. The reply
+    // handler then sends the reply via the appropriate chat.
+    //
+    // Note: this version of flutter_local_notifications (19.x) reports
+    // the response type as `selectedNotificationAction` (not a separate
+    // `replyInput` type), so we detect a reply by checking that
+    // response.input is non-null + non-empty.
+    if (response.notificationResponseType ==
+            NotificationResponseType.selectedNotificationAction &&
+        payload != null &&
+        onReply != null) {
+      final replyText = (response.input ?? '').trim();
+      if (replyText.isNotEmpty) {
+        debugPrint('💬 Inline reply received: "$replyText" for payload: $payload');
+        try {
+          onReply!(payload, replyText);
+        } catch (e) {
+          debugPrint('⚠️ onReply callback error: $e');
+        }
+        return; // don't also fire the tap handler — reply is a separate action
+      }
+    }
+
+    // Delegate to the external tap handler (set by PushNotificationService)
     if (onNotificationTap != null && payload != null) {
       onNotificationTap!(response);
     }

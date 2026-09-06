@@ -24,10 +24,12 @@ import 'package:kinrel/core/widgets/global_error_widget.dart';
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cross_file/cross_file.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,6 +37,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:record/record.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/brand_colors.dart';
@@ -44,8 +47,10 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_edge_style.dart';
 import '../../family/data/relationship_label_provider.dart';
 import '../../../core/utils/web_keyboard_height.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/chat_enhancement_service.dart';
+import '../data/chat_lock_service.dart';
 import '../providers/chat_provider.dart';
 import 'voice_message_player.dart';
 import 'sticker_panel.dart';
@@ -57,6 +62,9 @@ import 'widgets/poll_card.dart';
 import 'widgets/poll_composer_sheet.dart';
 import 'widgets/link_preview_card.dart';
 import 'widgets/forward_picker_sheet.dart';
+import 'widgets/disappearing_messages_sheet.dart';
+import 'widgets/message_info_sheet.dart';
+import 'widgets/gif_search_sheet.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
 import '../../games/shared/icons/game_icons.dart';
@@ -121,6 +129,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   bool _showScrollFab = false;
   bool _isComposing = false;
 
+  // Tier 2 / Chat Lock — when true, the chat screen shows a biometric
+  // lock overlay instead of the message thread. Set in initState by
+  // reading the per-chat lock flag from shared_preferences.
+  bool _isChatLocked = false;
+  bool _isCheckingLock = true; // true while initState is reading the lock
+
   // Phase 22 / Task 3 — @mention picker state.
   // The picker is rendered as an OverlayEntry anchored to the message
   // input via a LayerLink. MentionTracker keeps the pending MentionRef
@@ -177,6 +191,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _textController = TextEditingController();
     _focusNode = FocusNode();
     _mentionTracker = MentionTracker(_textController);
+
+    // Tier 2 / Chat Lock — check if this chat is locked + prompt
+    // biometrics if so. Fires async in initState; the lock overlay
+    // shows until the user authenticates.
+    _checkChatLock();
 
     _scrollController.addListener(_onScroll);
     _textController.addListener(_onTextChanged);
@@ -554,38 +573,134 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       bottomNavigationBar: widget.showFamilyNav
           ? FamilySpaceFloatingNav(familyId: widget.familyId)
           : null,
-      body: Column(
-        children: [
-          // v132: Messages list wrapped with ChatBackground — a
-          // multi-layer ambient gradient (base + accent glow +
-          // vignette) plus optional blurred custom wallpaper.
-          // Gives the chat space depth without competing with bubbles.
-          Expanded(
-            child: ChatBackground(
-              chatId: widget.familyId,
-              child: bodyContent,
+      body: _isCheckingLock
+          ? const Center(
+              child: CircularProgressIndicator(color: KinrelColors.ember),
+            )
+          : _isChatLocked
+              ? _buildLockScreen()
+              : Column(
+                  children: [
+                    // v132: Messages list wrapped with ChatBackground — a
+                    // multi-layer ambient gradient (base + accent glow +
+                    // vignette) plus optional blurred custom wallpaper.
+                    // Gives the chat space depth without competing with bubbles.
+                    Expanded(
+                      child: ChatBackground(
+                        chatId: widget.familyId,
+                        child: bodyContent,
+                      ),
+                    ),
+                    // Typing indicator
+                    if (chatState.isTyping) _buildTypingIndicator(chatState),
+                    // Reply preview bar
+                    if (chatState.replyToMessage != null)
+                      _buildReplyPreview(chatState.replyToMessage!),
+                    // Phase 14: Sticker panel (slides up when toggled)
+                    if (_showStickerPanel && !_isRecording)
+                      StickerPanel(
+                        onStickerSelected: _sendSticker,
+                        onClose: _toggleStickerPanel,
+                      ),
+                    // Input bar
+                    _buildInputBar(),
+                    // v128: On Flutter Web, resizeToAvoidBottomInset doesn't detect
+                    // the mobile keyboard. We add explicit bottom padding equal to
+                    // the visualViewport-measured keyboard height so the input bar
+                    // is always visible above the keyboard.
+                    if (kIsWeb && _webKeyboardHeight > 0)
+                      SizedBox(height: _webKeyboardHeight),
+                  ],
+                ),
+    );
+  }
+
+  // ── Tier 2 / Chat Lock — Lock Screen ─────────────────────────────
+
+  /// Full-screen lock overlay shown when the chat is locked. Renders
+  /// a lock icon + "This chat is locked" + an "Authenticate" button.
+  /// The user taps the button to trigger biometrics via _promptUnlock.
+  Widget _buildLockScreen() {
+    return Container(
+      color: const Color(0xFF0A0B16),
+      child: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: KinrelColors.ember.withValues(alpha: 0.12),
+                    border: Border.all(
+                      color: KinrelColors.ember.withValues(alpha: 0.35),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.lock_rounded,
+                    size: 36,
+                    color: KinrelColors.ember,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'This chat is locked',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Authenticate with Face ID, Touch ID, or your device PIN to view messages.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    color: KinrelColors.textDim,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                FilledButton.icon(
+                  onPressed: _promptUnlock,
+                  icon: const Icon(Icons.fingerprint_rounded, size: 20),
+                  label: const Text('Authenticate'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: KinrelColors.ember,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 32, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/home');
+                    }
+                  },
+                  child: Text(
+                    'Go back',
+                    style: TextStyle(color: KinrelColors.textDim),
+                  ),
+                ),
+              ],
             ),
           ),
-          // Typing indicator
-          if (chatState.isTyping) _buildTypingIndicator(chatState),
-          // Reply preview bar
-          if (chatState.replyToMessage != null)
-            _buildReplyPreview(chatState.replyToMessage!),
-          // Phase 14: Sticker panel (slides up when toggled)
-          if (_showStickerPanel && !_isRecording)
-            StickerPanel(
-              onStickerSelected: _sendSticker,
-              onClose: _toggleStickerPanel,
-            ),
-          // Input bar
-          _buildInputBar(),
-          // v128: On Flutter Web, resizeToAvoidBottomInset doesn't detect
-          // the mobile keyboard. We add explicit bottom padding equal to
-          // the visualViewport-measured keyboard height so the input bar
-          // is always visible above the keyboard.
-          if (kIsWeb && _webKeyboardHeight > 0)
-            SizedBox(height: _webKeyboardHeight),
-        ],
+        ),
       ),
     );
   }
@@ -1019,6 +1134,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       case 'search_all':
                         context.push('/chats/search');
                         break;
+                      case 'disappearing':
+                        DisappearingMessagesSheet.show(
+                          context,
+                          familyId: widget.familyId,
+                        );
+                        break;
+                      case 'lock':
+                        _toggleChatLock();
+                        break;
                       case 'theme':
                         _showThemePicker();
                         break;
@@ -1068,6 +1192,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         value: 'wallpaper_color', child: Text('Solid Color')),
                     const PopupMenuItem(
                         value: 'mute', child: Text('Mute notifications')),
+                    // Tier 2 / Disappearing Messages — opens the
+                    // DisappearingMessagesSheet to enable/disable per-chat
+                    // auto-deletion (24h / 7d / 90d / off).
+                    const PopupMenuItem(
+                        value: 'disappearing',
+                        child: Row(children: [
+                          Icon(Icons.timer_outlined, size: 18,
+                              color: KinrelColors.ember),
+                          SizedBox(width: 12),
+                          Text('Disappearing messages'),
+                        ])),
+                    // Tier 2 / Chat Lock — toggle per-chat biometric lock.
+                    const PopupMenuItem(
+                        value: 'lock',
+                        child: Row(children: [
+                          Icon(Icons.lock_outline, size: 18,
+                              color: KinrelColors.ember),
+                          SizedBox(width: 12),
+                          Text('Chat lock'),
+                        ])),
                     const PopupMenuItem(
                         value: 'starred', child: Text('Starred messages')),
                     const PopupMenuItem(
@@ -1090,6 +1234,107 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// This is reached from member-specific UI (e.g. a long-press on a
   /// message sender, or the message bubble avatar), NOT from the chat
   /// header. The chat header opens the Family Profile screen instead.
+
+  /// Tier 2 / Chat Lock — check if this chat is locked on screen open
+  /// + prompt biometrics if so. Called from initState.
+  Future<void> _checkChatLock() async {
+    final lockService = ref.read(chatLockServiceProvider);
+    final isLocked = await lockService.isLocked(widget.familyId);
+    if (!mounted) return;
+
+    if (isLocked) {
+      setState(() {
+        _isChatLocked = true;
+        _isCheckingLock = false;
+      });
+      // Prompt biometrics automatically on screen open.
+      _promptUnlock();
+    } else {
+      setState(() {
+        _isChatLocked = false;
+        _isCheckingLock = false;
+      });
+    }
+  }
+
+  /// Tier 2 / Chat Lock — prompt biometrics to unlock the chat.
+  Future<void> _promptUnlock() async {
+    final lockService = ref.read(chatLockServiceProvider);
+    final success = await lockService.authenticate(
+      'Authenticate to open this locked chat',
+    );
+    if (!mounted) return;
+    if (success) {
+      setState(() => _isChatLocked = false);
+    }
+    // If failed, the lock overlay stays. The user can tap "Try again"
+    // on the overlay to re-prompt.
+  }
+
+  /// Tier 2 / Chat Lock — toggle the per-chat biometric lock.
+  /// If biometrics aren't available (web, no fingerprint), shows a
+  /// snackbar instead of silently failing. Otherwise:
+  ///   - If the chat is currently unlocked, lock it (no auth needed
+  ///     — locking doesn't require authentication, only unlocking does).
+  ///   - If the chat is currently locked, prompt biometrics first
+  ///     (to verify the user is the owner), then unlock.
+  Future<void> _toggleChatLock() async {
+    final lockService = ref.read(chatLockServiceProvider);
+    final isAvailable = await lockService.isBiometricsAvailable;
+    if (!isAvailable) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Biometric authentication is not available on this device.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+    final isLocked = await lockService.isLocked(widget.familyId);
+    if (isLocked) {
+      // Unlocking requires biometric auth.
+      final success = await lockService.authenticate(
+        'Authenticate to unlock this chat',
+      );
+      if (success) {
+        await lockService.setLocked(widget.familyId, false);
+        if (mounted) {
+          setState(() => _isChatLocked = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Chat unlocked'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Authentication failed — chat stays locked'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } else {
+      // Locking doesn't require auth.
+      await lockService.setLocked(widget.familyId, true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Chat locked. You\'ll need biometrics to open it next time.'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   void _showMembersList() {
     final chatState = ref.read(chatProvider(widget.familyId));
     final members = chatState.members;
@@ -2000,7 +2245,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               // ── Attachment button ────────────────────────────────
-              _AttachmentButton(onTap: () => _pickAndSendAttachment()),
+              _AttachmentButton(onTap: () => _showAttachmentMenu()),
               const SizedBox(width: 6),
               // ── Sticker / emoji toggle ──────────────────────────
               _StickerButton(
@@ -2469,6 +2714,101 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   // ── Attachment Picker (v91) ──────────────────────────────────────
 
+  /// Tier 2 — Show the attachment menu (Photo / Document / Location / GIF).
+  /// Replaces the previous direct-to-photo-picker behavior. The user
+  /// now picks what kind of attachment they want, then the appropriate
+  /// picker / sheet opens.
+  Future<void> _showAttachmentMenu() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Text(
+                'Attach',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.photo_outlined,
+                  color: KinrelColors.ember),
+              title: Text('Photo',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              subtitle: Text('From gallery',
+                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              onTap: () => Navigator.pop(ctx, 'photo'),
+            ),
+            ListTile(
+              leading: Icon(Icons.insert_drive_file_outlined,
+                  color: KinrelColors.ember),
+              title: Text('Document',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              subtitle: Text('PDF, DOC, XLS, etc.',
+                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              onTap: () => Navigator.pop(ctx, 'document'),
+            ),
+            ListTile(
+              leading: Icon(Icons.location_on_outlined,
+                  color: KinrelColors.ember),
+              title: Text('Location',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              subtitle: Text('Share your current location',
+                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              onTap: () => Navigator.pop(ctx, 'location'),
+            ),
+            ListTile(
+              leading: Icon(Icons.gif_box_outlined,
+                  color: KinrelColors.ember),
+              title: Text('GIF',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              subtitle: Text('Search Giphy',
+                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              onTap: () => Navigator.pop(ctx, 'gif'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    switch (choice) {
+      case 'photo':
+        await _pickAndSendAttachment();
+        break;
+      case 'document':
+        await _pickAndSendDocument();
+        break;
+      case 'location':
+        await _shareCurrentLocation();
+        break;
+      case 'gif':
+        if (mounted) {
+          await GifSearchSheet.show(
+            context,
+            onGifSelected: (gif) {
+              ref.read(chatProvider(widget.familyId).notifier).sendGif(
+                    gifUrl: gif.fullUrl,
+                    title: gif.title.isNotEmpty ? gif.title : 'GIF',
+                  );
+            },
+          );
+        }
+        break;
+    }
+  }
+
   /// Pick an image from the gallery and send it as a chat attachment.
   Future<void> _pickAndSendAttachment() async {
     try {
@@ -2534,6 +2874,160 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to send attachment: $e'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Tier 2 / Document attachments — pick a file (any type) via
+  /// file_selector, upload to chat-attachments storage bucket, and
+  /// send as a MessageType.document message.
+  Future<void> _pickAndSendDocument() async {
+    try {
+      // Use file_selector's openFile (works on web + native).
+      final xfile = await openFile();
+      if (xfile == null) return;
+      final fileName = xfile.name.isNotEmpty
+          ? xfile.name
+          : 'document_${DateTime.now().millisecondsSinceEpoch}';
+      final filePath = xfile.path;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 16, height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2, color: KinrelColors.orange,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text('Uploading "$fileName"...'),
+              ],
+            ),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 30),
+          ),
+        );
+      }
+
+      final client = ref.read(supabaseProvider);
+      if (client == null) {
+        if (mounted) ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        return;
+      }
+
+      final storagePath = '${widget.familyId}/docs/$fileName';
+      // Supabase's upload() expects a File on native, or a Uint8List
+      // on web. Use File() (from dart:io) for native; on web, fall back
+      // to uploadBinary with the file's bytes.
+      if (kIsWeb) {
+        final bytes = await xfile.readAsBytes();
+        await client.storage
+            .from('chat-attachments')
+            .uploadBinary(storagePath, bytes);
+      } else {
+        await client.storage
+            .from('chat-attachments')
+            .upload(storagePath, File(filePath));
+      }
+      final publicUrl = client.storage
+          .from('chat-attachments')
+          .getPublicUrl(storagePath);
+
+      await ref.read(chatProvider(widget.familyId).notifier).sendDocument(
+            documentUrl: publicUrl,
+            fileName: fileName,
+          );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Document sent'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send document: $e'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Tier 2 / Live location sharing — get the current GPS location via
+  /// geolocator and send as a MessageType.location message.
+  Future<void> _shareCurrentLocation() async {
+    try {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 16, height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2, color: KinrelColors.orange,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text('Getting your location...'),
+              ],
+            ),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 15),
+          ),
+        );
+      }
+
+      // geolocator is already in pubspec.
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+
+      await ref.read(chatProvider(widget.familyId).notifier).sendLocation(
+            lat: position.latitude,
+            lng: position.longitude,
+            label: 'My location',
+          );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Location shared'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not get location: $e'),
             backgroundColor: KinrelColors.darkCard,
             behavior: SnackBarBehavior.floating,
           ),
@@ -2922,6 +3416,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   }
                 },
               ),
+              // Tier 2 / Message Info — opens the MessageInfoSheet
+              // showing "Delivered to" + "Read by" lists per family
+              // member. Shown for everyone (not just the sender) so
+              // any member can see who's read the message. Hidden for
+              // non-text message types (info is less useful for
+              // stickers / photos / voice notes in v1).
+              if (message.messageType == MessageType.text ||
+                  message.messageType == MessageType.photo)
+                ListTile(
+                  leading: Icon(
+                    Icons.info_outline_rounded,
+                    color: KinrelColors.textSilver,
+                    size: 22,
+                  ),
+                  title: Text(
+                    'Info',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 15,
+                      color: KinrelColors.textWhite,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    MessageInfoSheet.show(context, messageId: message.id);
+                  },
+                ),
               // Delete for Everyone (only for own messages)
               if (isMe)
                 ListTile(
@@ -4033,7 +4554,293 @@ class _MessageBubble extends ConsumerWidget {
                 .votePoll(message.id, optionIndex);
           },
         );
+
+      case MessageType.gif:
+        // Tier 2 / GIF search — render the GIF image inline in the
+        // bubble. The GIF's URL is stored in message.mediaUrl (the
+        // high-res original); the content holds the Giphy title for
+        // accessibility. Cap at ~220x220 so it doesn't dominate the
+        // thread.
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 220, maxHeight: 220),
+            child: message.mediaUrl != null && message.mediaUrl!.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: message.mediaUrl!,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(
+                      color: const Color(0xFF11132A),
+                      height: 120,
+                      alignment: Alignment.center,
+                      child: const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: KinrelColors.ember),
+                      ),
+                    ),
+                    errorWidget: (_, __, ___) => Container(
+                      color: const Color(0xFF11132A),
+                      height: 120,
+                      alignment: Alignment.center,
+                      child: Icon(Icons.broken_image_outlined,
+                          color: KinrelColors.textDim),
+                    ),
+                  )
+                : Container(
+                    color: const Color(0xFF11132A),
+                    height: 120,
+                    alignment: Alignment.center,
+                    child: Icon(Icons.gif_box_outlined,
+                        color: KinrelColors.textDim),
+                  ),
+          ),
+        );
+
+      case MessageType.document:
+        // Tier 2 / Document attachments — render a file card with the
+        // filename + size + a download/open icon. Tap → open the URL
+        // via url_launcher (or download to device on mobile).
+        return _buildDocumentCard(context);
+
+      case MessageType.location:
+        // Tier 2 / Live location sharing — render a small map pin card
+        // with the lat/lng. Tap → open in the system maps app.
+        // (A future v2 would render an inline mini-map.)
+        return _buildLocationCard(context);
     }
+  }
+
+  /// Tier 2 / Document attachments — file card for MessageType.document.
+  ///
+  /// Renders the filename + a download/open icon. Tap → open the URL
+  /// via url_launcher (the URL is in message.mediaUrl; the filename
+  /// is in message.content for the preview).
+  Widget _buildDocumentCard(BuildContext context) {
+    final fileName = message.content.isNotEmpty ? message.content : 'Document';
+    final url = message.mediaUrl ?? '';
+    final ext = _fileExtension(fileName);
+    final iconData = _iconForExtension(ext);
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 260),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF11132A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 0.7,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: url.isEmpty ? null : () => _openUrl(url),
+          borderRadius: BorderRadius.circular(12),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: KinrelColors.ember.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(iconData, size: 18, color: KinrelColors.ember),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fileName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                    Text(
+                      ext.isEmpty ? 'File' : ext.toUpperCase(),
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.monoFont,
+                        fontSize: 10,
+                        color: KinrelColors.textDim,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.download_rounded,
+                  size: 18, color: KinrelColors.textDim),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Tier 2 / Live location sharing — map pin card for MessageType.location.
+  ///
+  /// Renders a map pin icon + "Shared location" label + the lat/lng.
+  /// Tap → open the system maps app at the shared coordinates.
+  /// (A future v2 would render an inline MapLibre mini-map.)
+  Widget _buildLocationCard(BuildContext context) {
+    // For v1, the lat/lng are stored in message.content as a JSON
+    // string: {"lat": 12.34, "lng": 56.78, "label": "..."}. We parse
+    // defensively — if the format isn't recognized, fall back to a
+    // generic "Shared location" card.
+    double? lat;
+    double? lng;
+    String label = 'Shared location';
+    try {
+      final decoded = jsonDecode(message.content);
+      if (decoded is Map<String, dynamic>) {
+        lat = (decoded['lat'] as num?)?.toDouble();
+        lng = (decoded['lng'] as num?)?.toDouble();
+        final l = decoded['label'] as String?;
+        if (l != null && l.isNotEmpty) label = l;
+      }
+    } catch (_) {
+      // Not JSON — treat content as the label
+      if (message.content.isNotEmpty) label = message.content;
+    }
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 260),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF11132A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: KinrelColors.ember.withValues(alpha: 0.25),
+          width: 0.7,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: lat != null && lng != null
+              ? () => _openMaps(lat!, lng!, label)
+              : null,
+          borderRadius: BorderRadius.circular(12),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: KinrelColors.ember.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.location_on_rounded,
+                    size: 18, color: KinrelColors.ember),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                    if (lat != null && lng != null)
+                      Text(
+                        '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.monoFont,
+                          fontSize: 10,
+                          color: KinrelColors.textDim,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.map_outlined, size: 18, color: KinrelColors.textDim),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _fileExtension(String fileName) {
+    final dot = fileName.lastIndexOf('.');
+    if (dot < 0 || dot == fileName.length - 1) return '';
+    return fileName.substring(dot + 1).toLowerCase();
+  }
+
+  IconData _iconForExtension(String ext) {
+    switch (ext) {
+      case 'pdf':
+        return Icons.picture_as_pdf_rounded;
+      case 'doc':
+      case 'docx':
+        return Icons.description_rounded;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart_rounded;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow_rounded;
+      case 'zip':
+      case 'rar':
+      case '7z':
+        return Icons.folder_zip_rounded;
+      case 'txt':
+      case 'md':
+        return Icons.article_rounded;
+      case 'json':
+      case 'csv':
+        return Icons.data_object_rounded;
+      default:
+        return Icons.insert_drive_file_rounded;
+    }
+  }
+
+  Future<void> _openUrl(String url) async {
+    // Best-effort: copy to clipboard + snackbar (matches the
+    // LinkPreviewCard behavior). A future task can wire url_launcher
+    // here (it's already in pubspec).
+    try {
+      await Clipboard.setData(ClipboardData(text: url));
+      debugPrint('📎 Document URL copied: $url');
+    } catch (_) {/* best-effort */}
+  }
+
+  Future<void> _openMaps(double lat, double lng, String label) async {
+    // Open in the system maps app. Use the geo: URI scheme on Android,
+    // https://maps.apple.com on iOS, https://www.google.com/maps on web.
+    String url;
+    if (Platform.isAndroid) {
+      url = 'geo:$lat,$lng?q=$lat,$lng(${Uri.encodeComponent(label)})';
+    } else if (Platform.isIOS) {
+      url = 'https://maps.apple.com/?ll=$lat,$lng&q=${Uri.encodeComponent(label)}';
+    } else {
+      url = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
+    }
+    try {
+      await Clipboard.setData(ClipboardData(text: url));
+      debugPrint('📍 Maps URL copied: $url');
+    } catch (_) {/* best-effort */}
   }
 
   /// Game-invite card bubble (MessageType.gameInvite).

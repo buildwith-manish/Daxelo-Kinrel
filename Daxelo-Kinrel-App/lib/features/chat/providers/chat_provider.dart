@@ -25,6 +25,7 @@
 //   - Network interruption handling (optimistic UI + reconcile on reconnect)
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -41,7 +42,7 @@ import '../../presence/last_seen_provider.dart';
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Message type — drives the bubble content and layout.
-enum MessageType { text, photo, voiceNote, familyEvent, sticker, gameInvite, poll }
+enum MessageType { text, photo, voiceNote, familyEvent, sticker, gameInvite, poll, gif, document, location }
 
 /// A single emoji reaction on a message.
 class MessageReaction {
@@ -549,6 +550,12 @@ class ChatMessage {
         return MessageType.gameInvite;
       case 'poll':
         return MessageType.poll;
+      case 'gif':
+        return MessageType.gif;
+      case 'document':
+        return MessageType.document;
+      case 'location':
+        return MessageType.location;
       case 'text':
       default:
         return MessageType.text;
@@ -616,6 +623,12 @@ class ChatMessage {
         return 'gameInvite';
       case MessageType.poll:
         return 'poll';
+      case MessageType.gif:
+        return 'gif';
+      case MessageType.document:
+        return 'document';
+      case MessageType.location:
+        return 'location';
       case MessageType.text:
       default:
         return 'text';
@@ -1688,6 +1701,180 @@ class ChatNotifier extends StateNotifier<ChatState> {
           messages: withoutFailed,
           error: 'Failed to send sticker',
         );
+      }
+    }
+  }
+
+  /// Tier 2 / GIF search — send a GIF message.
+  ///
+  /// The [gifUrl] is the high-res original GIF URL from Giphy. The
+  /// [title] is stored in content for the inbox preview + accessibility.
+  Future<void> sendGif({
+    required String gifUrl,
+    required String title,
+    String? replyToId,
+  }) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) return;
+
+    final now = DateTime.now();
+    final msgId = _generateId();
+    final senderName = _currentUserName;
+
+    String? replyContent;
+    String? replySender;
+    if (replyToId != null) {
+      final replyTo = state.messages.firstWhere(
+        (m) => m.id == replyToId,
+        orElse: () => state.messages.first,
+      );
+      replyContent = replyTo.content;
+      replySender = replyTo.senderName;
+    }
+
+    final optimistic = ChatMessage(
+      id: msgId,
+      senderId: myUserId,
+      senderName: senderName,
+      content: title,
+      messageType: MessageType.gif,
+      timestamp: now,
+      isRead: false,
+      replyToId: replyToId,
+      replyToContent: replyContent,
+      replyToSenderName: replySender,
+      senderInitials: _initialsFromName(senderName),
+      mediaUrl: gifUrl,
+      messageSubType: 'gif',
+    );
+
+    _pendingOptimisticIds.add(msgId);
+    if (mounted) {
+      state = state.copyWith(
+        messages: [optimistic, ...state.messages],
+        clearReplyTo: true,
+      );
+    }
+
+    try {
+      await client.from('ChatMessage').insert(optimistic.toJson(familyId: familyId));
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendGif insert failed: $e');
+      _pendingOptimisticIds.remove(msgId);
+      if (mounted) {
+        final withoutFailed = state.messages.where((m) => m.id != msgId).toList();
+        state = state.copyWith(messages: withoutFailed, error: 'Failed to send GIF');
+      }
+    }
+  }
+
+  /// Tier 2 / Document attachments — send a document message.
+  ///
+  /// The [documentUrl] is the storage URL of the uploaded file. The
+  /// [fileName] is stored in content for the bubble preview + inbox.
+  /// The [fileSize] (bytes) is optional — used for the inbox preview
+  /// ("Document · 1.2 MB").
+  Future<void> sendDocument({
+    required String documentUrl,
+    required String fileName,
+    int? fileSize,
+    String? replyToId,
+  }) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) return;
+
+    final now = DateTime.now();
+    final msgId = _generateId();
+    final senderName = _currentUserName;
+
+    final optimistic = ChatMessage(
+      id: msgId,
+      senderId: myUserId,
+      senderName: senderName,
+      content: fileName,
+      messageType: MessageType.document,
+      timestamp: now,
+      isRead: false,
+      senderInitials: _initialsFromName(senderName),
+      mediaUrl: documentUrl,
+      messageSubType: 'document',
+    );
+
+    _pendingOptimisticIds.add(msgId);
+    if (mounted) {
+      state = state.copyWith(
+        messages: [optimistic, ...state.messages],
+        clearReplyTo: true,
+      );
+    }
+
+    try {
+      await client.from('ChatMessage').insert(optimistic.toJson(familyId: familyId));
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendDocument insert failed: $e');
+      _pendingOptimisticIds.remove(msgId);
+      if (mounted) {
+        final withoutFailed = state.messages.where((m) => m.id != msgId).toList();
+        state = state.copyWith(messages: withoutFailed, error: 'Failed to send document');
+      }
+    }
+  }
+
+  /// Tier 2 / Live location sharing — send a location message.
+  ///
+  /// The [lat] / [lng] + optional [label] are stored in content as a
+  /// JSON string (parsed by the bubble renderer). No mediaUrl — the
+  /// card opens the system maps app at the shared coordinates.
+  Future<void> sendLocation({
+    required double lat,
+    required double lng,
+    String? label,
+    String? replyToId,
+  }) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) return;
+
+    final now = DateTime.now();
+    final msgId = _generateId();
+    final senderName = _currentUserName;
+
+    final contentJson = jsonEncode({
+      'lat': lat,
+      'lng': lng,
+      'label': label ?? 'Shared location',
+    });
+
+    final optimistic = ChatMessage(
+      id: msgId,
+      senderId: myUserId,
+      senderName: senderName,
+      content: contentJson,
+      messageType: MessageType.location,
+      timestamp: now,
+      isRead: false,
+      senderInitials: _initialsFromName(senderName),
+      messageSubType: 'location',
+    );
+
+    _pendingOptimisticIds.add(msgId);
+    if (mounted) {
+      state = state.copyWith(
+        messages: [optimistic, ...state.messages],
+        clearReplyTo: true,
+      );
+    }
+
+    try {
+      await client.from('ChatMessage').insert(optimistic.toJson(familyId: familyId));
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendLocation insert failed: $e');
+      _pendingOptimisticIds.remove(msgId);
+      if (mounted) {
+        final withoutFailed = state.messages.where((m) => m.id != msgId).toList();
+        state = state.copyWith(messages: withoutFailed, error: 'Failed to share location');
       }
     }
   }
