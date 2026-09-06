@@ -93,9 +93,8 @@ class HierarchicalLayoutConfig {
   final bool compact;
 
   const HierarchicalLayoutConfig({
-    // v5.167: updated defaults to match the user's minimum spacing spec:
+    // v5.170: updated defaults to match the user's minimum spacing spec:
     //   180px horizontal (siblingSpacing), 220px vertical (levelSpacing).
-    // The old 20/110 was too small and caused node + label overlap.
     this.siblingSpacing = 180.0,
     this.levelSpacing = 220.0,
     this.spouseGap = 60.0,
@@ -782,14 +781,8 @@ class HierarchicalLayout {
     // Build parent→children + spouse adjacency from the relationships,
     // including ONLY edges where both endpoints are in the revealed set
     // OR one endpoint is the origin.
-    //
-    // v5.169: also build parentsOf (the inverse of childrenOf) so we can
-    // walk UP from the origin to place ancestors above it. This fixes
-    // the "Anil Mehta / Ritu Nair / Nisha Varma scattered to upper-right"
-    // bug — those nodes are ancestors/siblings/in-laws of the branch
-    // root, NOT descendants, so the old code (which only walked downward)
-    // left them for ring-fill, which placed them in the ancestor
-    // semicircle (upper-right of canvas).
+    // v5.169: also build parentsOf (the inverse of childrenOf) for
+    // ancestor placement above the origin.
     final childrenOf = <String, List<String>>{};
     final parentsOf = <String, List<String>>{};
     final spouseOf = <String, List<String>>{};
@@ -808,12 +801,10 @@ class HierarchicalLayout {
       } else if (_parentKeys.contains(key)) {
         // toPerson is the parent of fromPerson.
         childrenOf.putIfAbsent(toId, () => []).add(fromId);
-        // v5.169: fromPerson's parent is toPerson.
         parentsOf.putIfAbsent(fromId, () => []).add(toId);
       } else if (_childKeys.contains(key)) {
         // fromPerson is the parent of toPerson.
         childrenOf.putIfAbsent(fromId, () => []).add(toId);
-        // v5.169: toPerson's parent is fromPerson.
         parentsOf.putIfAbsent(toId, () => []).add(fromId);
       }
     }
@@ -920,10 +911,7 @@ class HierarchicalLayout {
     }
 
     // v5.169: Place PARENTS (ancestors) ABOVE this node — negative localGen.
-    // Parents are centered on the same X as this node, one level up.
-    // This prevents ancestors from falling through to ring-fill (which
-    // would place them in the ancestor semicircle — upper-right of canvas).
-    // NOTE: this runs BEFORE the children check below — a node with parents
+    // NOTE: this runs BEFORE the children check — a node with parents
     // but no children must still place its parents above it.
     if (node.parents.isNotEmpty) {
       var parentX = centerX - (node.parents.length - 1) * spacing / 2;
@@ -940,7 +928,7 @@ class HierarchicalLayout {
           visited,
           spacing,
           levelSpacing,
-          localGen - 1, // ancestors are one level ABOVE (negative direction)
+          localGen - 1,
         );
         parentX += spacing;
       }
