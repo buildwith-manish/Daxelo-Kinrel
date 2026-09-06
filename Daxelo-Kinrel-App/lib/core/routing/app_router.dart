@@ -70,6 +70,7 @@ import '../../features/family/presentation/add_person_sheet.dart';
 import '../../features/family/presentation/relationship_builder_screen.dart';
 import '../../features/family/presentation/family_graph_screen.dart';
 import '../../features/family/presentation/family_members_screen.dart';
+import '../../features/family/presentation/family_profile_screen.dart';
 import '../../features/family/presentation/family_activity_screen.dart';
 import '../../features/family/presentation/family_chat_list_screen.dart';
 import '../../features/shared_list/presentation/shared_list_screen.dart';
@@ -1061,6 +1062,21 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: FamilyMembersScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+
+      // Phase 22 / Header Nav Fix: Family Profile — a dedicated,
+      // profile-style view of a FAMILY (not an individual member).
+      // Reached by tapping the chat header in a family chat. Distinct
+      // from /family/:id (Family Space dashboard) and from
+      // MemberProfileSheet (a single member's profile, reached by
+      // tapping a member's avatar INSIDE the chat thread).
+      GoRoute(
+        path: '/family/:id/profile',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FamilyProfileScreen(
+              familyId: state.pathParameters['id']!),
         ),
       ),
 
