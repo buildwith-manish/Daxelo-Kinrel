@@ -761,9 +761,17 @@ class RadialLayout {
     // NOT in previousPositions, OR those whose previous position is
     // now occupied by another node) get pushed. This is the "expand
     // only the local area, don't reposition everything" fix.
-    final settledNodeIds = preservePositions && previousPositions != null
-        ? previousPositions.keys.toSet()
-        : null;
+    //
+    // v5.165 (ANCHOR PINNING): the anchor is ALWAYS settled — it must
+    // NEVER be moved by the de-overlap pass, even during initial layout
+    // (preservePositions=false). Without this, the anchor can be pushed
+    // off-center by the more aggressive 180px/220px axis-aligned overlap
+    // detection when many nodes cluster on ring 1. Adding the anchor to
+    // settledNodeIds ensures `aSettled || bSettled` is true for any pair
+    // involving the anchor, so the anchor stays at the canvas center.
+    final settledNodeIds = (preservePositions && previousPositions != null)
+        ? (previousPositions.keys.toSet()..add(anchor.id))
+        : ({anchor.id});
 
     // v5.164 (SECTOR CONTAINMENT): compute each node's assigned angle
     // from its current position relative to the canvas center. This
@@ -1114,30 +1122,25 @@ class RadialLayout {
     // Skip if fewer than 2 nodes — can't overlap.
     if (positions.length < 2) return;
 
-    // v5.153: node diameter (72) + 48px padding = 120px minimum distance.
-    // The old 96px (24px padding) was too small — labels extend ~20px
-    // below the node, so 24px edge-to-edge meant labels overlapped.
-    // 48px padding gives enough room for labels + breathing space.
+    // v5.165 (MINIMUM SPACING): separate horizontal and vertical minimums
+    // per the user's explicit spec:
+    //   Horizontal: >= 180px (prevents node + label overlap side-by-side)
+    //   Vertical:   >= 220px (prevents node + label overlap row-to-row,
+    //               accounts for 4-line labels extending below the circle)
     //
-    // v5.161: increased to 132 (72 + 60 padding) to give an even more
-    // comfortable gap — labels can be up to 4 lines and the extra 12px
-    // prevents the bottom of one label from touching the top of the
-    // next-row node's circle. Per the user's request: "no two nodes
-    // (or their labels) should ever render close enough to overlap,
-    // regardless of how many branches are expanded."
-    const minDistance = 132.0;
-    const minDistanceSq = minDistance * minDistance;
+    // The overlap check is now AXIS-ALIGNED (not Euclidean): two nodes
+    // overlap if AND ONLY IF |dx| < minHorizontal AND |dy| < minVertical.
+    // The push is along the axis with the SMALLER overlap (the axis
+    // needing less displacement to resolve). This produces cleaner
+    // horizontal rows and vertical columns than Euclidean pushes.
+    const minHorizontal = 180.0;
+    const minVertical = 220.0;
 
     // v5.164 (DISPLACEMENT CAP REMOVED): the original v5.164 work added
     // a maxDisplacement cap (108px) to prevent long-distance relocation.
-    // However, this conflicts with the minimum spacing guarantee
-    // (v5.161 CRITERION 2) when a ring is too small for its node count:
-    // 30 nodes on a 3770px-circumference ring need 3960px at 132px min
-    // distance — the cap prevents nodes from being pushed to wider rings
-    // where there's enough arc. The SECTOR CONTAINMENT (tangent push)
-    // is the real fix for cross-branch drift — it already prevents nodes
-    // from flying sideways into a different branch's territory. The cap
-    // was redundant with sector containment and too restrictive. Removed.
+    // However, this conflicts with the minimum spacing guarantee.
+    // The SECTOR CONTAINMENT (tangent push) is the real fix for
+    // cross-branch drift. Removed.
     // const maxDisplacement = 108.0;
 
     // v5.164: only apply sector containment when we have BOTH the center
@@ -1173,9 +1176,17 @@ class RadialLayout {
           final b = positions[idB]!;
           final dx = b.dx - a.dx;
           final dy = b.dy - a.dy;
-          final distSq = dx * dx + dy * dy;
 
-          if (distSq < minDistanceSq) {
+          // v5.165 (AXIS-ALIGNED OVERLAP): two nodes overlap if AND
+          // ONLY IF |dx| < minHorizontal AND |dy| < minVertical. This
+          // is a bounding-box check, not Euclidean — it enforces the
+          // user's explicit 180px H / 220px V spacing requirements.
+          final absDx = dx.abs();
+          final absDy = dy.abs();
+          final hOverlap = minHorizontal - absDx;
+          final vOverlap = minVertical - absDy;
+
+          if (hOverlap > 0 && vOverlap > 0) {
             // Determine which (if any) of the two nodes is settled.
             final aSettled = settledNodeIds?.contains(idA) ?? false;
             final bSettled = settledNodeIds?.contains(idB) ?? false;
@@ -1185,48 +1196,32 @@ class RadialLayout {
             if (aSettled && bSettled) continue;
 
             overlapsFound = true;
+
+            // v5.165: push along the axis with the SMALLER overlap
+            // (the axis needing less displacement to resolve). This
+            // produces cleaner rows/columns than pushing diagonally.
+            final pushHorizontal = hOverlap <= vOverlap;
+
             if (dx.abs() < 0.01 && dy.abs() < 0.01) {
               // Exact same position — nudge B in X (fallback).
               if (aSettled) {
-                positions[idB] = Offset(b.dx + minDistance, b.dy);
+                positions[idB] = Offset(b.dx + minHorizontal, b.dy);
               } else if (bSettled) {
-                positions[idA] = Offset(a.dx - minDistance, a.dy);
+                positions[idA] = Offset(a.dx - minHorizontal, a.dy);
               } else {
-                positions[idB] = Offset(b.dx + minDistance, b.dy);
+                positions[idB] = Offset(b.dx + minHorizontal, b.dy);
               }
-            } else {
-              final dist = sqrt(max(distSq, 0.01));
-              final ux = dx / dist; // unit vector A→B
-              final uy = dy / dist;
-              final overlap = minDistance - dist;
-              // v5.164: displacement cap removed (see comment above).
-              // Sector containment (tangent push) is the real fix for
-              // cross-branch drift; the cap was redundant and conflicted
-              // with the minimum spacing guarantee on dense rings.
-              final push = overlap / 2 + 2.0;
-
+            } else if (pushHorizontal) {
+              // Push along X axis — resolve horizontal overlap.
+              final sign = dx >= 0 ? 1.0 : -1.0;
+              final push = hOverlap / 2 + 2.0;
               if (useSectorContainment) {
-                // v5.164 (SECTOR CONTAINMENT): project the push onto
-                // each node's TANGENT (perpendicular to its radius).
-                // This slides the node along its assigned ring instead
-                // of flying sideways into a different branch's sector.
-                //
-                // For each node, the tangent direction at its current
-                // angle θ is (-sin θ, cos θ) (90° CCW from radial).
-                // The radial direction (outward) is (cos θ, sin θ).
-                //
-                // Strategy: push the node along the tangent by the
-                // component of (ux,uy)*push that aligns with the
-                // tangent. If the tangent component is too small
-                // (< 30% of the needed push), also push radially
-                // outward to widen the ring — the node stays in its
-                // angular sector but moves further out.
                 _pushNodeWithSectorContainment(
                   positions: positions,
                   nodeId: idA,
                   currentPos: a,
-                  pushDx: -ux * push, // A pushed AWAY from B
-                  pushDy: -uy * push,
+                  pushDx: -sign * push,
+                  pushDy: 0.0,
                   center: center,
                   sectorAngles: nodeSectorAngles,
                   settled: aSettled,
@@ -1235,29 +1230,55 @@ class RadialLayout {
                   positions: positions,
                   nodeId: idB,
                   currentPos: b,
-                  pushDx: ux * push, // B pushed AWAY from A
-                  pushDy: uy * push,
+                  pushDx: sign * push,
+                  pushDy: 0.0,
                   center: center,
                   sectorAngles: nodeSectorAngles,
                   settled: bSettled,
                 );
               } else {
-                // v5.161 original: no sector data → free-axis push.
-                if (aSettled && bSettled) {
-                  continue;
-                } else if (aSettled) {
-                  positions[idB] = Offset(
-                    b.dx + ux * push * 2,
-                    b.dy + uy * push * 2,
-                  );
+                if (aSettled) {
+                  positions[idB] = Offset(b.dx + sign * push * 2, b.dy);
                 } else if (bSettled) {
-                  positions[idA] = Offset(
-                    a.dx - ux * push * 2,
-                    a.dy - uy * push * 2,
-                  );
+                  positions[idA] = Offset(a.dx - sign * push * 2, a.dy);
                 } else {
-                  positions[idA] = Offset(a.dx - ux * push, a.dy - uy * push);
-                  positions[idB] = Offset(b.dx + ux * push, b.dy + uy * push);
+                  positions[idA] = Offset(a.dx - sign * push, a.dy);
+                  positions[idB] = Offset(b.dx + sign * push, b.dy);
+                }
+              }
+            } else {
+              // Push along Y axis — resolve vertical overlap.
+              final sign = dy >= 0 ? 1.0 : -1.0;
+              final push = vOverlap / 2 + 2.0;
+              if (useSectorContainment) {
+                _pushNodeWithSectorContainment(
+                  positions: positions,
+                  nodeId: idA,
+                  currentPos: a,
+                  pushDx: 0.0,
+                  pushDy: -sign * push,
+                  center: center,
+                  sectorAngles: nodeSectorAngles,
+                  settled: aSettled,
+                );
+                _pushNodeWithSectorContainment(
+                  positions: positions,
+                  nodeId: idB,
+                  currentPos: b,
+                  pushDx: 0.0,
+                  pushDy: sign * push,
+                  center: center,
+                  sectorAngles: nodeSectorAngles,
+                  settled: bSettled,
+                );
+              } else {
+                if (aSettled) {
+                  positions[idB] = Offset(b.dx, b.dy + sign * push * 2);
+                } else if (bSettled) {
+                  positions[idA] = Offset(a.dx, a.dy - sign * push * 2);
+                } else {
+                  positions[idA] = Offset(a.dx, a.dy - sign * push);
+                  positions[idB] = Offset(b.dx, b.dy + sign * push);
                 }
               }
             }

@@ -138,23 +138,26 @@ void main() {
         anchorPersonId: 'anchor',
       );
 
-      // Check EVERY pair of nodes — minimum distance must be ≥ 132.
-      const minDistance = 132.0;
+      // Check EVERY pair of nodes — minimum axis-aligned spacing must
+      // satisfy 180px horizontal OR 220px vertical (v5.165 spec).
+      // Two nodes overlap only when BOTH |dx| < 180 AND |dy| < 220.
+      // After de-overlap, every pair must have |dx| >= 180 OR |dy| >= 220.
+      const minH = 180.0;
+      const minV = 220.0;
       final ids = result.positions.keys.toList();
-      var minFound = double.infinity;
+      var violations = 0;
       for (var i = 0; i < ids.length; i++) {
         for (var j = i + 1; j < ids.length; j++) {
           final a = result.positions[ids[i]]!;
           final b = result.positions[ids[j]]!;
-          final dx = b.dx - a.dx;
-          final dy = b.dy - a.dy;
-          final dist = sqrt(dx * dx + dy * dy);
-          if (dist < minFound) minFound = dist;
+          final dx = (b.dx - a.dx).abs();
+          final dy = (b.dy - a.dy).abs();
+          if (dx < minH && dy < minV) violations++;
         }
       }
-      expect(minFound, greaterThanOrEqualTo(minDistance),
-          reason: 'Every pair of nodes must be at least $minDistance dp '
-              'apart so labels never overlap. Found min=$minFound.');
+      expect(violations, 0,
+          reason: 'No two nodes may overlap the 180px H / 220px V bounding '
+              'box. Found $violations overlapping pairs.');
     });
 
     test(

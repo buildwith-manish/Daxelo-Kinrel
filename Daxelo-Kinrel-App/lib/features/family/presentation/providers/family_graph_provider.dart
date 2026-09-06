@@ -55,6 +55,9 @@ import '../../../../graph/interaction/branch_collapse_state.dart'
 // v5.123 (Step 1): disclosure level drives the force-relaxation opt-in.
 import '../../../../graph/interaction/expand_collapse.dart'
     show expandCollapseProvider, DisclosureLevel;
+// v5.165 (LAYOUT VALIDATION): post-expand validation pass.
+import '../../../../graph/engine/layout_validator.dart'
+    show LayoutValidator, ValidationEdge;
 // v5.163 (TREE REMOVAL): the `familyTreeProvider` import + realtime
 // invalidation call were removed when the Tree tab was deleted from
 // Family Space. The Graph view is now the only renderer; the realtime
@@ -2332,6 +2335,25 @@ final graphLayoutProvider =
   if (result.positions.isNotEmpty) {
     ref.read(_lastLayoutPositionsProvider(familyId).notifier).state =
         result.positions;
+  }
+
+  // v5.165 (LAYOUT VALIDATION): run the post-expand validation pass.
+  // This checks for: overlapping nodes, disconnected visible nodes,
+  // hidden edge endpoints, generation violations, and edge-node
+  // intersections. Logs warnings when violations are found — the
+  // caller can use the results to trigger a reroute or spacing
+  // increase. This is a DIAGNOSTIC pass — it does NOT mutate the layout.
+  if (result.positions.isNotEmpty && visibleIds.isNotEmpty) {
+    // Build a simple ValidationEdge list from the proximity relationships.
+    final validationEdges = <ValidationEdge>[
+      for (final r in proximityRelationships)
+        (sourceId: r.fromPersonId, targetId: r.toPersonId),
+    ];
+    LayoutValidator.validate(
+      positions: result.positions,
+      visibleIds: visibleIds,
+      edges: validationEdges,
+    );
   }
 
   return result;

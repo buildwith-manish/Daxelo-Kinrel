@@ -972,10 +972,26 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         // causing "dangling" lines that went to positions with no
         // rendered circle.
         if (edges.isNotEmpty) {
-          final nodesWithEdges = <String>{};
+          // v5.165 (UNLINKED NODE FIX): only count edges where BOTH
+          // endpoints have positions — the painter drops edges where
+          // either endpoint is positionless (line 1008: `if (s == null
+          // || t == null) continue;`). The old lifeguard included ALL
+          // edges in `nodesWithEdges`, so a visible node whose only
+          // edge went to a positionless node was SKIPPED by the
+          // lifeguard (it appeared in `nodesWithEdges`) but then had
+          // NO drawn edge (the painter dropped it). Result: the
+          // "unlinked visible node" bug (e.g. Gita Iyer).
+          //
+          // Fix: only count DRAWABLE edges (both endpoints positioned).
+          final nodesWithDrawableEdges = <String>{};
           for (final deduped in edges) {
-            nodesWithEdges.add(deduped.edge.sourceId);
-            nodesWithEdges.add(deduped.edge.targetId);
+            final s = deduped.edge.sourceId;
+            final t = deduped.edge.targetId;
+            if (effectivePositions.containsKey(s) &&
+                effectivePositions.containsKey(t)) {
+              nodesWithDrawableEdges.add(s);
+              nodesWithDrawableEdges.add(t);
+            }
           }
           // v5.143 (HIDDEN-NODE AUDIT): Use _filteredGraph adjacency
           // for the lifeguard safeguard instead of iterating
@@ -989,7 +1005,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
           // path only runs when a visible node has NO visible-to-
           // visible edge, which is rare (typically only 0-2 nodes).
           for (final visibleId in visible) {
-            if (nodesWithEdges.contains(visibleId)) continue;
+            if (nodesWithDrawableEdges.contains(visibleId)) continue;
             // O(1) lookup: does this node have any visible neighbor?
             String? bestTarget;
             final adj = _filteredGraph.adjacencyByVisibleId[visibleId];
@@ -1046,8 +1062,8 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 lateralOffset: 0.0,
                 parallelCount: 1,
               ));
-              nodesWithEdges.add(visibleId);
-              nodesWithEdges.add(bestTarget);
+              nodesWithDrawableEdges.add(visibleId);
+              nodesWithDrawableEdges.add(bestTarget);
             }
           }
         }
