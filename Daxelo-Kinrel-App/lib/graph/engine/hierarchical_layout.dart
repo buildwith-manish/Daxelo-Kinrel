@@ -93,9 +93,12 @@ class HierarchicalLayoutConfig {
   final bool compact;
 
   const HierarchicalLayoutConfig({
-    this.siblingSpacing = 20.0,
-    this.levelSpacing = 110.0,
-    this.spouseGap = 8.0,
+    // v5.167: updated defaults to match the user's minimum spacing spec:
+    //   180px horizontal (siblingSpacing), 220px vertical (levelSpacing).
+    // The old 20/110 was too small and caused node + label overlap.
+    this.siblingSpacing = 180.0,
+    this.levelSpacing = 220.0,
+    this.spouseGap = 60.0,
     this.padding = 60.0,
     this.nodeWidth = 120.0,
     this.nodeHeight = 72.0,

@@ -167,6 +167,19 @@ class RadialLayout {
     'biological_son', 'biological_daughter',
   };
 
+  /// v5.167: Sibling labels — when labelAtoB is one of these, the edge
+  /// connects two people at the SAME generation (not parent→child).
+  /// Used to skip sibling edges in the local expansion grouping —
+  /// siblings should NOT be placed as children (one generation below);
+  /// they should stay at the same level as the node they're siblings with.
+  /// Matches HierarchicalLayout._siblingLabels.
+  static const Set<String> _siblingLabels = {
+    'sibling', 'brother', 'sister',
+    'half_brother', 'half_sister', 'halfbrother', 'halfsister',
+    'step_brother', 'step_sister', 'stepbrother', 'stepsister',
+    'elder_brother', 'elder_sister', 'younger_brother', 'younger_sister',
+  };
+
   // ── Public API ────────────────────────────────────────────────────
 
   /// Compute the radial layout for the given graph data.
@@ -440,15 +453,32 @@ class RadialLayout {
       final newIds = currentIds.difference(positions.keys.toSet())
           ..remove(anchor.id);
       if (newIds.isNotEmpty) {
-        // Group new nodes by their settled parent.
-        final parentKeys = _parentKeys; // from HierarchicalLayout
+        // v5.167 (LABEL FIX): use labelAtoB (the SPECIFIC label like
+        // 'son', 'daughter', 'father') instead of relationshipKey (which
+        // is ALWAYS 'parent' for non-spouse edges due to the DB's
+        // relationship_fundamental_edge_check constraint). Without this
+        // fix, ALL edges match _parentKeys.contains('parent') → true,
+        // so EVERY edge is treated as "toPerson is parent of fromPerson"
+        // — even when labelAtoB='son' (meaning fromPerson IS the parent
+        // and toPerson IS the child). This caused children to be placed
+        // in the wrong direction relative to their parent.
+        //
+        // Also: skip sibling edges (labelAtoB='brother'/'sister') —
+        // siblings are SAME-generation, not parent-child. Treating a
+        // sibling as a child would place them one generation below,
+        // creating a wrong hierarchy.
+        final parentKeys = _parentKeys;
         final childKeys = _childKeys;
+        final siblingLabels = _siblingLabels;
         final groupsByOrigin = <String, Set<String>>{};
         for (final r in relationships) {
           final fromId = r.fromPersonId;
           final toId = r.toPersonId;
           if (!newIds.contains(fromId) && !newIds.contains(toId)) continue;
-          final key = r.relationshipKey.toLowerCase();
+          // v5.167: use labelAtoB (SPECIFIC) not relationshipKey (always 'parent').
+          final key = (r.labelAtoB ?? r.relationshipKey).toLowerCase();
+          // Skip sibling edges — they're same-generation, not parent-child.
+          if (siblingLabels.contains(key)) continue;
           String? parentId;
           String? childId;
           if (parentKeys.contains(key)) {
@@ -462,10 +492,8 @@ class RadialLayout {
           } else {
             continue;
           }
-          // Only group if the parent is settled (already placed).
-          // (parentId and childId are always non-null here — the
-          // `else { continue; }` above skips when neither parent nor
-          // child key matches.)
+          // Only group if the parent is settled (already placed) and
+          // the child is a new node.
           if (newIds.contains(childId) && positions.containsKey(parentId)) {
             groupsByOrigin.putIfAbsent(parentId, () => <String>{}).add(childId);
           }
