@@ -27,10 +27,11 @@
 // isolation. Same approach as mention_picker.dart.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/brand_colors.dart';
-import '../../../core/constants/brand_typography.dart';
-import '../providers/chat_provider.dart';
+import '../../../../core/constants/brand_colors.dart';
+import '../../../../core/constants/brand_typography.dart';
+import '../../providers/chat_provider.dart';
 
 class PollCard extends ConsumerWidget {
   const PollCard({

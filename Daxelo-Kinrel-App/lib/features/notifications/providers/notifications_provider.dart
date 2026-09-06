@@ -593,6 +593,8 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         return 0xFFE91E63; // pink (heart)
       case NotificationType.invitationAccepted:
         return 0xFF4CAF7A; // green
+      case NotificationType.chatMention:
+        return 0xFFE8612A; // Kinrel orange (same as family chat accent)
     }
   }
 

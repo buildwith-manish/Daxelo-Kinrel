@@ -3477,7 +3477,7 @@ class _MessageBubble extends ConsumerWidget {
                           if (!isMe && !isSticker && isFirstInGroup)
                             _buildSenderName(ref),
                           // Message content
-                          _buildMessageContent(context),
+                          _buildMessageContent(context, ref, currentUserId),
                           // v127: Inline timestamp only on last-in-group
                           if (!isSticker && isLastInGroup) _buildTimeRow(),
                           if (isSticker) _buildStickerTimeRow(),
@@ -3632,7 +3632,7 @@ class _MessageBubble extends ConsumerWidget {
     );
   }
 
-  Widget _buildMessageContent(BuildContext context) {
+  Widget _buildMessageContent(BuildContext context, WidgetRef ref, String? currentUserId) {
     switch (message.messageType) {
       case MessageType.text:
         // v131: Premium typography — comfortable line height (1.5),

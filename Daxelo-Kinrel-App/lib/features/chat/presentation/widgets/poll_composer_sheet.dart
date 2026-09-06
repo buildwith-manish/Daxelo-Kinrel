@@ -18,9 +18,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/brand_colors.dart';
-import '../../../core/constants/brand_typography.dart';
-import '../providers/chat_provider.dart';
+import '../../../../core/constants/brand_colors.dart';
+import '../../../../core/constants/brand_typography.dart';
+import '../../providers/chat_provider.dart';
 
 class PollComposerSheet extends ConsumerStatefulWidget {
   const PollComposerSheet({
@@ -48,9 +48,9 @@ class PollComposerSheet extends ConsumerStatefulWidget {
           top: Radius.circular(20),
         ),
       ),
-      builder: (_) => Padding(
+      builder: (sheetContext) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(_).viewInsets.bottom,
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
         ),
         child: PollComposerSheet(
           familyId: familyId,
