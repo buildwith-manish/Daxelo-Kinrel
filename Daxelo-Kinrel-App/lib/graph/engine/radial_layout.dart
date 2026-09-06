@@ -1529,15 +1529,23 @@ class RadialLayout {
         // DESCENDANT of the anchor (+1).
         // Child-type key → anchor is person's child → person is an
         // ANCESTOR of the anchor (-1).
-        if (_parentKeys.contains(r.relationshipKey)) return 1;
-        if (_childKeys.contains(r.relationshipKey)) return -1;
+        // v5.171: use labelAtoB (SPECIFIC label like 'father', 'son')
+        // instead of relationshipKey (always 'parent' for non-spouse
+        // edges due to the DB constraint). Without this, ALL edges
+        // match _parentKeys.contains('parent') → true, causing the
+        // WRONG direction to be returned — descendants placed in the
+        // ancestor semicircle (top-right) and vice versa.
+        final key = (r.labelAtoB ?? r.relationshipKey).toLowerCase();
+        if (_parentKeys.contains(key)) return 1;
+        if (_childKeys.contains(key)) return -1;
       }
       if (isAnchorToPerson) {
         // anchor → person with key X: the PERSON is the X of anchor.
         // Parent-type key → person is anchor's parent → ANCESTOR (-1).
         // Child-type key → person is anchor's child → DESCENDANT (+1).
-        if (_parentKeys.contains(r.relationshipKey)) return -1;
-        if (_childKeys.contains(r.relationshipKey)) return 1;
+        final key = (r.labelAtoB ?? r.relationshipKey).toLowerCase();
+        if (_parentKeys.contains(key)) return -1;
+        if (_childKeys.contains(key)) return 1;
       }
     }
     // Default: same generation (spouse, sibling, in-law, etc.)

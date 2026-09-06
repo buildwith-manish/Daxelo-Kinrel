@@ -690,6 +690,16 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         final densityCandidates = effectivePositions.keys
             .where((id) => allowed.contains(id))
             .toSet();
+        // v5.171 (AUTO-COLLAPSE FIX): include proximityState.visibleIds
+        // in the density candidates so that nodes the user has EXPLICITLY
+        // revealed (via branch expansion) are NEVER treated as "hidden"
+        // by computeDensityCollapse — even if they don't have positions
+        // yet (because the layout hasn't recomputed). Without this, the
+        // density collapse re-collapses expanded branches during the
+        // async gap between revealPersons and graphLayoutProvider recompute
+        // — the "branch expands then collapses after a few seconds" bug.
+        final proximityVisibleIds = ref.read(proximityGraphProvider).visibleIds;
+        densityCandidates.addAll(proximityVisibleIds);
         ref.read(branchCollapseProvider.notifier).computeDensityCollapse(
           visibleNodeIds: densityCandidates,
           childrenOf: childrenOfAdj,

@@ -73,7 +73,7 @@ const int kMaxNodesPerExpansion = 15;
 /// dozens of open branches at the same time."
 ///
 /// Set to 0 to disable the cap entirely (no auto-collapse).
-const int kMaxSimultaneouslyExpandedBranches = 6;
+const int kMaxSimultaneouslyExpandedBranches = 0;
 
 /// v5.159 (TRAVERSAL SAFETY): Hard upper bound on the number of queue
 /// pops any single graph traversal in this file may perform. Acts as a
