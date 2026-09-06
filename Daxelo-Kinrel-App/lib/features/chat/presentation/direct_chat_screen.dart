@@ -29,6 +29,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../profile/presentation/member_profile_sheet.dart';
 import '../data/chat_wallpaper_provider.dart';
 import '../data/wallpaper_picker.dart';
 import '../data/direct_message_provider.dart';
@@ -283,65 +284,83 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
         ),
         title: Row(
           children: [
-            // Avatar
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: KinrelColors.orange.withValues(alpha: 0.15),
-              ),
-              child: peer?.avatarUrl != null &&
-                      peer!.avatarUrl!.isNotEmpty
-                  ? ClipOval(
-                      child: Image.network(
-                        peer.avatarUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Center(
-                          child: Text(
-                            peer.initials,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: KinrelColors.orange,
+            // Phase 22 / Header Nav Fix: The entire profile area
+            // (avatar + name + "Private chat" status) is wrapped in a
+            // single GestureDetector that opens the peer's profile via
+            // MemberProfileSheet. This matches the user's requirement
+            // that tapping anywhere in the chat header's profile
+            // information area should open the user's profile, not
+            // navigate elsewhere. The wallpaper PopupMenuButton below
+            // is a separate action and is not affected.
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => MemberProfileSheet.show(context, widget.otherUserId),
+              child: Row(
+                children: [
+                  // Avatar
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: KinrelColors.orange.withValues(alpha: 0.15),
+                    ),
+                    child: peer?.avatarUrl != null &&
+                            peer!.avatarUrl!.isNotEmpty
+                        ? ClipOval(
+                            child: Image.network(
+                              peer.avatarUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Center(
+                                child: Text(
+                                  peer.initials,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: KinrelColors.orange,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: Text(
+                              peer?.initials ?? '?',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: KinrelColors.orange,
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                    )
-                  : Center(
-                      child: Text(
-                        peer?.initials ?? '?',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: KinrelColors.orange,
-                        ),
-                      ),
-                    ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    peer?.name ?? 'Loading…',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.displayFont,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: KinrelColors.textWhite,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  Text(
-                    'Private chat',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 11,
-                      color: KinrelColors.textDim,
+                  const SizedBox(width: 10),
+                  // Expanded so a long peer name ellipsizes instead of
+                  // overflowing the AppBar's title slot.
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          peer?.name ?? 'Loading…',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.displayFont,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: KinrelColors.textWhite,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          'Private chat',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 11,
+                            color: KinrelColors.textDim,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

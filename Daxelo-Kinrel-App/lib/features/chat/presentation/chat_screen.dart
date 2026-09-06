@@ -745,10 +745,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // so it feels like the visual anchor of the header.
                 // Double-ring framing: outer hairline ember ring + inner
                 // image. This is the Kinrel signature avatar treatment.
-                // v135: Tapping navigates to the Family Hub (intermediate
-                // screen), NOT the Family Space directly.
+                //
+                // Phase 22 / Header Nav Fix: Tapping the avatar now opens
+                // a member's profile (via _openProfileFromHeader) instead
+                // of navigating to the Family Space. The Family Space is
+                // reachable via the relationship chip ("Family · N") below
+                // the name, which is a separate tap target.
                 GestureDetector(
-                  onTap: () => context.push('/family/${widget.familyId}'),
+                  onTap: _openProfileFromHeader,
                   child: Container(
                     width: 48,
                     height: 48,
@@ -812,10 +816,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // ── Identity + relationship + status column ───────────
                 // Visual hierarchy: name (primary) → relationship chip
                 // (Kinrel signature) → presence status (supporting).
+                //
+                // Phase 22 / Header Nav Fix: The outer GestureDetector wraps
+                // the name + presence status ("1 active") and routes to
+                // _openProfileFromHeader (a member's profile). The
+                // relationship chip ("Family · N") has its own
+                // GestureDetector inside that routes to the Family Space,
+                // so tapping the chip doesn't trigger the outer handler.
                 Expanded(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () => context.push('/family/${widget.familyId}'),
+                    onTap: _openProfileFromHeader,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
@@ -847,45 +858,60 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             // connection. This is the unique Kinrel
                             // element that distinguishes the header
                             // from standard messaging apps.
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2.5),
-                              decoration: BoxDecoration(
-                                color: KinrelColors.ember
-                                    .withValues(alpha: 0.10),
-                                borderRadius: BorderRadius.circular(100),
-                                border: Border.all(
+                            //
+                            // Phase 22 / Header Nav Fix: This chip is a
+                            // SEPARATE tap target from the surrounding
+                            // name+status column. Tapping the chip opens
+                            // the Family Space (the family detail/hub
+                            // screen); tapping anywhere else in the
+                            // header's profile area opens a member's
+                            // profile. The inner GestureDetector with
+                            // HitTestBehavior.opaque captures the tap
+                            // before the outer GestureDetector can fire.
+                            GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () =>
+                                  context.push('/family/${widget.familyId}'),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2.5),
+                                decoration: BoxDecoration(
                                   color: KinrelColors.ember
-                                      .withValues(alpha: 0.30),
-                                  width: 0.6,
+                                      .withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(100),
+                                  border: Border.all(
+                                    color: KinrelColors.ember
+                                        .withValues(alpha: 0.30),
+                                    width: 0.6,
+                                  ),
                                 ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // Small family icon — heart for
-                                  // family connection (warmth, care)
-                                  Icon(
-                                    Icons.favorite_rounded,
-                                    size: 9,
-                                    color:
-                                        KinrelColors.ember,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    memberCount > 2
-                                        ? 'Family · $memberCount'
-                                        : 'Family',
-                                    style: TextStyle(
-                                      fontFamily: KinrelTypography.bodyFont,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: KinrelColors.ember
-                                          .withValues(alpha: 0.95),
-                                      letterSpacing: 0.3,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Small family icon — heart for
+                                    // family connection (warmth, care)
+                                    Icon(
+                                      Icons.favorite_rounded,
+                                      size: 9,
+                                      color:
+                                          KinrelColors.ember,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      memberCount > 2
+                                          ? 'Family · $memberCount'
+                                          : 'Family',
+                                      style: TextStyle(
+                                        fontFamily: KinrelTypography.bodyFont,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: KinrelColors.ember
+                                            .withValues(alpha: 0.95),
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                             // ── Presence indicator ────────────────────
@@ -1015,6 +1041,44 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ),
       ),
     );
+  }
+
+  /// Phase 22 / Header Nav Fix: Open a member's profile from the chat
+  /// header tap.
+  ///
+  /// Behavior:
+  ///   • If the family has exactly 2 members (current user + 1 other),
+  ///     open the OTHER member's profile directly via MemberProfileSheet
+  ///     — no intermediate selection step needed (the user's intent is
+  ///     unambiguous in a 1:1 family chat).
+  ///   • If the family has 3+ members, open the members list bottom
+  ///     sheet (_showMembersList) so the user can pick which member's
+  ///     profile to view.
+  ///   • If members data isn't loaded yet (empty list), fall back to
+  ///     the members list (which will show a "no members" state and
+  ///     retry when the data arrives).
+  ///
+  /// This replaces the previous behavior of navigating to the Family
+  /// Space screen (`/family/<id>`) on every header tap, which the user
+  /// reported as a bug. The Family Space is now reachable via the
+  /// relationship chip ("Family · N") in the header, which is a separate
+  /// tap target.
+  void _openProfileFromHeader() {
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final myUserId = _currentUserId;
+    // Filter out the current user — we want the OTHER member(s).
+    final others = chatState.members
+        .where((m) => m.id != myUserId)
+        .toList();
+
+    if (others.length == 1) {
+      // 1:1 family chat → open the other member's profile directly.
+      MemberProfileSheet.show(context, others.first.id);
+    } else {
+      // Group family chat (3+ members) → open the members list so the
+      // user can pick which member's profile to view.
+      _showMembersList();
+    }
   }
 
   /// v113: Opens a bottom sheet listing all family members (from the
