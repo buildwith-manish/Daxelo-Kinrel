@@ -19,6 +19,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
+import '../../presence/last_seen_provider.dart';
 
 /// A modal bottom sheet showing a member's profile summary with action
 /// buttons to view their full profile, start a DM, or view their timeline.
@@ -76,6 +77,11 @@ class MemberProfileSheet extends ConsumerWidget {
       builder: (context, snapshot) {
         final name = snapshot.data?['name'] as String? ?? 'Member';
         final avatarUrl = snapshot.data?['avatarUrl'] as String?;
+        // Tier 1 / Last Seen — watch the global presence map + look
+        // up this member's row. Returns null if the user has never
+        // opened the app since the UserPresence table shipped.
+        final presenceMap = ref.watch(lastSeenProvider);
+        final presence = presenceMap[memberId];
 
         return Container(
           decoration: const BoxDecoration(
@@ -188,6 +194,54 @@ class MemberProfileSheet extends ConsumerWidget {
                             color: KinrelColors.orange,
                             fontWeight: FontWeight.w500,
                           ),
+                        ),
+                      ],
+                      // Tier 1 / Last Seen — "online" / "last seen 5m ago"
+                      // row below the relation label. Only shown for
+                      // OTHER users (not self — your own presence isn't
+                      // useful to display to yourself).
+                      if (!isSelf) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Status dot: green for online, dim for offline
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isUserOnline(presence)
+                                    ? const Color(0xFF4CAF50)
+                                    : KinrelColors.textDim
+                                        .withValues(alpha: 0.6),
+                                boxShadow: isUserOnline(presence)
+                                    ? [
+                                        BoxShadow(
+                                          color: const Color(0xFF4CAF50)
+                                              .withValues(alpha: 0.5),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 0),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              formatLastSeen(presence),
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 11.5,
+                                color: isUserOnline(presence)
+                                    ? const Color(0xFF4CAF50)
+                                    : KinrelColors.textDim,
+                                fontWeight: isUserOnline(presence)
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                       const SizedBox(height: 24),

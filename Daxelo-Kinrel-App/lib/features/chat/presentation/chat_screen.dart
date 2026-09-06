@@ -55,6 +55,8 @@ import 'widgets/mention_picker.dart';
 import 'widgets/poll_card.dart';
 // Phase 22 / Task 5 — poll composer bottom sheet.
 import 'widgets/poll_composer_sheet.dart';
+import 'widgets/link_preview_card.dart';
+import 'widgets/forward_picker_sheet.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
 import '../../games/shared/icons/game_icons.dart';
@@ -1011,6 +1013,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ),
                   onSelected: (value) {
                     switch (value) {
+                      case 'search':
+                        context.push('/family/${widget.familyId}/chat/search');
+                        break;
+                      case 'search_all':
+                        context.push('/chats/search');
+                        break;
                       case 'theme':
                         _showThemePicker();
                         break;
@@ -1032,6 +1040,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     }
                   },
                   itemBuilder: (ctx) => [
+                    // Tier 1 / Message Search — put search at the top of
+                    // the menu since it's the most-used action. Two
+                    // scopes: this chat + all chats.
+                    const PopupMenuItem(
+                        value: 'search',
+                        child: Row(children: [
+                          Icon(Icons.search_rounded, size: 18,
+                              color: KinrelColors.ember),
+                          SizedBox(width: 12),
+                          Text('Search this chat'),
+                        ])),
+                    const PopupMenuItem(
+                        value: 'search_all',
+                        child: Row(children: [
+                          Icon(Icons.manage_search_rounded, size: 18,
+                              color: KinrelColors.ember),
+                          SizedBox(width: 12),
+                          Text('Search all chats'),
+                        ])),
+                    const PopupMenuDivider(),
                     const PopupMenuItem(
                         value: 'theme', child: Text('Chat Atmosphere')),
                     const PopupMenuItem(
@@ -2519,128 +2547,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// Show a bottom sheet with the user's families. Tapping one
   /// forwards the [message] to that family's chat.
   void _showForwardFamilyPicker(ChatMessage message) {
-    final familiesAsync = ref.read(familyListProvider);
-
-    familiesAsync.when(
-      data: (families) {
-        if (families.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('You have no families to forward to.'),
-              backgroundColor: KinrelColors.darkCard,
-            ),
-          );
-          return;
-        }
-
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: KinrelColors.darkCard,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(KinrelRadius.xxl),
-            ),
-          ),
-          builder: (ctx) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'Forward to...',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: KinrelColors.textWhite,
-                        ),
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    ...families.map((f) {
-                      // Don't show the current family — no point forwarding
-                      // to the same chat.
-                      final isCurrent = f.id == widget.familyId;
-                      if (isCurrent) return const SizedBox.shrink();
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
-                          child: Text(
-                            (f.name.isNotEmpty ? f.name[0] : '?').toUpperCase(),
-                            style: TextStyle(color: KinrelColors.orange),
-                          ),
-                        ),
-                        title: Text(
-                          f.name,
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
-                            color: KinrelColors.textWhite,
-                          ),
-                        ),
-                        subtitle: f.familyCode != null
-                            ? Text(
-                                f.familyCode!,
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.bodyFont,
-                                  fontSize: 12,
-                                  color: KinrelColors.textDim,
-                                ),
-                              )
-                            : null,
-                        onTap: () async {
-                          Navigator.pop(ctx);
-                          final success = await ref
-                              .read(chatProvider(widget.familyId).notifier)
-                              .forwardMessage(
-                                targetFamilyId: f.id,
-                                original: message,
-                              );
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  success
-                                      ? 'Forwarded to ${f.name}'
-                                      : 'Failed to forward message',
-                                ),
-                                backgroundColor: KinrelColors.darkCard,
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          }
-                        },
-                      );
-                    }),
-                    if (families.length <= 1)
-                      Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          'Join or create another family to forward messages.',
-                          style: TextStyle(color: KinrelColors.textDim),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-      loading: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Loading families...')),
-        );
-      },
-      error: (e, _) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not load families: $e')),
-        );
-      },
+    // Tier 1 / Forward Picker — replaced the old single-target picker
+    // with the new multi-select ForwardPickerSheet (family chats + DMs).
+    // The sheet calls ChatNotifier.forwardMessageToTargets which hits
+    // the fn_forward_message RPC. The RPC handles validation, the
+    // forwardedFrom field, and resets poll votes / reactions on copies.
+    ForwardPickerSheet.show(
+      context,
+      messageId: message.id,
+      currentFamilyId: widget.familyId,
     );
   }
 
@@ -3518,6 +3433,14 @@ class _MessageBubble extends ConsumerWidget {
                           // v127: Sender name only on first message in group
                           if (!isMe && !isSticker && isFirstInGroup)
                             _buildSenderName(ref),
+                          // Tier 1 / Forwarded label — show a small
+                          // "Forwarded from <name>" tag above the content
+                          // when the message is a forwarded copy. The
+                          // forwardedFrom field is set by fn_forward_message
+                          // on the new copy; the original keeps null.
+                          if (message.forwardedFrom != null &&
+                              message.forwardedFrom!.isNotEmpty)
+                            _buildForwardedLabel(),
                           // Message content
                           _buildMessageContent(context, ref, currentUserId),
                           // v127: Inline timestamp only on last-in-group
@@ -3674,6 +3597,40 @@ class _MessageBubble extends ConsumerWidget {
     );
   }
 
+  /// Tier 1 / Forwarded label — a small "Forwarded from <name>" tag
+  /// rendered above the message content when `message.forwardedFrom`
+  /// is set (i.e. this message is a forwarded copy). The forwarder's
+  /// own name is in `senderName` (rendered above this label by
+  /// _buildSenderName); `forwardedFrom` is the ORIGINAL sender's name.
+  Widget _buildForwardedLabel() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.forward_rounded,
+              size: 11, color: KinrelColors.textDim),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              'Forwarded from ${message.forwardedFrom}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: KinrelColors.textDim,
+                letterSpacing: 0.3,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMessageContent(BuildContext context, WidgetRef ref, String? currentUserId) {
     switch (message.messageType) {
       case MessageType.text:
@@ -3686,46 +3643,59 @@ class _MessageBubble extends ConsumerWidget {
         // (tinted background + primary color for self-mentions). The
         // fallback to a plain Text widget for mention-free messages
         // keeps the per-message cost unchanged.
-        if (message.mentions.isNotEmpty) {
-          return MentionText(
-            content: message.content,
-            mentions: message.mentions,
-            currentUserId: currentUserId ?? '',
-            baseStyle: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 15,
-              color: KinrelColors.textWhite,
-              height: 1.5,
-              letterSpacing: 0.1,
-            ),
-            mentionStyle: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: KinrelColors.ember,
-              height: 1.5,
-              letterSpacing: 0.1,
-            ),
-            selfMentionStyle: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: KinrelColors.ember,
-              backgroundColor: KinrelColors.ember.withValues(alpha: 0.18),
-              height: 1.5,
-              letterSpacing: 0.1,
-            ),
-          );
-        }
-        return Text(
-          message.content,
-          style: TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            fontSize: 15,
-            color: KinrelColors.textWhite,
-            height: 1.5,
-            letterSpacing: 0.1,
-          ),
+        //
+        // Tier 1 / Link Previews — wrap the text widget with
+        // wrapWithLinkPreviews so any URL in the content gets a styled
+        // preview card below the text. The wrapper is a no-op (returns
+        // the text widget unchanged) when there are no URLs, so
+        // mention-free + link-free messages pay zero extra cost.
+        final textWidget = message.mentions.isNotEmpty
+            ? MentionText(
+                content: message.content,
+                mentions: message.mentions,
+                currentUserId: currentUserId ?? '',
+                baseStyle: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 15,
+                  color: KinrelColors.textWhite,
+                  height: 1.5,
+                  letterSpacing: 0.1,
+                ),
+                mentionStyle: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.ember,
+                  height: 1.5,
+                  letterSpacing: 0.1,
+                ),
+                selfMentionStyle: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.ember,
+                  backgroundColor: KinrelColors.ember.withValues(alpha: 0.18),
+                  height: 1.5,
+                  letterSpacing: 0.1,
+                ),
+              )
+            : Text(
+                message.content,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 15,
+                  color: KinrelColors.textWhite,
+                  height: 1.5,
+                  letterSpacing: 0.1,
+                ),
+              );
+        // Wrap with link previews. Max width ~280px so the card doesn't
+        // overflow the bubble's typical width (the bubble itself caps
+        // at ~85% of screen width, minus padding).
+        return wrapWithLinkPreviews(
+          content: message.content,
+          textWidget: textWidget,
+          maxWidth: 280,
         );
 
       case MessageType.photo:

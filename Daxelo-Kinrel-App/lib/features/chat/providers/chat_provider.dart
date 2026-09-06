@@ -34,6 +34,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../games/shared/models/game_invite.dart';
+import '../../presence/last_seen_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Models
@@ -1056,6 +1057,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
             'user_id': myId,
             'name': myName,
           });
+          // Tier 1 / Last Seen — mark the user as online in the
+          // UserPresence table so other family members see "online"
+          // on the Family Profile + member profile sheets.
+          ref.read(lastSeenProvider.notifier).updateMyPresence(true);
         }
       });
     } else {
@@ -1480,6 +1485,49 @@ class ChatNotifier extends StateNotifier<ChatState> {
     } catch (e) {
       debugPrint('⚠️ ChatNotifier.forwardMessage failed: $e');
       return false;
+    }
+  }
+
+  /// Tier 1 / Forward Picker — forward a message to MULTIPLE targets at
+  /// once (family chats + DM recipients) via the fn_forward_message RPC.
+  ///
+  /// The RPC:
+  ///   • Validates the caller is a member of every target family.
+  ///   • Inserts a copy of the message into each target family chat
+  ///     with forwardedFrom = original sender name (so the bubble shows
+  ///     "Forwarded from <name>").
+  ///   • For DM targets (text + sticker only — DMs don't have a mediaUrl
+  ///     column), inserts a DirectMessage row.
+  ///   • Resets poll votes / reactions / read state on the copies.
+  ///
+  /// Returns a map with: success, familyChatsForwarded, dmChatsForwarded,
+  /// totalForwarded, insertedMessageIds. Returns null on auth / network
+  /// failure.
+  Future<Map<String, dynamic>?> forwardMessageToTargets({
+    required String messageId,
+    List<String> targetFamilyIds = const [],
+    List<String> targetDmUserIds = const [],
+  }) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) return null;
+    if (targetFamilyIds.isEmpty && targetDmUserIds.isEmpty) return null;
+
+    try {
+      final response = await client.rpc(
+        'fn_forward_message',
+        params: {
+          'p_message_id': messageId,
+          'p_target_family_ids': targetFamilyIds,
+          'p_target_dm_user_ids': targetDmUserIds,
+        },
+      ).timeout(const Duration(seconds: 12));
+
+      final result = response as Map<String, dynamic>?;
+      return result;
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.forwardMessageToTargets error: $e');
+      return {'success': false, 'error': e.toString()};
     }
   }
 
@@ -2100,6 +2148,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // v5.2: Cancel the family member listener to prevent leaks.
     _memberListListener?.close();
     _memberListListener = null;
+    // Tier 1 / Last Seen — mark the user as offline when the chat
+    // notifier disposes (which happens when the chat screen closes).
+    // Other family members will then see "last seen X ago" instead of
+    // "online". Best-effort — the RPC fires-and-forgets; if the user
+    // force-kills the app, the row stays "online" until the next
+    // heartbeat / app open updates it. (A proper app-lifecycle
+    // observer would catch force-kill; for v1 the chat-screen-close
+    // trigger covers the common case.)
+    ref.read(lastSeenProvider.notifier).updateMyPresence(false);
     super.dispose();
   }
 }

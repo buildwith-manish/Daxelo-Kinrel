@@ -42,6 +42,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../presence/last_seen_provider.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
 
 class FamilyProfileScreen extends ConsumerWidget {
@@ -55,6 +56,11 @@ class FamilyProfileScreen extends ConsumerWidget {
         ref.watch(familyMembershipsProvider(familyId));
     final avatarUrl = ref.watch(familyAvatarProvider(familyId));
     final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+    // Tier 1 / Last Seen — watch the global presence map so member
+    // rows can show a green/gray presence dot. The map is keyed by
+    // userId; missing entries are users who never opened the app
+    // since UserPresence shipped (treated as "offline").
+    final presenceMap = ref.watch(lastSeenProvider);
 
     final detail = detailAsync.valueOrNull;
     final family = detail?.family;
@@ -121,6 +127,7 @@ class FamilyProfileScreen extends ConsumerWidget {
                   avatarUrl,
                   currentUserId,
                   isCurrentUserAdmin,
+                  presenceMap,
                 ),
     );
   }
@@ -162,6 +169,7 @@ class FamilyProfileScreen extends ConsumerWidget {
     String? avatarUrl,
     String? currentUserId,
     bool isCurrentUserAdmin,
+    Map<String, UserLastSeen> presenceMap,
   ) {
     if (family == null) return const SizedBox.shrink();
     return ListView(
@@ -192,7 +200,7 @@ class FamilyProfileScreen extends ConsumerWidget {
         const SizedBox(height: 20),
         _buildAdminsSection(context, memberships),
         const SizedBox(height: 20),
-        _buildMembersSection(context, memberships, currentUserId),
+        _buildMembersSection(context, memberships, currentUserId, presenceMap),
         const SizedBox(height: 20),
         _buildInviteSection(context, family),
         if (isCurrentUserAdmin) ...[
@@ -557,6 +565,7 @@ class FamilyProfileScreen extends ConsumerWidget {
     BuildContext context,
     List<FamilyMembership> memberships,
     String? currentUserId,
+    Map<String, UserLastSeen> presenceMap,
   ) {
     if (memberships.isEmpty) return const SizedBox.shrink();
     // Sort: admins first, then alphabetical by name.
@@ -589,7 +598,12 @@ class FamilyProfileScreen extends ConsumerWidget {
                     height: 1,
                     color: Colors.white.withValues(alpha: 0.05),
                   ),
-                _buildMemberRow(context, sorted[i], sorted[i].userId == currentUserId),
+                _buildMemberRow(
+                  context,
+                  sorted[i],
+                  sorted[i].userId == currentUserId,
+                  presenceMap[sorted[i].userId],
+                ),
               ],
             ],
           ),
@@ -602,9 +616,11 @@ class FamilyProfileScreen extends ConsumerWidget {
     BuildContext context,
     FamilyMembership m,
     bool isSelf,
+    UserLastSeen? presence,
   ) {
     final name = m.user?.displayName ?? 'Member';
     final initials = m.user?.initials ?? '?';
+    final online = isUserOnline(presence);
     return InkWell(
       onTap: () => MemberProfileSheet.show(context, m.userId),
       borderRadius: BorderRadius.circular(14),
@@ -612,23 +628,62 @@ class FamilyProfileScreen extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: KinrelColors.ember.withValues(alpha: 0.15),
-              backgroundImage: m.user?.avatarUrl != null &&
-                      m.user!.avatarUrl!.isNotEmpty
-                  ? CachedNetworkImageProvider(m.user!.avatarUrl!)
-                  : null,
-              child: m.user?.avatarUrl == null || m.user!.avatarUrl!.isEmpty
-                  ? Text(
-                      initials,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: KinrelColors.ember,
+            // Tier 1 / Last Seen — wrap the avatar in a Stack with a
+            // small presence dot at the bottom-right. Green for online,
+            // dim for offline. WhatsApp-style.
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: KinrelColors.ember.withValues(alpha: 0.15),
+                  backgroundImage: m.user?.avatarUrl != null &&
+                          m.user!.avatarUrl!.isNotEmpty
+                      ? CachedNetworkImageProvider(m.user!.avatarUrl!)
+                      : null,
+                  child: m.user?.avatarUrl == null ||
+                          m.user!.avatarUrl!.isEmpty
+                      ? Text(
+                          initials,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: KinrelColors.ember,
+                          ),
+                        )
+                      : null,
+                ),
+                // Presence dot (bottom-right, slightly outside the avatar)
+                if (!isSelf)
+                  Positioned(
+                    right: -1,
+                    bottom: -1,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: online
+                            ? const Color(0xFF4CAF50)
+                            : const Color(0xFF6B7280),
+                        border: Border.all(
+                          color: const Color(0xFF11132A),
+                          width: 2,
+                        ),
+                        boxShadow: online
+                            ? [
+                                BoxShadow(
+                                  color: const Color(0xFF4CAF50)
+                                      .withValues(alpha: 0.5),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 0),
+                                ),
+                              ]
+                            : null,
                       ),
-                    )
-                  : null,
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -646,6 +701,8 @@ class FamilyProfileScreen extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  // Subtitle: @username if present, else last-seen label.
+                  // Show the last-seen label only for OTHER users (not self).
                   if (m.user?.username != null &&
                       m.user!.username!.isNotEmpty)
                     Text(
@@ -656,6 +713,23 @@ class FamilyProfileScreen extends ConsumerWidget {
                         color: KinrelColors.textDim,
                       ),
                     ),
+                  // Tier 1 / Last Seen — show "last seen 5m ago" under
+                  // the @username for OTHER users who aren't currently
+                  // online. (Online users get the green dot on the
+                  // avatar; the text would be redundant.) Hidden for
+                  // self — you don't need to see your own last-seen.
+                  if (!isSelf && !online && presence != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      formatLastSeen(presence),
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 10.5,
+                        color: KinrelColors.textDim.withValues(alpha: 0.7),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
