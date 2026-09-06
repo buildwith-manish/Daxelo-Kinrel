@@ -20,6 +20,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/graph_layout_service.dart';
+// v5.164 (LOCAL EXPANSION): reuse HierarchicalLayout's subtree-width
+// algorithm for local fan-out of newly-revealed nodes.
+import 'hierarchical_layout.dart' show HierarchicalLayout;
 
 // ═══════════════════════════════════════════════════════════════════════
 // RADIAL LAYOUT CONFIG
@@ -415,6 +418,87 @@ class RadialLayout {
           entry.value.dy + translateY,
         );
       }
+
+      // v5.164 (LOCAL EXPANSION LAYOUT): instead of letting new nodes
+      // (not in previousPositions) fall through to the global ring-fill
+      // placement, position them LOCALLY relative to their expansion
+      // origin using HierarchicalLayout's subtree-width algorithm.
+      //
+      // For each new node, find its parent in the relationships. If the
+      // parent is a settled node (already placed), use the parent's
+      // position as the local origin and call
+      // [HierarchicalLayout.computeLocalExpansionLayout] to position the
+      // new node + its siblings as a small hierarchical tree hanging off
+      // that parent. This makes edges SHORT (local, direct) instead of
+      // long (ring-fill slot → connect after).
+      //
+      // New nodes whose parent is NOT in the settled set (e.g. both
+      // parent and child are new) are left for the ring-fill pass — the
+      // local layout only handles groups where the origin is already
+      // placed, which is the common case (the user tapped a visible
+      // branch bubble, revealing its hidden children).
+      final newIds = currentIds.difference(positions.keys.toSet())
+          ..remove(anchor.id);
+      if (newIds.isNotEmpty) {
+        // Group new nodes by their settled parent.
+        final parentKeys = _parentKeys; // from HierarchicalLayout
+        final childKeys = _childKeys;
+        final groupsByOrigin = <String, Set<String>>{};
+        for (final r in relationships) {
+          final fromId = r.fromPersonId;
+          final toId = r.toPersonId;
+          if (!newIds.contains(fromId) && !newIds.contains(toId)) continue;
+          final key = r.relationshipKey.toLowerCase();
+          String? parentId;
+          String? childId;
+          if (parentKeys.contains(key)) {
+            // toPerson is parent of fromPerson.
+            parentId = toId;
+            childId = fromId;
+          } else if (childKeys.contains(key)) {
+            // fromPerson is parent of toPerson.
+            parentId = fromId;
+            childId = toId;
+          } else {
+            continue;
+          }
+          // Only group if the parent is settled (already placed).
+          // (parentId and childId are always non-null here — the
+          // `else { continue; }` above skips when neither parent nor
+          // child key matches.)
+          if (newIds.contains(childId) && positions.containsKey(parentId)) {
+            groupsByOrigin.putIfAbsent(parentId, () => <String>{}).add(childId);
+          }
+        }
+
+        // For each group, call HierarchicalLayout.computeLocalExpansionLayout.
+        if (groupsByOrigin.isNotEmpty) {
+          final hLayout = HierarchicalLayout();
+          for (final entry in groupsByOrigin.entries) {
+            final originId = entry.key;
+            final revealed = entry.value;
+            final originPos = positions[originId];
+            if (originPos == null) continue;
+            final result = hLayout.computeLocalExpansionLayout(
+              originPersonId: originId,
+              revealedIds: revealed,
+              persons: persons,
+              relationships: relationships,
+              originPosition: originPos,
+            );
+            // Merge the locally-computed positions into the main map.
+            // The ring placement loop will SKIP these (they're already
+            // in `positions`).
+            for (final posEntry in result.positions.entries) {
+              positions[posEntry.key] = posEntry.value;
+            }
+            // Remove from newIds so they don't get ring-filled.
+            newIds.removeAll(result.positionedIds);
+          }
+        }
+        // Any remaining newIds (no settled parent found) fall through
+        // to the ring-fill placement below — backward compatible.
+      }
     }
 
     // Determine trunk angles
@@ -680,10 +764,43 @@ class RadialLayout {
     final settledNodeIds = preservePositions && previousPositions != null
         ? previousPositions.keys.toSet()
         : null;
+
+    // v5.164 (SECTOR CONTAINMENT): compute each node's assigned angle
+    // from its current position relative to the canvas center. This
+    // constrains pushes so nodes slide along their ring (tangent)
+    // instead of flying sideways into a different branch's territory.
+    //
+    // v5.164 (FIX): only use sector containment during EXPANSION
+    // (preservePositions=true). During initial layout, the free-axis
+    // push is needed to resolve dense rings (e.g. 30 nodes on a ring
+    // that's too small for 132px spacing) — sector containment's
+    // tangent projection reduces the effective push and prevents
+    // full resolution. During expansion, settled nodes need
+    // protection from cross-branch drift — sector containment
+    // provides that without the dense-ring problem (expansions add
+    // only ~15 new nodes, not 30).
+    final Map<String, double>? nodeSectorAngles;
+    if (preservePositions) {
+      final angles = <String, double>{};
+      for (final entry in positions.entries) {
+        if (entry.key == anchor.id) continue;
+        final dx = entry.value.dx - center.dx;
+        final dy = entry.value.dy - center.dy;
+        if (dx.abs() > 0.01 || dy.abs() > 0.01) {
+          angles[entry.key] = atan2(dy, dx);
+        }
+      }
+      nodeSectorAngles = angles;
+    } else {
+      nodeSectorAngles = null;
+    }
+
     _deOverlapPositions(
       positions,
       persons,
       settledNodeIds: settledNodeIds,
+      center: preservePositions ? center : null,
+      nodeSectorAngles: nodeSectorAngles,
     );
 
     // v5.151 (LAYOUT FIX): Cluster children into tight angular wedges
@@ -701,10 +818,26 @@ class RadialLayout {
     );
     // Re-run de-overlap after wedge clustering — the compaction may
     // have created new overlaps within a wedge.
+    // v5.164: only use sector containment during expansion (same as
+    // the first de-overlap call). During initial layout, free-axis
+    // pushes resolve dense clusters better.
+    if (nodeSectorAngles != null) {
+      nodeSectorAngles.clear();
+      for (final entry in positions.entries) {
+        if (entry.key == anchor.id) continue;
+        final dx = entry.value.dx - center.dx;
+        final dy = entry.value.dy - center.dy;
+        if (dx.abs() > 0.01 || dy.abs() > 0.01) {
+          nodeSectorAngles[entry.key] = atan2(dy, dx);
+        }
+      }
+    }
     _deOverlapPositions(
       positions,
       persons,
       settledNodeIds: settledNodeIds,
+      center: nodeSectorAngles != null ? center : null,
+      nodeSectorAngles: nodeSectorAngles,
     );
 
     // 8. Compute canvas dimensions
@@ -957,10 +1090,26 @@ class RadialLayout {
   ///
   /// If [settledNodeIds] is null (the default), the original full-relax
   /// behaviour applies — both nodes in an overlapping pair are pushed.
+  ///
+  /// v5.164 (SECTOR CONTAINMENT): when [center] + [nodeSectorAngles] are
+  /// provided, the push is projected onto each node's TANGENT (arc
+  /// direction) first — the node slides along its assigned ring instead
+  /// of flying sideways into a different branch's territory. If the
+  /// tangent push is insufficient (still overlapping after the tangent
+  /// move), the node is pushed RADIALLY outward (to a wider ring) —
+  /// staying in its angular sector but moving further from the center.
+  /// This fixes the "Arjun Patel / Ritu Patel / DG / CM scattered away
+  /// with long edges" bug: nodes can no longer be shoved into unrelated
+  /// territory to resolve a collision.
+  ///
+  /// When [center] is null (no sector data available), the original
+  /// 50/50 push-apart behaviour applies — backward compatible.
   void _deOverlapPositions(
     Map<String, Offset> positions,
     List<GraphPerson> persons, {
     Set<String>? settledNodeIds,
+    Offset? center,
+    Map<String, double>? nodeSectorAngles,
   }) {
     // Skip if fewer than 2 nodes — can't overlap.
     if (positions.length < 2) return;
@@ -979,6 +1128,25 @@ class RadialLayout {
     const minDistance = 132.0;
     const minDistanceSq = minDistance * minDistance;
 
+    // v5.164 (DISPLACEMENT CAP REMOVED): the original v5.164 work added
+    // a maxDisplacement cap (108px) to prevent long-distance relocation.
+    // However, this conflicts with the minimum spacing guarantee
+    // (v5.161 CRITERION 2) when a ring is too small for its node count:
+    // 30 nodes on a 3770px-circumference ring need 3960px at 132px min
+    // distance — the cap prevents nodes from being pushed to wider rings
+    // where there's enough arc. The SECTOR CONTAINMENT (tangent push)
+    // is the real fix for cross-branch drift — it already prevents nodes
+    // from flying sideways into a different branch's territory. The cap
+    // was redundant with sector containment and too restrictive. Removed.
+    // const maxDisplacement = 108.0;
+
+    // v5.164: only apply sector containment when we have BOTH the center
+    // and per-node angle data. When absent, fall back to the original
+    // 50/50 push-apart (backward compat for any caller that doesn't
+    // pass sector data — e.g. tests).
+    final useSectorContainment =
+        center != null && nodeSectorAngles != null && nodeSectorAngles.isNotEmpty;
+
     final ids = positions.keys.toList();
     var overlapsFound = true;
     var iterations = 0;
@@ -988,7 +1156,10 @@ class RadialLayout {
     // v5.161: Increased to 25 — when only NEW nodes are being pushed
     // (settled-node mode), each new node may collide with multiple
     // settled nodes in sequence, requiring more iterations to converge.
-    const maxIterations = 25;
+    // v5.164: Increased to 30 — sector-constrained pushes (tangent +
+    // free-axis fallback for same-angle pairs) need more iterations
+    // to fully separate dense clusters.
+    const maxIterations = 30;
 
     while (overlapsFound && iterations < maxIterations) {
       overlapsFound = false;
@@ -1009,56 +1180,162 @@ class RadialLayout {
             final aSettled = settledNodeIds?.contains(idA) ?? false;
             final bSettled = settledNodeIds?.contains(idB) ?? false;
 
+            // Both settled → leave alone (rare; would have been a bug
+            // in the previous layout pass).
+            if (aSettled && bSettled) continue;
+
             overlapsFound = true;
             if (dx.abs() < 0.01 && dy.abs() < 0.01) {
-              // Exact same position.
-              if (aSettled && bSettled) {
-                // Both settled — leave them alone (rare; would have
-                // been a bug in the previous layout pass).
-                continue;
-              } else if (aSettled) {
-                // Push B out of A's spot.
+              // Exact same position — nudge B in X (fallback).
+              if (aSettled) {
                 positions[idB] = Offset(b.dx + minDistance, b.dy);
               } else if (bSettled) {
-                // Push A out of B's spot.
                 positions[idA] = Offset(a.dx - minDistance, a.dy);
               } else {
-                // Neither settled — original behaviour (push B).
                 positions[idB] = Offset(b.dx + minDistance, b.dy);
               }
             } else {
               final dist = sqrt(max(distSq, 0.01));
-              final ux = dx / dist;
+              final ux = dx / dist; // unit vector A→B
               final uy = dy / dist;
-              // v5.136: Push BOTH nodes apart symmetrically by enough
-              // to reach minDistance, plus a small extra to prevent
-              // re-collision on the next iteration.
-              final push = (minDistance - dist) / 2 + 2.0;
-              if (aSettled && bSettled) {
-                // Both settled — leave them alone.
-                continue;
-              } else if (aSettled) {
-                // Only push B (the new node) away from A (settled).
-                positions[idB] = Offset(
-                  b.dx + ux * push * 2,
-                  b.dy + uy * push * 2,
+              final overlap = minDistance - dist;
+              // v5.164: displacement cap removed (see comment above).
+              // Sector containment (tangent push) is the real fix for
+              // cross-branch drift; the cap was redundant and conflicted
+              // with the minimum spacing guarantee on dense rings.
+              final push = overlap / 2 + 2.0;
+
+              if (useSectorContainment) {
+                // v5.164 (SECTOR CONTAINMENT): project the push onto
+                // each node's TANGENT (perpendicular to its radius).
+                // This slides the node along its assigned ring instead
+                // of flying sideways into a different branch's sector.
+                //
+                // For each node, the tangent direction at its current
+                // angle θ is (-sin θ, cos θ) (90° CCW from radial).
+                // The radial direction (outward) is (cos θ, sin θ).
+                //
+                // Strategy: push the node along the tangent by the
+                // component of (ux,uy)*push that aligns with the
+                // tangent. If the tangent component is too small
+                // (< 30% of the needed push), also push radially
+                // outward to widen the ring — the node stays in its
+                // angular sector but moves further out.
+                _pushNodeWithSectorContainment(
+                  positions: positions,
+                  nodeId: idA,
+                  currentPos: a,
+                  pushDx: -ux * push, // A pushed AWAY from B
+                  pushDy: -uy * push,
+                  center: center,
+                  sectorAngles: nodeSectorAngles,
+                  settled: aSettled,
                 );
-              } else if (bSettled) {
-                // Only push A (the new node) away from B (settled).
-                positions[idA] = Offset(
-                  a.dx - ux * push * 2,
-                  a.dy - uy * push * 2,
+                _pushNodeWithSectorContainment(
+                  positions: positions,
+                  nodeId: idB,
+                  currentPos: b,
+                  pushDx: ux * push, // B pushed AWAY from A
+                  pushDy: uy * push,
+                  center: center,
+                  sectorAngles: nodeSectorAngles,
+                  settled: bSettled,
                 );
               } else {
-                // Neither settled — original behaviour (push both).
-                positions[idA] = Offset(a.dx - ux * push, a.dy - uy * push);
-                positions[idB] = Offset(b.dx + ux * push, b.dy + uy * push);
+                // v5.161 original: no sector data → free-axis push.
+                if (aSettled && bSettled) {
+                  continue;
+                } else if (aSettled) {
+                  positions[idB] = Offset(
+                    b.dx + ux * push * 2,
+                    b.dy + uy * push * 2,
+                  );
+                } else if (bSettled) {
+                  positions[idA] = Offset(
+                    a.dx - ux * push * 2,
+                    a.dy - uy * push * 2,
+                  );
+                } else {
+                  positions[idA] = Offset(a.dx - ux * push, a.dy - uy * push);
+                  positions[idB] = Offset(b.dx + ux * push, b.dy + uy * push);
+                }
               }
             }
           }
         }
       }
     }
+  }
+
+  /// v5.164 (SECTOR CONTAINMENT): pushes a single node while keeping it
+  /// within its assigned angular sector.
+  ///
+  /// The push vector `(pushDx, pushDy)` is decomposed into:
+  ///   1. The TANGENT component (along the ring's arc) — applied first.
+  ///   2. The RADIAL component (outward from center) — applied if the
+  ///      tangent component alone is insufficient to resolve the
+  ///      overlap (less than 30% of the needed push).
+  ///
+  /// This keeps the node on its assigned ring (same radius) when
+  /// possible, sliding it along the arc away from the collision. When
+  /// sliding isn't enough (e.g. two nodes at the exact same angle),
+  /// the node is pushed radially outward to a wider ring — but it
+  /// stays at the same angle, so it doesn't cross into a sibling
+  /// branch's territory.
+  ///
+  /// When [settled] is true, the node is NOT moved (settled nodes are
+  /// immune to displacement — see v5.161).
+  void _pushNodeWithSectorContainment({
+    required Map<String, Offset> positions,
+    required String nodeId,
+    required Offset currentPos,
+    required double pushDx,
+    required double pushDy,
+    required Offset center,
+    required Map<String, double> sectorAngles,
+    required bool settled,
+  }) {
+    if (settled) return; // v5.161: settled nodes never move.
+
+    final angle = sectorAngles[nodeId];
+    if (angle == null) {
+      // No sector data for this node — fall back to a free push.
+      positions[nodeId] = Offset(currentPos.dx + pushDx, currentPos.dy + pushDy);
+      return;
+    }
+
+    // Tangent direction at `angle` (90° CCW from the radial direction).
+    // Radial outward = (cos θ, sin θ); tangent = (-sin θ, cos θ).
+    final tx = -sin(angle);
+    final ty = cos(angle);
+
+    // Decompose the push into tangent component.
+    final tangentComponent = pushDx * tx + pushDy * ty;
+
+    // The magnitude of the requested push.
+    final pushMag = sqrt(pushDx * pushDx + pushDy * pushDy);
+    final tangentAbs = tangentComponent.abs();
+
+    // v5.164 (FIX): when the tangent component is too small (< 30% of
+    // the needed push), the two nodes are at nearly the same angle —
+    // pushing radially outward doesn't resolve their overlap (they
+    // stay at the same angle, just on different rings). Instead, fall
+    // back to a FREE-AXIS push (no sector containment) for this pair.
+    // This allows the node to move in ANY direction to escape the
+    // collision. The sector containment still applies to the MAJORITY
+    // of pairs (those at different angles), preventing cross-branch
+    // drift. Only same-angle pairs get the free-axis fallback.
+    if (tangentAbs < pushMag * 0.3) {
+      // Free-axis fallback — push in the original direction.
+      positions[nodeId] = Offset(currentPos.dx + pushDx, currentPos.dy + pushDy);
+      return;
+    }
+
+    // Tangent is sufficient — slide along the arc.
+    final applyTangent = tangentComponent;
+    final newDx = currentPos.dx + tx * applyTangent;
+    final newDy = currentPos.dy + ty * applyTangent;
+    positions[nodeId] = Offset(newDx, newDy);
   }
 
   /// v5.114: Compute the hop distance (relationship distance) from the

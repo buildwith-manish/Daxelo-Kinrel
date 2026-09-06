@@ -537,6 +537,20 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
     // is unit-testable without mounting a widget tree. The resolution
     // priority (search → focus → selection → default-dim) and the four
     // cases are documented in lib/graph/engine/edge_dim_hierarchy.dart.
+    //
+    // v5.164 (LINKING MODE SUPPRESSION): when Relationship Creation
+    // (Linking) mode is active, the user is manually picking two nodes
+    // to connect. ALL edges should be bright so the user can see the
+    // full graph topology while deciding who to link. Return null
+    // (no dimming) — the painter treats null as "no dimming" and
+    // short-circuits the per-edge dim check, so every edge renders at
+    // full alpha. This matches the user's mental model: "I'm in
+    // Linking mode, show me everything."
+    final creationState = ref.read(relationshipCreationProvider);
+    if (creationState.isActive) {
+      return null; // No dimming in Linking mode.
+    }
+
     final focusState = ref.read(graphFocusProvider);
     final searchState = ref.read(graphSearchProvider);
     final selectedNodeId = ref.read(selectedNodeProvider);

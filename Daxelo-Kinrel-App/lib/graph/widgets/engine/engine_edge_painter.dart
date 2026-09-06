@@ -936,8 +936,17 @@ class EngineEdgePainter extends CustomPainter {
     // v5.x Feature 2 dim hierarchy). We detect tap-vs-focus by
     // checking whether pathFocusActive is true (focus mode sets it)
     // — if neither focus nor path is active, the dim is from a tap.
+    //
+    // v5.164 (DEFAULT-DIM VISIBILITY): increased the non-focus dim
+    // alpha from 0.40 → 0.55 so default-dim is actually visible as
+    // "dimmed" on a busy canvas. The old 0.40 was so subtle it read
+    // as "full brightness" on a dense graph — the user reported
+    // "every line at full brightness with no dimming" when in fact
+    // default-dim WAS active, just imperceptible. 0.55 is still
+    // readable but clearly dimmer than the bright focused/selected
+    // edges (1.0 alpha).
     final bool focusDrivenDim = pathFocusActive;
-    final double dimAlpha = focusDrivenDim ? 0.18 : 0.40;
+    final double dimAlpha = focusDrivenDim ? 0.18 : 0.55;
 
     // v5.125 (Step 6): Per-edge sector fan-out offsets for edges
     // sharing the ANCHOR endpoint (geometry only — see
@@ -1028,6 +1037,19 @@ class EngineEdgePainter extends CustomPainter {
       );
       final Offset effectiveSource = resolved.source;
       final Offset effectiveTarget = resolved.target;
+
+      // v5.164 (CROSS-BRANCH EDGE STYLING): compute the edge length.
+      // Long edges (> 300px ≈ 2 ring spacings) are genuine cross-branch
+      // links (cousin marriage, adoption across branches, etc.) — they
+      // render visibly different from short local parent/child/spouse
+      // edges: thinner stroke, lower opacity, and dashed style. This
+      // makes a long edge always read as "this is a real cross-branch
+      // link," never "the layout put someone in the wrong place."
+      //
+      // The threshold is 300px (≈ 2 × 132px minDistance). Shorter edges
+      // are "local" (within one branch); longer edges are "cross-branch."
+      final double edgeLength = (effectiveTarget - effectiveSource).distance;
+      final bool isCrossBranchEdge = edgeLength > 300.0;
 
       // v5.x (BUG-1 fix — edge routing through nodes): shorten both
       // endpoints so the bezier STARTS and ENDS at the node circle
@@ -1168,7 +1190,9 @@ class EngineEdgePainter extends CustomPainter {
       // v83: Apply custom colors if available
       final Color edgeColor;
       final double edgeAlpha;
-      final List<double> dashPattern;
+      // v5.164: dashPattern is mutable (not final) so cross-branch edges
+      // can override it with a dashed pattern downstream.
+      List<double> dashPattern;
       final KinshipMidpointSymbol midpointSymbol;
 
       if (customColors != null) {
@@ -1201,10 +1225,25 @@ class EngineEdgePainter extends CustomPainter {
       };
       final double safeZoom = zoom > 0.01 ? zoom : 0.01;
       final double minGraphWidth = minScreenStroke / safeZoom;
-      final double bodyWidth = math.max(
+      double bodyWidth = math.max(
         GraphLighting.clampBodyWidth(style.strokeWidth),
         minGraphWidth,
       );
+
+      // v5.164 (CROSS-BRANCH EDGE STYLING): long edges (genuine cross-
+      // branch links) get thinner stroke + lower opacity + dashed
+      // style so they read as "real cross-branch link," not "layout
+      // error." This only applies when the edge is NOT focused/selected
+      // (focused edges stay full-brightness regardless of length).
+      double crossBranchAlphaScale = 1.0;
+      if (isCrossBranchEdge && !isPathFocused && !isSelected) {
+        bodyWidth *= 0.6; // thinner stroke
+        crossBranchAlphaScale = 0.65; // lower opacity
+        // Force dashed if not already.
+        if (dashPattern == null || dashPattern!.isEmpty) {
+          dashPattern = [4.0, 3.0];
+        }
+      }
 
       // v92 (PART 14): Path-focused edges get a subtle clarity boost
       // (~10% alpha lift, capped at 1.0). They retain their
@@ -1258,12 +1297,15 @@ class EngineEdgePainter extends CustomPainter {
 
       // Final alpha after relationship-focus dimming + path-focus boost
       // + connect-on-open fade-in multiplier.
+      // v5.164: also apply cross-branch alpha scale (long edges get
+      // lower opacity to visually distinguish them from short local edges).
       final double effectiveAlpha = connectOnOpenAlpha == 0.0
           ? 0.0
-          : ((isDimmed
-                  ? (edgeAlpha * dimAlpha).clamp(0.0, 1.0)
-                  : (edgeAlpha + pathFocusBoost).clamp(0.0, 1.0)) *
-              connectOnOpenAlpha).clamp(0.0, 1.0);
+          : (((isDimmed
+                      ? (edgeAlpha * dimAlpha).clamp(0.0, 1.0)
+                      : (edgeAlpha + pathFocusBoost).clamp(0.0, 1.0)) *
+                  connectOnOpenAlpha *
+                  crossBranchAlphaScale).clamp(0.0, 1.0));
 
       // v5.98: Apply width scale for the connect-on-open "settling" feel.
       // The full path is drawn (no PathMetric truncation) — only alpha

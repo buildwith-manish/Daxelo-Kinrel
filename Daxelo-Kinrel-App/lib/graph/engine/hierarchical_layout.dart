@@ -732,6 +732,204 @@ class HierarchicalLayout {
       childStartX += child.subtreeWidth + spacing;
     }
   }
+
+  /// v5.164 (LOCAL EXPANSION): Positions the newly-revealed nodes
+  /// relative to the expansion origin, reusing the existing
+  /// [_computeSubtreeWidth] + [_assignPositions] algorithm.
+  ///
+  /// This is called by [RadialLayout.compute] when `preservePositions`
+  /// is true and there are new nodes (not in `previousPositions`).
+  /// Instead of placing new nodes by the global ring-fill algorithm,
+  /// this method positions them as a LOCAL hierarchical tree hanging
+  /// off the expansion origin — ancestors above, descendants below,
+  /// spouse beside, children fanning out horizontally via subtree-width.
+  ///
+  /// [originPersonId] — the node that was expanded (the branch root
+  ///   or the person whose neighbors were revealed). Must already be
+  ///   in `existingPositions`.
+  /// [revealedIds] — the set of newly-revealed node IDs that need
+  ///   positions. These are NOT in `existingPositions`.
+  /// [persons] — all persons in the proximity set (for lookup).
+  /// [relationships] — all relationships (for parent/child/spouse
+  ///   inference).
+  /// [originPosition] — the (x, y) of the expansion origin in canvas
+  ///   coordinates. New nodes are positioned relative to this.
+  ///
+  /// Returns a [LocalExpansionResult] with positions for the revealed
+  /// IDs only. The caller merges them into the full positions map.
+  LocalExpansionResult computeLocalExpansionLayout({
+    required String originPersonId,
+    required Set<String> revealedIds,
+    required List<GraphPerson> persons,
+    required List<GraphRelationship> relationships,
+    required Offset originPosition,
+  }) {
+    if (revealedIds.isEmpty) {
+      return const LocalExpansionResult(positions: {}, positionedIds: {});
+    }
+
+    // Build a person lookup map.
+    final personById = <String, GraphPerson>{
+      for (final p in persons) p.id: p,
+    };
+
+    // Build parent→children + spouse adjacency from the relationships,
+    // including ONLY edges where both endpoints are in the revealed set
+    // OR one endpoint is the origin.
+    final childrenOf = <String, List<String>>{};
+    final spouseOf = <String, List<String>>{};
+    final relevantIds = <String>{originPersonId, ...revealedIds};
+
+    for (final r in relationships) {
+      final fromId = r.fromPersonId;
+      final toId = r.toPersonId;
+      if (!relevantIds.contains(fromId) || !relevantIds.contains(toId)) {
+        continue;
+      }
+      final key = (r.labelAtoB ?? r.relationshipKey).toLowerCase();
+      if (_spouseKeys.contains(key)) {
+        spouseOf.putIfAbsent(fromId, () => []).add(toId);
+        spouseOf.putIfAbsent(toId, () => []).add(fromId);
+      } else if (_parentKeys.contains(key)) {
+        // toPerson is the parent of fromPerson.
+        childrenOf.putIfAbsent(toId, () => []).add(fromId);
+      } else if (_childKeys.contains(key)) {
+        // fromPerson is the parent of toPerson.
+        childrenOf.putIfAbsent(fromId, () => []).add(toId);
+      }
+    }
+
+    // Build _TreeNode tree rooted at the origin, including only revealed IDs.
+    final nodeCache = <String, _TreeNode>{};
+    _TreeNode buildNode(String personId, Set<String> visited) {
+      if (nodeCache.containsKey(personId)) return nodeCache[personId]!;
+      final person = personById[personId];
+      if (person == null) {
+        final placeholder = _TreeNode(GraphPerson(
+          id: personId,
+          name: 'Unknown',
+        ));
+        nodeCache[personId] = placeholder;
+        return placeholder;
+      }
+      final node = _TreeNode(person);
+      nodeCache[personId] = node;
+      if (visited.contains(personId)) return node;
+      visited.add(personId);
+
+      for (final childId in childrenOf[personId] ?? const <String>[]) {
+        if (revealedIds.contains(childId) && !visited.contains(childId)) {
+          node.children.add(buildNode(childId, visited));
+        }
+      }
+      for (final spouseId in spouseOf[personId] ?? const <String>[]) {
+        if (revealedIds.contains(spouseId) && !visited.contains(spouseId)) {
+          node.spouses.add(buildNode(spouseId, visited));
+        }
+      }
+      return node;
+    }
+
+    final root = buildNode(originPersonId, <String>{});
+
+    // Compute subtree widths (bottom-up) — reuses the existing algorithm.
+    final spacing = _config.siblingSpacing;
+    _computeSubtreeWidth(root, spacing, <String>{});
+
+    // Assign positions relative to originPosition (top-down).
+    final positions = <String, Offset>{};
+    _assignLocalPositions(
+      root,
+      originPosition.dx,
+      originPosition.dy,
+      positions,
+      <String>{},
+      spacing,
+      _config.levelSpacing,
+      0,
+    );
+
+    positions.remove(originPersonId);
+
+    return LocalExpansionResult(
+      positions: positions,
+      positionedIds: positions.keys.toSet(),
+    );
+  }
+
+  /// v5.164 (LOCAL EXPANSION): Assigns positions to a local subtree,
+  /// relative to the expansion origin's position. LOCAL variant of
+  /// [_assignPositions] that uses a local generation counter (0 = origin,
+  /// 1 = children, -1 = parents) instead of the global BFS gen.
+  void _assignLocalPositions(
+    _TreeNode node,
+    double centerX,
+    double originY,
+    Map<String, Offset> positions,
+    Set<String> visited,
+    double spacing,
+    double levelSpacing,
+    int localGen,
+  ) {
+    if (visited.contains(node.person.id)) return;
+    visited.add(node.person.id);
+
+    final y = originY + localGen * levelSpacing;
+    node.x = centerX;
+    node.y = y;
+    positions[node.person.id] = Offset(centerX, y);
+
+    final hasSpouses = node.spouses.isNotEmpty;
+    final coupleMidpointX = hasSpouses
+        ? centerX + (_config.nodeWidth + _config.spouseGap) / 2
+        : centerX;
+    var spouseX = centerX + _config.nodeWidth + _config.spouseGap;
+    for (final spouse in node.spouses) {
+      if (visited.contains(spouse.person.id)) continue;
+      visited.add(spouse.person.id);
+      spouse.x = spouseX;
+      spouse.y = y;
+      positions[spouse.person.id] = Offset(spouseX, y);
+      spouseX += _config.nodeWidth + _config.spouseGap;
+    }
+
+    if (node.children.isEmpty) return;
+    double childStartX = coupleMidpointX - node.subtreeWidth / 2;
+    for (final child in node.children) {
+      if (visited.contains(child.person.id)) {
+        childStartX += child.subtreeWidth + spacing;
+        continue;
+      }
+      final childCenterX = childStartX + child.subtreeWidth / 2;
+      _assignLocalPositions(
+        child,
+        childCenterX,
+        originY,
+        positions,
+        visited,
+        spacing,
+        levelSpacing,
+        localGen + 1,
+      );
+      childStartX += child.subtreeWidth + spacing;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v5.164: LOCAL EXPANSION RESULT — top-level result class returned by
+// [HierarchicalLayout.computeLocalExpansionLayout].
+// ═══════════════════════════════════════════════════════════════════════
+
+/// v5.164 (LOCAL EXPANSION): Result of [HierarchicalLayout.computeLocalExpansionLayout].
+class LocalExpansionResult {
+  final Map<String, Offset> positions;
+  final Set<String> positionedIds;
+
+  const LocalExpansionResult({
+    required this.positions,
+    required this.positionedIds,
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
