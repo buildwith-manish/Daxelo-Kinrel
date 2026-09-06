@@ -152,6 +152,33 @@ class GraphQuickActions {
                 }
               },
             ),
+            // v5.175: Message button — routes to family chat (group) or
+            // direct DM (if the person has a linkedUserId).
+            if (familyId != null)
+              ListTile(
+                leading: const Icon(Icons.chat_bubble_outline,
+                    color: KinrelColors.tealAccent),
+                title: const Text(
+                  'Message',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  if (person.linkedUserId != null &&
+                      person.linkedUserId!.isNotEmpty) {
+                    // 1:1 direct message with the claimed user.
+                    context.push('/dm/${person.linkedUserId}');
+                  } else {
+                    // Family group chat (the person hasn't claimed their
+                    // profile yet, but the family chat is still useful).
+                    context.push(
+                        '/family/$familyId/chat?name=${Uri.encodeComponent(person.name)}');
+                  }
+                },
+              ),
             // v5.63 (ISSUE 2 FIX): "Relate to another person" is now the
             // SECOND item (right after View Profile) so it's immediately
             // visible without scrolling. This option MUST be available for

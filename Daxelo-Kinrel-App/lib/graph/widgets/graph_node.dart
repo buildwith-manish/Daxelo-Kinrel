@@ -628,7 +628,12 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     // Accessibility: Expose the node as a single semantic button with a
     // descriptive label. Screen-reader users hear "[Name], [Relation],
     // Generation N." instead of "button, button, text, text".
-    return Semantics(
+    // v5.175: MergeSemantics wraps the Semantics widget to make the
+    // merge intent explicit — all child elements (avatar, name, badges)
+    // are merged into ONE semantic node. This survives future
+    // explicitChildNodes: true additions on inner widgets.
+    return MergeSemantics(
+      child: Semantics(
       label: _buildSemanticLabel(),
       button: true,
       child: Opacity(
@@ -678,6 +683,7 @@ class _GraphNodeState extends ConsumerState<GraphNode>
           behavior: HitTestBehavior.translucent,
           child: _buildAnimatedNode(reduceMotion: reduceMotion),
         ),
+      ),
       ),
     );
   }
@@ -1175,6 +1181,31 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                   Icons.link_off,
                   size: 12,
                   color: KinrelColors.darkCard,
+                ),
+              ),
+            ),
+          // v5.175: Verified badge — blue checkmark for claimed profiles.
+          // Shown when the person's profile has been claimed (linked to
+          // an auth user). Instagram/LinkedIn-style blue tick.
+          if (widget.isUnclaimed == false && widget.isAnchor)
+            Positioned(
+              right: -2,
+              top: -2,
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1DA1F2), // Twitter blue
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: KinrelColors.darkCard,
+                    width: 1.5,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.verified,
+                  size: 11,
+                  color: Colors.white,
                 ),
               ),
             ),

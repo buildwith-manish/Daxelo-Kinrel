@@ -40,6 +40,8 @@ class GraphMiniMap extends StatelessWidget {
     required this.viewportSize,
     this.anchorId,
     this.onTap,
+    // v5.175: per-node colors for the mini-map dots.
+    this.nodeColors,
   });
 
   /// The camera controller — listened to for viewport rectangle updates.
@@ -59,6 +61,11 @@ class GraphMiniMap extends StatelessWidget {
   /// Optional callback invoked when the user taps the mini-map.
   /// Receives the graph-space position that was tapped.
   final void Function(Offset graphSpaceTarget)? onTap;
+
+  /// v5.175: Optional per-node colors — if provided, each dot is drawn
+  /// in its relationship-category color instead of the default white.
+  /// Keyed by personId → Color. Falls back to white for unknown IDs.
+  final Map<String, Color>? nodeColors;
 
   /// Mini-map dimensions.
   ///
@@ -83,6 +90,13 @@ class GraphMiniMap extends StatelessWidget {
         builder: (context, _) {
           return GestureDetector(
             onTapDown: (details) => _handleTap(details.localPosition),
+            // v5.175: drag-the-rect support — Google Maps-style drag to pan.
+            onPanUpdate: (details) {
+              if (onTap == null) return;
+              final pos = details.localPosition;
+              _handleTap(pos);
+            },
+            onPanStart: (details) => _handleTap(details.localPosition),
             behavior: HitTestBehavior.opaque,
             child: Container(
               width: width,
@@ -120,6 +134,7 @@ class GraphMiniMap extends StatelessWidget {
                     anchorId: anchorId,
                     camera: camera,
                     viewportSize: viewportSize,
+                    nodeColors: nodeColors,
                   ),
                 ),
               ),
@@ -167,12 +182,15 @@ class _MiniMapPainter extends CustomPainter {
     required this.anchorId,
     required this.camera,
     required this.viewportSize,
+    this.nodeColors,
   });
 
   final Map<String, Offset> positions;
   final String? anchorId;
   final CameraController camera;
   final Size viewportSize;
+  // v5.175: per-node colors for the mini-map dots.
+  final Map<String, Color>? nodeColors;
 
   // v5.x (PERF + STALE-RECT FIX — cached static dot field):
   //
@@ -249,10 +267,16 @@ class _MiniMapPainter extends CustomPainter {
       for (final entry in positions.entries) {
         final pos = toMini(entry.value);
         final isAnchor = entry.key == anchorId;
+        // v5.175: use per-node colors if provided (relationship categories).
+        final dotColor = nodeColors?[entry.key] ??
+            Colors.white.withValues(alpha: 0.7);
+        final paint = isAnchor
+            ? anchorPaint
+            : (Paint()..color = dotColor);
         dotCanvas.drawCircle(
           pos,
           isAnchor ? 2.4 : 1.2,
-          isAnchor ? anchorPaint : dotPaint,
+          paint,
         );
       }
       _cachedDots?.dispose();
