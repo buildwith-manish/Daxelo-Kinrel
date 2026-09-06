@@ -28,10 +28,13 @@ DECLARE
   v_sender_avatar text;
   v_family_name text;
   v_dm_id text;
-  v_messages text[];
-  v_message text;
-  v_cooldown_hours int := 6;
+  v_templates text[];       -- verb-phrase templates (third person)
+  v_phrase text;            -- the chosen verb phrase (e.g. "is thinking of you.")
+  v_message text;            -- the FULL sentence (senderName + ' ' + phrase)
+  v_sender_cooldown_hours int := 6;  -- per sender→receiver pair
+  v_receiver_cooldown_hours int := 6; -- per receiver, regardless of sender
   v_last_sent timestamptz;
+  v_last_received timestamptz;
   v_cooldown_expires timestamptz;
   v_remaining_minutes int;
   v_receiver_in_family boolean;
@@ -46,9 +49,22 @@ BEGIN
       'message', 'You cannot send a Thinking of You moment to yourself.');
   END IF;
 
-  -- ── Validate: receiver must be a member of the specified family ──
-  -- This is the "family membership check" the user asked for. It ensures
-  -- you can only send Thinking of You to people in YOUR family.
+  -- ── Validate: SENDER must be a member of the specified family ──
+  -- This check runs BEFORE the cooldown checks so a non-member can't
+  -- probe whether a receiver recently got a Thinking of You (which
+  -- would be a privacy leak — the cooldown response reveals activity).
+  IF NOT EXISTS (
+    SELECT 1 FROM "FamilyMember"
+    WHERE "familyId" = p_family_id AND "userId" = v_sender_id
+  ) THEN
+    RETURN json_build_object(
+      'success', false,
+      'error', 'sender_not_in_family',
+      'message', 'You are not a member of this family.'
+    );
+  END IF;
+
+  -- ── Validate: RECEIVER must be a member of the specified family ──
   SELECT EXISTS(
     SELECT 1 FROM "FamilyMember"
     WHERE "familyId" = p_family_id AND "userId" = p_receiver_id
@@ -62,7 +78,8 @@ BEGIN
     );
   END IF;
 
-  -- ── Cooldown check: 6 hours per sender→receiver pair ──
+  -- ── Cooldown #1: 6h per SENDER→RECEIVER pair ──
+  -- "You already sent one to this person recently."
   -- Now ONLY checks the DirectMessage table (no more ChatMessage).
   SELECT "createdAt" INTO v_last_sent
   FROM "DirectMessage"
@@ -71,17 +88,48 @@ BEGIN
   LIMIT 1;
 
   IF v_last_sent IS NOT NULL THEN
-    v_cooldown_expires := v_last_sent + (v_cooldown_hours || ' hours')::interval;
+    v_cooldown_expires := v_last_sent + (v_sender_cooldown_hours || ' hours')::interval;
     IF now() < v_cooldown_expires THEN
       v_remaining_minutes := CEIL(EXTRACT(EPOCH FROM (v_cooldown_expires - now())) / 60.0)::int;
 
       RETURN json_build_object(
         'success', false,
         'error', 'cooldown',
-        'message', 'You can send another Thinking of You moment in '
+        'message', 'You can send another Thinking of You moment to this person in '
                    || FLOOR(v_remaining_minutes / 60.0)::int || 'h '
                    || (v_remaining_minutes % 60) || 'm.',
-        'cooldownHours', v_cooldown_hours,
+        'cooldownHours', v_sender_cooldown_hours,
+        'cooldownExpiresAt', to_char(v_cooldown_expires AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+        'cooldownRemainingMinutes', v_remaining_minutes
+      );
+    END IF;
+  END IF;
+
+  -- ── Cooldown #2 (NEW): 6h per RECEIVER, regardless of sender ──
+  -- "This person already got one recently (from anyone in the family)."
+  -- Prevents 3 family members from sending near-identical nudges to the
+  -- same person within an hour. Returns a CLEAR 'receiver_cooldown'
+  -- error so the Flutter UI can surface "X already received a Thinking
+  -- of You moment recently" instead of failing silently.
+  SELECT "createdAt" INTO v_last_received
+  FROM "DirectMessage"
+  WHERE "receiverId" = p_receiver_id
+    AND "messageType" = 'thinking_of_you'
+  ORDER BY "createdAt" DESC
+  LIMIT 1;
+
+  IF v_last_received IS NOT NULL THEN
+    v_cooldown_expires := v_last_received + (v_receiver_cooldown_hours || ' hours')::interval;
+    IF now() < v_cooldown_expires THEN
+      v_remaining_minutes := CEIL(EXTRACT(EPOCH FROM (v_cooldown_expires - now())) / 60.0)::int;
+
+      RETURN json_build_object(
+        'success', false,
+        'error', 'receiver_cooldown',
+        'message', 'This person already received a Thinking of You moment recently. Try again in '
+                   || FLOOR(v_remaining_minutes / 60.0)::int || 'h '
+                   || (v_remaining_minutes % 60) || 'm.',
+        'cooldownHours', v_receiver_cooldown_hours,
         'cooldownExpiresAt', to_char(v_cooldown_expires AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
         'cooldownRemainingMinutes', v_remaining_minutes
       );
@@ -99,14 +147,34 @@ BEGIN
   SELECT name INTO v_family_name FROM "Family" WHERE id = p_family_id;
   IF v_family_name IS NULL THEN v_family_name := 'your family'; END IF;
 
-  -- Pick a random warm message. The receiver sees "<sender> <message>".
-  v_messages := ARRAY[
+  -- ── 16 warm verb-phrase templates (third person) ──
+  -- Each is grammatically correct when prefixed with "<SenderName> ".
+  -- Expanded from 4 → 16 so repeated nudges from different family members
+  -- don't read as copy-pasted spam. Picked at random per send.
+  v_templates := ARRAY[
     'is thinking of you.',
     'thought about you today.',
     'sent you a Thinking of You moment.',
-    'wants you to know you''re on their mind.'
+    'wants you to know you''re on their mind.',
+    'just wanted to say you matter to them.',
+    'is sending a little warmth your way.',
+    'is holding you close in thought today.',
+    'wanted to brighten your day with a hello.',
+    'is sending good vibes your way.',
+    'just paused to think of you.',
+    'is hoping you''re doing well today.',
+    'wanted to remind you you''re loved.',
+    'sent a little heartbeat your way.',
+    'is thinking of the times you shared.',
+    'wanted you to know they''re in your corner.',
+    'is sending a quiet little smile your way.'
   ];
-  v_message := v_messages[1 + floor(random() * array_length(v_messages, 1))::int];
+  v_phrase := v_templates[1 + floor(random() * array_length(v_templates, 1))::int];
+
+  -- ── Task 1: store the FULL GRAMMATICAL SENTENCE in content ──
+  -- Old: content = "is thinking of you."  (Flutter prepended "You " → "You is thinking of you.")
+  -- New: content = "Manish is thinking of you."  (Flutter renders content as-is)
+  v_message := v_sender_name || ' ' || v_phrase;
 
   -- ── STEP 1: Insert a DIRECT MESSAGE (PRIVATE 1:1 delivery) ──
   -- This is the ONLY visible delivery. RLS on DirectMessage only lets
@@ -142,7 +210,7 @@ BEGIN
       p_receiver_id,
       'thinking_of_you',
       'Thinking of You',
-      v_sender_name || ' ' || v_message,
+      v_message,
       p_family_id,
       'in_app',
       'normal',
@@ -190,18 +258,19 @@ BEGIN
     NULL;
   END;
 
-  -- Compute the NEXT time the sender can send to this receiver (6h from now)
-  v_cooldown_expires := now() + (v_cooldown_hours || ' hours')::interval;
+  -- Compute the NEXT time the sender can send to this receiver (6h from now).
+  -- The per-receiver cooldown is reported separately only when it blocks.
+  v_cooldown_expires := now() + (v_sender_cooldown_hours || ' hours')::interval;
 
   RETURN json_build_object(
     'success', true,
-    'message', v_sender_name || ' ' || v_message,
-    'displayMessage', v_sender_name || ' ' || v_message,
+    'message', v_message,
+    'displayMessage', v_message,
     'dmId', v_dm_id,
     'senderName', v_sender_name,
     'receiverName', COALESCE((SELECT name FROM "User" WHERE id = p_receiver_id), 'them'),
     'familyName', v_family_name,
-    'cooldownHours', v_cooldown_hours,
+    'cooldownHours', v_sender_cooldown_hours,
     'cooldownExpiresAt', to_char(v_cooldown_expires AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
   );
 EXCEPTION WHEN OTHERS THEN

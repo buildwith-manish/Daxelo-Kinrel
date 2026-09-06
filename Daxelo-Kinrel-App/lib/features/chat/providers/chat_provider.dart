@@ -25,6 +25,7 @@
 //   - Network interruption handling (optimistic UI + reconcile on reconnect)
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -34,13 +35,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/family/family_provider.dart';
 import '../../games/shared/models/game_invite.dart';
+import '../../presence/last_seen_provider.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Models
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Message type — drives the bubble content and layout.
-enum MessageType { text, photo, voiceNote, familyEvent, sticker, gameInvite }
+enum MessageType { text, photo, voiceNote, familyEvent, sticker, gameInvite, poll, gif, document, location }
 
 /// A single emoji reaction on a message.
 class MessageReaction {
@@ -68,6 +70,69 @@ class MessageReaction {
     return MessageReaction(
       emoji: json['emoji'] as String? ?? '',
       userId: json['userId'] as String? ?? '',
+    );
+  }
+}
+
+/// Phase 22 / Task 3 — A single @mention reference on a chat message.
+///
+/// `start` and `end` are character offsets into the message `content`
+/// (UTF-16 codeunit offsets, matching Dart's String indexing) marking
+/// the `@Name` span. The renderer uses these to split the content into
+/// [before, @Name, after] segments and style the middle one as a
+/// highlighted chip.
+///
+/// Modeled on MessageReaction: a value type with equality based on
+/// (userId, start, end), JSON serialization, and a `fromJson` factory.
+class MentionRef {
+  const MentionRef({
+    required this.userId,
+    required this.name,
+    required this.start,
+    required this.end,
+  });
+
+  /// The mentioned user's UUID (matches `auth.uid()` for the recipient).
+  final String userId;
+
+  /// The mentioned user's display name at mention time. Stored so the
+  /// chip keeps rendering even if the user later renames themselves.
+  final String name;
+
+  /// Character offset where the `@Name` span starts in `content`.
+  final int start;
+
+  /// Character offset where the `@Name` span ends in `content`
+  /// (exclusive — `content.substring(start, end)` yields the `@Name`).
+  final int end;
+
+  /// True if this mention points at the current user.
+  bool isFor(String currentUserId) => userId == currentUserId;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MentionRef &&
+          userId == other.userId &&
+          start == other.start &&
+          end == other.end;
+
+  @override
+  int get hashCode => userId.hashCode ^ start.hashCode ^ end.hashCode;
+
+  Map<String, dynamic> toJson() => {
+        'userId': userId,
+        'name': name,
+        'start': start,
+        'end': end,
+      };
+
+  factory MentionRef.fromJson(Map<String, dynamic> json) {
+    return MentionRef(
+      userId: json['userId'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      start: (json['start'] as num?)?.toInt() ?? 0,
+      end: (json['end'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -109,6 +174,16 @@ class ChatMessage {
     this.gameMaxPlayers,
     this.gameCurrentPlayers,
     this.gameInviteStatus, // 'pending' | 'accepted' | 'expired' | 'cancelled'
+    // Phase 22 / Task 3 — @mention references. Denormalized from the
+    // ChatMention table so the bubble renderer can highlight @Name spans
+    // without an extra round-trip.
+    this.mentions = const [],
+    // Phase 22 / Task 5 — poll fields (messageType == poll).
+    this.pollQuestion,
+    this.pollOptions = const [],
+    this.pollVoteCounts = const [],
+    this.pollVoterIds = const [],
+    this.pollCreatedAt,
   });
 
   /// URL of the attached media (photo or voice note) in Supabase storage.
@@ -213,6 +288,55 @@ class ChatMessage {
   /// | 'expired' | 'cancelled' (ended). Null is treated as 'pending'.
   final String? gameInviteStatus;
 
+  /// Phase 22 / Task 3 — @mention refs on this message. Each contains
+  /// the userId, display name, and the [start, end) character offsets
+  /// into `content` where the `@Name` span lives. Used by the bubble
+  /// renderer to highlight mentions and by the notifications UI to
+  /// decide whether to show a 'you were mentioned' badge.
+  final List<MentionRef> mentions;
+
+  /// Convenience: does this message mention the current user?
+  bool mentionsUser(String currentUserId) =>
+      mentions.any((m) => m.userId == currentUserId);
+
+  // ── Phase 22 / Task 5 — Poll fields (messageType == poll) ──
+
+  /// The poll question (also mirrored in `content` so the inbox
+  /// preview shows it).
+  final String? pollQuestion;
+
+  /// Poll options — array of strings, indexed 0..N-1. The voter's
+  /// `optionIndex` corresponds to the index in this array.
+  final List<String> pollOptions;
+
+  /// Live vote counts — array of ints, indexed the same as [pollOptions].
+  /// Updated by fn_vote_poll via a realtime UPDATE on the ChatMessage row.
+  final List<int> pollVoteCounts;
+
+  /// Voter refs — array of {userId, optionIndex} objects. Used by the
+  /// client to determine the "you voted" state (find my userId in the
+  /// array → that's the option I voted for). Stored on the row so the
+  /// client doesn't need a separate query per poll.
+  final List<Map<String, dynamic>> pollVoterIds;
+
+  /// When the poll was posted (for the "Xh ago" label).
+  final DateTime? pollCreatedAt;
+
+  /// Convenience: which option did the current user vote for?
+  /// Returns the option index (0-based) or null if they haven't voted.
+  int? votedOptionIndex(String currentUserId) {
+    for (final v in pollVoterIds) {
+      if (v['userId'] == currentUserId) {
+        return (v['optionIndex'] as num?)?.toInt();
+      }
+    }
+    return null;
+  }
+
+  /// Convenience: total votes across all options.
+  int get pollTotalVotes =>
+      pollVoteCounts.fold(0, (sum, c) => sum + c);
+
   /// Game-invite card: whether the room is full.
   bool get isGameFull =>
       (gameCurrentPlayers ?? 0) >= (gameMaxPlayers ?? 1) &&
@@ -273,6 +397,12 @@ class ChatMessage {
     int? gameMaxPlayers,
     int? gameCurrentPlayers,
     String? gameInviteStatus,
+    List<MentionRef>? mentions,
+    String? pollQuestion,
+    List<String>? pollOptions,
+    List<int>? pollVoteCounts,
+    List<Map<String, dynamic>>? pollVoterIds,
+    DateTime? pollCreatedAt,
   }) {
     return ChatMessage(
       id: id,
@@ -306,6 +436,12 @@ class ChatMessage {
       gameMaxPlayers: gameMaxPlayers ?? this.gameMaxPlayers,
       gameCurrentPlayers: gameCurrentPlayers ?? this.gameCurrentPlayers,
       gameInviteStatus: gameInviteStatus ?? this.gameInviteStatus,
+      mentions: mentions ?? this.mentions,
+      pollQuestion: pollQuestion ?? this.pollQuestion,
+      pollOptions: pollOptions ?? this.pollOptions,
+      pollVoteCounts: pollVoteCounts ?? this.pollVoteCounts,
+      pollVoterIds: pollVoterIds ?? this.pollVoterIds,
+      pollCreatedAt: pollCreatedAt ?? this.pollCreatedAt,
     );
   }
 
@@ -345,7 +481,59 @@ class ChatMessage {
       gameMaxPlayers: json['gameMaxPlayers'] as int?,
       gameCurrentPlayers: json['gameCurrentPlayers'] as int?,
       gameInviteStatus: json['gameInviteStatus'] as String?,
+      // Phase 22 / Task 3 — parse the denormalized `mentions` JSONB
+      // column. Falls back to [] when the column is null or the row
+      // came from a server that didn't have the column yet.
+      mentions: _parseMentions(json['mentions']),
+      // Phase 22 / Task 5 — poll fields.
+      pollQuestion: json['pollQuestion'] as String?,
+      pollOptions: _parseStringArray(json['pollOptions']),
+      pollVoteCounts: _parseIntArray(json['pollVoteCounts']),
+      pollVoterIds: _parseVoterIds(json['pollVoterIds']),
+      pollCreatedAt: json['pollCreatedAt'] == null
+          ? null
+          : DateTime.tryParse(json['pollCreatedAt'] as String),
     );
+  }
+
+  /// Parse the `mentions` JSONB column into a List<MentionRef>.
+  /// Tolerates null, non-list, and malformed entries (defensive — the
+  /// server column is JSONB so we could get anything back).
+  static List<MentionRef> _parseMentions(dynamic raw) {
+    if (raw == null || raw is! List) return const [];
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map(MentionRef.fromJson)
+        .where((m) => m.userId.isNotEmpty)
+        .toList();
+  }
+
+  /// Parse a JSONB string array (pollOptions) into a List<String>.
+  /// Tolerates null and non-list values.
+  static List<String> _parseStringArray(dynamic raw) {
+    if (raw == null || raw is! List) return const [];
+    return raw.map((e) => e?.toString() ?? '').toList();
+  }
+
+  /// Parse a JSONB int array (pollVoteCounts) into a List<int>.
+  /// Tolerates null, non-list, and non-int entries.
+  static List<int> _parseIntArray(dynamic raw) {
+    if (raw == null || raw is! List) return const [];
+    return raw.map((e) {
+      if (e is int) return e;
+      if (e is num) return e.toInt();
+      return 0;
+    }).toList();
+  }
+
+  /// Parse a JSONB array of {userId, optionIndex} (pollVoterIds).
+  /// Tolerates null, non-list, and malformed entries.
+  static List<Map<String, dynamic>> _parseVoterIds(dynamic raw) {
+    if (raw == null || raw is! List) return const [];
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .where((m) => m['userId'] != null)
+        .toList();
   }
 
   static MessageType _parseMessageType(String? raw) {
@@ -360,6 +548,14 @@ class ChatMessage {
         return MessageType.sticker;
       case 'gameInvite':
         return MessageType.gameInvite;
+      case 'poll':
+        return MessageType.poll;
+      case 'gif':
+        return MessageType.gif;
+      case 'document':
+        return MessageType.document;
+      case 'location':
+        return MessageType.location;
       case 'text':
       default:
         return MessageType.text;
@@ -400,6 +596,16 @@ class ChatMessage {
       if (gameMaxPlayers != null) 'gameMaxPlayers': gameMaxPlayers,
       if (gameCurrentPlayers != null) 'gameCurrentPlayers': gameCurrentPlayers,
       if (gameInviteStatus != null) 'gameInviteStatus': gameInviteStatus,
+      // Phase 22 / Task 3 — mentions are stored as a JSONB array on the
+      // row. Empty list → '[]' which the server treats as "no mentions".
+      'mentions': mentions.map((m) => m.toJson()).toList(),
+      // Phase 22 / Task 5 — poll fields. Null on non-poll rows.
+      if (pollQuestion != null) 'pollQuestion': pollQuestion,
+      if (pollOptions.isNotEmpty) 'pollOptions': pollOptions,
+      if (pollVoteCounts.isNotEmpty) 'pollVoteCounts': pollVoteCounts,
+      if (pollVoterIds.isNotEmpty) 'pollVoterIds': pollVoterIds,
+      if (pollCreatedAt != null)
+        'pollCreatedAt': pollCreatedAt!.toIso8601String(),
     };
   }
 
@@ -415,6 +621,14 @@ class ChatMessage {
         return 'sticker';
       case MessageType.gameInvite:
         return 'gameInvite';
+      case MessageType.poll:
+        return 'poll';
+      case MessageType.gif:
+        return 'gif';
+      case MessageType.document:
+        return 'document';
+      case MessageType.location:
+        return 'location';
       case MessageType.text:
       default:
         return 'text';
@@ -856,6 +1070,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
             'user_id': myId,
             'name': myName,
           });
+          // Tier 1 / Last Seen — mark the user as online in the
+          // UserPresence table so other family members see "online"
+          // on the Family Profile + member profile sheets.
+          ref.read(lastSeenProvider.notifier).updateMyPresence(true);
         }
       });
     } else {
@@ -1041,6 +1259,121 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
+  /// Phase 22 / Task 3 — Send a text message that @mentions one or more
+  /// family members.
+  ///
+  /// Flow:
+  ///   1. Optimistic insert (same as `sendMessage`) — the message
+  ///      appears immediately with the mentions JSONB column populated
+  ///      so the local bubble highlights the @Name spans right away.
+  ///   2. Server insert via the normal ChatMessage INSERT path (the
+  ///      `mentions` JSONB is included in `toJson`).
+  ///   3. Call `fn_add_mentions_to_message` RPC to populate the
+  ///      queryable `ChatMention` rows and fire the distinct
+  ///      `chat_mention` push/in-app notifications to each mentioned
+  ///      user. This is best-effort — a failure here doesn't roll back
+  ///      the message, the bubble still renders the @Name highlights.
+  ///
+  /// [mentions] is the list of MentionRef the caller built from the
+  /// mention picker UI. Each ref's [start, end) character offsets must
+  /// point at the `@Name` span inside [content].
+  Future<void> sendMessageWithMentions(
+    String content, {
+    required List<MentionRef> mentions,
+    String? replyToId,
+    String? groupId,
+  }) async {
+    final trimmed = content.trim();
+    if (trimmed.isEmpty) return;
+    if (mentions.isEmpty) {
+      // No mentions → just call the regular sendMessage path.
+      return sendMessage(trimmed, replyToId: replyToId, groupId: groupId);
+    }
+
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) {
+      if (mounted) state = state.copyWith(error: 'Not signed in');
+      return;
+    }
+
+    final now = DateTime.now();
+    final msgId = _generateId();
+    final senderName = _currentUserName;
+
+    ChatMessage? replyTo;
+    String? replyContent;
+    String? replySender;
+    if (replyToId != null) {
+      replyTo = state.messages.firstWhere(
+        (m) => m.id == replyToId,
+        orElse: () => state.messages.first,
+      );
+      replyContent = replyTo.content;
+      replySender = replyTo.senderName;
+    }
+
+    final optimistic = ChatMessage(
+      id: msgId,
+      senderId: myUserId,
+      senderName: senderName,
+      content: trimmed,
+      messageType: MessageType.text,
+      timestamp: now,
+      isRead: false,
+      replyToId: replyToId,
+      replyToContent: replyContent,
+      replyToSenderName: replySender,
+      senderInitials: _initialsFromName(senderName),
+      groupId: groupId,
+      mentions: mentions,
+    );
+
+    _pendingOptimisticIds.add(msgId);
+
+    final updated = [optimistic, ...state.messages];
+    if (mounted) {
+      state = state.copyWith(messages: updated, clearReplyTo: true);
+    }
+
+    // Step 1: persist the ChatMessage row (mentions JSONB is included
+    // via toJson so the server-side row has the highlight spans too).
+    try {
+      await client.from('ChatMessage').insert(optimistic.toJson(
+        familyId: familyId,
+      ));
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendMessageWithMentions insert failed: $e');
+      _pendingOptimisticIds.remove(msgId);
+      if (mounted) {
+        final withoutFailed = state.messages.where((m) => m.id != msgId).toList();
+        state = state.copyWith(
+          messages: withoutFailed,
+          error: 'Failed to send message',
+        );
+      }
+      return;
+    }
+
+    // Step 2: best-effort — populate ChatMention rows + fire
+    // 'chat_mention' notifications to each mentioned user. Failure
+    // here doesn't roll back the message; the mentions JSONB on the
+    // row still makes the bubble highlight correctly.
+    try {
+      await client.rpc(
+        'fn_add_mentions_to_message',
+        params: {
+          'p_message_id': msgId,
+          'p_family_id': familyId,
+          'p_mentions': mentions.map((m) => m.toJson()).toList(),
+        },
+      ).timeout(const Duration(seconds: 8));
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendMessageWithMentions RPC failed: $e '
+          '(message was sent; mention notifications may not fire)');
+    }
+  }
+
   /// Set the message to reply to.
   void setReplyTo(ChatMessage? message) {
     state = state.copyWith(replyToMessage: message);
@@ -1165,6 +1498,49 @@ class ChatNotifier extends StateNotifier<ChatState> {
     } catch (e) {
       debugPrint('⚠️ ChatNotifier.forwardMessage failed: $e');
       return false;
+    }
+  }
+
+  /// Tier 1 / Forward Picker — forward a message to MULTIPLE targets at
+  /// once (family chats + DM recipients) via the fn_forward_message RPC.
+  ///
+  /// The RPC:
+  ///   • Validates the caller is a member of every target family.
+  ///   • Inserts a copy of the message into each target family chat
+  ///     with forwardedFrom = original sender name (so the bubble shows
+  ///     "Forwarded from <name>").
+  ///   • For DM targets (text + sticker only — DMs don't have a mediaUrl
+  ///     column), inserts a DirectMessage row.
+  ///   • Resets poll votes / reactions / read state on the copies.
+  ///
+  /// Returns a map with: success, familyChatsForwarded, dmChatsForwarded,
+  /// totalForwarded, insertedMessageIds. Returns null on auth / network
+  /// failure.
+  Future<Map<String, dynamic>?> forwardMessageToTargets({
+    required String messageId,
+    List<String> targetFamilyIds = const [],
+    List<String> targetDmUserIds = const [],
+  }) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) return null;
+    if (targetFamilyIds.isEmpty && targetDmUserIds.isEmpty) return null;
+
+    try {
+      final response = await client.rpc(
+        'fn_forward_message',
+        params: {
+          'p_message_id': messageId,
+          'p_target_family_ids': targetFamilyIds,
+          'p_target_dm_user_ids': targetDmUserIds,
+        },
+      ).timeout(const Duration(seconds: 12));
+
+      final result = response as Map<String, dynamic>?;
+      return result;
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.forwardMessageToTargets error: $e');
+      return {'success': false, 'error': e.toString()};
     }
   }
 
@@ -1326,6 +1702,372 @@ class ChatNotifier extends StateNotifier<ChatState> {
           error: 'Failed to send sticker',
         );
       }
+    }
+  }
+
+  /// Tier 2 / GIF search — send a GIF message.
+  ///
+  /// The [gifUrl] is the high-res original GIF URL from Giphy. The
+  /// [title] is stored in content for the inbox preview + accessibility.
+  Future<void> sendGif({
+    required String gifUrl,
+    required String title,
+    String? replyToId,
+  }) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) return;
+
+    final now = DateTime.now();
+    final msgId = _generateId();
+    final senderName = _currentUserName;
+
+    String? replyContent;
+    String? replySender;
+    if (replyToId != null) {
+      final replyTo = state.messages.firstWhere(
+        (m) => m.id == replyToId,
+        orElse: () => state.messages.first,
+      );
+      replyContent = replyTo.content;
+      replySender = replyTo.senderName;
+    }
+
+    final optimistic = ChatMessage(
+      id: msgId,
+      senderId: myUserId,
+      senderName: senderName,
+      content: title,
+      messageType: MessageType.gif,
+      timestamp: now,
+      isRead: false,
+      replyToId: replyToId,
+      replyToContent: replyContent,
+      replyToSenderName: replySender,
+      senderInitials: _initialsFromName(senderName),
+      mediaUrl: gifUrl,
+      messageSubType: 'gif',
+    );
+
+    _pendingOptimisticIds.add(msgId);
+    if (mounted) {
+      state = state.copyWith(
+        messages: [optimistic, ...state.messages],
+        clearReplyTo: true,
+      );
+    }
+
+    try {
+      await client.from('ChatMessage').insert(optimistic.toJson(familyId: familyId));
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendGif insert failed: $e');
+      _pendingOptimisticIds.remove(msgId);
+      if (mounted) {
+        final withoutFailed = state.messages.where((m) => m.id != msgId).toList();
+        state = state.copyWith(messages: withoutFailed, error: 'Failed to send GIF');
+      }
+    }
+  }
+
+  /// Tier 2 / Document attachments — send a document message.
+  ///
+  /// The [documentUrl] is the storage URL of the uploaded file. The
+  /// [fileName] is stored in content for the bubble preview + inbox.
+  /// The [fileSize] (bytes) is optional — used for the inbox preview
+  /// ("Document · 1.2 MB").
+  Future<void> sendDocument({
+    required String documentUrl,
+    required String fileName,
+    int? fileSize,
+    String? replyToId,
+  }) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) return;
+
+    final now = DateTime.now();
+    final msgId = _generateId();
+    final senderName = _currentUserName;
+
+    final optimistic = ChatMessage(
+      id: msgId,
+      senderId: myUserId,
+      senderName: senderName,
+      content: fileName,
+      messageType: MessageType.document,
+      timestamp: now,
+      isRead: false,
+      senderInitials: _initialsFromName(senderName),
+      mediaUrl: documentUrl,
+      messageSubType: 'document',
+    );
+
+    _pendingOptimisticIds.add(msgId);
+    if (mounted) {
+      state = state.copyWith(
+        messages: [optimistic, ...state.messages],
+        clearReplyTo: true,
+      );
+    }
+
+    try {
+      await client.from('ChatMessage').insert(optimistic.toJson(familyId: familyId));
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendDocument insert failed: $e');
+      _pendingOptimisticIds.remove(msgId);
+      if (mounted) {
+        final withoutFailed = state.messages.where((m) => m.id != msgId).toList();
+        state = state.copyWith(messages: withoutFailed, error: 'Failed to send document');
+      }
+    }
+  }
+
+  /// Tier 2 / Live location sharing — send a location message.
+  ///
+  /// The [lat] / [lng] + optional [label] are stored in content as a
+  /// JSON string (parsed by the bubble renderer). No mediaUrl — the
+  /// card opens the system maps app at the shared coordinates.
+  Future<void> sendLocation({
+    required double lat,
+    required double lng,
+    String? label,
+    String? replyToId,
+  }) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) return;
+
+    final now = DateTime.now();
+    final msgId = _generateId();
+    final senderName = _currentUserName;
+
+    final contentJson = jsonEncode({
+      'lat': lat,
+      'lng': lng,
+      'label': label ?? 'Shared location',
+    });
+
+    final optimistic = ChatMessage(
+      id: msgId,
+      senderId: myUserId,
+      senderName: senderName,
+      content: contentJson,
+      messageType: MessageType.location,
+      timestamp: now,
+      isRead: false,
+      senderInitials: _initialsFromName(senderName),
+      messageSubType: 'location',
+    );
+
+    _pendingOptimisticIds.add(msgId);
+    if (mounted) {
+      state = state.copyWith(
+        messages: [optimistic, ...state.messages],
+        clearReplyTo: true,
+      );
+    }
+
+    try {
+      await client.from('ChatMessage').insert(optimistic.toJson(familyId: familyId));
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendLocation insert failed: $e');
+      _pendingOptimisticIds.remove(msgId);
+      if (mounted) {
+        final withoutFailed = state.messages.where((m) => m.id != msgId).toList();
+        state = state.copyWith(messages: withoutFailed, error: 'Failed to share location');
+      }
+    }
+  }
+
+  /// Phase 22 / Task 5 — Post a new poll to the family chat.
+  ///
+  /// Calls the `fn_send_poll` RPC which inserts a ChatMessage row with
+  /// `messageType = 'poll'`, `pollQuestion`, `pollOptions` (JSONB array
+  /// of 2–6 strings), and zeroed `pollVoteCounts` + empty `pollVoterIds`.
+  ///
+  /// Optimistic insert uses a client-generated ID; on RPC success the
+  /// returned messageId replaces it so the realtime INSERT (using the
+  /// RPC-generated ID) doesn't double-render. On RPC failure we drop
+  /// the optimistic card.
+  ///
+  /// [options] must contain 2–6 non-empty strings. The RPC re-validates.
+  Future<void> sendPoll({
+    required String question,
+    required List<String> options,
+    String? replyToId,
+  }) async {
+    final trimmedQuestion = question.trim();
+    if (trimmedQuestion.isEmpty) return;
+    if (options.length < 2 || options.length > 6) return;
+
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) {
+      if (mounted) state = state.copyWith(error: 'Not signed in');
+      return;
+    }
+
+    final now = DateTime.now();
+    final optimisticId = _generateId();
+    final senderName = _currentUserName;
+
+    final optimistic = ChatMessage(
+      id: optimisticId,
+      senderId: myUserId,
+      senderName: senderName,
+      content: trimmedQuestion,
+      messageType: MessageType.poll,
+      timestamp: now,
+      isRead: false,
+      replyToId: replyToId,
+      senderInitials: _initialsFromName(senderName),
+      messageSubType: 'poll',
+      pollQuestion: trimmedQuestion,
+      pollOptions: options,
+      pollVoteCounts: List.filled(options.length, 0),
+      pollVoterIds: const [],
+      pollCreatedAt: now,
+    );
+
+    _pendingOptimisticIds.add(optimisticId);
+    if (mounted) {
+      state = state.copyWith(
+        messages: [optimistic, ...state.messages],
+        clearReplyTo: true,
+      );
+    }
+
+    try {
+      final response = await client.rpc(
+        'fn_send_poll',
+        params: {
+          'p_family_id': familyId,
+          'p_question': trimmedQuestion,
+          'p_options': options,
+          'p_reply_to_id': replyToId,
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      final result = response as Map<String, dynamic>?;
+      final success = result?['success'] as bool? ?? false;
+      if (!success) throw Exception(result?['error']?.toString() ?? 'rpc_failed');
+
+      final realId = result?['messageId'] as String?;
+      if (realId != null && realId != optimisticId) {
+        // The RPC generated its own ID. Replace the optimistic message
+        // with one carrying the real ID so realtime de-dup works.
+        _pendingOptimisticIds.remove(optimisticId);
+        final withRealId = optimistic.copyWith();
+        // copyWith doesn't have an `id` param; just rebuild.
+        final replaced = ChatMessage(
+          id: realId,
+          senderId: optimistic.senderId,
+          senderName: optimistic.senderName,
+          content: optimistic.content,
+          messageType: optimistic.messageType,
+          timestamp: optimistic.timestamp,
+          isRead: optimistic.isRead,
+          replyToId: optimistic.replyToId,
+          replyToContent: optimistic.replyToContent,
+          replyToSenderName: optimistic.replyToSenderName,
+          senderInitials: optimistic.senderInitials,
+          messageSubType: optimistic.messageSubType,
+          pollQuestion: optimistic.pollQuestion,
+          pollOptions: optimistic.pollOptions,
+          pollVoteCounts: optimistic.pollVoteCounts,
+          pollVoterIds: optimistic.pollVoterIds,
+          pollCreatedAt: optimistic.pollCreatedAt,
+        );
+        _pendingOptimisticIds.add(realId);
+        if (mounted) {
+          final swapped = state.messages
+              .where((m) => m.id != optimisticId)
+              .toList();
+          state = state.copyWith(messages: [replaced, ...swapped]);
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.sendPoll RPC failed: $e');
+      _pendingOptimisticIds.remove(optimisticId);
+      if (mounted) {
+        final withoutFailed =
+            state.messages.where((m) => m.id != optimisticId).toList();
+        state = state.copyWith(
+          messages: withoutFailed,
+          error: 'Failed to post poll',
+        );
+      }
+    }
+  }
+
+  /// Phase 22 / Task 5 — Cast a vote on a poll.
+  ///
+  /// Calls `fn_vote_poll` which inserts a ChatPollVote row (UNIQUE on
+  /// messageId+userId prevents double voting), bumps `pollVoteCounts`
+  /// on the ChatMessage row, and appends to `pollVoterIds`. The realtime
+  /// UPDATE propagates the new counts + voter IDs to every family
+  /// member's open chat — live.
+  ///
+  /// Returns the option index the user voted for (either the one they
+  /// just chose or, if they had already voted, their previously-chosen
+  /// option). Returns null on auth / not-in-family / not-a-poll errors.
+  Future<int?> votePoll(String messageId, int optionIndex) async {
+    final client = _client;
+    final myUserId = _currentUserId;
+    if (client == null || myUserId == null) return null;
+
+    try {
+      final response = await client.rpc(
+        'fn_vote_poll',
+        params: {
+          'p_message_id': messageId,
+          'p_option_index': optionIndex,
+        },
+      ).timeout(const Duration(seconds: 8));
+
+      final result = response as Map<String, dynamic>?;
+      final success = result?['success'] as bool? ?? false;
+
+      // 'already_voted' is returned with the previously-chosen option
+      // index — surface that so the UI can show "you already voted
+      // for X" without an extra query.
+      if (!success && result?['error'] == 'already_voted') {
+        return (result?['optionIndex'] as num?)?.toInt();
+      }
+      if (!success) {
+        debugPrint('⚠️ ChatNotifier.votePoll RPC failed: ${result?['error']}');
+        return null;
+      }
+
+      // The RPC's response carries the new pollVoteCounts + pollVoterIds
+      // — apply them to the local state immediately so the UI updates
+      // without waiting for the realtime round-trip.
+      final newCounts = result?['pollVoteCounts'];
+      final newVoters = result?['pollVoterIds'];
+      if (mounted &&
+          (newCounts is List || newVoters is List)) {
+        final updated = state.messages.map((m) {
+          if (m.id != messageId) return m;
+          return m.copyWith(
+            pollVoteCounts: newCounts is List
+                ? newCounts.map((e) {
+                    if (e is int) return e;
+                    if (e is num) return e.toInt();
+                    return 0;
+                  }).toList()
+                : m.pollVoteCounts,
+            pollVoterIds: newVoters is List
+                ? newVoters.whereType<Map<String, dynamic>>().toList()
+                : m.pollVoterIds,
+          );
+        }).toList();
+        state = state.copyWith(messages: updated);
+      }
+
+      return optionIndex;
+    } catch (e) {
+      debugPrint('⚠️ ChatNotifier.votePoll error: $e');
+      return null;
     }
   }
 
@@ -1593,6 +2335,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // v5.2: Cancel the family member listener to prevent leaks.
     _memberListListener?.close();
     _memberListListener = null;
+    // Tier 1 / Last Seen — mark the user as offline when the chat
+    // notifier disposes (which happens when the chat screen closes).
+    // Other family members will then see "last seen X ago" instead of
+    // "online". Best-effort — the RPC fires-and-forgets; if the user
+    // force-kills the app, the row stays "online" until the next
+    // heartbeat / app open updates it. (A proper app-lifecycle
+    // observer would catch force-kill; for v1 the chat-screen-close
+    // trigger covers the common case.)
+    ref.read(lastSeenProvider.notifier).updateMyPresence(false);
     super.dispose();
   }
 }

@@ -67,8 +67,12 @@ class ThinkingResult {
   }
 
   /// Convenience: is the cooldown currently active?
+  /// Phase 22: matches both 'cooldown' (per-sender→receiver pair) and
+  /// 'receiver_cooldown' (per-receiver, regardless of sender). Both return
+  /// cooldownExpiresAt + cooldownRemainingMinutes from the RPC.
   bool get isOnCooldown =>
-      error == 'cooldown' && cooldownExpiresAtUtc != null &&
+      (error == 'cooldown' || error == 'receiver_cooldown') &&
+      cooldownExpiresAtUtc != null &&
       DateTime.now().toUtc().isBefore(cooldownExpiresAtUtc!);
 }
 

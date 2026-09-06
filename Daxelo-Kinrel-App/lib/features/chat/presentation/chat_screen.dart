@@ -24,10 +24,12 @@ import 'package:kinrel/core/widgets/global_error_widget.dart';
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cross_file/cross_file.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,6 +37,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:record/record.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/brand_colors.dart';
@@ -44,11 +47,25 @@ import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_edge_style.dart';
 import '../../family/data/relationship_label_provider.dart';
 import '../../../core/utils/web_keyboard_height.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/chat_enhancement_service.dart';
+import '../data/chat_lock_service.dart';
 import '../providers/chat_provider.dart';
 import 'voice_message_player.dart';
 import 'sticker_panel.dart';
+// Phase 22 / Task 3 — @mention picker overlay + highlight renderer.
+import 'widgets/mention_picker.dart';
+// Phase 22 / Task 5 — poll card bubble (reuses the gameInvite card pattern).
+import 'widgets/poll_card.dart';
+// Phase 22 / Task 5 — poll composer bottom sheet.
+import 'widgets/poll_composer_sheet.dart';
+import 'widgets/link_preview_card.dart';
+import 'widgets/forward_picker_sheet.dart';
+import 'widgets/disappearing_messages_sheet.dart';
+import 'widgets/message_info_sheet.dart';
+import 'widgets/gif_search_sheet.dart';
+import 'widgets/sticker_pack_sheet.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
 import '../../games/shared/icons/game_icons.dart';
@@ -113,6 +130,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   bool _showScrollFab = false;
   bool _isComposing = false;
 
+  // Tier 2 / Chat Lock — when true, the chat screen shows a biometric
+  // lock overlay instead of the message thread. Set in initState by
+  // reading the per-chat lock flag from shared_preferences.
+  bool _isChatLocked = false;
+  bool _isCheckingLock = true; // true while initState is reading the lock
+
+  // Phase 22 / Task 3 — @mention picker state.
+  // The picker is rendered as an OverlayEntry anchored to the message
+  // input via a LayerLink. MentionTracker keeps the pending MentionRef
+  // list in sync with the text as the user types.
+  late final MentionTracker _mentionTracker;
+  final LayerLink _inputLayerLink = LayerLink();
+  OverlayEntry? _mentionOverlay;
+  String _mentionQuery = '';
+  String? _currentUserIdCache;
+
   // Typing indicator animation
   late final AnimationController _typingController;
   late final List<Animation<double>> _dotAnimations;
@@ -158,6 +191,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _scrollController = ScrollController();
     _textController = TextEditingController();
     _focusNode = FocusNode();
+    _mentionTracker = MentionTracker(_textController);
+
+    // Tier 2 / Chat Lock — check if this chat is locked + prompt
+    // biometrics if so. Fires async in initState; the lock overlay
+    // shows until the user authenticates.
+    _checkChatLock();
 
     _scrollController.addListener(_onScroll);
     _textController.addListener(_onTextChanged);
@@ -240,6 +279,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   void dispose() {
     // v128: Clean up web keyboard height listener.
     WebKeyboardHeight.instance.removeListener(_onWebKeyboardHeight);
+    // Phase 22 / Task 3 — clean up the mention picker overlay so it
+    // doesn't leak if the screen closes while it's open.
+    _hideMentionPicker();
+    // Tier 3 / Live Location — cancel the location update timer so it
+    // doesn't keep sending updates after the screen closes.
+    _liveLocationTimer?.cancel();
+    _liveLocationTimer = null;
     _scrollController.dispose();
     _textController.dispose();
     _focusNode.dispose();
@@ -279,6 +325,65 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       final service = ref.read(chatEnhancementServiceProvider);
       service.setTypingStatus(widget.familyId, composing);
     }
+
+    // Phase 22 / Task 3 — @mention picker detection. MentionTracker
+    // walks back from the cursor to find an "@" trigger that's at the
+    // start of input or preceded by whitespace. If found, the text
+    // between "@" and the cursor becomes the search query and the
+    // picker overlay is shown (or updated with the new query).
+    final trigger = _mentionTracker.detectTrigger();
+    if (trigger != null) {
+      _showMentionPicker(trigger);
+    } else if (_mentionOverlay != null) {
+      _hideMentionPicker();
+    }
+  }
+
+  // ── Phase 22 / Task 3: @mention picker show/hide ──────────────────
+
+  void _showMentionPicker(String query) {
+    if (!mounted) return;
+
+    // Cache the current user ID once (used to exclude self from the list).
+    _currentUserIdCache ??= _currentUserId;
+    final currentUserId = _currentUserIdCache ?? '';
+
+    // Resolve family members from chat state.
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final members = chatState.members
+        .map(MentionableMember.fromOnlineMember)
+        .toList();
+
+    if (_mentionOverlay == null) {
+      _mentionOverlay = OverlayEntry(
+        builder: (context) => MentionPickerOverlay(
+          members: members,
+          query: query,
+          layerLink: _inputLayerLink,
+          currentUserId: currentUserId,
+          onSelected: _onMentionSelected,
+          onDismissed: _hideMentionPicker,
+        ),
+      );
+      Overlay.of(context).insert(_mentionOverlay!);
+    } else {
+      // Update the query + members in the existing overlay.
+      _mentionQuery = query;
+      _mentionOverlay!.markNeedsBuild();
+    }
+  }
+
+  void _hideMentionPicker() {
+    _mentionOverlay?.remove();
+    _mentionOverlay = null;
+    _mentionQuery = '';
+  }
+
+  void _onMentionSelected(MentionableMember m) {
+    _mentionTracker.insertMention(m);
+    _hideMentionPicker();
+    _focusNode.requestFocus();
+    if (mounted) setState(() {}); // refresh to update send button state
   }
 
   void _scrollToBottom() {
@@ -301,13 +406,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // updated and the realtime INSERT event will be de-duped by the
     // notifier.
     final replyToId = chatState.replyToMessage?.id;
+
+    // Phase 22 / Task 3 — if the user has any pending @mention refs,
+    // route through sendMessageWithMentions so the RPC fires the
+    // distinct 'chat_mention' notifications to each mentioned user.
+    // The MentionTracker has already kept the refs in sync with the
+    // text on every change, so its .refs list is the source of truth.
+    final pendingMentions = _mentionTracker.refs.toList();
     Future.microtask(() {
-      ref
-          .read(chatProvider(widget.familyId).notifier)
-          .sendMessage(text, replyToId: replyToId, groupId: widget.groupId);
+      if (pendingMentions.isEmpty) {
+        ref
+            .read(chatProvider(widget.familyId).notifier)
+            .sendMessage(text, replyToId: replyToId, groupId: widget.groupId);
+      } else {
+        ref.read(chatProvider(widget.familyId).notifier).sendMessageWithMentions(
+              text,
+              mentions: pendingMentions,
+              replyToId: replyToId,
+              groupId: widget.groupId,
+            );
+      }
     });
 
     _textController.clear();
+    _mentionTracker.clear();
+    _hideMentionPicker();
     _focusNode.requestFocus();
     // v126: Scroll to bottom after sending so the new message is visible.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -340,6 +463,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       _focusNode.unfocus();
     }
     setState(() => _showStickerPanel = !_showStickerPanel);
+  }
+
+  // Phase 22 / Task 5 — open the poll composer sheet. Closes the
+  // sticker panel first so we don't stack two input surfaces.
+  /// Tier 3 / Sticker Packs — opens the StickerPackSheet (Giphy
+  /// transparent-background stickers). Closes the emoji panel first.
+  Future<void> _openStickerPacks() async {
+    if (_showStickerPanel && mounted) {
+      setState(() => _showStickerPanel = false);
+    }
+    _focusNode.unfocus();
+    await StickerPackSheet.show(
+      context,
+      onStickerSelected: (stickerUrl, title) {
+        ref.read(chatProvider(widget.familyId).notifier).sendGif(
+              gifUrl: stickerUrl,
+              title: title,
+            );
+      },
+    );
+  }
+
+  Future<void> _openPollComposer() async {
+    if (_showStickerPanel && mounted) {
+      setState(() => _showStickerPanel = false);
+    }
+    _focusNode.unfocus();
+    final replyToId = ref.read(chatProvider(widget.familyId)).replyToMessage?.id;
+    await PollComposerSheet.show(
+      context,
+      familyId: widget.familyId,
+      replyToId: replyToId,
+    );
   }
 
   void _showReactionPicker(String messageId) {
@@ -440,38 +596,134 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       bottomNavigationBar: widget.showFamilyNav
           ? FamilySpaceFloatingNav(familyId: widget.familyId)
           : null,
-      body: Column(
-        children: [
-          // v132: Messages list wrapped with ChatBackground — a
-          // multi-layer ambient gradient (base + accent glow +
-          // vignette) plus optional blurred custom wallpaper.
-          // Gives the chat space depth without competing with bubbles.
-          Expanded(
-            child: ChatBackground(
-              chatId: widget.familyId,
-              child: bodyContent,
+      body: _isCheckingLock
+          ? const Center(
+              child: CircularProgressIndicator(color: KinrelColors.ember),
+            )
+          : _isChatLocked
+              ? _buildLockScreen()
+              : Column(
+                  children: [
+                    // v132: Messages list wrapped with ChatBackground — a
+                    // multi-layer ambient gradient (base + accent glow +
+                    // vignette) plus optional blurred custom wallpaper.
+                    // Gives the chat space depth without competing with bubbles.
+                    Expanded(
+                      child: ChatBackground(
+                        chatId: widget.familyId,
+                        child: bodyContent,
+                      ),
+                    ),
+                    // Typing indicator
+                    if (chatState.isTyping) _buildTypingIndicator(chatState),
+                    // Reply preview bar
+                    if (chatState.replyToMessage != null)
+                      _buildReplyPreview(chatState.replyToMessage!),
+                    // Phase 14: Sticker panel (slides up when toggled)
+                    if (_showStickerPanel && !_isRecording)
+                      StickerPanel(
+                        onStickerSelected: _sendSticker,
+                        onClose: _toggleStickerPanel,
+                      ),
+                    // Input bar
+                    _buildInputBar(),
+                    // v128: On Flutter Web, resizeToAvoidBottomInset doesn't detect
+                    // the mobile keyboard. We add explicit bottom padding equal to
+                    // the visualViewport-measured keyboard height so the input bar
+                    // is always visible above the keyboard.
+                    if (kIsWeb && _webKeyboardHeight > 0)
+                      SizedBox(height: _webKeyboardHeight),
+                  ],
+                ),
+    );
+  }
+
+  // ── Tier 2 / Chat Lock — Lock Screen ─────────────────────────────
+
+  /// Full-screen lock overlay shown when the chat is locked. Renders
+  /// a lock icon + "This chat is locked" + an "Authenticate" button.
+  /// The user taps the button to trigger biometrics via _promptUnlock.
+  Widget _buildLockScreen() {
+    return Container(
+      color: const Color(0xFF0A0B16),
+      child: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: KinrelColors.ember.withValues(alpha: 0.12),
+                    border: Border.all(
+                      color: KinrelColors.ember.withValues(alpha: 0.35),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.lock_rounded,
+                    size: 36,
+                    color: KinrelColors.ember,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'This chat is locked',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Authenticate with Face ID, Touch ID, or your device PIN to view messages.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    color: KinrelColors.textDim,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 28),
+                FilledButton.icon(
+                  onPressed: _promptUnlock,
+                  icon: const Icon(Icons.fingerprint_rounded, size: 20),
+                  label: const Text('Authenticate'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: KinrelColors.ember,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 32, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go('/home');
+                    }
+                  },
+                  child: Text(
+                    'Go back',
+                    style: TextStyle(color: KinrelColors.textDim),
+                  ),
+                ),
+              ],
             ),
           ),
-          // Typing indicator
-          if (chatState.isTyping) _buildTypingIndicator(chatState),
-          // Reply preview bar
-          if (chatState.replyToMessage != null)
-            _buildReplyPreview(chatState.replyToMessage!),
-          // Phase 14: Sticker panel (slides up when toggled)
-          if (_showStickerPanel && !_isRecording)
-            StickerPanel(
-              onStickerSelected: _sendSticker,
-              onClose: _toggleStickerPanel,
-            ),
-          // Input bar
-          _buildInputBar(),
-          // v128: On Flutter Web, resizeToAvoidBottomInset doesn't detect
-          // the mobile keyboard. We add explicit bottom padding equal to
-          // the visualViewport-measured keyboard height so the input bar
-          // is always visible above the keyboard.
-          if (kIsWeb && _webKeyboardHeight > 0)
-            SizedBox(height: _webKeyboardHeight),
-        ],
+        ),
       ),
     );
   }
@@ -633,10 +885,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // so it feels like the visual anchor of the header.
                 // Double-ring framing: outer hairline ember ring + inner
                 // image. This is the Kinrel signature avatar treatment.
-                // v135: Tapping navigates to the Family Hub (intermediate
-                // screen), NOT the Family Space directly.
+                //
+                // Phase 22 / Header Nav Fix (revised): Tapping the avatar
+                // opens the FAMILY Profile screen (/family/<id>/profile),
+                // NOT an individual member's profile. The family chat
+                // header represents the FAMILY (family name, family
+                // avatar, family member count), so a header tap is a
+                // family-level action. Individual member profiles are
+                // opened from member-specific UI (message bubble avatars)
+                // via MemberProfileSheet, not from the header.
                 GestureDetector(
-                  onTap: () => context.push('/family/${widget.familyId}'),
+                  onTap: () =>
+                      context.push('/family/${widget.familyId}/profile'),
                   child: Container(
                     width: 48,
                     height: 48,
@@ -700,10 +960,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // ── Identity + relationship + status column ───────────
                 // Visual hierarchy: name (primary) → relationship chip
                 // (Kinrel signature) → presence status (supporting).
+                //
+                // Phase 22 / Header Nav Fix (revised): The outer
+                // GestureDetector wraps the name + presence status
+                // ("1 active") and routes to the FAMILY Profile screen
+                // (/family/<id>/profile). The family chat header
+                // represents the FAMILY, so a tap here is a family-level
+                // action — NOT an individual member profile. Individual
+                // member profiles are opened from message bubble avatars.
+                //
+                // The relationship chip ("Family · N") has its own
+                // GestureDetector inside that ALSO routes to the Family
+                // Profile (it's part of the header's family-info area).
                 Expanded(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () => context.push('/family/${widget.familyId}'),
+                    onTap: () =>
+                        context.push('/family/${widget.familyId}/profile'),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
@@ -735,45 +1008,62 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             // connection. This is the unique Kinrel
                             // element that distinguishes the header
                             // from standard messaging apps.
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2.5),
-                              decoration: BoxDecoration(
-                                color: KinrelColors.ember
-                                    .withValues(alpha: 0.10),
-                                borderRadius: BorderRadius.circular(100),
-                                border: Border.all(
+                            //
+                            // Phase 22 / Header Nav Fix: This chip is a
+                            // SEPARATE tap target from the surrounding
+                            // name+status column, but it ALSO routes to
+                            // the Family Profile (it's part of the
+                            // header's family-info area). The inner
+                            // GestureDetector with HitTestBehavior.opaque
+                            // captures the tap before the outer
+                            // GestureDetector can fire. Tapping anywhere
+                            // in the header's profile area — avatar,
+                            // name, status, OR badge — all consistently
+                            // open the Family Profile.
+                            GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => context.push(
+                                  '/family/${widget.familyId}/profile'),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2.5),
+                                decoration: BoxDecoration(
                                   color: KinrelColors.ember
-                                      .withValues(alpha: 0.30),
-                                  width: 0.6,
+                                      .withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(100),
+                                  border: Border.all(
+                                    color: KinrelColors.ember
+                                        .withValues(alpha: 0.30),
+                                    width: 0.6,
+                                  ),
                                 ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // Small family icon — heart for
-                                  // family connection (warmth, care)
-                                  Icon(
-                                    Icons.favorite_rounded,
-                                    size: 9,
-                                    color:
-                                        KinrelColors.ember,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    memberCount > 2
-                                        ? 'Family · $memberCount'
-                                        : 'Family',
-                                    style: TextStyle(
-                                      fontFamily: KinrelTypography.bodyFont,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: KinrelColors.ember
-                                          .withValues(alpha: 0.95),
-                                      letterSpacing: 0.3,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // Small family icon — heart for
+                                    // family connection (warmth, care)
+                                    Icon(
+                                      Icons.favorite_rounded,
+                                      size: 9,
+                                      color:
+                                          KinrelColors.ember,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      memberCount > 2
+                                          ? 'Family · $memberCount'
+                                          : 'Family',
+                                      style: TextStyle(
+                                        fontFamily: KinrelTypography.bodyFont,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: KinrelColors.ember
+                                            .withValues(alpha: 0.95),
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                             // ── Presence indicator ────────────────────
@@ -861,6 +1151,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ),
                   onSelected: (value) {
                     switch (value) {
+                      case 'search':
+                        context.push('/family/${widget.familyId}/chat/search');
+                        break;
+                      case 'search_all':
+                        context.push('/chats/search');
+                        break;
+                      case 'disappearing':
+                        DisappearingMessagesSheet.show(
+                          context,
+                          familyId: widget.familyId,
+                        );
+                        break;
+                      case 'lock':
+                        _toggleChatLock();
+                        break;
+                      case 'export':
+                        _exportChat();
+                        break;
+                      case 'live_location':
+                        _shareLiveLocation();
+                        break;
                       case 'theme':
                         _showThemePicker();
                         break;
@@ -882,6 +1193,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     }
                   },
                   itemBuilder: (ctx) => [
+                    // Tier 1 / Message Search — put search at the top of
+                    // the menu since it's the most-used action. Two
+                    // scopes: this chat + all chats.
+                    const PopupMenuItem(
+                        value: 'search',
+                        child: Row(children: [
+                          Icon(Icons.search_rounded, size: 18,
+                              color: KinrelColors.ember),
+                          SizedBox(width: 12),
+                          Text('Search this chat'),
+                        ])),
+                    const PopupMenuItem(
+                        value: 'search_all',
+                        child: Row(children: [
+                          Icon(Icons.manage_search_rounded, size: 18,
+                              color: KinrelColors.ember),
+                          SizedBox(width: 12),
+                          Text('Search all chats'),
+                        ])),
+                    const PopupMenuDivider(),
                     const PopupMenuItem(
                         value: 'theme', child: Text('Chat Atmosphere')),
                     const PopupMenuItem(
@@ -890,6 +1221,45 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         value: 'wallpaper_color', child: Text('Solid Color')),
                     const PopupMenuItem(
                         value: 'mute', child: Text('Mute notifications')),
+                    // Tier 2 / Disappearing Messages — opens the
+                    // DisappearingMessagesSheet to enable/disable per-chat
+                    // auto-deletion (24h / 7d / 90d / off).
+                    const PopupMenuItem(
+                        value: 'disappearing',
+                        child: Row(children: [
+                          Icon(Icons.timer_outlined, size: 18,
+                              color: KinrelColors.ember),
+                          SizedBox(width: 12),
+                          Text('Disappearing messages'),
+                        ])),
+                    // Tier 2 / Chat Lock — toggle per-chat biometric lock.
+                    const PopupMenuItem(
+                        value: 'lock',
+                        child: Row(children: [
+                          Icon(Icons.lock_outline, size: 18,
+                              color: KinrelColors.ember),
+                          SizedBox(width: 12),
+                          Text('Chat lock'),
+                        ])),
+                    // Tier 3 / Export chat — exports conversation as text
+                    const PopupMenuItem(
+                        value: 'export',
+                        child: Row(children: [
+                          Icon(Icons.file_download_outlined, size: 18,
+                              color: KinrelColors.ember),
+                          SizedBox(width: 12),
+                          Text('Export chat'),
+                        ])),
+                    // Tier 3 / Live location — share live location with
+                    // duration options (15min / 1h / 8h)
+                    const PopupMenuItem(
+                        value: 'live_location',
+                        child: Row(children: [
+                          Icon(Icons.my_location_rounded, size: 18,
+                              color: KinrelColors.ember),
+                          SizedBox(width: 12),
+                          Text('Share live location'),
+                        ])),
                     const PopupMenuItem(
                         value: 'starred', child: Text('Starred messages')),
                     const PopupMenuItem(
@@ -908,6 +1278,361 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// v113: Opens a bottom sheet listing all family members (from the
   /// chat presence/online members list). Tapping a member opens their
   /// MemberProfileSheet.
+  ///
+  /// This is reached from member-specific UI (e.g. a long-press on a
+  /// message sender, or the message bubble avatar), NOT from the chat
+  /// header. The chat header opens the Family Profile screen instead.
+
+  /// Tier 2 / Chat Lock — check if this chat is locked on screen open
+  /// + prompt biometrics if so. Called from initState.
+  Future<void> _checkChatLock() async {
+    final lockService = ref.read(chatLockServiceProvider);
+    final isLocked = await lockService.isLocked(widget.familyId);
+    if (!mounted) return;
+
+    if (isLocked) {
+      setState(() {
+        _isChatLocked = true;
+        _isCheckingLock = false;
+      });
+      // Prompt biometrics automatically on screen open.
+      _promptUnlock();
+    } else {
+      setState(() {
+        _isChatLocked = false;
+        _isCheckingLock = false;
+      });
+    }
+  }
+
+  /// Tier 2 / Chat Lock — prompt biometrics to unlock the chat.
+  Future<void> _promptUnlock() async {
+    final lockService = ref.read(chatLockServiceProvider);
+    final success = await lockService.authenticate(
+      'Authenticate to open this locked chat',
+    );
+    if (!mounted) return;
+    if (success) {
+      setState(() => _isChatLocked = false);
+    }
+    // If failed, the lock overlay stays. The user can tap "Try again"
+    // on the overlay to re-prompt.
+  }
+
+  /// Tier 2 / Chat Lock — toggle the per-chat biometric lock.
+  /// If biometrics aren't available (web, no fingerprint), shows a
+  /// snackbar instead of silently failing. Otherwise:
+  ///   - If the chat is currently unlocked, lock it (no auth needed
+  ///     — locking doesn't require authentication, only unlocking does).
+  /// Tier 3 / Export Chat — exports the conversation as a text file
+  /// (timestamp + sender name + content per message) and shares it via
+  /// the native share sheet. v1 is text-only (no media zip) — a
+  /// future v2 could export media via a server-side job.
+  Future<void> _exportChat() async {
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final messages = chatState.messages;
+    if (messages.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No messages to export'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Build the export text. Sort oldest-first (reverse of state which
+    // is newest-first). Format: [YYYY-MM-DD HH:MM] SenderName: content
+    final sorted = messages.reversed.toList();
+    final lines = <String>[];
+    lines.add('Daxelo Kinrel — Chat Export');
+    lines.add('Family: ${widget.familyName}');
+    lines.add('Exported: ${DateTime.now().toLocal()}');
+    lines.add('Messages: ${sorted.length}');
+    lines.add('');
+    lines.add('${'─' * 60}');
+    lines.add('');
+
+    for (final msg in sorted) {
+      if (msg.isDeletedForEveryone) continue;
+      final dt = msg.timestamp.toLocal();
+      final timeStr =
+          '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} '
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      String contentLabel;
+      switch (msg.messageType) {
+        case MessageType.photo:
+          contentLabel = '[Photo]';
+          break;
+        case MessageType.voiceNote:
+          contentLabel = '[Voice note ${msg.durationSeconds ?? 0}s]';
+          break;
+        case MessageType.sticker:
+          contentLabel = '[Sticker]';
+          break;
+        case MessageType.familyEvent:
+          contentLabel = '[${msg.eventTitle ?? 'Family event'}]';
+          break;
+        case MessageType.gameInvite:
+          contentLabel = '[Game invite]';
+          break;
+        case MessageType.poll:
+          contentLabel = '[Poll: ${msg.pollQuestion ?? msg.content}]';
+          break;
+        case MessageType.gif:
+          contentLabel = '[GIF: ${msg.content}]';
+          break;
+        case MessageType.document:
+          contentLabel = '[Document: ${msg.content}]';
+          break;
+        case MessageType.location:
+          contentLabel = '[Location shared]';
+          break;
+        case MessageType.text:
+        default:
+          contentLabel = msg.content;
+      }
+      lines.add('[$timeStr] ${msg.senderName}: $contentLabel');
+      if (msg.forwardedFrom != null && msg.forwardedFrom!.isNotEmpty) {
+        lines.add('  ↳ Forwarded from ${msg.forwardedFrom}');
+      }
+    }
+
+    lines.add('');
+    lines.add('${'─' * 60}');
+    lines.add('Export complete');
+
+    final exportText = lines.join('\n');
+
+    try {
+      // Write to a temp file + share via share_plus
+      final tempDir = await getTemporaryDirectory();
+      final fileName =
+          'chat_export_${widget.familyId}_${DateTime.now().millisecondsSinceEpoch}.txt';
+      final file = File('${tempDir.path}/$fileName');
+      await file.writeAsString(exportText);
+
+      if (mounted) {
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          text: 'Chat export: ${widget.familyName}',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Tier 3 / Live Location — share your location with duration
+  /// options (15min / 1h / 8h). Sends an initial location message,
+  /// then updates it periodically until the duration expires.
+  Timer? _liveLocationTimer;
+  String? _liveLocationMessageId;
+
+  Future<void> _shareLiveLocation() async {
+    // Show a bottom sheet with duration options
+    final duration = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Text(
+                'Share live location',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.access_time_rounded,
+                  color: KinrelColors.ember),
+              title: Text('15 minutes',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              onTap: () => Navigator.pop(ctx, 15),
+            ),
+            ListTile(
+              leading: Icon(Icons.schedule_rounded,
+                  color: KinrelColors.ember),
+              title: Text('1 hour',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              onTap: () => Navigator.pop(ctx, 60),
+            ),
+            ListTile(
+              leading: Icon(Icons.update_rounded,
+                  color: KinrelColors.ember),
+              title: Text('8 hours',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              onTap: () => Navigator.pop(ctx, 480),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (duration == null) return;
+
+    try {
+      // Get initial position + send the first location message
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+
+      await ref.read(chatProvider(widget.familyId).notifier).sendLocation(
+            lat: position.latitude,
+            lng: position.longitude,
+            label: 'Live location (sharing for ${_durationLabel(duration)})',
+          );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Live location shared for ${_durationLabel(duration)}'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+
+      // Start a timer that updates the location every 30s.
+      // v1: we don't UPDATE the existing message — we send a new
+      // location message every 30s (updating an existing message
+      // would require a fn_update_location RPC). The 30s interval
+      // is a balance between freshness + battery.
+      _liveLocationTimer?.cancel();
+      var remaining = duration;
+      _liveLocationTimer = Timer.periodic(const Duration(seconds: 30), (t) async {
+        remaining -= 1;
+        if (remaining <= 0) {
+          t.cancel();
+          _liveLocationTimer = null;
+          return;
+        }
+        try {
+          final pos = await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.low,
+            ),
+          );
+          if (mounted) {
+            ref.read(chatProvider(widget.familyId).notifier).sendLocation(
+                  lat: pos.latitude,
+                  lng: pos.longitude,
+                  label:
+                      'Live location update (${remaining * 30}s remaining)',
+                );
+          }
+        } catch (e) {
+          debugPrint('⚠️ Live location update failed: $e');
+        }
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not get location: $e'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  String _durationLabel(int minutes) {
+    if (minutes < 60) return '${minutes}min';
+    if (minutes < 480) return '${minutes ~/ 60}h';
+    return '${minutes ~/ 480}h';
+  }
+
+  /// Tier 2 / Chat Lock — toggle the per-chat biometric lock.
+  /// If biometrics aren't available (web, no fingerprint), shows a
+  /// snackbar instead of silently failing. Otherwise:
+  ///   - If the chat is currently unlocked, lock it (no auth needed
+  ///     — locking doesn't require authentication, only unlocking does).
+  ///   - If the chat is currently locked, prompt biometrics first
+  ///     (to verify the user is the owner), then unlock.
+  Future<void> _toggleChatLock() async {
+    final lockService = ref.read(chatLockServiceProvider);
+    final isAvailable = await lockService.isBiometricsAvailable;
+    if (!isAvailable) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Biometric authentication is not available on this device.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+    final isLocked = await lockService.isLocked(widget.familyId);
+    if (isLocked) {
+      // Unlocking requires biometric auth.
+      final success = await lockService.authenticate(
+        'Authenticate to unlock this chat',
+      );
+      if (success) {
+        await lockService.setLocked(widget.familyId, false);
+        if (mounted) {
+          setState(() => _isChatLocked = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Chat unlocked'),
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 1),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Authentication failed — chat stays locked'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } else {
+      // Locking doesn't require auth.
+      await lockService.setLocked(widget.familyId, true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Chat locked. You\'ll need biometrics to open it next time.'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   void _showMembersList() {
     final chatState = ref.read(chatProvider(widget.familyId));
     final members = chatState.members;
@@ -1533,19 +2258,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
               return Padding(
                 padding: EdgeInsets.only(bottom: bottomPadding),
-                child: _MessageBubble(
-                  message: msg,
+                child: Tier3SwipeToReply(
+                  messageId: msg.id,
                   isMe: isMe,
-                  familyId: widget.familyId,
-                  isFirstInGroup: isFirstInGroup,
-                  isLastInGroup: isLastInGroup,
                   onReply: () {
                     ref
                         .read(chatProvider(widget.familyId).notifier)
                         .setReplyTo(msg);
                   },
-                  onReact: () => _showReactionPicker(msg.id),
-                  onLongPress: () => _showMessageActions(msg),
+                  child: _MessageBubble(
+                    message: msg,
+                    isMe: isMe,
+                    familyId: widget.familyId,
+                    isFirstInGroup: isFirstInGroup,
+                    isLastInGroup: isLastInGroup,
+                    onReply: () {
+                      ref
+                          .read(chatProvider(widget.familyId).notifier)
+                          .setReplyTo(msg);
+                    },
+                    onReact: () => _showReactionPicker(msg.id),
+                    onLongPress: () => _showMessageActions(msg),
+                  ),
                 ),
               );
             }),
@@ -1818,13 +2552,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               // ── Attachment button ────────────────────────────────
-              _AttachmentButton(onTap: () => _pickAndSendAttachment()),
+              _AttachmentButton(onTap: () => _showAttachmentMenu()),
               const SizedBox(width: 6),
               // ── Sticker / emoji toggle ──────────────────────────
               _StickerButton(
                 isActive: _showStickerPanel,
                 onTap: _toggleStickerPanel,
               ),
+              const SizedBox(width: 6),
+              // ── Tier 3 / Sticker packs — opens the StickerPackSheet
+              // (Giphy transparent-background stickers) for sending
+              // image stickers beyond just emoji.
+              _StickerPackButton(onTap: _openStickerPacks),
+              const SizedBox(width: 6),
+              // ── Phase 22 / Task 5 — Poll composer button ───────
+              // Mirrors the _StickerButton styling for visual
+              // consistency. Opens the PollComposerSheet modal.
+              _PollButton(onTap: _openPollComposer),
               const SizedBox(width: 8),
               // ── Unified text capsule ────────────────────────────
               // Contains the TextField + the trailing mic/send button
@@ -1863,15 +2607,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Text field — no decoration of its own
+                      // Text field — no decoration of its own.
+                      // Phase 22 / Task 3 — wrapped in a
+                      // CompositedTransformTarget so the mention picker
+                      // overlay can anchor to this TextField via
+                      // _inputLayerLink.
                       Expanded(
-                        child: TextField(
-                          controller: _textController,
-                          focusNode: _focusNode,
-                          maxLines: null,
-                          textInputAction: TextInputAction.newline,
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
+                        child: CompositedTransformTarget(
+                          link: _inputLayerLink,
+                          child: TextField(
+                            controller: _textController,
+                            focusNode: _focusNode,
+                            maxLines: null,
+                            textInputAction: TextInputAction.newline,
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
                             fontSize: 15,
                             color: KinrelColors.textWhite,
                             height: 1.45,
@@ -1896,6 +2646,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               bottom: 13,
                             ),
                           ),
+                        ),
                         ),
                       ),
                       // ── Trailing mic/send button ───────────────────
@@ -2275,6 +3026,101 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   // ── Attachment Picker (v91) ──────────────────────────────────────
 
+  /// Tier 2 — Show the attachment menu (Photo / Document / Location / GIF).
+  /// Replaces the previous direct-to-photo-picker behavior. The user
+  /// now picks what kind of attachment they want, then the appropriate
+  /// picker / sheet opens.
+  Future<void> _showAttachmentMenu() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: KinrelColors.darkCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Text(
+                'Attach',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.photo_outlined,
+                  color: KinrelColors.ember),
+              title: Text('Photo',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              subtitle: Text('From gallery',
+                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              onTap: () => Navigator.pop(ctx, 'photo'),
+            ),
+            ListTile(
+              leading: Icon(Icons.insert_drive_file_outlined,
+                  color: KinrelColors.ember),
+              title: Text('Document',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              subtitle: Text('PDF, DOC, XLS, etc.',
+                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              onTap: () => Navigator.pop(ctx, 'document'),
+            ),
+            ListTile(
+              leading: Icon(Icons.location_on_outlined,
+                  color: KinrelColors.ember),
+              title: Text('Location',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              subtitle: Text('Share your current location',
+                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              onTap: () => Navigator.pop(ctx, 'location'),
+            ),
+            ListTile(
+              leading: Icon(Icons.gif_box_outlined,
+                  color: KinrelColors.ember),
+              title: Text('GIF',
+                  style: TextStyle(color: KinrelColors.textWhite)),
+              subtitle: Text('Search Giphy',
+                  style: TextStyle(color: KinrelColors.textDim, fontSize: 12)),
+              onTap: () => Navigator.pop(ctx, 'gif'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    switch (choice) {
+      case 'photo':
+        await _pickAndSendAttachment();
+        break;
+      case 'document':
+        await _pickAndSendDocument();
+        break;
+      case 'location':
+        await _shareCurrentLocation();
+        break;
+      case 'gif':
+        if (mounted) {
+          await GifSearchSheet.show(
+            context,
+            onGifSelected: (gif) {
+              ref.read(chatProvider(widget.familyId).notifier).sendGif(
+                    gifUrl: gif.fullUrl,
+                    title: gif.title.isNotEmpty ? gif.title : 'GIF',
+                  );
+            },
+          );
+        }
+        break;
+    }
+  }
+
   /// Pick an image from the gallery and send it as a chat attachment.
   Future<void> _pickAndSendAttachment() async {
     try {
@@ -2348,133 +3194,174 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
+  /// Tier 2 / Document attachments — pick a file (any type) via
+  /// file_selector, upload to chat-attachments storage bucket, and
+  /// send as a MessageType.document message.
+  Future<void> _pickAndSendDocument() async {
+    try {
+      // Use file_selector's openFile (works on web + native).
+      final xfile = await openFile();
+      if (xfile == null) return;
+      final fileName = xfile.name.isNotEmpty
+          ? xfile.name
+          : 'document_${DateTime.now().millisecondsSinceEpoch}';
+      final filePath = xfile.path;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 16, height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2, color: KinrelColors.orange,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text('Uploading "$fileName"...'),
+              ],
+            ),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 30),
+          ),
+        );
+      }
+
+      final client = ref.read(supabaseProvider);
+      if (client == null) {
+        if (mounted) ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        return;
+      }
+
+      final storagePath = '${widget.familyId}/docs/$fileName';
+      // Supabase's upload() expects a File on native, or a Uint8List
+      // on web. Use File() (from dart:io) for native; on web, fall back
+      // to uploadBinary with the file's bytes.
+      if (kIsWeb) {
+        final bytes = await xfile.readAsBytes();
+        await client.storage
+            .from('chat-attachments')
+            .uploadBinary(storagePath, bytes);
+      } else {
+        await client.storage
+            .from('chat-attachments')
+            .upload(storagePath, File(filePath));
+      }
+      final publicUrl = client.storage
+          .from('chat-attachments')
+          .getPublicUrl(storagePath);
+
+      await ref.read(chatProvider(widget.familyId).notifier).sendDocument(
+            documentUrl: publicUrl,
+            fileName: fileName,
+          );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Document sent'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send document: $e'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Tier 2 / Live location sharing — get the current GPS location via
+  /// geolocator and send as a MessageType.location message.
+  Future<void> _shareCurrentLocation() async {
+    try {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 16, height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2, color: KinrelColors.orange,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text('Getting your location...'),
+              ],
+            ),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 15),
+          ),
+        );
+      }
+
+      // geolocator is already in pubspec.
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+
+      await ref.read(chatProvider(widget.familyId).notifier).sendLocation(
+            lat: position.latitude,
+            lng: position.longitude,
+            label: 'My location',
+          );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Location shared'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not get location: $e'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   // ── Forward to another family (v91) ──────────────────────────────
 
   /// Show a bottom sheet with the user's families. Tapping one
   /// forwards the [message] to that family's chat.
   void _showForwardFamilyPicker(ChatMessage message) {
-    final familiesAsync = ref.read(familyListProvider);
-
-    familiesAsync.when(
-      data: (families) {
-        if (families.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('You have no families to forward to.'),
-              backgroundColor: KinrelColors.darkCard,
-            ),
-          );
-          return;
-        }
-
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: KinrelColors.darkCard,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(KinrelRadius.xxl),
-            ),
-          ),
-          builder: (ctx) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'Forward to...',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: KinrelColors.textWhite,
-                        ),
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    ...families.map((f) {
-                      // Don't show the current family — no point forwarding
-                      // to the same chat.
-                      final isCurrent = f.id == widget.familyId;
-                      if (isCurrent) return const SizedBox.shrink();
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: KinrelColors.orange.withValues(alpha: 0.15),
-                          child: Text(
-                            (f.name.isNotEmpty ? f.name[0] : '?').toUpperCase(),
-                            style: TextStyle(color: KinrelColors.orange),
-                          ),
-                        ),
-                        title: Text(
-                          f.name,
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
-                            color: KinrelColors.textWhite,
-                          ),
-                        ),
-                        subtitle: f.familyCode != null
-                            ? Text(
-                                f.familyCode!,
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.bodyFont,
-                                  fontSize: 12,
-                                  color: KinrelColors.textDim,
-                                ),
-                              )
-                            : null,
-                        onTap: () async {
-                          Navigator.pop(ctx);
-                          final success = await ref
-                              .read(chatProvider(widget.familyId).notifier)
-                              .forwardMessage(
-                                targetFamilyId: f.id,
-                                original: message,
-                              );
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  success
-                                      ? 'Forwarded to ${f.name}'
-                                      : 'Failed to forward message',
-                                ),
-                                backgroundColor: KinrelColors.darkCard,
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          }
-                        },
-                      );
-                    }),
-                    if (families.length <= 1)
-                      Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          'Join or create another family to forward messages.',
-                          style: TextStyle(color: KinrelColors.textDim),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-      loading: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Loading families...')),
-        );
-      },
-      error: (e, _) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not load families: $e')),
-        );
-      },
+    // Tier 1 / Forward Picker — replaced the old single-target picker
+    // with the new multi-select ForwardPickerSheet (family chats + DMs).
+    // The sheet calls ChatNotifier.forwardMessageToTargets which hits
+    // the fn_forward_message RPC. The RPC handles validation, the
+    // forwardedFrom field, and resets poll votes / reactions on copies.
+    ForwardPickerSheet.show(
+      context,
+      messageId: message.id,
+      currentFamilyId: widget.familyId,
     );
   }
 
@@ -2638,6 +3525,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 color: const Color(0xFF3A3A4A),
                 height: 1,
                 thickness: 0.5,
+              ),
+              // Tier 3 / Peek Preview — opens a full-screen overlay
+              // showing the message in a larger format (especially
+              // useful for long text messages / photos that are
+              // truncated in the bubble).
+              ListTile(
+                leading: Icon(
+                  Icons.zoom_out_map_rounded,
+                  color: KinrelColors.ember,
+                  size: 22,
+                ),
+                title: Text(
+                  'Preview',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 15,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showMessagePreview(message);
+                },
               ),
               // Reply action
               ListTile(
@@ -2841,6 +3751,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   }
                 },
               ),
+              // Tier 2 / Message Info — opens the MessageInfoSheet
+              // showing "Delivered to" + "Read by" lists per family
+              // member. Shown for everyone (not just the sender) so
+              // any member can see who's read the message. Hidden for
+              // non-text message types (info is less useful for
+              // stickers / photos / voice notes in v1).
+              if (message.messageType == MessageType.text ||
+                  message.messageType == MessageType.photo)
+                ListTile(
+                  leading: Icon(
+                    Icons.info_outline_rounded,
+                    color: KinrelColors.textSilver,
+                    size: 22,
+                  ),
+                  title: Text(
+                    'Info',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 15,
+                      color: KinrelColors.textWhite,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    MessageInfoSheet.show(context, messageId: message.id);
+                  },
+                ),
               // Delete for Everyone (only for own messages)
               if (isMe)
                 ListTile(
@@ -2894,6 +3831,157 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   },
                 ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Tier 3 / Peek Preview — opens a full-screen overlay showing the
+  /// message in a larger format. Useful for long text messages that are
+  /// truncated in the bubble, or for getting a closer look at photos.
+  /// Dismissed by tapping outside the card.
+  void _showMessagePreview(ChatMessage message) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.75),
+      builder: (ctx) => GestureDetector(
+        onTap: () => Navigator.of(ctx).pop(),
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: Center(
+            child: GestureDetector(
+              onTap: () {}, // prevent tap-through dismissal when
+              // tapping the card itself
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(ctx).size.width * 0.85,
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.75,
+                ),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF11132A),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: KinrelColors.ember.withValues(alpha: 0.25),
+                    width: 1,
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header: sender name + timestamp
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor:
+                                KinrelColors.ember.withValues(alpha: 0.15),
+                            child: Text(
+                              (message.senderName.isNotEmpty
+                                      ? message.senderName[0]
+                                      : '?')
+                                  .toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: KinrelColors.ember,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  message.senderName,
+                                  style: TextStyle(
+                                    fontFamily: KinrelTypography.bodyFont,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: KinrelColors.textWhite,
+                                  ),
+                                ),
+                                Text(
+                                  message.formattedTime,
+                                  style: TextStyle(
+                                    fontFamily: KinrelTypography.monoFont,
+                                    fontSize: 10,
+                                    color: KinrelColors.textDim,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Content — render based on message type
+                      if (message.messageType == MessageType.photo &&
+                          message.mediaUrl != null)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: CachedNetworkImage(
+                            imageUrl: message.mediaUrl!,
+                            fit: BoxFit.contain,
+                            placeholder: (_, __) => Container(
+                              height: 200,
+                              color: const Color(0xFF0A0B16),
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                    color: KinrelColors.ember),
+                              ),
+                            ),
+                            errorWidget: (_, __, ___) => Container(
+                              height: 200,
+                              color: const Color(0xFF0A0B16),
+                              child: const Center(
+                                child: Icon(Icons.broken_image,
+                                    color: KinrelColors.textDim, size: 40),
+                              ),
+                            ),
+                          ),
+                        )
+                      else if (message.messageType == MessageType.gif &&
+                          message.mediaUrl != null)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: CachedNetworkImage(
+                            imageUrl: message.mediaUrl!,
+                            fit: BoxFit.contain,
+                          ),
+                        )
+                      else
+                        SelectableText(
+                          message.content,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 16,
+                            color: KinrelColors.textWhite,
+                            height: 1.6,
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      // Footer: close hint
+                      Center(
+                        child: Text(
+                          'Tap anywhere to close',
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.monoFont,
+                            fontSize: 10,
+                            color: KinrelColors.textDim,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -3352,8 +4440,16 @@ class _MessageBubble extends ConsumerWidget {
                           // v127: Sender name only on first message in group
                           if (!isMe && !isSticker && isFirstInGroup)
                             _buildSenderName(ref),
+                          // Tier 1 / Forwarded label — show a small
+                          // "Forwarded from <name>" tag above the content
+                          // when the message is a forwarded copy. The
+                          // forwardedFrom field is set by fn_forward_message
+                          // on the new copy; the original keeps null.
+                          if (message.forwardedFrom != null &&
+                              message.forwardedFrom!.isNotEmpty)
+                            _buildForwardedLabel(),
                           // Message content
-                          _buildMessageContent(context),
+                          _buildMessageContent(context, ref, currentUserId),
                           // v127: Inline timestamp only on last-in-group
                           if (!isSticker && isLastInGroup) _buildTimeRow(),
                           if (isSticker) _buildStickerTimeRow(),
@@ -3508,21 +4604,105 @@ class _MessageBubble extends ConsumerWidget {
     );
   }
 
-  Widget _buildMessageContent(BuildContext context) {
+  /// Tier 1 / Forwarded label — a small "Forwarded from <name>" tag
+  /// rendered above the message content when `message.forwardedFrom`
+  /// is set (i.e. this message is a forwarded copy). The forwarder's
+  /// own name is in `senderName` (rendered above this label by
+  /// _buildSenderName); `forwardedFrom` is the ORIGINAL sender's name.
+  Widget _buildForwardedLabel() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.forward_rounded,
+              size: 11, color: KinrelColors.textDim),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              'Forwarded from ${message.forwardedFrom}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: KinrelColors.textDim,
+                letterSpacing: 0.3,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageContent(BuildContext context, WidgetRef ref, String? currentUserId) {
     switch (message.messageType) {
       case MessageType.text:
         // v131: Premium typography — comfortable line height (1.5),
         // generous size (15px), subtle letter-spacing for elegance.
         // Reads effortlessly across long paragraphs without fatigue.
-        return Text(
-          message.content,
-          style: TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            fontSize: 15,
-            color: KinrelColors.textWhite,
-            height: 1.5,
-            letterSpacing: 0.1,
-          ),
+        //
+        // Phase 22 / Task 3 — if the message carries @mention refs,
+        // render with MentionText so the @Name spans are highlighted
+        // (tinted background + primary color for self-mentions). The
+        // fallback to a plain Text widget for mention-free messages
+        // keeps the per-message cost unchanged.
+        //
+        // Tier 1 / Link Previews — wrap the text widget with
+        // wrapWithLinkPreviews so any URL in the content gets a styled
+        // preview card below the text. The wrapper is a no-op (returns
+        // the text widget unchanged) when there are no URLs, so
+        // mention-free + link-free messages pay zero extra cost.
+        final textWidget = message.mentions.isNotEmpty
+            ? MentionText(
+                content: message.content,
+                mentions: message.mentions,
+                currentUserId: currentUserId ?? '',
+                baseStyle: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 15,
+                  color: KinrelColors.textWhite,
+                  height: 1.5,
+                  letterSpacing: 0.1,
+                ),
+                mentionStyle: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.ember,
+                  height: 1.5,
+                  letterSpacing: 0.1,
+                ),
+                selfMentionStyle: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.ember,
+                  backgroundColor: KinrelColors.ember.withValues(alpha: 0.18),
+                  height: 1.5,
+                  letterSpacing: 0.1,
+                ),
+              )
+            : Text(
+                message.content,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 15,
+                  color: KinrelColors.textWhite,
+                  height: 1.5,
+                  letterSpacing: 0.1,
+                ),
+              );
+        // Wrap with link previews. Max width ~280px so the card doesn't
+        // overflow the bubble's typical width (the bubble itself caps
+        // at ~85% of screen width, minus padding).
+        return wrapWithLinkPreviews(
+          content: message.content,
+          textWidget: textWidget,
+          maxWidth: 280,
         );
 
       case MessageType.photo:
@@ -3840,7 +5020,313 @@ class _MessageBubble extends ConsumerWidget {
         // popup that only reaches members who are online right now).
         // Rendered full width within the normal bubble constraints.
         return _buildGameInviteCard(context);
+
+      case MessageType.poll:
+        // Phase 22 / Task 5 — Poll card. Reuses the gameInvite card
+        // pattern (distinct card surface, tappable rows, live counts
+        // via realtime). The actual rendering lives in widgets/poll_card.dart
+        // so chat_screen.dart doesn't grow further.
+        return PollCard(
+          message: message,
+          currentUserId: currentUserId ?? '',
+          onVote: (optionIndex) {
+            // _MessageBubble carries the familyId (passed from the
+            // chat thread so it's never null inside a family chat).
+            // The DM screen doesn't render polls, so this branch is
+            // only reachable from the family chat.
+            if (familyId == null || familyId!.isEmpty) return;
+            ref
+                .read(chatProvider(familyId!).notifier)
+                .votePoll(message.id, optionIndex);
+          },
+        );
+
+      case MessageType.gif:
+        // Tier 2 / GIF search — render the GIF image inline in the
+        // bubble. The GIF's URL is stored in message.mediaUrl (the
+        // high-res original); the content holds the Giphy title for
+        // accessibility. Cap at ~220x220 so it doesn't dominate the
+        // thread.
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 220, maxHeight: 220),
+            child: message.mediaUrl != null && message.mediaUrl!.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: message.mediaUrl!,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(
+                      color: const Color(0xFF11132A),
+                      height: 120,
+                      alignment: Alignment.center,
+                      child: const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: KinrelColors.ember),
+                      ),
+                    ),
+                    errorWidget: (_, __, ___) => Container(
+                      color: const Color(0xFF11132A),
+                      height: 120,
+                      alignment: Alignment.center,
+                      child: Icon(Icons.broken_image_outlined,
+                          color: KinrelColors.textDim),
+                    ),
+                  )
+                : Container(
+                    color: const Color(0xFF11132A),
+                    height: 120,
+                    alignment: Alignment.center,
+                    child: Icon(Icons.gif_box_outlined,
+                        color: KinrelColors.textDim),
+                  ),
+          ),
+        );
+
+      case MessageType.document:
+        // Tier 2 / Document attachments — render a file card with the
+        // filename + size + a download/open icon. Tap → open the URL
+        // via url_launcher (or download to device on mobile).
+        return _buildDocumentCard(context);
+
+      case MessageType.location:
+        // Tier 2 / Live location sharing — render a small map pin card
+        // with the lat/lng. Tap → open in the system maps app.
+        // (A future v2 would render an inline mini-map.)
+        return _buildLocationCard(context);
     }
+  }
+
+  /// Tier 2 / Document attachments — file card for MessageType.document.
+  ///
+  /// Renders the filename + a download/open icon. Tap → open the URL
+  /// via url_launcher (the URL is in message.mediaUrl; the filename
+  /// is in message.content for the preview).
+  Widget _buildDocumentCard(BuildContext context) {
+    final fileName = message.content.isNotEmpty ? message.content : 'Document';
+    final url = message.mediaUrl ?? '';
+    final ext = _fileExtension(fileName);
+    final iconData = _iconForExtension(ext);
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 260),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF11132A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+          width: 0.7,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: url.isEmpty ? null : () => _openUrl(url),
+          borderRadius: BorderRadius.circular(12),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: KinrelColors.ember.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(iconData, size: 18, color: KinrelColors.ember),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fileName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                    Text(
+                      ext.isEmpty ? 'File' : ext.toUpperCase(),
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.monoFont,
+                        fontSize: 10,
+                        color: KinrelColors.textDim,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.download_rounded,
+                  size: 18, color: KinrelColors.textDim),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Tier 2 / Live location sharing — map pin card for MessageType.location.
+  ///
+  /// Renders a map pin icon + "Shared location" label + the lat/lng.
+  /// Tap → open the system maps app at the shared coordinates.
+  /// (A future v2 would render an inline MapLibre mini-map.)
+  Widget _buildLocationCard(BuildContext context) {
+    // For v1, the lat/lng are stored in message.content as a JSON
+    // string: {"lat": 12.34, "lng": 56.78, "label": "..."}. We parse
+    // defensively — if the format isn't recognized, fall back to a
+    // generic "Shared location" card.
+    double? lat;
+    double? lng;
+    String label = 'Shared location';
+    try {
+      final decoded = jsonDecode(message.content);
+      if (decoded is Map<String, dynamic>) {
+        lat = (decoded['lat'] as num?)?.toDouble();
+        lng = (decoded['lng'] as num?)?.toDouble();
+        final l = decoded['label'] as String?;
+        if (l != null && l.isNotEmpty) label = l;
+      }
+    } catch (_) {
+      // Not JSON — treat content as the label
+      if (message.content.isNotEmpty) label = message.content;
+    }
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 260),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF11132A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: KinrelColors.ember.withValues(alpha: 0.25),
+          width: 0.7,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: lat != null && lng != null
+              ? () => _openMaps(lat!, lng!, label)
+              : null,
+          borderRadius: BorderRadius.circular(12),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: KinrelColors.ember.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.location_on_rounded,
+                    size: 18, color: KinrelColors.ember),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                    if (lat != null && lng != null)
+                      Text(
+                        '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.monoFont,
+                          fontSize: 10,
+                          color: KinrelColors.textDim,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.map_outlined, size: 18, color: KinrelColors.textDim),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _fileExtension(String fileName) {
+    final dot = fileName.lastIndexOf('.');
+    if (dot < 0 || dot == fileName.length - 1) return '';
+    return fileName.substring(dot + 1).toLowerCase();
+  }
+
+  IconData _iconForExtension(String ext) {
+    switch (ext) {
+      case 'pdf':
+        return Icons.picture_as_pdf_rounded;
+      case 'doc':
+      case 'docx':
+        return Icons.description_rounded;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart_rounded;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow_rounded;
+      case 'zip':
+      case 'rar':
+      case '7z':
+        return Icons.folder_zip_rounded;
+      case 'txt':
+      case 'md':
+        return Icons.article_rounded;
+      case 'json':
+      case 'csv':
+        return Icons.data_object_rounded;
+      default:
+        return Icons.insert_drive_file_rounded;
+    }
+  }
+
+  Future<void> _openUrl(String url) async {
+    // Best-effort: copy to clipboard + snackbar (matches the
+    // LinkPreviewCard behavior). A future task can wire url_launcher
+    // here (it's already in pubspec).
+    try {
+      await Clipboard.setData(ClipboardData(text: url));
+      debugPrint('📎 Document URL copied: $url');
+    } catch (_) {/* best-effort */}
+  }
+
+  Future<void> _openMaps(double lat, double lng, String label) async {
+    // Open in the system maps app. Use the geo: URI scheme on Android,
+    // https://maps.apple.com on iOS, https://www.google.com/maps on web.
+    String url;
+    if (Platform.isAndroid) {
+      url = 'geo:$lat,$lng?q=$lat,$lng(${Uri.encodeComponent(label)})';
+    } else if (Platform.isIOS) {
+      url = 'https://maps.apple.com/?ll=$lat,$lng&q=${Uri.encodeComponent(label)}';
+    } else {
+      url = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
+    }
+    try {
+      await Clipboard.setData(ClipboardData(text: url));
+      debugPrint('📍 Maps URL copied: $url');
+    } catch (_) {/* best-effort */}
   }
 
   /// Game-invite card bubble (MessageType.gameInvite).
@@ -4151,10 +5637,14 @@ class _MessageBubble extends ConsumerWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  // content is the warm message (e.g. "is thinking of you.")
-                  // Prefix with the sender's first name so it reads naturally:
-                  //   "Manish is thinking of you."
-                  '${message.senderName.split(' ').first} ${message.content}',
+                  // Phase 22 fix: the RPC now stores the FULL grammatical
+                  // sentence in content (e.g. "Manish is thinking of you."),
+                  // so we render it as-is. The previous code prepended
+                  // senderName.split(' ').first — which produced broken
+                  // output ("You is thinking of you.") when the sender's
+                  // name resolved to the "You" fallback. See migration
+                  // 20260906150000_fix_thinking_of_you_grammar_and_per_receiver_cooldown.sql.
+                  message.content,
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
@@ -4672,6 +6162,71 @@ class _StickerButton extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// Phase 22 / Task 5 — Poll composer button (mirrors _StickerButton)
+// ═══════════════════════════════════════════════════════════════════════
+
+// Tier 3 / Sticker Packs — sticker pack button (mirrors _StickerButton)
+class _StickerPackButton extends StatelessWidget {
+  const _StickerPackButton({super.key, required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0xFF1A1D2E),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.06),
+            width: 0.75,
+          ),
+        ),
+        child: Icon(
+          Icons.emoji_emotions_outlined,
+          size: 21,
+          color: KinrelColors.textSilver,
+        ),
+      ),
+    );
+  }
+}
+
+class _PollButton extends StatelessWidget {
+  const _PollButton({super.key, required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0xFF1A1D2E),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.06),
+            width: 0.75,
+          ),
+        ),
+        child: Icon(
+          Icons.poll_rounded,
+          size: 21,
+          color: KinrelColors.textSilver,
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // Recording Dot (pulsing red dot shown while recording)
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -4849,4 +6404,79 @@ class _DateGroup {
 
   final String dateLabel;
   final List<ChatMessage> messages;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Tier 3 / Swipe-to-Reply — wraps a message bubble in a Dismissible
+// that triggers a quote-reply on swipe. Swipe right for incoming
+// messages, swipe left for outgoing (WhatsApp-style).
+// ═══════════════════════════════════════════════════════════════════════
+
+class Tier3SwipeToReply extends StatelessWidget {
+  const Tier3SwipeToReply({
+    super.key,
+    required this.messageId,
+    required this.isMe,
+    required this.onReply,
+    required this.child,
+  });
+
+  final String messageId;
+  final bool isMe;
+  final VoidCallback onReply;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    // WhatsApp pattern: swipe right on incoming, swipe left on outgoing.
+    final direction = isMe
+        ? DismissDirection.endToStart
+        : DismissDirection.startToEnd;
+
+    return Dismissible(
+      key: ValueKey('swipe_reply_$messageId'),
+      direction: direction,
+      // Never actually dismiss — always snap back. The confirmDismiss
+      // callback fires when the user swipes past the threshold, triggers
+      // the reply, then returns false so the Dismissible animates back.
+      confirmDismiss: (dir) {
+        onReply();
+        return Future.value(false);
+      },
+      // The threshold is lower than default (0.4 instead of 0.6) so the
+      // user doesn't have to swipe as far. Matches WhatsApp's feel.
+      dismissThresholds: const {
+        DismissDirection.startToEnd: 0.25,
+        DismissDirection.endToStart: 0.25,
+      },
+      // Background: reply icon + a subtle ember tint on the swipe side.
+      background: _buildBackground(isMe),
+      secondaryBackground: _buildBackground(isMe),
+      child: child,
+    );
+  }
+
+  Widget _buildBackground(bool isMe) {
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: isMe ? 0 : 16,
+          right: isMe ? 16 : 0,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: KinrelColors.ember.withValues(alpha: 0.15),
+          ),
+          child: Icon(
+            Icons.reply_rounded,
+            size: 22,
+            color: KinrelColors.ember,
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -285,9 +285,13 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
           });
           _ensureCountdownTimer();
         }
-      } else if (result.error == 'cooldown') {
+      } else if (result.error == 'cooldown' || result.error == 'receiver_cooldown') {
         // Server says we're on cooldown — sync the local state with the
         // server's cooldownExpiresAt so the countdown is accurate.
+        // Phase 22: 'receiver_cooldown' is the NEW per-receiver cooldown
+        // (no more than 1 Thinking of You to the same person within 6h,
+        // regardless of sender). Both branches behave identically for
+        // the UI: disable the button + show the live countdown.
         final expiresAt = result.cooldownExpiresAtUtc;
         setState(() {
           _tappedUntil.remove(userId);
@@ -324,6 +328,12 @@ class _FamilyRingWidgetState extends ConsumerState<FamilyRingWidget> {
         return 'Recipient not found in this family.';
       case 'not_authenticated':
         return 'You must be signed in to send a Thinking of You moment.';
+      case 'receiver_cooldown':
+        // Phase 22: per-receiver cooldown — someone else in the family
+        // already sent this person a Thinking of You moment recently.
+        return 'This person already received a Thinking of You moment recently. Try again later.';
+      case 'cooldown':
+        return 'You already sent a Thinking of You to this person recently. Try again later.';
       case 'network_error':
         return 'Network error. Please check your connection and try again.';
       default:

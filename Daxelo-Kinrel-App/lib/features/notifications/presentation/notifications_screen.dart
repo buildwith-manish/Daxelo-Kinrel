@@ -960,6 +960,20 @@ class _NotificationItem extends ConsumerWidget {
       return;
     }
 
+    // Phase 22 / Task 3 — @mention → open the family chat thread.
+    // actionUrl is 'family:<familyId>:chat:<messageId>' (set by
+    // fn_add_mentions_to_message). We deep-link to the family space
+    // (the chat thread is rendered inside it). The message will be
+    // highlighted/scroll-into-view in a follow-up; v1 just opens the
+    // chat so the user sees the message immediately.
+    if (eventType == NotificationType.chatMention) {
+      if (familyId != null && familyId.isNotEmpty) {
+        context.push('/family/$familyId');
+        return;
+      }
+      return;
+    }
+
     // Family invite (already accepted) → open the family space
     if (eventType == NotificationType.familyInvite &&
         notification.isInviteActedUpon &&

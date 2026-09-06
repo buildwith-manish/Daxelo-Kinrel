@@ -38,12 +38,18 @@ DECLARE
   v_family_name text;
   v_dm_id text;
   v_cm_id text;
-  v_messages text[];
-  v_message text;
-  v_cooldown_hours int := 12;
+  v_templates text[];       -- verb-phrase templates (third person)
+  v_phrase text;            -- the chosen verb phrase (e.g. "is thinking of you.")
+  v_message text;            -- the FULL sentence (senderName + ' ' + phrase)
+  v_sender_cooldown_hours int := 12;  -- per sender→receiver pair
+  v_receiver_cooldown_hours int := 6; -- per receiver, regardless of sender
   v_last_sent timestamptz;
   v_last_sent_dm timestamptz;
   v_last_sent_cm timestamptz;
+  v_last_received timestamptz;
+  v_cooldown_expires timestamptz;
+  v_remaining_minutes int;
+  v_name_parts text[];
 BEGIN
   IF v_sender_id IS NULL THEN
     RETURN json_build_object('success', false, 'error', 'Not authenticated');
@@ -53,7 +59,8 @@ BEGIN
     RETURN json_build_object('success', false, 'error', 'Cannot send to yourself');
   END IF;
 
-  -- ── Cooldown check: 12 hours per sender→receiver pair ──
+  -- ── Cooldown #1: 12h per SENDER→RECEIVER pair ──
+  -- "You already sent one to this person recently."
   -- Check BOTH the DirectMessage table AND the ChatMessage table so
   -- the cooldown is consistent regardless of where the previous
   -- Thinking of You message was stored.
@@ -74,12 +81,48 @@ BEGIN
   v_last_sent := GREATEST(v_last_sent_dm, v_last_sent_cm);
 
   IF v_last_sent IS NOT NULL THEN
-    IF now() - v_last_sent < (v_cooldown_hours || ' hours')::interval THEN
+    IF now() - v_last_sent < (v_sender_cooldown_hours || ' hours')::interval THEN
+      v_cooldown_expires := v_last_sent + (v_sender_cooldown_hours || ' hours')::interval;
+      v_remaining_minutes := CEIL(EXTRACT(EPOCH FROM (v_cooldown_expires - now())) / 60.0)::int;
       RETURN json_build_object(
         'success', false,
         'error', 'cooldown',
-        'message', 'You already sent a Thinking of You to this person recently. Try again later.',
-        'cooldownHours', v_cooldown_hours
+        'message', 'You already sent a Thinking of You to this person recently. Try again in '
+                   || FLOOR(v_remaining_minutes / 60.0)::int || 'h '
+                   || (v_remaining_minutes % 60) || 'm.',
+        'cooldownHours', v_sender_cooldown_hours,
+        'cooldownExpiresAt', to_char(v_cooldown_expires AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+        'cooldownRemainingMinutes', v_remaining_minutes
+      );
+    END IF;
+  END IF;
+
+  -- ── Cooldown #2 (NEW): 6h per RECEIVER, regardless of sender ──
+  -- "This person already got one recently (from anyone in the family)."
+  -- Prevents 3 family members from sending near-identical nudges to the
+  -- same person within an hour. Returns a CLEAR 'receiver_cooldown'
+  -- error so the Flutter UI can surface "X already received a Thinking
+  -- of You moment recently" instead of failing silently.
+  SELECT "createdAt" INTO v_last_received
+  FROM "DirectMessage"
+  WHERE "receiverId" = p_receiver_id
+    AND "messageType" = 'thinking_of_you'
+  ORDER BY "createdAt" DESC
+  LIMIT 1;
+
+  IF v_last_received IS NOT NULL THEN
+    v_cooldown_expires := v_last_received + (v_receiver_cooldown_hours || ' hours')::interval;
+    IF now() < v_cooldown_expires THEN
+      v_remaining_minutes := CEIL(EXTRACT(EPOCH FROM (v_cooldown_expires - now())) / 60.0)::int;
+      RETURN json_build_object(
+        'success', false,
+        'error', 'receiver_cooldown',
+        'message', 'This person already received a Thinking of You moment recently. Try again in '
+                   || FLOOR(v_remaining_minutes / 60.0)::int || 'h '
+                   || (v_remaining_minutes % 60) || 'm.',
+        'cooldownHours', v_receiver_cooldown_hours,
+        'cooldownExpiresAt', to_char(v_cooldown_expires AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+        'cooldownRemainingMinutes', v_remaining_minutes
       );
     END IF;
   END IF;
@@ -91,35 +134,49 @@ BEGIN
     v_sender_name := 'Someone';
   END IF;
 
-  -- Compute sender initials for the chat bubble avatar
-  v_sender_initials := (
-    SELECT
-      CASE
-        WHEN COUNT(*) = 0 OR MAX(length(name)) = 0 THEN '?'
-        WHEN COUNT(*) = 1 THEN UPPER(SUBSTRING(MAX(name) FROM 1 FOR 1))
-        ELSE UPPER(SUBSTRING(name FROM 1 FOR 1) || SUBSTRING(
-          (SELECT name2 FROM "User" WHERE id = v_sender_id ORDER BY name OFFSET 1 LIMIT 1)
-          FROM 1 FOR 1))
-      END
-    FROM "User" WHERE id = v_sender_id
-  );
-  -- Fallback if the above returned NULL (e.g., single-word name)
-  IF v_sender_initials IS NULL OR v_sender_initials = '' THEN
-    v_sender_initials := UPPER(SUBSTRING(v_sender_name FROM 1 FOR 1));
+  -- ── Compute sender initials (SIMPLE, CORRECT version) ──
+  -- Split the name on whitespace and take the first letter of the first
+  -- two parts. E.g. "Manish Sharma" -> "MS", "Yakshitha" -> "Y".
+  v_name_parts := regexp_split_to_array(v_sender_name, '\s+');
+  IF array_length(v_name_parts, 1) >= 2 AND v_name_parts[2] <> '' THEN
+    v_sender_initials := UPPER(SUBSTRING(v_name_parts[1] FROM 1 FOR 1)
+                              || SUBSTRING(v_name_parts[2] FROM 1 FOR 1));
+  ELSE
+    v_sender_initials := UPPER(SUBSTRING(v_name_parts[1] FROM 1 FOR 1));
   END IF;
 
   -- Get family name
   SELECT name INTO v_family_name FROM "Family" WHERE id = p_family_id;
   IF v_family_name IS NULL THEN v_family_name := 'your family'; END IF;
 
-  -- Pick a random warm message (addressed to the receiver)
-  v_messages := ARRAY[
+  -- ── 16 warm verb-phrase templates (third person) ──
+  -- Each is grammatically correct when prefixed with "<SenderName> ".
+  -- Expanded from 4 → 16 so repeated nudges from different family members
+  -- don't read as copy-pasted spam. Picked at random per send.
+  v_templates := ARRAY[
     'is thinking of you.',
     'thought about you today.',
     'sent you a Thinking of You moment.',
-    'wants you to know you''re on their mind.'
+    'wants you to know you''re on their mind.',
+    'just wanted to say you matter to them.',
+    'is sending a little warmth your way.',
+    'is holding you close in thought today.',
+    'wanted to brighten your day with a hello.',
+    'is sending good vibes your way.',
+    'just paused to think of you.',
+    'is hoping you''re doing well today.',
+    'wanted to remind you you''re loved.',
+    'sent a little heartbeat your way.',
+    'is thinking of the times you shared.',
+    'wanted you to know they''re in your corner.',
+    'is sending a quiet little smile your way.'
   ];
-  v_message := v_messages[1 + floor(random() * array_length(v_messages, 1))::int];
+  v_phrase := v_templates[1 + floor(random() * array_length(v_templates, 1))::int];
+
+  -- ── Task 1: store the FULL GRAMMATICAL SENTENCE in content ──
+  -- Old: content = "is thinking of you."  (Flutter prepended "You " → "You is thinking of you.")
+  -- New: content = "Manish is thinking of you."  (Flutter renders content as-is)
+  v_message := v_sender_name || ' ' || v_phrase;
 
   -- ── STEP 1: Insert a ChatMessage into the FAMILY GROUP CHAT ──
   -- This is the VISIBLE delivery. Both sender and receiver are members
