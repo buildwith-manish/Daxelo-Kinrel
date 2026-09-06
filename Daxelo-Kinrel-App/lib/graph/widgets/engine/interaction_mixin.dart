@@ -923,35 +923,14 @@ extension _InteractionMethods on _FamilyGraphEngineViewState {
       // the painter's paint loop passes, keeping the marker and the tap
       // target at the same point.
       //
-      // v5.x (BUG-1 fix — edge routing through nodes): the painter now
-      // shortens both endpoints by kEdgeEndpointInset (38px) along the
-      // chord direction so the bezier starts/ends at the node circle
-      // boundary. The hit-tester must do the SAME shortening so the
-      // midpoint computation stays in sync with the rendered curve.
-      // The midpoint of the shortened chord is the same as the midpoint
-      // of the original chord (shortening both endpoints by the same
-      // amount along the same direction doesn't move the midpoint),
-      // but the bezier's t=0.5 point depends on the endpoints, so we
-      // pass the shortened endpoints to computeVisualMidpoint for
-      // perfect parity.
-      const double kEdgeEndpointInset = 38.0;
-      final Offset hitChord = resolved.target - resolved.source;
-      final double hitChordLength = hitChord.distance;
-      final Offset hitSource;
-      final Offset hitTarget;
-      if (hitChordLength > 1.0 && hitChordLength > kEdgeEndpointInset * 2) {
-        final Offset dir = hitChord / hitChordLength;
-        hitSource = resolved.source + dir * kEdgeEndpointInset;
-        hitTarget = resolved.target - dir * kEdgeEndpointInset;
-      } else if (hitChordLength > 1.0) {
-        final Offset dir = hitChord / hitChordLength;
-        final double halfChord = hitChordLength / 2;
-        hitSource = resolved.source + dir * halfChord;
-        hitTarget = resolved.target - dir * halfChord;
-      } else {
-        hitSource = resolved.source;
-        hitTarget = resolved.target;
-      }
+      // v5.173 (EDGE TO CENTER): the painter no longer shortens endpoints
+      // — edges go center-to-center. The hit-tester must match: use the
+      // raw resolved source/target (node centers) directly. The midpoint
+      // of a center-to-center chord is the same as a shortened chord's
+      // midpoint (shortening both endpoints equally doesn't move the
+      // midpoint), so the t=0.5 computation stays correct.
+      final Offset hitSource = resolved.source;
+      final Offset hitTarget = resolved.target;
       final visualMid = EngineEdgePainter.computeVisualMidpoint(
         hitSource,
         hitTarget,

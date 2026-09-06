@@ -1051,53 +1051,25 @@ class EngineEdgePainter extends CustomPainter {
       final double edgeLength = (effectiveTarget - effectiveSource).distance;
       final bool isCrossBranchEdge = edgeLength > 300.0;
 
-      // v5.x (BUG-1 fix — edge routing through nodes): shorten both
-      // endpoints so the bezier STARTS and ENDS at the node circle
-      // BOUNDARY, not at the circle center. Previously the line went
-      // from circle-center to circle-center, visually passing through
-      // the node circle — the user reported "connection lines cut
-      // straight across or underneath node circles instead of stopping
-      // cleanly at each node's edge."
+      // v5.173 (EDGE TO CENTER): Edges now go to the EXACT CENTER of
+      // each node — no shortening, no radius offset, no boundary inset.
+      // The nodes are drawn ON TOP of the edge layer (see canvas_mixin
+      // line 1561: "Node layer — Drawn ON TOP of edges"), so the center
+      // connection point is naturally hidden beneath the node circle.
       //
-      // The positions map already has the _kCircleCenterYOffset
-      // applied (see canvas_mixin.dart line 1080), so effectiveSource
-      // and effectiveTarget ARE the visual circle centers. We shorten
-      // each endpoint by the circle radius (36px for regular nodes,
-      // 45px for the anchor — we use 38px as a compromise that clears
-      // the regular circle + a 2px buffer, and is hidden behind the
-      // anchor's larger circle) along the chord direction.
+      // The old code (v5.x BUG-1 fix) shortened each endpoint by
+      // kEdgeEndpointInset=36px (the node circle radius) so the line
+      // stopped at the circle boundary. This created visual gaps when
+      // nodes were small, and made edges appear disconnected during
+      // pan/zoom when the inset didn't match the rendered node size.
       //
-      // When the distance between the two centers is less than 2× the
-      // inset (very close nodes), we shorten proportionally to avoid
-      // the endpoints crossing (which would produce a degenerate
-      // zero-length or reversed path).
-      //
-      // v5.155 (FIX 1): Changed from 38.0 → 36.0. The node circle
-      // diameter is 72dp → radius is 36px. The old 38px had a 2px
-      // buffer that made lines visibly stop short of the node edge.
-      // Now the line ends exactly at the circle boundary.
-      const double kEdgeEndpointInset = 36.0;
-      final Offset chord = effectiveTarget - effectiveSource;
-      final double chordLength = chord.distance;
-      final Offset shortenedSource;
-      final Offset shortenedTarget;
-      if (chordLength > 1.0 && chordLength > kEdgeEndpointInset * 2) {
-        // Normal case: shorten both endpoints by the inset.
-        final Offset dir = chord / chordLength;
-        shortenedSource = effectiveSource + dir * kEdgeEndpointInset;
-        shortenedTarget = effectiveTarget - dir * kEdgeEndpointInset;
-      } else if (chordLength > 1.0) {
-        // Very close nodes: shorten proportionally (half the chord
-        // each side) so the endpoints meet in the middle.
-        final Offset dir = chord / chordLength;
-        final double halfChord = chordLength / 2;
-        shortenedSource = effectiveSource + dir * halfChord;
-        shortenedTarget = effectiveTarget - dir * halfChord;
-      } else {
-        // Degenerate (same position) — no shortening.
-        shortenedSource = effectiveSource;
-        shortenedTarget = effectiveTarget;
-      }
+      // Now: use effectiveSource and effectiveTarget directly — they
+      // ARE the node centers (with _kCircleCenterYOffset applied). The
+      // bezier path goes center-to-center, and the node layer covers the
+      // center portion, creating a clean "line emerges from behind the
+      // node" appearance.
+      final Offset shortenedSource = effectiveSource;
+      final Offset shortenedTarget = effectiveTarget;
       // v64 (BUG-2 FIX): Pass the lateral offset so parallel edges
       // (e.g. parent + spouse between the same pair) are visually
       // separated instead of stacked on top of each other.
