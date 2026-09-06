@@ -1199,6 +1199,7 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
                 toId: d.edge.targetId,
                 edgeId: d.edge.id,
                 relationshipKey: d.edge.relationshipKey,
+                labelAtoB: d.edge.labelAtoB,
               ),
           ],
         );

@@ -28,6 +28,12 @@ class GraphPersonData {
   final String? relationshipKey;
   final int disclosureLevel;
   final String? dateOfBirth;
+  /// v5.175: linked auth user ID (null for unclaimed Person nodes).
+  /// Used by the "Message" quick-action to route to `/dm/$linkedUserId`.
+  final String? linkedUserId;
+  /// v5.175: whether this person's profile has been claimed (linkedUserId != null).
+  /// Used by the verified badge on the node.
+  final bool isVerified;
 
   const GraphPersonData({
     required this.id,
@@ -40,6 +46,8 @@ class GraphPersonData {
     this.relationshipKey,
     this.disclosureLevel = 1,
     this.dateOfBirth,
+    this.linkedUserId,
+    this.isVerified = false,
   });
 
   factory GraphPersonData.empty() => const GraphPersonData(

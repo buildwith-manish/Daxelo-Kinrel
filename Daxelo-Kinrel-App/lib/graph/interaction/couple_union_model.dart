@@ -120,7 +120,7 @@ class CoupleUnion {
 /// presentation-only — they are NOT persisted to the database and are
 /// NOT included in member search or kinship BFS.
 List<CoupleUnion> deriveCoupleUnions(
-  List<({String fromId, String toId, String edgeId, String relationshipKey})> edges,
+  List<({String fromId, String toId, String edgeId, String relationshipKey, String? labelAtoB})> edges,
 ) {
   // ── Step 1: Find all spouse edges ──
   const spouseKeys = {'spouse', 'husband', 'wife', 'partner'};
@@ -151,31 +151,43 @@ List<CoupleUnion> deriveCoupleUnions(
   // ── Step 3: Attach children to unions ──
   // A child is attached to a union ONLY when BOTH partners have a
   // parent-child edge to that child.
-  const parentKeys = {'father', 'mother', 'parent', 'son', 'daughter', 'child'};
+  // v5.174: use labelAtoB for filtering (relationshipKey is always 'parent')
+  const parentKeys = {'father', 'mother', 'parent', 'son', 'daughter', 'child',
+                      'grandfather', 'grandmother', 'grandparent',
+                      'grandchild', 'grandson', 'granddaughter'};
   final parentEdges = edges
-      .where((e) => parentKeys.contains(e.relationshipKey.toLowerCase()))
+      .where((e) => parentKeys.contains(
+          (e.labelAtoB ?? e.relationshipKey).toLowerCase()))
       .toList();
 
   // Build: childId → set of parent IDs
   final parentsOfChild = <String, Set<String>>{};
   for (final e in parentEdges) {
-    // The edge direction is: from=newPerson, to=anchor, key=relationship
-    // For parent edges: from=parent, to=child (key describes parent's role)
-    // OR: from=child, to=parent (key describes child's role)
-    // We need to figure out which endpoint is the parent.
+    // v5.174: use labelAtoB for correct parent-child direction.
+    // The canonical convention (graph_layout_service.dart:76-77):
+    //   from=A, to=B, labelAtoB='father' → B IS the father of A
+    //   → toId (B) is the PARENT, fromId (A) is the CHILD.
+    //   from=A, to=B, labelAtoB='son' → B IS the son of A
+    //   → fromId (A) is the PARENT, toId (B) is the CHILD.
     //
-    // If key is 'father'/'mother'/'parent' → from IS the parent, to IS the child
-    // If key is 'son'/'daughter'/'child' → from IS the child, to IS the parent
-    final key = e.relationshipKey.toLowerCase();
+    // The DB stores relationshipKey='parent' for ALL non-spouse edges,
+    // so we MUST use labelAtoB to determine the actual direction.
+    final key = (e.labelAtoB ?? e.relationshipKey).toLowerCase();
     String parentId;
     String childId;
-    if (key == 'father' || key == 'mother' || key == 'parent') {
+    if (key == 'father' || key == 'mother' || key == 'parent' ||
+        key == 'grandfather' || key == 'grandmother' || key == 'grandparent') {
+      // toPerson IS the parent (canonical: "B is the father of A")
+      parentId = e.toId;
+      childId = e.fromId;
+    } else if (key == 'son' || key == 'daughter' || key == 'child' ||
+               key == 'grandchild' || key == 'grandson' || key == 'granddaughter') {
+      // fromPerson IS the parent (canonical: "B is the son of A")
       parentId = e.fromId;
       childId = e.toId;
     } else {
-      // son/daughter/child
-      parentId = e.toId;
-      childId = e.fromId;
+      // Unknown key — skip (shouldn't happen with the DB constraint)
+      continue;
     }
     parentsOfChild.putIfAbsent(childId, () => <String>{}).add(parentId);
   }

@@ -36,6 +36,8 @@ import '../../core/constants/brand_typography.dart';
 import '../../core/kinship/kinship_edge_style.dart';
 import '../analytics/analytics_tracker.dart';
 import '../interaction/graph_search_state.dart' show graphSearchProvider;
+// v5.175: fuzzy/phonetic search for Indian names.
+import '../interaction/fuzzy_search.dart' show fuzzyMatch;
 import 'graph_node.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -319,6 +321,9 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
     // ── Match & rank ────────────────────────────────────────────────
     final startsWithHits = <GraphSearchResult>[];
     final containsHits = <GraphSearchResult>[];
+    // v5.175: fuzzy/phonetic match tier — catches transliteration variants
+    // like "Srinivasan" ↔ "Sreenivasan" and typos like "Rajesh" ↔ "Rajesh".
+    final fuzzyHits = <GraphSearchResult>[];
     final usernameHits = <GraphSearchResult>[];
     final idHits = <GraphSearchResult>[];
 
@@ -351,6 +356,10 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
       } else if (id.toLowerCase().startsWith(q)) {
         result = _toSearchResult(p);
         idHits.add(result);
+      } else if (fuzzyMatch(nameLower, q)) {
+        // v5.175: phonetic + typo-tolerant match.
+        result = _toSearchResult(p);
+        fuzzyHits.add(result);
       }
     }
 
@@ -358,6 +367,7 @@ class _GraphSearchBarState extends ConsumerState<GraphSearchBar> {
     final ranked = <GraphSearchResult>[
       ...startsWithHits,
       ...containsHits,
+      ...fuzzyHits,
       ...usernameHits,
       ...idHits,
     ];

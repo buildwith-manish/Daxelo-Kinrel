@@ -60,7 +60,9 @@ void main() {
   // ── Helpers ───────────────────────────────────────────────────────────
 
   /// Build edge tuples in the format `deriveCoupleUnions` expects.
-  List<({String fromId, String toId, String edgeId, String relationshipKey})>
+  /// v5.174 fix: include labelAtoB field. Null falls back to relationshipKey
+  /// inside deriveCoupleUnions, so test data is unchanged.
+  List<({String fromId, String toId, String edgeId, String relationshipKey, String? labelAtoB})>
       buildEdges(List<List<String>> pairs) {
     return pairs
         .map((p) => (
@@ -68,6 +70,7 @@ void main() {
               toId: p[1],
               edgeId: p[2],
               relationshipKey: p[3],
+              labelAtoB: null,
             ))
         .toList();
   }

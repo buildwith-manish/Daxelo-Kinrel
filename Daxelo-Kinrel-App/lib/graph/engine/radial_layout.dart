@@ -250,12 +250,14 @@ class RadialLayout {
     // 4. Build parent-child map for line-of-descent alignment
     final childrenOf = <String, List<String>>{};
     for (final r in relationships) {
-      if (_parentKeys.contains(r.relationshipKey)) {
+      // v5.174: use labelAtoB (SPECIFIC label) not relationshipKey (always 'parent')
+      final key = (r.labelAtoB ?? r.relationshipKey).toLowerCase();
+      if (_parentKeys.contains(key)) {
         // toPerson is parent of fromPerson → fromPerson is child of toPerson
         childrenOf.putIfAbsent(r.toPersonId, () => []).add(r.fromPersonId);
       }
-      if (_childKeys.contains(r.relationshipKey)) {
-        // toPerson is child of fromPerson
+      if (_childKeys.contains(key)) {
+        // fromPerson is parent of toPerson → toPerson is child of fromPerson
         childrenOf.putIfAbsent(r.fromPersonId, () => []).add(r.toPersonId);
       }
     }
@@ -624,10 +626,12 @@ class RadialLayout {
           // Tier 1: find this person's parent in the relationships.
           for (final r in relationships) {
             String? parentId;
-            if (_parentKeys.contains(r.relationshipKey) &&
+            // v5.174: use labelAtoB for correct parent-child direction
+            final key = (r.labelAtoB ?? r.relationshipKey).toLowerCase();
+            if (_parentKeys.contains(key) &&
                 r.fromPersonId == person.id) {
               parentId = r.toPersonId;
-            } else if (_childKeys.contains(r.relationshipKey) &&
+            } else if (_childKeys.contains(key) &&
                        r.toPersonId == person.id) {
               parentId = r.fromPersonId;
             }
@@ -1019,10 +1023,11 @@ class RadialLayout {
     // Find the relationship key to the first placed connection.
     for (final r in relationships) {
       if (r.fromPersonId == personId && positions.containsKey(r.toPersonId)) {
-        return _keyToRank(r.relationshipKey);
+        // v5.174: use labelAtoB for correct category classification
+        return _keyToRank((r.labelAtoB ?? r.relationshipKey).toLowerCase());
       }
       if (r.toPersonId == personId && positions.containsKey(r.fromPersonId)) {
-        return _keyToRank(r.relationshipKey);
+        return _keyToRank((r.labelAtoB ?? r.relationshipKey).toLowerCase());
       }
     }
     return 9; // unknown / no placed connection
@@ -1079,10 +1084,12 @@ class RadialLayout {
     // Build: parentId → list of child positions (already placed).
     final childrenOf = <String, List<String>>{};
     for (final r in relationships) {
-      if (_parentKeys.contains(r.relationshipKey)) {
+      // v5.174: use labelAtoB for correct parent-child direction
+      final key = (r.labelAtoB ?? r.relationshipKey).toLowerCase();
+      if (_parentKeys.contains(key)) {
         childrenOf.putIfAbsent(r.toPersonId, () => []).add(r.fromPersonId);
       }
-      if (_childKeys.contains(r.relationshipKey)) {
+      if (_childKeys.contains(key)) {
         childrenOf.putIfAbsent(r.fromPersonId, () => []).add(r.toPersonId);
       }
     }

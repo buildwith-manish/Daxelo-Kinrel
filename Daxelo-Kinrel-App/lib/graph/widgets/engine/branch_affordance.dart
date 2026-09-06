@@ -408,7 +408,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
       // base graph and every merged branch fetch — when available).
       final edgesSrc = flat.allRelationships ?? flat.relationships;
       final fullEdges =
-          <({String fromId, String toId, String edgeId, String relationshipKey})>[
+          <({String fromId, String toId, String edgeId, String relationshipKey, String? labelAtoB})>[
         for (final Map<String, dynamic> r in edgesSrc)
           if (r['fromPersonId'] != null &&
               r['toPersonId'] != null &&
@@ -418,6 +418,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
               toId: r['toPersonId'].toString(),
               edgeId: r['id'].toString(),
               relationshipKey: (r['relationshipKey'] as String?) ?? '',
+              labelAtoB: r['labelAtoB'] as String?,
             ),
       ];
       // The visible set INCLUDES the branch root (it is rendered — its
@@ -540,7 +541,7 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     required Set<String> hiddenIds,
     required Set<String> visibleIds,
     required List<
-            ({String fromId, String toId, String edgeId, String relationshipKey})>
+            ({String fromId, String toId, String edgeId, String relationshipKey, String? labelAtoB})>
         edges,
   }) {
     if (hiddenIds.isEmpty) return const <String>{};

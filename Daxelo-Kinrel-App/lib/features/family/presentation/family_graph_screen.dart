@@ -140,6 +140,9 @@ import '../../../graph/interaction/graph_search_state.dart'
 // graph/widgets/graph_legend.dart (via the graph.dart barrel above)
 // is the single legend widget now, wired into this screen.
 import 'widgets/stats_panel.dart';
+// v5.175: birthday push notification scheduler.
+import '../../../core/services/local_notification_scheduler.dart'
+    show LocalNotificationScheduler;
 
 // ═══════════════════════════════════════════════════════════════════════
 // FAMILY GRAPH SCREEN
@@ -465,6 +468,43 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
     // Watch the realtime provider to auto-invalidate graph data on changes
     ref.watch(graphRealtimeProvider(widget.familyId));
     final graphAsync = ref.watch(familyGraphProvider(widget.familyId));
+
+    // v5.175: Schedule birthday push notifications whenever the graph
+    // data loads/changes. The scheduler is idempotent — it cancels
+    // and re-schedules all birthday reminders each time.
+    ref.listen(familyGraphProvider(widget.familyId), (prev, next) {
+      final data = next.valueOrNull;
+      if (data != null && data.persons.isNotEmpty) {
+        LocalNotificationScheduler.scheduleBirthdayReminders(
+          data.persons,
+        );
+      }
+    });
+
+    // v5.175: Activity feed inline toasts — show a SnackBar when
+    // the graph data changes due to realtime events (another family
+    // member added/edited).
+    ref.listen(familyGraphProvider(widget.familyId), (prev, next) {
+      if (prev?.valueOrNull != null && next.valueOrNull != null) {
+        final prevData = prev!.valueOrNull!;
+        final nextData = next.valueOrNull!;
+        if (nextData.persons.length > prevData.persons.length) {
+          // Someone was added.
+          final messenger = ScaffoldMessenger.maybeOf(context);
+          messenger?.showSnackBar(
+            SnackBar(
+              content: Text(
+                '${nextData.persons.length - prevData.persons.length} new '
+                'member(s) added to the family',
+                style: const TextStyle(color: Colors.white),
+              ),
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    });
 
     // v5.x (loading-flash fix): Distinguish "no data yet" (show the
     // full loading spinner) from "we already have data and are just
