@@ -49,9 +49,22 @@ BEGIN
       'message', 'You cannot send a Thinking of You moment to yourself.');
   END IF;
 
-  -- ── Validate: receiver must be a member of the specified family ──
-  -- This is the "family membership check" the user asked for. It ensures
-  -- you can only send Thinking of You to people in YOUR family.
+  -- ── Validate: SENDER must be a member of the specified family ──
+  -- This check runs BEFORE the cooldown checks so a non-member can't
+  -- probe whether a receiver recently got a Thinking of You (which
+  -- would be a privacy leak — the cooldown response reveals activity).
+  IF NOT EXISTS (
+    SELECT 1 FROM "FamilyMember"
+    WHERE "familyId" = p_family_id AND "userId" = v_sender_id
+  ) THEN
+    RETURN json_build_object(
+      'success', false,
+      'error', 'sender_not_in_family',
+      'message', 'You are not a member of this family.'
+    );
+  END IF;
+
+  -- ── Validate: RECEIVER must be a member of the specified family ──
   SELECT EXISTS(
     SELECT 1 FROM "FamilyMember"
     WHERE "familyId" = p_family_id AND "userId" = p_receiver_id
