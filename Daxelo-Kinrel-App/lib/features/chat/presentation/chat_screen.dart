@@ -49,6 +49,12 @@ import '../data/chat_enhancement_service.dart';
 import '../providers/chat_provider.dart';
 import 'voice_message_player.dart';
 import 'sticker_panel.dart';
+// Phase 22 / Task 3 — @mention picker overlay + highlight renderer.
+import 'widgets/mention_picker.dart';
+// Phase 22 / Task 5 — poll card bubble (reuses the gameInvite card pattern).
+import 'widgets/poll_card.dart';
+// Phase 22 / Task 5 — poll composer bottom sheet.
+import 'widgets/poll_composer_sheet.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
 import '../../games/shared/icons/game_icons.dart';
@@ -113,6 +119,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   bool _showScrollFab = false;
   bool _isComposing = false;
 
+  // Phase 22 / Task 3 — @mention picker state.
+  // The picker is rendered as an OverlayEntry anchored to the message
+  // input via a LayerLink. MentionTracker keeps the pending MentionRef
+  // list in sync with the text as the user types.
+  late final MentionTracker _mentionTracker;
+  final LayerLink _inputLayerLink = LayerLink();
+  OverlayEntry? _mentionOverlay;
+  String _mentionQuery = '';
+  String? _currentUserIdCache;
+
   // Typing indicator animation
   late final AnimationController _typingController;
   late final List<Animation<double>> _dotAnimations;
@@ -158,6 +174,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _scrollController = ScrollController();
     _textController = TextEditingController();
     _focusNode = FocusNode();
+    _mentionTracker = MentionTracker(_textController);
 
     _scrollController.addListener(_onScroll);
     _textController.addListener(_onTextChanged);
@@ -240,6 +257,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   void dispose() {
     // v128: Clean up web keyboard height listener.
     WebKeyboardHeight.instance.removeListener(_onWebKeyboardHeight);
+    // Phase 22 / Task 3 — clean up the mention picker overlay so it
+    // doesn't leak if the screen closes while it's open.
+    _hideMentionPicker();
     _scrollController.dispose();
     _textController.dispose();
     _focusNode.dispose();
@@ -279,6 +299,65 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       final service = ref.read(chatEnhancementServiceProvider);
       service.setTypingStatus(widget.familyId, composing);
     }
+
+    // Phase 22 / Task 3 — @mention picker detection. MentionTracker
+    // walks back from the cursor to find an "@" trigger that's at the
+    // start of input or preceded by whitespace. If found, the text
+    // between "@" and the cursor becomes the search query and the
+    // picker overlay is shown (or updated with the new query).
+    final trigger = _mentionTracker.detectTrigger();
+    if (trigger != null) {
+      _showMentionPicker(trigger);
+    } else if (_mentionOverlay != null) {
+      _hideMentionPicker();
+    }
+  }
+
+  // ── Phase 22 / Task 3: @mention picker show/hide ──────────────────
+
+  void _showMentionPicker(String query) {
+    if (!mounted) return;
+
+    // Cache the current user ID once (used to exclude self from the list).
+    _currentUserIdCache ??= _currentUserId;
+    final currentUserId = _currentUserIdCache ?? '';
+
+    // Resolve family members from chat state.
+    final chatState = ref.read(chatProvider(widget.familyId));
+    final members = chatState.members
+        .map(MentionableMember.fromOnlineMember)
+        .toList();
+
+    if (_mentionOverlay == null) {
+      _mentionOverlay = OverlayEntry(
+        builder: (context) => MentionPickerOverlay(
+          members: members,
+          query: query,
+          layerLink: _inputLayerLink,
+          currentUserId: currentUserId,
+          onSelected: _onMentionSelected,
+          onDismissed: _hideMentionPicker,
+        ),
+      );
+      Overlay.of(context).insert(_mentionOverlay!);
+    } else {
+      // Update the query + members in the existing overlay.
+      _mentionQuery = query;
+      _mentionOverlay!.markNeedsBuild();
+    }
+  }
+
+  void _hideMentionPicker() {
+    _mentionOverlay?.remove();
+    _mentionOverlay = null;
+    _mentionQuery = '';
+  }
+
+  void _onMentionSelected(MentionableMember m) {
+    _mentionTracker.insertMention(m);
+    _hideMentionPicker();
+    _focusNode.requestFocus();
+    if (mounted) setState(() {}); // refresh to update send button state
   }
 
   void _scrollToBottom() {
@@ -301,13 +380,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // updated and the realtime INSERT event will be de-duped by the
     // notifier.
     final replyToId = chatState.replyToMessage?.id;
+
+    // Phase 22 / Task 3 — if the user has any pending @mention refs,
+    // route through sendMessageWithMentions so the RPC fires the
+    // distinct 'chat_mention' notifications to each mentioned user.
+    // The MentionTracker has already kept the refs in sync with the
+    // text on every change, so its .refs list is the source of truth.
+    final pendingMentions = _mentionTracker.refs.toList();
     Future.microtask(() {
-      ref
-          .read(chatProvider(widget.familyId).notifier)
-          .sendMessage(text, replyToId: replyToId, groupId: widget.groupId);
+      if (pendingMentions.isEmpty) {
+        ref
+            .read(chatProvider(widget.familyId).notifier)
+            .sendMessage(text, replyToId: replyToId, groupId: widget.groupId);
+      } else {
+        ref.read(chatProvider(widget.familyId).notifier).sendMessageWithMentions(
+              text,
+              mentions: pendingMentions,
+              replyToId: replyToId,
+              groupId: widget.groupId,
+            );
+      }
     });
 
     _textController.clear();
+    _mentionTracker.clear();
+    _hideMentionPicker();
     _focusNode.requestFocus();
     // v126: Scroll to bottom after sending so the new message is visible.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -340,6 +437,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       _focusNode.unfocus();
     }
     setState(() => _showStickerPanel = !_showStickerPanel);
+  }
+
+  // Phase 22 / Task 5 — open the poll composer sheet. Closes the
+  // sticker panel first so we don't stack two input surfaces.
+  Future<void> _openPollComposer() async {
+    if (_showStickerPanel && mounted) {
+      setState(() => _showStickerPanel = false);
+    }
+    _focusNode.unfocus();
+    final replyToId = ref.read(chatProvider(widget.familyId)).replyToMessage?.id;
+    await PollComposerSheet.show(
+      context,
+      familyId: widget.familyId,
+      replyToId: replyToId,
+    );
   }
 
   void _showReactionPicker(String messageId) {
@@ -1825,6 +1937,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 isActive: _showStickerPanel,
                 onTap: _toggleStickerPanel,
               ),
+              const SizedBox(width: 6),
+              // ── Phase 22 / Task 5 — Poll composer button ───────
+              // Mirrors the _StickerButton styling for visual
+              // consistency. Opens the PollComposerSheet modal.
+              _PollButton(onTap: _openPollComposer),
               const SizedBox(width: 8),
               // ── Unified text capsule ────────────────────────────
               // Contains the TextField + the trailing mic/send button
@@ -1863,15 +1980,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Text field — no decoration of its own
+                      // Text field — no decoration of its own.
+                      // Phase 22 / Task 3 — wrapped in a
+                      // CompositedTransformTarget so the mention picker
+                      // overlay can anchor to this TextField via
+                      // _inputLayerLink.
                       Expanded(
-                        child: TextField(
-                          controller: _textController,
-                          focusNode: _focusNode,
-                          maxLines: null,
-                          textInputAction: TextInputAction.newline,
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
+                        child: CompositedTransformTarget(
+                          link: _inputLayerLink,
+                          child: TextField(
+                            controller: _textController,
+                            focusNode: _focusNode,
+                            maxLines: null,
+                            textInputAction: TextInputAction.newline,
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
                             fontSize: 15,
                             color: KinrelColors.textWhite,
                             height: 1.45,
@@ -1896,6 +2019,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               bottom: 13,
                             ),
                           ),
+                        ),
                         ),
                       ),
                       // ── Trailing mic/send button ───────────────────
@@ -3514,6 +3638,43 @@ class _MessageBubble extends ConsumerWidget {
         // v131: Premium typography — comfortable line height (1.5),
         // generous size (15px), subtle letter-spacing for elegance.
         // Reads effortlessly across long paragraphs without fatigue.
+        //
+        // Phase 22 / Task 3 — if the message carries @mention refs,
+        // render with MentionText so the @Name spans are highlighted
+        // (tinted background + primary color for self-mentions). The
+        // fallback to a plain Text widget for mention-free messages
+        // keeps the per-message cost unchanged.
+        if (message.mentions.isNotEmpty) {
+          return MentionText(
+            content: message.content,
+            mentions: message.mentions,
+            currentUserId: currentUserId ?? '',
+            baseStyle: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 15,
+              color: KinrelColors.textWhite,
+              height: 1.5,
+              letterSpacing: 0.1,
+            ),
+            mentionStyle: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: KinrelColors.ember,
+              height: 1.5,
+              letterSpacing: 0.1,
+            ),
+            selfMentionStyle: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.ember,
+              backgroundColor: KinrelColors.ember.withValues(alpha: 0.18),
+              height: 1.5,
+              letterSpacing: 0.1,
+            ),
+          );
+        }
         return Text(
           message.content,
           style: TextStyle(
@@ -3840,6 +4001,26 @@ class _MessageBubble extends ConsumerWidget {
         // popup that only reaches members who are online right now).
         // Rendered full width within the normal bubble constraints.
         return _buildGameInviteCard(context);
+
+      case MessageType.poll:
+        // Phase 22 / Task 5 — Poll card. Reuses the gameInvite card
+        // pattern (distinct card surface, tappable rows, live counts
+        // via realtime). The actual rendering lives in widgets/poll_card.dart
+        // so chat_screen.dart doesn't grow further.
+        return PollCard(
+          message: message,
+          currentUserId: currentUserId ?? '',
+          onVote: (optionIndex) {
+            // _MessageBubble carries the familyId (passed from the
+            // chat thread so it's never null inside a family chat).
+            // The DM screen doesn't render polls, so this branch is
+            // only reachable from the family chat.
+            if (familyId == null || familyId!.isEmpty) return;
+            ref
+                .read(chatProvider(familyId!).notifier)
+                .votePoll(message.id, optionIndex);
+          },
+        );
     }
   }
 
@@ -4151,10 +4332,14 @@ class _MessageBubble extends ConsumerWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  // content is the warm message (e.g. "is thinking of you.")
-                  // Prefix with the sender's first name so it reads naturally:
-                  //   "Manish is thinking of you."
-                  '${message.senderName.split(' ').first} ${message.content}',
+                  // Phase 22 fix: the RPC now stores the FULL grammatical
+                  // sentence in content (e.g. "Manish is thinking of you."),
+                  // so we render it as-is. The previous code prepended
+                  // senderName.split(' ').first — which produced broken
+                  // output ("You is thinking of you.") when the sender's
+                  // name resolved to the "You" fallback. See migration
+                  // 20260906150000_fix_thinking_of_you_grammar_and_per_receiver_cooldown.sql.
+                  message.content,
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 13,
@@ -4665,6 +4850,40 @@ class _StickerButton extends StatelessWidget {
           Icons.emoji_emotions_rounded,
           size: 21,
           color: isActive ? KinrelColors.orange : KinrelColors.textSilver,
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Phase 22 / Task 5 — Poll composer button (mirrors _StickerButton)
+// ═══════════════════════════════════════════════════════════════════════
+
+class _PollButton extends StatelessWidget {
+  const _PollButton({super.key, required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0xFF1A1D2E),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.06),
+            width: 0.75,
+          ),
+        ),
+        child: Icon(
+          Icons.poll_rounded,
+          size: 21,
+          color: KinrelColors.textSilver,
         ),
       ),
     );

@@ -679,9 +679,15 @@ class _DirectMessageBubble extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    isMe
-                        ? 'You ${message.content}'
-                        : message.content,
+                    // Phase 22 fix: the RPC now stores the FULL grammatical
+                    // sentence in content (e.g. "Manish is thinking of you."),
+                    // so we render it as-is for both sender and receiver.
+                    // The previous code prepended "You " for the sender's own
+                    // messages — which produced broken output
+                    // ("You is thinking of you.") because the templates are
+                    // third-person verb phrases. See migration
+                    // 20260906150000_fix_thinking_of_you_grammar_and_per_receiver_cooldown.sql.
+                    message.content,
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 13,

@@ -39,6 +39,7 @@ enum NotificationType {
   memberJoinedViaInvite,
   thinkingOfYou, // Phase 21: private Thinking of You moment
   invitationAccepted, // Phase 21: sender notification when receiver accepts
+  chatMention, // Phase 22 / Task 3: user was @mentioned in family chat
 }
 
 /// Map from NotificationType to display-friendly label.
@@ -58,6 +59,7 @@ const Map<NotificationType, String> notificationTypeLabels = {
   NotificationType.memberJoinedViaInvite: 'Family',
   NotificationType.thinkingOfYou: 'Thinking of You',
   NotificationType.invitationAccepted: 'Invitation Accepted',
+  NotificationType.chatMention: 'Mention',
 };
 
 /// Map from NotificationType to NotificationCategory.
@@ -77,6 +79,7 @@ const Map<NotificationType, NotificationCategory> notificationTypeCategory = {
   NotificationType.memberJoinedViaInvite: NotificationCategory.family,
   NotificationType.thinkingOfYou: NotificationCategory.family,
   NotificationType.invitationAccepted: NotificationCategory.family,
+  NotificationType.chatMention: NotificationCategory.family,
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -499,6 +502,13 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         return NotificationType.invitationAccepted;
       case 'invitation_rejected':
         return NotificationType.rejectedInvite;
+      // Phase 22 / Task 3 — chat_mention is fired by
+      // fn_add_mentions_to_message (and fn_send_chat_message_with_mentions)
+      // when a family member @mentions the current user. Distinct from
+      // regular new-message notifications so the Flutter UI can show a
+      // different icon + deep-link straight to the chat thread.
+      case 'chat_mention':
+        return NotificationType.chatMention;
       default:
         return NotificationType.newMember;
     }
@@ -790,6 +800,8 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
         return 'thinking_of_you';
       case NotificationType.invitationAccepted:
         return 'invitation_accepted';
+      case NotificationType.chatMention:
+        return 'chat_mention';
     }
   }
 }

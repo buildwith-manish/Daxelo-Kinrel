@@ -487,6 +487,11 @@ class _GroupChatRowState extends ConsumerState<_GroupChatRow> {
         return msg.gameType != null
             ? 'Game invite · ${msg.roomCode ?? ''}'.trim()
             : 'Game invite';
+      case MessageType.poll:
+        // Phase 22 / Task 5 — poll preview label.
+        final total = msg.pollTotalVotes;
+        final prefix = total > 0 ? 'Poll ($total ${total == 1 ? 'vote' : 'votes'}) · ' : 'Poll · ';
+        return prefix + (msg.pollQuestion ?? msg.content);
       case MessageType.text:
       default:
         return msg.content;

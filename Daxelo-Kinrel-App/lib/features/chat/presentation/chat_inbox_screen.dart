@@ -756,6 +756,14 @@ class _FamilyChatRowState extends ConsumerState<_FamilyChatRow> {
         return msg.gameType != null
             ? 'Game invite · ${msg.roomCode ?? ''}'.trim()
             : 'Game invite';
+      case MessageType.poll:
+        // Phase 22 / Task 5 — poll preview. Show the question (which
+        // is mirrored into `content` by the RPC) with a "Poll: " prefix
+        // so the row is distinguishable from regular text messages.
+        // Include total votes if any to surface engagement at a glance.
+        final total = msg.pollTotalVotes;
+        final prefix = total > 0 ? 'Poll ($total ${total == 1 ? 'vote' : 'votes'}) · ' : 'Poll · ';
+        return prefix + (msg.pollQuestion ?? msg.content);
       case MessageType.text:
       default:
         return msg.content;
