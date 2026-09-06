@@ -55,9 +55,10 @@ import '../../../../graph/interaction/branch_collapse_state.dart'
 // v5.123 (Step 1): disclosure level drives the force-relaxation opt-in.
 import '../../../../graph/interaction/expand_collapse.dart'
     show expandCollapseProvider, DisclosureLevel;
-// v5.125 (Family Space): Tree shares the same realtime invalidation as
-// Graph (§1 non-negotiable — one cache invalidation path, two renderers).
-import 'family_tree_provider.dart' show familyTreeProvider;
+// v5.163 (TREE REMOVAL): the `familyTreeProvider` import + realtime
+// invalidation call were removed when the Tree tab was deleted from
+// Family Space. The Graph view is now the only renderer; the realtime
+// invalidation below only invalidates `familyGraphProvider`.
 
 /// Provider for the Drift database instance.
 /// Used by [FamilyGraphNotifier] to persist graph data locally.
@@ -2566,9 +2567,11 @@ final graphRealtimeProvider =
     _debounceTimer = Timer(const Duration(milliseconds: 2500), () {
       debugPrint('[graphRealtimeProvider] v5.145: Invalidating graph for '
           '$familyId (debounced 2.5s, structureChange=$_hasStructureChange)');
-      // §1 non-negotiable: ONE cache invalidation path, TWO renderers.
+      // §1 non-negotiable: ONE cache invalidation path, ONE renderer
+      // (Graph). v5.163 (TREE REMOVAL): the `familyTreeProvider`
+      // invalidation call that was here is gone — the Tree tab is no
+      // longer in Family Space, so there's nothing to invalidate.
       ref.invalidate(familyGraphProvider(familyId));
-      ref.invalidate(familyTreeProvider(familyId));
       _hasStructureChange = false;
     });
   }

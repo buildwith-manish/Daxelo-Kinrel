@@ -76,7 +76,10 @@ import '../../../graph/interaction/graph_focus_state.dart'
 import '../../../graph/interaction/expand_collapse.dart'
     show expandCollapseProvider;
 import '../../../graph/widgets/family_graph_engine_view.dart';
-import '../../../graph/widgets/family_tree_view.dart';
+// v5.125 (Family Space §5): deep-link query param (?tab=...) was
+// previously used to land on the Tree view. The Tree tab was removed
+// in v5.163 — the param is now accepted but ignored (kept for
+// backward-compat with any existing bookmarks/links that pass it).
 import '../../../graph/widgets/graph_tutorial_overlay.dart';
 import '../../../graph/widgets/search_bar.dart';
 import '../../../graph/widgets/unlinked_members_sheet.dart'; // v5.9
@@ -221,17 +224,10 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
   void initState() {
     super.initState();
     _restoreTransformState();
-    // v5.125 (Family Space §5): Apply the optional initial tab from the
-    // deep-link query param (?tab=tree). This runs in initState so the
-    // very first paint lands on the right tab — no flash of the default
-    // Graph tab before switching.
-    if (widget.initialTab == 'tree') {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        ref.read(familySpaceTabProvider.notifier).state =
-            FamilySpaceTab.tree;
-      });
-    }
+    // v5.163 (TREE REMOVAL): the ?tab=tree deep-link handler was here.
+    // The Tree tab is gone, so the handler is removed. The `initialTab`
+    // parameter is kept on the widget for backward-compat with any
+    // existing callers/bookmarks, but it no longer affects the view.
     // v5.26 (Task 1b): listen for rearrangeModeProvider true->ON
     // transitions to (re)show the banner + arm the 4s auto-hide timer.
     // We do this in initState via ref.listenToSelf so the listener
@@ -1084,15 +1080,20 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
             if (_onThisDayCount(graph) > 0) _buildOnThisDayBanner(graph),
 
             Expanded(
-              // v5.125 (Family Space §5): IndexedStack so switching tabs
-              // does NOT rebuild/refetch the other view — camera state,
-              // scroll position, and selection all survive tab switches.
-              // The Tree tab is built lazily on first activation (its
-              // `familyTreeProvider` only fetches when first watched).
+              // v5.125 (Family Space §5): IndexedStack so switching to/from
+              // the Map tab does NOT rebuild/refetch the Graph view —
+              // camera state, scroll position, and selection all survive
+              // tab switches. The Map tab navigates to its own route
+              // (/family/:id/map) so it's not in this stack; this stack
+              // holds only the Graph view (index 0).
+              //
+              // v5.163 (TREE REMOVAL): the Tree tab (formerly index 1)
+              // was removed. The stack now holds a single child (Graph).
+              // Keeping the IndexedStack (rather than collapsing to just
+              // `FamilyGraphEngineView`) preserves the existing state-
+              // preservation contract and any future tab additions.
               child: IndexedStack(
-                index: ref.watch(familySpaceTabProvider) == FamilySpaceTab.tree
-                    ? 1
-                    : 0,
+                index: 0,
                 children: [
                   // Index 0: Graph view (existing radial engine).
                   FamilyGraphEngineView(
@@ -1100,11 +1101,6 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
                     recenterKey: _recenterKey,
                     bottomChromeHeight: bottomChromeHeight,
                     topChromeHeight: 0, // AppBar already excluded by Scaffold
-                  ),
-                  // Index 1: Tree view (generation-locked hierarchy).
-                  FamilyTreeView(
-                    familyId: widget.familyId,
-                    bottomChromeHeight: bottomChromeHeight,
                   ),
                 ],
               ),

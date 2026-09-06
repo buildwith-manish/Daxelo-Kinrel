@@ -1,35 +1,34 @@
 // lib/features/family/presentation/widgets/family_space_tab_bar.dart
 //
-// DAXELO KINREL — Family Space Tab Bar (Graph ↔ Tree ↔ Map)
+// DAXELO KINREL — Family Space Tab Bar (Graph ↔ Map)
 //
-// Family Space: Graph ↔ Tree (↔ Map) — Implementation Prompt §5.
+// Family Space: Graph ↔ Map — Implementation Prompt §5.
 //
 // A persistent segmented control at the top of the Family Space that
-// switches between the Graph, Tree, and Map views.
+// switches between the Graph and Map views.
 //
 //   ┌─────────────────────────┐
-//   │ Graph │ Tree │ Map      │
+//   │ Graph │ Map             │
 //   └─────────────────────────┘
 //
 // Implementation notes:
-//   - Graph + Tree live in an `IndexedStack` inside FamilyGraphScreen
-//     so their state (camera, scroll, selected node) survives tab
-//     switches — see §5 "Use an IndexedStack (or equivalent)".
+//   - Graph lives in an `IndexedStack` inside FamilyGraphScreen so its
+//     state (camera, scroll, selected node) survives tab switches —
+//     see §5 "Use an IndexedStack (or equivalent)".
 //   - Map navigates to the existing `/family/:id/map` route (it has its
 //     own Scaffold with AppBar, so embedding it inline would cause a
 //     nested-Scaffold layout bug). The Map tab therefore BEHAVES like a
 //     button rather than a tab, but is styled identically so the user
-//     perceives all three as siblings.
-//   - The spec said "Map is a disabled/'coming soon' tab for this build —
-//     reserve the slot, don't wire it." However, the Map feature was
-//     already fully built and wired at `/family/:id/map` (3,428-line
-//     FamilyMapScreen, 35 files). Disabling it would be a regression
-//     of existing functionality. We keep it active.
+//     perceives both as siblings.
 //
 // State:
 //   - `familySpaceTabProvider` (Riverpod StateProvider<FamilySpaceTab>)
-//     tracks the active tab. Both Graph and Tree read it to coordinate
-//     cross-navigation focus (see §6 "View in Tree" / "View in Graph").
+//     tracks the active tab. Graph reads it to know when it's the
+//     active surface (e.g. for focus coordination).
+//
+// v5.163 (TREE REMOVAL): the Tree tab was removed from Family Space.
+// The `FamilySpaceTab.tree` enum case, the Tree tab segment, and all
+// Graph↔Tree cross-navigation were deleted. Graph + Map remain.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,11 +36,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 
-/// The three views of a Family Space.
-enum FamilySpaceTab { graph, tree, map }
+/// The two views of a Family Space.
+///
+/// v5.163: was `enum FamilySpaceTab { graph, tree, map }` — the `tree`
+/// case was removed when the Tree tab was deleted.
+enum FamilySpaceTab { graph, map }
 
 /// Family-space-scoped tab state. Both the [FamilySpaceTabBar] and the
-/// Graph/Tree views read/write this provider to coordinate focus.
+/// Graph view read/write this provider to know which surface is active.
 final familySpaceTabProvider =
     StateProvider<FamilySpaceTab>((ref) => FamilySpaceTab.graph);
 
@@ -90,24 +92,13 @@ class FamilySpaceTabBar extends ConsumerWidget {
           ),
           Expanded(
             child: _Segment(
-              label: 'Tree',
-              icon: Icons.family_restroom,
-              selected: activeTab == FamilySpaceTab.tree,
-              onTap: () => ref
-                  .read(familySpaceTabProvider.notifier).state =
-                  FamilySpaceTab.tree,
-              compact: compact,
-            ),
-          ),
-          Expanded(
-            child: _Segment(
               label: 'Map',
               icon: Icons.map_outlined,
               // Map is treated as a navigation button (pushes to /family/:id/map)
               // because FamilyMapScreen has its own Scaffold with AppBar —
               // embedding it inline would cause nested-Scaffold layout issues.
-              // After returning from Map, the active tab reverts to whatever
-              // it was before (Graph or Tree), preserving the IndexedStack state.
+              // After returning from Map, the active tab reverts to Graph,
+              // preserving the IndexedStack state.
               selected: false,
               onTap: () =>
                   context.push('/family/$familyId/map'),
