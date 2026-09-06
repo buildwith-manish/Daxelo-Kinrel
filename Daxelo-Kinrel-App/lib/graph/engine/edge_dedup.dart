@@ -181,7 +181,14 @@ class EdgeDeduplicator {
       // perspectives.
       final categoryToEdge = <KinshipEdgeCategory, GraphEdgeData>{};
       for (final edge in groupEdges) {
-        final cat = KinshipEdgeClassifier.classify(edge.relationshipKey);
+        // v5.174: use labelAtoB for correct category classification.
+        // relationshipKey is always 'parent' for non-spouse edges, so
+        // without labelAtoB every non-spouse edge gets classified as
+        // 'parent' category — siblings, cousins, aunts all collapse to
+        // the same category, and parallel edges between the same pair
+        // (e.g. sibling + parent) are incorrectly dropped.
+        final keyForClassification = (edge.labelAtoB ?? edge.relationshipKey);
+        final cat = KinshipEdgeClassifier.classify(keyForClassification);
         // Only keep the FIRST edge per category. The first row from the
         // DB is the user's original (forward) direction; subsequent
         // rows are usually the auto-created inverse and would render
@@ -197,8 +204,8 @@ class EdgeDeduplicator {
           if (inverseCat != null && categoryToEdge.containsKey(inverseCat)) {
             final existingEdge = categoryToEdge[inverseCat]!;
             if (_areInverseKeys(
-              existingEdge.relationshipKey,
-              edge.relationshipKey,
+              (existingEdge.labelAtoB ?? existingEdge.relationshipKey),
+              (edge.labelAtoB ?? edge.relationshipKey),
             )) {
               // Inverse pair detected. Prefer the parent-direction edge
               // as primary: if the new edge is parent-direction and

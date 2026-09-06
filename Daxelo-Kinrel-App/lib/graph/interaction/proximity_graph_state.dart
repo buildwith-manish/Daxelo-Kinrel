@@ -570,7 +570,7 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
     required String rootPersonId,
     required Set<String> visibleIds,
     required Set<String> allPersons,
-    required List<({String fromId, String toId, String edgeId, String relationshipKey})> edges,
+    required List<({String fromId, String toId, String edgeId, String relationshipKey, String? labelAtoB})> edges,
     int maxNodes = kMaxNodesPerExpansion,
   }) {
     if (!allPersons.contains(rootPersonId)) return const <String>{};
@@ -582,12 +582,16 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
     for (final e in edges) {
       if (e.fromId.isEmpty || e.toId.isEmpty) continue;
       String? neighbourId;
-      String key = e.relationshipKey;
+      // v5.174: use labelAtoB (SPECIFIC label) not relationshipKey
+      // (always 'parent' for non-spouse edges). Without this, ALL
+      // non-spouse edges get classified as 'parent' priority, and
+      // the kinship-closest sort degenerates to ID-sort.
+      String key = (e.labelAtoB ?? e.relationshipKey);
       if (e.fromId == rootPersonId) {
         neighbourId = e.toId;
       } else if (e.toId == rootPersonId) {
         neighbourId = e.fromId;
-        key = inverseTypeMap[e.relationshipKey] ?? e.relationshipKey;
+        key = inverseTypeMap[key] ?? key;
       } else {
         continue;
       }
