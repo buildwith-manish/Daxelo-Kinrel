@@ -817,18 +817,16 @@ class RadialLayout {
     // NOT in previousPositions, OR those whose previous position is
     // now occupied by another node) get pushed. This is the "expand
     // only the local area, don't reposition everything" fix.
-    // v5.170 (ANCHOR PINNING + LOCALLY-POSITIONED SETTLE): the anchor
-    // is ALWAYS settled — it must NEVER be moved by the de-overlap pass.
-    // Additionally, nodes positioned by the local expansion layout are
-    // also settled — this prevents the de-overlap from pushing them out
-    // of their correct Y-band (e.g. pushing an ancestor below its child).
+    // v5.172 (OVERLAP FIX): Only mark PREVIOUSLY placed nodes + anchor
+    // as settled. Do NOT mark locally-positioned nodes as settled —
+    // they need to be pushable by the de-overlap pass when they overlap
+    // each other. The old code (v5.170) marked ALL new nodes as settled,
+    // which meant the de-overlap pass skipped overlapping pairs of new
+    // nodes (both settled → skip) → they stayed overlapping forever.
+    // The Y-band protection (preferring horizontal pushes) already
+    // prevents them from being pushed into the wrong generation.
     final settledNodeIds = preservePositions && previousPositions != null
-        ? (previousPositions.keys.toSet()
-          ..add(anchor.id)
-          // v5.170: also include nodes positioned by local expansion
-          // (they're in `positions` but not in `previousPositions`).
-          ..addAll(positions.keys.where((id) =>
-              !previousPositions.containsKey(id) && id != anchor.id)))
+        ? (previousPositions.keys.toSet()..add(anchor.id))
         : ({anchor.id});
 
     // v5.164 (SECTOR CONTAINMENT): compute each node's assigned angle
@@ -1266,7 +1264,10 @@ class RadialLayout {
     // v5.164: Increased to 30 — sector-constrained pushes (tangent +
     // free-axis fallback for same-angle pairs) need more iterations
     // to fully separate dense clusters.
-    const maxIterations = 30;
+    // v5.172: Increased to 40 — with 180px/220px spacing, newly
+    // expanded nodes need more passes to fully separate from each
+    // other AND from settled nodes.
+    const maxIterations = 40;
 
     while (overlapsFound && iterations < maxIterations) {
       overlapsFound = false;
