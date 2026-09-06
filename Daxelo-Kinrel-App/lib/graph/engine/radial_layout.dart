@@ -437,65 +437,75 @@ class RadialLayout {
       // placement, position them LOCALLY relative to their expansion
       // origin using HierarchicalLayout's subtree-width algorithm.
       //
-      // For each new node, find its parent in the relationships. If the
-      // parent is a settled node (already placed), use the parent's
-      // position as the local origin and call
-      // [HierarchicalLayout.computeLocalExpansionLayout] to position the
-      // new node + its siblings as a small hierarchical tree hanging off
-      // that parent. This makes edges SHORT (local, direct) instead of
-      // long (ring-fill slot → connect after).
+      // v5.168 (MULTI-LEVEL FIX): the old v5.164 code only grouped new
+      // nodes whose PARENT was already settled. This meant grandchildren
+      // (whose parent was also newly-revealed) fell through to ring-fill
+      // and appeared at random ring positions — the "Anil Mehta / Ritu
+      // Nair / Nisha Varma scattered far away" bug.
       //
-      // New nodes whose parent is NOT in the settled set (e.g. both
-      // parent and child are new) are left for the ring-fill pass — the
-      // local layout only handles groups where the origin is already
-      // placed, which is the common case (the user tapped a visible
-      // branch bubble, revealing its hidden children).
+      // The fix: for each settled node, collect ALL its revealed
+      // descendants (not just direct children) by walking the parent→
+      // child adjacency recursively. Then pass the ENTIRE descendant
+      // set to computeLocalExpansionLayout, which builds the full
+      // subtree tree (including grandchildren) and positions them all
+      // below the origin via subtree-width centering.
       final newIds = currentIds.difference(positions.keys.toSet())
           ..remove(anchor.id);
       if (newIds.isNotEmpty) {
-        // v5.167 (LABEL FIX): use labelAtoB (the SPECIFIC label like
-        // 'son', 'daughter', 'father') instead of relationshipKey (which
-        // is ALWAYS 'parent' for non-spouse edges due to the DB's
-        // relationship_fundamental_edge_check constraint). Without this
-        // fix, ALL edges match _parentKeys.contains('parent') → true,
-        // so EVERY edge is treated as "toPerson is parent of fromPerson"
-        // — even when labelAtoB='son' (meaning fromPerson IS the parent
-        // and toPerson IS the child). This caused children to be placed
-        // in the wrong direction relative to their parent.
-        //
-        // Also: skip sibling edges (labelAtoB='brother'/'sister') —
-        // siblings are SAME-generation, not parent-child. Treating a
-        // sibling as a child would place them one generation below,
-        // creating a wrong hierarchy.
         final parentKeys = _parentKeys;
         final childKeys = _childKeys;
         final siblingLabels = _siblingLabels;
-        final groupsByOrigin = <String, Set<String>>{};
+
+        // Build a parent→children adjacency map from the relationships,
+        // using labelAtoB for correct parent-child direction detection.
+        final childrenOf = <String, List<String>>{};
         for (final r in relationships) {
           final fromId = r.fromPersonId;
           final toId = r.toPersonId;
-          if (!newIds.contains(fromId) && !newIds.contains(toId)) continue;
-          // v5.167: use labelAtoB (SPECIFIC) not relationshipKey (always 'parent').
           final key = (r.labelAtoB ?? r.relationshipKey).toLowerCase();
-          // Skip sibling edges — they're same-generation, not parent-child.
           if (siblingLabels.contains(key)) continue;
-          String? parentId;
-          String? childId;
           if (parentKeys.contains(key)) {
-            // toPerson is parent of fromPerson.
-            parentId = toId;
-            childId = fromId;
+            // toPerson is parent of fromPerson → fromPerson is child.
+            childrenOf.putIfAbsent(toId, () => []).add(fromId);
           } else if (childKeys.contains(key)) {
-            // fromPerson is parent of toPerson.
-            parentId = fromId;
-            childId = toId;
-          } else {
-            continue;
+            // fromPerson is parent of toPerson → toPerson is child.
+            childrenOf.putIfAbsent(fromId, () => []).add(toId);
           }
-          // Only group if the parent is settled (already placed) and
-          // the child is a new node.
-          if (newIds.contains(childId) && positions.containsKey(parentId)) {
-            groupsByOrigin.putIfAbsent(parentId, () => <String>{}).add(childId);
+        }
+
+        // v5.168: For each settled node, recursively collect ALL its
+        // revealed descendants (direct children, grandchildren, etc.).
+        // This ensures multi-level subtrees are positioned together via
+        // computeLocalExpansionLayout, not scattered by ring-fill.
+        final groupsByOrigin = <String, Set<String>>{};
+        void collectDescendants(String parentId, Set<String> descendants) {
+          for (final childId in childrenOf[parentId] ?? const <String>[]) {
+            if (!newIds.contains(childId)) continue;
+            if (!descendants.add(childId)) continue; // already collected
+            // Recurse into this child's descendants too.
+            collectDescendants(childId, descendants);
+          }
+        }
+
+        for (final settledId in positions.keys) {
+          if (settledId == anchor.id) continue;
+          if (!newIds.any((id) => childrenOf[settledId]?.contains(id) ?? false)) {
+            continue; // This settled node has no new children.
+          }
+          final descendants = <String>{};
+          collectDescendants(settledId, descendants);
+          if (descendants.isNotEmpty) {
+            groupsByOrigin[settledId] = descendants;
+          }
+        }
+
+        // v5.168: Also handle the anchor as an origin (it may have
+        // newly-revealed children too).
+        {
+          final descendants = <String>{};
+          collectDescendants(anchor.id, descendants);
+          if (descendants.isNotEmpty) {
+            groupsByOrigin[anchor.id] = descendants;
           }
         }
 
@@ -507,16 +517,20 @@ class RadialLayout {
             final revealed = entry.value;
             final originPos = positions[originId];
             if (originPos == null) continue;
+            // v5.168: remove any IDs that were already positioned by a
+            // previous group (a node can only belong to one subtree).
+            final unpositioned = revealed
+                .where((id) => !positions.containsKey(id))
+                .toSet();
+            if (unpositioned.isEmpty) continue;
             final result = hLayout.computeLocalExpansionLayout(
               originPersonId: originId,
-              revealedIds: revealed,
+              revealedIds: unpositioned,
               persons: persons,
               relationships: relationships,
               originPosition: originPos,
             );
             // Merge the locally-computed positions into the main map.
-            // The ring placement loop will SKIP these (they're already
-            // in `positions`).
             for (final posEntry in result.positions.entries) {
               positions[posEntry.key] = posEntry.value;
             }
@@ -524,7 +538,7 @@ class RadialLayout {
             newIds.removeAll(result.positionedIds);
           }
         }
-        // Any remaining newIds (no settled parent found) fall through
+        // Any remaining newIds (no settled ancestor found) fall through
         // to the ring-fill placement below — backward compatible.
       }
     }
