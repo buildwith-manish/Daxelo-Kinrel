@@ -30,6 +30,19 @@ typedef _E = ({
 _E _e(String from, String to, String key, [String? id]) =>
     (fromId: from, toId: to, edgeId: id ?? 'e-$from-$to-$key', relationshipKey: key);
 
+// v5.174 compatibility: deriveCoupleUnions + computeNextLevelReveal require
+// edges with labelAtoB. Use this helper for tests that call them.
+typedef _EL = ({
+  String fromId,
+  String toId,
+  String edgeId,
+  String relationshipKey,
+  String? labelAtoB
+});
+
+_EL _el(String from, String to, String key, [String? id]) =>
+    (fromId: from, toId: to, edgeId: id ?? 'e-$from-$to-$key', relationshipKey: key, labelAtoB: null);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -40,10 +53,10 @@ void main() {
     test('returns ONLY the immediate next level — never the deeper '
         'subtree', () {
       // root → h1 (hidden direct) → h2 (hidden grandchild).
-      final edges = <_E>[
-        _e('root', 'h1', 'son'),
-        _e('h1', 'h2', 'son'),
-        _e('h2', 'h3', 'son'),
+      final edges = <_EL>[
+        _el('root', 'h1', 'son'),
+        _el('h1', 'h2', 'son'),
+        _el('h2', 'h3', 'son'),
       ];
       final revealed = ProximityGraphNotifier.computeNextLevelReveal(
         rootPersonId: 'root',
@@ -61,13 +74,13 @@ void main() {
       // 20 hidden direct neighbours: 5 spouses, 5 parents, 10 in-laws.
       // Capacity 15 → all 5 spouses + all 5 parents + first 5 in-laws
       // (zero-padded: deterministic ID tie-break).
-      final edges = <_E>[
+      final edges = <_EL>[
         for (var i = 0; i < 5; i++)
-          _e('root', 'sp${i.toString().padLeft(2, '0')}', 'spouse'),
+          _el('root', 'sp${i.toString().padLeft(2, '0')}', 'spouse'),
         for (var i = 0; i < 5; i++)
-          _e('root', 'pa${i.toString().padLeft(2, '0')}', 'father'),
+          _el('root', 'pa${i.toString().padLeft(2, '0')}', 'father'),
         for (var i = 0; i < 10; i++)
-          _e('root', 'il${i.toString().padLeft(2, '0')}', 'cousin'),
+          _el('root', 'il${i.toString().padLeft(2, '0')}', 'cousin'),
       ];
       final allPersons = <String>{
         'root',
@@ -104,13 +117,13 @@ void main() {
 
     test('CONNECTIVITY GUARANTEE: every revealed member has an edge to '
         'an already-visible node', () {
-      final edges = <_E>[
-        _e('root', 'a', 'daughter'),
-        _e('root', 'b', 'niece'),
+      final edges = <_EL>[
+        _el('root', 'a', 'daughter'),
+        _el('root', 'b', 'niece'),
         // c is NOT adjacent to the root — only to a (also hidden here).
-        _e('a', 'c', 'son'),
+        _el('a', 'c', 'son'),
         // d is adjacent to a VISIBLE outsider.
-        _e('outsider', 'd', 'son'),
+        _el('outsider', 'd', 'son'),
       ];
       final visible = <String>{'root', 'outsider'};
       final revealed = ProximityGraphNotifier.computeNextLevelReveal(
@@ -132,10 +145,10 @@ void main() {
     });
 
     test('skips already-visible and unfetched neighbours', () {
-      final edges = <_E>[
-        _e('root', 'vis', 'son'), // already visible → skip
-        _e('root', 'fetched', 'son'), // hidden + fetched → reveal
-        _e('root', 'unfetched', 'son'), // hidden but NOT in allPersons → skip
+      final edges = <_EL>[
+        _el('root', 'vis', 'son'), // already visible → skip
+        _el('root', 'fetched', 'son'), // hidden + fetched → reveal
+        _el('root', 'unfetched', 'son'), // hidden but NOT in allPersons → skip
       ];
       final revealed = ProximityGraphNotifier.computeNextLevelReveal(
         rootPersonId: 'root',
@@ -157,10 +170,10 @@ void main() {
     });
 
     test('cycle safety: an A↔B cycle between hidden nodes terminates', () {
-      final edges = <_E>[
-        _e('root', 'a', 'son'),
-        _e('a', 'b', 'brother'),
-        _e('b', 'a', 'brother'), // cycle
+      final edges = <_EL>[
+        _el('root', 'a', 'son'),
+        _el('a', 'b', 'brother'),
+        _el('b', 'a', 'brother'), // cycle
       ];
       final revealed = ProximityGraphNotifier.computeNextLevelReveal(
         rootPersonId: 'root',

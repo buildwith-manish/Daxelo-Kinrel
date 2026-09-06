@@ -20,10 +20,13 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   // Helper: build edge tuples.
-  List<({String fromId, String toId, String edgeId, String relationshipKey})>
+  // v5.174 fix: include labelAtoB field (matches deriveCoupleUnions signature).
+  // Set to null so the function falls back to relationshipKey (test data
+  // already encodes the actual relationship label in relationshipKey).
+  List<({String fromId, String toId, String edgeId, String relationshipKey, String? labelAtoB})>
       buildEdges(List<List<String>> pairs) {
     return pairs
-        .map((p) => (fromId: p[0], toId: p[1], edgeId: p[2], relationshipKey: p[3]))
+        .map((p) => (fromId: p[0], toId: p[1], edgeId: p[2], relationshipKey: p[3], labelAtoB: null))
         .toList();
   }
 

@@ -84,6 +84,13 @@ void main() {
       (fromId: 'person-${20 + (i - 30)}', toId: 'person-$i', edgeId: 'e${i + 30}', relationshipKey: 'son'),
   ];
 
+  // v5.174 compatibility: deriveCoupleUnions requires edges WITH labelAtoB.
+  // Build a parallel list for the deriveCoupleUnions call (line ~273).
+  final edgesWithLabel = <({String fromId, String toId, String edgeId, String relationshipKey, String? labelAtoB})>[
+    for (final e in edges)
+      (fromId: e.fromId, toId: e.toId, edgeId: e.edgeId, relationshipKey: e.relationshipKey, labelAtoB: null),
+  ];
+
   group('v102 — Integration test (Phases 1,3,4,5,6,7 combined)', () {
     test('1. Graph builds without exceptions (40 persons, 35 edges)', () {
       expect(persons.length, 40);
@@ -93,7 +100,7 @@ void main() {
     });
 
     test('2. Phase 6 — Couple unions derived correctly', () {
-      final unions = deriveCoupleUnions(edges);
+      final unions = deriveCoupleUnions(edgesWithLabel);
       // person-1 and person-2 are a spouse pair (wife edge).
       expect(unions.length, greaterThanOrEqualTo(1),
           reason: 'At least one couple union (person-1 + person-2)');
@@ -270,7 +277,7 @@ void main() {
       // this test throws.
 
       // Phase 6: derive unions
-      final unions = deriveCoupleUnions(edges);
+      final unions = deriveCoupleUnions(edgesWithLabel);
       expect(unions, isNotEmpty);
 
       // Phase 1: focus

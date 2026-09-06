@@ -598,6 +598,7 @@ class GraphLayoutService {
           toId: rel.toPersonId,
           edgeId: rel.id,
           relationshipKey: rel.relationshipKey,
+          labelAtoB: rel.labelAtoB,
         ),
     ]);
 
