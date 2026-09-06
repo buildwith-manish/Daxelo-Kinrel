@@ -544,6 +544,16 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   // chip list is rebuilt.
   Set<String> _currentDensityHiddenIds = const {};
 
+  // v5.166 (BRANCH BUBBLE CONNECTOR): Cache the current branch chip
+  // placements (branchId → placement rect) so the lifeguard can
+  // synthesize connector edges from isolated visible nodes to the
+  // nearest branch bubble. Without this, a visible node whose only
+  // relatives are all hidden inside a collapsed branch renders with
+  // NO connecting edge — the "isolated visible node" bug (e.g. Geeta
+  // Iyer). The lifeguard now falls back to connecting such nodes to
+  // the branch bubble's center position.
+  Map<String, Rect> _currentBranchBubblePositions = const {};
+
   // v5.137: Records which branch chip was hit during onTapDown, so the
   // onTap callback (which fires only for quick taps, NOT long-presses)
   // can expand the correct branch. This prevents the chip from expanding

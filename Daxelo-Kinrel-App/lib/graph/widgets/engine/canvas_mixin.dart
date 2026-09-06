@@ -876,6 +876,33 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
         final useSegmentFallback =
             !branchesCollapsed && (visible.length < 200 || currentZoom > 1.5);
 
+        // v5.166 (BRANCH BUBBLE CONNECTOR): compute branch chip placements
+        // EARLY — before the edge layer runs — so the lifeguard can
+        // synthesize connector edges from isolated visible nodes to the
+        // nearest branch bubble. Without this, a visible node whose
+        // only relatives are all hidden inside a collapsed branch
+        // renders with NO connecting edge (the "isolated visible node"
+        // bug, e.g. Geeta Iyer).
+        //
+        // The placements are computed using `effectivePositions` (which
+        // includes rearrange overrides) so the bubble positions match
+        // what's actually rendered.
+        if (densityCollapseState.collapsedBranches.isNotEmpty) {
+          final placements = _computeBranchChipPlacements(
+            layout,
+            densityCollapseState,
+            densityHiddenIds,
+          );
+          // Cache as branchId → rect.center for the lifeguard.
+          final bubblePositions = <String, Rect>{};
+          for (final p in placements) {
+            bubblePositions[p.request.branchId] = p.rect;
+          }
+          _currentBranchBubblePositions = bubblePositions;
+        } else {
+          _currentBranchBubblePositions = const {};
+        }
+
         // v5.143 (HIDDEN-NODE AUDIT): Iterate _filteredGraph.visibleRelationships
         // (~50-150 edges) instead of flat.relationships (~1000 edges).
         // The FilteredGraph already excluded:
@@ -1064,6 +1091,87 @@ extension _CanvasMethods on _FamilyGraphEngineViewState {
               ));
               nodesWithDrawableEdges.add(visibleId);
               nodesWithDrawableEdges.add(bestTarget);
+            } else {
+              // v5.166 (BRANCH BUBBLE CONNECTOR): the BFS through
+              // hidden nodes found NO visible relative — every relative
+              // of this visible node is hidden inside collapsed branch
+              // bubbles. Connect the node to the nearest branch bubble
+              // so it never appears isolated.
+              //
+              // Strategy:
+              //   1. Find which collapsed branch(es) contain this node's
+              //      hidden relatives (by checking each branch's
+              //      hiddenMemberIds against the node's adjacency).
+              //   2. Pick the nearest branch bubble (by distance from
+              //      the visible node to the bubble's center).
+              //   3. Insert the bubble's center into effectivePositions
+              //      under a synthetic ID (branch_<rootPersonId>).
+              //   4. Synthesize a connector edge from the visible node
+              //      to the bubble.
+              //
+              // This ensures every visible node with hidden relatives
+              // shows at least one visible structural connection —
+              // either to another visible node (lifeline) or to a
+              // branch bubble (connector). The user never sees an
+              // isolated floating node.
+              final visiblePos = effectivePositions[visibleId];
+              if (visiblePos != null &&
+                  _currentBranchBubblePositions.isNotEmpty &&
+                  _currentCollapsedBranches.isNotEmpty) {
+                // Find this node's hidden relatives.
+                final hiddenRelatives = <String>{};
+                for (final r in flat.relationships) {
+                  final s = (r['fromPersonId'] ?? '').toString();
+                  final t = (r['toPersonId'] ?? '').toString();
+                  if (s == visibleId && densityHiddenIds.contains(t)) {
+                    hiddenRelatives.add(t);
+                  } else if (t == visibleId && densityHiddenIds.contains(s)) {
+                    hiddenRelatives.add(s);
+                  }
+                }
+                // Find the nearest branch bubble whose hiddenMemberIds
+                // intersect this node's hidden relatives.
+                String? nearestBranchId;
+                Rect? nearestBubbleRect;
+                var nearestDist = double.infinity;
+                for (final branch in _currentCollapsedBranches) {
+                  if (!hiddenRelatives.any((id) =>
+                      branch.hiddenMemberIds.contains(id))) {
+                    continue; // This branch doesn't contain V's relatives.
+                  }
+                  final bubbleRect = _currentBranchBubblePositions[branch.id];
+                  if (bubbleRect == null) continue;
+                  final bubbleCenter = bubbleRect.center;
+                  final dist = (bubbleCenter - visiblePos).distance;
+                  if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearestBranchId = branch.id;
+                    nearestBubbleRect = bubbleRect;
+                  }
+                }
+                if (nearestBranchId != null && nearestBubbleRect != null) {
+                  // Insert the bubble's center into effectivePositions
+                  // under a synthetic ID so the edge painter can draw
+                  // to it.
+                  final bubbleNodeId = 'bubble_$nearestBranchId';
+                  effectivePositions[bubbleNodeId] = nearestBubbleRect.center;
+                  // Synthesize the connector edge.
+                  final connectorEdge = GraphEdgeData(
+                    id: 'branch_connector_$visibleId',
+                    sourceId: visibleId,
+                    targetId: bubbleNodeId,
+                    relationshipKey: 'collapsed_branch',
+                    labelAtoB: 'collapsed_branch',
+                  );
+                  edges.add(DedupedEdge(
+                    edge: connectorEdge,
+                    lateralOffset: 0.0,
+                    parallelCount: 1,
+                  ));
+                  nodesWithDrawableEdges.add(visibleId);
+                  nodesWithDrawableEdges.add(bubbleNodeId);
+                }
+              }
             }
           }
         }
