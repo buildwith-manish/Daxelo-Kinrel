@@ -606,13 +606,24 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
       }
 
       // 3b. Start Supabase Realtime subscriptions if authenticated
+      // v2.2 (LAZY SUBSCRIPTION): We NO LONGER call subscribeToAllUserFamilies()
+      // here. Instead, each family screen (FamilyGraphScreen) subscribes to
+      // its own family in initState() and unsubscribes in dispose(). This
+      // reduces the active WebSocket channel count from N (all families) to
+      // 1 (the currently-viewed family).
+      //
+      // subscribeToAllUserFamilies() is still available for cases where
+      // the app needs to listen to ALL families (e.g. background sync),
+      // but it's gated behind a feature flag and unused by default.
+      // To re-enable eager subscription, set _EAGER_SUBSCRIBE_ALL = true.
       try {
         final client = ref.read(supabaseProvider);
         if (client != null && client.auth.currentSession != null) {
           final realtimeService = ref.read(supabaseRealtimeProvider);
           realtimeService.initialize();
-          realtimeService.subscribeToAllUserFamilies();
-          debugPrint('📡 SupabaseRealtime started (delayed)');
+          // v2.2: Only initialize the service — don't subscribe to all families.
+          // Subscription is now lazy (per-family, on screen open).
+          debugPrint('📡 SupabaseRealtime initialized (lazy subscription mode)');
         }
       } catch (e) {
         debugPrint('⚠️ SupabaseRealtime start failed: $e');

@@ -91,10 +91,29 @@ class SupabaseRealtimeService {
   // ── Per-Family Subscription ──────────────────────────────────────
 
   /// Subscribe to realtime changes for a specific family.
-  /// Creates a Supabase Realtime channel that listens for:
-  /// - Person INSERT/UPDATE/DELETE (where familyId = target)
-  /// - Relationship INSERT/UPDATE/DELETE (where familyId = target)
-  /// - Family UPDATE (where id = target)
+  ///
+  /// v2.2 (BROADCAST MIGRATION):
+  /// Replaced three onPostgresChanges() listeners (Person, Relationship,
+  /// Family) with a SINGLE onBroadcast() listener on topic 'family:$familyId'
+  /// + one onPostgresChanges for Family UPDATE only.
+  ///
+  /// Person + Relationship changes are now received via Broadcast (sent by
+  /// DB triggers `_fn_broadcast_person_change` / `_fn_broadcast_relationship_change`
+  /// via `realtime.broadcast_changes()`). This removes the per-subscriber
+  /// WAL-decode cost — the trigger decodes once and Realtime fans out.
+  ///
+  /// Family UPDATE is still via onPostgresChanges because Family changes are
+  /// low-frequency (name, avatar, memberCount) and we didn't add a broadcast
+  /// trigger for Family (to keep the migration minimal + rollback-friendly).
+  ///
+  /// The broadcast payload shape (from broadcast_changes):
+  ///   {
+  ///     "old_record": {...} | null,  // null for INSERT
+  ///     "record": {...} | null,      // null for DELETE
+  ///     "operation": "INSERT|UPDATE|DELETE",
+  ///     "table": "Person|Relationship",
+  ///     "schema": "public"
+  ///   }
   ///
   /// If already subscribed, this is a no-op.
   void subscribeToFamily(String familyId) {
@@ -109,34 +128,20 @@ class SupabaseRealtimeService {
 
     final channel = client.channel(channelName);
 
-    // ── Listen for Person changes ───────────────────────────────
-    channel.onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'Person',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'familyId',
-        value: familyId,
-      ),
-      callback: (payload) => _handlePersonChange(payload, familyId),
+    // ── v2.2: Single broadcast listener for Person + Relationship ──
+    // The DB trigger broadcasts to topic 'family:$familyId' with event 'change'.
+    // We parse the payload and route to the appropriate handler based on
+    // the 'table' field in the broadcast payload.
+    channel.onBroadcast(
+      event: 'change',
+      callback: (Map<String, dynamic> payload) {
+        _handleBroadcastChange(payload, familyId);
+      },
     );
 
-    // ── Listen for Relationship changes ─────────────────────────
-    channel.onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'Relationship',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'familyId',
-        value: familyId,
-      ),
-      callback: (payload) =>
-          _handleRelationshipChange(payload, familyId),
-    );
-
-    // ── Listen for Family changes ───────────────────────────────
+    // ── Family UPDATE (still via postgres_changes — low frequency) ──
+    // Family changes are NOT broadcast via triggers (to keep the migration
+    // minimal + rollback-friendly). They use the original postgres_changes path.
     channel.onPostgresChanges(
       event: PostgresChangeEvent.update,
       schema: 'public',
@@ -152,7 +157,7 @@ class SupabaseRealtimeService {
     channel.subscribe((status, error) {
       if (status == RealtimeSubscribeStatus.subscribed) {
         debugPrint(
-            '[SupabaseRealtime] Subscribed to family: $familyId');
+            '[SupabaseRealtime] Subscribed to family: $familyId (broadcast + family-update)');
       } else if (status == RealtimeSubscribeStatus.channelError) {
         debugPrint(
             '[SupabaseRealtime] Channel error for family $familyId: $error');
@@ -167,6 +172,54 @@ class SupabaseRealtimeService {
     });
 
     _familyChannels[familyId] = channel;
+  }
+
+  /// v2.2: Handles a broadcast change payload from the DB trigger.
+  ///
+  /// The payload shape (from realtime.broadcast_changes):
+  ///   {
+  ///     "old_record": Map<String, dynamic>? (null for INSERT),
+  ///     "record": Map<String, dynamic>? (null for DELETE),
+  ///     "operation": "INSERT" | "UPDATE" | "DELETE",
+  ///     "table": "Person" | "Relationship",
+  ///     "schema": "public"
+  ///   }
+  ///
+  /// Routes to [_handlePersonChange] or [_handleRelationshipChange] by
+  /// constructing a PostgresChangePayload so the existing handlers
+  /// (with dedup + echo-suppression) work unchanged.
+  void _handleBroadcastChange(Map<String, dynamic> payload, String familyId) {
+    final table = payload['table']?.toString() ?? '';
+    final operation = payload['operation']?.toString() ?? '';
+    final record = (payload['record'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+    final oldRecord = (payload['old_record'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+
+    // Map the broadcast operation to PostgresChangeEvent
+    final eventType = switch (operation.toUpperCase()) {
+      'INSERT' => PostgresChangeEvent.insert,
+      'UPDATE' => PostgresChangeEvent.update,
+      'DELETE' => PostgresChangeEvent.delete,
+      _ => PostgresChangeEvent.all,
+    };
+
+    // Construct a PostgresChangePayload so the existing handlers
+    // (which read .newRecord, .oldRecord, .eventType, .table) work unchanged.
+    final syntheticPayload = PostgresChangePayload(
+      schema: payload['schema']?.toString() ?? 'public',
+      table: table,
+      commitTimestamp: DateTime.now(),
+      eventType: eventType,
+      newRecord: record,
+      oldRecord: oldRecord,
+      errors: null,
+    );
+
+    if (table == 'Person') {
+      _handlePersonChange(syntheticPayload, familyId);
+    } else if (table == 'Relationship') {
+      _handleRelationshipChange(syntheticPayload, familyId);
+    }
+    // Family changes are handled separately via onPostgresChanges (not broadcast)
   }
 
   /// Unsubscribe from realtime changes for a specific family.
@@ -510,9 +563,29 @@ final supabaseRealtimeProvider =
 final realtimeSubscriptionsProvider =
     StateProvider<Set<String>>((ref) => {});
 
+/// v2.2 (LAZY SUBSCRIPTION):
+/// This provider is now UNUSED by default. Subscription is lazy — each
+/// FamilyGraphScreen subscribes to its own family in initState() and
+/// unsubscribes in dispose(). This reduces the active WebSocket channel
+/// count from N (all families) to 1 (the currently-viewed family).
+///
+/// To re-enable eager subscription to ALL families (e.g. for background
+/// sync or notifications), set [_kEagerSubscribeAll] to true and have
+/// a widget `ref.watch(autoRealtimeSubscriptionProvider)`. This is
+/// kept available but unused by default.
+const bool _kEagerSubscribeAll = false;
+
 /// Convenience provider that subscribes to all user families
 /// when Supabase is ready and auto-disposes on sign-out.
+///
+/// v2.2: GATED behind [_kEagerSubscribeAll]. When false (default), this
+/// provider is a no-op. Set to true to restore the old eager-subscription
+/// behavior (subscribe to ALL families on auth).
 final autoRealtimeSubscriptionProvider = Provider<void>((ref) {
+  // v2.2: Lazy subscription mode — don't subscribe to all families.
+  // Each FamilyGraphScreen handles its own subscription.
+  if (!_kEagerSubscribeAll) return;
+
   final isReady = ref.watch(isSupabaseReadyProvider);
   if (!isReady) return;
 

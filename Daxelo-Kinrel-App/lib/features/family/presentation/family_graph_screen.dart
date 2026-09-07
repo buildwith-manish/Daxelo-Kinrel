@@ -147,6 +147,9 @@ import '../../../core/services/local_notification_scheduler.dart'
 // has a Person node in the family graph (for empty-state logic).
 import '../../../core/viewer/viewer_provider.dart'
     show viewerPersonIdProvider;
+// v2.2: Lazy realtime subscription — subscribe to the active family only.
+import '../../../core/network/supabase_realtime_service.dart'
+    show supabaseRealtimeProvider;
 
 // ═══════════════════════════════════════════════════════════════════════
 // FAMILY GRAPH SCREEN
@@ -231,6 +234,24 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
   void initState() {
     super.initState();
     _restoreTransformState();
+
+    // v2.2 (LAZY SUBSCRIPTION): Subscribe to realtime changes for THIS
+    // family only — not all families the user belongs to. This reduces
+    // the number of active WebSocket channels from N (all families) to 1
+    // (the currently-viewed family), cutting server load and battery use.
+    // Unsubscribe happens in dispose() when the user navigates away.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        final realtimeService = ref.read(supabaseRealtimeProvider);
+        realtimeService.initialize();
+        realtimeService.subscribeToFamily(widget.familyId);
+        debugPrint('[FamilyGraphScreen] Subscribed to realtime for family: ${widget.familyId}');
+      } catch (e) {
+        debugPrint('[FamilyGraphScreen] Realtime subscribe failed: $e');
+      }
+    });
+
     // v5.163 (TREE REMOVAL): the ?tab=tree deep-link handler was here.
     // The Tree tab is gone, so the handler is removed. The `initialTab`
     // parameter is kept on the widget for backward-compat with any
@@ -291,6 +312,17 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
 
   @override
   void dispose() {
+    // v2.2 (LAZY SUBSCRIPTION): Unsubscribe from realtime changes for this
+    // family when the user navigates away. This keeps the active channel
+    // count at 1 (only the currently-viewed family) instead of N.
+    try {
+      // ref may be null in dispose if the widget was never built — guard
+      // with a try/catch.
+      final realtimeService = ref.read(supabaseRealtimeProvider);
+      realtimeService.unsubscribeFromFamily(widget.familyId);
+      debugPrint('[FamilyGraphScreen] Unsubscribed from realtime for family: ${widget.familyId}');
+    } catch (_) {}
+
     // v60: Removed _saveTransformState() — it was a dead write since
     // _restoreTransformState() never reads the saved values (it always
     // resets to identity). Wasted I/O on every screen exit.
