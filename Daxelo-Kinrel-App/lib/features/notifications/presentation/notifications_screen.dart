@@ -965,10 +965,14 @@ class _NotificationItem extends ConsumerWidget {
                       ),
                     ),
 
-                  // v109: Accept/Reject buttons for family invite notifications
-                  // that haven't been acted on yet.
-                  if (notification.notificationType ==
-                          NotificationType.familyInvite &&
+                  // v109: Accept/Reject buttons for family invite AND graph
+                  // invite notifications that haven't been acted on yet.
+                  // v5.183: Also show for graphInvite (graph invitations with
+                  // relationship — elder_brother, spouse, etc.)
+                  if ((notification.notificationType ==
+                                NotificationType.familyInvite ||
+                            notification.notificationType ==
+                                NotificationType.graphInvite) &&
                       !notification.isInviteActedUpon) ...[
                     const SizedBox(height: 10),
                     Row(
@@ -1029,8 +1033,10 @@ class _NotificationItem extends ConsumerWidget {
                   // (accept) or "You declined the invitation" (reject), so the
                   // body itself shows the post-action status. This badge is a
                   // compact visual indicator.
-                  if (notification.notificationType ==
-                          NotificationType.familyInvite &&
+                  if ((notification.notificationType ==
+                                NotificationType.familyInvite ||
+                            notification.notificationType ==
+                                NotificationType.graphInvite) &&
                       notification.isInviteActedUpon) ...[
                     const SizedBox(height: 6),
                     Container(
@@ -1142,8 +1148,9 @@ class _NotificationItem extends ConsumerWidget {
       return;
     }
 
-    // Family invite (already accepted) → open the family space
-    if (eventType == NotificationType.familyInvite &&
+    // Family invite OR graph invite (already accepted) → open the family space
+    if ((eventType == NotificationType.familyInvite ||
+         eventType == NotificationType.graphInvite) &&
         notification.isInviteActedUpon &&
         !notification.isInviteRejected &&
         familyId != null &&
