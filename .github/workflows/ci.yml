@@ -68,7 +68,13 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Flutter analyze
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+        run: flutter analyze --no-fatal-infos
+        # v5.183: Changed from --no-fatal-warnings to just --no-fatal-infos.
+        # Warnings (unused imports, type mismatches, missing required params)
+        # now FAIL the build. Info-level lints (prefer_single_quotes, etc.)
+        # remain non-blocking to avoid noise from style-only issues.
+        # This catches the kind of bugs that were shipping to production:
+        # wrong import paths, missing flutter_riverpod imports, etc.
 
   # ═══════════════════════════════════════════════════════════════
   # Job 2: Flutter Test

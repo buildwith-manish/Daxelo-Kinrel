@@ -82,8 +82,9 @@ jobs:
 
       - name: Create .env file
         run: |
-          echo "SUPABASE_URL=https://placeholder.supabase.co" > .env
-          echo "SUPABASE_ANON_KEY=placeholder" >> .env
+          echo "SUPABASE_URL=https://promxswvsnvilplmrtsj.supabase.co" > .env
+          echo "SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY" >> .env
+          echo "API_BASE_URL=https://daxelo-kinrel-server.onrender.com" >> .env
 
       - name: Install dependencies
         run: flutter pub get
@@ -91,8 +92,8 @@ jobs:
       - name: Generate code
         run: dart run build_runner build --delete-conflicting-outputs
 
-      - name: Analyze (non-blocking)
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings || true
+      - name: Analyze (warnings as errors)
+        run: flutter analyze --no-fatal-infos
 
       - name: Decode signing keystore (if secrets available)
         env:

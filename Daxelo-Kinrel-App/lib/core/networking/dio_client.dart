@@ -18,11 +18,16 @@ import '../widgets/offline_banner.dart';
 ///   4. _LoggingInterceptor      — debug request/response logging
 ///   5. _ErrorInterceptor        — error transformation
 ///   6. _ErrorLoggingInterceptor — Crashlytics error reporting (P3-F1)
+///
+/// v5.183: Increased connectTimeout to 60s to accommodate Render free
+/// tier cold starts (the server can take 30-60s to wake up after idle).
+/// The RetryInterceptor handles transient 502/503 errors during the
+/// wake-up window with exponential backoff (1s, 2s, 4s).
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(
     BaseOptions(
       baseUrl: EnvConfig.apiBaseUrl,
-      connectTimeout: const Duration(seconds: 15),
+      connectTimeout: const Duration(seconds: 60),
       receiveTimeout: const Duration(seconds: 30),
       sendTimeout: const Duration(seconds: 30),
       headers: {
