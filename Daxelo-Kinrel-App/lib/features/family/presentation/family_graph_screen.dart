@@ -143,6 +143,10 @@ import 'widgets/stats_panel.dart';
 // v5.175: birthday push notification scheduler.
 import '../../../core/services/local_notification_scheduler.dart'
     show LocalNotificationScheduler;
+// v5.177: viewerPersonIdProvider — used to check if the current user
+// has a Person node in the family graph (for empty-state logic).
+import '../../../core/viewer/viewer_provider.dart'
+    show viewerPersonIdProvider;
 
 // ═══════════════════════════════════════════════════════════════════════
 // FAMILY GRAPH SCREEN
@@ -1056,8 +1060,35 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
   Widget _buildDataState(FlatGraphResult graph) {
     final persons = graph.toPersonDataList();
 
-    // If no persons at all, show the empty state with add member FAB
-    if (persons.isEmpty) return _buildEmptyState();
+    // v5.177: Show the "Add Yourself" / "Start your family tree" empty
+    // state ONLY when the current user is NOT yet present in the family
+    // graph. This handles two scenarios:
+    //   1. Family with 0 persons (e.g., creator's Person auto-create
+    //      failed, or the family was created before the trigger existed).
+    //   2. Family with persons but the current user doesn't have a
+    //      Person node (e.g., user was invited to an existing family
+    //      but their Person wasn't auto-created).
+    //
+    // If the current user IS in the graph (viewerPersonId is not null),
+    // skip the empty state and show the graph directly — even if the
+    // family has only 1 member (the creator themselves).
+    //
+    // Use ref.watch (not ref.read) so the widget rebuilds when the
+    // viewerPersonId resolves.
+    final viewerPersonIdAsync = ref.watch(viewerPersonIdProvider(widget.familyId));
+
+    // If the viewerPersonId is still loading AND there are no persons,
+    // show a loading spinner instead of the empty state (avoids a
+    // brief flash of "Start your family tree" before the viewer resolves).
+    if (viewerPersonIdAsync.isLoading && persons.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final viewerPersonId = viewerPersonIdAsync.valueOrNull;
+    final isViewerInGraph = viewerPersonId != null && viewerPersonId.isNotEmpty;
+
+    // If no persons at all OR the viewer isn't in the graph → show empty state
+    if (persons.isEmpty || !isViewerInGraph) return _buildEmptyState();
 
     // v5.99: Compute generations using BFS with labelAtoB (specific labels)
     // instead of the stale API generationIndex (which defaults to 0 for all).

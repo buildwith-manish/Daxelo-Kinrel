@@ -272,11 +272,12 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
         username: _usernameController.text.trim(),
       ).timeout(const Duration(seconds: 15));
 
-      // v4.3: createFamily() has already:
+      // v5.177: createFamily() has already:
       //   1. Created the Family record
-      //   2. Created the FamilyMember (role=owner)
+      //   2. Created the FamilyMember (role=owner) — via DB trigger
       //   3. Auto-created the creator Person (isAnchor=true, linkedUserId=userId)
-      //   4. Set Family.anchorPersonId
+      //      — via DB trigger _fn_after_family_insert_create_anchor_person
+      //   4. Set Family.anchorPersonId + memberCount=1
       // No further person creation or update is needed.
 
       // Invalidate the graph so it reloads with the creator node
@@ -290,8 +291,11 @@ class _CreateFamilyScreenState extends ConsumerState<CreateFamilyScreen> {
 
       setState(() => _isSubmitting = false);
 
-      // Navigate to the family list
-      context.go('/families');
+      // v5.177: Navigate directly to the family graph (NOT the family
+      // list). Since the creator Person was atomically created by the
+      // DB trigger, the graph will show 1 node (the creator as anchor)
+      // and skip the "Start your family tree" empty state.
+      context.go('/family/${family.id}/graph');
 
       // Show the AddPersonSheet after a short delay so the user can
       // immediately add relatives (spouse, parents, children, etc.)

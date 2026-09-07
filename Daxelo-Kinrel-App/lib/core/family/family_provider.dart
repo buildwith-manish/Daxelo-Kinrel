@@ -1595,126 +1595,175 @@ Future<Family> createFamily({
   }
 
   // ════════════════════════════════════════════════════════════════════
-  // v4.2 (2026-08-15): AUTO-CREATE CREATOR PERSON
+  // v5.177 (2026-09-07): ATOMIC CREATOR PERSON CREATION
   // ════════════════════════════════════════════════════════════════════
-  // When a user creates a new family space, automatically create a Person
-  // record for the account owner so the family graph never starts empty.
-  // The creator is marked as:
-  //   - isAnchor: true (root/starting node of the family graph)
-  //   - linkedUserId: <creator's auth user ID> (claims the node)
-  //   - Family.anchorPersonId: set to this person's ID
+  // As of migration 20260907120000, the DB trigger
+  // `_fn_after_family_insert_create_anchor_person` atomically creates
+  // the creator's Person (isAnchor=true) inside the same transaction
+  // as the Family INSERT. This means:
+  //   - The Person is created BEFORE this Dart code even runs
+  //   - Family.anchorPersonId is already set
+  //   - Family.memberCount is already 1 (via _fn_sync_member_count)
   //
-  // This eliminates the "Add Yourself" step — the creator immediately
-  // sees themselves in the graph after family creation.
+  // The code below is now a FALLBACK + VERIFICATION layer:
+  //   1. Verify the Person was created (query for it)
+  //   2. If not found (trigger didn't fire — e.g., older DB without
+  //      the migration), fall back to the app-side creation logic
+  //   3. If the Person exists but Family.anchorPersonId is null, fix it
   //
-  // Edge cases handled:
-  //   - Only creates if no Person with linkedUserId=userId exists in this family
-  //   - Prevents duplicate "You" nodes
-  //   - Non-fatal: if Person creation fails, the family is still created
+  // This is NON-FATAL: if Person creation fails, the family is still
+  // created — the user can manually add themselves via the "Add Yourself"
+  // empty-state flow in the graph screen.
   // ════════════════════════════════════════════════════════════════════
   try {
-    // Check if a Person already exists for this user in this family
+    // ── Step 1: Verify the trigger created the Person ──
     final existingPerson = await client
         .from('Person')
-        .select('id')
+        .select('id, name, "linkedUserId"')
         .eq('familyId', family.id)
         .eq('linkedUserId', userId)
         .limit(1)
         .timeout(const Duration(seconds: 5));
 
-    if (existingPerson.isEmpty) {
-      debugPrint('[createFamily] Auto-creating creator Person for family ${family.id}');
+    if (existingPerson.isNotEmpty) {
+      // ── Person was created by the trigger ──
+      final personId = existingPerson[0]['id'] as String;
+      debugPrint('[createFamily] Creator Person verified (trigger): $personId');
 
-      // Derive the creator's name from auth user metadata.
-      // In Dart, || requires bool operands — use explicit if-else for
-      // "first non-null, non-empty string" logic (not JS-style ||).
-      final authUser = client.auth.currentUser;
-      final userMeta = authUser?.userMetadata;
-      String creatorName = 'You';
-      final fullName = (userMeta?['full_name'] as String?)?.trim();
-      final metaName = (userMeta?['name'] as String?)?.trim();
-      final metaUserName = (userMeta?['user_name'] as String?)?.trim();
-      final emailPrefix = authUser?.email?.split('@').first;
-      if (fullName != null && fullName.isNotEmpty) {
-        creatorName = fullName;
-      } else if (metaName != null && metaName.isNotEmpty) {
-        creatorName = metaName;
-      } else if (metaUserName != null && metaUserName.isNotEmpty) {
-        creatorName = metaUserName;
-      } else if (emailPrefix != null && emailPrefix.isNotEmpty) {
-        creatorName = emailPrefix;
+      // Ensure Family.anchorPersonId is set (trigger does this, but
+      // double-check for resilience against partial failures)
+      final familyCheck = await client
+          .from('Family')
+          .select('anchorPersonId')
+          .eq('id', family.id)
+          .single()
+          .timeout(const Duration(seconds: 5));
+      if (familyCheck['anchorPersonId'] == null) {
+        await client
+            .from('Family')
+            .update({
+              'anchorPersonId': personId,
+              'lastActivityAt': DateTime.now().toUtc().toIso8601String(),
+            })
+            .eq('id', family.id)
+            .timeout(const Duration(seconds: 5));
       }
+    } else {
+      // ── Step 2: Trigger didn't fire — fall back to app-side creation ──
+      debugPrint('[createFamily] Trigger did not create Person — falling back to app-side creation');
 
-      // Derive gender from user metadata (optional — null is fine)
-      final creatorGender = (userMeta?['gender'] as String?)?.toLowerCase();
+      // Also check if a Person exists WITHOUT linkedUserId (trigger might
+      // have created one but couldn't set linkedUserId due to unique constraint)
+      final existingUnlinked = await client
+          .from('Person')
+          .select('id, name')
+          .eq('familyId', family.id)
+          .isFilter('linkedUserId', null)
+          .eq('isAnchor', true)
+          .limit(1)
+          .timeout(const Duration(seconds: 5));
 
-      // v4.3.1: Check if the user already has a linkedUserId in ANY family.
-      // The Person.linkedUserId column has a UNIQUE constraint — a user can
-      // only be "linked" to ONE Person across ALL families. If they already
-      // have a linked Person elsewhere, we create the new Person WITHOUT
-      // linkedUserId (it's still the anchor of this family, just not "claimed"
-      // as the user's primary identity). The user can claim it later via the
-      // Person Link flow, which will unclaim the old one first.
-      bool canLinkToUser = false;
-      try {
+      if (existingUnlinked.isNotEmpty) {
+        // Trigger created a Person but couldn't link it. Try to link it now
+        // if the user doesn't have a linked Person elsewhere.
+        final personId = existingUnlinked[0]['id'] as String;
         final existingLinkedPerson = await client
             .from('Person')
             .select('id')
             .eq('linkedUserId', userId)
             .limit(1)
             .timeout(const Duration(seconds: 5));
-        canLinkToUser = existingLinkedPerson.isEmpty;
-        if (!canLinkToUser) {
-          debugPrint('[createFamily] User already has a linked Person in another family — creating without linkedUserId');
+        if (existingLinkedPerson.isEmpty) {
+          await client
+              .from('Person')
+              .update({'linkedUserId': userId})
+              .eq('id', personId)
+              .timeout(const Duration(seconds: 5));
         }
-      } catch (e) {
-        debugPrint('[createFamily] Could not check existing linkedUserId (non-fatal): $e');
-        // If the check fails, be safe and don't set linkedUserId
-        canLinkToUser = false;
+        // Ensure anchorPersonId is set
+        await client
+            .from('Family')
+            .update({
+              'anchorPersonId': personId,
+              'lastActivityAt': DateTime.now().toUtc().toIso8601String(),
+            })
+            .eq('id', family.id)
+            .timeout(const Duration(seconds: 5));
+        debugPrint('[createFamily] Linked existing unlinked anchor Person: $personId');
+      } else {
+        // ── Step 3: No Person exists at all — create from scratch ──
+        // This is the original v4.2 logic, kept as a last-resort fallback.
+        final authUser = client.auth.currentUser;
+        final userMeta = authUser?.userMetadata;
+        String creatorName = 'You';
+        final fullName = (userMeta?['full_name'] as String?)?.trim();
+        final metaName = (userMeta?['name'] as String?)?.trim();
+        final metaUserName = (userMeta?['user_name'] as String?)?.trim();
+        final emailPrefix = authUser?.email?.split('@').first;
+        if (fullName != null && fullName.isNotEmpty) {
+          creatorName = fullName;
+        } else if (metaName != null && metaName.isNotEmpty) {
+          creatorName = metaName;
+        } else if (metaUserName != null && metaUserName.isNotEmpty) {
+          creatorName = metaUserName;
+        } else if (emailPrefix != null && emailPrefix.isNotEmpty) {
+          creatorName = emailPrefix;
+        }
+
+        final creatorGender = (userMeta?['gender'] as String?)?.toLowerCase();
+
+        bool canLinkToUser = false;
+        try {
+          final existingLinkedPerson = await client
+              .from('Person')
+              .select('id')
+              .eq('linkedUserId', userId)
+              .limit(1)
+              .timeout(const Duration(seconds: 5));
+          canLinkToUser = existingLinkedPerson.isEmpty;
+        } catch (e) {
+          debugPrint('[createFamily] Could not check existing linkedUserId (non-fatal): $e');
+          canLinkToUser = false;
+        }
+
+        final personId = _generateId();
+        final personInsert = <String, dynamic>{
+          'id': personId,
+          'familyId': family.id,
+          'name': creatorName,
+          'isAnchor': true,
+          'privacyLevel': 'family',
+          'generationIndex': 0,
+        };
+        if (canLinkToUser) {
+          personInsert['linkedUserId'] = userId;
+        }
+        if (creatorGender != null && creatorGender.isNotEmpty) {
+          personInsert['gender'] = creatorGender;
+        }
+
+        await client
+            .from('Person')
+            .insert(personInsert)
+            .timeout(const Duration(seconds: 10));
+
+        await client
+            .from('Family')
+            .update({
+              'anchorPersonId': personId,
+              'memberCount': 1,
+              'lastActivityAt': DateTime.now().toUtc().toIso8601String(),
+            })
+            .eq('id', family.id)
+            .timeout(const Duration(seconds: 5));
+
+        debugPrint('[createFamily] Creator Person created (app-side fallback): $personId (name=$creatorName, linkedToUser=$canLinkToUser)');
       }
-
-      final personId = _generateId();
-      final personInsert = <String, dynamic>{
-        'id': personId,
-        'familyId': family.id,
-        'name': creatorName,
-        'isAnchor': true,
-        'privacyLevel': 'family',
-        'generationIndex': 0,
-      };
-      // Only set linkedUserId if the user doesn't already have one elsewhere
-      // (avoids unique constraint violation on Person_linkedUserId_unique)
-      if (canLinkToUser) {
-        personInsert['linkedUserId'] = userId;
-      }
-      if (creatorGender != null && creatorGender.isNotEmpty) {
-        personInsert['gender'] = creatorGender;
-      }
-
-      await client
-          .from('Person')
-          .insert(personInsert)
-          .timeout(const Duration(seconds: 10));
-
-      // Set Family.anchorPersonId + memberCount=1
-      await client
-          .from('Family')
-          .update({
-            'anchorPersonId': personId,
-            'memberCount': 1,
-            'lastActivityAt': DateTime.now().toUtc().toIso8601String(),
-          })
-          .eq('id', family.id)
-          .timeout(const Duration(seconds: 5));
-
-      debugPrint('[createFamily] Creator Person created: $personId (name=$creatorName, linkedToUser=$canLinkToUser)');
-    } else {
-      debugPrint('[createFamily] Creator Person already exists — skipping auto-create');
     }
   } catch (e) {
     // Non-fatal: the family was created successfully. The user can
     // manually add themselves via the "Add Yourself" flow if needed.
-    debugPrint('[createFamily] Auto-create creator Person failed (non-fatal): $e');
+    debugPrint('[createFamily] Auto-create/verify creator Person failed (non-fatal): $e');
   }
 
   ref.invalidate(familyListProvider);
