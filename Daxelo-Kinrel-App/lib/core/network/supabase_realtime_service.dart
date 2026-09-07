@@ -25,6 +25,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:drift/drift.dart';
 
 import '../family/family_provider.dart';
+// v5.182: familyGraphProvider + graphPendingInvitationsProvider +
+// pendingGraphInvitationCountProvider for invalidating the graph + pending
+// invitations list on realtime broadcasts.
+import '../../features/family/presentation/providers/family_graph_provider.dart'
+    show familyGraphProvider;
+import '../../features/family/presentation/providers/graph_pending_invitations_provider.dart'
+    show graphPendingInvitationsProvider, pendingGraphInvitationCountProvider;
 import '../database/isar_database.dart';
 import '../database/app_database.dart';
 import '../services/supabase_service.dart';
@@ -218,6 +225,12 @@ class SupabaseRealtimeService {
       _handlePersonChange(syntheticPayload, familyId);
     } else if (table == 'Relationship') {
       _handleRelationshipChange(syntheticPayload, familyId);
+    } else if (table == 'GraphPendingInvitation') {
+      // v5.182: GraphPendingInvitation broadcast — just invalidate the
+      // pending invitations provider. We don't need to update the Drift
+      // cache for this table (it's fetched on-demand via RPC, not cached).
+      debugPrint('[SupabaseRealtime] GraphPendingInvitation $operation in family $familyId');
+      _scheduleFamilyInvalidation(familyId);
     }
     // Family changes are handled separately via onPostgresChanges (not broadcast)
   }
@@ -504,6 +517,13 @@ class SupabaseRealtimeService {
             _ref.invalidate(familyMembersProvider(fid));
             _ref.invalidate(familyRelationshipsProvider(fid));
             _ref.invalidate(familyDetailProvider(fid));
+            // v5.182: Also invalidate the graph provider + pending
+            // invitations so the graph screen refreshes when a
+            // Person/Relationship/GraphPendingInvitation broadcast arrives.
+            // Without this, the graph relies on the (broken) graphRealtimeProvider.
+            _ref.invalidate(familyGraphProvider(fid));
+            _ref.invalidate(graphPendingInvitationsProvider(fid));
+            _ref.invalidate(pendingGraphInvitationCountProvider);
           } catch (_) {}
         }
         _pendingFamilyInvalidations.clear();

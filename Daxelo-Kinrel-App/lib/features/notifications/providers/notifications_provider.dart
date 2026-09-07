@@ -25,6 +25,7 @@ import '../../../core/services/supabase_service.dart';
 /// Each type maps to a specific user interaction or system event.
 enum NotificationType {
   familyInvite,
+  graphInvite, // v5.182: graph invitation (with relationship like elder_brother)
   acceptedInvite,
   rejectedInvite,
   newMember,
@@ -45,6 +46,7 @@ enum NotificationType {
 /// Map from NotificationType to display-friendly label.
 const Map<NotificationType, String> notificationTypeLabels = {
   NotificationType.familyInvite: 'Family Invite',
+  NotificationType.graphInvite: 'Graph Invite',
   NotificationType.acceptedInvite: 'Invite Accepted',
   NotificationType.rejectedInvite: 'Invite Rejected',
   NotificationType.newMember: 'New Member',
@@ -65,6 +67,7 @@ const Map<NotificationType, String> notificationTypeLabels = {
 /// Map from NotificationType to NotificationCategory.
 const Map<NotificationType, NotificationCategory> notificationTypeCategory = {
   NotificationType.familyInvite: NotificationCategory.family,
+  NotificationType.graphInvite: NotificationCategory.family,
   NotificationType.acceptedInvite: NotificationCategory.family,
   NotificationType.rejectedInvite: NotificationCategory.family,
   NotificationType.newMember: NotificationCategory.family,
@@ -232,8 +235,12 @@ class NotificationModel {
   /// True if the notification is read AND the actionUrl indicates rejection,
   /// OR if the notification is read (accepted invites are marked read by
   /// fn_accept_family_invite).
+  /// v5.182: Also applies to graphInvite (graph invitations with relationship).
   bool get isInviteActedUpon {
-    if (notificationType != NotificationType.familyInvite) return false;
+    if (notificationType != NotificationType.familyInvite &&
+        notificationType != NotificationType.graphInvite) {
+      return false;
+    }
     return isRead;
   }
 
@@ -468,8 +475,11 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
     switch (eventType) {
       case 'invitation_received':
       case 'family_invite': // v109: used by fn_send_family_invite_notification RPC
-      case 'graph_invite': // v5.84: used by fn_create_graph_pending_invitation RPC
         return NotificationType.familyInvite;
+      case 'graph_invite': // v5.84: used by fn_create_graph_pending_invitation RPC
+        // v5.182: graph invitations have a relationship (elder_brother, etc.)
+        // and must call fn_accept_graph_invitation, NOT fn_accept_family_invite.
+        return NotificationType.graphInvite;
       case 'invitation_accepted':
         return NotificationType.acceptedInvite;
       case 'new_relative':
@@ -564,6 +574,7 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
   int _colorForType(NotificationType type) {
     switch (type) {
       case NotificationType.familyInvite:
+      case NotificationType.graphInvite:
         return 0xFFE8612A; // orange
       case NotificationType.acceptedInvite:
         return 0xFF4CAF7A; // green
@@ -774,6 +785,8 @@ class NotificationsNotifier extends StateNotifier<NotificationsState> {
     switch (type) {
       case NotificationType.familyInvite:
         return 'invitation_received';
+      case NotificationType.graphInvite:
+        return 'graph_invite';
       case NotificationType.acceptedInvite:
         return 'invitation_accepted';
       case NotificationType.rejectedInvite:

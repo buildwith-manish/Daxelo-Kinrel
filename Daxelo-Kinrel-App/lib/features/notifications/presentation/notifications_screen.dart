@@ -33,6 +33,10 @@ import '../../../core/viewer/viewer_provider.dart'
     show viewerPersonIdProvider, invalidateViewerCache; // v5.10
 import '../../family/presentation/providers/family_graph_provider.dart'
     show familyGraphProvider;
+// v5.182: graphPendingInvitationsProvider + pendingGraphInvitationCountProvider
+// for invalidating the pending invitations list after graph invite acceptance.
+import '../../family/presentation/providers/graph_pending_invitations_provider.dart'
+    show graphPendingInvitationsProvider, pendingGraphInvitationCountProvider;
 import '../../thinking/presentation/family_ring_widget.dart'
     show familyKinrelMembersProvider;
 import '../../../shared/widgets/dk_components.dart';
@@ -512,11 +516,137 @@ class _NotificationItem extends ConsumerWidget {
   final VoidCallback onDelete;
   final VoidCallback onPin;
 
-  // v109: Accept a family invite — calls fn_accept_family_invite RPC
-  // which inserts a FamilyMember row + marks the notification as read.
+  // v109: Accept a family/graph invite.
+  // v5.182: Route to the correct RPC based on notification type:
+  //   - familyInvite → fn_accept_family_invite (creates Person + FamilyMember)
+  //   - graphInvite  → fn_accept_graph_invitation (creates Person + FamilyMember
+  //                    + Relationship edge + updates GraphPendingInvitation status)
   Future<void> _acceptInvite(BuildContext context, WidgetRef ref) async {
     final familyId = notification.familyId;
     if (familyId == null || familyId.isEmpty) return;
+
+    // v5.182: Branch on notification type to call the correct RPC.
+    if (notification.notificationType == NotificationType.graphInvite) {
+      await _acceptGraphInvite(context, ref, familyId);
+    } else {
+      await _acceptFamilyInvite(context, ref, familyId);
+    }
+  }
+
+  /// v5.182: Accept a GRAPH invitation (with relationship like elder_brother).
+  /// Calls fn_accept_graph_invitation which atomically:
+  ///   1. Creates a Person node for the accepter
+  ///   2. Creates a FamilyMember row
+  ///   3. Creates the Relationship edge (forward + inverse)
+  ///   4. Updates GraphPendingInvitation.status = 'accepted'
+  ///   5. Sends a notification to the inviter
+  ///   6. Marks the original graph_invite notification as read
+  Future<void> _acceptGraphInvite(
+      BuildContext context, WidgetRef ref, String familyId) async {
+    debugPrint('[INVITE] Graph accept started — familyId=$familyId');
+
+    // Extract the invitation ID from the actionUrl.
+    // Format: 'graph_invite:{invitationId}'
+    final actionUrl = notification.actionUrl ?? '';
+    String? invitationId;
+    if (actionUrl.startsWith('graph_invite:')) {
+      invitationId = actionUrl.substring('graph_invite:'.length);
+    }
+    if (invitationId == null || invitationId.isEmpty) {
+      debugPrint('[INVITE ERROR] Could not extract invitationId from actionUrl: $actionUrl');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid invitation. Please try again.'),
+            backgroundColor: KinrelColors.error,
+          ),
+        );
+      }
+      return;
+    }
+
+    debugPrint('[INVITE] Extracted invitationId=$invitationId');
+
+    try {
+      final client = ref.read(supabaseProvider);
+      if (client == null) return;
+
+      debugPrint('[INVITE] Calling fn_accept_graph_invitation RPC...');
+      final response = await client.rpc(
+        'fn_accept_graph_invitation',
+        params: {'p_invitation_id': invitationId},
+      ).timeout(const Duration(seconds: 15));
+
+      final result = response as Map<String, dynamic>?;
+      final success = result?['success'] as bool? ?? false;
+
+      if (success) {
+        debugPrint('[INVITE] Graph invitation accepted successfully');
+        debugPrint('[INVITE] PersonId=${result?['personId']}, RelationshipId=${result?['relationshipId']}');
+
+        // Refresh notifications list
+        ref.read(notificationsProvider.notifier).loadNotifications();
+
+        // Invalidate ALL relevant providers so the UI updates instantly:
+        try {
+          ref.invalidate(familyListProvider);
+          ref.invalidate(familyDetailProvider(familyId));
+          ref.invalidate(familyMembersProvider(familyId));
+          ref.invalidate(familyGraphProvider(familyId));
+          ref.invalidate(familyKinrelMembersProvider(familyId));
+          // v5.182: CRITICAL — invalidate graphPendingInvitationsProvider so
+          // the sender's pending list updates. Also invalidate on the
+          // receiver's side (in case they have the pending sheet open).
+          ref.invalidate(graphPendingInvitationsProvider(familyId));
+          ref.invalidate(pendingGraphInvitationCountProvider);
+          // Invalidate viewer cache + provider so the graph resolves the
+          // new viewer (the just-accepted invitee).
+          invalidateViewerCache(familyId);
+          ref.invalidate(viewerPersonIdProvider(familyId));
+        } catch (_) {}
+
+        debugPrint('[INVITE] All providers invalidated — UI should refresh');
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result?['message'] as String? ??
+                  'Successfully joined the family'),
+              backgroundColor: KinrelColors.success,
+            ),
+          );
+        }
+      } else {
+        final rpcError = result?['error'] as String?;
+        debugPrint('[INVITE ERROR] fn_accept_graph_invitation failed: $rpcError');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result?['message'] as String? ??
+                  'Could not accept invitation. Please try again.'),
+              backgroundColor: KinrelColors.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[INVITE ERROR] fn_accept_graph_invitation exception: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not accept invitation. Please try again.'),
+            backgroundColor: KinrelColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  /// v5.182: Accept a FAMILY invitation (no relationship).
+  /// Calls fn_accept_family_invite which creates Person + FamilyMember.
+  Future<void> _acceptFamilyInvite(
+      BuildContext context, WidgetRef ref, String familyId) async {
+    debugPrint('[INVITE] Family accept started — familyId=$familyId');
 
     // Extract inviter user ID from the actionUrl if available
     // (the RPC stores it in the notification's actionUrl as the invite URL)
@@ -535,6 +665,7 @@ class _NotificationItem extends ConsumerWidget {
           ? notification.body.split('join ').last
           : 'the family';
 
+      debugPrint('[INVITE] Calling fn_accept_family_invite RPC...');
       final response = await client.rpc(
         'fn_accept_family_invite',
         params: {
@@ -548,6 +679,7 @@ class _NotificationItem extends ConsumerWidget {
       final success = result?['success'] as bool? ?? false;
 
       if (success) {
+        debugPrint('[INVITE] Family invitation accepted successfully');
         // Refresh notifications + family data
         ref.read(notificationsProvider.notifier).loadNotifications();
         // v109.3: Invalidate ALL family providers so every screen updates:
@@ -568,12 +700,13 @@ class _NotificationItem extends ConsumerWidget {
           // by the "Who are you thinking of?" section so newly accepted
           // members appear instantly.
           ref.invalidate(familyKinrelMembersProvider(familyId));
+          // v5.182: Also invalidate graphPendingInvitationsProvider for
+          // consistency (family invites don't create graph pending rows,
+          // but the provider might be stale from a prior graph invite).
+          ref.invalidate(graphPendingInvitationsProvider(familyId));
+          ref.invalidate(pendingGraphInvitationCountProvider);
           // v5.10: Invalidate viewerPersonIdProvider + viewer cache so the
           // invitee's newly-linked Person node is picked up immediately.
-          // The fn_accept_family_invite RPC creates a Person with
-          // linkedUserId set via the family_membership_sync trigger —
-          // but if we don't invalidate this provider, the graph keeps
-          // showing the old (anchor) viewer perspective.
           invalidateViewerCache(familyId);
           ref.invalidate(viewerPersonIdProvider(familyId));
         } catch (_) {}
@@ -588,8 +721,7 @@ class _NotificationItem extends ConsumerWidget {
         }
       } else {
         // v109.6: Log the actual error from the RPC so we can diagnose
-        // failures without silent swallowing. The user still sees a
-        // generic message, but the error is in the debug console.
+        // failures without silent swallowing.
         final rpcError = result?['error'] as String?;
         debugPrint(
           '⚠️ fn_accept_family_invite failed: '
@@ -606,10 +738,8 @@ class _NotificationItem extends ConsumerWidget {
         }
       }
     } catch (e) {
-      // v109.6: Log the exception so we can diagnose network / RPC errors.
       debugPrint('⚠️ fn_accept_family_invite exception: $e');
       if (context.mounted) {
-        // v109: Never show database/PostgreSQL errors to users.
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Could not accept invitation. Please try again.'),
@@ -799,8 +929,12 @@ class _NotificationItem extends ConsumerWidget {
 
                   // v109: Accept/Reject buttons for family invite notifications
                   // that haven't been acted on yet.
-                  if (notification.notificationType ==
-                          NotificationType.familyInvite &&
+                  // v5.182: Also show for graphInvite (graph invitations with
+                  // relationship like elder_brother).
+                  if ((notification.notificationType ==
+                              NotificationType.familyInvite ||
+                          notification.notificationType ==
+                              NotificationType.graphInvite) &&
                       !notification.isInviteActedUpon) ...[
                     const SizedBox(height: 10),
                     Row(
@@ -861,8 +995,11 @@ class _NotificationItem extends ConsumerWidget {
                   // (accept) or "You declined the invitation" (reject), so the
                   // body itself shows the post-action status. This badge is a
                   // compact visual indicator.
-                  if (notification.notificationType ==
-                          NotificationType.familyInvite &&
+                  // v5.182: Also show for graphInvite.
+                  if ((notification.notificationType ==
+                              NotificationType.familyInvite ||
+                          notification.notificationType ==
+                              NotificationType.graphInvite) &&
                       notification.isInviteActedUpon) ...[
                     const SizedBox(height: 6),
                     Container(
@@ -975,7 +1112,9 @@ class _NotificationItem extends ConsumerWidget {
     }
 
     // Family invite (already accepted) → open the family space
-    if (eventType == NotificationType.familyInvite &&
+    // v5.182: Also handle graphInvite (same navigation behavior).
+    if ((eventType == NotificationType.familyInvite ||
+        eventType == NotificationType.graphInvite) &&
         notification.isInviteActedUpon &&
         !notification.isInviteRejected &&
         familyId != null &&
