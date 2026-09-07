@@ -2085,19 +2085,36 @@ final graphLayoutProvider =
       relationships.map((r) => r.toGraphRelationship()).toList();
 
   // v5.8: Center the layout on the VIEWER's node ONLY.
-  final viewerId = ref.read(viewerPersonIdProvider(familyId)).valueOrNull;
+  // v5.181 (BUG FIX): Use ref.watch (not ref.read) so the layout rebuilds
+  // when viewerPersonId resolves. Previously, ref.read returned null on the
+  // first build (the autoDispose FutureProvider hadn't resolved yet), causing
+  // the layout to fall back to the anchor — but the anchor might NOT be in
+  // the proximity set returned by the RPC (when the viewer is disconnected
+  // from the anchor). This caused computeDefaultVisibleIds to return empty
+  // → positions empty → "Unable to load graph" error.
+  final viewerId = ref.watch(viewerPersonIdProvider(familyId)).valueOrNull;
   final PersonData centerPerson;
   if (viewerId != null) {
     final match = persons.where((p) => p.id == viewerId).firstOrNull;
     if (match != null) {
       centerPerson = match;
     } else {
+      // v5.181: Viewer resolved but not in the RPC result (disconnected
+      // from the family graph). Fall back to the first person in the
+      // RPC result — NOT the DB anchor (which might not be in the
+      // proximity set). This ensures the layout always has a valid
+      // center that exists in graphPersons.
       centerPerson = persons.firstWhere(
         (p) => p.isAnchor,
         orElse: () => persons.first,
       );
     }
   } else {
+    // v5.181: viewerPersonId not resolved yet — use the first person in
+    // the RPC result as the center. This is better than the DB anchor
+    // because the RPC result is what we actually have positions for.
+    // The RPC returns nodes ordered by BFS depth — the first node is
+    // the viewer (or the anchor if the viewer has no linked Person).
     centerPerson = persons.firstWhere(
       (p) => p.isAnchor,
       orElse: () => persons.first,

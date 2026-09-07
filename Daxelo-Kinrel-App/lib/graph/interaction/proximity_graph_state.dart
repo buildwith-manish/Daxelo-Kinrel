@@ -226,8 +226,19 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
     List<({String fromId, String toId, String edgeId, String relationshipKey})>? edges,
     Set<String>? extraVisibleIds,
   }) {
+    // v5.181 (BUG FIX): If the anchorId is not in allPersons (happens when
+    // the layout falls back to the DB anchor, but the DB anchor was NOT in
+    // the proximity set returned by the RPC — e.g. the viewer is disconnected
+    // from the anchor), use the first person in allPersons as the BFS root.
+    // Previously, this returned empty → positions empty → "Unable to load graph".
+    String effectiveAnchorId = anchorId;
     if (!allPersons.contains(anchorId)) {
-      return const <String>{};
+      if (allPersons.isEmpty) {
+        return const <String>{};
+      }
+      // Use the first person (sorted for determinism) as the fallback root.
+      final sortedIds = allPersons.toList()..sort();
+      effectiveAnchorId = sortedIds.first;
     }
 
     // Direction-aware key lookup, matching GraphService's adjacency
@@ -244,7 +255,7 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
       }
     }
 
-    final visible = <String>{anchorId};
+    final visible = <String>{effectiveAnchorId};
     // Discovery chain: for each node, the BFS parent it was reached
     // through + the edge key in the parent→node direction. Used to
     // classify each candidate's relationship to the ANCHOR.
@@ -252,7 +263,7 @@ class ProximityGraphNotifier extends StateNotifier<ProximityGraphState> {
     final keyFromParent = <String, String>{};
 
     var ringIndex = 0; // ring being expanded (0 = the anchor itself)
-    var currentRing = <String>[anchorId]; // ordered → deterministic
+    var currentRing = <String>[effectiveAnchorId]; // ordered → deterministic
 
     while (currentRing.isNotEmpty) {
       final nextRing = <String>[];

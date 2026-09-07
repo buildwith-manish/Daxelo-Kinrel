@@ -28,13 +28,20 @@ class EmptyGraph extends StatelessWidget {
 /// produced no positions). This is the "RLS blocked access" or "stale
 /// session" case, NOT the "genuinely empty family" case.
 ///
-/// Shows a distinct message directing the user to log out and back in,
-/// instead of the misleading "add someone to start" prompt.
+/// v5.181: Now accepts a [reason] parameter for detailed diagnostics.
+/// Instead of the generic "your session may not have access", the user
+/// sees the EXACT failure reason:
+///   - "You're not a member of this family" (no FamilyMember row)
+///   - "Your profile isn't linked to a Person node" (no linkedUserId)
+///   - "No Person nodes found in this family" (genuinely empty)
+///   - "Layout failed to position nodes" (layout engine issue)
+///   - "Graph query returned no data" (RPC failed)
 class AccessIssueGraph extends StatelessWidget {
   const AccessIssueGraph({
     super.key,
     this.reportedMemberCount,
     this.onRetry,
+    this.reason,
   });
 
   /// The member count reported by the stats/count query (non-zero).
@@ -45,8 +52,32 @@ class AccessIssueGraph extends StatelessWidget {
   /// Optional retry callback — re-invalidates the graph provider.
   final VoidCallback? onRetry;
 
+  /// v5.181: Detailed failure reason for diagnostics. When null, falls
+  /// back to the generic "session may not have access" message.
+  final String? reason;
+
   @override
   Widget build(BuildContext context) {
+    // v5.181: Determine the user-facing message based on the reason.
+    final String title;
+    final String body;
+    if (reason != null) {
+      // Use the detailed reason provided by the caller.
+      title = 'Unable to load graph';
+      body = reason!;
+    } else if (reportedMemberCount != null && reportedMemberCount! > 0) {
+      title = 'Unable to load graph';
+      body = 'This family has $reportedMemberCount members, but your '
+          'current session may not have access.\n\n'
+          'Please try logging out and back in, or contact '
+          'support if this persists.';
+    } else {
+      title = 'Unable to load graph';
+      body = 'Your session may have expired or the access was '
+          'revoked.\n\nPlease try logging out and back in, or '
+          'contact support if this persists.';
+    }
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -59,24 +90,17 @@ class AccessIssueGraph extends StatelessWidget {
               color: Colors.orange,
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Unable to load graph',
+            Text(
+              title,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              reportedMemberCount != null && reportedMemberCount! > 0
-                  ? 'This family has $reportedMemberCount members, but your '
-                      'current session may not have access.\n\n'
-                      'Please try logging out and back in, or contact '
-                      'support if this persists.'
-                  : 'Your session may have expired or the access was '
-                      'revoked.\n\nPlease try logging out and back in, or '
-                      'contact support if this persists.',
+              body,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontSize: 14,

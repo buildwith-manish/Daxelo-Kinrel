@@ -2039,11 +2039,29 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
           // Members exist in the graph data but the layout produced no
           // positions. This is the "RLS blocked the direct query" or
           // "stale session" case — NOT a genuinely empty family.
-          debugPrint('[v5.135] AccessIssueGraph: flat has '
+          // v5.181: Determine the EXACT failure reason for the user.
+          final String reason;
+          if (viewerPersonId == null) {
+            reason = 'Your profile isn\'t linked to a Person node in this '
+                'family. Please log out and back in, or ask the family '
+                'admin to add you.';
+          } else if (!flat.persons.any((p) => p['id'] == viewerPersonId)) {
+            reason = 'Your Person node (ID: ${viewerPersonId.substring(0, 8)}...) '
+                'was not found in the graph data returned by the server. '
+                'This may be a permission issue — please try logging out '
+                'and back in.';
+          } else {
+            reason = 'The graph layout engine couldn\'t position the '
+                '${flat.persons.length} member(s). This is a rendering '
+                'issue — please try again, or contact support if this '
+                'persists.';
+          }
+          debugPrint('[v5.181] AccessIssueGraph: flat has '
               '${flat.persons.length} persons but layout.positions is empty. '
-              'This indicates an access/session issue, not an empty family.');
+              'viewerPersonId=$viewerPersonId, reason=$reason');
           return AccessIssueGraph(
             reportedMemberCount: flat.persons.length,
+            reason: reason,
             onRetry: () =>
                 ref.invalidate(familyGraphProvider(widget.familyId)),
           );
