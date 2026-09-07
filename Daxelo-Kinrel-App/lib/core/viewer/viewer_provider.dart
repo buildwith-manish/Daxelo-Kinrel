@@ -198,7 +198,7 @@ final viewerPersonIdProvider =
       }
     }
 
-    final resolvedId = resolveViewerPersonId(
+    var resolvedId = resolveViewerPersonId(
       result: ViewerQueryResult(
         linkedPersonId: null, // Already checked above — null means not found
         anchorPersonId: anchorId,
@@ -206,6 +206,33 @@ final viewerPersonIdProvider =
       ),
       currentUserId: userId,
     );
+
+    // v5.177.1: If Step 3 didn't resolve (because anchor.linkedUserId is
+    // NULL — happens when the user is the family creator but already has
+    // a linked Person in ANOTHER family, so the v5.177 trigger created
+    // their anchor Person WITHOUT linkedUserId), check if the current
+    // user is the Family.createdBy. If so, they ARE the family creator
+    // and should be treated as the viewer of their own anchor node.
+    if (resolvedId == null && anchorId != null && anchorLinkedUserId == null) {
+      try {
+        final familyData = await client
+            .from('Family')
+            .select('createdBy')
+            .eq('id', familyId)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 5));
+        final createdBy = familyData?['createdBy'] as String?;
+        if (createdBy != null && createdBy == userId) {
+          // Current user is the family creator — they can view their
+          // own anchor node even without linkedUserId set.
+          resolvedId = anchorId;
+          debugPrint('⚠️ viewerPersonIdProvider: resolved via creator fallback '
+              '(anchor.linkedUserId=NULL, user is Family.createdBy)');
+        }
+      } catch (e) {
+        debugPrint('⚠️ viewerPersonIdProvider: creator check failed: $e');
+      }
+    }
 
     if (resolvedId != null) {
       _cacheViewerPersonId(familyId, resolvedId);
