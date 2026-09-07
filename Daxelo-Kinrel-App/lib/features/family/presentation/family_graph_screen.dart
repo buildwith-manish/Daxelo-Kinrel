@@ -782,17 +782,17 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
       ),
       // v5.25 (distraction-free Rearrange): Hide AppBar actions during
       // Rearrange mode. Only the back arrow + family name title stay
-      // visible for orientation. The map/search/Add actions clutter
+      // visible for orientation. The search/Add actions clutter
       // the screen mid-drag and risk accidental taps.
+      //
+      // v5.178: Removed the map icon button from this header row —
+      // the "Graph" pill toggle in the FamilySpaceTabBar below (next
+      // to "Invites") is the single source of truth for switching
+      // between Graph and Map views. Having two map entry points
+      // (header icon + tab pill) was redundant and confusing.
       actions: ref.watch(rearrangeModeProvider)
           ? const []
           : [
-              // Map toggle — opens the family map view (MapLibre).
-              IconButton(
-                icon: const Icon(Icons.map_outlined, size: 22),
-                tooltip: 'Family map',
-                onPressed: () => context.push('/family/${widget.familyId}/map'),
-              ),
               // Search button — opens the graph search overlay.
               IconButton(
                 icon: const Icon(Icons.search_rounded, size: 22),
@@ -815,8 +815,8 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
                     ),
                   ),
                 ),
-        ),
-      ],
+              ),
+            ],
     );
   }
 
