@@ -18,6 +18,9 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/database/isar_database.dart';
 import '../../../core/database/repositories/offline_profile_repository.dart';
 import '../../../core/routing/app_router.dart' show markSignInSuccess;
+// v5.180: invalidateViewerCache — clears the in-memory viewer cache on logout
+// so account switches don't leak the previous user's viewerPersonId.
+import '../../../core/viewer/viewer_provider.dart' show invalidateViewerCache;
 
 // ════════════════════════════════════════════════════════════════════
 // DATA MODELS
@@ -1789,6 +1792,13 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       final client = _ref.read(supabaseProvider);
       userId = client?.auth.currentUser?.id;
     } catch (_) {}
+
+    // v5.180 (BUG #1 FIX): Clear the in-memory viewer cache BEFORE sign-out.
+    // Without this, when Manish signs out and Rakshitha signs in, the cache
+    // still contains Manish's viewerPersonId for any family he had opened.
+    // When Rakshitha opens the same family, the cache returns Manish's ID,
+    // causing the wrong node to be marked as "You".
+    invalidateViewerCache();
 
     // v109: Sign out from Supabase FIRST (before the backend call) so the
     // local session is cleared immediately. This makes the auth state change

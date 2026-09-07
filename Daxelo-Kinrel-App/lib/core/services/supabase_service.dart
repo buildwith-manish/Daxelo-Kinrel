@@ -28,6 +28,9 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import '../config/app_config.dart';
+// v5.180: invalidateViewerCache — clears the in-memory viewer cache on
+// sign-out so account switches don't leak the previous user's viewerPersonId.
+import '../viewer/viewer_provider.dart' show invalidateViewerCache;
 import 'multi_account_service.dart';
 
 final _log = Logger(printer: PrettyPrinter(methodCount: 0));
@@ -555,6 +558,13 @@ class AuthService {
     } catch (e) {
       _log.w('Sign out error: $e');
     }
+    // v5.180 (BUG #1 FIX): Clear the in-memory viewer cache on sign-out.
+    // This is the SAFETY NET — if logout() in profile_provider.dart didn't
+    // clear it (e.g. direct signOut call), this ensures no stale
+    // viewerPersonId leaks to the next user.
+    try {
+      invalidateViewerCache();
+    } catch (_) {}
   }
 
   // ── Link Google Account ───────────────────────────────────────────

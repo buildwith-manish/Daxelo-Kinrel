@@ -14,6 +14,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
 
 import '../database/isar_database.dart';
 import '../services/supabase_service.dart';
@@ -103,10 +104,20 @@ final viewerPersonIdProvider =
     final currentUser = ref.watch(currentUserProvider);
     final userId = currentUser?.id;
 
+    // v5.180 (BUG #1 DEBUG): Log the current auth user for debugging
+    // "wrong You" issues. If the wrong user appears here, the bug is in
+    // the auth state, not the viewer resolution.
+    debugPrint('[viewerPersonIdProvider] familyId=$familyId, '
+        'authUserId=${userId ?? 'NULL'}, '
+        'authUserEmail=${currentUser?.email ?? 'NULL'}');
+
     final client = ref.read(supabaseProvider);
     if (client == null) {
       // Supabase not ready — try offline cache
-      return _resolveFromCache(familyId);
+      final cached = _resolveFromCache(familyId);
+      debugPrint('[viewerPersonIdProvider] Supabase not ready — '
+          'cache returned: ${cached ?? 'NULL'}');
+      return cached;
     }
 
     if (userId == null) {
@@ -126,6 +137,8 @@ final viewerPersonIdProvider =
       // Also clear the stale cache so a previous user's cached
       // viewerPersonId isn't used.
       invalidateViewerCache(familyId);
+      debugPrint('[viewerPersonIdProvider] userId is NULL — '
+          'cleared cache, returning null');
       return null;
     }
 
@@ -133,7 +146,7 @@ final viewerPersonIdProvider =
     try {
       final response = await client
           .from('Person')
-          .select('id')
+          .select('id, name, isAnchor')
           .eq('familyId', familyId)
           .eq('linkedUserId', userId)
           .filter('deletedAt', 'is', null)
@@ -142,15 +155,20 @@ final viewerPersonIdProvider =
 
       if (response.isNotEmpty) {
         final viewerId = response[0]['id'] as String?;
+        final viewerName = response[0]['name'] as String?;
         if (viewerId != null) {
           // Cache for offline use
           _cacheViewerPersonId(familyId, viewerId);
+          debugPrint('[viewerPersonIdProvider] ✓ Step 1 resolved: '
+              'viewerId=$viewerId, name=$viewerName');
           return viewerId;
         }
       }
+      debugPrint('[viewerPersonIdProvider] Step 1 found no linked Person '
+          'for userId=$userId in family=$familyId');
     } catch (e) {
       // linkedUserId column might not exist yet — fall through to anchor
-      debugPrint('⚠️ viewerPersonIdProvider: linkedUserId query failed: $e');
+      debugPrint('[viewerPersonIdProvider] Step 1 query failed: $e');
     }
 
     // v5.75 (VIEWER FIX): Step 2 (email/name auto-link) has been REMOVED.
@@ -236,6 +254,12 @@ final viewerPersonIdProvider =
 
     if (resolvedId != null) {
       _cacheViewerPersonId(familyId, resolvedId);
+      debugPrint('[viewerPersonIdProvider] ✓ Final resolution: '
+          'viewerId=$resolvedId (via anchor/creator fallback)');
+    } else {
+      debugPrint('[viewerPersonIdProvider] ✗ Could not resolve viewer — '
+          'no linked Person, no anchor match, not family creator. '
+          'Graph will show no "You" node.');
     }
     return resolvedId;
   },
@@ -266,11 +290,27 @@ Future<String?> _resolveAnchorPerson(client, String familyId) async {
 }
 
 /// In-memory cache for offline viewer resolution.
-/// Keyed by familyId, valued by viewerPersonId.
-final Map<String, String> _viewerCache = {};
+/// v5.180 (BUG #1 FIX): Keyed by (userId, familyId) — NOT just familyId.
+/// Previously, when Manish signed out and Rakshitha signed in, the cache
+/// still contained Manish's viewerPersonId for any family he had opened.
+/// When Rakshitha opened the same family, the cache returned Manish's ID,
+/// causing the wrong node to be marked as "You".
+///
+/// Now the cache is scoped by userId, so each user has their own cache
+/// namespace. On sign-out, invalidateViewerCache() clears ALL entries
+/// (no userId filter) to free memory.
+final Map<String, String> _viewerCache = {}; // key: "$userId:$familyId"
 
 void _cacheViewerPersonId(String familyId, String viewerPersonId) {
-  _viewerCache[familyId] = viewerPersonId;
+  // v5.180: Scope cache by userId so account switches don't leak.
+  final userId = _currentUserIdForCache();
+  final cacheKey = _cacheKey(userId, familyId);
+  if (cacheKey != null) {
+    _viewerCache[cacheKey] = viewerPersonId;
+  } else {
+    // userId unknown — use legacy familyId-only key (best-effort).
+    _viewerCache[familyId] = viewerPersonId;
+  }
   // v2.2 (architecture §13): also persist to Drift so the cache
   // survives app restart. Fire-and-forget — Drift write failures must
   // not break the in-memory cache hit.
@@ -283,13 +323,44 @@ void _cacheViewerPersonId(String familyId, String viewerPersonId) {
 }
 
 String? _resolveFromCache(String familyId) {
-  return _viewerCache[familyId];
+  // v5.180: Prefer the userId-scoped key. If not found, fall back to
+  // the legacy familyId-only key (for backward compat with entries
+  // written by older code paths).
+  final userId = _currentUserIdForCache();
+  final scopedKey = _cacheKey(userId, familyId);
+  if (scopedKey != null && _viewerCache.containsKey(scopedKey)) {
+    return _viewerCache[scopedKey];
+  }
+  return _viewerCache[familyId]; // legacy fallback
+}
+
+/// Gets the current authenticated user's ID for cache scoping.
+/// Uses Supabase.instance.client.auth.currentUser — NOT Riverpod —
+/// because the cache functions are called from non-widget contexts
+/// (e.g. the viewerPersonIdProvider body itself).
+String? _currentUserIdForCache() {
+  try {
+    return Supabase.instance.client.auth.currentUser?.id;
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Builds a cache key scoped by (userId, familyId).
+String? _cacheKey(String? userId, String familyId) {
+  if (userId == null || userId.isEmpty) return null;
+  return '$userId:$familyId';
 }
 
 /// Clears the viewer cache for a specific family (or all if null).
+/// v5.180: When familyId is null (sign-out), clears ALL entries.
+/// When familyId is non-null, clears both the scoped and legacy keys
+/// for that family across ALL users (safe — the provider will re-resolve).
 void invalidateViewerCache([String? familyId]) {
   if (familyId != null) {
-    _viewerCache.remove(familyId);
+    // Clear scoped entries for this family across all users
+    _viewerCache.removeWhere((key, _) =>
+        key == familyId || key.endsWith(':$familyId'));
     try {
       final db = IsarDatabase.instance;
       db.deleteCachedViewer(familyId).catchError((_) {});
@@ -297,9 +368,13 @@ void invalidateViewerCache([String? familyId]) {
       // Drift not initialized — fine.
     }
   } else {
+    // v5.180: Clear ALL entries (sign-out / account switch).
+    // This is critical — without this, the previous user's viewerPersonId
+    // persists in memory and gets returned for the new user's family.
     _viewerCache.clear();
     // Note: we don't bulk-clear the Drift table here because the
     // per-family delete is the safer pattern (sign-out flow only
-    // needs to clear the current family).
+    // needs to clear the current family). But the in-memory cache
+    // is fully cleared to prevent account-switch leaks.
   }
 }
