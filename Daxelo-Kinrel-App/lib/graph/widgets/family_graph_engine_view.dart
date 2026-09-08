@@ -916,6 +916,16 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     _branchCollapseNotifierForCleanup.onExpansionChanged =
         (String rootPersonId, bool expanded) {
       if (!mounted) return;
+      // v5.187 (UX #14): When a branch collapses, trigger a brief
+      // reset animation so the remaining nodes smoothly reflow into
+      // their new positions instead of snapping. The 350ms
+      // easeOutCubic animation makes the collapse feel like a
+      // deliberate action, not a sudden disappearance. The branch
+      // chip that remains acts as the "tap to expand again" affordance
+      // — it's already rendered by the branch affordance system.
+      if (!expanded) {
+        _onResetTrigger();
+      }
       LayoutOverridesService.saveBranchExpansionState(
         ref,
         widget.familyId,
@@ -1450,8 +1460,15 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// order the edge draw-in: viewer's own edges first, then outward
   /// by BFS distance. Falls back to flat.relationships order if the
   /// viewer has no resolved Person node.
-  List<String> _orderedEdgesForConnectOnOpen(FlatGraphResult flat, String? viewerPersonId) {
-    if (flat.relationships.isEmpty) return const [];
+  ///
+  /// v5.187 (UX #12): Returns a tuple of (orderedEdgeIds, bfsDepths)
+  /// where bfsDepths maps each edge ID to its BFS depth from the viewer.
+  /// Depth 0 = direct connections, depth 1 = grandparents/aunts, etc.
+  /// The depths are used by the trace controller to stagger the
+  /// connect-on-open animation.
+  ({List<String> ordered, Map<String, int> depths}) _orderedEdgesForConnectOnOpen(
+      FlatGraphResult flat, String? viewerPersonId) {
+    if (flat.relationships.isEmpty) return (ordered: const [], depths: const {});
     // Build adjacency list (personId → list of edge IDs touching them).
     final adjacency = <String, List<String>>{};
     final edgeById = <String, Map<String, dynamic>>{};
@@ -1465,24 +1482,23 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
       adjacency.putIfAbsent(to, () => []).add(id);
     }
 
-    // BFS from the viewer's own node (or fall back to the first
-    // edge's source if the viewer has no resolved Person node).
+    // BFS from the viewer's own node
     final startNode = viewerPersonId ??
         (flat.relationships.first['fromPersonId']?.toString() ??
             flat.relationships.first['toPersonId']?.toString());
     if (startNode == null) {
-      // No edges → empty list. (Connect-on-open is a no-op for empty
-      // graphs, but the spec says we should still set _hasPlayed.)
-      return const [];
+      return (ordered: const [], depths: const {});
     }
 
     final orderedEdgeIds = <String>[];
+    final bfsDepths = <String, int>{};
     final visitedNodes = <String>{};
     final visitedEdges = <String>{};
-    final queue = <String>[startNode];
+    // v5.187: BFS queue with depth tracking
+    final queue = <(String, int)>[(startNode, 0)];
     visitedNodes.add(startNode);
     while (queue.isNotEmpty) {
-      final node = queue.removeAt(0);
+      final (node, depth) = queue.removeAt(0);
       final incidentEdgeIds = adjacency[node] ?? const [];
       for (final edgeId in incidentEdgeIds) {
         if (visitedEdges.contains(edgeId)) continue;
@@ -1490,16 +1506,17 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         final from = r['fromPersonId']!.toString();
         final to = r['toPersonId']!.toString();
         orderedEdgeIds.add(edgeId);
+        bfsDepths[edgeId] = depth; // v5.187: record BFS depth
         visitedEdges.add(edgeId);
-        // Enqueue the OTHER endpoint (BFS expands outward).
+        // Enqueue the OTHER endpoint with depth + 1
         final other = from == node ? to : from;
         if (!visitedNodes.contains(other)) {
           visitedNodes.add(other);
-          queue.add(other);
+          queue.add((other, depth + 1));
         }
       }
     }
-    return orderedEdgeIds;
+    return (ordered: orderedEdgeIds, depths: bfsDepths);
   }
 
   /// Drives the connect-on-open animation on the FIRST render after
@@ -1529,39 +1546,26 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // populated. Subsequent rebuilds (pan/zoom/new members) won't
     // re-trigger.
     _hasPlayedConnectOnOpen = true;
-    final ordered =
+    final result =
         _orderedEdgesForConnectOnOpen(flat, viewerPersonId);
-    _connectOnOpenOrderedEdgeIds = ordered;
-    if (ordered.isEmpty) return;
+    _connectOnOpenOrderedEdgeIds = result.ordered;
+    if (result.ordered.isEmpty) return;
     final reduced = MediaQuery.disableAnimationsOf(context);
-    // v5.141 (LOW-END PERF): On low-end devices, skip the connect-on-
-    // open animation entirely. The animation previously caused 1–3s
-    // of degraded pan/zoom on first load because each tick repainted
-    // the edge layer. On low-end devices the frame budget is already
-    // tight — the animation pushes it over the edge. revealAll()
-    // shows all edges instantly at full alpha, which is perfectly
-    // acceptable on a low-end device (no "premium reveal" expectation).
     final skipAnimation = reduced || !_perfProfile.allowConnectOnOpenAnimation;
-    // Propagate reduced-motion to the controller so it suppresses
-    // per-step haptics (same pattern as the existing path trace).
     _connectOnOpenController!.reducedMotion = reduced;
     if (skipAnimation) {
-      // Skip the animation — all edges revealed immediately.
-      _connectOnOpenController!.revealAll(ordered);
+      _connectOnOpenController!.revealAll(result.ordered);
     } else {
-      // v5.93: Compute per-edge pixel lengths (straight-line distance
-      // between the two node centers) so startTrace can use
-      // length-proportional timing (1–3s per edge).
       final edgeLengths = <String, double>{};
       final edgeById = <String, Map<String, dynamic>>{};
       for (final r in flat.relationships) {
         final id = r['id']?.toString();
         if (id != null) edgeById[id] = r;
       }
-      for (final edgeId in ordered) {
+      for (final edgeId in result.ordered) {
         final r = edgeById[edgeId];
         if (r == null) {
-          edgeLengths[edgeId] = 400.0; // fallback
+          edgeLengths[edgeId] = 400.0;
           continue;
         }
         final fromId = r['fromPersonId']?.toString();
@@ -1571,12 +1575,13 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
         if (fromPos != null && toPos != null) {
           edgeLengths[edgeId] = (fromPos - toPos).distance;
         } else {
-          edgeLengths[edgeId] = 400.0; // fallback if positions missing
+          edgeLengths[edgeId] = 400.0;
         }
       }
       _connectOnOpenController!.startTraceSimultaneous(
-        ordered,
+        result.ordered,
         edgeLengths: edgeLengths,
+        edgeBfsDepths: result.depths, // v5.187: pass BFS depths for stagger
       );
     }
   }

@@ -219,6 +219,7 @@ class EngineEdgePainter extends CustomPainter {
     this.connectOnOpenProgress = 0.0,
     this.connectOnOpenRevealedEdgeIds = const <String>{},
     this.connectOnOpenCurrentEdgeIds = const <String>{},
+    this.connectOnOpenEdgeDelays = const <String, double>{},
     this.zoom = 1.0,
     // v5.125 (Step 6): anchor geometry for the bow-around-the-anchor
     // routing + sector fan-out. Null (the default) keeps the exact
@@ -340,6 +341,12 @@ class EngineEdgePainter extends CustomPainter {
   /// the painter falls back to checking [connectOnOpenCurrentEdgeId]
   /// (sequential mode).
   final Set<String> connectOnOpenCurrentEdgeIds;
+
+  /// v5.187 (UX #12): Per-edge stagger delays (0..1) for the
+  /// connect-on-open animation. Each edge starts its fade-in at
+  /// its delay value within the global progress. Edges not in this
+  /// map default to delay=0.0 (start immediately).
+  final Map<String, double> connectOnOpenEdgeDelays;
 
   /// v5.107: Current camera zoom level. Used to compute a zoom-aware
   /// minimum stroke width so edges remain visible at low zoom (where
@@ -1284,8 +1291,17 @@ class EngineEdgePainter extends CustomPainter {
         } else if (connectOnOpenCurrentEdgeIds.contains(e.id) ||
             e.id == connectOnOpenCurrentEdgeId) {
           // v5.98: Currently animating — fade in opacity + scale width.
-          // No PathMetric calls — just alpha/width interpolation.
-          final progress = connectOnOpenProgress.clamp(0.0, 1.0);
+          // v5.187 (UX #12): Apply per-edge stagger delay so edges
+          // at different BFS depths start at different times:
+          //   - Depth 0 (parents, children, spouse): delay 0.0 → start immediately
+          //   - Depth 1 (grandparents, aunts): delay 0.33 → start at 33% of total
+          //   - Depth 2+ (cousins, extended): delay 0.66 → start at 66%
+          // The per-edge progress is: clamp((globalProgress - delay) / (1 - delay), 0, 1)
+          // which maps the remaining time after the delay to a 0..1 fade-in.
+          final globalProgress = connectOnOpenProgress.clamp(0.0, 1.0);
+          final edgeDelay = connectOnOpenEdgeDelays[e.id] ?? 0.0;
+          final staggerRange = (1.0 - edgeDelay).clamp(0.01, 1.0);
+          final progress = ((globalProgress - edgeDelay) / staggerRange).clamp(0.0, 1.0);
           connectOnOpenAlpha = progress;
           // Width eases from 60% → 100% for a subtle "settling" feel
           connectOnOpenWidthScale = 0.6 + 0.4 * progress;
@@ -2462,7 +2478,20 @@ class EngineEdgePainter extends CustomPainter {
         // allowShadowPass). This is rare in production but important
         // for dev hot-reload correctness.
         old.allowShadowPass != allowShadowPass ||
-        old.allowRidgePass != allowRidgePass;
+        old.allowRidgePass != allowRidgePass ||
+        // v5.187 (UX #12): repaint when the per-edge stagger delays change
+        // (this only happens at the start of the connect-on-open animation)
+        !_sameDelayMap(old.connectOnOpenEdgeDelays, connectOnOpenEdgeDelays);
+  }
+
+  /// v5.187: Lightweight comparison for the stagger delay map.
+  bool _sameDelayMap(Map<String, double> a, Map<String, double> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (final key in a.keys) {
+      if (b[key] != a[key]) return false;
+    }
+    return true;
   }
 
   /// v5.x (Feature 3): Lightweight path-focus labels map comparison.

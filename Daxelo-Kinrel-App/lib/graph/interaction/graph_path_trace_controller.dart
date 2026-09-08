@@ -69,6 +69,7 @@ class GraphPathTraceState {
     this.traceProgress = 0.0,
     this.traceActive = false,
     this.currentEdgeIds = const <String>{},
+    this.connectOnOpenEdgeDelays = const <String, double>{},
   });
 
   final GraphPathTracePhase phase;
@@ -82,6 +83,18 @@ class GraphPathTraceState {
   /// for the progressive-draw treatment. When empty, the painter
   /// falls back to checking [currentEdgeId] (sequential mode).
   final Set<String> currentEdgeIds;
+
+  /// v5.187 (UX #12): Per-edge stagger delays (0..1) for the
+  /// connect-on-open animation. Each edge starts its fade-in at
+  /// its delay value within the global 0..1 progress. Edges with
+  /// delay=0.0 start immediately; edges with delay=0.33 start when
+  /// global progress reaches 0.33, etc.
+  ///
+  /// Groups:
+  ///   - Depth 0 (parents, children, spouse, siblings): delay 0.0
+  ///   - Depth 1 (grandparents, aunts, grandchildren): delay 0.33
+  ///   - Depth 2+ (cousins, extended): delay 0.66
+  final Map<String, double> connectOnOpenEdgeDelays;
 
   /// Edges that have already been swept and should remain statically
   /// focused.
@@ -318,6 +331,7 @@ class GraphPathTraceController extends ChangeNotifier {
   void startTraceSimultaneous(
     List<String> orderedEdgeIds, {
     Map<String, double>? edgeLengths,
+    Map<String, int>? edgeBfsDepths,
   }) {
     if (_controller == null) {
       revealAll(orderedEdgeIds);
@@ -353,14 +367,30 @@ class GraphPathTraceController extends ChangeNotifier {
     // The cleanest fix: add a new field `currentEdgeIds` (Set) to the
     // state, and have the painter check if the edge is in this set
     // for the progressive-draw treatment.
+    // v5.187 (UX #12): Compute per-edge stagger delays from BFS depth.
+    // Depth 0 (direct connections) → delay 0.0 (start immediately)
+    // Depth 1 (grandparents, aunts) → delay 0.33
+    // Depth 2+ (cousins, extended) → delay 0.66
+    final Map<String, double> edgeDelays = {};
+    if (edgeBfsDepths != null) {
+      for (final entry in edgeBfsDepths.entries) {
+        final depth = entry.value;
+        edgeDelays[entry.key] = depth <= 0
+            ? 0.0
+            : depth == 1
+                ? 0.33
+                : 0.66;
+      }
+    }
+
     _state = GraphPathTraceState(
       phase: GraphPathTracePhase.tracing,
-      currentEdgeId: null, // No single current edge — all are current
-      completedEdgeIds: const {}, // None completed yet — all animating
+      currentEdgeId: null,
+      completedEdgeIds: const {},
       traceProgress: 0.0,
       traceActive: true,
-      // v5.97: All edges are "current" (animating simultaneously)
       currentEdgeIds: orderedEdgeIds.toSet(),
+      connectOnOpenEdgeDelays: edgeDelays,
     );
     notifyListeners();
 
@@ -504,6 +534,9 @@ class GraphPathTraceController extends ChangeNotifier {
   /// The [edgeLength] parameter is retained for API compatibility but
   /// is no longer used in the calculation.
   int _connectOnOpenDurationMs(double edgeLength) {
-    return 300;
+    // v5.187 (UX #12): Increased from 300ms to 1200ms to accommodate
+    // the 3-wave staggered reveal (parents at 0ms, grandparents at
+    // ~400ms, extended at ~800ms). Each wave has ~400ms to animate.
+    return 1200;
   }
 }

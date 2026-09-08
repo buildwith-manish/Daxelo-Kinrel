@@ -390,6 +390,7 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
     final double connectOnOpenProgress;
     final Set<String> connectOnOpenRevealedEdgeIds;
     final Set<String> connectOnOpenCurrentEdgeIds;
+    final Map<String, double> connectOnOpenEdgeDelays; // v5.187
     if (connController != null) {
       final s = connController.state;
       connectOnOpenActive = s.traceActive ||
@@ -399,12 +400,14 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
       connectOnOpenProgress = s.traceProgress;
       connectOnOpenRevealedEdgeIds = s.completedEdgeIds;
       connectOnOpenCurrentEdgeIds = s.currentEdgeIds;
+      connectOnOpenEdgeDelays = s.connectOnOpenEdgeDelays; // v5.187
     } else {
       connectOnOpenActive = widget.connectOnOpenActive;
       connectOnOpenCurrentEdgeId = widget.connectOnOpenCurrentEdgeId;
       connectOnOpenProgress = widget.connectOnOpenProgress;
       connectOnOpenRevealedEdgeIds = widget.connectOnOpenRevealedEdgeIds;
       connectOnOpenCurrentEdgeIds = widget.connectOnOpenCurrentEdgeIds;
+      connectOnOpenEdgeDelays = const {}; // v5.187: no delays without controller
     }
 
     return CustomPaint(
@@ -456,6 +459,7 @@ class EdgeSelectionWrapperState extends ConsumerState<EdgeSelectionWrapper>
         connectOnOpenProgress: connectOnOpenProgress,
         connectOnOpenRevealedEdgeIds: connectOnOpenRevealedEdgeIds,
         connectOnOpenCurrentEdgeIds: connectOnOpenCurrentEdgeIds,
+        connectOnOpenEdgeDelays: connectOnOpenEdgeDelays, // v5.187
         zoom: widget.zoom,  // v5.107: zoom-aware stroke width
         // v5.x (perf fix — pinch-zoom GPU-transform): forward the
         // gesture flag + commit revision straight through to the

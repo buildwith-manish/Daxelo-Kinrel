@@ -543,6 +543,40 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     return '?';
   }
 
+  // ── v5.187 (UX #11): Immediate Family Detection ──────────────────
+
+  /// Returns true if this node represents an immediate family member
+  /// (parent, child, spouse, or sibling of the viewer). Used to give
+  /// these nodes a visual boost (larger diameter, thicker border,
+  /// always-visible label) that matches the user's emotional hierarchy:
+  /// You > immediate family > extended family.
+  bool get _isImmediateFamilyCategory {
+    // Check by kinship category (authoritative, v69+)
+    if (widget.category != null) {
+      return widget.category == KinshipEdgeCategory.parent ||
+          widget.category == KinshipEdgeCategory.child ||
+          widget.category == KinshipEdgeCategory.spouse ||
+          widget.category == KinshipEdgeCategory.sibling;
+    }
+    // Fallback: check by generationIndex + relationship key
+    // Parents (gen -1) and children (gen 1) are immediate.
+    // Siblings and spouses share gen 0 — check via relationship key.
+    if (widget.generationIndex == -1 || widget.generationIndex == 1) {
+      return true;
+    }
+    if (widget.generationIndex == 0 && widget.relationshipKey != null) {
+      final key = widget.relationshipKey!.toLowerCase();
+      // Sibling keys: brother, sister, sibling, elder_brother, etc.
+      // Spouse keys: husband, wife, spouse
+      if (key.contains('brother') || key.contains('sister') ||
+          key.contains('sibling') || key.contains('spouse') ||
+          key.contains('husband') || key.contains('wife')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // ── Relationship Color ─────────────────────────────────────────────
 
   Color get _borderColor {
@@ -910,7 +944,8 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     if (cam == null) {
       // Legacy fallback: hard on/off via showRelationLabel.
       // v5.100: "You" label is always shown regardless.
-      if (widget.isAnchor) return labelWidget;
+      // v5.187 (UX #11): Immediate family labels also always shown.
+      if (widget.isAnchor || _isImmediateFamilyCategory) return labelWidget;
       return widget.showRelationLabel
           ? labelWidget
           : const SizedBox.shrink();
@@ -918,7 +953,10 @@ class _GraphNodeState extends ConsumerState<GraphNode>
 
     // v5.100: "You" label is ALWAYS visible at every LOD tier —
     // it never fades on zoom-out the way other labels can.
-    if (widget.isAnchor) {
+    // v5.187 (UX #11): Immediate family labels are also always visible
+    // (parents, spouse, children, siblings) — matching the user's
+    // emotional hierarchy.
+    if (widget.isAnchor || _isImmediateFamilyCategory) {
       return labelWidget;
     }
 
@@ -1000,29 +1038,47 @@ class _GraphNodeState extends ConsumerState<GraphNode>
     //   • Gold border (#FFC94A) — reserved exclusively for "You"
     //   • Thicker double-ring border (4.5px vs 3.0px)
     //   • Always-visible label (no LOD fade)
+    //
+    // v5.187 (UX #11 — Von Restorff / Immediate Family Boost):
+    //   Immediate family (parents, spouse, children, siblings) get a
+    //   visual boost — slightly larger (12%), thicker border (3.5px),
+    //   and always-visible label (like the anchor). This creates a
+    //   "second tier" of visual prominence that matches the user's
+    //   emotional hierarchy: You > immediate family > extended family.
+    final bool isImmediateFamily = !widget.isAnchor && _isImmediateFamilyCategory;
+
     final effectiveDiameter = widget.isAnchor
         ? (diameter * 1.25)  // v5.100: "You" node is 25% larger
-        : diameter;
+        : isImmediateFamily
+            ? (diameter * 1.12) // v5.187: immediate family is 12% larger
+            : diameter;
     final nodeParams = Pseudo3DNodeParams(
       diameter: effectiveDiameter,
       borderColor: widget.isAnchor ? KinshipEdgeColors.kSelfNodeColor : _borderColor,
-      borderWidth: widget.isAnchor ? 4.5 : _borderWidth,  // v5.100: thicker for "You"
+      borderWidth: widget.isAnchor
+          ? 4.5
+          : isImmediateFamily
+              ? 3.5  // v5.187: thicker border for immediate family
+              : _borderWidth,
       generationIndex: widget.generationIndex,
       isAnchor: widget.isAnchor,
       nodeState: widget.nodeState,
       tintColor: widget.isAnchor
-          ? KinshipEdgeColors.kSelfNodeColor.withValues(alpha: 0.15)  // v5.100: gold tint
-          : _tintColor,
+          ? KinshipEdgeColors.kSelfNodeColor.withValues(alpha: 0.15)
+          : isImmediateFamily
+              ? _borderColor.withValues(alpha: 0.08) // v5.187: subtle tint
+              : _tintColor,
       showTint:
           widget.nodeState == NodeState.selected ||
           widget.nodeState == NodeState.hover ||
-          widget.isAnchor,  // v5.100: always show gold tint on "You"
+          widget.isAnchor ||
+          isImmediateFamily,  // v5.187: show tint on immediate family
       isNearBirthday: widget.isNearBirthday,
       birthdayPulseValue: widget.birthdayPulseValue,
       isDeceased: widget.isDeceased,
       memorialCandleFlickerValue: widget.memorialCandleFlickerValue,
       isRecentlyDeceased: widget.isRecentlyDeceased,
-      isUnlinked: widget.isUnlinked, // v5.9
+      isUnlinked: widget.isUnlinked,
     );
 
     // v5.100: Extra padding for "You" node to accommodate the glow
