@@ -128,6 +128,8 @@ import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/profile_edit_screen.dart';
 import '../../features/profile/presentation/account_information_screen.dart';
+// v5.189: Instagram-style account switcher — long-press on Me tab opens this sheet.
+import '../../features/profile/presentation/account_switcher_sheet.dart';
 import '../../features/family/presentation/family_management_screen.dart';
 import '../../features/profile/presentation/quiet_hours_screen.dart';
 import '../../features/profile/presentation/sessions_screen.dart';
@@ -2581,6 +2583,15 @@ class _BottomNav extends StatelessWidget {
       currentIndex: _currentIndex(location),
       onTap: (index) => _onTap(context, index),
       items: _items,
+      // v5.189 (Instagram-style account switcher): long-press on any
+      // bottom-nav tab fires this callback with the tab index. Only
+      // the Me tab (index 4) currently handles it — opens the account
+      // switcher bottom sheet via the root navigator (so it appears
+      // above the ShellRoute). The other tabs silently ignore the
+      // long-press. This pattern matches Instagram's account switcher
+      // trigger and gives us room to add other per-tab long-press
+      // actions later without re-plumbing the widget tree.
+      onLongPress: (index) => _onLongPress(context, index),
     );
   }
 
@@ -2608,6 +2619,33 @@ class _BottomNav extends StatelessWidget {
         context.go('/search');
       case 4:
         context.go('/profile');
+    }
+  }
+
+  /// v5.189: Long-press handler for bottom-nav tabs.
+  ///
+  /// Currently only the Me tab (index 4) reacts — it opens the
+  /// Instagram-style [AccountSwitcherSheet]. The sheet itself handles
+  /// switching, adding, and removing accounts; this method just opens
+  /// it.
+  ///
+  /// `useRootNavigator: true` is critical: the bottom nav lives inside
+  /// a ShellRoute, so a plain `showModalBottomSheet(context: context)`
+  /// would route the sheet into the shell's nested Navigator and
+  /// appear UNDER the bottom-nav bar. Routing it through the root
+  /// navigator makes it appear ABOVE everything, matching the visual
+  /// order of Instagram / X / Gmail account switchers.
+  void _onLongPress(BuildContext context, int index) {
+    switch (index) {
+      case 4: // Me tab
+        showModalBottomSheet(
+          context: context,
+          useRootNavigator: true,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => const AccountSwitcherSheet(),
+        );
+      // Other tabs: no long-press action defined yet. Silent no-op.
     }
   }
 }

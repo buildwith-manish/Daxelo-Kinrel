@@ -49,7 +49,10 @@ import '../../../core/services/image_cache_manager.dart';
 import '../../trackc/presentation/screens/learning_profile_screen.dart';
 import '../../family_map/helpers/location_permission_helper.dart';
 import '../../family_map/providers/live_location_provider.dart';
-import 'account_switcher_sheet.dart';
+// v5.189: account_switcher_sheet.dart import REMOVED — Profile screen
+// no longer opens the sheet directly. The sheet is now opened
+// exclusively by long-pressing the Me tab in the bottom nav (see
+// app_router.dart's `_BottomNav._onLongPress`).
 // P12.6 — Grandparent Mode accessibility profile
 import '../../grandparent_mode/grandparent_mode_profile.dart';
 // P12.7 — Kinrel Cameo fallback avatar
@@ -225,23 +228,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   _buildSectionHeader('Account'),
                   const SizedBox(height: 8),
                   _buildSectionCard([
-                    // Multi-account switcher — prominent entry at the top
-                    _SettingsRow(
-                      icon: Icons.swap_horiz,
-                      label: 'Switch Account',
-                      subtitle: 'Add or switch between accounts',
-                      iconColor: _orange,
-                      labelColor: _orange,
-                      onTap: () {
-                        showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (_) => const AccountSwitcherSheet(),
-                        );
-                      },
-                    ),
-                    _divider(),
+                    // v5.189: "Switch Account" row REMOVED — account
+                    // switching is now exclusively triggered by long-
+                    // pressing the Me tab in the bottom navigation bar
+                    // (Instagram-style). The AccountSwitcherSheet it
+                    // opened is still in the codebase and is opened by
+                    // the bottom-nav long-press handler in
+                    // app_router.dart's `_BottomNav._onLongPress`. This
+                    // eliminates the redundant entry point per the
+                    // user's explicit instruction: "Remove any
+                    // redundant 'Switch Account' menu if the long-press
+                    // on the 'Me' tab already provides account
+                    // switching functionality."
                     if (kEnableProfileEditing) ...[
                       _SettingsRow(
                         icon: Icons.person_outline,

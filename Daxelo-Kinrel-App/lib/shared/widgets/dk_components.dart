@@ -1010,6 +1010,13 @@ class DKNavItem {
     required this.activeIcon,
     required this.label,
     this.badge,
+    // v5.189 (Instagram-style account switcher): optional per-item
+    // long-press callback. Wired through [DKBottomNav.onLongPress] /
+    // [_DKNavItemWidget.onLongPress] down to the GestureDetector. When
+    // non-null, the underlying GestureDetector gets `onLongPress:` so the
+    // item can react to a long-press independently of its tap. Used by
+    // the Me tab to open the account switcher bottom sheet.
+    this.onLongPress,
   });
 
   /// Icon for the unselected state.
@@ -1023,6 +1030,11 @@ class DKNavItem {
 
   /// Optional badge count to display.
   final int? badge;
+
+  /// v5.189: Optional long-press callback for this item. When non-null,
+  /// the underlying GestureDetector fires [onLongPress] instead of just
+  /// [onTap]. Used by the Me tab to open the account switcher sheet.
+  final VoidCallback? onLongPress;
 }
 
 /// 5-tab bottom navigation bar with theme-aware styling.
@@ -1051,6 +1063,11 @@ class DKBottomNav extends StatelessWidget {
     required this.currentIndex,
     required this.onTap,
     required this.items,
+    // v5.189: optional per-index long-press callback. Wired to each
+    // [_DKNavItemWidget]. When non-null AND the item's own onLongPress
+    // (declared on DKNavItem) is null, this fires with the item's index.
+    // Used by the Me tab to open the account switcher sheet.
+    this.onLongPress,
   });
 
   /// Currently selected tab index.
@@ -1061,6 +1078,11 @@ class DKBottomNav extends StatelessWidget {
 
   /// List of navigation items.
   final List<DKNavItem> items;
+
+  /// v5.189: Optional callback when a tab is long-pressed. Receives the
+  /// tab index. Per-item onLongPress on [DKNavItem] (if set) takes
+  /// precedence over this — the index-level callback is the fallback.
+  final ValueChanged<int>? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -1147,6 +1169,13 @@ class DKBottomNav extends StatelessWidget {
               inactiveColor: inactiveColor,
               isLight: isLight,
               onTap: () => onTap(index),
+              // v5.189: per-item onLongPress wins; otherwise fall back to
+              // the index-level callback from DKBottomNav.
+              onLongPress: item.onLongPress != null
+                  ? item.onLongPress
+                  : onLongPress != null
+                      ? () => onLongPress!(index)
+                      : null,
             ),
           ),
         );
@@ -1163,6 +1192,10 @@ class _DKNavItemWidget extends StatelessWidget {
     required this.inactiveColor,
     required this.isLight,
     required this.onTap,
+    // v5.189: optional long-press callback. When non-null, the
+    // GestureDetector gets `onLongPress:`. Used by the Me tab to
+    // open the account switcher sheet.
+    this.onLongPress,
   });
 
   final DKNavItem item;
@@ -1172,12 +1205,19 @@ class _DKNavItemWidget extends StatelessWidget {
   final bool isLight;
   final VoidCallback onTap;
 
+  /// v5.189: Optional long-press callback for this nav item.
+  final VoidCallback? onLongPress;
+
   @override
   Widget build(BuildContext context) {
     final color = isSelected ? activeColor : inactiveColor;
 
     return GestureDetector(
         onTap: onTap,
+        // v5.189: long-press fires the optional callback (Instagram-
+        // style account switcher trigger). Null when the item has no
+        // long-press action (Home/Chat/Family/Search).
+        onLongPress: onLongPress,
         behavior: HitTestBehavior.opaque,
         child: SizedBox(
           // Was 64. Match the parent container height so the tap target fills the bar.
