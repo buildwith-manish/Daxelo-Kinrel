@@ -56,7 +56,7 @@ class CalendarNotifier extends StateNotifier<CalendarState> {
           .select()
           .eq('familyId', familyId)
           .order('eventDate', ascending: true);
-      final events = eventsResp.map((e) => CalendarEvent.fromJson(e as Map<String, dynamic>)).toList();
+      final events = eventsResp.map((e) => CalendarEvent.fromJson(e)).toList();
       state = CalendarState(events: events, isLoading: false);
     } catch (e) {
       debugPrint('⚠️ Calendar load error: $e');

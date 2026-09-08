@@ -8,7 +8,8 @@ class CalendarSyncEngine extends AbstractSyncEngine {
   @override
   String get engineName => 'calendar';
 
-  @override
+  /// displayName is not an override — it's a new getter in this class.
+  /// The parent's displayName is a constructor parameter, not a getter.
   String get displayName => 'Family Calendar';
 
   bool _isSyncing = false;
