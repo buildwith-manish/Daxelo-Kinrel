@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **fix(graph): Vercel build break from v5.191 — `persons` is `List<PersonData>`, not `List<Map>` (v5.191.1)**
+  - **The bug**: v5.191 broke the Vercel Flutter web build with 3 compile errors:
+    ```
+    lib/features/family/presentation/family_graph_screen.dart:1219:23: Error: The operator '[]' isn't defined for the type 'PersonData'.
+    lib/features/family/presentation/family_graph_screen.dart:1220:23: Error: The operator '[]' isn't defined for the type 'PersonData'.
+    lib/features/family/presentation/family_graph_screen.dart:1256:34: Error: The operator '[]' isn't defined for the type 'PersonData'.
+    Error: Compilation failed.
+    Error: Failed to compile application for the Web.
+    ```
+    Vercel `errorCode: lint_or_type_error` — build exited with code 1.
+  - **Root cause**: In v5.191 I wrote `persons.first['isAnchor']` and `persons.first['id']` assuming `persons` was `List<Map<String, dynamic>>` (like `FlatGraphResult.persons`). But `family_graph_screen.dart`'s `_buildDataState` calls `graph.toPersonDataList()` which returns `List<PersonData>` — a TYPED class with `final bool isAnchor` and `final String id` fields. Map subscripts (`['isAnchor']`, `['id']`) don't compile on typed classes. Local `flutter analyze` couldn't catch this because the Flutter SDK was removed from this host between v5.188 and v5.191.
+  - **The fix** (1 surgical file — `family_graph_screen.dart`):
+    - `persons.first['isAnchor'] == true || persons.first['isAnchor'] == 1` → `persons.first.isAnchor` (single typed boolean access — the `== 1` int check was unnecessary since `isAnchor` is typed `bool`)
+    - `persons.first['id']` → `persons.first.id` (in the debug log)
+  - **Why the build was broken before this fix**: Vercel builds the Flutter web app via `bash ./vercel-build.sh` → `flutter build web --release`. dart2js treats type errors as compile failures. The 3 errors above killed the build at the `Compiling lib/main.dart for the Web` step (136.5s into the build).
+  - **What still works**: the v5.191 LOGIC is unchanged — `isSingleAnchorGraph = persons.length == 1 && persons.first.isAnchor` still correctly detects the 1-anchor creator case. Only the field-access syntax was wrong.
+  - **Verification**: confirmed via Vercel API that the previous deployment (v5.190) is `readyState: READY, errorCode: none`, so v5.188-v5.190 changes are clean — only v5.191 had the bug. After this fix, the 3 compile errors will be resolved; no other errors were found in the full Vercel build log.
+
 - **fix(graph): Family creation graph initialization — render 1-member graphs + auto-recover from missing trigger (v5.191)**
   - **The bug**: When a user created a new family, the graph screen sometimes showed the "Start your family tree" empty state — or the "Unable to load graph" access-issue state — instead of rendering the creator's anchor node. The user reported this as "the graph is empty immediately after creating a family" and "Unable to load graph when the family has only one member".
   - **Root cause analysis**: The backend plumbing (trigger `_fn_after_family_insert_create_anchor_person` from v5.177, the `get_viewer_family_graph` RPC creator fallback from v5.177.1, the Flutter `viewerPersonIdProvider` creator fallback, and the `graphLayoutProvider` anchor-as-center fallback from v5.181) all look correct individually. The remaining failure modes are:

@@ -1215,9 +1215,16 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
     //   any other graph size, the existing `!isViewerInGraph → empty
     //   state` path is preserved (the user genuinely isn't in the graph
     //   and needs to claim a profile).
-    final bool isSingleAnchorGraph = persons.length == 1 &&
-        (persons.first['isAnchor'] == true ||
-         persons.first['isAnchor'] == 1);
+    //
+    // v5.191.1 (VERCEL BUILD FIX): `persons` is `List<PersonData>` (a
+    // typed class with `final bool isAnchor` and `final String id`),
+    // NOT `List<Map<String, dynamic>>`. The original v5.191 used
+    // `persons.first['isAnchor']` which is a Map subscript and doesn't
+    // compile for PersonData — the Vercel web build failed with
+    // "The operator '[]' isn't defined for the type 'PersonData'" at
+    // 3 locations. Switched to the typed field accessors.
+    final bool isSingleAnchorGraph =
+        persons.length == 1 && persons.first.isAnchor;
     final bool shouldRenderGraph = isViewerInGraph || isSingleAnchorGraph;
 
     // If no persons at all OR the viewer isn't in the graph (and it's not
@@ -1253,7 +1260,7 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
       debugPrint(
         '[v5.191] Rendering 1-anchor creator graph with unresolved '
         'viewerPersonId — familyId=${widget.familyId}, '
-        'anchorId=${persons.first['id']}',
+        'anchorId=${persons.first.id}',
       );
     }
 
