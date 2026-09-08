@@ -606,6 +606,27 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
     pending2FA = ref.read(pending2FAProvider);
   } catch (_) {}
 
+  // ── v5.190: Add-Account bypass ─────────────────────────────────────
+  // When the Account Switcher sheet calls `context.go('/sign-in?mode=add_account')`,
+  // the user is ALREADY authenticated with their primary account — but they
+  // want to sign in with ANOTHER account and add it to the switcher.
+  //
+  // Without this bypass, the `isAuthenticated && isAuth` branch below fires
+  // and redirects them to /home (the bug the user reported: "Add Account
+  // redirects to Home instead of opening the authentication flow").
+  //
+  // The bypass: when mode=add_account, allow an already-authenticated user
+  // to stay on /sign-in (or /sign-up). They will sign in with the new
+  // account's credentials; the auth listener in main.dart auto-saves the
+  // new session via MultiAccountService.saveCurrentSession(); the new
+  // account appears in the switcher list.
+  //
+  // SECURITY: This does NOT bypass 2FA — the 2FA gate above still runs
+  // first. It only bypasses the "you're already logged in → go home"
+  // redirect, which is exactly what we want for Add Account.
+  final bool isAddAccountMode =
+      isAuth && state.uri.queryParameters['mode'] == 'add_account';
+
   // ── Compute redirect target ────────────────────────────────────────
   String? redirectTarget;
 
@@ -615,9 +636,27 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
   if (isAuthenticated && pending2FA && !is2FAVerify) {
     redirectTarget = '/2fa-verify';
   } else if (isAuthenticated && isAuth) {
-    // Authenticated user on sign-in/sign-up → redirect to home
-    // (but NOT if they have pending 2FA → already handled above)
-    if (pending2FA) {
+    // Authenticated user on sign-in/sign-up.
+    //
+    // v5.190 BUG FIX: Add Account flow — when mode=add_account, do NOT
+    // redirect to /home. The user is intentionally signing in with a
+    // second account. Let them stay on /sign-in so they can enter the
+    // new account's credentials.
+    //
+    // Before this fix, every Add Account tap silently bounced to /home
+    // because the user was already authenticated with their primary
+    // account. The Account Switcher sheet's `context.go('/sign-in?mode=add_account')`
+    // navigation worked, but the redirect rule immediately overrode it.
+    if (isAddAccountMode) {
+      // [ACCOUNT] Add Account mode — bypass the auth→home redirect.
+      // The user will land on the SignIn screen and sign in with the
+      // new account. After successful sign-in, the auth listener
+      // (main.dart:494-572) auto-saves the new session via
+      // MultiAccountService.saveCurrentSession(), so the new account
+      // appears in the switcher immediately.
+      debugPrint('[ACCOUNT] Add Account mode — bypassing auth→home redirect');
+      redirectTarget = null;
+    } else if (pending2FA) {
       redirectTarget = '/2fa-verify';
     } else {
       redirectTarget = '/home';
@@ -652,6 +691,28 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
     _visitedRoutes.clear();
     _lastRedirectTime = null;
     return null;
+  }
+
+  // ── v5.190: [BUG] detector ──────────────────────────────────────────
+  // If we're about to redirect to /home while the user is in
+  // `mode=add_account` (Add Account flow), log a clear [BUG] line so
+  // the developer can spot the regression immediately. The redirect
+  // rule above SHOULD have bypassed /home for add-account mode; if we
+  // ever end up here with redirectTarget='/home' and the originating
+  // route had ?mode=add_account, something has gone wrong — either a
+  // new redirect branch was added that didn't account for add-account
+  // mode, or the bypass condition was weakened.
+  //
+  // Note: this is purely a log — we still honor the redirect so we
+  // don't trap the user. The log is the actionable signal.
+  if (redirectTarget == '/home' &&
+      state.uri.queryParameters['mode'] == 'add_account') {
+    debugPrint(
+      '[BUG] Add Account incorrectly redirected to Home — '
+      'origin: ${state.matchedLocation}?mode=add_account, '
+      'target: $redirectTarget. '
+      'Check _handleRedirect branches for a missing add-account bypass.',
+    );
   }
 
   // ── Record redirect time for cooldown enforcement ────────────────

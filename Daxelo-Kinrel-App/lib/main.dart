@@ -507,13 +507,28 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
             _lastAuthUserId = userId;
 
             if (event == AuthChangeEvent.signedIn && session != null) {
+              debugPrint('[ACCOUNT] Authentication successful — user=${session.user.id}, email=${session.user.email ?? "unknown"}');
               try {
                 setUserIdentifier(session.user.id);
               } catch (_) {}
               // Save session for multi-account support
               try {
                 await MultiAccountService.instance.saveCurrentSession();
-              } catch (_) {}
+                // v5.190: [ACCOUNT] debug logs for the multi-account flow.
+                // These confirm (a) the session was stored, (b) the
+                // account was added to the switcher list, and (c) the
+                // active account is the newly-signed-in one.
+                debugPrint('[ACCOUNT] Session stored for user=${session.user.id}');
+                final accounts = await MultiAccountService.instance.getAccounts();
+                final activeId = await MultiAccountService.instance.getActiveUserId();
+                debugPrint(
+                  '[ACCOUNT] Account added to switcher — total=${accounts.length}, '
+                  'active=$activeId',
+                );
+                debugPrint('[ACCOUNT] Active account changed → ${session.user.email ?? session.user.id}');
+              } catch (e) {
+                debugPrint('[ACCOUNT] Failed to save session: $e');
+              }
               try {
                 captureRiverpodState('auth', {
                   'userId': session.user.id,

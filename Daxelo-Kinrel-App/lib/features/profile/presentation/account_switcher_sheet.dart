@@ -4,7 +4,12 @@
 //
 // Shows all signed-in accounts with avatars, allows instant switching,
 // adding new accounts, and removing accounts. Similar to Instagram/X/Gmail.
+//
+// v5.190: Add Account flow now uses context.push (not context.go) and
+// emits [ACCOUNT] debug logs at each step of the multi-account flow.
+// See _addAccount() and _switchAccount() below.
 
+import 'package:flutter/foundation.dart'; // for debugPrint — [ACCOUNT] logs
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -47,6 +52,13 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
     }
     _activeUserId = activeId ?? currentUser?.id;
     setState(() => _isLoading = false);
+    // v5.190: [ACCOUNT] debug log — emits on every (re)load so the
+    // developer can verify the list refreshes immediately after a
+    // new account is added (see Case 2 in the v5.190 spec).
+    debugPrint(
+      '[ACCOUNT] Switcher loaded — ${_accounts.length} account(s), '
+      'active=$_activeUserId',
+    );
   }
 
   Future<void> _switchAccount(StoredAccount account) async {
@@ -55,6 +67,7 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
       return;
     }
 
+    debugPrint('[ACCOUNT] Switching to ${account.email} (${account.userId})');
     setState(() => _isSwitching = true);
 
     final success = await MultiAccountService.instance.switchToAccount(
@@ -64,10 +77,16 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
     if (mounted) {
       setState(() => _isSwitching = false);
       if (success) {
+        debugPrint('[ACCOUNT] Active account changed → ${account.email}');
         // Invalidate key providers so the UI refreshes with the new account's data
         ref.invalidate(currentUserProvider);
         Navigator.pop(context);
-        // Force a full app refresh by going to home
+        // Force a full app refresh by going to home — Case 4 in the
+        // v5.190 spec: Profile, Family, Chat, Graph, Notifications all
+        // refresh to the selected account. The provider invalidations
+        // in main.dart's onAuthStateChange listener (fired by
+        // client.auth.setSession inside switchToAccount) handle the
+        // actual data refresh.
         context.go('/home');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -76,6 +95,9 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
           ),
         );
       } else {
+        debugPrint(
+          '[ACCOUNT] Switch FAILED for ${account.email} — session may have expired',
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Could not switch — session may have expired. Please sign in again.'),
@@ -120,9 +142,23 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
   }
 
   void _addAccount() {
+    debugPrint('[ACCOUNT] Add Account tapped');
+    // Close the switcher sheet BEFORE navigating — otherwise the sheet
+    // would remain open behind the sign-in screen and the user would
+    // see it again when they navigate back.
     Navigator.pop(context);
-    // Navigate to sign-in screen with "add account" mode
-    context.go('/sign-in?mode=add_account');
+    debugPrint('[ACCOUNT] Opening authentication flow → /sign-in?mode=add_account');
+    // v5.190 BUG FIX: use context.push (not context.go) so the user can
+    // pop back to wherever they were after the new account is added.
+    // context.go replaces the entire stack — combined with the auth
+    // listener auto-saving the new session, the user ends up on
+    // /home with the new account active, and can long-press Me again
+    // to re-open the switcher and pick another account.
+    //
+    // The auth redirect rule in app_router.dart's _handleRedirect now
+    // recognizes `mode=add_account` and does NOT bounce already-
+    // authenticated users to /home — that was the bug.
+    context.push('/sign-in?mode=add_account');
   }
 
   @override
