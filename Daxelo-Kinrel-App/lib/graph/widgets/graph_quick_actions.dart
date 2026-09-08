@@ -3,7 +3,14 @@
 // Extracted from family_graph.dart (v31 refactor).
 //
 // The bottom sheet that appears when a user taps-holds a graph node.
-// Shows the person's name + quick actions (View Profile, Edit, Remove Member).
+// Shows the person's name + quick actions grouped into 3 chunks of ≤3
+// plus a destructive tail ("Remove Member") behind a divider.
+//
+// v5.188 (Hick's Law / Miller's 7±2): Restructured the flat 11-item list
+// into 3 labeled groups (View & Connect / Manage / Remember) + a
+// divider + Remove tail. Reduces decision time and working-memory
+// load. Every gate, callback, and behavior is preserved — this is a
+// pure presentation chunking change, no logic changes.
 //
 // Web + mobile compatible: uses standard Material showModalBottomSheet,
 // which renders as a modal dialog on web (no platform-specific code).
@@ -101,7 +108,11 @@ class GraphQuickActions {
             // v5.140: Branch items — shown ONLY when this node is an
             // expanded branch root. Simple plain ListTile items, no
             // separate rich sheet, no header text, no preview. Just
-            // two extra actions in the same list as everything else.
+            // two extra actions at the top, BEFORE the first group
+            // header, because they are context-specific to this exact
+            // long-press (the user long-pressed an expandable branch
+            // root, so collapse/preview are the most relevant actions
+            // and should appear first).
             if (branchCollapseInfo != null) ...[
               ListTile(
                 leading: const Icon(Icons.unfold_less_rounded,
@@ -133,7 +144,16 @@ class GraphQuickActions {
                   branchCollapseInfo.onPreviewNames();
                 },
               ),
+              const Divider(color: Color(0x1AFFFFFF), height: 1.0),
             ],
+            // v5.188: Group 1 — "View & Connect" (≤3 items)
+            //   • View Profile
+            //   • Message            (gated on familyId != null)
+            //   • View relationship  (gated on onViewRelationship != null)
+            // Note: "Relate to another person" was moved to Group 2
+            // (Manage) — adding a relationship is a structural action,
+            // not a view/connect action. This keeps each group at ≤3.
+            _groupHeader(label: 'View & Connect'),
             // View Profile
             ListTile(
               leading:
@@ -179,17 +199,43 @@ class GraphQuickActions {
                   }
                 },
               ),
-            // v5.63 (ISSUE 2 FIX): "Relate to another person" is now the
-            // SECOND item (right after View Profile) so it's immediately
-            // visible without scrolling. This option MUST be available for
-            // EVERY node — it is gated ONLY by `familyId != null &&
-            // ref != null` (both always passed by the caller). There is
-            // NO isSelf/isAnchor/role gate: even the viewer's own node
-            // can be related to another person (e.g. "add my spouse"),
-            // and non-admins can start the flow (the permission check is
-            // deferred to showRelationshipPickerFlow, which shows a
-            // snackbar if the user lacks permission for the specific
-            // pair they select).
+            // v98 (Phase 2): "How are we related?" — resolves the
+            // relationship path from the viewer to this person.
+            if (onViewRelationship != null)
+              ListTile(
+                leading: const Icon(Icons.account_tree_rounded,
+                    color: KinrelColors.tealAccent),
+                title: const Text(
+                  'View relationship',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  onViewRelationship(person.id);
+                },
+              ),
+            // v5.188: Group 2 — "Manage" (≤3 items, depends on gates)
+            //   • Relate to another person  (gated on familyId && ref)
+            //   • Edit                     (always)
+            //   • Reset to auto layout      (gated on personal override)
+            // Edit moved earlier (was item 10 of 11) because in the
+            // chunked layout, "Manage" is the natural home and the
+            // user reaches it without scrolling. Reset to auto layout
+            // stays last in this group because it's the rarest action.
+            _groupHeader(label: 'Manage'),
+            // v5.63 (ISSUE 2 FIX): "Relate to another person" is
+            // available for EVERY node — it is gated ONLY by
+            // `familyId != null && ref != null` (both always passed by
+            // the caller). There is NO isSelf/isAnchor/role gate: even
+            // the viewer's own node can be related to another person
+            // (e.g. "add my spouse"), and non-admins can start the flow
+            // (the permission check is deferred to
+            // showRelationshipPickerFlow, which shows a snackbar if
+            // the user lacks permission for the specific pair they
+            // select).
             //
             // Opens a person picker, then either auto-creates a
             // relationship (if the kinship engine can derive one from
@@ -219,24 +265,87 @@ class GraphQuickActions {
                   );
                 },
               ),
-            // v98 (Phase 2): "How are we related?" — resolves the
-            // relationship path from the viewer to this person.
-            if (onViewRelationship != null)
-              ListTile(
-                leading: const Icon(Icons.account_tree_rounded,
-                    color: KinrelColors.tealAccent),
-                title: const Text(
-                  'View relationship',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    color: KinrelColors.textWhite,
-                  ),
+            // Edit
+            ListTile(
+              leading: const Icon(Icons.edit, color: KinrelColors.amber),
+              title: const Text(
+                'Edit',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  color: KinrelColors.textWhite,
                 ),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  onViewRelationship(person.id);
+              ),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                if (familyId != null) {
+                  AddPersonSheet.show(
+                    context,
+                    familyId: familyId,
+                    existingPerson: Person(
+                      id: person.id,
+                      familyId: familyId,
+                      name: person.name,
+                      gender: person.gender,
+                      isDeceased: person.isDeceased,
+                      photoUrl: person.photoUrl,
+                      isAnchor: false,
+                      generationIndex: 0,
+                      dateOfBirth: person.dateOfBirth,
+                    ),
+                  );
+                }
+              },
+            ),
+            // v5.22 (PART 1.5): "Reset to auto layout" — only shown when
+            // the current viewer has a saved node-position override for
+            // this person. Removes the override and re-runs auto-layout
+            // for this specific node. The reset is personal-only — it
+            // never affects another viewer's saved overrides for the
+            // same node.
+            if (familyId != null && ref != null)
+              FutureBuilder<PersonalLayoutOverrides>(
+                future: ref!.read(personalLayoutOverridesProvider(familyId!).future),
+                builder: (context, snapshot) {
+                  final hasOverride = snapshot.data?.nodePositions
+                          .containsKey(person.id) ??
+                      false;
+                  if (!hasOverride) return const SizedBox.shrink();
+                  return ListTile(
+                    leading: const Icon(Icons.center_focus_strong_outlined,
+                        color: KinrelColors.tealAccent),
+                    title: const Text(
+                      'Reset to auto layout',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                    onTap: () async {
+                      Navigator.pop(sheetContext);
+                      await LayoutOverridesService.removeNodeOverride(
+                          ref!, familyId!, person.id);
+                      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                        const SnackBar(
+                          content: Text('Reset to auto-layout'),
+                          behavior: SnackBarBehavior.floating,
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                  );
                 },
               ),
+            // v5.188: Group 3 — "Remember" (≤3 items)
+            //   • Isolate connections  (gated on onFocusPerson || ref)
+            //   • Light a candle       (gated on person.isDeceased)
+            //   • View memorial        (gated on person.isDeceased && familyId)
+            // Isolate connections moved here from its old position
+            // (item 7 of 11) because chunking it with the other
+            // "remember / honor" actions gives the group a coherent
+            // theme: "stay with this person for a moment". It is still
+            // functionally a relationship filter — the new group label
+            // is descriptive, not behavioral.
+            _groupHeader(label: 'Remember'),
             // v5.65 (ISOLATE CONNECTIONS): Renamed from "Focus on person"
             // to "Isolate connections". The old name was misleading — it
             // sounded like a camera-zoom action (redundant with tapping a
@@ -245,24 +354,11 @@ class GraphQuickActions {
             // directly connected to this person to ~18% opacity, keeping
             // only this person + their direct relationships fully visible.
             //
-            // Icon changed from center_focus_strong_rounded (a focus-ring
-            // icon that implies camera/zoom) to filter_alt_rounded (a
-            // filter icon that implies filtering/isolation). The color
-            // stays orange for visual continuity with the previous
-            // "Focus on person" action.
-            //
-            // The underlying callback (`onFocusPerson`) and provider
-            // (`graphFocusProvider`) are unchanged — only the label + icon
-            // changed. The isolation behavior is implemented in
-            // _computeDimmedEdgeIds (interaction_mixin.dart) + node_builders
-            // opacity + engine_edge_painter dimAlpha.
-            //
             // Auto-switch: if the user is ALREADY isolating a different
             // person and selects "Isolate connections" on a new node, the
             // graphFocusProvider.focus() call simply replaces the focused
             // person — no manual "exit first" step needed. This is the
-            // existing behavior of GraphFocusNotifier.focus() (it
-            // overwrites focusedPersonId + recomputes neighbour sets).
+            // existing behavior of GraphFocusNotifier.focus().
             if (onFocusPerson != null || ref != null)
               ListTile(
                 leading: const Icon(Icons.filter_alt_rounded,
@@ -326,77 +422,12 @@ class GraphQuickActions {
                   context.push('/memorials?familyId=$familyId');
                 },
               ),
-            // v5.22 (PART 1.5): "Reset to auto layout" — only shown when
-            // the current viewer has a saved node-position override for
-            // this person. Removes the override and re-runs auto-layout
-            // for this specific node. The reset is personal-only — it
-            // never affects another viewer's saved overrides for the
-            // same node.
-            if (familyId != null && ref != null)
-              FutureBuilder<PersonalLayoutOverrides>(
-                future: ref!.read(personalLayoutOverridesProvider(familyId!).future),
-                builder: (context, snapshot) {
-                  final hasOverride = snapshot.data?.nodePositions
-                          .containsKey(person.id) ??
-                      false;
-                  if (!hasOverride) return const SizedBox.shrink();
-                  return ListTile(
-                    leading: const Icon(Icons.center_focus_strong_outlined,
-                        color: KinrelColors.tealAccent),
-                    title: const Text(
-                      'Reset to auto layout',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        color: KinrelColors.textWhite,
-                      ),
-                    ),
-                    onTap: () async {
-                      Navigator.pop(sheetContext);
-                      await LayoutOverridesService.removeNodeOverride(
-                          ref!, familyId!, person.id);
-                      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                        const SnackBar(
-                          content: Text('Reset to auto-layout'),
-                          behavior: SnackBarBehavior.floating,
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            // Edit
-            ListTile(
-              leading: const Icon(Icons.edit, color: KinrelColors.amber),
-              title: const Text(
-                'Edit',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                if (familyId != null) {
-                  AddPersonSheet.show(
-                    context,
-                    familyId: familyId,
-                    existingPerson: Person(
-                      id: person.id,
-                      familyId: familyId,
-                      name: person.name,
-                      gender: person.gender,
-                      isDeceased: person.isDeceased,
-                      photoUrl: person.photoUrl,
-                      isAnchor: false,
-                      generationIndex: 0,
-                      dateOfBirth: person.dateOfBirth,
-                    ),
-                  );
-                }
-              },
-            ),
-            // Remove Member — shown for all non-self nodes (not just non-anchor)
+            // Remove Member — shown for all non-self nodes (not just non-anchor).
+            // v5.188 (Serial Position Effect): kept as the destructive tail
+            // behind a divider. The last item in a list is the best-remembered
+            // — we want the user to remember that they removed someone, so the
+            // placement is intentional. The divider before it adds a visual
+            // "are you sure?" beat without an extra confirmation step.
             if (!isSelf && familyId != null) ...[
               const Divider(color: Color(0x1AFFFFFF), height: 1.0),
               ListTile(
@@ -421,6 +452,26 @@ class GraphQuickActions {
             ],
             const SizedBox(height: 8.0),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// v5.188: Small group header used to chunk quick-actions into
+  /// ≤3-item sections (Hick's Law / Miller's 7±2). Pure presentation
+  /// — no behavior, no callback. Renders as a dim, uppercase, small
+  /// label so it reads as a section divider, not as a tappable row.
+  static Widget _groupHeader({required String label}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 4.0),
+      child: Text(
+        label.toUpperCase(),
+        style: const TextStyle(
+          fontFamily: KinrelTypography.bodyFont,
+          fontSize: 11.0,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.8,
+          color: KinrelColors.textDim,
         ),
       ),
     );

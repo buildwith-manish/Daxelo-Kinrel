@@ -287,6 +287,14 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
       // arena — which was the root cause of unreliable dragging +
       // Save/Reset appearing to do nothing.
       rearrangeMode: ref.read(rearrangeModeProvider),
+      // v5.188 (Affordance): child count for the parent-node pill.
+      // Computed from flat.relationships using the SAME semantics as
+      // the layout engine (family_graph_engine_view.dart:1262):
+      // labelAtoB in {father, mother, parent} + from→to means
+      // "to is from's parent" → from is a child of to. Dedupes by
+      // child id (the DB stores both forward + inverse rows).
+      // Gate is enforced inside GraphNode (childCount >= 2 && !isAnchor).
+      childCount: flat == null ? 0 : _countChildrenOf(id, flat),
       // v93 (ZOOM FIX) legacy fallback — still computed for the
       // camera-null case (e.g. tests). When [camera] is non-null this
       // flag is ignored by GraphNode.
@@ -410,6 +418,49 @@ extension _NodeBuilders on _FamilyGraphEngineViewState {
         ),
       ],
     );
+  }
+
+  /// v5.188 (Affordance): Counts the unique children of [parentId] in
+  /// the given [flat] graph, using the SAME semantics as the layout
+  /// engine (family_graph_engine_view.dart:1262 and
+  /// radial_layout.dart:251-261):
+  ///
+  ///   `from: A, to: B, labelAtoB: 'father'|'mother'|'parent'`
+  ///   → "A is the father/mother/parent of B"
+  ///   → A is a child of B.
+  ///
+  /// So for counting children of [parentId]:
+  ///   - For every edge where `labelAtoB ∈ {father, mother, parent}` and
+  ///     `toPersonId == parentId`, add `fromPersonId` to the child set.
+  ///
+  /// Dedupes by child id (the DB stores both forward + inverse rows;
+  /// the Set automatically collapses duplicates).
+  ///
+  /// Returns 0 when [flat] is null or no children are found. The GraphNode
+  /// caller gates the pill on `count >= 2 && !isAnchor`.
+  ///
+  /// Performance: O(E) per call. With the canvas calling this per visible
+  /// node (50 nodes × 1000 edges = 50,000 ops), this matches the cost
+  /// of the existing first-degree fallback at L113-122 — not ideal at
+  /// scale, but acceptable for the typical family (10-50 members). The
+  /// precomputed-adjacency pattern (canvas_mixin) would be the follow-up
+  /// if this shows up in profiling.
+  static int _countChildrenOf(String parentId, FlatGraphResult flat) {
+    final children = <String>{};
+    for (final r in flat.relationships) {
+      final label = (r['labelAtoB'] as String?) ??
+          (r['relationshipKey'] as String?) ?? '';
+      if (label != 'father' && label != 'mother' && label != 'parent') {
+        continue;
+      }
+      final to = r['toPersonId']?.toString();
+      if (to != parentId) continue;
+      final from = r['fromPersonId']?.toString();
+      if (from != null && from.isNotEmpty) {
+        children.add(from);
+      }
+    }
+    return children.length;
   }
 
 }

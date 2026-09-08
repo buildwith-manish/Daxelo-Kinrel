@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **feat(graph): UX polish #3 + #5 — quick-actions chunking + parent-node descendants pill (v5.188)**
+  - Two small, focused UI fixes from the graph UI-placement-psychology audit. Both are widget-layer only — no layout/engine/infra work. Other audit items (#1 Gutenberg chrome, #2 CoachMark system, #4 anchor breath + completion pill) are deferred until the realtime/Broadcast migration ships; accumulating more graph polish on top of unfinalized infra is bad sequencing.
+  - **#3 (Hick's Law / Miller's 7±2) — `graph_quick_actions.dart`**: restructured the flat 11-item long-press sheet into 3 labeled groups (View & Connect / Manage / Remember) + a divider before the destructive "Remove Member" tail. Each group has ≤3 items, so the user can scan the whole sheet within working-memory limits. Every gate, callback, and behavior is preserved — pure presentation chunking, no logic changes. "Edit" moved earlier (was item 10/11, now in Manage group) so the user reaches it without scrolling. "Relate to another person" moved from Group 1 to Group 2 (Manage — it's a structural action, not view/connect). "Isolate connections" moved to Group 3 (Remember) for thematic coherence with candle/memorial actions. Branch-collapse items (when applicable) stay at the TOP, above all groups, separated by a divider — they are context-specific to this exact long-press and should appear first.
+  - **#5 (Affordance / Norman door fix) — `graph_node.dart` + `node_builders.dart`**: added a small "N" pill at the bottom-center of any non-anchor node with ≥2 children, surfacing the otherwise-hidden "this branch can be collapsed" capability BEFORE the user collapses it. Previously the collapse affordance only appeared AFTER collapse (as a branch chip) — by which point the user had to discover collapse by accident. The pill is purely informational (no separate tap target — sits inside the existing node tap region); the user discovers the collapse action via long-press → "Collapse this branch", which is now the FIRST item in the chunked quick-actions sheet (per #3). Style: 28×14 rounded rect, dark-card background, 1px border in the node's kinship color, white count text. Sits in the natural gap between the role glyph (bottom-right) and the indirect-relation badge (bottom-left) without overlapping either. childCount is computed in `node_builders.dart` via `_countChildrenOf()` using the SAME semantics as the layout engine (`labelAtoB ∈ {father, mother, parent}` + `toPersonId == parent` → `fromPersonId` is a child). Dedupes by child id (the DB stores both forward + inverse rows).
+  - Verification: `flutter analyze --no-fatal-infos` — zero new issues (same 14 pre-existing warnings at HEAD, just at shifted line numbers).
+
 ### Fixed
 
 - **fix(graph): 6 of 9 nodes had no label + grey color — structural kinship classifier (v66)**

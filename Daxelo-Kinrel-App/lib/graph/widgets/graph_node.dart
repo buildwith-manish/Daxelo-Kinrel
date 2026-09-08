@@ -205,6 +205,13 @@ class GraphNode extends ConsumerStatefulWidget {
     required this.onTap,
     required this.onLongPress,
     this.onDoubleTap,
+    // v5.188 (Affordance): descendant count for the parent-node pill.
+    // When ≥2, a small "N" pill is rendered at the bottom-center of
+    // the node — surfacing the otherwise-hidden "this branch can be
+    // collapsed" capability. Purely informational (no separate tap
+    // target); the existing long-press → "Collapse this branch" flow
+    // handles the actual collapse. See _buildCircleNode.
+    this.childCount = 0,
   });
 
   /// Unique person identifier.
@@ -364,6 +371,24 @@ class GraphNode extends ConsumerStatefulWidget {
 
   /// Callback when the node is double-tapped.
   final VoidCallback? onDoubleTap;
+
+  /// v5.188 (Affordance): Number of children this person has in the
+  /// graph. When ≥2 AND this node is not the anchor, a small "N"
+  /// pill is rendered at the bottom-center of the node circle —
+  /// surfacing the otherwise-hidden "this branch can be collapsed"
+  /// capability (Norman door fix).
+  ///
+  /// Purely informational. No separate tap target — the pill sits
+  /// inside the existing node tap region. The user discovers the
+  /// collapse action via long-press → quick-actions sheet, where
+  /// "Collapse this branch" is the FIRST item (v5.188 #3 chunking).
+  ///
+  /// Defaults to 0 (no pill). The caller in node_builders.dart
+  /// computes it from `flat.relationships` using the same
+  /// `labelAtoB in {father, mother, parent}` semantics as the layout
+  /// engine (family_graph_engine_view.dart:1262) so the count matches
+  /// what the engine considers "children".
+  final int childCount;
 
   @override
   ConsumerState<GraphNode> createState() => _GraphNodeState();
@@ -1295,6 +1320,29 @@ class _GraphNodeState extends ConsumerState<GraphNode>
                 diameter: diameter * 0.3,
               ),
             ),
+          // v5.188 (Affordance — Norman door fix): "N descendants" pill
+          // at bottom-center, just below the circle border. Purely
+          // informational — surfaces the otherwise-hidden "this branch
+          // can be collapsed" capability BEFORE the user collapses it.
+          // Gated on childCount >= 2 and !isAnchor; the pill is small
+          // (28×14) and sits in the natural gap between the role glyph
+          // (bottom-right) and the indirect-relation badge (bottom-left).
+          // No separate tap target — it lives inside the node's
+          // existing tap region. The user discovers collapse via
+          // long-press → "Collapse this branch" (now the FIRST item in
+          // the chunked quick-actions sheet — see v5.188 #3).
+          if (widget.childCount >= 2 && !widget.isAnchor)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: -2,
+              child: Center(
+                child: _DescendantsPill(
+                  count: widget.childCount,
+                  color: _borderColor,
+                ),
+              ),
+            ),
           // Expand indicator
           if (widget.relationshipKey != null &&
               ExpandIndicators.expandLabelFor(widget.relationshipKey) != null)
@@ -1624,4 +1672,65 @@ class _SelfNodeGlowPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _SelfNodeGlowPainter old) =>
       old.pulse != pulse;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// v5.188 (Affordance): _DescendantsPill — "N descendants" indicator
+// ═══════════════════════════════════════════════════════════════════════
+
+/// A small "N" pill rendered at the bottom-center of a parent node
+/// when the person has ≥2 children.
+///
+/// This is a **pure affordance** (Norman door fix): it surfaces the
+/// otherwise-hidden "this branch can be collapsed" capability BEFORE
+/// the user collapses it. The existing branch-chip only appears
+/// AFTER collapse — by which point the user has already had to
+/// discover collapse by accident.
+///
+/// Purely informational — no separate tap target. The pill lives
+/// inside the node's existing tap region; tapping anywhere on the
+/// node (including the pill) selects it. The user discovers the
+/// collapse action via long-press → quick-actions sheet, where
+/// "Collapse this branch" is now the FIRST item (v5.188 #3 chunking).
+///
+/// Style: 28×14 rounded rect, dark-card background, 1px border in
+/// the node's kinship color, white count text. Compact and unobtrusive
+/// — sits in the natural gap between the role glyph (bottom-right)
+/// and the indirect-relation badge (bottom-left) without overlapping
+/// either.
+class _DescendantsPill extends StatelessWidget {
+  const _DescendantsPill({
+    required this.count,
+    required this.color,
+  });
+
+  /// Number of children (≥2 — gate is enforced by the caller).
+  final int count;
+
+  /// The node's kinship border color — used for the pill's 1px border
+  /// so it inherits the family's visual identity.
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 28,
+      height: 14,
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: color, width: 1.0),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        '$count',
+        style: const TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: KinrelColors.textWhite,
+          height: 1.0,
+        ),
+      ),
+    );
+  }
 }
