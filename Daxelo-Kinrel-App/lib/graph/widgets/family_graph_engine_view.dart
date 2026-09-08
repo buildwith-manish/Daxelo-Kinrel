@@ -36,7 +36,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show SemanticsService;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:go_router/go_router.dart';
@@ -1045,9 +1045,16 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // those calls trigger the wrapper's listener via ChangeNotifier.
 
     // v62: Start periodic telemetry — log edge cache + cull stats every
-    // 30 seconds so we can monitor production performance.
-    _telemetryTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    // 120 seconds so we can monitor production performance.
+    // v5.186 (TIER 3 PERF): Increased from 30s → 120s to reduce CPU
+    // overhead from analytics serialization. Also gated on kDebugMode
+    // so telemetry doesn't fire in release builds (the analytics service
+    // still logs errors — this is just the periodic stats ping).
+    _telemetryTimer = Timer.periodic(const Duration(seconds: 120), (_) {
       if (!mounted) return;
+      if (kDebugMode) {
+        debugPrint('[graph] cache=${_edgePathCache.size} hit=${_edgePathCache.hitRate} visible=${_culler.visibleCount} zoom=${_camera.zoomLevel.toStringAsFixed(2)}');
+      }
       // Fire-and-forget — never let telemetry break the build.
       AnalyticsService.instance
           .logEvent('graph_render_stats', {

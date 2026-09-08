@@ -59,6 +59,7 @@ class GraphPerformanceProfile {
     required this.edgeQualityForLod,
     required this.maxImageCacheBytes,
     required this.maxVisibleNodesBeforeForceMini,
+    this.maxConcurrentAvatarRequests,
   });
 
   /// The device tier this profile was built for.
@@ -167,6 +168,16 @@ class GraphPerformanceProfile {
   ///         low-end device can handle ~60 premium nodes comfortably).
   final int? maxVisibleNodesBeforeForceMini;
 
+  /// v5.186 (TIER 2 PERF): Maximum concurrent avatar image requests.
+  /// When the visible set grows to 50-100+ nodes after branch expansion,
+  /// all avatar requests fire simultaneously on first build, causing
+  /// network contention + brief jank on low-end devices.
+  ///
+  /// High-end: null (unlimited — let CachedNetworkImage handle it).
+  /// Mid: 16 (reasonable concurrency for mid-range devices).
+  /// Low-end: 8 (throttle to prevent jank on 2-4 GB RAM devices).
+  final int? maxConcurrentAvatarRequests;
+
   // ── Convenience predicates ──────────────────────────────────────
 
   /// True when this profile is for a low-end device.
@@ -220,6 +231,7 @@ class GraphPerformanceProfile {
     edgeQualityForLod: _fullQualityForFullLod,
     maxImageCacheBytes: 100 * 1024 * 1024, // 100 MB
     maxVisibleNodesBeforeForceMini: null, // never force
+    maxConcurrentAvatarRequests: null, // unlimited on high-end
   );
 
   /// Mid-range profile — premium at near zoom, compact at far zoom.
@@ -240,6 +252,7 @@ class GraphPerformanceProfile {
     edgeQualityForLod: _fullQualityForFullLod,
     maxImageCacheBytes: 60 * 1024 * 1024, // 60 MB
     maxVisibleNodesBeforeForceMini: 120,
+    maxConcurrentAvatarRequests: 16,
   );
 
   /// Low-end profile — graceful degradation, still beautiful.
@@ -288,6 +301,7 @@ class GraphPerformanceProfile {
     // GraphNodes is the comfortable ceiling for a low-end device;
     // beyond that the culler + widget tree become the bottleneck.
     maxVisibleNodesBeforeForceMini: 60,
+    maxConcurrentAvatarRequests: 8,
   );
 
   // ── LOD functions ───────────────────────────────────────────────

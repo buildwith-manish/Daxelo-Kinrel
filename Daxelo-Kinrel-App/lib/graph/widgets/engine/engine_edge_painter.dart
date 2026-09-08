@@ -54,6 +54,19 @@ class EngineEdgePainter extends CustomPainter {
   // per-instance duplication.
   static final Map<String, Paint> _blurPaintCache = {};
 
+  // v5.186 (TIER 2 PERF): Cache the anchor sector fan-out result.
+  // The fan-out computation is O(edges × high_degree_nodes) per paint.
+  // For 1000 edges with 20 high-degree nodes, that's ~50K ops per
+  // real repaint — the dominant CPU cost outside of edge path drawing.
+  // The fan-out only depends on (edges identity, positions identity,
+  // anchorId, anchorCenter) — so we cache it and reuse when those
+  // inputs haven't changed.
+  Map<String, double>? _cachedFanOuts;
+  int? _fanOutCacheEdgesRevision;
+  int? _fanOutCacheLayoutRevision;
+  String? _fanOutCacheAnchorId;
+  Offset? _fanOutCacheAnchorCenter;
+
   // ── v5.125 (Step 6): anchor-knot edge geometry constants ───────────
 
   /// Radial gap (px) between the two endpoints' distances from the
@@ -948,57 +961,74 @@ class EngineEdgePainter extends CustomPainter {
     final bool focusDrivenDim = pathFocusActive;
     final double dimAlpha = focusDrivenDim ? 0.18 : 0.55;
 
-    // v5.125 (Step 6): Per-edge sector fan-out offsets for edges
-    // sharing the ANCHOR endpoint (geometry only — see
-    // [computeAnchorSectorFanOuts]). Computed ONCE per paint with the
-    // same inputs the canvas hit-tester uses, so the rendered curve
-    // and the tap target stay identical.
-    final Map<String, double> anchorFanOuts = computeAnchorSectorFanOuts(
-      edges: edges,
-      positions: positions,
-      anchorId: anchorId,
-      anchorCenter: anchorCenter,
-    );
+    // v5.186 (TIER 2 PERF): Memoize the anchor sector fan-out result.
+    // The fan-out is O(edges × high_degree_nodes) per paint — the
+    // dominant CPU cost outside of edge path drawing. It only depends
+    // on (edges revision, layout revision, anchorId, anchorCenter).
+    // When none of these have changed since the last paint, reuse the
+    // cached result (50K ops → 0 ops).
+    final bool fanOutCacheValid = _cachedFanOuts != null &&
+        _fanOutCacheEdgesRevision == graphRevision &&
+        _fanOutCacheLayoutRevision == layoutRevision &&
+        _fanOutCacheAnchorId == anchorId &&
+        _fanOutCacheAnchorCenter == anchorCenter;
 
-    // v5.153 (FIX 4.C): Generalized sector fan-out for ALL high-degree
-    // nodes, not just the anchor. The old code only fanned out edges
-    // incident to the anchor — but a grandparent with 8 children, each
-    // of those children having 3 children, produces ~24 grandchild→
-    // grandparent edges fanning into similar angles with NO separation.
-    // This generalizes the fan-out to every node with degree ≥ 4.
-    //
-    // For each high-degree node, compute per-edge fan-out offsets (same
-    // algorithm as computeAnchorSectorFanOuts but centered on that
-    // node's position). Merge into a combined map — when an edge gets
-    // fan-out from both endpoints, take the larger magnitude.
-    final Map<String, double> allFanOuts = Map<String, double>.from(anchorFanOuts);
-    {
-      // Build a degree map: nodeId → count of incident edges.
-      final degreeMap = <String, int>{};
-      for (final d in edges) {
-        degreeMap[d.edge.sourceId] = (degreeMap[d.edge.sourceId] ?? 0) + 1;
-        degreeMap[d.edge.targetId] = (degreeMap[d.edge.targetId] ?? 0) + 1;
-      }
-      // For each high-degree node (≥4 edges), compute fan-outs.
-      for (final entry in degreeMap.entries) {
-        if (entry.value < 4) continue;
-        if (entry.key == anchorId) continue; // already done above
-        final nodePos = positions[entry.key];
-        if (nodePos == null) continue;
-        final nodeFanOuts = computeAnchorSectorFanOuts(
-          edges: edges,
-          positions: positions,
-          anchorId: entry.key,
-          anchorCenter: nodePos,
-        );
-        // Merge: take the larger magnitude for each edge.
-        for (final fo in nodeFanOuts.entries) {
-          final existing = allFanOuts[fo.key] ?? 0.0;
-          if (fo.value.abs() > existing.abs()) {
-            allFanOuts[fo.key] = fo.value;
+    final Map<String, double> anchorFanOuts;
+    final Map<String, double> allFanOuts;
+
+    if (fanOutCacheValid) {
+      // Fast path: reuse cached fan-out (the common case during
+      // zoom-only repaints, sweep animations, selection changes, etc.)
+      allFanOuts = _cachedFanOuts!;
+      // anchorFanOuts is not separately needed in the fast path —
+      // allFanOuts already contains the merged result.
+      anchorFanOuts = allFanOuts;
+    } else {
+      // Slow path: recompute fan-out (edges or positions changed).
+      // v5.125 (Step 6): Per-edge sector fan-out offsets for edges
+      // sharing the ANCHOR endpoint.
+      anchorFanOuts = computeAnchorSectorFanOuts(
+        edges: edges,
+        positions: positions,
+        anchorId: anchorId,
+        anchorCenter: anchorCenter,
+      );
+
+      // v5.153 (FIX 4.C): Generalized sector fan-out for ALL high-degree
+      // nodes, not just the anchor.
+      allFanOuts = Map<String, double>.from(anchorFanOuts);
+      {
+        final degreeMap = <String, int>{};
+        for (final d in edges) {
+          degreeMap[d.edge.sourceId] = (degreeMap[d.edge.sourceId] ?? 0) + 1;
+          degreeMap[d.edge.targetId] = (degreeMap[d.edge.targetId] ?? 0) + 1;
+        }
+        for (final entry in degreeMap.entries) {
+          if (entry.value < 4) continue;
+          if (entry.key == anchorId) continue;
+          final nodePos = positions[entry.key];
+          if (nodePos == null) continue;
+          final nodeFanOuts = computeAnchorSectorFanOuts(
+            edges: edges,
+            positions: positions,
+            anchorId: entry.key,
+            anchorCenter: nodePos,
+          );
+          for (final fo in nodeFanOuts.entries) {
+            final existing = allFanOuts[fo.key] ?? 0.0;
+            if (fo.value.abs() > existing.abs()) {
+              allFanOuts[fo.key] = fo.value;
+            }
           }
         }
       }
+
+      // Cache the result for next paint.
+      _cachedFanOuts = allFanOuts;
+      _fanOutCacheEdgesRevision = graphRevision;
+      _fanOutCacheLayoutRevision = layoutRevision;
+      _fanOutCacheAnchorId = anchorId;
+      _fanOutCacheAnchorCenter = anchorCenter;
     }
 
     for (final DedupedEdge deduped in edges) {
