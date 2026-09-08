@@ -460,6 +460,66 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
     ref.invalidate(familyGraphProvider(widget.familyId));
   }
 
+  /// v5.191: Auto-recovery for a freshly-created family whose creator
+  /// Person was NOT auto-created by the AFTER-INSERT trigger (e.g., the
+  /// migration wasn't applied to the prod database, or the trigger
+  /// errored silently).
+  ///
+  /// Calls the new `fn_ensure_creator_person` Supabase RPC, which:
+  ///   1. Validates the caller is the family creator (Family.createdBy).
+  ///   2. Returns the existing anchor Person ID if one already exists.
+  ///   3. Otherwise creates a new anchor Person (isAnchor=true) and sets
+  ///      Family.anchorPersonId.
+  ///
+  /// After the RPC returns, invalidates `familyGraphProvider` so the
+  /// graph re-fetches with the newly-created anchor node.
+  ///
+  /// This is fire-and-forget — if the RPC fails, the user can still
+  /// manually add themselves via the "Add Yourself" button in the
+  /// empty state (which uses the existing `_openAddMember` flow).
+  /// The RPC is a defensive BACKEND fallback; the manual flow is the
+  /// user-visible FRONTEND fallback.
+  ///
+  /// Idempotent: calling this when the anchor already exists is safe —
+  /// the RPC returns the existing Person ID without creating a duplicate.
+  Future<void> _ensureCreatorPerson() async {
+    try {
+      final client = ref.read(supabaseProvider);
+      if (client == null || client.auth.currentSession == null) {
+        debugPrint('[v5.191] _ensureCreatorPerson: no client/session — skipping');
+        return;
+      }
+      debugPrint('[v5.191] _ensureCreatorPerson: calling RPC for familyId=${widget.familyId}');
+      final response = await client
+          .rpc('fn_ensure_creator_person', params: {'p_family_id': widget.familyId})
+          .timeout(const Duration(seconds: 10));
+      final data = response as Map<String, dynamic>?;
+      if (data == null) {
+        debugPrint('[v5.191] _ensureCreatorPerson: RPC returned null');
+        return;
+      }
+      final ok = data['ok'] == true;
+      final personId = data['personId'] as String?;
+      final created = data['created'] == true;
+      final source = data['source'] as String?;
+      debugPrint(
+        '[v5.191] _ensureCreatorPerson: ok=$ok, personId=$personId, '
+        'created=$created, source=$source',
+      );
+      if (ok && personId != null) {
+        // Invalidate the graph + viewer providers so they re-fetch with
+        // the newly-created/confirmed anchor Person.
+        ref.invalidate(familyGraphProvider(widget.familyId));
+        ref.invalidate(viewerPersonIdProvider(widget.familyId));
+      } else if (!ok) {
+        final error = data['error'] as String?;
+        debugPrint('[v5.191] _ensureCreatorPerson: RPC returned error: $error');
+      }
+    } catch (e) {
+      debugPrint('[v5.191] _ensureCreatorPerson: failed (non-fatal): $e');
+    }
+  }
+
   // ── Build ─────────────────────────────────────────────────────────
 
   @override
@@ -1119,8 +1179,84 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
     final viewerPersonId = viewerPersonIdAsync.valueOrNull;
     final isViewerInGraph = viewerPersonId != null && viewerPersonId.isNotEmpty;
 
-    // If no persons at all OR the viewer isn't in the graph → show empty state
-    if (persons.isEmpty || !isViewerInGraph) return _buildEmptyState();
+    // v5.191 (CREATOR-ANCHOR FIX): Render the graph for a freshly-created
+    // 1-member family even if viewerPersonId hasn't resolved yet.
+    //
+    // Background:
+    //   When a user creates a new family, the DB trigger
+    //   `_fn_after_family_insert_create_anchor_person` atomically creates
+    //   the creator's Person (isAnchor=true). The RPC
+    //   `get_viewer_family_graph` returns that 1 node. BUT the Flutter
+    //   `viewerPersonIdProvider` has to make a separate query to resolve
+    //   the viewer's Person ID — and on the FIRST build after family
+    //   creation, that provider may still be loading (or may transiently
+    //   return null if there's a race with the auth state).
+    //
+    //   The pre-v5.191 code showed the "Start your family tree" empty
+    //   state in this case — even though the graph data was already
+    //   loaded with 1 node (the creator as anchor). The user reported
+    //   this as "the graph is empty after creating a family" and
+    //   "Unable to load graph".
+    //
+    // Fix:
+    //   If the graph has exactly 1 person AND that person is the anchor,
+    //   render the graph with that person as the implicit viewer. This
+    //   is safe because:
+    //     - The only way to have a 1-person graph is to be the creator
+    //       (the trigger creates the anchor on family insert).
+    //     - The anchor IS the creator (per the trigger at
+    //       20260907120000_auto_create_anchor_person_on_family_insert.sql).
+    //     - Even if viewerPersonId is null, the graph engine uses the
+    //       anchor as the center (graphLayoutProvider line 2118:
+    //       `centerPerson = persons.firstWhere((p) => p.isAnchor,
+    //       orElse: () => persons.first)`).
+    //
+    //   This is a TIGHT gate — it only fires for the 1-anchor case. For
+    //   any other graph size, the existing `!isViewerInGraph → empty
+    //   state` path is preserved (the user genuinely isn't in the graph
+    //   and needs to claim a profile).
+    final bool isSingleAnchorGraph = persons.length == 1 &&
+        (persons.first['isAnchor'] == true ||
+         persons.first['isAnchor'] == 1);
+    final bool shouldRenderGraph = isViewerInGraph || isSingleAnchorGraph;
+
+    // If no persons at all OR the viewer isn't in the graph (and it's not
+    // the 1-anchor creator case) → show empty state.
+    if (persons.isEmpty || !shouldRenderGraph) {
+      // v5.191: Auto-recovery — if the family has 0 persons (the trigger
+      // didn't fire), call the `fn_ensure_creator_person` RPC to create
+      // the anchor Person. This is fire-and-forget; the RPC is idempotent
+      // so calling it when the anchor already exists is safe.
+      //
+      // We schedule this via WidgetsBinding.addPostFrameCallback so we
+      // don't trigger a provider invalidation DURING build (which
+      // Riverpod forbids). The empty state renders first, then the RPC
+      // fires, then on success the graph re-fetches and replaces the
+      // empty state with the 1-anchor graph.
+      //
+      // Gate: only fire for the 0-person case. The `!isViewerInGraph`
+      // case (persons exist but viewer isn't linked) is handled by the
+      // "Add Yourself" button in the empty state — the user explicitly
+      // chooses to link themselves.
+      if (persons.isEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _ensureCreatorPerson();
+        });
+      }
+      return _buildEmptyState();
+    }
+
+    // v5.191: When rendering the 1-anchor creator graph with an
+    // unresolved viewerPersonId, log it so we can verify the fix in
+    // debug logs.
+    if (isSingleAnchorGraph && !isViewerInGraph) {
+      debugPrint(
+        '[v5.191] Rendering 1-anchor creator graph with unresolved '
+        'viewerPersonId — familyId=${widget.familyId}, '
+        'anchorId=${persons.first['id']}',
+      );
+    }
+
 
     // v5.99: Compute generations using BFS with labelAtoB (specific labels)
     // instead of the stale API generationIndex (which defaults to 0 for all).
