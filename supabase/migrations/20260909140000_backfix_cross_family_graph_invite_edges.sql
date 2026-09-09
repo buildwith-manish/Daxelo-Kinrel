@@ -162,6 +162,26 @@ BEGIN
   END LOOP;
 
   RAISE NOTICE '[BACKFIX] Total cross-family edges fixed: %', v_count;
+
+  -- ── Step 4: Update GraphPendingInvitation.createdPersonId for the
+  -- fixed invitations. The v5.183 function recorded the OLD (wrong-
+  -- family) Person ID in createdPersonId. After re-pointing the
+  -- edges above, the createdPersonId should point to the NEW (correct-
+  -- family) Person for consistency. This doesn't affect graph
+  -- rendering (the graph uses Relationship edges, not this field), but
+  -- it keeps the invitation record internally consistent.
+  UPDATE "GraphPendingInvitation" gpi
+  SET "createdPersonId" = r."toPersonId",
+      "updatedAt" = now()
+  FROM "Relationship" r
+  WHERE r."familyId" = gpi."familyId"
+    AND r."id" = gpi."createdRelationshipId"
+    AND r."isActive" = true
+    AND r."direction" = 'from'
+    AND gpi."status" = 'accepted'
+    AND gpi."createdPersonId" IS NOT NULL
+    AND gpi."createdPersonId" != r."toPersonId";
+  RAISE NOTICE '[BACKFIX] GraphPendingInvitation createdPersonId records updated';
 END;
 $$;
 
