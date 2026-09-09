@@ -1180,55 +1180,54 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
     final isViewerInGraph = viewerPersonId != null && viewerPersonId.isNotEmpty;
 
     // v5.191 (CREATOR-ANCHOR FIX): Render the graph for a freshly-created
-    // 1-member family even if viewerPersonId hasn't resolved yet.
+    // family even if viewerPersonId hasn't resolved yet.
     //
-    // Background:
-    //   When a user creates a new family, the DB trigger
-    //   `_fn_after_family_insert_create_anchor_person` atomically creates
-    //   the creator's Person (isAnchor=true). The RPC
-    //   `get_viewer_family_graph` returns that 1 node. BUT the Flutter
-    //   `viewerPersonIdProvider` has to make a separate query to resolve
-    //   the viewer's Person ID — and on the FIRST build after family
-    //   creation, that provider may still be loading (or may transiently
-    //   return null if there's a race with the auth state).
+    // v5.191.2 (REPORTED BUG FIX — "Add Yourself" shown after adding members):
+    //   The v5.191 gate was `persons.length == 1 && persons.first.isAnchor`
+    //   — too tight. When the creator adds members (making persons.length
+    //   >= 2) AND viewerPersonId is unresolved (creator has a linked
+    //   Person in ANOTHER family, so the v5.177 trigger created the
+    //   anchor with NULL linkedUserId; the v5.177.1 creator fallback in
+    //   viewerPersonIdProvider either hasn't resolved on first build OR
+    //   failed transiently), the gate failed and the user saw the
+    //   "Add Yourself" empty state instead of their members.
     //
-    //   The pre-v5.191 code showed the "Start your family tree" empty
-    //   state in this case — even though the graph data was already
-    //   loaded with 1 node (the creator as anchor). The user reported
-    //   this as "the graph is empty after creating a family" and
-    //   "Unable to load graph".
+    //   The fix: broaden the gate to "graph has an anchor" (any count).
+    //   Every family has an anchor (the trigger creates one on insert),
+    //   and the anchor is the family creator's node. If the viewer is the
+    //   creator with an unresolved viewerPersonId, they see the graph
+    //   with the anchor as center — the "You" label appears once
+    //   viewerPersonId resolves (handled by _findAnchorId in
+    //   subtree_mixin.dart, which returns null when viewerPersonId is
+    //   null — no wrong "You" label, no v5.7 regression).
     //
-    // Fix:
-    //   If the graph has exactly 1 person AND that person is the anchor,
-    //   render the graph with that person as the implicit viewer. This
-    //   is safe because:
-    //     - The only way to have a 1-person graph is to be the creator
-    //       (the trigger creates the anchor on family insert).
-    //     - The anchor IS the creator (per the trigger at
-    //       20260907120000_auto_create_anchor_person_on_family_insert.sql).
-    //     - Even if viewerPersonId is null, the graph engine uses the
-    //       anchor as the center (graphLayoutProvider line 2118:
-    //       `centerPerson = persons.firstWhere((p) => p.isAnchor,
-    //       orElse: () => persons.first)`).
+    //   If the viewer is an invited user with no Person node, they see
+    //   the graph + the ClaimProfileBanner (better than "Add Yourself").
     //
-    //   This is a TIGHT gate — it only fires for the 1-anchor case. For
-    //   any other graph size, the existing `!isViewerInGraph → empty
-    //   state` path is preserved (the user genuinely isn't in the graph
-    //   and needs to claim a profile).
+    // Safety:
+    //   - The v5.7 bug ("always show creator as You" for non-creator
+    //     users) does NOT regress because _findAnchorId (subtree_mixin
+    //     line 625) explicitly does NOT fall back to isAnchor when
+    //     viewerPersonId is null — it returns null, so no "You" label
+    //     appears on the anchor.
+    //   - graphLayoutProvider (line 2118) already falls back to the
+    //     anchor as the layout center when viewerPersonId is null, so
+    //     the graph produces valid positions and renders correctly.
     //
     // v5.191.1 (VERCEL BUILD FIX): `persons` is `List<PersonData>` (a
     // typed class with `final bool isAnchor` and `final String id`),
-    // NOT `List<Map<String, dynamic>>`. The original v5.191 used
-    // `persons.first['isAnchor']` which is a Map subscript and doesn't
-    // compile for PersonData — the Vercel web build failed with
-    // "The operator '[]' isn't defined for the type 'PersonData'" at
-    // 3 locations. Switched to the typed field accessors.
-    final bool isSingleAnchorGraph =
-        persons.length == 1 && persons.first.isAnchor;
-    final bool shouldRenderGraph = isViewerInGraph || isSingleAnchorGraph;
+    // NOT `List<Map<String, dynamic>>`. Use typed field accessors
+    // (`.isAnchor`, `.id`), not Map subscripts.
+    final bool hasAnchorInGraph =
+        persons.any((p) => p.isAnchor);
+    final bool shouldRenderGraph = isViewerInGraph || hasAnchorInGraph;
 
-    // If no persons at all OR the viewer isn't in the graph (and it's not
-    // the 1-anchor creator case) → show empty state.
+    // If no persons at all OR (no viewer in graph AND no anchor in graph)
+    // → show empty state. The "no anchor" case is genuinely broken (the
+    // trigger didn't fire AND the auto-recovery RPC hasn't run yet); the
+    // empty state + auto-recover handles it. Once the anchor exists,
+    // `hasAnchorInGraph` is true and the graph renders even if the
+    // viewer isn't linked yet.
     if (persons.isEmpty || !shouldRenderGraph) {
       // v5.191: Auto-recovery — if the family has 0 persons (the trigger
       // didn't fire), call the `fn_ensure_creator_person` RPC to create
@@ -1241,10 +1240,10 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
       // fires, then on success the graph re-fetches and replaces the
       // empty state with the 1-anchor graph.
       //
-      // Gate: only fire for the 0-person case. The `!isViewerInGraph`
-      // case (persons exist but viewer isn't linked) is handled by the
-      // "Add Yourself" button in the empty state — the user explicitly
-      // chooses to link themselves.
+      // Gate: only fire for the 0-person case. The `!isViewerInGraph &&
+      // !hasAnchorInGraph` case is genuinely broken — no anchor means no
+      // trigger + no RPC, which should be impossible after the v5.191
+      // auto-recovery runs.
       if (persons.isEmpty) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _ensureCreatorPerson();
@@ -1253,14 +1252,21 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
       return _buildEmptyState();
     }
 
-    // v5.191: When rendering the 1-anchor creator graph with an
-    // unresolved viewerPersonId, log it so we can verify the fix in
-    // debug logs.
-    if (isSingleAnchorGraph && !isViewerInGraph) {
+    // v5.191.2: When rendering the graph with an unresolved
+    // viewerPersonId (the creator-with-NULL-linkedUserId case, OR the
+    // first-build timing race), log it so we can verify the fix in
+    // debug logs. The "You" label is omitted by _findAnchorId until
+    // viewerPersonId resolves.
+    if (!isViewerInGraph) {
+      final anchorId = persons.firstWhere(
+        (p) => p.isAnchor,
+        orElse: () => persons.first,
+      ).id;
       debugPrint(
-        '[v5.191] Rendering 1-anchor creator graph with unresolved '
-        'viewerPersonId — familyId=${widget.familyId}, '
-        'anchorId=${persons.first.id}',
+        '[v5.191.2] Rendering graph with unresolved viewerPersonId — '
+        'familyId=${widget.familyId}, '
+        'persons=${persons.length}, '
+        'anchorId=$anchorId',
       );
     }
 

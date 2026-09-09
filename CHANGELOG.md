@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **fix(graph): "Add Yourself" shown after adding members — broaden the render gate to "has anchor" (v5.191.2)**
+  - **The bug**: After the user added members to their family graph, the graph screen showed the "Add Yourself" empty state instead of rendering the members they added. Reported as: "after adding members in graph feature even if i click on add members it is not showing members correctly it is showing add yourself".
+  - **Root cause**: The v5.191 gate was `isSingleAnchorGraph = persons.length == 1 && persons.first.isAnchor` — too tight. When the creator adds members (making `persons.length >= 2`) AND `viewerPersonId` is unresolved (which happens when the creator has a linked Person in ANOTHER family, so the v5.177 trigger created the anchor with NULL `linkedUserId`; the v5.177.1 creator fallback in `viewerPersonIdProvider` either hasn't resolved on the first build OR failed transiently), the gate returned `false` and the user saw the "Add Yourself" empty state instead of their members.
+  - **The fix** (1 surgical file — `family_graph_screen.dart`): broaden the gate from "graph has exactly 1 anchor" to "graph has ANY anchor". New check: `hasAnchorInGraph = persons.any((p) => p.isAnchor)`. `shouldRenderGraph = isViewerInGraph || hasAnchorInGraph`. This renders the graph whenever an anchor exists (every family has one — the trigger creates it on insert), regardless of how many members there are OR whether `viewerPersonId` has resolved.
+  - **Safety** (why this does NOT regress the v5.7 "always show creator as You" bug):
+    - The v5.7 bug was about the "You" LABEL appearing on the wrong node. That label is computed by `_findAnchorId` in `subtree_mixin.dart:625`, which explicitly does NOT fall back to `isAnchor` when `viewerPersonId` is null — it returns `null`. So when the viewer is unresolved, NO "You" label appears on the anchor. The graph renders with the anchor as the layout CENTER (handled by `graphLayoutProvider` line 2118: `centerPerson = persons.firstWhere((p) => p.isAnchor, orElse: () => persons.first)`), but no wrong "You" label.
+    - Once `viewerPersonIdProvider` resolves (via the v5.177.1 creator fallback: `Family.createdBy == auth.uid() → return anchorId`), the "You" label appears on the anchor correctly.
+  - **What the user sees now**:
+    - Creator with 1 member (just the anchor) → graph renders with the anchor as center, "You" label appears once `viewerPersonId` resolves.
+    - Creator with 2+ members (anchor + added relatives) → graph renders with ALL members visible, anchor as center, "You" label appears once `viewerPersonId` resolves. **This is the fix for the reported bug.**
+    - Invited user with no Person node → graph renders with the anchor as center, no "You" label, ClaimProfileBanner appears (better than "Add Yourself").
+    - Genuinely empty family (0 persons, trigger didn't fire) → empty state + auto-recovery RPC (unchanged from v5.191).
+  - **Debug logging**: emits `[v5.191.2] Rendering graph with unresolved viewerPersonId — familyId=..., persons=N, anchorId=...` whenever the graph renders without a resolved viewer, so the developer can verify the fix path in `adb logcat | grep v5.191.2`.
+  - **Verification**: this is a 1-line gate change (`persons.length == 1 && persons.first.isAnchor` → `persons.any((p) => p.isAnchor)`) plus updated logging. No other behavior modified. The `persons` variable is `List<PersonData>` (typed class), and `.isAnchor` is a public `final bool` field — no Map subscript (which was the v5.191.1 Vercel build break).
+
 - **fix(graph): Vercel build break from v5.191 — `persons` is `List<PersonData>`, not `List<Map>` (v5.191.1)**
   - **The bug**: v5.191 broke the Vercel Flutter web build with 3 compile errors:
     ```
