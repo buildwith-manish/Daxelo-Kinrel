@@ -73,9 +73,9 @@ BEGIN
   -- points to a Person whose familyId != the Relationship's familyId.
   FOR v_row IN
     SELECT r.id AS rel_id, r."familyId" AS rel_family_id,
-           r."fromPersonId", r."toPersonId",
-           r."relationshipKey", r."labelAtoB", r."direction",
-           p."linkedUserId", p.name AS person_name,
+           r."fromPersonId" AS from_person_id, r."toPersonId" AS to_person_id,
+           r."relationshipKey" AS rel_key, r."labelAtoB" AS rel_label, r."direction" AS rel_dir,
+           p."linkedUserId" AS linked_user_id, p.name AS person_name,
            p.gender AS person_gender, p."photoUrl" AS person_photo,
            p."familyId" AS person_family_id
     FROM "Relationship" r
@@ -88,13 +88,13 @@ BEGIN
   LOOP
     v_count := v_count + 1;
     RAISE NOTICE '[BACKFIX] Cross-family edge %: rel family=%, toPerson family=%, linkedUserId=%',
-      v_row.rel_id, v_row.rel_family_id, v_row.person_family_id, v_row.linkedUserId;
+      v_row.rel_id, v_row.rel_family_id, v_row.person_family_id, v_row.linked_user_id;
 
     -- ── Step 1: Check if a correct Person already exists in the right family ──
     SELECT id INTO v_existing_correct_person
     FROM "Person"
     WHERE "familyId" = v_row.rel_family_id
-      AND "linkedUserId" = v_row.linkedUserId
+      AND "linkedUserId" = v_row.linked_user_id
       AND "deletedAt" IS NULL
     LIMIT 1;
 
@@ -110,7 +110,7 @@ BEGIN
       -- ── Step 2b: Create a new Person in the correct family ──
       v_new_person_id := gen_random_uuid()::text;
       RAISE NOTICE '[BACKFIX] Creating new Person % in family % for linkedUserId %',
-        v_new_person_id, v_row.rel_family_id, v_row.linkedUserId;
+        v_new_person_id, v_row.rel_family_id, v_row.linked_user_id;
 
       INSERT INTO "Person" (
         "id", "familyId", "name",
@@ -121,7 +121,7 @@ BEGIN
       ) VALUES (
         v_new_person_id, v_row.rel_family_id, v_row.person_name,
         false, 0, 'family',
-        v_row.linkedUserId, now(),
+        v_row.linked_user_id, now(),
         v_row.person_photo, v_row.person_gender,
         now(), now()
       );
@@ -146,7 +146,7 @@ BEGIN
       SELECT id INTO v_inverse_rel_id
       FROM "Relationship"
       WHERE "familyId" = v_row.rel_family_id
-        AND "fromPersonId" = v_row.toPersonId
+        AND "fromPersonId" = v_row.to_person_id
         AND "direction" = 'inverse'
         AND "isActive" = true
       LIMIT 1;

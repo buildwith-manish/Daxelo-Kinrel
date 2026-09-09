@@ -1187,6 +1187,33 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
       // duplicate chip (the manual branch covers that root's subtree).
       if (state.manuallyCollapsedRoots.contains(rootId)) continue;
 
+      // v5.193 (BUG #4 FIX — branches auto-collapse after relationship
+      // creation): Skip expanded roots. The user's report:
+      // "branches should not automatically collapse after relationship
+      // creation. Branches must remain expanded unless the user
+      // manually collapses them."
+      //
+      // Before v5.193, `computeDensityCollapse` re-created a
+      // CollapsedBranch for every expanded root on every rebuild
+      // (triggered by `familyGraphProvider` invalidation from
+      // `createRelationship`). The user saw the expanded branch
+      // "collapse" back to a "+N" bubble even though they had
+      // explicitly tapped to expand it.
+      //
+      // The previous design comment (v5.159) said: "an expanded root
+      // whose zone still has members MUST keep its bubble (with the
+      // smaller remaining count), or those members would become
+      // unreachable." That concern is superseded by the user's
+      // explicit request: expanded branches stay expanded. The
+      // deeper descendants of an expanded root are simply not in the
+      // visible set (they're hidden, not in any bubble). The user can
+      // expand a child's bubble to reveal them.
+      //
+      // This mirrors the `manuallyCollapsedRoots` skip above — both
+      // are USER-EXPLICIT branch state that the auto density pass
+      // must not override.
+      if (state.expandedBranchRoots.contains(rootId)) continue;
+
       // Hidden edges: ANY edge that touches a hidden zone member —
       // including edges to the zone root AND edges to visible nodes
       // that are not the root (prevents "edges ending at empty

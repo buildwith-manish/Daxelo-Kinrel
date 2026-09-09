@@ -107,14 +107,35 @@ Future<void> showRelationshipPickerFlow({
   }
 
   // Resolve kinship labels for each eligible person (relative to source)
+  // v5.193 (BUG #5 FIX): Use labelAtoB/labelBtoA (the SPECIFIC kinship
+  // labels like 'father', 'son', 'aunt') instead of relationshipKey
+  // (the FUNDAMENTAL edge type like 'parent', 'spouse' which can't
+  // distinguish father/mother, son/daughter, etc.). Also fix the
+  // directionality per the canonical convention:
+  //   from=A, to=B, labelAtoB='X' → "B is A's X"
+  //
+  // The previous code returned the INVERSE label (e.g., 'Son' instead
+  // of 'Father') because the two branches were swapped.
   String kinshipLabelFor(Person other) {
     for (final rel in detail.relationships) {
       if (rel.fromPersonId == other.id && rel.toPersonId == sourcePerson.id) {
-        return GraphRelationshipLabels.formatKey(rel.relationshipKey);
+        // Edge: from=other, to=sourcePerson
+        // Per canonical: "sourcePerson is other's <labelAtoB>"
+        // From sourcePerson's perspective: other is sourcePerson's <labelBtoA>
+        // Display labelBtoA (the inverse specific label), fall back to
+        // the inverse of relationshipKey if labelBtoA is null.
+        final label = rel.labelBtoA ??
+            GraphRelationshipLabels.getInverseKey(rel.relationshipKey);
+        return GraphRelationshipLabels.formatKey(label);
       }
       if (rel.fromPersonId == sourcePerson.id && rel.toPersonId == other.id) {
-        return GraphRelationshipLabels.formatKey(
-            GraphRelationshipLabels.getInverseKey(rel.relationshipKey));
+        // Edge: from=sourcePerson, to=other
+        // Per canonical: "other is sourcePerson's <labelAtoB>"
+        // From sourcePerson's perspective: other is <labelAtoB>
+        // Display labelAtoB (the specific label), fall back to
+        // relationshipKey if labelAtoB is null.
+        final label = rel.labelAtoB ?? rel.relationshipKey;
+        return GraphRelationshipLabels.formatKey(label);
       }
     }
     return '';
