@@ -35,6 +35,8 @@ import '../../family/presentation/providers/family_graph_provider.dart'
     show familyGraphProvider;
 import '../../family/presentation/providers/graph_pending_invitations_provider.dart'
     show graphPendingInvitationsProvider;
+import '../../../graph/interaction/proximity_graph_state.dart'
+    show proximityGraphProvider; // v5.192.1: invalidate after invite acceptance
 import '../../thinking/presentation/family_ring_widget.dart'
     show familyKinrelMembersProvider;
 import '../../../shared/widgets/dk_components.dart';
@@ -690,6 +692,13 @@ class _NotificationItem extends ConsumerWidget {
           ref.invalidate(familyKinrelMembersProvider(familyId));
           invalidateViewerCache(familyId);
           ref.invalidate(viewerPersonIdProvider(familyId));
+          // v5.192.1: Also invalidate proximityGraphProvider so the
+          // graph layout re-seeds its visibleIds on the next open.
+          // Without this, the newly-created Person is filtered out
+          // of the stale proximityState.visibleIds and gets no layout
+          // position — they appear hidden even though the RPC returned
+          // them. This is the root cause of bug #1 in v5.192.
+          ref.invalidate(proximityGraphProvider);
           debugPrint('[INVITE] Family providers invalidated');
         } catch (_) {}
 
@@ -703,6 +712,18 @@ class _NotificationItem extends ConsumerWidget {
           );
         }
         debugPrint('[INVITE] Accept completed');
+
+        // v5.192.1: Navigate to the family graph so the user sees
+        // their new node immediately. The invalidations above (line
+        // 689-692: familyGraphProvider + invalidateViewerCache +
+        // viewerPersonIdProvider) ensure the graph re-fetches with
+        // the newly-created Person + edge. Without this navigation,
+        // the user stays on the notifications screen and has to
+        // manually open the family to verify — confusing UX.
+        if (context.mounted) {
+          debugPrint('[INVITE] Navigating to family graph: /family/$familyId/graph');
+          context.push('/family/$familyId/graph');
+        }
       } else {
         final rpcError = result?['error'] as String?;
         debugPrint('[INVITE ERROR] fn_accept_graph_invitation failed: $rpcError');
