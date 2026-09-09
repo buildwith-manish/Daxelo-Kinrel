@@ -1,11 +1,15 @@
 // lib/features/family/presentation/add_member_options_sheet.dart
 //
-// DAXELO KINREL — Add Member Options Bottom Sheet
+// DAXELO KINREL — Add Member Options Bottom Sheet (v5.194)
 //
-// Shows a 3-option bottom sheet when the user taps "Add Member":
-//   1. Add Manually      → existing add_person_sheet flow (Step 1→2→3→4)
-//   2. From Contacts     → contact picker → Step 1 prefilled → 2→3→4
-//   3. Find on Kinrel    → Kinrel user search → Step 2→3→4 (skip Step 1)
+// Shows a 2-option bottom sheet when the user taps "Add Member":
+//   1. Add Manually      → existing add_person_sheet flow (full form:
+//                         name, gender, photo, relationship, save)
+//   2. Find on Kinrel    → Kinrel user search → tap result →
+//                         Relationship Quick-Pick chips → immediate add
+//                         with Undo snackbar (no form, no submit)
+//
+// "From Contacts" was removed in v5.194 per the new Add Member flow spec.
 //
 // Styled to match the app's dark theme (#131416 bg, #191B2C cards,
 // #E8612A orange accent).
@@ -16,23 +20,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
-import '../../../core/services/permission_service.dart';
 import 'add_member_source.dart';
 import 'add_person_sheet.dart';
-import 'contact_picker_helper.dart';
 import 'kinrel_user_search_screen.dart';
+import 'relationship_quick_pick_sheet.dart' show RelationshipQuickPickSheet;
 
-/// Shows the 3-option "Add Family Member" bottom sheet.
+/// Shows the 2-option "Add Family Member" bottom sheet.
 ///
-/// Each option leads to the same AddPersonSheet but with different
-/// pre-filled data and a different [AddMemberSource] that controls
-/// which step the flow starts on.
+/// Each option leads to a different flow:
+///   - "Add Manually" → AddPersonSheet (full form with name/gender/photo/
+///     relationship/save — for a person who doesn't yet exist on Kinrel).
+///   - "Find on Kinrel" → KinrelUserSearchScreen → on user tap, opens
+///     [RelationshipQuickPickSheet] which immediately commits the
+///     relationship on chip tap (with an Undo snackbar — no submit).
 ///
-/// [fromGraph] — v5.41: When true, the AddPersonSheet is opened with
-/// `fromGraph: true`, which routes graph-originated invites (with
-/// phone/email) to the pending invitations system instead of creating
-/// a Person node immediately. Set this to true when the sheet is
-/// opened from the Family Graph screen; false (default) when opened
+/// [fromGraph] — v5.41: When true, graph-originated invites are routed
+/// to the pending invitations system. Set this to true when the sheet
+/// is opened from the Family Graph screen; false (default) when opened
 /// from the Family Space / detail screen.
 Future<void> showAddMemberOptions(
   BuildContext context, {
@@ -125,18 +129,7 @@ class _AddMemberOptionsSheet extends ConsumerWidget {
 
             const Divider(color: KinrelColors.darkElevated, height: 1),
 
-            // Option 2: From Contacts
-            _OptionTile(
-              icon: Icons.contacts_outlined,
-              iconColor: KinrelColors.orange,
-              title: 'From Contacts',
-              subtitle: 'Import from phone',
-              onTap: () => _handleFromContacts(context, ref),
-            ),
-
-            const Divider(color: KinrelColors.darkElevated, height: 1),
-
-            // Option 3: Find on Kinrel
+            // Option 2: Find on Kinrel
             _OptionTile(
               icon: Icons.search,
               iconColor: KinrelColors.orange,
@@ -154,7 +147,10 @@ class _AddMemberOptionsSheet extends ConsumerWidget {
 
   // ── Option Handlers ──────────────────────────────────────────────
 
-  /// Option 1: Add Manually — opens the existing flow from Step 1.
+  /// Option 1: Add Manually — opens the existing full-form flow.
+  /// Used when the person doesn't exist on Kinrel yet (no account).
+  /// The form collects name, gender, photo, and relationship, then
+  /// saves via the existing AddPersonSheet._submit() path.
   void _handleManual(BuildContext context) {
     Navigator.of(context).pop();
     AddPersonSheet.show(
@@ -165,89 +161,19 @@ class _AddMemberOptionsSheet extends ConsumerWidget {
     );
   }
 
-  /// Option 2: From Contacts — requests contacts permission, opens
-  /// the native contact picker, then opens AddPersonSheet with the
-  /// contact's data pre-filled.
-  Future<void> _handleFromContacts(
-      BuildContext context, WidgetRef ref) async {
-    // Close the options sheet first
-    Navigator.of(context).pop();
-
-    // Request contacts permission
-    final result = await PermissionService.requestContacts(context);
-    if (result != PermissionResult.granted) {
-      // Permission denied — show a message and fall back to manual
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Contacts permission denied. You can still add manually.'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-      // Fall back to manual flow
-      if (context.mounted) {
-        AddPersonSheet.show(
-          context,
-          familyId: familyId,
-          source: AddMemberSource.manual,
-          fromGraph: fromGraph,
-        );
-      }
-      return;
-    }
-
-    // Permission granted — open the contact picker
-    // We use flutter_contacts to pick a single contact.
-    // The import is deferred to avoid pulling in the package on web
-    // (flutter_contacts doesn't support web).
-    if (context.mounted) {
-      await _openContactPicker(context);
-    }
-  }
-
-  /// Opens the flutter_contacts picker and forwards the selected
-  /// contact's data to AddPersonSheet.
-  Future<void> _openContactPicker(BuildContext context) async {
-    try {
-      final contactData = await pickContact();
-      if (contactData == null) return; // user cancelled
-
-      if (context.mounted) {
-        AddPersonSheet.show(
-          context,
-          familyId: familyId,
-          source: AddMemberSource.fromContacts,
-          prefilledName: contactData.name,
-          prefilledPhone: contactData.phone,
-          prefilledEmail: contactData.email,
-          fromGraph: fromGraph,
-        );
-      }
-    } catch (e) {
-      debugPrint('⚠️ Contact picker error: $e');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not open contacts: $e'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-        // Fall back to manual
-        AddPersonSheet.show(
-          context,
-          familyId: familyId,
-          source: AddMemberSource.manual,
-          fromGraph: fromGraph,
-        );
-      }
-    }
-  }
-
-  /// Option 3: Find on Kinrel — opens the KinrelUserSearchScreen.
-  /// When the user selects a Kinrel user, it opens AddPersonSheet
-  /// starting at Step 2 (Relationship) with the selected user's data.
+  /// Option 2: Find on Kinrel — opens the KinrelUserSearchScreen.
+  ///
+  /// v5.194 (NEW FLOW): When the user taps a search result, the new
+  /// [RelationshipQuickPickSheet] opens instead of AddPersonSheet. The
+  /// quick-pick sheet shows kinship chips (Parent / Sibling / Spouse /
+  /// Child / Grandparent / More). Tapping a chip IMMEDIATELY creates
+  /// the graph pending invitation — there is no form, no editable
+  /// name/gender, and no submit button. An Undo snackbar reverses the
+  /// addition if the user taps Undo within 6 seconds.
+  ///
+  /// Gendered labels are inferred automatically from the selected
+  /// user's stored gender (e.g. Sibling + male → Brother, Parent +
+  /// female → Mother).
   void _handleFindOnKinrel(BuildContext context) {
     Navigator.of(context).pop();
 
@@ -256,13 +182,13 @@ class _AddMemberOptionsSheet extends ConsumerWidget {
         builder: (context) => KinrelUserSearchScreen(
           familyId: familyId,
           onUserSelected: (KinrelUser user) {
-            // The search screen already popped itself; now open
-            // AddPersonSheet starting at Step 2 (Relationship).
-            AddPersonSheet.show(
+            // v5.194: The search screen already popped itself; now open
+            // the Relationship Quick-Pick bottom sheet directly (no
+            // AddPersonSheet — the user already exists on Kinrel).
+            RelationshipQuickPickSheet.show(
               context,
               familyId: familyId,
-              source: AddMemberSource.findOnKinrel,
-              preselectedKinrelUser: user,
+              selectedUser: user,
               fromGraph: fromGraph,
             );
           },
