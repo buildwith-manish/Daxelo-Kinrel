@@ -338,6 +338,7 @@ class InvitationModel {
   const InvitationModel({
     required this.id,
     required this.familyName,
+    this.familyId,  // v5.192: added so the Flutter client can call fn_ensure_invited_person after acceptance
     this.familyAvatar,
     required this.inviterName,
     this.inviterUsername,
@@ -349,6 +350,14 @@ class InvitationModel {
     return InvitationModel(
       id: _parseString(json['id']),
       familyName: _parseString(json['familyName']),
+      // v5.192: read familyId from the server response (added server-side
+      // in users.service.ts:getInvitations). Older servers may omit it —
+      // falls back to null, in which case the post-acceptance RPC can't
+      // be called (the user will see the ClaimProfileBanner as before;
+      // they can manually claim via the banner tap).
+      familyId: _parseString(json['familyId']).isEmpty
+          ? null
+          : _parseString(json['familyId']),
       familyAvatar: json['familyAvatar'] as String?,
       inviterName: _parseString(json['inviterName']),
       inviterUsername: json['inviterUsername'] as String?,
@@ -361,6 +370,9 @@ class InvitationModel {
 
   final String id;
   final String familyName;
+  // v5.192: family ID — needed to call fn_ensure_invited_person after
+  // acceptance. Null when the server omits it (older deployment).
+  final String? familyId;
   final String? familyAvatar;
   final String inviterName;
   final String? inviterUsername;

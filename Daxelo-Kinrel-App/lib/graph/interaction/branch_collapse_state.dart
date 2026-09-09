@@ -1081,6 +1081,51 @@ class BranchCollapseNotifier extends StateNotifier<BranchCollapseState> {
         ...entry.value,
       },
     };
+
+    // v5.192 (BUG #4 FIX — branches auto-collapse on small graphs):
+    // Add the SAME small-graph bypass that `computeCollapse` has at
+    // its line 542 (`if (familyMemberCount <= kNodeBudget) return;`).
+    // Before v5.192, `computeDensityCollapse` (the ONLY collapse path
+    // called from the canvas per the comment at canvas_mixin.dart:506-
+    // 525) had NO bypass — it ran zone computation on every hidden
+    // node regardless of graph size, wrapping newly-added members in
+    // "+1" branch bubbles even on 2- or 3-node graphs.
+    //
+    // The user's report: "after adding members, branches collapse
+    // automatically; branches must remain expanded unless the user
+    // manually collapses them; the node-visibility rule should only
+    // apply when the graph exceeds the configured limit (> 50)."
+    //
+    // `allNodes.length` is the count of unique persons reachable via
+    // `allEdges` (every active edge in the family, returned by the
+    // proximity RPC's `allEdges` field). When this is ≤ kNodeBudget
+    // (50), skip the auto-collapse entirely — only preserve manual
+    // branches (the user explicitly collapsed them).
+    //
+    // This mirrors the bypass in `computeCollapse` at line 542 (which
+    // is dead code in production because the canvas only calls
+    // `computeDensityCollapse`). With this fix, BOTH paths now share
+    // the same small-graph invariant — the 50-node rule applies to
+    // density collapse too.
+    if (allNodes.length <= kNodeBudget) {
+      // v5.148: Preserve manually-collapsed branches — they must
+      // survive the small-graph bypass because the user explicitly
+      // collapsed them.
+      final manualBranches = state.collapsedBranches
+          .where((b) => state.manuallyCollapsedRoots.contains(b.rootPersonId))
+          .toList();
+      if (state.collapsedBranches.length != manualBranches.length) {
+        state = BranchCollapseState(
+          collapsedBranches: manualBranches,
+          expandedBranchRoots: state.expandedBranchRoots,
+          manuallyCollapsedRoots: state.manuallyCollapsedRoots,
+          revealedByBranchRoot: state.revealedByBranchRoot,
+          revision: state.revision + 1,
+        );
+      }
+      return;
+    }
+
     final hidden = allNodes.difference(visibleNodeIds);
 
     if (hidden.isEmpty) {

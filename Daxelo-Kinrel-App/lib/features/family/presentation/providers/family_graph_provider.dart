@@ -2159,7 +2159,33 @@ final graphLayoutProvider =
   // been initialized yet.
   Set<String> visibleIds;
   if (proximityState.isInitialized) {
-    visibleIds = proximityState.visibleIds;
+    // v5.192 (BUG #1 + #4 FIX — newly-added members hidden after
+    // relationship creation): `proximityGraphProvider` is initialized
+    // ONCE per family-open (canvas_mixin.dart:445) and is NEVER reset
+    // when `familyGraphProvider` is invalidated (by createRelationship,
+    // injectOptimisticEdge, realtime events, or _acceptGraphInvite).
+    // So `proximityState.visibleIds` is STALE — newly-added Persons are
+    // in the new RPC response but not in the cached visibleIds, so
+    // they get no layout position and `computeDensityCollapse` wraps
+    // them in a "+1" branch bubble.
+    //
+    // The fix: union any new persons from the current RPC response
+    // (graphPersons) that aren't already in `proximityState.visibleIds`.
+    // This guarantees every person the server just returned gets a
+    // layout position on THIS rebuild — they render immediately, and
+    // the small-graph bypass in `computeDensityCollapse` (v5.192, see
+    // branch_collapse_state.dart) keeps them visible (no auto-collapse
+    // for graphs ≤ 50 nodes).
+    //
+    // The `proximityState.visibleIds` set is preserved as the BASE
+    // (the user's previously-explored neighborhood), and new persons
+    // are ADDED on top — this never hides a previously-visible node.
+    final baseVisibleIds = proximityState.visibleIds;
+    final newIds = <String>{
+      for (final p in graphPersons)
+        if (!baseVisibleIds.contains(p.id)) p.id,
+    };
+    visibleIds = baseVisibleIds.union(newIds);
   } else {
     // Pure computation — no provider mutation. v5.123 (Step 2): the
     // edge list is passed so the adaptive soft/hard budget can rank

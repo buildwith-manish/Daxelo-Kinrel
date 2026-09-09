@@ -816,6 +816,7 @@ export class UsersService {
 
     const result = invitations.map((inv) => ({
       id: inv.id,
+      familyId: inv.familyId,  // v5.192: include familyId so the Flutter client can call fn_ensure_invited_person after acceptance (fixes the "ClaimProfileBanner shown to accepted users" bug — the legacy acceptInvitation path creates a FamilyMember but NOT a Person row, so the new RPC creates the Person post-acceptance).
       familyName: inv.family.name,
       familyAvatar: inv.family.avatarUrl,
       inviterName: inv.inviter.name || 'Unknown',

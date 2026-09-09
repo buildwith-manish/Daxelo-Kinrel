@@ -6,6 +6,7 @@
 // Received invites can be accepted or declined. Sent invites
 // show their status (pending/accepted/expired).
 
+import 'package:flutter/foundation.dart'; // for debugPrint — [v5.192] logs
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +16,9 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/utils/device_tier.dart';
 import '../../../core/services/analytics_service.dart';
+import '../../../core/services/supabase_service.dart' show supabaseProvider;
+import '../../../core/viewer/viewer_provider.dart'
+    show invalidateViewerCache, viewerPersonIdProvider;
 import '../data/profile_provider.dart';
 
 // ── Design Tokens ──────────────────────────────────────────────────
@@ -79,10 +83,93 @@ class _InvitationsScreenState extends ConsumerState<InvitationsScreen>
       // P5-F1: Track invite accepted
       AnalyticsService.instance.logInviteAccepted('invitation_list');
       context.showSnackBar('Joined "${invitation.familyName}"!');
+
+      // v5.192 (BUG #3 FIX — ClaimProfileBanner shown to accepted users):
+      // The legacy `profileProvider.acceptInvitation` calls the NestJS
+      // endpoint `POST /api/invitations/:id/accept`, which creates a
+      // FamilyMember row + increments Family.memberCount but does NOT
+      // create a Person row in the family graph. So the user is a
+      // family member but has no graph node — viewerPersonIdProvider
+      // Step 1 (linked Person lookup) returns empty, Step 3 (anchor
+      // fallback) returns null (anchor belongs to creator), and
+      // viewerPersonId is null → ClaimProfileBanner fires.
+      //
+      // The fix: after the legacy acceptance succeeds, call the new
+      // defensive Supabase RPC `fn_ensure_invited_person(p_family_id)`
+      // which creates a Person with linkedUserId = auth.uid() for the
+      // invitee (idempotent — if a Person already exists, returns its
+      // ID). Then invalidate the viewer cache + provider so the next
+      // graph open resolves the viewer correctly and the banner does
+      // NOT fire.
+      //
+      // Gate: only call if we have a familyId (the server response
+      // includes it from v5.192; older servers may omit it — in that
+      // case the user sees the banner as before and can manually
+      // claim via the banner tap, which is the pre-v5.192 behavior).
+      final familyId = invitation.familyId;
+      if (familyId != null && familyId.isNotEmpty) {
+        await _ensureInvitedPerson(familyId);
+      } else {
+        debugPrint(
+          '[v5.192] _acceptInvitation: familyId missing on invitation — '
+          'skipping fn_ensure_invited_person RPC (older server). '
+          'User may see ClaimProfileBanner until manual claim.',
+        );
+      }
+
       // Navigate to family graph
       await context.push('/families');
     } else {
       context.showSnackBar('Failed to accept invitation', isError: true);
+    }
+  }
+
+  /// v5.192: Calls the defensive Supabase RPC `fn_ensure_invited_person`
+  /// to create a Person node (with linkedUserId = auth.uid()) for the
+  /// accepting user, then invalidates the viewer cache + provider so
+  /// the next graph open resolves the viewer correctly (no
+  /// ClaimProfileBanner).
+  ///
+  /// Idempotent — safe to call multiple times. The RPC guards: the
+  /// caller must be authenticated + a FamilyMember of the family.
+  ///
+  /// Fire-and-forget on error — if the RPC fails, the user can still
+  /// manually claim via the ClaimProfileBanner tap (pre-v5.192 path).
+  Future<void> _ensureInvitedPerson(String familyId) async {
+    try {
+      final client = ref.read(supabaseProvider);
+      if (client == null || client.auth.currentSession == null) {
+        debugPrint('[v5.192] _ensureInvitedPerson: no client/session — skipping');
+        return;
+      }
+      debugPrint('[v5.192] _ensureInvitedPerson: calling RPC for familyId=$familyId');
+      final response = await client
+          .rpc('fn_ensure_invited_person', params: {'p_family_id': familyId})
+          .timeout(const Duration(seconds: 10));
+      final data = response as Map<String, dynamic>?;
+      if (data == null) {
+        debugPrint('[v5.192] _ensureInvitedPerson: RPC returned null');
+        return;
+      }
+      final ok = data['ok'] == true;
+      final personId = data['personId'] as String?;
+      final created = data['created'] == true;
+      final source = data['source'] as String?;
+      debugPrint(
+        '[v5.192] _ensureInvitedPerson: ok=$ok, personId=$personId, '
+        'created=$created, source=$source',
+      );
+      if (ok && personId != null) {
+        // Invalidate the viewer cache + provider so the next graph
+        // open resolves the viewer to the newly-created Person.
+        invalidateViewerCache(familyId);
+        ref.invalidate(viewerPersonIdProvider(familyId));
+      } else if (!ok) {
+        final error = data['error'] as String?;
+        debugPrint('[v5.192] _ensureInvitedPerson: RPC returned error: $error');
+      }
+    } catch (e) {
+      debugPrint('[v5.192] _ensureInvitedPerson: failed (non-fatal): $e');
     }
   }
 

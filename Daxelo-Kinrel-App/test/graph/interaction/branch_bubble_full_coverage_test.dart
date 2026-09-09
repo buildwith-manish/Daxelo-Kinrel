@@ -221,10 +221,16 @@ void main() {
 
   test('v5.158: expansion makes partial progress on deep components '
       '(bubbles reappear INSIDE the expanded branch)', () {
-    // One component: hub → chain of 30 (deep). Only the hub is visible.
+    // v5.192: chain length bumped from 30 → 55 to EXCEED kNodeBudget (50).
+    // The v5.192 small-graph bypass in `computeDensityCollapse` returns
+    // early when `allNodes.length <= kNodeBudget` (no bubbles for small
+    // graphs). With 30 nodes, the bypass fires and no bubbles appear —
+    // breaking the original test. With 55 nodes, the bypass does NOT
+    // fire and the density-collapse logic is exercised as before.
+    // One component: hub → chain of 55 (deep). Only the hub is visible.
     final adjacency = <String, Set<String>>{};
     final edges = <_E>[];
-    for (var i = 0; i < 30; i++) {
+    for (var i = 0; i < 55; i++) {
       final a = 'n$i';
       final b = 'n${i + 1}';
       adjacency.putIfAbsent(a, () => <String>{}).add(b);
@@ -243,7 +249,7 @@ void main() {
     );
     final firstBubble = notifier.state.collapsedBranches.first;
     expect(firstBubble.rootPersonId, 'n0');
-    expect(firstBubble.hiddenCount, 30, reason: '+30 · chain hidden');
+    expect(firstBubble.hiddenCount, 55, reason: '+55 · chain hidden');
 
     // Fetch depth 4 from n0 → n1..n4 revealed.
     visible = <String>{'n0', 'n1', 'n2', 'n3', 'n4'};
@@ -255,16 +261,16 @@ void main() {
     );
 
     // The frontier moved: n4 is now the nearest visible node to the
-    // remaining 26 members — a NEW bubble appears INSIDE the expanded
+    // remaining 51 members — a NEW bubble appears INSIDE the expanded
     // branch (nested progressive expansion).
     final n4Branch = notifier.state.collapsedBranches
         .where((b) => b.rootPersonId == 'n4')
         .firstOrNull;
     expect(n4Branch, isNotNull,
         reason: 'New bubble appears within the expanded branch');
-    expect(n4Branch!.hiddenCount, 26);
-    expect(notifier.state.allHiddenMemberIds.length, 26,
-        reason: 'No member stranded: 31 total - 5 visible = 26 hidden, '
+    expect(n4Branch!.hiddenCount, 51);
+    expect(notifier.state.allHiddenMemberIds.length, 51,
+        reason: 'No member stranded: 56 total - 5 visible = 51 hidden, '
             'all zoned');
   });
 }
