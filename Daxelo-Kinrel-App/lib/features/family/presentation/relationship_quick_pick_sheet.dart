@@ -136,6 +136,20 @@ class _RelationshipQuickPickSheetState
   bool _isCommitting = false;
   bool _showMore = false;
 
+  /// v5.195: When non-null, the sheet is showing the gender follow-up
+  /// step for this category. The user tapped a chip (Parent / Sibling
+  /// / Child / Grandparent) but the selected user's gender is null,
+  /// so we can't infer a gendered label. Instead of committing the
+  /// gender-neutral form immediately, we expand the sheet IN PLACE
+  /// (no navigation, no new screen) and ask the user to pick a
+  /// gender. Tapping Male/Female/Other resolves the label and
+  /// commits; tapping Back returns to the chips grid.
+  ///
+  /// Spouse does NOT enter this mode — it's already gender-neutral
+  /// (the 'husband'/'wife' label is symmetric, and the v5.194 flow
+  /// stores 'spouse' as the specific label when gender is null).
+  _QuickPickCategory? _awaitingGenderFor;
+
   @override
   void initState() {
     super.initState();
@@ -212,28 +226,67 @@ class _RelationshipQuickPickSheetState
   ///   Grandparent + null  → 'grandparent'
   String _specificLabelFor(_QuickPickCategory category) {
     final gender = (widget.selectedUser.gender ?? '').toLowerCase().trim();
+    return _specificLabelForCategoryAndGender(category, gender);
+  }
+
+  /// v5.195: Resolve the gendered label given an EXPLICIT gender
+  /// string. Used by the gender follow-up step where the user has
+  /// just picked Male / Female / Other for someone whose profile
+  /// gender is null. The gender string is one of:
+  ///   - 'male'   → male form
+  ///   - 'female' → female form
+  ///   - any other value (including 'other', '', null) → gender-neutral form
+  ///
+  /// This is a PURE DISPLAY/LABEL choice for this relationship — it
+  /// does NOT overwrite or edit the other user's actual profile
+  /// gender field. The chosen gender is used ONLY to compute the
+  /// specific label that gets stored in `Relationship.labelAtoB`.
+  String _specificLabelForCategoryAndGender(
+    _QuickPickCategory category,
+    String gender,
+  ) {
+    final g = gender.toLowerCase().trim();
     switch (category) {
       case _QuickPickCategory.parent:
-        if (gender == 'male') return 'father';
-        if (gender == 'female') return 'mother';
+        if (g == 'male') return 'father';
+        if (g == 'female') return 'mother';
         return 'parent';
       case _QuickPickCategory.sibling:
-        if (gender == 'male') return 'brother';
-        if (gender == 'female') return 'sister';
+        if (g == 'male') return 'brother';
+        if (g == 'female') return 'sister';
         return 'sibling';
       case _QuickPickCategory.spouse:
-        if (gender == 'male') return 'husband';
-        if (gender == 'female') return 'wife';
+        // Spouse is already gender-neutral; no follow-up needed.
+        if (g == 'male') return 'husband';
+        if (g == 'female') return 'wife';
         return 'spouse';
       case _QuickPickCategory.child:
-        if (gender == 'male') return 'son';
-        if (gender == 'female') return 'daughter';
+        if (g == 'male') return 'son';
+        if (g == 'female') return 'daughter';
         return 'child';
       case _QuickPickCategory.grandparent:
-        if (gender == 'male') return 'grandfather';
-        if (gender == 'female') return 'grandmother';
+        if (g == 'male') return 'grandfather';
+        if (g == 'female') return 'grandmother';
         return 'grandparent';
     }
+  }
+
+  /// v5.195: Does this category need the gender follow-up step for
+  /// this user? Returns true when:
+  ///   - the category is NOT Spouse (Spouse is already gender-neutral
+  ///     — the male/female forms 'husband'/'wife' are symmetric and
+  ///     the gender-neutral form 'spouse' is fine to commit directly),
+  ///   - AND the selected user's stored gender is null / empty / not
+  ///     one of 'male' / 'female'.
+  ///
+  /// When true, [_commit] will set [_awaitingGenderFor] instead of
+  /// committing immediately. The follow-up step calls
+  /// [_commitWithGender] which resolves the label using the user's
+  /// chosen gender and commits.
+  bool _needsGenderFollowUp(_QuickPickCategory category) {
+    if (category == _QuickPickCategory.spouse) return false;
+    final gender = (widget.selectedUser.gender ?? '').toLowerCase().trim();
+    return gender != 'male' && gender != 'female';
   }
 
   /// Map a (possibly gendered) specific label back to the fundamental
@@ -275,13 +328,59 @@ class _RelationshipQuickPickSheetState
   /// invitation is created via `fn_create_graph_pending_invitation`
   /// (the same RPC the existing "Find on Kinrel" path used). On
   /// success the sheet dismisses and an Undo snackbar appears.
+  ///
+  /// v5.195: GENDER FOLLOW-UP. If the selected user's stored gender
+  /// is null/empty AND the category is NOT Spouse, we can't infer a
+  /// gendered label (father/mother vs parent). Instead of committing
+  /// the gender-neutral form, we expand the sheet IN PLACE to show
+  /// a gender follow-up step ("Is [Name]... [Male] [Female] [Other]").
+  /// Tapping one of those resolves the label and commits. This is a
+  /// pure display/label choice for this relationship — it does NOT
+  /// overwrite or edit the other user's actual profile gender field.
   Future<void> _commit(_QuickPickCategory category) async {
+    if (_isCommitting) return;
+
+    // v5.195: Gender follow-up gate. Spouse is exempt (already
+    // gender-neutral). For all other categories, when the user's
+    // gender is null, switch to the gender step instead of committing
+    // the gender-neutral form immediately.
+    if (_needsGenderFollowUp(category)) {
+      setState(() => _awaitingGenderFor = category);
+      return;
+    }
+
+    // User's gender is known (male/female) OR category is Spouse —
+    // proceed with immediate commit using the inferred label.
+    final specificLabel = _specificLabelFor(category);
+    await _doCommit(category.fundamentalKey, specificLabel);
+  }
+
+  /// v5.195: Called from the gender follow-up step when the user
+  /// taps Male / Female / Other. Resolves the gendered label using
+  /// the chosen gender (NOT the user's profile gender) and commits.
+  ///
+  /// [chosenGender] is one of: 'male', 'female', 'other'. Any other
+  /// value (including 'other') falls through to the gender-neutral
+  /// form for the category.
+  Future<void> _commitWithGender(String chosenGender) async {
+    if (_isCommitting) return;
+    final category = _awaitingGenderFor;
+    if (category == null) return; // Defensive — shouldn't happen.
+
+    final specificLabel =
+        _specificLabelForCategoryAndGender(category, chosenGender);
+    await _doCommit(category.fundamentalKey, specificLabel);
+  }
+
+  /// Shared commit path used by both [_commit] (immediate, gender
+  /// already known) and [_commitWithGender] (after the follow-up
+  /// step). Creates the graph pending invitation, refreshes the
+  /// graph, dismisses the sheet, and shows the Undo snackbar.
+  Future<void> _doCommit(String fundamentalKey, String specificLabel) async {
     if (_isCommitting) return;
     setState(() => _isCommitting = true);
 
     final messenger = ScaffoldMessenger.maybeOf(context);
-    final specificLabel = _specificLabelFor(category);
-    final fundamentalKey = category.fundamentalKey;
 
     try {
       // 1. Resolve the viewer's Person ID (the "from" person).
@@ -606,59 +705,25 @@ class _RelationshipQuickPickSheetState
               ),
             ),
 
-            // Header
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: KinrelSpacing.base, vertical: KinrelSpacing.sm),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Add ${widget.selectedUser.name} as your...',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.displayFont,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: KinrelColors.textWhite,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      if (widget.selectedUser.avatarUrl != null &&
-                          widget.selectedUser.avatarUrl!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ClipOval(
-                            child: Image.network(
-                              widget.selectedUser.avatarUrl!,
-                              width: 20,
-                              height: 20,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  const SizedBox(width: 20, height: 20),
-                            ),
-                          ),
-                        ),
-                      Text(
-                        '@${widget.selectedUser.username ?? widget.selectedUser.displayId}',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.monoFont,
-                          fontSize: 13,
-                          color: KinrelColors.orange,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+            // Header — changes based on which step is active.
+            //   - Default: "Add <name> as your..."
+            //   - Gender follow-up: "Is <name>..." (with a back button
+            //     to return to the chips grid).
+            if (_awaitingGenderFor != null)
+              _buildGenderFollowUpHeader()
+            else
+              _buildDefaultHeader(),
 
             const Divider(
                 color: KinrelColors.darkElevated, height: 1, thickness: 1),
 
-            // Body — either the chips grid OR the "More" search list.
-            if (_showMore)
+            // Body — three modes:
+            //   1. Gender follow-up step (when _awaitingGenderFor != null)
+            //   2. "More" searchable list (when _showMore == true)
+            //   3. Default chips grid
+            if (_awaitingGenderFor != null)
+              _buildGenderFollowUpBody()
+            else if (_showMore)
               _buildMoreList()
             else
               _buildChipsGrid(),
@@ -666,6 +731,160 @@ class _RelationshipQuickPickSheetState
             const SizedBox(height: KinrelSpacing.base),
           ],
         ),
+      ),
+    );
+  }
+
+  // ── Default header ("Add <name> as your...") ──────────────────────
+
+  Widget _buildDefaultHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: KinrelSpacing.base, vertical: KinrelSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Add ${widget.selectedUser.name} as your...',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textWhite,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              if (widget.selectedUser.avatarUrl != null &&
+                  widget.selectedUser.avatarUrl!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ClipOval(
+                    child: Image.network(
+                      widget.selectedUser.avatarUrl!,
+                      width: 20,
+                      height: 20,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          const SizedBox(width: 20, height: 20),
+                    ),
+                  ),
+                ),
+              Text(
+                '@${widget.selectedUser.username ?? widget.selectedUser.displayId}',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.monoFont,
+                  fontSize: 13,
+                  color: KinrelColors.orange,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Gender follow-up header ("Is <name>...") ──────────────────────
+
+  Widget _buildGenderFollowUpHeader() {
+    final category = _awaitingGenderFor!;
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: KinrelSpacing.base, vertical: KinrelSpacing.sm),
+      child: Row(
+        children: [
+          // Back button — returns to the chips grid.
+          IconButton(
+            icon: const Icon(Icons.arrow_back,
+                color: KinrelColors.textWhite, size: 22),
+            onPressed: _isCommitting
+                ? null
+                : () {
+                    setState(() => _awaitingGenderFor = null);
+                  },
+            padding: EdgeInsets.zero,
+            constraints:
+                const BoxConstraints(minWidth: 32, minHeight: 32),
+            tooltip: 'Back',
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Is ${widget.selectedUser.name}...',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Pick a gender to label them as your ${_prettyLabel(category.fundamentalKey)}. '
+                  'This is only used for this relationship — it does not '
+                  'change their profile.',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    color: KinrelColors.textDim,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Gender follow-up body (Male / Female / Other chips) ───────────
+
+  Widget _buildGenderFollowUpBody() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: KinrelSpacing.base, vertical: KinrelSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _GenderChip(
+                label: 'Male',
+                icon: Icons.male,
+                isCommitting: _isCommitting,
+                onTap: () => _commitWithGender('male'),
+              ),
+              _GenderChip(
+                label: 'Female',
+                icon: Icons.female,
+                isCommitting: _isCommitting,
+                onTap: () => _commitWithGender('female'),
+              ),
+              _GenderChip(
+                label: 'Other',
+                icon: Icons.more_horiz,
+                isCommitting: _isCommitting,
+                onTap: () => _commitWithGender('other'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Tap one to add. You can undo it right after.',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 12,
+              color: KinrelColors.textDim,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -865,6 +1084,85 @@ class _MoreChip extends StatelessWidget {
                   color: KinrelColors.textDim,
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// _GenderChip — a single gender chip (Male / Female / Other)
+//
+// v5.195: Used by the gender follow-up step. Tapping one resolves
+// the gendered label (e.g. Sibling + Male → Brother) and commits
+// the relationship. "Other" uses the gender-neutral term (e.g.
+// "Sibling", "Parent") as the final label.
+// ═══════════════════════════════════════════════════════════════════════
+
+class _GenderChip extends StatelessWidget {
+  const _GenderChip({
+    required this.label,
+    required this.icon,
+    required this.isCommitting,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isCommitting;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: isCommitting ? null : onTap,
+        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          decoration: BoxDecoration(
+            color: isCommitting
+                ? KinrelColors.darkElevated.withValues(alpha: 0.5)
+                : KinrelColors.darkElevated,
+            borderRadius: BorderRadius.circular(KinrelRadius.md),
+            border: Border.all(
+              color: KinrelColors.orange.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon,
+                  color: KinrelColors.orange,
+                  size: isCommitting ? 14 : 18),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: isCommitting
+                      ? KinrelColors.textDim
+                      : KinrelColors.textWhite,
+                ),
+              ),
+              if (isCommitting) ...[
+                const SizedBox(width: 8),
+                const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(
+                    color: KinrelColors.orange,
+                    strokeWidth: 1.5,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
