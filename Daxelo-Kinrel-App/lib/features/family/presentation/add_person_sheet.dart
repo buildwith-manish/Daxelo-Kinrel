@@ -184,6 +184,30 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   /// since the user has chosen a primary category.
   bool _showMoreKinship = false;
 
+  /// v5.200: ScrollController for the quick-add SingleChildScrollView.
+  /// Used to auto-scroll the "More kinship terms" panel into view when
+  /// the "More" chip is tapped and the section expands — otherwise the
+  /// newly revealed content renders below the visible viewport with no
+  /// scroll, and the user sees no visible change (assumes the tap did
+  /// nothing).
+  final ScrollController _quickAddScrollController = ScrollController();
+
+  /// v5.200: GlobalKey for the "More kinship terms" panel. Used by
+  /// the auto-scroll logic to find the panel's position in the
+  /// scroll view and scroll it into view.
+  final GlobalKey _moreSectionKey = GlobalKey();
+
+  /// v5.200: Caches the family creator's user ID so the admin/creator
+  /// role check can work even when familyDetailProvider hasn't loaded
+  /// yet (or returned null). Fetched once on initState via a direct
+  /// Supabase query to the Family table. This is the root-cause fix
+  /// for the "Related to" field not rendering for admin/creator
+  /// accounts — the previous code relied solely on
+  /// familyDetailProvider, which could return null while loading
+  /// (or if the family wasn't in the cached list), leaving isCreator
+  /// permanently false.
+  String? _cachedFamilyCreatorId;
+
   /// Stable key for the edit-mode form (NOT recreated on every rebuild).
   /// The previous code created GlobalKey<FormState>() inline in
   /// _buildEditModeContent, which caused the Form to lose its state on
@@ -396,6 +420,48 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         _autoSelectViewerAsTarget();
       });
     }
+
+    // v5.200: Fetch the family creator's user ID via a direct Supabase
+    // query. This is the root-cause fix for the "Related to" field not
+    // rendering for admin/creator accounts — the previous code relied
+    // solely on familyDetailProvider, which could return null while
+    // loading (or if the family wasn't in the cached list), leaving
+    // isCreator permanently false. By fetching the createdBy field
+    // directly and caching it in _cachedFamilyCreatorId, the admin/
+    // creator check works reliably regardless of the
+    // familyDetailProvider's loading state.
+    if (!_isEditMode) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _fetchFamilyCreatorId();
+      });
+    }
+  }
+
+  /// v5.200: Fetches the Family.createdBy field via a direct Supabase
+  /// query and caches it in [_cachedFamilyCreatorId]. Triggers a
+  /// setState so the sheet rebuilds and the "Related to" picker
+  /// appears for the creator.
+  Future<void> _fetchFamilyCreatorId() async {
+    if (_cachedFamilyCreatorId != null) return; // Already fetched.
+    try {
+      final client = ref.read(supabaseProvider);
+      if (client == null) return;
+      final response = await client
+          .from('Family')
+          .select('createdBy')
+          .eq('id', widget.familyId)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 5));
+      if (response != null && mounted) {
+        setState(() {
+          _cachedFamilyCreatorId = response['createdBy'] as String?;
+        });
+        debugPrint('[ADD-MEMBER] v5.200: Cached family creator ID: $_cachedFamilyCreatorId');
+      }
+    } catch (e) {
+      debugPrint('[ADD-MEMBER] v5.200: Could not fetch family creator: $e');
+    }
   }
 
   /// v5.44: Auto-selects the currently logged-in user's Person as the
@@ -474,6 +540,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   @override
   void dispose() {
     _confettiCtrl.dispose();
+    _quickAddScrollController.dispose();
     _nameController.dispose();
     _nicknameController.dispose();
     _dobController.dispose();
@@ -2279,8 +2346,19 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
     // Compute admin/creator status from the watched providers.
     final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-    final bool isCreator = familyDetailAsync.valueOrNull?.family.createdBy != null &&
-        familyDetailAsync.valueOrNull?.family.createdBy == currentUserId;
+    // v5.200 (BUG FIX): Use _cachedFamilyCreatorId as the primary
+    // source for the creator check (fetched via a direct Supabase
+    // query in initState). The familyDetailProvider-based check
+    // is kept as a secondary source — _cachedFamilyCreatorId is
+    // populated first (within ~1 second of the sheet opening) and
+    // reliably triggers a rebuild via setState, whereas
+    // familyDetailProvider can return null while loading or if the
+    // family isn't in the cached list, leaving isCreator permanently
+    // false. The creator is "current user" if EITHER source confirms
+    // the match.
+    final familyCreatedBy = familyDetailAsync.valueOrNull?.family.createdBy;
+    final bool isCreator = (familyCreatedBy != null && familyCreatedBy == currentUserId) ||
+        (_cachedFamilyCreatorId != null && _cachedFamilyCreatorId == currentUserId);
     final bool isAdmin = membershipsAsync.valueOrNull
             ?.where((m) => m.userId == currentUserId)
             .firstOrNull
@@ -2308,7 +2386,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         !_isEditMode &&
         isAdminOrCreator;
 
+    // v5.200: Use a ScrollController so we can auto-scroll the "More
+    // kinship terms" panel into view when the "More" chip is tapped
+    // and the section expands (otherwise the newly revealed content
+    // renders below the visible viewport with no scroll, and the user
+    // sees no visible change — assumes the tap did nothing).
     return SingleChildScrollView(
+      controller: _quickAddScrollController,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -2572,13 +2656,28 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         width: _kRelChipWidth,
         height: _kRelChipHeight,
         isMore: true,
-        onTap: () => setState(() {
-          _showMoreKinship = !_showMoreKinship;
-          // Tapping "More" doesn't clear the primary selection — the
-          // user might be exploring alternatives. But if they then
-          // pick a specific kinship term from the expanded section,
-          // _pickDetailedRelationship clears _selectedRelType.
-        }),
+        onTap: () {
+          setState(() {
+            _showMoreKinship = !_showMoreKinship;
+            // Tapping "More" doesn't clear the primary selection — the
+            // user might be exploring alternatives. But if they then
+            // pick a specific kinship term from the expanded section,
+            // _pickDetailedRelationship clears _selectedRelType.
+          });
+          // v5.200: Auto-scroll the "More kinship terms" panel into
+          // view when it expands — otherwise the newly revealed
+          // content renders below the visible viewport with no
+          // scroll, and the user sees no visible change (assumes the
+          // tap did nothing). Only scrolls on expand (not collapse).
+          // Uses addPostFrameCallback so the scroll runs AFTER the
+          // setState rebuild has mounted the panel (so the
+          // _moreSectionKey has a render object to measure).
+          if (_showMoreKinship) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _scrollToMoreSection();
+            });
+          }
+        },
       ),
     );
 
@@ -2598,6 +2697,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
   Widget _buildMoreKinshipSection() {
     return Container(
+      key: _moreSectionKey,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: KinrelColors.orange.withValues(alpha: 0.06),
@@ -2698,6 +2798,30 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           ),
         ],
       ),
+    );
+  }
+
+  /// v5.200: Auto-scrolls the "More kinship terms" panel into view
+  /// using a smooth animation. Called after the "More" chip is tapped
+  /// and the section expands (via addPostFrameCallback so the panel
+  /// has been mounted and has a render object to measure).
+  ///
+  /// Uses Flutter's built-in `Scrollable.ensureVisible` which handles
+  /// all the coordinate math (finding the nearest Scrollable ancestor,
+  /// computing the target scroll offset, and animating to it). The
+  /// `alignment: 0.0` aligns the top of the panel with the top of the
+  /// viewport; `duration: 300ms` + `Curve.easeOut` gives a smooth
+  /// scroll (not an instant jump). If the panel is already visible,
+  /// `ensureVisible` is a no-op.
+  void _scrollToMoreSection() {
+    if (!mounted) return;
+    final context = _moreSectionKey.currentContext;
+    if (context == null) return;
+    Scrollable.ensureVisible(
+      context,
+      alignment: 0.0, // Top of panel aligns with top of viewport.
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
     );
   }
 
