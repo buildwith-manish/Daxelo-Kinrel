@@ -177,6 +177,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   bool _isDeceased = false;
   bool _isSubmitting = false;
 
+  /// v5.198: When true, the "More" section (Search all kinship terms +
+  /// Add Your Own Kinship) is expanded inline below the 2x3 chip grid.
+  /// Tapping the "More" chip toggles this; tapping any other chip
+  /// (Parent/Child/Sibling/Spouse/Grandparent) collapses it back
+  /// since the user has chosen a primary category.
+  bool _showMoreKinship = false;
+
   /// Stable key for the edit-mode form (NOT recreated on every rebuild).
   /// The previous code created GlobalKey<FormState>() inline in
   /// _buildEditModeContent, which caused the Form to lose its state on
@@ -946,6 +953,12 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           return newPersonGender == 'female' ? 'younger_sister' : 'younger_brother';
         }
         return newPersonGender == 'female' ? 'sister' : 'brother';
+      // v5.198: Added 'grandparent' to support the new 2x3 chip grid.
+      // The Grandparent chip maps to 'grandmother' (female) or
+      // 'grandfather' (male/other), matching the gender-aware
+      // inference pattern used by the Find on Kinrel picker.
+      case 'grandparent':
+        return newPersonGender == 'female' ? 'grandmother' : 'grandfather';
       default:
         return null;
     }
@@ -2195,30 +2208,63 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     );
   }
 
-  // ── v5.52: Single-screen Quick Add ─────────────────────────────
+  // ── v5.198: Redesigned Quick Add ──────────────────────────────────
+  //
+  // v5.198 (REDESIGN): The manual add form was redesigned for speed
+  // and minimal friction. Changes:
+  //
+  //   1. REMOVED "Add Photo" — new members default to an initials
+  //      avatar (same style as graph nodes like "A1", "A2"). Photo
+  //      upload is available later from the member's profile/edit
+  //      screen, not during creation.
+  //
+  //   2. REORDERED fields to: Full Name → Gender → Relationship Type
+  //      → "Add to Family" button. No photo circle above the name.
+  //
+  //   3. REPLACED the 4-box relationship grid (Parent/Child/Spouse/
+  //      Sibling) with the SAME 2x3 chip grid used in the "Find on
+  //      Kinrel" relationship picker: Parent, Child, Sibling, Spouse,
+  //      Grandparent, More. The interaction pattern is now identical
+  //      across both add-member paths.
+  //
+  //   4. MOVED "Or pick a specific kinship term" (Search all kinship
+  //      terms + Add Your Own Kinship) so it is NOT shown by default.
+  //      It only appears when the user taps the "More" chip in the
+  //      2x3 grid, expanding inline below. Collapses back when a
+  //      primary chip is selected.
+  //
+  //   5. REMOVED the bottom orange error banner ("Please select how
+  //      they are related to proceed"). The "Add to Family" button
+  //      is now visually disabled (greyed out, non-interactive) until
+  //      both Full Name and Relationship Type are filled in. No error
+  //      message needed — the disabled button state communicates
+  //      this on its own.
+  //
+  //   6. "Related to" field: per the v5.197 role-gating fix, this
+  //      remains hidden for regular members (defaults silently to
+  //      their own account via _autoSelectViewerAsTarget) and visible
+  //      only for admins/creators.
 
-  /// Builds the single-screen quick-add content: photo, name, gender,
-  /// relationship type, target person selector — all on ONE screen.
   Widget _buildQuickAddContent() {
     if (_showSuccess) return _buildSuccessView();
     final anchor = _effectiveAnchorPerson;
     final newName = _nameController.text.trim().isNotEmpty
         ? _nameController.text.trim()
         : 'New Member';
-    final bool showTargetPicker = widget.anchorPerson == null && !_isEditMode;
+    // v5.197: Apply the admin/creator role gate to the "Related to"
+    // picker — regular members never see it (their additions are
+    // anchored to themselves by default).
+    final bool isAdminOrCreator = _isCurrentUserAdminOrCreator;
+    final bool showTargetPicker = widget.anchorPerson == null &&
+        !_isEditMode &&
+        isAdminOrCreator;
     final bool familyHasMembers = _familyHasExistingMembers;
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Photo picker (small, optional) ──
-          if (kEnablePhotoPicker) ...[
-            Center(child: _buildPhotoPicker()),
-            SizedBox(height: 16),
-          ],
-
-          // ── Full Name (required) ──
+          // ── #2: Full Name (required, first field, no photo above) ──
           _SectionLabel('Full Name *'),
           SizedBox(height: 6),
           _buildTextField(
@@ -2231,13 +2277,17 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           ),
           SizedBox(height: 20),
 
-          // ── Gender ──
+          // ── #2: Gender (unchanged) ──
           _SectionLabel('Gender'),
           SizedBox(height: 10),
           _buildGenderCards(),
           SizedBox(height: 20),
 
-          // ── Related to (anchor selector) ──
+          // ── #6: "Related to" anchor selector (admin/creator only) ──
+          // Per v5.197: hidden for regular members (default to "Me"
+          // via _autoSelectViewerAsTarget). Visible only for admins/
+          // creators. When an anchorPerson was explicitly passed
+          // (node context menu), show a read-only label instead.
           if (familyHasMembers && showTargetPicker) ...[
             _SectionLabel('Related to'),
             SizedBox(height: 8),
@@ -2274,7 +2324,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             SizedBox(height: 20),
           ],
 
-          // ── Relationship Type ──
+          // ── #2 + #3: Relationship Type (2x3 chip grid) ──
           if (familyHasMembers || widget.anchorPerson != null) ...[
             _SectionLabel('Relationship Type'),
             SizedBox(height: 8),
@@ -2289,10 +2339,14 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 ),
               ),
             SizedBox(height: 12),
-            _buildRelationshipTypeCards(),
+
+            // #3: The 2x3 chip grid (same component as Find on Kinrel).
+            _buildQuickAddChipGrid(),
             SizedBox(height: 16),
 
-            // Sibling sub-type
+            // Sibling sub-type (Elder / Younger) — shown when the
+            // Sibling chip is selected. Kept from the old design since
+            // it's a useful refinement for the most common sibling case.
             if (_selectedRelType == 'sibling') ...[
               _SectionLabel('Elder or Younger?'),
               SizedBox(height: 10),
@@ -2322,82 +2376,18 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
               SizedBox(height: 16),
             ],
 
-            // Detailed kinship picker
-            _SectionLabel('Or pick a specific kinship term'),
-            SizedBox(height: 8),
-            GestureDetector(
-              onTap: _pickDetailedRelationship,
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                decoration: BoxDecoration(
-                  color: KinrelColors.darkCard,
-                  borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-                  border: Border.all(
-                    color: KinrelColors.textDim.withValues(alpha: 0.15),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.search, color: KinrelColors.orange, size: 20),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _selectedRelationshipLabel ?? 'Search all kinship terms…',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 14,
-                          color: _selectedRelationshipLabel != null
-                              ? KinrelColors.textWhite
-                              : KinrelColors.textDim,
-                        ),
-                      ),
-                    ),
-                    Icon(Icons.chevron_right, color: KinrelColors.textDim, size: 18),
-                  ],
-                ),
-              ),
-            ),
-            SizedBox(height: 8),
-
-            // Custom kinship
-            GestureDetector(
-              onTap: _showCustomKinshipDialog,
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                decoration: BoxDecoration(
-                  color: KinrelColors.darkCard,
-                  borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-                  border: Border.all(
-                    color: _customKinshipName != null
-                        ? KinrelColors.orange.withValues(alpha: 0.4)
-                        : KinrelColors.textDim.withValues(alpha: 0.15),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.palette_outlined, color: KinrelColors.purple, size: 20),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _customKinshipName ?? 'Add Your Own Kinship',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 14,
-                          color: _customKinshipName != null
-                              ? KinrelColors.textWhite
-                              : KinrelColors.textDim,
-                        ),
-                      ),
-                    ),
-                    Icon(Icons.chevron_right, color: KinrelColors.textDim, size: 18),
-                  ],
-                ),
-              ),
-            ),
-
-            // Visual preview
-            if (_relationshipPreview.isNotEmpty) ...[
+            // #4: "More" section — Search all kinship terms + Add Your
+            // Own Kinship. NOT shown by default; only expands when the
+            // "More" chip is tapped. Collapses when a primary chip is
+            // selected instead.
+            if (_showMoreKinship) ...[
+              _buildMoreKinshipSection(),
               SizedBox(height: 16),
+            ],
+
+            // Visual preview (kept — useful feedback when a rel type
+            // is selected).
+            if (_relationshipPreview.isNotEmpty) ...[
               Container(
                 padding: EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -2409,7 +2399,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.visibility_outlined, color: KinrelColors.orange, size: 18),
+                    Icon(Icons.visibility_outlined,
+                        color: KinrelColors.orange, size: 18),
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -2425,47 +2416,12 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                   ],
                 ),
               ),
+              SizedBox(height: 16),
             ],
 
-            // Hint when no relationship selected
-            if (_familyHasExistingMembers && _effectiveRelationshipKey == null) ...[
-              SizedBox(height: 16),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: (widget.fromGraph ? KinrelColors.orange : KinrelColors.tealAccent)
-                      .withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
-                  border: Border.all(
-                    color: (widget.fromGraph ? KinrelColors.orange : KinrelColors.tealAccent)
-                        .withValues(alpha: 0.15),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      widget.fromGraph ? Icons.info_outline : Icons.link_off,
-                      size: 16,
-                      color: widget.fromGraph ? KinrelColors.orange : KinrelColors.tealAccent,
-                    ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        widget.fromGraph
-                            ? 'Please select how they are related to proceed'
-                            : 'Optional: pick a relationship now, or skip and link them later.',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 13,
-                          color: widget.fromGraph ? KinrelColors.orange : KinrelColors.tealAccent,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            // #5: REMOVED the orange/teal error banner. The disabled
+            // "Add to Family" button now communicates the validation
+            // state on its own.
           ] else if (!familyHasMembers) ...[
             Text(
               'This is the first member of the family. No relationship needed yet.',
@@ -2483,10 +2439,248 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     );
   }
 
+  // ── #3: 2x3 chip grid for Relationship Type ────────────────────────
+  //
+  // v5.198: Same 2x3 layout as the "Find on Kinrel" relationship
+  // picker (relationship_quick_pick_sheet.dart). Order:
+  //   Row 1: Parent  | Child
+  //   Row 2: Sibling | Spouse
+  //   Row 3: Grandparent | More
+  //
+  // Tapping any primary chip (Parent/Child/Sibling/Spouse/Grandparent)
+  // sets _selectedRelType and clears the "More" expansion. Tapping
+  // "More" toggles the inline "Search all kinship terms" + "Add Your
+  // Own Kinship" section below the grid.
+  //
+  // Gender-based label inference is handled by the existing
+  // _effectiveRelationshipKey getter (parent + female → 'mother',
+  // sibling + male → 'brother', etc.) — unchanged from before.
+
+  static const double _kRelChipWidth = 158;
+  static const double _kRelChipHeight = 48;
+
+  Widget _buildQuickAddChipGrid() {
+    final chips = <Widget>[];
+
+    // Primary chips in the exact 2x3 order: Parent, Child, Sibling,
+    // Spouse, Grandparent. The "More" chip is the 6th item.
+    final primaryCategories = <_RelChipDef>[
+      _RelChipDef(
+        type: 'parent',
+        label: 'Parent',
+        icon: Icons.family_restroom,
+      ),
+      _RelChipDef(
+        type: 'child',
+        label: 'Child',
+        icon: Icons.child_care,
+      ),
+      _RelChipDef(
+        type: 'sibling',
+        label: 'Sibling',
+        icon: Icons.people,
+      ),
+      _RelChipDef(
+        type: 'spouse',
+        label: 'Spouse',
+        icon: Icons.favorite,
+      ),
+      _RelChipDef(
+        type: 'grandparent',
+        label: 'Grandparent',
+        icon: Icons.elderly,
+      ),
+    ];
+
+    for (final cat in primaryCategories) {
+      final bool isSelected = _selectedRelType == cat.type;
+      chips.add(
+        _RelChip(
+          label: cat.label,
+          icon: cat.icon,
+          isSelected: isSelected,
+          width: _kRelChipWidth,
+          height: _kRelChipHeight,
+          onTap: () => setState(() {
+            _selectedRelType = cat.type;
+            _selectedSubType = null;
+            _selectedRelationshipKey = null;
+            _selectedRelationshipLabel = null;
+            // #4: Collapses the "More" section when a primary chip is
+            // selected instead.
+            _showMoreKinship = false;
+          }),
+        ),
+      );
+    }
+
+    // The 6th slot is the "More" chip — toggles the inline expansion
+    // of the Search-all / Add-Your-Own-Kinship section.
+    chips.add(
+      _RelChip(
+        label: 'More',
+        icon: Icons.more_horiz,
+        isSelected: _showMoreKinship,
+        width: _kRelChipWidth,
+        height: _kRelChipHeight,
+        isMore: true,
+        onTap: () => setState(() {
+          _showMoreKinship = !_showMoreKinship;
+          // Tapping "More" doesn't clear the primary selection — the
+          // user might be exploring alternatives. But if they then
+          // pick a specific kinship term from the expanded section,
+          // _pickDetailedRelationship clears _selectedRelType.
+        }),
+      ),
+    );
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: chips,
+    );
+  }
+
+  // ── #4: "More" section (Search all + Add Your Own Kinship) ──────────
+  //
+  // v5.198: Only rendered when _showMoreKinship is true (toggled by
+  // the "More" chip in the 2x3 grid). Contains the same two tappable
+  // rows as before — "Search all kinship terms…" and "Add Your Own
+  // Kinship" — but now they're collapsed by default.
+
+  Widget _buildMoreKinshipSection() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: KinrelColors.orange.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+        border: Border.all(
+          color: KinrelColors.orange.withValues(alpha: 0.2),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'More kinship terms',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textWhite,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Search all kinship terms
+          GestureDetector(
+            onTap: _pickDetailedRelationship,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: KinrelColors.darkCard,
+                borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+                border: Border.all(
+                  color: _selectedRelationshipLabel != null
+                      ? KinrelColors.orange.withValues(alpha: 0.4)
+                      : KinrelColors.textDim.withValues(alpha: 0.15),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.search, color: KinrelColors.orange, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _selectedRelationshipLabel ?? 'Search all kinship terms…',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 14,
+                        color: _selectedRelationshipLabel != null
+                            ? KinrelColors.textWhite
+                            : KinrelColors.textDim,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.chevron_right,
+                      color: KinrelColors.textDim, size: 18),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Add Your Own Kinship
+          GestureDetector(
+            onTap: _showCustomKinshipDialog,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: KinrelColors.darkCard,
+                borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+                border: Border.all(
+                  color: _customKinshipName != null
+                      ? KinrelColors.orange.withValues(alpha: 0.4)
+                      : KinrelColors.textDim.withValues(alpha: 0.15),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.palette_outlined,
+                      color: KinrelColors.purple, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _customKinshipName ?? 'Add Your Own Kinship',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 14,
+                        color: _customKinshipName != null
+                            ? KinrelColors.textWhite
+                            : KinrelColors.textDim,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.chevron_right,
+                      color: KinrelColors.textDim, size: 18),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Single "Add to Family" button — no steps, no "Next".
+  ///
+  /// v5.198: Updated `canSubmit` logic — the button is now disabled
+  /// (greyed out, non-interactive) until BOTH Full Name and
+  /// Relationship Type are filled in. This replaces the previous
+  /// bottom-of-form orange error banner ("Please select how they are
+  /// related to proceed") — the disabled button state communicates
+  /// the validation on its own. No error message needed.
+  ///
+  /// The previous logic was:
+  ///   canSubmit = nameValidator(name) == null &&
+  ///     (!_familyHasExistingMembers || !widget.fromGraph || _effectiveRelationshipKey != null)
+  ///
+  /// The new logic is simpler and consistent across both add paths:
+  ///   - First member of the family (no existing members): only Name
+  ///     is required (relationship is optional/skipped).
+  ///   - Subsequent members: BOTH Name AND a relationship selection
+  ///     are required. The relationship can come from any of the
+  ///     three sources: a primary chip in the 2x3 grid
+  ///     (_effectiveRelationshipKey derives it from _selectedRelType
+  ///     + gender + sibling subtype), the "Search all" picker
+  ///     (_selectedRelationshipKey), or "Add Your Own Kinship"
+  ///     (_customKinshipName).
   Widget _buildQuickAddButton() {
-    final canSubmit = nameValidator(_nameController.text) == null &&
-        (!_familyHasExistingMembers || !widget.fromGraph || _effectiveRelationshipKey != null);
+    final bool nameValid = nameValidator(_nameController.text) == null;
+    final bool isFirstMember = !_familyHasExistingMembers;
+    final bool hasRelationship = _effectiveRelationshipKey != null;
+    final bool canSubmit = nameValid && (isFirstMember || hasRelationship);
 
     return Padding(
       padding: EdgeInsets.only(top: 12),
@@ -4293,6 +4487,120 @@ class _SelectableCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// v5.198: Definition for a primary relationship chip in the 2x3
+/// quick-add grid. Mirrors the _QuickPickCategory enum used by the
+/// "Find on Kinrel" relationship picker so the two flows share the
+/// same visual + interaction pattern.
+class _RelChipDef {
+  const _RelChipDef({
+    required this.type,
+    required this.label,
+    required this.icon,
+  });
+  final String type; // 'parent' | 'child' | 'sibling' | 'spouse' | 'grandparent'
+  final String label;
+  final IconData icon;
+}
+
+/// v5.198: A single chip in the 2x3 quick-add relationship grid.
+/// Visually identical to the _QuickPickChip used by the "Find on
+/// Kinrel" relationship picker (same 158pt width, 48pt height,
+/// orange fill + white text when selected, orange outline when not).
+///
+/// `isMore: true` switches the chip to the "More" visual style —
+/// dimmer outline + dim text — to signal it's the expansion toggle,
+/// not a primary kinship choice. When `isSelected` (the "More"
+/// section is currently expanded), it uses the same solid-orange
+/// selected style so the user sees the current toggle state.
+class _RelChip extends StatelessWidget {
+  const _RelChip({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.width,
+    required this.height,
+    required this.onTap,
+    this.isMore = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final double width;
+  final double height;
+  final VoidCallback onTap;
+  final bool isMore;
+
+  @override
+  Widget build(BuildContext context) {
+    // Selected chip uses solid orange fill + white text + thicker
+    // border. Non-selected primary chips use the subtle orange
+    // outline. The "More" chip uses a dimmer outline + dim text in
+    // its non-selected state to signal it's an expansion toggle.
+    final Color chipBg = isSelected
+        ? KinrelColors.orange
+        : (isMore
+            ? Colors.transparent
+            : KinrelColors.darkElevated);
+    final Color chipBorder = isSelected
+        ? KinrelColors.orange
+        : (isMore
+            ? KinrelColors.textDim.withValues(alpha: 0.3)
+            : KinrelColors.orange.withValues(alpha: 0.3));
+    final double borderWidth = isSelected ? 2 : 1;
+    final Color iconColor = isSelected
+        ? Colors.white
+        : (isMore ? KinrelColors.textDim : KinrelColors.orange);
+    final Color textColor = isSelected
+        ? Colors.white
+        : (isMore ? KinrelColors.textDim : KinrelColors.textWhite);
+
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: chipBg,
+              borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+              border: Border.all(
+                color: chipBorder,
+                width: borderWidth,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: iconColor, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
