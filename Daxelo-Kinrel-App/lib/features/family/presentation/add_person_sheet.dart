@@ -254,6 +254,51 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     return existingMembers != null && existingMembers.isNotEmpty;
   }
 
+  /// v5.197 (ROLE-GATE): Returns true if the current user is the
+  /// family CREATOR (Family.createdBy == currentUserId) OR holds an
+  /// admin/owner role on the family's FamilyMember row. This gates
+  /// the editable "Related to" anchor picker — regular members never
+  /// see it (their additions are always anchored to themselves).
+  ///
+  /// Conservative while loading: returns false during the brief
+  /// loading window before memberships/family data arrives. This
+  /// means a regular member may see the picker NOT render for one
+  /// frame before the data resolves — but they will NEVER see the
+  /// picker render then disappear (which would be the flashing bug
+  /// the loading-state fix in v5.197 is designed to prevent). Admins/
+  /// creators, on the other hand, will see the picker appear after
+  /// the data loads, which is the expected behavior.
+  ///
+  /// Pattern follows the canonical admin/creator check from
+  /// family_detail_screen.dart (lines 411-422):
+  ///   - isCreator = family.createdBy != null && family.createdBy == currentUserId
+  ///   - isAdmin = currentUserMembership?.isAdmin == true (role == 'admin' || 'owner')
+  ///   - return isCreator || isAdmin
+  bool get _isCurrentUserAdminOrCreator {
+    final currentUserId =
+        ref.read(supabaseProvider)?.auth.currentUser?.id;
+    if (currentUserId == null) return false;
+
+    // Check 1: Family.createdBy == currentUserId (creator).
+    final familyAsync = ref.read(familyDetailProvider(widget.familyId));
+    final family = familyAsync.valueOrNull?.family;
+    if (family != null &&
+        family.createdBy != null &&
+        family.createdBy == currentUserId) {
+      return true;
+    }
+
+    // Check 2: FamilyMember role is 'admin' or 'owner'.
+    final membershipsAsync =
+        ref.read(familyMembershipsProvider(widget.familyId));
+    final memberships = membershipsAsync.valueOrNull;
+    if (memberships == null) return false; // Still loading or error.
+    final currentUserMembership = memberships
+        .where((m) => m.userId == currentUserId)
+        .firstOrNull;
+    return currentUserMembership?.isAdmin ?? false;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -3044,7 +3089,24 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     // v5.13: Determine if the "Related to" picker should be shown.
     // Show it when NO anchorPerson was explicitly passed (generic Add flow).
     // When anchorPerson IS passed (node context menu), show a read-only label.
-    final bool showTargetPicker = widget.anchorPerson == null && !_isEditMode;
+    //
+    // v5.197 (ROLE-GATE): The editable "Related to *" picker is now
+    // restricted to family ADMINS and CREATORS only. Regular members
+    // never see the picker — their additions are always anchored to
+    // their own account ("Me"), which is auto-selected via the
+    // _autoSelectViewerAsTarget() initState hook. This prevents a
+    // regular member from creating relationships between two OTHER
+    // accounts (which they would not have permission to do anyway
+    // per the relationship_permissions.dart check, but the previous
+    // flow showed the picker first and then failed at commit time —
+    // a confusing UX). Admins/creators see the full picker and can
+    // anchor a relationship between any two existing accounts. When
+    // an admin uses this to add/link a relationship where the target
+    // is a real registered Kinrel account, the existing pending-
+    // invite flow still applies (per the v5.194 invite logic).
+    final bool isAdminOrCreator = _isCurrentUserAdminOrCreator;
+    final bool showTargetPicker =
+        widget.anchorPerson == null && !_isEditMode && isAdminOrCreator;
     final bool familyHasMembers = _familyHasExistingMembers;
 
     return SingleChildScrollView(

@@ -653,13 +653,25 @@ class _RelationshipQuickPickSheetState
   }
 
   /// Optional: hide a primary chip if the viewer already has a Person
-  /// linked via that relationship. e.g. if the viewer already has a
-  /// "father" edge in the family, hide the "Parent" chip (it's
-  /// extremely unusual to have two fathers in a single family).
+  /// linked via that SPECIFIC relationship. e.g. if the viewer already
+  /// has a 'father' edge, hide the "Parent" chip.
+  ///
+  /// v5.197 (BUG FIX): The previous version ALSO matched against
+  /// `rel.relationshipKey` (the fundamental edge type, which is almost
+  /// always 'parent' for non-spouse edges — father/mother/son/
+  /// daughter/brother/sister/grandfather/etc. all share the fundamental
+  /// key 'parent'). Because of that, ANY existing parent-type edge
+  /// (e.g. a single 'father' edge) would hide ALL of Parent, Child,
+  /// Sibling, Grandparent — leaving only Spouse and More visible.
+  ///
+  /// The fix: only match against the SPECIFIC labels (labelAtoB and
+  /// labelBtoA — e.g. 'father', 'son', 'brother'). The fundamental
+  /// `relationshipKey` is no longer used for hiding because it's
+  /// shared across too many distinct kinship types.
   ///
   /// Implementation: read the family's existing relationships, check
-  /// whether any edge has a labelAtoB/labelBtoA matching the gendered
-  /// form OR the gender-neutral form for this category.
+  /// whether any edge has a labelAtoB or labelBtoA matching the
+  /// gendered form OR the gender-neutral form for this category.
   bool _shouldHideCategory(_QuickPickCategory category) {
     final detail = ref
         .read(familyDetailProvider(widget.familyId))
@@ -685,21 +697,18 @@ class _RelationshipQuickPickSheetState
 
     for (final rel in detail.relationships) {
       if (!rel.isActive) continue;
+      // v5.197: Only check the SPECIFIC labels (labelAtoB, labelBtoA).
+      // Do NOT check rel.relationshipKey — it's the fundamental edge
+      // type (almost always 'parent' for non-spouse edges) and would
+      // match across unrelated kinship types.
       final labels = <String?>{
         rel.labelAtoB,
         rel.labelBtoA,
-        rel.relationshipKey,
       };
       for (final label in labels) {
         if (label == null) continue;
         final lc = label.toLowerCase();
         if (genderedForms.contains(lc)) {
-          // Only hide if the relationship is between the viewer and
-          // someone OTHER than the selected user (we don't want to
-          // hide the chip if the existing edge IS to the selected
-          // user — that case is handled by the search screen's
-          // "Already Added" badge instead).
-          // For simplicity, hide if any edge matches the category.
           return true;
         }
       }
@@ -710,6 +719,28 @@ class _RelationshipQuickPickSheetState
   @override
   Widget build(BuildContext context) {
     final safePadding = MediaQuery.of(context).padding.bottom;
+
+    // v5.197 (LOADING STATE): Don't mount the real sheet content until
+    // all required data has finished loading. The sheet depends on:
+    //   - familyDetailProvider(familyId) — needed for _shouldHideCategory
+    //     (existing-relationship detection) and to resolve the viewer's
+    //     anchor Person ID.
+    //   - kinshipInitializedProvider — needed for the "More" list.
+    //
+    // Before v5.197, the sheet would mount immediately and paint a
+    // partial layout (e.g. with all chips visible because
+    // familyDetailProvider was still loading → _shouldHideCategory
+    // returned false), then SNAP to the correct layout a few seconds
+    // later when the data arrived. This was a visible race condition.
+    //
+    // Now we show a skeleton (matching the final layout shape: drag
+    // handle + title + a grid of grey placeholder chips) while the
+    // data is loading, then swap to the real content in a single
+    // frame. No partial/half-rendered intermediate state is visible.
+    final detailAsync = ref.watch(familyDetailProvider(widget.familyId));
+    final kinshipAsync = ref.watch(kinshipInitializedProvider);
+    final bool isLoading = detailAsync.isLoading || kinshipAsync.isLoading;
+
     return SafeArea(
       top: false,
       child: Padding(
@@ -728,32 +759,93 @@ class _RelationshipQuickPickSheetState
               ),
             ),
 
-            // Header — changes based on which step is active.
-            //   - Default: "Add <name> as your..."
-            //   - Gender follow-up: "Is <name>..." (with a back button
-            //     to return to the chips grid).
-            if (_awaitingGenderFor != null)
-              _buildGenderFollowUpHeader()
-            else
+            if (isLoading)
+              _buildLoadingSkeleton()
+            else ...[
+              // Header — "Add <name> as your..." (always the same,
+              // whether or not the gender follow-up is active, since
+              // the gender prompt now appears INLINE below the chips
+              // grid rather than as a separate body).
               _buildDefaultHeader(),
 
-            const Divider(
-                color: KinrelColors.darkElevated, height: 1, thickness: 1),
+              const Divider(
+                  color: KinrelColors.darkElevated, height: 1, thickness: 1),
 
-            // Body — three modes:
-            //   1. Gender follow-up step (when _awaitingGenderFor != null)
-            //   2. "More" searchable list (when _showMore == true)
-            //   3. Default chips grid
-            if (_awaitingGenderFor != null)
-              _buildGenderFollowUpBody()
-            else if (_showMore)
-              _buildMoreList()
-            else
-              _buildChipsGrid(),
+              // Body — three modes:
+              //   1. "More" searchable list (when _showMore == true)
+              //   2. Default chips grid + optional inline gender
+              //      follow-up prompt below it (when _awaitingGenderFor
+              //      != null)
+              //
+              // The gender follow-up is rendered INLINE in the same
+              // sheet (no separate screen, no back arrow) — the
+              // previously-selected chip stays in the grid above in a
+              // visually highlighted state, and the gender chips
+              // appear directly below it.
+              if (_showMore)
+                _buildMoreList()
+              else
+                _buildChipsGridWithInlineGender(),
+            ],
 
             const SizedBox(height: KinrelSpacing.base),
           ],
         ),
+      ),
+    );
+  }
+
+  // ── Loading skeleton (matches the final chips-grid layout shape) ────
+  //
+  // v5.197: A skeleton that mirrors the final layout — a title
+  // placeholder + a 2x3 grid of grey placeholder chips — so the user
+  // sees the correct shape immediately and the swap to real content
+  // is a single-frame replacement, not a layout shift.
+
+  Widget _buildLoadingSkeleton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: KinrelSpacing.base, vertical: KinrelSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title placeholder
+          Container(
+            width: 220,
+            height: 22,
+            decoration: BoxDecoration(
+              color: KinrelColors.darkElevated,
+              borderRadius: BorderRadius.circular(KinrelRadius.sm),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // 2x3 grid of chip placeholders
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: List.generate(
+              6,
+              (_) => Container(
+                width: _kChipWidth,
+                height: _kChipHeight,
+                decoration: BoxDecoration(
+                  color: KinrelColors.darkElevated,
+                  borderRadius: BorderRadius.circular(KinrelRadius.md),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Helper text placeholder
+          Container(
+            width: 260,
+            height: 14,
+            decoration: BoxDecoration(
+              color: KinrelColors.darkElevated.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(KinrelRadius.sm),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -830,71 +922,108 @@ class _RelationshipQuickPickSheetState
     );
   }
 
-  // ── Gender follow-up header ("Is <name>...") ──────────────────────
+  // ── Inline gender follow-up prompt (renders below the chips grid) ──
+  //
+  // v5.197 (INLINE GENDER STEP): The gender follow-up is now rendered
+  // INLINE below the chips grid (no separate screen, no back arrow).
+  // When the user taps a chip that requires a gender follow-up (Parent
+  // / Sibling / Child / Grandparent when the selected user's gender
+  // is null), the previously-tapped chip is shown in a visually
+  // SELECTED/HIGHLIGHTED state in the grid above, and a "Is [Name]...
+  // [Male] [Female] [Other]" prompt appears directly below the grid.
+  //
+  // Tapping Male/Female/Other resolves the gendered label and commits
+  // (same flow as before). Tapping the highlighted chip again OR
+  // tapping any other chip cancels the follow-up and starts a new
+  // selection (no explicit Cancel button needed).
 
-  Widget _buildGenderFollowUpHeader() {
-    final category = _awaitingGenderFor!;
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: KinrelSpacing.base, vertical: KinrelSpacing.sm),
-      child: Row(
-        children: [
-          // Back button — returns to the chips grid.
-          IconButton(
-            icon: const Icon(Icons.arrow_back,
-                color: KinrelColors.textWhite, size: 22),
-            onPressed: _isCommitting
-                ? null
-                : () {
-                    setState(() => _awaitingGenderFor = null);
-                  },
-            padding: EdgeInsets.zero,
-            constraints:
-                const BoxConstraints(minWidth: 32, minHeight: 32),
-            tooltip: 'Back',
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Is ${widget.selectedUser.name}...',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Pick a gender to label them as your ${_prettyLabel(category.fundamentalKey)}. '
-                  'This is only used for this relationship — it does not '
-                  'change their profile.',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 12,
-                    color: KinrelColors.textDim,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Gender follow-up body (Male / Female / Other chips) ───────────
-
-  Widget _buildGenderFollowUpBody() {
+  Widget _buildChipsGridWithInlineGender() {
     return Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: KinrelSpacing.base, vertical: KinrelSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // The 2x3 chips grid. The currently-selected chip (when
+          // _awaitingGenderFor != null) is rendered in a highlighted
+          // state inside _buildChipsGrid via the `isSelected` flag.
+          _buildChipsGrid(),
+
+          // Inline gender follow-up prompt (only when a chip is
+          // awaiting a gender choice). Appears directly below the
+          // grid in the same sheet — no screen transition.
+          if (_awaitingGenderFor != null) ...[
+            const SizedBox(height: 16),
+            _buildInlineGenderPrompt(),
+          ] else ...[
+            const SizedBox(height: 16),
+            // Default helper text (shown only when no gender follow-up
+            // is active, so the inline prompt doesn't visually compete
+            // with the generic helper text).
+            Text(
+              'Tapping a chip immediately adds the relationship. '
+              'You can undo it right after.',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: KinrelColors.textDim,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ── Inline gender follow-up prompt (renders below the chips grid) ──
+  //
+  // v5.197: Replaces the previous "Is [Name]..." separate-screen
+  // gender step. Now appears inline below the chips grid in the same
+  // sheet. No back arrow — the user can either tap a gender chip to
+  // commit, or tap a different primary chip to switch context.
+
+  Widget _buildInlineGenderPrompt() {
+    final category = _awaitingGenderFor!;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: KinrelColors.orange.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        border: Border.all(
+          color: KinrelColors.orange.withValues(alpha: 0.2),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Prompt title
+          Text(
+            'Is ${widget.selectedUser.name}...',
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: KinrelColors.textWhite,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Subtitle: explains this is a label-only choice for the
+          // selected relationship type. Mentions the chip name so the
+          // user knows what they're labelling.
+          Text(
+            'Pick a gender to label them as your '
+            '${_prettyLabel(category.fundamentalKey)}. '
+            'This is only used for this relationship — it does not '
+            'change their profile.',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 12,
+              color: KinrelColors.textDim,
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Gender chips (Male / Female / Other)
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -919,15 +1048,6 @@ class _RelationshipQuickPickSheetState
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Tap one to add. You can undo it right after.',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 12,
-              color: KinrelColors.textDim,
-            ),
-          ),
         ],
       ),
     );
@@ -950,13 +1070,13 @@ class _RelationshipQuickPickSheetState
   //     submit button) and shows the "Added ✓ / Undo" toast.
   //   - Gender-based label inference stays the same: Parent + Male →
   //     'father', Sibling + Female → 'sister', etc.
-  //   - Gender follow-up (v5.195) triggers for Parent / Sibling / Child
-  //     / Grandparent when the selected user's gender is null; Spouse
-  //     is exempt (already gender-neutral).
-  //   - Existing-relationship hiding: if the viewer already has an edge
-  //     matching the category, the chip is hidden and the grid row may
-  //     collapse. The "More" chip is ALWAYS shown (it's the entry to
-  //     the searchable list, never "already exists").
+  //   - Gender follow-up (v5.197) now renders INLINE below the grid
+  //     for Parent / Sibling / Child / Grandparent when the selected
+  //     user's gender is null; Spouse is exempt (already gender-
+  //     neutral).
+  //   - Existing-relationship hiding: if the viewer already has an
+  //     edge matching the SPECIFIC label (father/mother/son/etc.),
+  //     the chip is hidden. The "More" chip is ALWAYS shown.
 
   Widget _buildChipsGrid() {
     // Build the list of primary chips in the enum order. We always
@@ -970,12 +1090,24 @@ class _RelationshipQuickPickSheetState
         // doesn't collapse to a single column when one chip is hidden.
         primaryChips.add(const SizedBox(width: _kChipWidth, height: _kChipHeight));
       } else {
+        // v5.197: A chip is "selected" (highlighted) when it's the
+        // one currently awaiting a gender follow-up.
+        final bool isSelected = _awaitingGenderFor == category;
         primaryChips.add(
           _QuickPickChip(
             category: category,
             specificLabel: _specificLabelFor(category),
             isCommitting: _isCommitting,
-            onTap: () => _commit(category),
+            isSelected: isSelected,
+            onTap: () {
+              if (isSelected) {
+                // Tapping the already-selected chip cancels the
+                // gender follow-up (acts as a toggle).
+                setState(() => _awaitingGenderFor = null);
+              } else {
+                _commit(category);
+              }
+            },
           ),
         );
       }
@@ -988,41 +1120,22 @@ class _RelationshipQuickPickSheetState
       onTap: _isCommitting
           ? null
           : () {
-              setState(() => _showMore = true);
+              setState(() {
+                _showMore = true;
+                // Also cancel any in-progress gender follow-up when
+                // the user switches to the "More" list.
+                _awaitingGenderFor = null;
+              });
             },
     );
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: KinrelSpacing.base, vertical: KinrelSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 2-column, 3-row grid via a fixed-width Wrap. Using Wrap
-          // with `spacing` and `runSpacing` keeps the chips left-
-          // aligned and lets the layout flow naturally if a chip is
-          // hidden (we already inserted a SizedBox placeholder above).
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              ...primaryChips,
-              moreChip,
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Helper text.
-          Text(
-            'Tapping a chip immediately adds the relationship. '
-            'You can undo it right after.',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 12,
-              color: KinrelColors.textDim,
-            ),
-          ),
-        ],
-      ),
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        ...primaryChips,
+        moreChip,
+      ],
     );
   }
 
@@ -1054,12 +1167,20 @@ class _QuickPickChip extends StatelessWidget {
     required this.specificLabel,
     required this.isCommitting,
     required this.onTap,
+    this.isSelected = false,
   });
 
   final _QuickPickCategory category;
   final String specificLabel;
   final bool isCommitting;
   final VoidCallback onTap;
+
+  /// v5.197: When true, the chip is rendered in a visually SELECTED /
+  /// highlighted state — used when the user has tapped this chip and
+  /// is now being asked to pick a gender inline below the grid. The
+  /// highlight gives the user a clear visual indication of which
+  /// relationship they're currently configuring.
+  final bool isSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -1068,6 +1189,25 @@ class _QuickPickChip extends StatelessWidget {
     // gender is unknown, the chip shows the gender-neutral label
     // ("Parent"/"Sibling"/"Child"/"Grandparent"/"Spouse").
     final displayLabel = _prettyLabel(specificLabel);
+
+    // v5.197: Selected chip uses a solid orange fill + white text +
+    // thicker border to clearly indicate the current selection.
+    // Non-selected chips use the existing subtle orange-outline style.
+    final Color chipBg = isSelected
+        ? KinrelColors.orange
+        : (isCommitting
+            ? KinrelColors.darkElevated.withValues(alpha: 0.5)
+            : KinrelColors.darkElevated);
+    final Color chipBorder = isSelected
+        ? KinrelColors.orange
+        : KinrelColors.orange.withValues(alpha: 0.3);
+    final double borderWidth = isSelected ? 2 : 1;
+    final Color iconColor = isSelected
+        ? Colors.white
+        : KinrelColors.orange;
+    final Color textColor = isSelected
+        ? Colors.white
+        : (isCommitting ? KinrelColors.textDim : KinrelColors.textWhite);
 
     // v5.196: Fixed width so the chip fits the 2-column grid layout.
     return SizedBox(
@@ -1082,20 +1222,18 @@ class _QuickPickChip extends StatelessWidget {
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: isCommitting
-                  ? KinrelColors.darkElevated.withValues(alpha: 0.5)
-                  : KinrelColors.darkElevated,
+              color: chipBg,
               borderRadius: BorderRadius.circular(KinrelRadius.md),
               border: Border.all(
-                color: KinrelColors.orange.withValues(alpha: 0.3),
-                width: 1,
+                color: chipBorder,
+                width: borderWidth,
               ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(category.icon,
-                    color: KinrelColors.orange,
+                    color: iconColor,
                     size: isCommitting ? 14 : 16),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1105,9 +1243,7 @@ class _QuickPickChip extends StatelessWidget {
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: isCommitting
-                          ? KinrelColors.textDim
-                          : KinrelColors.textWhite,
+                      color: textColor,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
