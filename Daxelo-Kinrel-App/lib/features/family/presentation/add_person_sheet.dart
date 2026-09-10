@@ -640,6 +640,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         _selectedRelType = null;   // ← clears simple card so no confusion
         _selectedSubType = null;
         _customKinshipName = null; // clear custom if user picks a standard term
+        // v5.199: Collapse the "More" section after a selection is
+        // made from within it (per the user's request: "selecting an
+        // option from within it should collapse it back").
+        _showMoreKinship = false;
       });
     }
   }
@@ -818,6 +822,10 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         _selectedRelationshipLabel = null;
         _selectedRelType = null;
         _selectedSubType = null;
+        // v5.199: Collapse the "More" section after a selection is
+        // made from within it (per the user's request: "selecting an
+        // option from within it should collapse it back").
+        _showMoreKinship = false;
       });
     }
   }
@@ -2251,14 +2259,54 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     final newName = _nameController.text.trim().isNotEmpty
         ? _nameController.text.trim()
         : 'New Member';
+
+    // v5.199 (BUG FIX): Use ref.watch (not ref.read) for the providers
+    // that gate the "Related to" picker so the sheet REBUILDS when the
+    // membership/family data arrives. Previously these were read via
+    // the _isCurrentUserAdminOrCreator and _familyHasExistingMembers
+    // getters, both of which used ref.read — meaning the sheet
+    // computed showTargetPicker=false during the initial build (while
+    // data was still loading) and never re-evaluated when the data
+    // arrived. The "Related to" picker was therefore permanently
+    // hidden for admin/creator accounts.
+    //
+    // Now we watch the providers here (in the build method) so any
+    // change in their state triggers a rebuild and the picker appears
+    // as soon as the admin/creator status is confirmed.
+    final membershipsAsync = ref.watch(familyMembershipsProvider(widget.familyId));
+    final familyDetailAsync = ref.watch(familyDetailProvider(widget.familyId));
+    final membersAsync = ref.watch(familyMembersProvider(widget.familyId));
+
+    // Compute admin/creator status from the watched providers.
+    final currentUserId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+    final bool isCreator = familyDetailAsync.valueOrNull?.family.createdBy != null &&
+        familyDetailAsync.valueOrNull?.family.createdBy == currentUserId;
+    final bool isAdmin = membershipsAsync.valueOrNull
+            ?.where((m) => m.userId == currentUserId)
+            .firstOrNull
+            ?.isAdmin ??
+        false;
+    final bool isAdminOrCreator = isCreator || isAdmin;
+
+    // Compute familyHasMembers from the watched provider. Conservative
+    // while loading / on error (assume members exist) — same logic
+    // as the _familyHasExistingMembers getter but using ref.watch.
+    final bool familyHasMembers;
+    if (membersAsync.hasError) {
+      familyHasMembers = true;
+    } else if (membersAsync.isLoading) {
+      familyHasMembers = true;
+    } else {
+      final existingMembers = membersAsync.valueOrNull;
+      familyHasMembers = existingMembers != null && existingMembers.isNotEmpty;
+    }
+
     // v5.197: Apply the admin/creator role gate to the "Related to"
     // picker — regular members never see it (their additions are
     // anchored to themselves by default).
-    final bool isAdminOrCreator = _isCurrentUserAdminOrCreator;
     final bool showTargetPicker = widget.anchorPerson == null &&
         !_isEditMode &&
         isAdminOrCreator;
-    final bool familyHasMembers = _familyHasExistingMembers;
 
     return SingleChildScrollView(
       child: Column(
@@ -2678,7 +2726,20 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   ///     (_customKinshipName).
   Widget _buildQuickAddButton() {
     final bool nameValid = nameValidator(_nameController.text) == null;
-    final bool isFirstMember = !_familyHasExistingMembers;
+    // v5.199: Use ref.watch (not the ref.read-based getter) so the
+    // button rebuilds when the family-members data arrives. This
+    // ensures canSubmit flips from false→true the moment the data
+    // confirms this is the first member (no existing members).
+    final membersAsync = ref.watch(familyMembersProvider(widget.familyId));
+    final bool isFirstMember;
+    if (membersAsync.hasError || membersAsync.isLoading) {
+      isFirstMember = false; // Conservative: assume NOT first member
+                             // while loading so the button stays
+                             // disabled until the data resolves.
+    } else {
+      final existing = membersAsync.valueOrNull;
+      isFirstMember = existing == null || existing.isEmpty;
+    }
     final bool hasRelationship = _effectiveRelationshipKey != null;
     final bool canSubmit = nameValid && (isFirstMember || hasRelationship);
 
@@ -4543,15 +4604,25 @@ class _RelChip extends StatelessWidget {
     // border. Non-selected primary chips use the subtle orange
     // outline. The "More" chip uses a dimmer outline + dim text in
     // its non-selected state to signal it's an expansion toggle.
+    //
+    // v5.199 (BUG FIX): The "More" chip previously used
+    // `Colors.transparent` as its non-selected background, which made
+    // the `InkWell`'s tap ripple invisible (no surface to render on)
+    // AND made the chip itself visually merge into the dark sheet
+    // background — users reported the chip "does nothing" on tap.
+    // Now ALL chips (including "More") use `KinrelColors.darkElevated`
+    // as their non-selected background so the InkWell has a solid
+    // surface, the ripple is visible, and the chip is visually
+    // distinct from the sheet background. The "More" chip is still
+    // visually differentiated from primary chips via its dimmer
+    // border color + dim text/icon color + a trailing expand icon.
     final Color chipBg = isSelected
         ? KinrelColors.orange
-        : (isMore
-            ? Colors.transparent
-            : KinrelColors.darkElevated);
+        : KinrelColors.darkElevated;
     final Color chipBorder = isSelected
         ? KinrelColors.orange
         : (isMore
-            ? KinrelColors.textDim.withValues(alpha: 0.3)
+            ? KinrelColors.textDim.withValues(alpha: 0.4)
             : KinrelColors.orange.withValues(alpha: 0.3));
     final double borderWidth = isSelected ? 2 : 1;
     final Color iconColor = isSelected
@@ -4564,41 +4635,56 @@ class _RelChip extends StatelessWidget {
     return SizedBox(
       width: width,
       height: height,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: chipBg,
           borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: chipBg,
-              borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
-              border: Border.all(
-                color: chipBorder,
-                width: borderWidth,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, color: iconColor, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
+          border: Border.all(
+            color: chipBorder,
+            width: borderWidth,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: iconColor, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-              ],
+                  // v5.199: Show an expand/collapse chevron on the "More"
+                  // chip so it's visually clear it's an expansion toggle,
+                  // not a dead-end button. When expanded (isSelected),
+                  // shows expand_less (up chevron); collapsed shows
+                  // expand_more (down chevron).
+                  if (isMore) ...[
+                    const SizedBox(width: 4),
+                    Icon(
+                      isSelected ? Icons.expand_less : Icons.expand_more,
+                      color: textColor,
+                      size: 18,
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ),
