@@ -57,21 +57,44 @@ import 'providers/family_graph_provider.dart'
     show FamilyGraphNotifier, familyGraphProvider;
 import 'providers/graph_pending_invitations_provider.dart';
 
+// v5.196: Fixed chip dimensions for the 2-column grid. Both the
+// primary chips (Parent / Child / Sibling / Spouse / Grandparent)
+// and the "More" chip use this width so the grid stays aligned
+// even when one of the primary chips is hidden by the existing-
+// relationship filter (the hidden slot renders a SizedBox of the
+// same width).
+//
+// The width was chosen to comfortably fit the longest label
+// ("Grandparent") with the icon + padding on a typical 360pt+
+// phone screen, leaving ~10pt of spacing between the two
+// columns.
+const double _kChipWidth = 158;
+const double _kChipHeight = 48;
+
 /// The five primary quick-pick categories. Each maps to a fundamental
 /// edge key ('parent', 'spouse') that the DB constraint accepts, plus
 /// a gender-aware specific label that gets stored in `labelAtoB`.
 ///
+/// v5.196: The enum order defines the chip grid order:
+///   Row 1: Parent | Child
+///   Row 2: Sibling | Spouse
+///   Row 3: Grandparent | More (More is rendered as a separate chip
+///         appended after the five categories in [_buildChipsGrid]).
+///
+/// "Parent" and "Child" are first because they are the two most
+/// common relations a user adds to their family graph.
+///
 /// The "from the viewer's perspective" semantic:
 ///   - Parent     → "the selected user is the viewer's parent"
+///   - Child      → "the selected user is the viewer's child"
 ///   - Sibling    → "the selected user is the viewer's sibling"
 ///   - Spouse     → "the selected user is the viewer's spouse"
-///   - Child      → "the selected user is the viewer's child"
 ///   - Grandparent → "the selected user is the viewer's grandparent"
 enum _QuickPickCategory {
   parent('parent', 'Parent', Icons.family_restroom),
+  child('child', 'Child', Icons.child_care_outlined),
   sibling('sibling', 'Sibling', Icons.people_outline),
   spouse('spouse', 'Spouse', Icons.favorite_outline),
-  child('child', 'Child', Icons.child_care_outlined),
   grandparent('grandparent', 'Grandparent', Icons.elderly_outlined);
 
   const _QuickPickCategory(this.fundamentalKey, this.label, this.icon);
@@ -736,8 +759,20 @@ class _RelationshipQuickPickSheetState
   }
 
   // ── Default header ("Add <name> as your...") ──────────────────────
+  //
+  // v5.196: The secondary line (avatar + @username) is now bound to
+  // the selected user's REAL `username` field. If the user has no
+  // username set (null or empty), the entire secondary line is
+  // HIDDEN — we no longer fall back to `displayId` (the synthetic
+  // 'KIN-XXXXX' hash), which was showing up as '@KIN-00234' on
+  // profiles without a username and looked like a broken placeholder.
 
   Widget _buildDefaultHeader() {
+    final username = widget.selectedUser.username;
+    final hasUsername = username != null && username.trim().isNotEmpty;
+    final avatarUrl = widget.selectedUser.avatarUrl;
+    final hasAvatar = avatarUrl != null && avatarUrl.isNotEmpty;
+
     return Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: KinrelSpacing.base, vertical: KinrelSpacing.sm),
@@ -753,34 +788,43 @@ class _RelationshipQuickPickSheetState
               color: KinrelColors.textWhite,
             ),
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              if (widget.selectedUser.avatarUrl != null &&
-                  widget.selectedUser.avatarUrl!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ClipOval(
-                    child: Image.network(
-                      widget.selectedUser.avatarUrl!,
-                      width: 20,
-                      height: 20,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          const SizedBox(width: 20, height: 20),
+          // v5.196: Only render the avatar + @username line when the
+          // user has a real username. When the username is null/empty,
+          // hide the whole line (including the avatar) instead of
+          // showing a placeholder like '@KIN-00234'.
+          if (hasUsername) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                if (hasAvatar)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ClipOval(
+                      child: Image.network(
+                        avatarUrl,
+                        width: 20,
+                        height: 20,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            const SizedBox(width: 20, height: 20),
+                      ),
                     ),
                   ),
+                Flexible(
+                  child: Text(
+                    '@$username',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.monoFont,
+                      fontSize: 13,
+                      color: KinrelColors.orange,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              Text(
-                '@${widget.selectedUser.username ?? widget.selectedUser.displayId}',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.monoFont,
-                  fontSize: 13,
-                  color: KinrelColors.orange,
-                ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -889,42 +933,84 @@ class _RelationshipQuickPickSheetState
     );
   }
 
-  // ── Chips grid (Parent / Sibling / Spouse / Child / Grandparent / More) ─
+  // ── Chips grid — 2x3 layout ─────────────────────────────────────────
+  //
+  // v5.196: The grid is now a fixed 2-column, 3-row layout:
+  //   Row 1: Parent  | Child
+  //   Row 2: Sibling | Spouse
+  //   Row 3: Grandparent | More
+  //
+  // The order is driven by the `_QuickPickCategory` enum (Parent,
+  // Child, Sibling, Spouse, Grandparent). The "More" chip is the 6th
+  // item, rendered via a dedicated widget (visually similar but with
+  // a "more" icon) and triggers the searchable-list path.
+  //
+  // Existing behavior is preserved:
+  //   - Tapping any chip immediately commits the relationship (no
+  //     submit button) and shows the "Added ✓ / Undo" toast.
+  //   - Gender-based label inference stays the same: Parent + Male →
+  //     'father', Sibling + Female → 'sister', etc.
+  //   - Gender follow-up (v5.195) triggers for Parent / Sibling / Child
+  //     / Grandparent when the selected user's gender is null; Spouse
+  //     is exempt (already gender-neutral).
+  //   - Existing-relationship hiding: if the viewer already has an edge
+  //     matching the category, the chip is hidden and the grid row may
+  //     collapse. The "More" chip is ALWAYS shown (it's the entry to
+  //     the searchable list, never "already exists").
 
   Widget _buildChipsGrid() {
+    // Build the list of primary chips in the enum order. We always
+    // build all 5 — the `_shouldHideCategory` filter is applied here
+    // to leave a gap (we render a SizedBox in the slot so the 2-column
+    // row layout is preserved when one chip is hidden).
+    final primaryChips = <Widget>[];
+    for (final category in _QuickPickCategory.values) {
+      if (_shouldHideCategory(category)) {
+        // Render an invisible placeholder so the 2-column grid layout
+        // doesn't collapse to a single column when one chip is hidden.
+        primaryChips.add(const SizedBox(width: _kChipWidth, height: _kChipHeight));
+      } else {
+        primaryChips.add(
+          _QuickPickChip(
+            category: category,
+            specificLabel: _specificLabelFor(category),
+            isCommitting: _isCommitting,
+            onTap: () => _commit(category),
+          ),
+        );
+      }
+    }
+
+    // The 6th slot is always the "More" chip — it's the entry to the
+    // searchable list and is never hidden by existing-relationship
+    // detection (it represents all OTHER kinship terms).
+    final moreChip = _MoreChip(
+      onTap: _isCommitting
+          ? null
+          : () {
+              setState(() => _showMore = true);
+            },
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: KinrelSpacing.base, vertical: KinrelSpacing.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Primary chips (2x2 grid + Grandparent row).
+          // 2-column, 3-row grid via a fixed-width Wrap. Using Wrap
+          // with `spacing` and `runSpacing` keeps the chips left-
+          // aligned and lets the layout flow naturally if a chip is
+          // hidden (we already inserted a SizedBox placeholder above).
           Wrap(
             spacing: 10,
             runSpacing: 10,
             children: [
-              for (final category in _QuickPickCategory.values)
-                if (!_shouldHideCategory(category))
-                  _QuickPickChip(
-                    category: category,
-                    specificLabel: _specificLabelFor(category),
-                    isCommitting: _isCommitting,
-                    onTap: () => _commit(category),
-                  ),
+              ...primaryChips,
+              moreChip,
             ],
           ),
-
-          const SizedBox(height: 12),
-
-          // "More" chip.
-          _MoreChip(
-            onTap: () {
-              setState(() => _showMore = true);
-            },
-          ),
-
           const SizedBox(height: 16),
-
           // Helper text.
           Text(
             'Tapping a chip immediately adds the relationship. '
@@ -983,54 +1069,63 @@ class _QuickPickChip extends StatelessWidget {
     // ("Parent"/"Sibling"/"Child"/"Grandparent"/"Spouse").
     final displayLabel = _prettyLabel(specificLabel);
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: isCommitting ? null : onTap,
-        borderRadius: BorderRadius.circular(KinrelRadius.md),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          decoration: BoxDecoration(
-            color: isCommitting
-                ? KinrelColors.darkElevated.withValues(alpha: 0.5)
-                : KinrelColors.darkElevated,
-            borderRadius: BorderRadius.circular(KinrelRadius.md),
-            border: Border.all(
-              color: KinrelColors.orange.withValues(alpha: 0.3),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(category.icon,
-                  color: KinrelColors.orange,
-                  size: isCommitting ? 14 : 16),
-              const SizedBox(width: 8),
-              Text(
-                displayLabel,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isCommitting
-                      ? KinrelColors.textDim
-                      : KinrelColors.textWhite,
-                ),
+    // v5.196: Fixed width so the chip fits the 2-column grid layout.
+    return SizedBox(
+      width: _kChipWidth,
+      height: _kChipHeight,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isCommitting ? null : onTap,
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: isCommitting
+                  ? KinrelColors.darkElevated.withValues(alpha: 0.5)
+                  : KinrelColors.darkElevated,
+              borderRadius: BorderRadius.circular(KinrelRadius.md),
+              border: Border.all(
+                color: KinrelColors.orange.withValues(alpha: 0.3),
+                width: 1,
               ),
-              if (isCommitting) ...[
-                const SizedBox(width: 8),
-                const SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(category.icon,
                     color: KinrelColors.orange,
-                    strokeWidth: 1.5,
+                    size: isCommitting ? 14 : 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    displayLabel,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isCommitting
+                          ? KinrelColors.textDim
+                          : KinrelColors.textWhite,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                if (isCommitting) ...[
+                  const SizedBox(width: 8),
+                  const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      color: KinrelColors.orange,
+                      strokeWidth: 1.5,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -1051,40 +1146,47 @@ class _QuickPickChip extends StatelessWidget {
 
 class _MoreChip extends StatelessWidget {
   const _MoreChip({required this.onTap});
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(KinrelRadius.md),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(KinrelRadius.md),
-            border: Border.all(
-              color: KinrelColors.textDim.withValues(alpha: 0.3),
-              width: 1,
-            ),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.more_horiz, color: KinrelColors.textDim, size: 16),
-              SizedBox(width: 8),
-              Text(
-                'More',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.textDim,
-                ),
+    // v5.196: Fixed width to match the primary chips so the 2x3 grid
+    // stays aligned. The "More" chip is the 6th item in the grid
+    // (Row 3, column 2 — paired with Grandparent).
+    return SizedBox(
+      width: _kChipWidth,
+      height: _kChipHeight,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(KinrelRadius.md),
+              border: Border.all(
+                color: KinrelColors.textDim.withValues(alpha: 0.3),
+                width: 1,
               ),
-            ],
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.more_horiz, color: KinrelColors.textDim, size: 16),
+                SizedBox(width: 8),
+                Text(
+                  'More',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.textDim,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
