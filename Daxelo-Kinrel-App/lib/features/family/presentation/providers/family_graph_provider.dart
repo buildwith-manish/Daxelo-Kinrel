@@ -2301,9 +2301,35 @@ final graphLayoutProvider =
   // body causes a Dart type-inference cycle (top_level_cycle), so we
   // side-step it via this separate cache.
   final isExpansionRecompute = proximityState.isInitialized;
-  final previousPositions = isExpansionRecompute
+  var previousPositions = isExpansionRecompute
       ? ref.read(lastLayoutPositionsProvider(familyId))
       : null;
+  // v5.208 (OVERLAP FIX): Detect if the previous positions are
+  // degenerate (all at the same point, or all at origin). This can
+  // happen when a prior layout pass produced overlapping nodes (e.g.
+  // from a layout bug, a stale cache, or a branch expand that
+  // didn't properly recalculate). If detected, clear the cache and
+  // force a fresh global layout — do NOT preserve degenerate positions.
+  if (previousPositions != null && previousPositions.isNotEmpty) {
+    final values = previousPositions.values.toList();
+    bool allSame = true;
+    if (values.length > 1) {
+      final first = values.first;
+      for (final v in values.skip(1)) {
+        if ((v.dx - first.dx).abs() > 1.0 || (v.dy - first.dy).abs() > 1.0) {
+          allSame = false;
+          break;
+        }
+      }
+    }
+    if (allSame) {
+      // All previous positions are at the same point — degenerate.
+      // Clear the cache and do a fresh layout.
+      debugPrint('[GRAPH-LAYOUT] v5.208: Detected degenerate previous positions (all at same point), clearing cache for fresh layout.');
+      ref.read(lastLayoutPositionsProvider(familyId).notifier).state = null;
+      previousPositions = null;
+    }
+  }
   final preservePositions = previousPositions != null &&
       previousPositions.isNotEmpty;
 
