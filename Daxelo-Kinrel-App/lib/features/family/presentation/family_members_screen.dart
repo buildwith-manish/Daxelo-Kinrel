@@ -159,10 +159,14 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
           final isAdmin = isCreator ||
               (currentUserMembership?.isAdmin ?? false);
 
-          // Only show real Kinrel users (linkedUserId is not null) —
-          // manually added placeholder nodes are excluded.
+          // v5.204: Show ALL members (both Linked and Manual).
+          // Previously filtered with `p.isLinkedToKinrelUser` which
+          // excluded manually-added members — causing the member list
+          // to show fewer members than the true count. Now shows every
+          // non-deleted member, with a Linked/Manual badge distinguishing
+          // how they were added.
           final activeMembers = combinedMembers
-              .where((p) => p.deletedAt == null && p.isLinkedToKinrelUser)
+              .where((p) => p.deletedAt == null)
               .toList();
 
           var filtered = activeMembers;
@@ -435,6 +439,53 @@ class _MemberRow extends StatelessWidget {
             if (person.isAnchor)
               Icon(Icons.star_rounded,
                   color: KinrelColors.gold, size: 18),
+            // v5.204: Linked/Manual badge — distinguishes members
+            // added via "Find on Kinrel" (real registered accounts,
+            // connected via invite/acceptance) from members added
+            // via "Add Manually" (not a real linked account).
+            //   - linkedUserId != null → "Linked" (chain-link icon)
+            //   - linkedUserId == null → "Manual" (pencil icon)
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: (person.linkedUserId != null
+                    ? KinrelColors.tealAccent
+                    : KinrelColors.textDim).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: (person.linkedUserId != null
+                      ? KinrelColors.tealAccent
+                      : KinrelColors.textDim).withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    person.linkedUserId != null
+                        ? Icons.link
+                        : Icons.edit_outlined,
+                    size: 10,
+                    color: person.linkedUserId != null
+                        ? KinrelColors.tealAccent
+                        : KinrelColors.textDim,
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    person.linkedUserId != null ? 'Linked' : 'Manual',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                      color: person.linkedUserId != null
+                          ? KinrelColors.tealAccent
+                          : KinrelColors.textDim,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

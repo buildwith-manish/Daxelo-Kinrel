@@ -1517,72 +1517,43 @@ class _FamilyGraphScreenState extends ConsumerState<FamilyGraphScreen>
               // - Expand: proximity grows → stats increase
               // - Collapse: collapse state changes → stats decrease
               // - Camera pan/zoom: neither changes → stats stay stable
-              final proximityState =
-                  ref.watch(proximityGraphProvider);
-              final collapseState =
-                  ref.watch(branchCollapseProvider);
-
-              // Start with the proximity set (what's been expanded).
-              final Set<String> expandedIds;
-              if (proximityState.isInitialized &&
-                  proximityState.visibleIds.isNotEmpty) {
-                expandedIds = proximityState.visibleIds;
-              } else {
-                // Pre-proximity: show full family count (one frame).
-                expandedIds = {
-                  for (final p in graph.persons)
-                    (p['id'] ?? '').toString(),
-                };
-              }
-
-              // Subtract nodes hidden by collapsed branches (both
-              // auto-collapsed for density AND manually-collapsed by
-              // the user). This gives the ACTUALLY RENDERED set.
-              final hiddenIds = collapseState.allHiddenMemberIds;
-              final disclosedIds = expandedIds
-                  .where((id) => !hiddenIds.contains(id))
-                  .toSet();
-
-              // Count members.
-              final disclosedMembers = disclosedIds.length;
+              // v5.204: Unify the member count data source.
+              // Previously: "Members: N" read from the stale
+              // proximityState.visibleIds (frozen at init, never updated
+              // on refetch), while "View all N" read from
+              // graph.totalCount (the TRUE server-side count). This
+              // caused them to disagree (e.g. "Members: 2" vs "View
+              // all 5").
+              //
+              // Now BOTH read from graph.totalCount (the TRUE count
+              // from the server's Person table COUNT), falling back to
+              // the RPC-returned persons length. They will always match
+              // each other and match the "View all" list.
+              final trueMemberCount =
+                  graph.totalCount ?? graph.persons.length;
 
               // Count links: relationships where BOTH endpoints are
-              // in the disclosed set.
-              final disclosedLinks = graph.relationships.where((r) {
-                final from = r['fromPersonId']?.toString();
-                final to = r['toPersonId']?.toString();
-                return from != null &&
-                    to != null &&
-                    disclosedIds.contains(from) &&
-                    disclosedIds.contains(to);
-              }).length;
+              // in the RPC-returned person set (the connected graph).
+              final disclosedLinks = graph.relationships.length;
 
               // Count generations: distinct generationIndex values
-              // among the disclosed persons.
+              // among the RPC-returned persons.
               final disclosedGens = <int>{};
               for (final p in graph.persons) {
-                final id = (p['id'] ?? '').toString();
-                if (disclosedIds.contains(id)) {
-                  final gen =
-                      (p['generationIndex'] as num?)?.toInt() ?? 0;
-                  disclosedGens.add(gen);
-                }
+                final gen =
+                    (p['generationIndex'] as num?)?.toInt() ?? 0;
+                disclosedGens.add(gen);
               }
 
               return StatsPanel(
-                totalMembers: disclosedMembers,
+                totalMembers: trueMemberCount,
                 totalConnections: disclosedLinks,
                 totalGenerations: disclosedGens.length,
-                // v5.152 (FIX 2): Use totalCount (the TRUE family size from
-                // the RPC) instead of persons.length (the ~45-node proximity
-                // set). The "View All" button should always show the total
-                // number of members in the family graph (714), not the
-                // number currently visible (45).
-                fullFamilyMembers: graph.totalCount ?? graph.persons.length,
+                fullFamilyMembers: trueMemberCount,
                 isTruncated: graph.isTruncated,
                 familyId: widget.familyId,
                 onViewAllMembers: () {
-                  setState(() => _showSearch = true);
+                  context.push('/family/${widget.familyId}/members');
                 },
               );
             }),
