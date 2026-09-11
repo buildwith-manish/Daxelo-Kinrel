@@ -448,7 +448,7 @@ RelationshipValidationResult? _checkSpouseAncestorConflict({
   required String fromPersonId,
   required String toPersonId,
   required String relationshipKey,
-  required List<({String fromId, String toId, String edgeId, String relationshipKey})> existingEdges,
+  required List<({String fromId, String toId, String edgeId, String relationshipKey, String labelAtoB, String labelBtoA, String direction})> existingEdges,
   required Map<String, Set<String>> ancestorMap,
   Map<String, String>? personNames,
 }) {
@@ -459,7 +459,9 @@ RelationshipValidationResult? _checkSpouseAncestorConflict({
     final spouses = <String>{};
     const spouseKeys = {'husband', 'wife', 'spouse'};
     for (final e in existingEdges) {
-      final k = e.relationshipKey.toLowerCase();
+      // v5.203: Use labelAtoB (specific label) instead of
+      // relationshipKey (fundamental key 'parent'/'spouse').
+      final k = (e.labelAtoB.isNotEmpty ? e.labelAtoB : e.relationshipKey).toLowerCase();
       if (!spouseKeys.contains(k)) continue;
       if (e.fromId == personId) {
         spouses.add(e.toId);
