@@ -2296,13 +2296,13 @@ final graphLayoutProvider =
   // the previous positions so unrelated branches don't jump.
   //
   // We read the previous positions from a SEPARATE state provider
-  // (_lastLayoutPositionsProvider) that we ourselves update at the
+  // (lastLayoutPositionsProvider) that we ourselves update at the
   // end of this function. Reading our OWN provider inside our own
   // body causes a Dart type-inference cycle (top_level_cycle), so we
   // side-step it via this separate cache.
   final isExpansionRecompute = proximityState.isInitialized;
   final previousPositions = isExpansionRecompute
-      ? ref.read(_lastLayoutPositionsProvider(familyId))
+      ? ref.read(lastLayoutPositionsProvider(familyId))
       : null;
   final preservePositions = previousPositions != null &&
       previousPositions.isNotEmpty;
@@ -2376,7 +2376,7 @@ final graphLayoutProvider =
   // We only cache when the layout actually produced positions (not the
   // empty-graph early returns above).
   if (result.positions.isNotEmpty) {
-    ref.read(_lastLayoutPositionsProvider(familyId).notifier).state =
+    ref.read(lastLayoutPositionsProvider(familyId).notifier).state =
         result.positions;
   }
 
@@ -2413,7 +2413,11 @@ final graphLayoutProvider =
 /// occurs when a FutureProvider reads its own value inside its body.
 /// The state lives outside the FutureProvider so it survives
 /// invalidations and can be read synchronously.
-final _lastLayoutPositionsProvider =
+/// v5.207: Made public (was lastLayoutPositionsProvider) so
+/// branch_affordance.dart can clear it during expand to force a
+/// fresh global layout (preventing stale positions from causing
+/// node overlap after branch expansion).
+final lastLayoutPositionsProvider =
     StateProvider.family<Map<String, Offset>?, String>(
   (ref, familyId) => null,
 );

@@ -52,6 +52,7 @@ import '../../features/family/presentation/providers/family_graph_provider.dart'
         familyGraphProvider,
         graphLayoutProvider,
         graphRealtimeProvider,
+        lastLayoutPositionsProvider, // v5.207: for branch expand layout fix
         selectedEdgeProvider,
         selectedNodeProvider,
         unlinkedPersonIdsProvider; // v5.9

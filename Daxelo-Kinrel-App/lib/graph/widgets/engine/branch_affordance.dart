@@ -522,6 +522,32 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     // newly revealed frontier nodes — each tap makes visible progress
     // while the total on-canvas count stays bounded.
 
+    // v5.207 (LAYOUT FIX): Force a full layout recompute after expand.
+    // Without this, the layout uses stale previousPositions from
+    // lastLayoutPositionsProvider (cached before the collapse). For
+    // manual-collapse (where descendants stayed in visibleIds the
+    // whole time), the positions ARE correct — but for any newly-
+    // fetched persons added by fetchBranchAndMerge, the local-
+    // expansion placement (computeLocalExpansionLayout) stacks them
+    // vertically below their parent, causing overlap with pre-existing
+    // ring nodes. Invalidating graphLayoutProvider forces a fresh
+    // global layout pass that places ALL visible nodes on concentric
+    // rings with proper angular separation — the same clean layout
+    // that existed before the branch was collapsed.
+    //
+    // We also clear lastLayoutPositionsProvider so the layout pass
+    // does NOT preserve old positions (which would re-introduce the
+    // stacking issue for nodes that were previously hidden and are
+    // now reappearing at stale coordinates).
+    if (mounted) {
+      // Clear cached positions so the layout provider does a fresh
+      // global ring-fill instead of preserving old positions.
+      ref.read(lastLayoutPositionsProvider(widget.familyId).notifier).state = null;
+      // Invalidate the layout provider to trigger a recomputation.
+      ref.invalidate(graphLayoutProvider(widget.familyId));
+      // Trigger a canvas rebuild to pick up the new layout.
+      setState(() {});
+    }
   }
 
   /// v5.159 (ZONE FALLBACK): picks the hidden members a branch-bubble
