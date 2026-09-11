@@ -1299,6 +1299,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         if (mounted) {
           setState(() {
             _showSuccess = true;
+            _isSubmitting = false; // v5.203: reset loading state
             _successMessage = 'Invitation sent! They\'ll appear in the '
                 'graph once they accept.';
           });
@@ -2155,6 +2156,21 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             isError: true,
           );
         }
+      }
+    } finally {
+      // v5.203: SAFETY NET — always reset the loading state, even if
+      // an unexpected code path leaves _isSubmitting = true. This
+      // prevents the "Add to Family" button from getting stuck in a
+      // permanent spinning/loading state when a save fails (e.g. the
+      // "already has a parent" validation error). The success path
+      // sets _isSubmitting = false + _showSuccess = true inside the
+      // try block (line ~2050), so by the time we reach here, either:
+      //   - _showSuccess == true → skip (button is hidden by success view)
+      //   - _showSuccess == false → reset _isSubmitting to false so the
+      //     button returns to its interactive state and the user can
+      //     retry without reloading the page.
+      if (mounted && !_showSuccess && _isSubmitting) {
+        setState(() => _isSubmitting = false);
       }
     }
   }

@@ -2513,19 +2513,34 @@ Future<FamilyRelationship> createRelationship({
   // relationship (just from the other person's perspective).
   if (!skipValidation) {
     try {
+      // v5.203: Fetch labelAtoB and direction in ADDITION to
+      // relationshipKey. The relationshipKey is ALWAYS 'parent' for
+      // ALL non-spouse edges (father, mother, son, daughter, brother,
+      // sister, grandfather, uncle, etc.) due to the DB's
+      // relationship_fundamental_edge_check constraint. The
+      // duplicate-parent check in validateRelationship was using
+      // relationshipKey to detect existing parents — but since ALL
+      // non-spouse edges share 'parent', ANY existing parent/child/
+      // sibling edge caused a false "This person already has a parent"
+      // error. Now the SELECT includes labelAtoB (the specific label
+      // like 'father', 'son', 'brother') so the validation can
+      // distinguish actual parent edges from child/sibling edges.
       final existingRels = await client
           .from('Relationship')
-          .select('id, "fromPersonId", "toPersonId", "relationshipKey"')
+          .select('id, "fromPersonId", "toPersonId", "relationshipKey", "labelAtoB", "labelBtoA", "direction"')
           .eq('familyId', familyId)
           .eq('isActive', true)
           .timeout(const Duration(seconds: 10));
-      final existingEdges = <({String fromId, String toId, String edgeId, String relationshipKey})>[
+      final existingEdges = <({String fromId, String toId, String edgeId, String relationshipKey, String labelAtoB, String labelBtoA, String direction})>[
         for (final r in existingRels)
           (
             fromId: (r['fromPersonId'] ?? '').toString(),
             toId: (r['toPersonId'] ?? '').toString(),
             edgeId: (r['id'] ?? '').toString(),
             relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
+            labelAtoB: (r['labelAtoB'] ?? '').toString(),
+            labelBtoA: (r['labelBtoA'] ?? '').toString(),
+            direction: (r['direction'] ?? 'from').toString(),
           ),
       ];
       // v5.70: Build the ancestor map for circular-parentage + spouse-
@@ -2551,7 +2566,7 @@ Future<FamilyRelationship> createRelationship({
       final validation = validateRelationship(
         fromPersonId: fromPersonId,
         toPersonId: toPersonId,
-        relationshipKey: relationshipKey,
+        relationshipKey: specificLabelAtoB ?? relationshipKey,
         existingEdges: existingEdges,
         ancestorMap: ancestorMap,
         personNames: personNames,
@@ -3792,7 +3807,7 @@ Future<RelationshipUpdateResult> updateRelationship({
     final allRels = await withRetry(
       () => client
           .from(_kRelationshipTable)
-          .select('id, "fromPersonId", "toPersonId", "relationshipKey"')
+          .select('id, "fromPersonId", "toPersonId", "relationshipKey", "labelAtoB", "labelBtoA", "direction"')
           .eq('familyId', familyId)
           .eq('isActive', true)
           .timeout(const Duration(seconds: 10)),
@@ -3800,7 +3815,7 @@ Future<RelationshipUpdateResult> updateRelationship({
     );
     // Exclude the edge being updated + its inverse (if any).
     final excludeIds = {relationshipId, if (inverseRelationshipId != null) inverseRelationshipId!};
-    final existingEdgesForValidation = <({String fromId, String toId, String edgeId, String relationshipKey})>[
+    final existingEdgesForValidation = <({String fromId, String toId, String edgeId, String relationshipKey, String labelAtoB, String labelBtoA, String direction})>[
       for (final r in allRels)
         if (!excludeIds.contains(r['id']))
           (
@@ -3808,6 +3823,9 @@ Future<RelationshipUpdateResult> updateRelationship({
             toId: (r['toPersonId'] ?? '').toString(),
             edgeId: (r['id'] ?? '').toString(),
             relationshipKey: (r['relationshipKey'] ?? 'unknown').toString(),
+            labelAtoB: (r['labelAtoB'] ?? '').toString(),
+            labelBtoA: (r['labelBtoA'] ?? '').toString(),
+            direction: (r['direction'] ?? 'from').toString(),
           ),
     ];
     final ancestorMap = buildAncestorMap(existingEdgesForValidation);

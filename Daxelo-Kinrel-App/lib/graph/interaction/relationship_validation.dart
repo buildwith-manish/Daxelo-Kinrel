@@ -118,7 +118,7 @@ RelationshipValidationResult validateRelationship({
   required String fromPersonId,
   required String toPersonId,
   required String relationshipKey,
-  required List<({String fromId, String toId, String edgeId, String relationshipKey})> existingEdges,
+  required List<({String fromId, String toId, String edgeId, String relationshipKey, String labelAtoB, String labelBtoA, String direction})> existingEdges,
   Map<String, Set<String>>? ancestorMap,
   Map<String, String>? personNames,
 }) {
@@ -164,7 +164,15 @@ RelationshipValidationResult validateRelationship({
     final existingPair = [e.fromId, e.toId]..sort();
     if ('${existingPair[0]}|${existingPair[1]}' == canonicalPair) {
       // Same pair — check if it's the same key (or inverse key).
-      if (sameFamily(e.relationshipKey.toLowerCase(), key)) {
+      // v5.203: Use labelAtoB (the specific label) instead of
+      // relationshipKey (the fundamental key 'parent'). Without this,
+      // sameFamily('parent', 'father') returns false (because both are
+      // in parentFamily → line 153 returns false), so genuine duplicates
+      // like 'father' + 'father' on the same pair would NOT be caught.
+      final existingLabel = (e.labelAtoB.isNotEmpty
+          ? e.labelAtoB
+          : e.relationshipKey).toLowerCase();
+      if (sameFamily(existingLabel, key)) {
         return const RelationshipValidationResult(
           severity: ValidationSeverity.error,
           message: 'This relationship already exists.',
@@ -214,65 +222,46 @@ RelationshipValidationResult validateRelationship({
   }
 
   // ── ERROR: Duplicate parent relationship ──
-  // v5.0: A person should not have two parents of the SAME gender.
-  // Father + mother (standard biological family) is ALLOWED. Father +
-  // father, mother + mother, or any third parent is BLOCKED.
+  // v5.203 (CRITICAL FIX): The previous check used `e.relationshipKey`
+  // to detect existing parents — but `relationshipKey` is ALWAYS 'parent'
+  // for ALL non-spouse edges (father, mother, son, daughter, brother,
+  // sister, grandfather, uncle, etc.) due to the DB's
+  // relationship_fundamental_edge_check constraint. This caused a FALSE
+  // "This person already has a parent" error whenever ANY parent/child/
+  // sibling edge existed — even a single child or sibling edge would
+  // trigger the false positive.
   //
-  // Storage convention: `from=A, to=B, key=X` means "A's X is B".
-  // So `from=A, to=B, key=father` means B is A's father → A is the
-  // CHILD, B is the FATHER.
+  // The fix: use `e.labelAtoB` (the SPECIFIC label like 'father',
+  // 'son', 'brother') instead of `e.relationshipKey` (the fundamental
+  // key 'parent'). This correctly distinguishes:
+  //   - 'father'/'mother' (actual parent edges) → block duplicates
+  //   - 'son'/'daughter'/'child' (child edges) → do NOT block
+  //   - 'brother'/'sister'/'sibling' (sibling edges) → do NOT block
+  //   - 'grandfather'/'grandmother' (grandparent edges) → do NOT block
   //
-  // Forward direction (key in {father, mother, parent}):
-  //   childId = fromPersonId (A in the example above).
-  //   Block when: existing edge points to the same child with the SAME
-  //   gender-specific parent key (father + father, mother + mother).
-  //   'parent' (gender-neutral) is treated as conflicting with EITHER
-  //   father or mother.
-  //
-  // Inverse direction (key in {son, daughter, child}):
-  //   childId = toPersonId. Block when ANY existing edge establishes a
-  //   parent of the same gender (since we can't tell which gender from
-  //   a 'son' edge, we conservatively block — the user must remove the
-  //   existing edge first).
-  //
-  // The previous check used `e.toId == toPersonId` (the new parent),
-  // which incorrectly checked if the NEW PARENT already had a parent
-  // — completely missing the actual duplicate-parent case.
+  // The canonical convention: `from=A, to=B, labelAtoB='father'`
+  // → "B is A's father" → A is the CHILD, B is the PARENT.
   if (key == 'father' || key == 'mother' || key == 'parent') {
     // Forward direction: from=A (child), to=B (parent).
-    // childId = fromPersonId (A).
-    // We block when an EXISTING edge also makes A the child of some
-    // parent. That existing edge can be in either direction:
-    //   (a) `from=A, to=X, key in {father, mother, parent}` — A's
-    //       parent is X (forward parent-edge).
-    //   (b) `from=X, to=A, key in {son, daughter, child}` — X's child
-    //       is A (inverse child-edge).
-    //
-    // v5.80 (DUPLICATE PARENT FIX): The hasNeutral check was REMOVED.
-    // Previously, if either the new key OR the existing key was
-    // 'parent' (gender-neutral), the check blocked the addition —
-    // even if the two parents were different genders (e.g. adding
-    // 'father' when 'parent' already existed, where 'parent' could
-    // be the mother). This was too aggressive and blocked legitimate
-    // father + mother combinations.
-    //
-    // Now we ONLY block when the genders are the SAME:
-    //   - father + father → blocked
-    //   - mother + mother → blocked
-    //   - father + mother → allowed (different genders)
-    //   - father + parent → allowed (parent is neutral, could be
-    //     either gender — the user will specify via labelAtoB)
-    //   - parent + parent → blocked (can't tell if same gender)
     final childId = fromPersonId;
     for (final e in existingEdges) {
-      final existingKey = e.relationshipKey.toLowerCase();
+      // v5.203: Use labelAtoB (the specific label) instead of
+      // relationshipKey (the fundamental key 'parent'). This is the
+      // SAME fix pattern already applied in:
+      //   - relationship_quick_pick_sheet.dart (_shouldHideCategory)
+      //   - radial_layout.dart
+      //   - hierarchical_layout.dart
+      //   - graph_data_models.dart
+      final existingLabel = (e.labelAtoB.isNotEmpty
+          ? e.labelAtoB
+          : e.relationshipKey).toLowerCase();
       // Case (a): existing forward parent-edge where A is the child.
+      // Only block if the existing edge's label is a PARENT label
+      // (father/mother/parent), NOT a child or sibling label.
       if (e.fromId == childId &&
-          (existingKey == 'father' || existingKey == 'mother' || existingKey == 'parent')) {
-        // v5.80: Only block same-gender duplicates.
-        final sameGender = existingKey == key;
-        // Both neutral → can't tell, block conservatively.
-        final bothNeutral = key == 'parent' && existingKey == 'parent';
+          (existingLabel == 'father' || existingLabel == 'mother' || existingLabel == 'parent')) {
+        final sameGender = existingLabel == key;
+        final bothNeutral = key == 'parent' && existingLabel == 'parent';
         if (sameGender || bothNeutral) {
           return RelationshipValidationResult(
             severity: ValidationSeverity.error,
@@ -283,38 +272,41 @@ RelationshipValidationResult validateRelationship({
         }
       }
       // Case (b): existing inverse child-edge where A is the child.
-      // We can't tell the parent's gender from {son, daughter, child},
-      // so conservatively block (the user must remove the existing
-      // edge first).
-      if (e.toId == childId &&
-          (existingKey == 'son' || existingKey == 'daughter' || existingKey == 'child')) {
-        return RelationshipValidationResult(
-          severity: ValidationSeverity.error,
-          message: 'This person already has a parent. Remove the existing '
-              'one before adding a new one.',
-          code: 'duplicate_parent',
-        );
+      // The inverse edge has from=A, to=B, labelAtoB='child'/'son'/
+      // 'daughter' (the inverse label describing B's role relative
+      // to A). Check labelBtoA for the parent label — but since
+      // the inverse edge's labelBtoA is the forward label (e.g.
+      // 'father'), we check labelBtoA.
+      if (e.toId == childId) {
+        final inverseLabel = (e.labelBtoA.isNotEmpty
+            ? e.labelBtoA
+            : '').toLowerCase();
+        if (inverseLabel == 'father' || inverseLabel == 'mother' || inverseLabel == 'parent') {
+          final sameGender = inverseLabel == key;
+          final bothNeutral = key == 'parent' && inverseLabel == 'parent';
+          if (sameGender || bothNeutral) {
+            return RelationshipValidationResult(
+              severity: ValidationSeverity.error,
+              message: 'This person already has a $key. Remove the existing '
+                  'one before adding a new one.',
+              code: 'duplicate_parent',
+            );
+          }
+        }
       }
     }
   } else if (key == 'son' || key == 'daughter' || key == 'child') {
     // Inverse direction: from=A (parent), to=B (child).
-    // childId = toPersonId (B).
-    // Block when B already has a parent — either:
-    //   (a) `from=B, to=X, key in {father, mother, parent}` — B's
-    //       parent is X (forward parent-edge).
-    //   (b) `from=X, to=B, key in {son, daughter, child}` — X's child
-    //       is B (inverse child-edge).
-    //
-    // v5.80: Same fix as above — removed hasNeutral, only block
-    // same-gender or both-neutral.
     final childId = toPersonId;
     for (final e in existingEdges) {
-      final existingKey = e.relationshipKey.toLowerCase();
+      final existingLabel = (e.labelAtoB.isNotEmpty
+          ? e.labelAtoB
+          : e.relationshipKey).toLowerCase();
       // Case (a): existing forward parent-edge where B is the child.
       if (e.fromId == childId &&
-          (existingKey == 'father' || existingKey == 'mother' || existingKey == 'parent')) {
-        final sameGender = existingKey == key;
-        final bothNeutral = key == 'child' && existingKey == 'parent';
+          (existingLabel == 'father' || existingLabel == 'mother' || existingLabel == 'parent')) {
+        final sameGender = existingLabel == key;
+        final bothNeutral = key == 'child' && existingLabel == 'parent';
         if (sameGender || bothNeutral) {
           return RelationshipValidationResult(
             severity: ValidationSeverity.error,
@@ -325,14 +317,22 @@ RelationshipValidationResult validateRelationship({
         }
       }
       // Case (b): existing inverse child-edge where B is the child.
-      if (e.toId == childId &&
-          (existingKey == 'son' || existingKey == 'daughter' || existingKey == 'child')) {
-        return RelationshipValidationResult(
-          severity: ValidationSeverity.error,
-          message: 'This person already has a parent. Remove the existing '
-              'one before adding a new one.',
-          code: 'duplicate_parent',
-        );
+      if (e.toId == childId) {
+        final inverseLabel = (e.labelBtoA.isNotEmpty
+            ? e.labelBtoA
+            : '').toLowerCase();
+        if (inverseLabel == 'father' || inverseLabel == 'mother' || inverseLabel == 'parent') {
+          final sameGender = inverseLabel == key;
+          final bothNeutral = key == 'child' && inverseLabel == 'parent';
+          if (sameGender || bothNeutral) {
+            return RelationshipValidationResult(
+              severity: ValidationSeverity.error,
+              message: 'This person already has a parent. Remove the existing '
+                  'one before adding a new one.',
+              code: 'duplicate_parent',
+            );
+          }
+        }
       }
     }
   }
@@ -358,11 +358,15 @@ RelationshipValidationResult validateRelationship({
   if (expectedInverse != null) {
     for (final e in existingEdges) {
       if (e.fromId == toPersonId && e.toId == fromPersonId) {
-        final existingKey = e.relationshipKey.toLowerCase();
-        final existingInverse = inverseMap[existingKey];
+        // v5.203: Use labelAtoB (specific label) instead of
+        // relationshipKey (fundamental key 'parent').
+        final existingLabel = (e.labelAtoB.isNotEmpty
+            ? e.labelAtoB
+            : e.relationshipKey).toLowerCase();
+        final existingInverse = inverseMap[existingLabel];
         // If the existing edge's inverse doesn't match the new key,
         // there may be an incompatibility.
-        if (existingInverse != null && existingInverse != key && expectedInverse != existingKey) {
+        if (existingInverse != null && existingInverse != key && expectedInverse != existingLabel) {
           return RelationshipValidationResult(
             severity: ValidationSeverity.warning,
             message: 'An existing relationship between these members '
@@ -564,7 +568,7 @@ RelationshipValidationResult? _checkSpouseAncestorConflict({
 /// Uses BFS to traverse the parent chain transitively (grandparents,
 /// great-grandparents, etc. are all included).
 Map<String, Set<String>> buildAncestorMap(
-  List<({String fromId, String toId, String edgeId, String relationshipKey})> existingEdges,
+  List<({String fromId, String toId, String edgeId, String relationshipKey, String labelAtoB, String labelBtoA, String direction})> existingEdges,
 ) {
   // Step 1: Build a direct-parent adjacency map.
   // parentOf[childId] = {parentId1, parentId2, ...}
@@ -572,8 +576,15 @@ Map<String, Set<String>> buildAncestorMap(
   const parentKeys = {'father', 'mother', 'parent'};
   const childKeys = {'son', 'daughter', 'child'};
 
+  // v5.203: Use labelAtoB (the specific label) instead of
+  // relationshipKey (the fundamental key 'parent'). The
+  // relationshipKey is ALWAYS 'parent' for ALL non-spouse edges,
+  // so using it would treat sibling edges, grandparent edges, etc.
+  // as parent-child edges — producing false ancestry cycles.
+  // Now we use labelAtoB to correctly identify ONLY actual parent
+  // and child edges.
   for (final e in existingEdges) {
-    final k = e.relationshipKey.toLowerCase();
+    final k = (e.labelAtoB.isNotEmpty ? e.labelAtoB : e.relationshipKey).toLowerCase();
     if (parentKeys.contains(k)) {
       // from=A (child), to=B (parent) → B is parent of A
       parentOf.putIfAbsent(e.fromId, () => <String>{}).add(e.toId);
@@ -644,7 +655,7 @@ class RelationshipConflict {
 /// [personNames] — optional map of personId → display name, used to
 /// build human-readable conflict descriptions.
 List<RelationshipConflict> auditFamilyRelationshipConflicts({
-  required List<({String fromId, String toId, String edgeId, String relationshipKey})> existingEdges,
+  required List<({String fromId, String toId, String edgeId, String relationshipKey, String labelAtoB, String labelBtoA, String direction})> existingEdges,
   Map<String, String>? personNames,
 }) {
   final conflicts = <RelationshipConflict>[];
@@ -657,7 +668,9 @@ List<RelationshipConflict> auditFamilyRelationshipConflicts({
     final spouses = <String>{};
     const spouseKeys = {'husband', 'wife', 'spouse'};
     for (final e in existingEdges) {
-      final k = e.relationshipKey.toLowerCase();
+      // v5.203: Use labelAtoB (specific label) instead of
+      // relationshipKey (fundamental key 'parent'/'spouse').
+      final k = (e.labelAtoB.isNotEmpty ? e.labelAtoB : e.relationshipKey).toLowerCase();
       if (!spouseKeys.contains(k)) continue;
       if (e.fromId == personId) {
         spouses.add(e.toId);
@@ -674,7 +687,9 @@ List<RelationshipConflict> auditFamilyRelationshipConflicts({
   final checkedPairs = <String>{};
 
   for (final e in existingEdges) {
-    final k = e.relationshipKey.toLowerCase();
+    // v5.203: Use labelAtoB (specific label) instead of
+    // relationshipKey (fundamental key 'parent').
+    final k = (e.labelAtoB.isNotEmpty ? e.labelAtoB : e.relationshipKey).toLowerCase();
     if (!parentKeys.contains(k) && !childKeys.contains(k)) continue;
 
     final String childId;
