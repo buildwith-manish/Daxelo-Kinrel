@@ -184,6 +184,11 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   /// since the user has chosen a primary category.
   bool _showMoreKinship = false;
 
+  /// v5.202: When true, the "locked" tooltip is shown below the
+  /// "Related to" field for non-admin/non-creator members. Tapping
+  /// the locked field toggles this; tapping elsewhere dismisses it.
+  bool _showLockedTooltip = false;
+
   /// v5.200: ScrollController for the quick-add SingleChildScrollView.
   /// Used to auto-scroll the "More kinship terms" panel into view when
   /// the "More" chip is tapped and the section expands — otherwise the
@@ -2456,13 +2461,20 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           _buildGenderCards(),
           SizedBox(height: 20),
 
-          // ── #6: "Related to" anchor selector (admin/creator only) ──
-          // Per v5.197: hidden for regular members (default to "Me"
-          // via _autoSelectViewerAsTarget). Visible only for admins/
-          // creators. When an anchorPerson was explicitly passed
-          // (node context menu), show a read-only label instead.
-          // The debug logging for the role check is in the method
-          // body above (before the return statement).
+          // ── "Related to" anchor selector ──
+          // v5.202: The "Related to" field is now ALWAYS visible when
+          // the family has members (not just for admins/creators).
+          //   - ADMIN/CREATOR: fully interactive picker (can change the
+          //     target account).
+          //   - REGULAR MEMBER: locked/disabled visual state (greyed
+          //     out, non-editable) showing the current default value
+          //     (the auto-selected viewer/"Me"). Tapping shows a brief
+          //     inline tooltip: "Only admins or family creators can
+          //     change who this connects to."
+          //   - ANCHOR PASSED (from node context menu): read-only label
+          //     showing the passed anchor person's name.
+          // The debug logging for the role check is in the method body
+          // above (before the return statement).
           if (familyHasMembers && showTargetPicker) ...[
             _SectionLabel('Related to'),
             SizedBox(height: 8),
@@ -2496,6 +2508,16 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
                 ],
               ),
             ),
+            SizedBox(height: 20),
+          ] else if (familyHasMembers && !isAdminOrCreator && !_isEditMode) ...[
+            // v5.202: Locked "Related to" for regular members.
+            _SectionLabel('Related to'),
+            SizedBox(height: 8),
+            _buildLockedTargetPersonPicker(),
+            if (_showLockedTooltip) ...[
+              SizedBox(height: 6),
+              _buildLockedTooltip(),
+            ],
             SizedBox(height: 20),
           ],
 
@@ -2684,6 +2706,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             // #4: Collapses the "More" section when a primary chip is
             // selected instead.
             _showMoreKinship = false;
+            // v5.202: Dismiss the locked "Related to" tooltip when the
+            // user interacts with a relationship chip.
+            _showLockedTooltip = false;
           }),
         ),
       );
@@ -3397,6 +3422,130 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// v5.202: Builds a LOCKED/disabled version of the "Related to"
+  /// picker for regular (non-admin/non-creator) members. Same visual
+  /// layout as the interactive [_buildTargetPersonPicker] but:
+  ///   - Greyed out (dimmed colors, no orange accent)
+  ///   - Shows a lock icon instead of the swap/change icon
+  ///   - Non-editable (tapping shows the tooltip, doesn't open the
+  ///     picker)
+  ///   - Shows the current default value (the auto-selected viewer's
+  ///     Person name, or "Me" if the auto-select hasn't resolved yet)
+  Widget _buildLockedTargetPersonPicker() {
+    // Determine the display name for the locked field. The
+    // _selectedTargetPerson is auto-selected via
+    // _autoSelectViewerAsTarget() (called from initState when
+    // fromGraph && anchorPerson == null). If it hasn't resolved
+    // yet, fall back to the effective anchor person, or "Me".
+    final target = _selectedTargetPerson ?? _effectiveAnchorPerson;
+    final displayName = target?.name ?? 'Me';
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        setState(() {
+          // Toggle the tooltip on tap. Tapping elsewhere on the
+          // form (e.g. tapping a relationship chip, typing in the
+          // name field) will trigger a rebuild that collapses the
+          // tooltip via the _showLockedTooltip = false reset in
+          // those handlers. But we also set it to false on tap
+          // here if it's already showing (toggle behavior).
+          _showLockedTooltip = !_showLockedTooltip;
+        });
+        // Auto-dismiss after 4 seconds.
+        Future.delayed(const Duration(seconds: 4), () {
+          if (mounted) {
+            setState(() => _showLockedTooltip = false);
+          }
+        });
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: KinrelColors.darkCard.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(KinrelSpacing.radiusMd),
+          border: Border.all(
+            color: KinrelColors.textDim.withValues(alpha: 0.15),
+          ),
+        ),
+        child: Row(
+          children: [
+            // Avatar placeholder (greyed out)
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: KinrelColors.textDim.withValues(alpha: 0.1),
+              ),
+              child: Icon(
+                Icons.person,
+                color: KinrelColors.textDim.withValues(alpha: 0.6),
+                size: 18,
+              ),
+            ),
+            SizedBox(width: 12),
+            // Name (greyed out)
+            Expanded(
+              child: Text(
+                displayName,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textDim.withValues(alpha: 0.7),
+                ),
+              ),
+            ),
+            // Lock icon (instead of swap/chevron)
+            Icon(
+              Icons.lock_outline,
+              color: KinrelColors.textDim.withValues(alpha: 0.5),
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// v5.202: Builds the inline tooltip shown when a non-admin member
+  /// taps the locked "Related to" field. A small, professional message
+  /// in a soft container, dismissable by tapping elsewhere or
+  /// auto-dismissed after 4 seconds.
+  Widget _buildLockedTooltip() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkElevated,
+        borderRadius: BorderRadius.circular(KinrelSpacing.radiusSm),
+        border: Border.all(
+          color: KinrelColors.textDim.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline,
+            color: KinrelColors.textDim,
+            size: 14,
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Only admins or family creators can change who this connects to.',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: KinrelColors.textDim,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -4543,7 +4692,11 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
       onFieldSubmitted: onFieldSubmitted,
       // v62.5: onChanged triggers setState so the Next/Add button
       // updates immediately as the user types — no 5s delay.
-      onChanged: (_) => setState(() {}),
+      // v5.202: Also dismiss the locked "Related to" tooltip when
+      // the user starts typing (dismiss-on-tap-elsewhere behavior).
+      onChanged: (_) => setState(() {
+        _showLockedTooltip = false;
+      }),
       style: TextStyle(
         fontFamily: isLarge
             ? KinrelTypography.displayFont
