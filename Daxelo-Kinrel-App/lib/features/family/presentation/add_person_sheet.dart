@@ -1369,6 +1369,164 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
 
   // ── Submit ─────────────────────────────────────────────────────
 
+  /// v5.206: Pretty-prints a relationship key for the duplicate
+  /// warning message. e.g. 'father' → 'Father', 'elder_brother' →
+  /// 'Elder Brother'.
+  String _prettyRelationshipLabel(String key) {
+    return key
+        .split('_')
+        .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
+        .join(' ');
+  }
+
+  /// v5.206: Pre-creation duplicate check.
+  ///
+  /// Queries the Person + Relationship tables to check if a Person
+  /// with the SAME name already exists in this family AND has a
+  /// Relationship edge with the SAME specific label (labelAtoB)
+  /// pointing to the SAME target person (the anchor/"Related to").
+  ///
+  /// Returns the duplicate Person's ID if found, or null if no
+  /// duplicate exists.
+  ///
+  /// Rules:
+  ///   - Same name + same relationship label → DUPLICATE (blocked)
+  ///   - Same name + different relationship label → NOT a duplicate
+  ///     (allowed — e.g. "Manual 1" as Father + "Manual 1" as Mother)
+  ///   - Different name + same relationship label → NOT a duplicate
+  ///     (allowed — two different people with the same relationship)
+  Future<String?> _checkDuplicateMember(String relKey) async {
+    try {
+      final client = ref.read(supabaseProvider);
+      if (client == null) return null;
+
+      final newName = _nameController.text.trim();
+
+      // Resolve the target person (the "Related to" anchor).
+      // Priority: _selectedTargetPerson → widget.anchorPerson →
+      // viewer's own Person → DB anchor.
+      String? targetPersonId;
+      if (_selectedTargetPerson != null) {
+        targetPersonId = _selectedTargetPerson!.id;
+      } else if (widget.anchorPerson != null) {
+        targetPersonId = widget.anchorPerson!.id;
+      } else {
+        targetPersonId = ref
+            .read(viewerPersonIdProvider(widget.familyId))
+            .valueOrNull;
+        if (targetPersonId == null || targetPersonId.isEmpty) {
+          final familyData = await client
+              .from('Family')
+              .select('anchorPersonId')
+              .eq('id', widget.familyId)
+              .maybeSingle()
+              .timeout(const Duration(seconds: 5));
+          targetPersonId = familyData?['anchorPersonId'] as String?;
+        }
+      }
+
+      if (targetPersonId == null || targetPersonId.isEmpty) return null;
+
+      // Query: find any Person in this family with the same name
+      // (case-insensitive) that has an active Relationship edge to
+      // the same target person with the same specific label.
+      //
+      // The Relationship table stores:
+      //   fromPersonId = the person being described (e.g. the new
+      //     person being added as "father")
+      //   toPersonId = the reference person (the anchor/"Related to")
+      //   labelAtoB = the specific label (e.g. 'father', 'mother')
+      //
+      // We check BOTH directions:
+      //   (a) from=target, to=existingPerson, labelAtoB=relKey
+      //       (the existing person IS the target's father/mother/etc.)
+      //   (b) from=existingPerson, to=target, labelAtoB=relKey
+      //       (the existing person's father/mother/etc IS the target)
+      //
+      // Actually, the canonical convention is:
+      //   from=A, to=B, labelAtoB='father' → "B is A's father"
+      //   So for the new person being added as "father" of the target:
+      //   from=target, to=newPerson, labelAtoB='father'
+      //   → "newPerson is target's father"
+      //
+      // The duplicate check: does an EXISTING edge exist where:
+      //   - The toPersonId is an existing Person with the same name
+      //   - The fromPersonId is the target
+      //   - The labelAtoB matches the new relKey
+
+      // Step 1: Find all Persons in this family with the same name.
+      final personsWithName = await client
+          .from('Person')
+          .select('id, name')
+          .eq('familyId', widget.familyId)
+          .ilike('name', newName)
+          .isFilter('deletedAt', null)
+          .timeout(const Duration(seconds: 5));
+
+      if (personsWithName.isEmpty) return null;
+
+      final personIds = personsWithName
+          .map((p) => (p['id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
+      if (personIds.isEmpty) return null;
+
+      // Step 2: Check if any of those persons have a Relationship
+      // edge with the same label to the same target person.
+      // The edge could be in either direction:
+      //   (a) from=target, to=existingPerson, labelAtoB=relKey
+      //   (b) from=existingPerson, to=target, labelBtoA=relKey
+      //      (the inverse edge — labelBtoA describes the target's
+      //      role relative to the existing person, which should match
+      //      the new person's label)
+      final relKeyLower = relKey.toLowerCase();
+
+      final existingRels = await client
+          .from('Relationship')
+          .select('id, "fromPersonId", "toPersonId", "labelAtoB", "labelBtoA"')
+          .eq('familyId', widget.familyId)
+          .eq('isActive', true)
+          .inFilter('fromPersonId', personIds.toList())
+          .timeout(const Duration(seconds: 5));
+
+      for (final rel in existingRels) {
+        final fromId = (rel['fromPersonId'] ?? '').toString();
+        final toId = (rel['toPersonId'] ?? '').toString();
+        final labelAtoB = (rel['labelAtoB'] ?? '').toString().toLowerCase();
+        final labelBtoA = (rel['labelBtoA'] ?? '').toString().toLowerCase();
+
+        // Case (a): existing edge from=existingPerson, to=target
+        // → labelAtoB describes the target's role relative to the
+        // existing person. The new person has the same role relative
+        // to the target, so we check if labelBtoA matches relKey
+        // (the new person's role relative to the target).
+        if (fromId != targetPersonId && toId == targetPersonId) {
+          // existingPerson → target. labelAtoB = "target is
+          // existingPerson's X". labelBtoA = "existingPerson is
+          // target's Y". If Y == relKey, this is a duplicate.
+          if (labelBtoA == relKeyLower) {
+            return fromId; // Duplicate found.
+          }
+        }
+
+        // Case (b): existing edge from=target, to=existingPerson
+        // → labelAtoB describes the existingPerson's role relative
+        // to the target. If labelAtoB == relKey, duplicate.
+        if (fromId == targetPersonId && toId != targetPersonId) {
+          if (labelAtoB == relKeyLower) {
+            return toId; // Duplicate found.
+          }
+        }
+      }
+
+      return null; // No duplicate found.
+    } catch (e) {
+      debugPrint('[ADD-MEMBER] v5.206: Duplicate check failed: $e');
+      return null; // On error, allow the creation (fail-open).
+    }
+  }
+
   Future<void> _submit() async {
     // v5.205: Guard against double-submit. If _isSubmitting is already
     // true, the button is disabled, but a fast double-tap could still
@@ -1531,6 +1689,45 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         final preComputedRelKey = _effectiveRelationshipKey;
         final willCreateRelationship =
             !isFirstMember && preComputedRelKey != null;
+
+        // v5.206: PRE-CREATION DUPLICATE CHECK
+        // Before creating the Person, check if a Person with the SAME
+        // name already exists in this family AND has the SAME
+        // relationship label (labelAtoB) to the SAME target person.
+        // If so, this is a true duplicate — block the creation entirely.
+        //
+        // Different names + same relationship = allowed (two different
+        // people with the same relationship type, e.g. two sons).
+        // Same name + different relationship = allowed (e.g. "Manual 1"
+        // as Father + "Manual 1" as Mother — different relationships).
+        // Same name + same relationship = BLOCKED (true duplicate).
+        //
+        // The check queries the Relationship table (not just the Person
+        // table) because the duplicate is defined by the COMBINATION of
+        // person name + relationship label, not just the name alone.
+        if (willCreateRelationship && !isFirstMember) {
+          final dupCheck = await _checkDuplicateMember(preComputedRelKey!);
+          if (dupCheck != null) {
+            // Duplicate found — abort the submit entirely.
+            // No Person row, no Relationship row, no graph update.
+            if (mounted) {
+              setState(() => _isSubmitting = false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'A member named "${_nameController.text.trim()}" with the same '
+                    'relationship (${_prettyRelationshipLabel(preComputedRelKey)}) '
+                    'already exists. Use a different name or relationship.',
+                  ),
+                  backgroundColor: KinrelColors.amber,
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 5),
+                ),
+              );
+            }
+            return;
+          }
+        }
 
         result = await createPersonOptimistic(
           ref: ref,
