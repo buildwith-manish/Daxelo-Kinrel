@@ -29,6 +29,7 @@ import '../../../core/kinship/kinship_provider.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../presence/presence_provider.dart';
+import '../presentation/providers/family_graph_provider.dart' show familyGraphProvider;
 import 'add_member_options_sheet.dart';
 import 'family_space_floating_nav.dart';
 import 'person_detail_sheet.dart';
@@ -260,31 +261,129 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                         itemCount: filtered.length,
                         itemBuilder: (context, index) {
                           final person = filtered[index];
-                          // ── v111: viewer-relative relationship label
-                          // (null for self / no path found).
                           final relLabel = relationshipLabels[person.id];
-                          // ── v111: presence status (null if no
-                          // presence data for this user).
                           final presence =
                               person.linkedUserId != null
                                   ? presenceMap[person.linkedUserId!]
                                   : null;
 
-                          return _MemberRow(
-                            person: person,
-                            relationshipLabel: relLabel,
-                            presence: presence,
-                            onTap: () {
-                              // Reuse the existing PersonDetailSheet.show
-                              // call signature — same as
-                              // family_detail_screen.dart line 1600.
-                              PersonDetailSheet.show(
-                                context,
-                                person: person,
-                                familyId: widget.familyId,
-                                kinshipService: kinshipService,
-                              );
+                          return Dismissible(
+                            key: ValueKey(person.id),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 20),
+                              margin: const EdgeInsets.only(bottom: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.delete_outline,
+                                  color: Colors.redAccent, size: 24),
+                            ),
+                            confirmDismiss: (direction) async {
+                              return await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  backgroundColor: KinrelColors.darkCard,
+                                  title: Text(
+                                    'Delete ${person.name}?',
+                                    style: TextStyle(
+                                      color: KinrelColors.textWhite,
+                                      fontFamily: KinrelTypography.displayFont,
+                                    ),
+                                  ),
+                                  content: Text(
+                                    'This will permanently remove ${person.name} from the family. '
+                                    'This action cannot be undone.',
+                                    style: TextStyle(
+                                      color: KinrelColors.textDim,
+                                      fontFamily: KinrelTypography.bodyFont,
+                                    ),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(ctx).pop(false),
+                                      child: Text('Cancel',
+                                          style: TextStyle(
+                                              color: KinrelColors.textDim)),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(ctx).pop(true),
+                                      style: TextButton.styleFrom(
+                                          foregroundColor: Colors.redAccent),
+                                      child: const Text('Delete'),
+                                    ),
+                                  ],
+                                ),
+                              ) ?? false;
                             },
+                            onDismissed: (direction) async {
+                              try {
+                                final client =
+                                    ref.read(supabaseProvider);
+                                if (client != null) {
+                                  await client
+                                      .from('Person')
+                                      .update({
+                                        'deletedAt': DateTime.now()
+                                            .toIso8601String(),
+                                      })
+                                      .eq('id', person.id);
+                                }
+                                if (mounted) {
+                                  ref.invalidate(familyDetailProvider(
+                                      widget.familyId));
+                                  ref.invalidate(familyMembersProvider(
+                                      widget.familyId));
+                                  ref.invalidate(familyGraphProvider(
+                                      widget.familyId));
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                          '${person.name} deleted'),
+                                      backgroundColor:
+                                          KinrelColors.darkElevated,
+                                      behavior:
+                                          SnackBarBehavior.floating,
+                                      duration: const Duration(
+                                          seconds: 2),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                          'Failed to delete: $e'),
+                                      backgroundColor: Colors.redAccent,
+                                      behavior:
+                                          SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                  ref.invalidate(familyDetailProvider(
+                                      widget.familyId));
+                                }
+                              }
+                            },
+                            child: _MemberRow(
+                              person: person,
+                              relationshipLabel: relLabel,
+                              presence: presence,
+                              onTap: () {
+                                PersonDetailSheet.show(
+                                  context,
+                                  person: person,
+                                  familyId: widget.familyId,
+                                  kinshipService: kinshipService,
+                                );
+                              },
+                            ),
                           );
                         },
                       ),

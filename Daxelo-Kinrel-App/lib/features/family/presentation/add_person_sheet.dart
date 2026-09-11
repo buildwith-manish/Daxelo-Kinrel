@@ -1370,8 +1370,17 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   // ── Submit ─────────────────────────────────────────────────────
 
   Future<void> _submit() async {
+    // v5.205: Guard against double-submit. If _isSubmitting is already
+    // true, the button is disabled, but a fast double-tap could still
+    // fire _submit twice before setState propagates. This early return
+    // prevents duplicate member creation from rapid retries.
+    if (_isSubmitting) return;
     if (_nameController.text.trim().isEmpty) return;
 
+    // v5.205: Set _isSubmitting = true IMMEDIATELY (before any async
+    // work) so the button is disabled on the very next frame, not
+    // after the first await. This is the critical timing fix that
+    // prevents duplicate requests from tap-and-hold/retry sequences.
     if (mounted) {
       setState(() => _isSubmitting = true);
     }
