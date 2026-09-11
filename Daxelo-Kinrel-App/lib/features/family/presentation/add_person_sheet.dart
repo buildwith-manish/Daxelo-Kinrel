@@ -2386,6 +2386,29 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
         !_isEditMode &&
         isAdminOrCreator;
 
+    // v5.201 (DEBUG LOGGING): Log the role-check computation so we
+    // can confirm (a) the component IS reached in the render tree,
+    // (b) the role check returns the expected admin value for the
+    // test account, and (c) it isn't being unintentionally unmounted
+    // by the "More" expand/collapse logic. The "Related to" section
+    // is NOT nested inside the "More" expansion — it renders as its
+    // own separate section between Gender and Relationship Type,
+    // completely independent of the "More" chip's expand/collapse state.
+    // NOTE: This debugPrint is placed BEFORE the return statement
+    // (NOT inside the children list) because debugPrint returns void,
+    // not a Widget — placing it inside children would cause a compile
+    // error (the previous commit c193ddf8 had this bug, causing the
+    // Vercel build to fail).
+    debugPrint('[ADD-MEMBER] v5.201: Related-to check -- '
+        'isCreator=$isCreator (familyDetail.createdBy=$familyCreatedBy, '
+        'cachedCreator=$_cachedFamilyCreatorId, currentUserId=$currentUserId), '
+        'isAdmin=$isAdmin, '
+        'isAdminOrCreator=$isAdminOrCreator, '
+        'showTargetPicker=$showTargetPicker, '
+        'familyHasMembers=$familyHasMembers, '
+        'anchorPerson=${widget.anchorPerson != null}, '
+        'isEditMode=$_isEditMode');
+
     // v5.200: Use a ScrollController so we can auto-scroll the "More
     // kinship terms" panel into view when the "More" chip is tapped
     // and the section expands (otherwise the newly revealed content
@@ -2438,25 +2461,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           // via _autoSelectViewerAsTarget). Visible only for admins/
           // creators. When an anchorPerson was explicitly passed
           // (node context menu), show a read-only label instead.
-          //
-          // v5.201 (DEBUG LOGGING): Added debugPrint so we can confirm
-          // (a) the component IS reached in the render tree, (b) the
-          // role check returns the expected admin value for the test
-          // account, and (c) it isn't being unintentionally unmounted
-          // by the "More" expand/collapse logic. The "Related to"
-          // section is NOT nested inside the "More" expansion — it
-          // renders as its own separate section between Gender and
-          // Relationship Type, completely independent of the "More"
-          // chip's expand/collapse state.
-          debugPrint('[ADD-MEMBER] v5.201: Related-to check — '
-              'isCreator=$isCreator (familyDetail.createdBy=$familyCreatedBy, '
-              'cachedCreator=$_cachedFamilyCreatorId, currentUserId=$currentUserId), '
-              'isAdmin=$isAdmin, '
-              'isAdminOrCreator=$isAdminOrCreator, '
-              'showTargetPicker=$showTargetPicker, '
-              'familyHasMembers=$familyHasMembers, '
-              'anchorPerson=${widget.anchorPerson != null}, '
-              'isEditMode=$_isEditMode');
+          // The debug logging for the role check is in the method
+          // body above (before the return statement).
           if (familyHasMembers && showTargetPicker) ...[
             _SectionLabel('Related to'),
             SizedBox(height: 8),
