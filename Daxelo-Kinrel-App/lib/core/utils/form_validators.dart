@@ -141,8 +141,10 @@ String? nameValidator(String? value) {
   //   - \u0D00-\u0D7F      : Malayalam
   //   - \u0E00-\u0E7F      : Thai
   //   - \s'\-\.            : spaces, apostrophes, hyphens, dots
+  //   - _                   : underscores (v5.201: added — some digital
+  //                          names use underscores, e.g. "manual_1".)
   final validName = RegExp(
-      r"^[a-zA-Z0-9\u00C0-\u024F\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0C00-\u0C7F\u0D00-\u0D7F\u0E00-\u0E7F\s'\-\.]+$");
+      r"^[a-zA-Z0-9_\u00C0-\u024F\u0900-\u097F\u0980-\u09FF\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0C00-\u0C7F\u0D00-\u0D7F\u0E00-\u0E7F\s'\-\.]+$");
   if (!validName.hasMatch(name)) {
     return 'Name can only contain letters, numbers, spaces, hyphens, and apostrophes';
   }

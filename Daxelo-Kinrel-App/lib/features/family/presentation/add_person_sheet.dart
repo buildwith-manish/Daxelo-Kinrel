@@ -2407,6 +2407,24 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
             textInputAction: TextInputAction.next,
             validator: (v) => nameValidator(v),
           ),
+          // v5.201: Inline validation hint — shows below the name
+          // field when the name is invalid (e.g. contains characters
+          // not allowed by the validator). This replaces the old
+          // bottom-of-form orange error banner that was removed in
+          // v5.198. Without this hint, the user sees the "Add to
+          // Family" button stay disabled with no explanation.
+          if (nameValidator(_nameController.text) != null &&
+              _nameController.text.trim().isNotEmpty) ...[
+            SizedBox(height: 4),
+            Text(
+              nameValidator(_nameController.text) ?? '',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 12,
+                color: KinrelColors.orange,
+              ),
+            ),
+          ],
           SizedBox(height: 20),
 
           // ── #2: Gender (unchanged) ──
@@ -2420,6 +2438,25 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
           // via _autoSelectViewerAsTarget). Visible only for admins/
           // creators. When an anchorPerson was explicitly passed
           // (node context menu), show a read-only label instead.
+          //
+          // v5.201 (DEBUG LOGGING): Added debugPrint so we can confirm
+          // (a) the component IS reached in the render tree, (b) the
+          // role check returns the expected admin value for the test
+          // account, and (c) it isn't being unintentionally unmounted
+          // by the "More" expand/collapse logic. The "Related to"
+          // section is NOT nested inside the "More" expansion — it
+          // renders as its own separate section between Gender and
+          // Relationship Type, completely independent of the "More"
+          // chip's expand/collapse state.
+          debugPrint('[ADD-MEMBER] v5.201: Related-to check — '
+              'isCreator=$isCreator (familyDetail.createdBy=$familyCreatedBy, '
+              'cachedCreator=$_cachedFamilyCreatorId, currentUserId=$currentUserId), '
+              'isAdmin=$isAdmin, '
+              'isAdminOrCreator=$isAdminOrCreator, '
+              'showTargetPicker=$showTargetPicker, '
+              'familyHasMembers=$familyHasMembers, '
+              'anchorPerson=${widget.anchorPerson != null}, '
+              'isEditMode=$_isEditMode');
           if (familyHasMembers && showTargetPicker) ...[
             _SectionLabel('Related to'),
             SizedBox(height: 8),
@@ -2814,9 +2851,17 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
   /// scroll (not an instant jump). If the panel is already visible,
   /// `ensureVisible` is a no-op.
   void _scrollToMoreSection() {
-    if (!mounted) return;
+    if (!mounted) {
+      debugPrint('[ADD-MEMBER] v5.201: _scrollToMoreSection — not mounted, skipping');
+      return;
+    }
     final context = _moreSectionKey.currentContext;
-    if (context == null) return;
+    if (context == null) {
+      debugPrint('[ADD-MEMBER] v5.201: _scrollToMoreSection — _moreSectionKey.currentContext is null '
+          '(panel not yet mounted in the render tree)');
+      return;
+    }
+    debugPrint('[ADD-MEMBER] v5.201: _scrollToMoreSection — calling Scrollable.ensureVisible');
     Scrollable.ensureVisible(
       context,
       alignment: 0.0, // Top of panel aligns with top of viewport.
@@ -2866,6 +2911,22 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet>
     }
     final bool hasRelationship = _effectiveRelationshipKey != null;
     final bool canSubmit = nameValid && (isFirstMember || hasRelationship);
+
+    // v5.201 (DEBUG LOGGING): Log the button-state computation so we
+    // can verify the canSubmit logic is reading the correct form
+    // state. The user reported the button stays disabled even with
+    // valid input (name + relationship selected, preview text visible).
+    // This log will show whether nameValid is false (the most likely
+    // root cause — the nameValidator regex was rejecting underscores
+    // in names like "manual_1") or whether hasRelationship is null.
+    debugPrint('[ADD-MEMBER] v5.201: Button state — '
+        'name="${_nameController.text}", '
+        'nameValid=$nameValid, '
+        'isFirstMember=$isFirstMember, '
+        'hasRelationship=$hasRelationship (key=${_effectiveRelationshipKey}), '
+        'selectedRelType=$_selectedRelType, '
+        'selectedGender=$_selectedGender, '
+        'canSubmit=$canSubmit');
 
     return Padding(
       padding: EdgeInsets.only(top: 12),
