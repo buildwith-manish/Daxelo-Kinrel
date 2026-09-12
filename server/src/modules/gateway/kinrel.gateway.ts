@@ -128,7 +128,9 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // Look up all the game rooms this socket had joined, and broadcast
     // room:player_left with reason 'disconnected' to each. If the
-    // disconnecting user was the host of a waiting room, auto-close it.
+    // disconnecting user was the host AND other players are still in the
+    // room, auto-close it. If the host was the only player, keep the
+    // room alive so they can rejoin after a transient disconnect.
     const rooms = this.socketGameRooms.get(client.id) || [];
     this.socketGameRooms.delete(client.id);
     for (const r of rooms) {
@@ -146,7 +148,7 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
         timestamp: new Date().toISOString(),
       });
 
-      // Broadcast a system chat message: "Manish left the room (disconnected)"
+      // Broadcast a system chat message: "Manish disconnected"
       this.server.to(chatRoomName).emit('game:chat:message', {
         gameTable: r.gameTable,
         gameId: r.gameId,
@@ -159,15 +161,34 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
         timestamp: new Date().toISOString(),
       });
 
-      // If the disconnecting user was the host AND the game is still in a
-      // pre-game state, auto-close the room. All clients will receive a
-      // 'room:closed' event and auto-navigate back to the game hub.
+      // If the disconnecting user was the host, decide whether to close
+      // the room. Only close if OTHER players are still connected — if
+      // the host was alone, keep the room alive for rejoin (transient
+      // disconnects shouldn't kill a room the host is still setting up).
       if (r.isHost) {
-        this._autoCloseRoom(r.gameTable, r.gameId, r.userName, 'host_disconnected');
+        // Count sockets remaining in the room AFTER this disconnect.
+        // (The disconnecting socket has already been removed by
+        // socket.io by the time handleDisconnect fires.)
+        const otherPlayersStillConnected = this._countSocketsInRoom(roomName);
+        if (otherPlayersStillConnected > 0) {
+          this._autoCloseRoom(r.gameTable, r.gameId, r.userName, 'host_disconnected');
+        }
+        // Else: host was alone. The room stays alive. The host can
+        // rejoin via the normal join flow when they reconnect.
       }
     }
 
     console.log(`[WS] Disconnected: ${client.id}`);
+  }
+
+  /**
+   * Count the number of sockets currently in a socket.io room.
+   * Used to decide whether to auto-close a room when the host leaves
+   * or disconnects — only close if other players are still present.
+   */
+  private _countSocketsInRoom(roomName: string): number {
+    const room = this.server.sockets.adapter.rooms.get(roomName);
+    return room ? room.size : 0;
   }
 
   /**
@@ -537,7 +558,7 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('game:room:leave')
-  handleGameRoomLeave(
+  async handleGameRoomLeave(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: {
       gameTable: string;
@@ -550,43 +571,8 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const roomName = `game-room:${data.gameTable}:${data.gameId}`;
     const chatRoomName = `game-chat:${data.gameTable}:${data.gameId}`;
 
-    // Broadcast player_left BEFORE removing the socket from the room,
-    // so the leaving socket also receives the event (it can use it to
-    // confirm its leave was acked).
-    this.server.to(roomName).emit('room:player_left', {
-      gameTable: data.gameTable,
-      gameId: data.gameId,
-      userId: data.userId,
-      userName: data.userName,
-      reason: 'left',
-      timestamp: new Date().toISOString(),
-    });
-
-    // System chat message: "Manish left the room"
-    this.server.to(chatRoomName).emit('game:chat:message', {
-      gameTable: data.gameTable,
-      gameId: data.gameId,
-      familyId: '',
-      type: 'system',
-      content: `${data.userName} left the room`,
-      senderName: 'System',
-      senderId: 'system',
-      isSpectator: false,
-      timestamp: new Date().toISOString(),
-    });
-
-    // If the host is leaving a waiting room, auto-close it (deletes the
-    // game row, broadcasts room:closed). Otherwise just remove the player.
-    if (data.isHost) {
-      this._autoCloseRoom(
-        data.gameTable,
-        data.gameId,
-        data.userName,
-        'host_left',
-      );
-    }
-
-    // Remove the socket from the room.
+    // Remove the socket from the room BEFORE counting remaining sockets,
+    // so the count reflects the post-leave state.
     client.leave(roomName);
     client.leave(chatRoomName);
 
@@ -599,6 +585,57 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.socketGameRooms.delete(client.id);
     } else {
       this.socketGameRooms.set(client.id, filtered);
+    }
+
+    // Broadcast player_left so all clients can update their lobby UI.
+    // (Sent AFTER we removed the leaving socket from the room, so the
+    // leaving socket does NOT receive the event — but it doesn't need
+    // to, since it's already navigating away.)
+    this.server.to(roomName).emit('room:player_left', {
+      gameTable: data.gameTable,
+      gameId: data.gameId,
+      userId: data.userId,
+      userName: data.userName,
+      reason: 'left',
+      timestamp: new Date().toISOString(),
+    });
+
+    // System chat message: "Manish left the room" — sent to the chat room
+    // (which the leaving socket has already left).
+    this.server.to(chatRoomName).emit('game:chat:message', {
+      gameTable: data.gameTable,
+      gameId: data.gameId,
+      familyId: '',
+      type: 'system',
+      content: `${data.userName} left the room`,
+      senderName: 'System',
+      senderId: 'system',
+      isSpectator: false,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Decide whether to auto-close the room:
+    //   • Host leaving + OTHER players still in the room → close the room
+    //     (notify everyone, delete game row, navigate them to game hub).
+    //   • Host leaving + host was the ONLY player → keep the room alive
+    //     so the host can rejoin later (they tap Play on the same game,
+    //     see their existing room, and continue with it).
+    //   • Non-host leaving → never close the room (just remove the player).
+    if (data.isHost) {
+      const otherPlayersStillConnected = this._countSocketsInRoom(roomName);
+      if (otherPlayersStillConnected > 0) {
+        // Other players are still in the room — close it.
+        await this._autoCloseRoom(
+          data.gameTable,
+          data.gameId,
+          data.userName,
+          'host_left',
+        );
+      }
+      // Else: host was the only player. Leave the room alive so they
+      // can rejoin via the normal join flow (ActiveGamesList → tap room
+      // → ?join=gameId). The room will eventually expire via the 5-min
+      // inactivity pg_cron job if the host doesn't return.
     }
   }
 

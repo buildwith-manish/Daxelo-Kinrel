@@ -535,6 +535,7 @@ DECLARE
     v_game_id text;
     v_host text;
     v_status text;
+    v_other_players int;
 BEGIN
     v_game_table := CASE TG_TABLE_NAME
         WHEN 'antakshari_players' THEN 'antakshari_games'
@@ -569,9 +570,32 @@ BEGIN
             v_game_table
         ) INTO v_host, v_status USING v_game_id;
 
+        -- Only act if the deleted row's user was the host AND the room
+        -- is still in a pre-game state.
         IF v_host = OLD."userId" AND public.fn_is_pre_game_status(v_status) THEN
-            DELETE FROM public.game_invites WHERE "gameTable" = v_game_table AND "gameId" = v_game_id;
-            EXECUTE format('DELETE FROM public.%I WHERE "id" = $1;', v_game_table) USING v_game_id;
+            -- Count OTHER player rows still in this room (excluding the
+            -- one being deleted). If there are any, close the room —
+            -- they shouldn't be stuck in a lobby with no host. If there
+            -- are none, leave the room alive for the host to rejoin.
+            IF TG_TABLE_NAME = 'redlight_players' THEN
+                SELECT count(*)::int INTO v_other_players
+                FROM public.redlight_players
+                WHERE "roundId" = v_game_id
+                  AND "userId" <> OLD."userId";
+            ELSE
+                EXECUTE format(
+                    'SELECT count(*)::int FROM public.%I
+                     WHERE "gameId" = $1 AND "userId" <> $2;',
+                    TG_TABLE_NAME
+                ) INTO v_other_players USING v_game_id, OLD."userId";
+            END IF;
+
+            IF v_other_players > 0 THEN
+                -- Other players still in the room — close it.
+                DELETE FROM public.game_invites WHERE "gameTable" = v_game_table AND "gameId" = v_game_id;
+                EXECUTE format('DELETE FROM public.%I WHERE "id" = $1;', v_game_table) USING v_game_id;
+            END IF;
+            -- Else: host was alone. Leave the room alive for rejoin.
         END IF;
     EXCEPTION WHEN OTHERS THEN
         RAISE NOTICE 'host_leave_cancels_waiting: %', SQLERRM;
