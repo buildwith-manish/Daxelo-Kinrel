@@ -519,6 +519,54 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
         // it reads it, so it only fires once per restore.
         final snapshot = ref.read(
             preCollapseLayoutSnapshotProvider(widget.familyId));
+        // [BUG-TRACE-v2] Issue 1: log the EXACT rootPersonId at lookup
+        // time + the snapshot's stored keys + whether the snapshot's
+        // stored root matches the lookup root byte-for-byte. This
+        // directly addresses the user's question: "verify the rootPersonId
+        // used at capture time in the 'Collapse this Branch' confirm
+        // handler is the exact same ID used at lookup time in the expand
+        // handler."
+        //
+        // We also log hashCode + length of the ID string so a subtle
+        // difference (e.g. trailing whitespace, casing) is detectable
+        // even when the printed strings look identical.
+        final lookupRoot = branch.rootPersonId;
+        final lookupRootHash = lookupRoot.hashCode;
+        final lookupRootLen = lookupRoot.length;
+        final snapshotKeys = snapshot?.keys.toList() ?? <String>[];
+        final snapshotKeyHashes = snapshotKeys.isEmpty
+            ? <String, int>{}
+            : {for (final k in snapshotKeys) k: k.hashCode};
+        // Find the stored key that MOST CLOSELY matches the lookup root
+        // (case-insensitive, trimmed) so we can report whether the
+        // difference is whitespace/casing vs. completely different IDs.
+        String? bestMatchKey;
+        var bestMatchReason = 'no snapshot';
+        if (snapshot != null && snapshotKeys.isNotEmpty) {
+          for (final k in snapshotKeys) {
+            if (k == lookupRoot) {
+              bestMatchKey = k;
+              bestMatchReason = 'EXACT MATCH';
+              break;
+            }
+            if (k.trim().toLowerCase() == lookupRoot.trim().toLowerCase()) {
+              bestMatchKey ??= k;
+              bestMatchReason = 'matches after trim+lowercase (whitespace/case difference)';
+            }
+          }
+          if (bestMatchKey == null) {
+            bestMatchReason = 'no match — lookup root is NOT in snapshot';
+          }
+        }
+        debugPrint(
+            '[BUG-TRACE-v2] EXPAND-RESTORE-LOOKUP root=$lookupRoot '
+            'rootHash=$lookupRootLen chars/$lookupRootHash '
+            'snapshotNull=${snapshot == null} '
+            'snapshotKeys=$snapshotKeys '
+            'snapshotKeyHashes=$snapshotKeyHashes '
+            'snapshotContainsRootExact=${snapshot?.containsKey(lookupRoot) ?? false} '
+            'bestMatchKey=$bestMatchKey '
+            'bestMatchReason=$bestMatchReason');
         // [BUG-TRACE] Diagnostic case 1 + 2: log whether
         // restoredFromSnapshot will end up true or false for THIS
         // specific branch expand, and — if false — log the EXACT reason
@@ -1504,7 +1552,8 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                 // NEVER be saved — which is the root cause of the
                 // "snapshot missing rootPersonId key" branch-expand case.
                 debugPrint(
-                    '[BUG-TRACE] COLLAPSE-CAPTURE root=$rootPersonId '
+                    '[BUG-TRACE-v2] COLLAPSE-CAPTURE-LOOKUP root=$rootPersonId '
+                    'rootHash=${rootPersonId.length} chars/${rootPersonId.hashCode} '
                     'currentLayout=${currentLayout == null ? "NULL" : "OK"} '
                     'positionsCount=${currentLayout?.positions.length ?? 0} '
                     'positionsKeys=${currentLayout?.positions.keys.toList().take(5).toList()} '
@@ -1593,6 +1642,16 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                       .read(preCollapseLayoutSnapshotProvider(
                           widget.familyId).notifier)
                       .state = snapshot;
+                  // [BUG-TRACE-v2] Issue 1: confirm the snapshot was
+                  // actually saved, with the EXACT rootPersonId used as
+                  // the key. This + the EXPAND-RESTORE-LOOKUP log above
+                  // closes the loop: if both logs print the same
+                  // rootPersonId + hashCode, capture and lookup agree.
+                  debugPrint(
+                      '[BUG-TRACE-v2] COLLAPSE-CAPTURE-SAVED root=$rootPersonId '
+                      'rootHash=${rootPersonId.length} chars/${rootPersonId.hashCode} '
+                      'positionsCount=${validatedPositions.length} '
+                      'snapshotTotalKeys=${snapshot.length}');
                 }
 
                 // Manually collapse — works for ANY node with descendants.
