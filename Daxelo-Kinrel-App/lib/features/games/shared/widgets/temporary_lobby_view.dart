@@ -37,7 +37,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../shared/widgets/dk_components.dart';
-import '../game_motion_tokens.dart';
+import '../../game_motion_tokens.dart';
 
 /// One player row in the lobby.
 class TemporaryLobbyPlayer {

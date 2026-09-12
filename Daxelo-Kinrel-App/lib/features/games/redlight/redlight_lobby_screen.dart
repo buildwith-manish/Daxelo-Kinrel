@@ -324,7 +324,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
       config: config,
       myUserId: myId,
       onToggleReady: (isReady) => notifier.toggleReady(isReady),
-      onStartMatch: () => notifier.startGame(),
+      onStartMatch: () async => notifier.startGame(),
       onCancelRoom: () => notifier.leaveRound(),
       onInviteFamily: isHost
           ? () {

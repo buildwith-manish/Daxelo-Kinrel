@@ -300,7 +300,7 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
     return TemporaryLobbyView(
       config: config,
       myUserId: myId,
-      onToggleReady: (_) {}, // No-op for bingo (no isReady column).
+      onToggleReady: (_) async {}, // No-op for bingo (no isReady column).
       onStartMatch: () => notifier.startGame(),
       onCancelRoom: () => notifier.leaveGame(),
       onInviteFamily: isHost

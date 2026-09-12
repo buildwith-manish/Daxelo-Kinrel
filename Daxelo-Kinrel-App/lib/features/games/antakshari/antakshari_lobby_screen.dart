@@ -24,7 +24,6 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
-import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/pending_invites_section.dart';
