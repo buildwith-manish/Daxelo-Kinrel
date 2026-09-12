@@ -519,6 +519,20 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
         // it reads it, so it only fires once per restore.
         final snapshot = ref.read(
             preCollapseLayoutSnapshotProvider(widget.familyId));
+        // [BUG-TRACE] Diagnostic case 1 + 2: log whether
+        // restoredFromSnapshot will end up true or false for THIS
+        // specific branch expand, and — if false — log the EXACT reason
+        // (snapshot NULL vs snapshot exists but missing rootPersonId key
+        // vs revealedIds empty). This pinpoints which of the three
+        // diagnostic cases the user described is firing.
+        debugPrint(
+            '[BUG-TRACE] EXPAND-RESTORE root=${branch.rootPersonId} '
+            'revealedIdsCount=${revealedIds.length} '
+            'isManualBranch=${collapseState.manuallyCollapsedRoots.contains(branch.rootPersonId)} '
+            'snapshotNull=${snapshot == null} '
+            'snapshotKeys=${snapshot?.keys.toList() ?? []} '
+            'snapshotContainsRoot=${snapshot?.containsKey(branch.rootPersonId) ?? false} '
+            'restoredPositionsCount=${snapshot?[branch.rootPersonId]?.length ?? 0}');
         if (snapshot != null &&
             snapshot.containsKey(branch.rootPersonId)) {
           final restoredPositions = snapshot[branch.rootPersonId]!;
@@ -552,6 +566,28 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                   .notifier)
               .state = newSnapshot.isEmpty ? null : newSnapshot;
           restoredFromSnapshot = true;
+          // [BUG-TRACE] Case 1 outcome: restoredFromSnapshot=true path.
+          // Log a few sample restored positions to confirm keys + values
+          // are non-degenerate before they reach the layout pass.
+          final sampleRestored = restoredPositions.entries.take(3).map(
+              (e) => '${e.key}=${e.value}').join(', ');
+          debugPrint(
+              '[BUG-TRACE] EXPAND-RESTORE OK: restoredFromSnapshot=true, '
+              'mergedCount=${merged.length}, sampleRestored=[$sampleRestored]');
+        } else {
+          // [BUG-TRACE] Case 1 outcome: restoredFromSnapshot=false.
+          // Log the precise reason this expand will fall through to the
+          // cache-clear branch below — which forces a fresh global
+          // layout (the original overlap-prone behavior).
+          final reason = snapshot == null
+              ? 'snapshot is NULL (collapse never captured one for this family)'
+              : (snapshot.containsKey(branch.rootPersonId)
+                  ? 'IMPOSSIBLE — containsKey returned true above'
+                  : 'snapshot exists with ${snapshot.length} key(s) '
+                      '${snapshot.keys.toList()} but MISSING rootPersonId=${branch.rootPersonId}');
+          debugPrint(
+              '[BUG-TRACE] EXPAND-RESTORE FAIL: restoredFromSnapshot=false, '
+              'reason=$reason — layout pass will clear cache + fresh global recompute');
         }
       } else {
         // v5.161 (LRU CAP): expandBranch now returns the set of
@@ -1389,8 +1425,27 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                 final currentLayout = ref
                     .read(graphLayoutProvider(widget.familyId))
                     .valueOrNull;
+                // [BUG-TRACE] Diagnostic case 2: log snapshot-capture
+                // conditions at the moment "Collapse this Branch" is
+                // confirmed. If currentLayout is null or its positions
+                // map is empty, the snapshot for this rootPersonId will
+                // NEVER be saved — which is the root cause of the
+                // "snapshot missing rootPersonId key" branch-expand case.
+                debugPrint(
+                    '[BUG-TRACE] COLLAPSE-CAPTURE root=$rootPersonId '
+                    'currentLayout=${currentLayout == null ? "NULL" : "OK"} '
+                    'positionsCount=${currentLayout?.positions.length ?? 0} '
+                    'positionsKeys=${currentLayout?.positions.keys.toList().take(5).toList()}');
                 if (currentLayout != null &&
                     currentLayout.positions.isNotEmpty) {
+                  // [BUG-TRACE] Confirm the rootPersonId is actually KEYED
+                  // in the snapshot positions map (a sanity check — the
+                  // root itself should always have a position from the
+                  // layout pass; if it doesn't, the snapshot will be
+                  // missing the most important key).
+                  debugPrint(
+                      '[BUG-TRACE] COLLAPSE-CAPTURE rootInPositions=${currentLayout.positions.containsKey(rootPersonId)} '
+                      'rootPos=${currentLayout.positions[rootPersonId]}');
                   // v5.212: Validate + repair positions BEFORE snapshot.
                   final validatedPositions = Map<String, Offset>.from(
                       currentLayout.positions);

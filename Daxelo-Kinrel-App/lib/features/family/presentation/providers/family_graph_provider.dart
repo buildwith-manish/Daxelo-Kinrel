@@ -2346,12 +2346,28 @@ final graphLayoutProvider =
   }
 
   if (previousPositions != null && previousPositions.isNotEmpty) {
+    // [BUG-TRACE] Diagnostic case 3: log entry conditions for the
+    // v5.212 (formerly v5.211) overlap-repair guard. We log the
+    // previousPositions map size, the branch-expand flag value, and
+    // a sample of positions to confirm non-degeneracy reached this
+    // point. If previousPositions is unexpectedly empty here, the
+    // bug is upstream (snapshot restore didn't merge).
+    final prevSample = previousPositions.entries.take(3)
+        .map((e) => '${e.key}=${e.value}').join(', ');
+    debugPrint(
+        '[BUG-TRACE] OVERLAP-GUARD-ENTRY isBranchExpandFlow=$isBranchExpandFlow '
+        'previousPositionsCount=${previousPositions.length} '
+        'samplePrev=[$prevSample]');
     final entries = previousPositions.entries.toList();
     if (entries.length > 1) {
       final repaired = <String, Offset>{
         for (final e in entries) e.key: e.value,
       };
       var overlapCount = 0;
+      // [BUG-TRACE] Capture the specific overlapping pairs (idA, idB)
+      // and their (x, y) coords so the user can confirm whether the
+      // pair they're seeing on-screen is the one being detected here.
+      final overlapPairsLog = <String>[];
 
       // O(n²) pairwise check. For typical family graphs (≤ 50
       // visible nodes) this is ≤ 1225 comparisons, negligible cost.
@@ -2363,6 +2379,14 @@ final graphLayoutProvider =
           final b = repaired[idB]!;
           if ((a.dx - b.dx).abs() <= 1.0 && (a.dy - b.dy).abs() <= 1.0) {
             overlapCount++;
+            // [BUG-TRACE] Log the EXACT overlapping node ID pair the
+            // v5.211-style guard detected, plus their pre-nudge
+            // positions. This addresses the user's request: "If the
+            // v5.211 guard fires, log the overlapping node ID pair
+            // it detected."
+            overlapPairsLog.add('$idA@(${a.dx.toStringAsFixed(1)},'
+                '${a.dy.toStringAsFixed(1)})<=>$idB@(${b.dx.toStringAsFixed(1)},'
+                '${b.dy.toStringAsFixed(1)})');
             // Nudge B by a small radial offset along X (180px, the
             // same minHorizontal used by the de-overlap pass). This
             // is a one-time correction — the node moves to a fresh
@@ -2374,6 +2398,10 @@ final graphLayoutProvider =
           }
         }
       }
+      // [BUG-TRACE] Always log the guard's verdict (fired or skipped).
+      debugPrint(
+          '[BUG-TRACE] OVERLAP-GUARD-VERDICT overlapCount=$overlapCount '
+          'pairs=${overlapPairsLog.isEmpty ? "NONE" : overlapPairsLog.join(" | ")}');
 
       if (overlapCount > 0) {
         // Write the repaired map back to the cache so the NEXT
@@ -2399,6 +2427,19 @@ final graphLayoutProvider =
   }
   final preservePositions = previousPositions != null &&
       previousPositions.isNotEmpty;
+
+  // [BUG-TRACE] Diagnostic case 3 (downstream): confirm preservePositions
+  // + previousPositions are actually reaching RadialLayout.compute() for
+  // this call. If preservePositions is false here despite a snapshot
+  // restore, the bug is in this function's wiring. If true but the
+  // layout still overlaps, the bug is downstream in radial_layout.dart
+  // (or the isolate serialization round-trip).
+  debugPrint(
+      '[BUG-TRACE] LAYOUT-CALL-ENTRY nodeCount=$nodeCount '
+      'preservePositions=$preservePositions '
+      'previousPositionsCount=${previousPositions?.length ?? 0} '
+      'willUseIsolate=${nodeCount > 15} '
+      'anchorPersonId=${centerPerson.id}');
 
   // v5.161 (MAX-EXPANDED-BRANCHES CAP): when too many branches are
   // expanded at once, auto-collapse the oldest. Watch the branch
@@ -2445,6 +2486,35 @@ final graphLayoutProvider =
     );
   }
   layoutStopwatch.stop();
+
+  // [BUG-TRACE] Diagnostic case 3 (output): definitive proof of whether
+  // the OUTPUT positions still contain overlap after the layout pass.
+  // This is the smoking gun for the user's reported bug — if pairs is
+  // non-empty here, the layout engine is producing overlapping output
+  // even after the v5.212 guard + radial de-overlap pass.
+  if (result.positions.length >= 2) {
+    final outEntries = result.positions.entries.toList();
+    final overlappingOutputPairs = <String>[];
+    for (var i = 0; i < outEntries.length; i++) {
+      for (var j = i + 1; j < outEntries.length; j++) {
+        final a = outEntries[i].value;
+        final b = outEntries[j].value;
+        if ((a.dx - b.dx).abs() <= 1.0 && (a.dy - b.dy).abs() <= 1.0) {
+          overlappingOutputPairs.add(
+              '${outEntries[i].key}@(${a.dx.toStringAsFixed(1)},'
+              '${a.dy.toStringAsFixed(1)})<=>${outEntries[j].key}@(${b.dx.toStringAsFixed(1)},'
+              '${b.dy.toStringAsFixed(1)})');
+        }
+      }
+    }
+    debugPrint(
+        '[BUG-TRACE] LAYOUT-OUTPUT-CHECK resultPositionsCount=${result.positions.length} '
+        'overlappingPairsInOutput=${overlappingOutputPairs.length} '
+        'pairs=${overlappingOutputPairs.isEmpty ? "NONE — zero overlap confirmed" : overlappingOutputPairs.join(" | ")}');
+  } else {
+    debugPrint(
+        '[BUG-TRACE] LAYOUT-OUTPUT-CHECK resultPositionsCount=${result.positions.length} (skipped pairwise check — fewer than 2 nodes)');
+  }
 
   AnalyticsService.instance.logEvent('graph_layout_time', {
     'total_ms': layoutStopwatch.elapsedMilliseconds,
