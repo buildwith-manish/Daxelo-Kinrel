@@ -313,6 +313,22 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
   /// Bounding box used for culling + node placement (circle + label).
   static const Size _kNodeSize = Size(140, 176);
 
+  /// v5.209: Check if all positions in a layout are at the same point
+  /// (degenerate layout). Used to decide whether to show the loading
+  /// spinner during a layout transition (instead of showing overlapping
+  /// nodes from a degenerate cached layout).
+  static bool _arePositionsDegenerate(Map<String, Offset> positions) {
+    if (positions.length <= 1) return false;
+    final values = positions.values.toList();
+    final first = values.first;
+    for (final v in values.skip(1)) {
+      if ((v.dx - first.dx).abs() > 1.0 || (v.dy - first.dy).abs() > 1.0) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /// The visual circle diameter inside each node (GraphNode.nodeSize).
   /// The circle is at the TOP of the Column, so its visual center is
   /// offset from the Positioned center by:
@@ -2024,8 +2040,19 @@ class _FamilyGraphEngineViewState extends ConsumerState<FamilyGraphEngineView>
     // The loading spinner only shows on the FIRST load (when there's no
     // previous data). This prevents the "Loading family graph..." from
     // appearing repeatedly every few seconds.
+    //
+    // v5.209: However, if the previous positions are degenerate (all at
+    // the same point — e.g. from a layout bug or stale cache), showing
+    // them during the reload transition causes overlapping nodes. So we
+    // check: if the cached positions ARE degenerate, show the loading
+    // spinner instead of the degenerate positions. This ensures the user
+    // never sees overlapping nodes during a layout transition.
+    final cachedLayout = layoutAsync.valueOrNull;
+    final bool cachedIsDegenerate = cachedLayout != null &&
+        cachedLayout.positions.isNotEmpty &&
+        _arePositionsDegenerate(cachedLayout.positions);
     return layoutAsync.when(
-      skipLoadingOnReload: true,
+      skipLoadingOnReload: !cachedIsDegenerate,
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (Object e, _) => ErrorRetry(
         onRetry: () =>

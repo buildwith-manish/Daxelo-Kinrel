@@ -170,6 +170,27 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
               .where((p) => p.deletedAt == null)
               .toList();
 
+          // v5.209: Determine which Person IDs are "truly linked" to a
+          // real Kinrel account. The anchor Person's linkedUserId may be
+          // NULL (because the unique constraint (familyId, linkedUserId)
+          // prevents the creator from having linked Persons in multiple
+          // families). But the anchor WAS created by a real user
+          // (Family.createdBy). So for the anchor person, if the family
+          // has a createdBy, treat it as "Linked" even without linkedUserId.
+          final Set<String> trulyLinkedIds = {};
+          for (final p in activeMembers) {
+            if (p.linkedUserId != null && p.linkedUserId!.isNotEmpty) {
+              trulyLinkedIds.add(p.id);
+            } else if (p.isAnchor && family.createdBy != null &&
+                       family.createdBy!.isNotEmpty) {
+              // v5.209: The family creator's anchor Person has
+              // linkedUserId = NULL due to the unique constraint, but
+              // it IS a real registered Kinrel account (the creator's).
+              // Treat it as "Linked".
+              trulyLinkedIds.add(p.id);
+            }
+          }
+
           var filtered = activeMembers;
           if (_searchQuery.isNotEmpty) {
             final q = _searchQuery.toLowerCase();
@@ -375,6 +396,7 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
                               person: person,
                               relationshipLabel: relLabel,
                               presence: presence,
+                              isTrulyLinked: trulyLinkedIds.contains(person.id),
                               onTap: () {
                                 PersonDetailSheet.show(
                                   context,
@@ -414,6 +436,7 @@ class _MemberRow extends StatelessWidget {
     required this.onTap,
     this.relationshipLabel,
     this.presence,
+    this.isTrulyLinked = false,
   });
 
   final Person person;
@@ -425,6 +448,12 @@ class _MemberRow extends StatelessWidget {
 
   /// Presence status for this member, or null if no presence data.
   final PresenceStatus? presence;
+
+  /// v5.209: Whether this member is truly linked to a real Kinrel
+  /// account. Checks both `linkedUserId` AND the anchor/createdBy
+  /// fallback (the anchor Person's linkedUserId may be NULL due to
+  /// the unique constraint, but it IS a real account).
+  final bool isTrulyLinked;
 
   @override
   Widget build(BuildContext context) {
@@ -542,18 +571,22 @@ class _MemberRow extends StatelessWidget {
             // added via "Find on Kinrel" (real registered accounts,
             // connected via invite/acceptance) from members added
             // via "Add Manually" (not a real linked account).
-            //   - linkedUserId != null → "Linked" (chain-link icon)
-            //   - linkedUserId == null → "Manual" (pencil icon)
+            // v5.209: Uses `isTrulyLinked` which checks BOTH
+            // `linkedUserId` AND the anchor/createdBy fallback —
+            // the anchor Person's linkedUserId may be NULL due to
+            // the unique constraint, but it IS a real account.
+            //   - isTrulyLinked → "Linked" (chain-link icon)
+            //   - !isTrulyLinked → "Manual" (pencil icon)
             const SizedBox(width: 6),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: (person.linkedUserId != null
+                color: (isTrulyLinked
                     ? KinrelColors.tealAccent
                     : KinrelColors.textDim).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                  color: (person.linkedUserId != null
+                  color: (isTrulyLinked
                       ? KinrelColors.tealAccent
                       : KinrelColors.textDim).withValues(alpha: 0.3),
                 ),
@@ -562,22 +595,22 @@ class _MemberRow extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    person.linkedUserId != null
+                    isTrulyLinked
                         ? Icons.link
                         : Icons.edit_outlined,
                     size: 10,
-                    color: person.linkedUserId != null
+                    color: isTrulyLinked
                         ? KinrelColors.tealAccent
                         : KinrelColors.textDim,
                   ),
                   const SizedBox(width: 3),
                   Text(
-                    person.linkedUserId != null ? 'Linked' : 'Manual',
+                    isTrulyLinked ? 'Linked' : 'Manual',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 9,
                       fontWeight: FontWeight.w600,
-                      color: person.linkedUserId != null
+                      color: isTrulyLinked
                           ? KinrelColors.tealAccent
                           : KinrelColors.textDim,
                     ),
