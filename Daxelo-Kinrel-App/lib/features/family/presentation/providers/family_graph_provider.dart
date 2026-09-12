@@ -2448,6 +2448,40 @@ final lastLayoutPositionsProvider =
   (ref, familyId) => null,
 );
 
+/// v5.210 (POSITION SNAPSHOT/RESTORE): per-family snapshot of node
+/// positions captured at the moment a MANUAL COLLAPSE was triggered.
+/// Keyed by rootPersonId → {personId: Offset}.
+///
+/// On manual collapse, the user long-presses a node and chooses
+/// "Collapse this branch". At that moment, ALL currently-visible nodes
+/// (the about-to-be-hidden descendants INCLUDED) have valid positions
+/// from the most recent layout pass. We snapshot those positions into
+/// this provider, keyed by the branch root's personId.
+///
+/// On the subsequent expand of that same branch, we MERGE the snapshot
+/// back into [lastLayoutPositionsProvider] BEFORE invalidating
+/// [graphLayoutProvider]. The next layout pass therefore runs with
+/// `preservePositions = true` and a complete `previousPositions` map —
+/// every previously-placed node (including the just-revealed descendants)
+/// KEEPS its pre-collapse position. The de-overlap pass only needs to
+/// nudge any genuinely-new nodes (e.g. fetched sub-branches) away from
+/// the settled ones.
+///
+/// This directly addresses the user's report that "expand-from-collapse
+/// still overlaps nodes" — the v5.207 approach of clearing the cache +
+/// forcing a fresh layout sometimes produced overlapping positions for
+/// the newly-revealed descendants (the fresh radial placement placed
+/// them at the same ring slot as pre-existing nodes when the BFS hop
+/// distance collided). The snapshot/restore approach bypasses the
+/// recompute entirely for already-positioned nodes.
+///
+/// The snapshot entry is REMOVED once consumed by an expand — a
+/// subsequent collapse of the same branch captures a fresh snapshot.
+final preCollapseLayoutSnapshotProvider =
+    StateProvider.family<Map<String, Map<String, Offset>>?, String>(
+  (ref, familyId) => null,
+);
+
 /// v5.145 (STEP 3): Runs RadialLayout.compute() in a background isolate
 /// via Flutter's `compute()` helper. The isolate receives plain Lists +
 /// Maps (isolate-safe primitives) and returns the positions as a

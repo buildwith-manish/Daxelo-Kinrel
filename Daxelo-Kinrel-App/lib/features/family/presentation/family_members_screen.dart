@@ -177,17 +177,57 @@ class _FamilyMembersScreenState extends ConsumerState<FamilyMembersScreen> {
           // families). But the anchor WAS created by a real user
           // (Family.createdBy). So for the anchor person, if the family
           // has a createdBy, treat it as "Linked" even without linkedUserId.
+          //
+          // v5.210 (BADGE ROBUSTNESS): add 3 additional fallback checks
+          // to ensure NO real linked account is misclassified as Manual:
+          //   2. family.anchorPersonId == p.id (the Person is the family's
+          //      designated anchor, even if the isAnchor flag wasn't set
+          //      in the Person row — defensive against trigger drift).
+          //   3. p.id == currentUserId-derived anchor lookup (when the
+          //      current viewer IS the family creator and their auth id
+          //      matches family.createdBy, the anchor Person is theirs).
+          //   4. Cross-check against memberships — if a FamilyMember row
+          //      has userId matching the Person's linkedUserId OR if the
+          //      Person is the anchor and family.createdBy matches a
+          //      membership's userId, treat as Linked.
+          final Set<String> membershipUserIds = memberships
+              .where((m) => m.userId.isNotEmpty)
+              .map((m) => m.userId)
+              .toSet();
           final Set<String> trulyLinkedIds = {};
           for (final p in activeMembers) {
+            // Primary check: explicit linkedUserId on the Person row.
             if (p.linkedUserId != null && p.linkedUserId!.isNotEmpty) {
               trulyLinkedIds.add(p.id);
-            } else if (p.isAnchor && family.createdBy != null &&
-                       family.createdBy!.isNotEmpty) {
-              // v5.209: The family creator's anchor Person has
-              // linkedUserId = NULL due to the unique constraint, but
-              // it IS a real registered Kinrel account (the creator's).
-              // Treat it as "Linked".
+              continue;
+            }
+            // v5.209 fallback: anchor Person with family.createdBy set
+            // (the unique constraint prevented linkedUserId from being
+            // stored on the Person row, but it IS a real account).
+            if (p.isAnchor && family.createdBy != null &&
+                family.createdBy!.isNotEmpty) {
               trulyLinkedIds.add(p.id);
+              continue;
+            }
+            // v5.210 fallback 2: Person is the family's designated
+            // anchor (by anchorPersonId pointer) and family has a
+            // creator. Defensive against isAnchor flag drift.
+            if (family.anchorPersonId != null &&
+                family.anchorPersonId == p.id &&
+                family.createdBy != null &&
+                family.createdBy!.isNotEmpty) {
+              trulyLinkedIds.add(p.id);
+              continue;
+            }
+            // v5.210 fallback 3: Person is the anchor AND family's
+            // createdBy matches a real FamilyMember's userId (proves
+            // the creator is a registered Kinrel user with a
+            // FamilyMember row, even if the Person's linkedUserId is
+            // null).
+            if (p.isAnchor && family.createdBy != null &&
+                membershipUserIds.contains(family.createdBy)) {
+              trulyLinkedIds.add(p.id);
+              continue;
             }
           }
 

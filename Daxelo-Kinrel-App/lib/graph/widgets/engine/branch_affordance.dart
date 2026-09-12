@@ -489,12 +489,56 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     // chip STAYS — removing the branch would make the bubble vanish
     // while revealing nothing, leaving hidden members unreachable.
     // The user can tap again once data has loaded.
+    //
+    // v5.210 (POSITION RESTORE): for MANUAL branches, BEFORE invalidating
+    // the layout provider, we MERGE the pre-collapse snapshot positions
+    // back into lastLayoutPositionsProvider. The subsequent layout pass
+    // therefore runs with preservePositions=true AND a complete
+    // previousPositions map (including the just-revealed descendants'
+    // original positions) — every previously-placed node KEEPS its
+    // pre-collapse position. This eliminates the overlap bug where a
+    // fresh layout recompute placed newly-revealed descendants at the
+    // same ring slot as pre-existing ring nodes.
+    var restoredFromSnapshot = false;
     if (revealedIds.isNotEmpty) {
       final collapseState = ref.read(branchCollapseProvider);
       if (collapseState.manuallyCollapsedRoots
           .contains(branch.rootPersonId)) {
         ref.read(branchCollapseProvider.notifier)
             .expandManualBranch(branch.rootPersonId);
+
+        // v5.210: Restore pre-collapse positions for manual branches.
+        // Merge the snapshot into lastLayoutPositionsProvider so the
+        // next layout pass uses preservePositions=true with the
+        // complete previousPositions map.
+        final snapshot = ref.read(
+            preCollapseLayoutSnapshotProvider(widget.familyId));
+        if (snapshot != null &&
+            snapshot.containsKey(branch.rootPersonId)) {
+          final restoredPositions = snapshot[branch.rootPersonId]!;
+          // Start with current cached positions (for nodes that became
+          // visible after the collapse via other mechanisms like search
+          // jump), then overlay the snapshot positions for the
+          // descendants that are about to be re-revealed.
+          final currentPositions =
+              ref.read(lastLayoutPositionsProvider(widget.familyId)) ??
+                  <String, Offset>{};
+          final merged = <String, Offset>{
+            ...currentPositions,
+            ...restoredPositions,
+          };
+          ref.read(lastLayoutPositionsProvider(widget.familyId).notifier)
+              .state = merged;
+          // Remove the consumed snapshot entry so a subsequent collapse
+          // of the same branch captures a fresh snapshot.
+          final newSnapshot =
+              Map<String, Map<String, Offset>>.from(snapshot)
+            ..remove(branch.rootPersonId);
+          ref.read(preCollapseLayoutSnapshotProvider(widget.familyId)
+                  .notifier)
+              .state = newSnapshot.isEmpty ? null : newSnapshot;
+          restoredFromSnapshot = true;
+        }
       } else {
         // v5.161 (LRU CAP): expandBranch now returns the set of
         // person IDs that should be concealed if an OLDER expanded
@@ -522,28 +566,28 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     // newly revealed frontier nodes — each tap makes visible progress
     // while the total on-canvas count stays bounded.
 
-    // v5.207 (LAYOUT FIX): Force a full layout recompute after expand.
-    // Without this, the layout uses stale previousPositions from
-    // lastLayoutPositionsProvider (cached before the collapse). For
-    // manual-collapse (where descendants stayed in visibleIds the
-    // whole time), the positions ARE correct — but for any newly-
-    // fetched persons added by fetchBranchAndMerge, the local-
-    // expansion placement (computeLocalExpansionLayout) stacks them
-    // vertically below their parent, causing overlap with pre-existing
-    // ring nodes. Invalidating graphLayoutProvider forces a fresh
-    // global layout pass that places ALL visible nodes on concentric
-    // rings with proper angular separation — the same clean layout
-    // that existed before the branch was collapsed.
+    // v5.210 (POSITION RESTORE): when we successfully restored a
+    // pre-collapse snapshot, SKIP the v5.207 cache-clear — we WANT
+    // the layout engine to use preservePositions=true with the merged
+    // previousPositions. Clearing the cache would defeat the restore
+    // and force a fresh layout (the original overlap-prone behavior).
     //
-    // We also clear lastLayoutPositionsProvider so the layout pass
-    // does NOT preserve old positions (which would re-introduce the
-    // stacking issue for nodes that were previously hidden and are
-    // now reappearing at stale coordinates).
+    // For auto-branches and manual branches without a snapshot, fall
+    // back to the v5.207 behavior: clear the cache + invalidate for a
+    // fresh global layout (the only safe option when no pre-collapse
+    // positions are available).
     if (mounted) {
-      // Clear cached positions so the layout provider does a fresh
-      // global ring-fill instead of preserving old positions.
-      ref.read(lastLayoutPositionsProvider(widget.familyId).notifier).state = null;
+      if (!restoredFromSnapshot) {
+        // v5.207: Clear cached positions so the layout provider does a
+        // fresh global ring-fill instead of preserving old positions.
+        ref.read(lastLayoutPositionsProvider(widget.familyId).notifier)
+            .state = null;
+      }
       // Invalidate the layout provider to trigger a recomputation.
+      // For restored manual branches, this triggers a layout pass that
+      // uses preservePositions=true with the merged snapshot — keeping
+      // pre-collapse positions stable for both previously-visible and
+      // newly-revealed nodes.
       ref.invalidate(graphLayoutProvider(widget.familyId));
       // Trigger a canvas rebuild to pick up the new layout.
       setState(() {});
@@ -1302,6 +1346,36 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                 }
                 _cancelEntranceAnimation();
               } else {
+                // v5.210 (POSITION SNAPSHOT): BEFORE the manual collapse
+                // hides the descendants, snapshot the CURRENT layout
+                // positions for ALL visible nodes. These positions will
+                // be RESTORED on the subsequent expand so the layout
+                // engine keeps pre-collapse positions stable via
+                // preservePositions=true — preventing the overlap bug
+                // that occurred when a fresh layout recompute placed
+                // newly-revealed descendants at the same ring slot as
+                // pre-existing ring nodes.
+                final currentLayout = ref
+                    .read(graphLayoutProvider(widget.familyId))
+                    .valueOrNull;
+                if (currentLayout != null &&
+                    currentLayout.positions.isNotEmpty) {
+                  final snapshot = Map<String, Map<String, Offset>>.from(
+                    ref.read(preCollapseLayoutSnapshotProvider(
+                        widget.familyId)) ??
+                        {},
+                  );
+                  // Copy the current positions into the snapshot,
+                  // keyed by the branch root's personId. Use a deep
+                  // copy so subsequent layout mutations don't leak.
+                  snapshot[rootPersonId] =
+                      Map<String, Offset>.from(currentLayout.positions);
+                  ref
+                      .read(preCollapseLayoutSnapshotProvider(
+                          widget.familyId).notifier)
+                      .state = snapshot;
+                }
+
                 // Manually collapse — works for ANY node with descendants.
                 ref.read(branchCollapseProvider.notifier)
                     .manualCollapseBranch(
