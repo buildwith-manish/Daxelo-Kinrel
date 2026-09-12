@@ -19,6 +19,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
+import '../shared/services/temporary_room_service.dart';
 import 'checkers_game_logic.dart';
 import 'checkers_models.dart';
 
@@ -306,6 +307,7 @@ class CheckersNotifier extends StateNotifier<CheckersState> {
       if (winner != null) {
         updateBody['status'] = 'completed';
         updateBody['completedAt'] = DateTime.now().toIso8601String();
+        updateBody['lastActivityAt'] = DateTime.now().toIso8601String();
         updateBody['winnerId'] = game.idForPlayer(winner);
         updateBody['winnerName'] = game.nameForPlayer(winner);
       }
@@ -332,6 +334,15 @@ class CheckersNotifier extends StateNotifier<CheckersState> {
           .from('checkers_games')
           .update(updateBody)
           .eq('id', game.id);
+
+      // Schedule the temporary room (and all temporary player associations)
+      // for deletion 30s after the game ends. Pattern A games have no
+      // lobby/waiting phase, so this is the only cleanup hook we need.
+      // The hourly pg_cron job is the safety net if the user closes the
+      // app before this fires.
+      if (winner != null) {
+        _scheduleRoomCleanup(game.id);
+      }
 
       // Update local state immediately for responsive UI
       final updatedGame = CheckersGame(
@@ -391,6 +402,18 @@ class CheckersNotifier extends StateNotifier<CheckersState> {
     _channel?.unsubscribe();
     _channel = null;
     _gameId = null;
+  }
+
+  /// Schedule the temporary room (and all temporary player associations)
+  /// for deletion 30s after the game ends. The hourly pg_cron job is the
+  /// safety net if the user closes the app before this fires.
+  void _scheduleRoomCleanup(String gameId) {
+    Timer(const Duration(seconds: 30), () {
+      _ref.read(temporaryRoomServiceProvider).endGame(
+            gameTable: 'checkers_games',
+            gameId: gameId,
+          );
+    });
   }
 
   // ── Realtime subscription ────────────────────────────────────────

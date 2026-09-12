@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/data/game_invite_chat_sync.dart';
+import '../shared/services/temporary_room_service.dart';
 import 'dotsboxes_game_logic.dart';
 import 'dotsboxes_models.dart';
 
@@ -129,8 +130,9 @@ class DbNotifier extends StateNotifier<DbState> {
         final winnerIndices = getWinners(scores);
         final winnerIds = winnerIndices.map((i) => players[i].userId).toList();
         final winnerNames = winnerIndices.map((i) => players[i].userName).toList();
-        await client.from('dotsboxes_games').update({'status': 'completed', 'completedAt': DateTime.now().toIso8601String(), 'currentTurnPlayerId': nextPlayerId, 'bonusTurn': false, 'winnerUserIds': winnerIds, 'winnerNames': winnerNames}).eq('id', gameId);
+        await client.from('dotsboxes_games').update({'status': 'completed', 'completedAt': DateTime.now().toIso8601String(), 'lastActivityAt': DateTime.now().toIso8601String(), 'currentTurnPlayerId': nextPlayerId, 'bonusTurn': false, 'winnerUserIds': winnerIds, 'winnerNames': winnerNames}).eq('id', gameId);
         GameMotionTokens.celebrate();
+        _scheduleRoomCleanup(gameId);
       } else {
         await client.from('dotsboxes_games').update({'currentTurnPlayerId': nextPlayerId, 'bonusTurn': bonusTurn}).eq('id', gameId);
       }
@@ -143,7 +145,86 @@ class DbNotifier extends StateNotifier<DbState> {
   // Helper to avoid name clash with the logic function
   String nextPlayerId_(List<String> ids, String current) => nextPlayerId(ids, current);
 
-  void leaveGame() { _channel?.unsubscribe(); _channel = null; _gameId = null; }
+  /// Leave the game. If the user is the host AND the game is still in
+  /// `waiting` status, the entire room is deleted (cascade to child
+  /// tables + invites) via the temporary-room service. Otherwise the
+  /// player's own row is deleted (which the server-side trigger will
+  /// also catch).
+  Future<void> leaveGame() async {
+    final client = _client;
+    final gameId = _gameId;
+    final myId = _myId;
+    final game = state.game;
+    if (client == null || gameId == null || myId == null) {
+      _cleanup();
+      return;
+    }
+    try {
+      if (game != null && game.isWaiting && game.hostUserId == myId) {
+        await _ref.read(temporaryRoomServiceProvider).cancelWaitingRoom(
+              gameTable: 'dotsboxes_games',
+              gameId: gameId,
+            );
+      } else {
+        await client
+            .from('dotsboxes_players')
+            .delete()
+            .eq('gameId', gameId)
+            .eq('userId', myId);
+      }
+    } catch (_) {}
+    _cleanup();
+  }
+
+  /// Toggle the calling player's `isReady` flag in the waiting lobby.
+  Future<void> toggleReady(bool isReady) async {
+    final gameId = _gameId;
+    if (gameId == null) return;
+    await _ref.read(temporaryRoomServiceProvider).toggleReady(
+          gameTable: 'dotsboxes_games',
+          gameId: gameId,
+          isReady: isReady,
+        );
+    // Optimistically update local state; realtime will confirm.
+    final myId = _myId;
+    if (myId != null) {
+      final next = state.players
+          .map((p) => p.userId == myId
+              ? DbPlayer(
+                  id: p.id,
+                  gameId: p.gameId,
+                  userId: p.userId,
+                  userName: p.userName,
+                  turnOrder: p.turnOrder,
+                  playerColor: p.playerColor,
+                  boxesCaptured: p.boxesCaptured,
+                  joinedAt: p.joinedAt,
+                  isReady: isReady,
+                  readyAt: isReady ? DateTime.now() : null,
+                )
+              : p)
+          .toList();
+      state = state.copyWith(players: next);
+    }
+  }
+
+  /// Schedule the temporary room (and all temporary player associations)
+  /// for deletion 30s after the game ends. The hourly pg_cron job is the
+  /// safety net if the user closes the app before this fires.
+  void _scheduleRoomCleanup(String gameId) {
+    Timer(const Duration(seconds: 30), () {
+      _ref.read(temporaryRoomServiceProvider).endGame(
+            gameTable: 'dotsboxes_games',
+            gameId: gameId,
+          );
+    });
+  }
+
+  void _cleanup() {
+    _channel?.unsubscribe();
+    _channel = null;
+    _gameId = null;
+  }
 
   void _subscribeToRealtime(String gameId) {
     _channel?.unsubscribe(); final client = _client; if (client == null) return;

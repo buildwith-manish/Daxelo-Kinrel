@@ -18,6 +18,7 @@ import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/spectator_toggle.dart';
+import '../shared/widgets/temporary_lobby_view.dart';
 import 'sos_connection_status.dart';
 import 'sos_models.dart';
 import 'sos_provider.dart';
@@ -310,140 +311,78 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
     bool isHost,
     bool canStart,
   ) {
-    final code = state.game?.id != null
-        ? state.game!.id.replaceAll('-', '').substring(0, 6).toUpperCase()
-        : '------';
-    final mode = state.game?.mode ?? SosMode.twoPlayer;
-    final minPlayers = mode.minPlayers;
+    final game = state.game!;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+    final mode = game.mode;
 
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
-      children: [
-        // Share code card
-        GestureDetector(
-          onTap: () => _shareCode(state.game?.id),
-          child: Container(
-            padding: const EdgeInsets.all(KinrelSpacing.lg),
-            decoration: BoxDecoration(
-              gradient: KinrelGradients.igniteGradient,
-              borderRadius: BorderRadius.circular(KinrelRadius.lg),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  'Share Code',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.9),
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: KinrelSpacing.sm),
-                Text(
-                  code,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: 8,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  mode == SosMode.fourPlayerTeams
-                      ? 'Waiting for ${minPlayers - state.players.length} more players'
-                      : 'Waiting for ${minPlayers - state.players.length} more player',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: KinrelSpacing.lg),
+    // Map provider state → TemporaryLobbyConfig
+    final lobbyStatus = game.isActive
+        ? TemporaryLobbyStatus.starting
+        : game.isFinished
+            ? TemporaryLobbyStatus.finished
+            : TemporaryLobbyStatus.waiting;
 
-        // Mode + teams summary
-        _modeSummary(state),
-        const SizedBox(height: KinrelSpacing.lg),
+    final lobbyPlayers = state.players
+        .map((p) => TemporaryLobbyPlayer(
+              userId: p.userId,
+              userName: p.userName,
+              isReady: p.isReady,
+              isHost: p.userId == game.hostUserId,
+              joinedAt: p.joinedAt,
+            ))
+        .toList();
 
-        // Players list
-        _sectionLabel('Players (${state.players.length}/${mode.maxPlayers})'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _playerList(state),
-        const SizedBox(height: KinrelSpacing.xl),
+    final config = TemporaryLobbyConfig(
+      gameTable: 'sos_games',
+      gameId: game.id,
+      familyId: widget.familyId,
+      hostUserId: game.hostUserId,
+      players: lobbyPlayers,
+      maxPlayers: mode.maxPlayers,
+      status: lobbyStatus,
+      subtitle: mode.label,
+    );
 
-                  PendingInvitesSection(gameId: state.game!.id),
-        const SizedBox(height: KinrelSpacing.md),
-            LobbyChatPanel(
-              gameTable: 'sos_games',
-              gameId: state.game!.id,
-              familyId: widget.familyId,
-            ),
-        // Inline error surface — shown only when a transient error occurs
-        // while the game IS loaded (e.g. startGame() failed with a network
-        // blip). Uses friendlyError, never raw state.error. The banner at
-        // the top of the screen handles connection-status errors; this
-        // handles action-specific errors (start, place, etc.).
-        if (state.friendlyError != null &&
-            state.connectionStatus == SosConnectionStatus.connected) ...[
-          Container(
-            padding: const EdgeInsets.all(KinrelSpacing.md),
-            margin: const EdgeInsets.only(bottom: KinrelSpacing.md),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEF4444).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(KinrelRadius.md),
-              border: Border.all(
-                color: const Color(0xFFEF4444).withValues(alpha: 0.3),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.error_outline,
-                    color: Color(0xFFEF4444), size: 18),
-                const SizedBox(width: KinrelSpacing.sm),
-                Expanded(
-                  child: Text(
-                    state.friendlyError!,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 12,
-                      color: KinrelColors.textWhite,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: _retry,
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFFEF4444),
-                    minimumSize: const Size(44, 28),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
+    return TemporaryLobbyView(
+      config: config,
+      myUserId: myId,
+      onToggleReady: (isReady) => notifier.toggleReady(isReady),
+      onStartMatch: () => notifier.startGame(),
+      onCancelRoom: () => notifier.leaveGame(),
+      onInviteFamily: isHost
+          ? () {
+              final code = game.id
+                  .replaceAll('-', '')
+                  .substring(0, 6)
+                  .toUpperCase();
+              GameMotionTokens.tap();
+              InviteFamilySheet.show(
+                context,
+                familyId: widget.familyId,
+                gameType: GameType.sos,
+                gameId: game.id,
+                roomCode: code,
+                currentPlayerIds: state.players
+                    .map((p) => p.userId)
+                    .whereType<String>()
+                    .toSet(),
+                maxPlayers: mode.maxPlayers,
+                currentPlayers: state.players.length,
+              );
+            }
+          : null,
+      footer: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PendingInvitesSection(gameId: game.id),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbyChatPanel(
+            gameTable: 'sos_games',
+            gameId: game.id,
+            familyId: widget.familyId,
           ),
         ],
-        DKButton(
-          label: isHost
-              ? (canStart
-                    ? 'Start Game'
-                    : 'Waiting for ${minPlayers - state.players.length} more…')
-              : 'Waiting for host…',
-          variant: DKButtonVariant.gradient,
-          fullWidth: true,
-          isLoading: state.isSubmitting,
-          onPressed: isHost && canStart
-              ? () => notifier.startGame()
-              : null,
-        ),
-      ],
+      ),
     );
   }
 

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
+import '../shared/services/temporary_room_service.dart';
 import 'tictactoe_game_logic.dart';
 import 'tictactoe_models.dart';
 
@@ -122,9 +123,11 @@ class TttNotifier extends StateNotifier<TttState> {
           final winnerName = game.nameForMark(matchWinner);
           await client.from('tictactoe_games').update({
             'status': 'completed', 'completedAt': DateTime.now().toIso8601String(),
+            'lastActivityAt': DateTime.now().toIso8601String(),
             'roundsWonX': newRoundsWonX, 'roundsWonO': newRoundsWonO, 'overallWinnerId': winnerId, 'overallWinnerName': winnerName,
           }).eq('id', gameId);
           GameMotionTokens.celebrate();
+          _scheduleRoomCleanup(gameId);
         } else {
           // Next round
           await client.from('tictactoe_games').update({'roundsWonX': newRoundsWonX, 'roundsWonO': newRoundsWonO, 'currentRound': game.currentRound + 1, 'currentTurnPlayerId': game.playerXId}).eq('id', gameId);
@@ -148,6 +151,18 @@ class TttNotifier extends StateNotifier<TttState> {
   }
 
   void leaveGame() { _channel?.unsubscribe(); _channel = null; _gameId = null; }
+
+  /// Schedule the temporary room (and all temporary player associations)
+  /// for deletion 30s after the game ends. The hourly pg_cron job is the
+  /// safety net if the user closes the app before this fires.
+  void _scheduleRoomCleanup(String gameId) {
+    Timer(const Duration(seconds: 30), () {
+      _ref.read(temporaryRoomServiceProvider).endGame(
+            gameTable: 'tictactoe_games',
+            gameId: gameId,
+          );
+    });
+  }
 
   void _subscribeToRealtime(String gameId) {
     _channel?.unsubscribe();

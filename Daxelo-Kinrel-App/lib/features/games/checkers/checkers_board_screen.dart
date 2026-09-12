@@ -25,6 +25,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/services/temporary_room_service.dart';
 import 'checkers_game_logic.dart';
 import 'checkers_models.dart';
 import 'checkers_provider.dart';
@@ -677,7 +678,14 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
             fullWidth: true,
             icon: Icons.refresh_rounded,
             onPressed: () {
+              final gameId = ref.read(checkersProvider(widget.familyId)).game?.id;
               ref.read(checkersProvider(widget.familyId).notifier).leaveGame();
+              if (gameId != null) {
+                ref.read(temporaryRoomServiceProvider).endGame(
+                      gameTable: 'checkers_games',
+                      gameId: gameId,
+                    );
+              }
               if (context.mounted) {
                 context.pushReplacement(
                   '/family/${widget.familyId}/checkers/lobby',
@@ -691,7 +699,14 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
             variant: DKButtonVariant.secondary,
             fullWidth: true,
             onPressed: () {
+              final gameId = ref.read(checkersProvider(widget.familyId)).game?.id;
               ref.read(checkersProvider(widget.familyId).notifier).leaveGame();
+              if (gameId != null) {
+                ref.read(temporaryRoomServiceProvider).endGame(
+                      gameTable: 'checkers_games',
+                      gameId: gameId,
+                    );
+              }
               if (context.mounted) {
                 context.go('/games?familyId=${widget.familyId}');
               }

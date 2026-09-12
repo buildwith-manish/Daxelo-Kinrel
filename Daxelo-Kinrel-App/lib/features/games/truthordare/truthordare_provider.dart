@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/data/game_invite_chat_sync.dart';
+import '../shared/services/temporary_room_service.dart';
 import 'truthordare_models.dart';
 import 'truthordare_selection_logic.dart';
 
@@ -221,7 +222,83 @@ class TodNotifier extends StateNotifier<TodState> {
     try { final resp = await client.from('truthordare_rounds').select().eq('gameId', gameId).order('roundNumber', ascending: true); final rounds = resp.map((r) => TodRound.fromJson(r as Map<String, dynamic>)).toList(); state = state.copyWith(rounds: rounds, currentRound: rounds.isEmpty ? null : rounds.last); } catch (e) { debugPrint('[Tod] refreshRounds error: $e'); }
   }
 
-  void leaveGame() { _channel?.unsubscribe(); _channel = null; _gameId = null; }
+  /// Leave the game. If the user is the host AND the game is still in
+  /// `waiting` status, the entire room is deleted (cascade to child
+  /// tables + invites) via the temporary-room service. Otherwise the
+  /// player's own row is deleted (which the server-side trigger will
+  /// also catch). Truthordare has no `_finishGame` step, so when the
+  /// host leaves an in-progress game we eagerly call `endGame` to
+  /// ensure the room + prompts are cleaned up.
+  Future<void> leaveGame() async {
+    final client = _client;
+    final gameId = _gameId;
+    final myId = _myId;
+    final game = state.game;
+    _cleanup();
+    if (client == null || gameId == null || myId == null || game == null) {
+      return;
+    }
+    try {
+      if (game.hostUserId == myId) {
+        if (game.isWaiting) {
+          await _ref.read(temporaryRoomServiceProvider).cancelWaitingRoom(
+                gameTable: 'truthordare_games',
+                gameId: gameId,
+              );
+        } else {
+          // In-progress truthordare games have no natural end — clean up
+          // the room eagerly when the host leaves.
+          await _ref.read(temporaryRoomServiceProvider).endGame(
+                gameTable: 'truthordare_games',
+                gameId: gameId,
+              );
+        }
+      } else {
+        await client
+            .from('truthordare_players')
+            .delete()
+            .eq('gameId', gameId)
+            .eq('userId', myId);
+      }
+    } catch (_) {}
+  }
+
+  /// Toggle the calling player's `isReady` flag in the waiting lobby.
+  Future<void> toggleReady(bool isReady) async {
+    final gameId = _gameId;
+    if (gameId == null) return;
+    await _ref.read(temporaryRoomServiceProvider).toggleReady(
+          gameTable: 'truthordare_games',
+          gameId: gameId,
+          isReady: isReady,
+        );
+    // Optimistically update local state; realtime will confirm.
+    final myId = _myId;
+    if (myId != null) {
+      final next = state.players
+          .map((p) => p.userId == myId
+              ? TodPlayer(
+                  id: p.id,
+                  gameId: p.gameId,
+                  userId: p.userId,
+                  userName: p.userName,
+                  seatPosition: p.seatPosition,
+                  timesSelected: p.timesSelected,
+                  joinedAt: p.joinedAt,
+                  isReady: isReady,
+                  readyAt: isReady ? DateTime.now() : null,
+                )
+              : p)
+          .toList();
+      state = state.copyWith(players: next);
+    }
+  }
+
+  void _cleanup() {
+    _channel?.unsubscribe();
+    _channel = null;
+    _gameId = null;
+  }
 
   void _subscribeToRealtime(String gameId) {
     _channel?.unsubscribe(); final client = _client; if (client == null) return;

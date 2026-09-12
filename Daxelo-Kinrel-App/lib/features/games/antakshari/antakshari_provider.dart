@@ -22,6 +22,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/data/game_invite_chat_sync.dart';
+import '../shared/services/temporary_room_service.dart';
 import 'antakshari_models.dart';
 
 class AntakshariState {
@@ -440,24 +441,72 @@ class AntakshariNotifier extends StateNotifier<AntakshariState> {
     }
   }
 
-  /// Leave the game.
+  /// Leave the game. If the user is the host AND the game is still in
+  /// `waiting` status, the entire room is deleted (cascade to child
+  /// tables + invites) via the temporary-room service. Otherwise the
+  /// player's own row is deleted (which the server-side trigger will
+  /// also catch).
   Future<void> leaveGame() async {
     final client = _client;
     final gameId = _gameId;
     final myId = _myId;
+    final game = state.game;
     _stopHostTimer();
     if (client == null || gameId == null || myId == null) {
       _cleanup();
       return;
     }
     try {
-      await client
-          .from('antakshari_players')
-          .delete()
-          .eq('gameId', gameId)
-          .eq('userId', myId);
+      // If the leaving user is the host and the room hasn't started yet,
+      // cancel the entire room (also enforced by a server-side trigger
+      // as a safety net).
+      if (game != null && game.isWaiting && game.hostUserId == myId) {
+        await _ref.read(temporaryRoomServiceProvider).cancelWaitingRoom(
+              gameTable: 'antakshari_games',
+              gameId: gameId,
+            );
+      } else {
+        // Non-host or game already in progress: just remove the player row.
+        await client
+            .from('antakshari_players')
+            .delete()
+            .eq('gameId', gameId)
+            .eq('userId', myId);
+      }
     } catch (_) {}
     _cleanup();
+  }
+
+  /// Toggle the calling player's `isReady` flag in the waiting lobby.
+  Future<void> toggleReady(bool isReady) async {
+    final gameId = _gameId;
+    if (gameId == null) return;
+    await _ref.read(temporaryRoomServiceProvider).toggleReady(
+          gameTable: 'antakshari_games',
+          gameId: gameId,
+          isReady: isReady,
+        );
+    // Optimistically update local state; realtime will confirm.
+    final myId = _myId;
+    if (myId != null) {
+      final next = state.players
+          .map((p) => p.userId == myId
+              ? AntakshariPlayer(
+                  id: p.id,
+                  gameId: p.gameId,
+                  userId: p.userId,
+                  userName: p.userName,
+                  turnOrder: p.turnOrder,
+                  isEliminated: p.isEliminated,
+                  eliminatedAt: p.eliminatedAt,
+                  joinedAt: p.joinedAt,
+                  isReady: isReady,
+                  readyAt: isReady ? DateTime.now() : null,
+                )
+              : p)
+          .toList();
+      state = state.copyWith(players: next);
+    }
   }
 
   void _cleanup() {
@@ -662,10 +711,21 @@ class AntakshariNotifier extends StateNotifier<AntakshariState> {
     await _client!.from('antakshari_games').update({
       'status': 'completed',
       'completedAt': DateTime.now().toIso8601String(),
+      'lastActivityAt': DateTime.now().toIso8601String(),
       'winnerUserIds': winnerIds,
       'winnerNames': winnerNames,
     }).eq('id', gameId);
     _stopHostTimer();
+    // Schedule the room (and all temporary player associations) for
+    // deletion shortly after the game ends. This gives the results
+    // screen time to render. The hourly pg_cron job is the safety net
+    // if the user closes the app before this fires.
+    Timer(const Duration(seconds: 30), () {
+      _ref.read(temporaryRoomServiceProvider).endGame(
+            gameTable: 'antakshari_games',
+            gameId: gameId,
+          );
+    });
   }
 
   // ── Realtime subscription ────────────────────────────────────────

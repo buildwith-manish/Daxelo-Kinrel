@@ -18,6 +18,7 @@ import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/spectator_toggle.dart';
+import '../shared/widgets/temporary_lobby_view.dart';
 import 'ludo_game_logic.dart';
 import 'ludo_provider.dart';
 
@@ -248,85 +249,77 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
     bool isHost,
     bool canStart,
   ) {
-    final code = state.game?.id != null
-        ? state.game!.id.replaceAll('-', '').substring(0, 6).toUpperCase()
-        : '------';
-    final maxP = state.game?.playerCount ?? 4;
+    final game = state.game!;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
 
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
-      children: [
-        GestureDetector(
-          onTap: () => _shareCode(state.game?.id),
-          child: Container(
-            padding: const EdgeInsets.all(KinrelSpacing.lg),
-            decoration: BoxDecoration(
-              gradient: KinrelGradients.igniteGradient,
-              borderRadius: BorderRadius.circular(KinrelRadius.lg),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  'Share Code',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.9),
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: KinrelSpacing.sm),
-                Text(
-                  code,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: 8,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Waiting for family to join (${state.players.length}/$maxP)',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
-                ),
-              ],
-            ),
+    // Map provider state → TemporaryLobbyConfig
+    final lobbyStatus = game.isInProgress
+        ? TemporaryLobbyStatus.starting
+        : game.isCompleted
+            ? TemporaryLobbyStatus.finished
+            : TemporaryLobbyStatus.waiting;
+
+    final lobbyPlayers = state.players
+        .map((p) => TemporaryLobbyPlayer(
+              userId: p.userId,
+              userName: p.userName,
+              isReady: p.isReady,
+              isHost: p.userId == game.hostUserId,
+              joinedAt: p.joinedAt,
+            ))
+        .toList();
+
+    final config = TemporaryLobbyConfig(
+      gameTable: 'ludo_games',
+      gameId: game.id,
+      familyId: widget.familyId,
+      hostUserId: game.hostUserId,
+      players: lobbyPlayers,
+      maxPlayers: game.playerCount,
+      status: lobbyStatus,
+      subtitle: '${game.playerCount} players',
+    );
+
+    return TemporaryLobbyView(
+      config: config,
+      myUserId: myId,
+      onToggleReady: (isReady) => notifier.toggleReady(isReady),
+      onStartMatch: () => notifier.startGame(),
+      onCancelRoom: () => notifier.leaveGame(),
+      onInviteFamily: isHost
+          ? () {
+              final code = game.id
+                  .replaceAll('-', '')
+                  .substring(0, 6)
+                  .toUpperCase();
+              GameMotionTokens.tap();
+              InviteFamilySheet.show(
+                context,
+                familyId: widget.familyId,
+                gameType: GameType.ludo,
+                gameId: game.id,
+                roomCode: code,
+                currentPlayerIds: state.players
+                    .map((p) => p.userId)
+                    .whereType<String>()
+                    .toSet(),
+                maxPlayers: game.playerCount,
+                currentPlayers: state.players.length,
+              );
+            }
+          : null,
+      footer: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PendingInvitesSection(gameId: game.id),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbyChatPanel(
+            gameTable: 'ludo_games',
+            gameId: game.id,
+            familyId: widget.familyId,
           ),
-        ),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        _sectionLabel('Players (${state.players.length}/$maxP)'),
-        const SizedBox(height: KinrelSpacing.sm),
-        ...state.players.map((p) => _playerTile(p, state.game?.hostUserId)),
-        const SizedBox(height: KinrelSpacing.xl),
-
-                  PendingInvitesSection(gameId: state.game!.id),
-        const SizedBox(height: KinrelSpacing.md),
-            LobbyChatPanel(
-              gameTable: 'ludo_games',
-              gameId: state.game!.id,
-              familyId: widget.familyId,
-            ),
-        DKButton(
-          label: isHost
-              ? (canStart
-                    ? 'Start Game'
-                    : 'Waiting for ${2 - state.players.length} more player…')
-              : 'Waiting for host…',
-          variant: DKButtonVariant.gradient,
-          fullWidth: true,
-          onPressed: isHost && canStart
-              ? () => notifier.startGame()
-              : null,
-        ),
-      ],
+        ],
+      ),
     );
   }
 

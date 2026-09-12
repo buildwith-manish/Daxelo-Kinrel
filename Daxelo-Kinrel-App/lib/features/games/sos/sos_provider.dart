@@ -18,6 +18,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/data/game_invite_chat_sync.dart';
+import '../shared/services/temporary_room_service.dart';
 import 'sos_connection_status.dart';
 import 'sos_game_logic.dart';
 import 'sos_models.dart';
@@ -566,6 +567,7 @@ class SosNotifier extends StateNotifier<SosState> {
     await client.from('sos_games').update({
       'status': 'finished',
       'finishedAt': DateTime.now().toIso8601String(),
+      'lastActivityAt': DateTime.now().toIso8601String(),
       'winnerTeam': winner.winnerTeam?.name,
       'winnerUserId': winner.winnerUserId,
     }).eq('id', gameId);
@@ -579,26 +581,87 @@ class SosNotifier extends StateNotifier<SosState> {
         inviteStatus: 'expired',
       ),
     );
+
+    // Schedule the temporary room (and all temporary player associations)
+    // for deletion 30s after the game ends. The hourly pg_cron job is the
+    // safety net if the user closes the app before this fires.
+    _scheduleRoomCleanup(gameId);
   }
 
-  /// Leave the game (manual exit).
+  /// Leave the game (manual exit). If the user is the host AND the game is
+  /// still in the lobby (pre-start) phase, the entire room is deleted
+  /// (cascade to child tables + invites) via the temporary-room service.
+  /// Otherwise the player's own row is deleted (which the server-side
+  /// trigger will also catch).
   Future<void> leaveGame() async {
     final client = _client;
     final gameId = _gameId;
     final myId = _myId;
+    final game = state.game;
     _stopLobbyPoll();
     if (client == null || gameId == null || myId == null) {
       _cleanup();
       return;
     }
     try {
-      await client
-          .from('sos_players')
-          .delete()
-          .eq('gameId', gameId)
-          .eq('userId', myId);
+      if (game != null && game.isLobby && game.hostUserId == myId) {
+        await _ref.read(temporaryRoomServiceProvider).cancelWaitingRoom(
+              gameTable: 'sos_games',
+              gameId: gameId,
+            );
+      } else {
+        await client
+            .from('sos_players')
+            .delete()
+            .eq('gameId', gameId)
+            .eq('userId', myId);
+      }
     } catch (_) {}
     _cleanup();
+  }
+
+  /// Toggle the calling player's `isReady` flag in the waiting lobby.
+  Future<void> toggleReady(bool isReady) async {
+    final gameId = _gameId;
+    if (gameId == null) return;
+    await _ref.read(temporaryRoomServiceProvider).toggleReady(
+          gameTable: 'sos_games',
+          gameId: gameId,
+          isReady: isReady,
+        );
+    // Optimistically update local state; realtime will confirm.
+    final myId = _myId;
+    if (myId != null) {
+      final next = state.players
+          .map((p) => p.userId == myId
+              ? SosPlayer(
+                  id: p.id,
+                  gameId: p.gameId,
+                  userId: p.userId,
+                  userName: p.userName,
+                  team: p.team,
+                  turnOrder: p.turnOrder,
+                  score: p.score,
+                  joinedAt: p.joinedAt,
+                  isReady: isReady,
+                  readyAt: isReady ? DateTime.now() : null,
+                )
+              : p)
+          .toList();
+      state = state.copyWith(players: next);
+    }
+  }
+
+  /// Schedule the temporary room (and all temporary player associations)
+  /// for deletion 30s after the game ends. The hourly pg_cron job is the
+  /// safety net if the user closes the app before this fires.
+  void _scheduleRoomCleanup(String gameId) {
+    Timer(const Duration(seconds: 30), () {
+      _ref.read(temporaryRoomServiceProvider).endGame(
+            gameTable: 'sos_games',
+            gameId: gameId,
+          );
+    });
   }
 
   void _cleanup() {

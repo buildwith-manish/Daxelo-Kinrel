@@ -22,6 +22,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
+import '../shared/services/temporary_room_service.dart';
 import 'chess_models.dart';
 
 class ChessState {
@@ -424,6 +425,7 @@ class ChessNotifier extends StateNotifier<ChessState> {
       if (gameEnded) {
         updateBody['status'] = 'completed';
         updateBody['completedAt'] = DateTime.now().toIso8601String();
+        updateBody['lastActivityAt'] = DateTime.now().toIso8601String();
         updateBody['result'] = result;
         updateBody['winnerId'] = winnerId;
         updateBody['winnerName'] = winnerName;
@@ -431,6 +433,15 @@ class ChessNotifier extends StateNotifier<ChessState> {
 
       // Update game
       await client.from('chess_games').update(updateBody).eq('id', game.id);
+
+      // Schedule the temporary room (and all temporary player associations)
+      // for deletion 30s after the game ends. Pattern A games have no
+      // lobby/waiting phase, so this is the only cleanup hook we need.
+      // The hourly pg_cron job is the safety net if the user closes the
+      // app before this fires.
+      if (gameEnded) {
+        _scheduleRoomCleanup(game.id);
+      }
 
       // Insert move record
       final moveNumber = state.moves.length + 1;
@@ -495,6 +506,18 @@ class ChessNotifier extends StateNotifier<ChessState> {
     _channel = null;
     _gameId = null;
     _logic = null;
+  }
+
+  /// Schedule the temporary room (and all temporary player associations)
+  /// for deletion 30s after the game ends. The hourly pg_cron job is the
+  /// safety net if the user closes the app before this fires.
+  void _scheduleRoomCleanup(String gameId) {
+    Timer(const Duration(seconds: 30), () {
+      _ref.read(temporaryRoomServiceProvider).endGame(
+            gameTable: 'chess_games',
+            gameId: gameId,
+          );
+    });
   }
 
   // ── Realtime subscription ────────────────────────────────────────

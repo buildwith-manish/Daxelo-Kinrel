@@ -193,6 +193,8 @@ class SosPlayer {
     required this.turnOrder,
     required this.score,
     required this.joinedAt,
+    this.isReady = false,
+    this.readyAt,
   });
 
   final String id;
@@ -203,6 +205,9 @@ class SosPlayer {
   final int turnOrder;
   final int score;
   final DateTime joinedAt;
+  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
+  final bool isReady;
+  final DateTime? readyAt;
 
   factory SosPlayer.fromJson(Map<String, dynamic> json) => SosPlayer(
     id: json['id'] ?? '',
@@ -214,6 +219,10 @@ class SosPlayer {
     score: json['score'] ?? 0,
     joinedAt:
         DateTime.tryParse(json['joinedAt'] ?? '') ?? DateTime.now(),
+    isReady: json['isReady'] ?? false,
+    readyAt: json['readyAt'] != null
+        ? DateTime.tryParse(json['readyAt'])
+        : null,
   );
 
   SosPlayer copyWith({int? score}) => SosPlayer(
@@ -225,6 +234,8 @@ class SosPlayer {
     turnOrder: turnOrder,
     score: score ?? this.score,
     joinedAt: joinedAt,
+    isReady: isReady,
+    readyAt: readyAt,
   );
 }
 

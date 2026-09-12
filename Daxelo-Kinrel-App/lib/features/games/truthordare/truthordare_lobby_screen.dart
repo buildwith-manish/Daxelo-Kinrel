@@ -14,6 +14,7 @@ import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/spectator_toggle.dart';
+import '../shared/widgets/temporary_lobby_view.dart';
 import 'truthordare_provider.dart';
 
 class TodLobbyScreen extends ConsumerStatefulWidget {
@@ -149,42 +150,80 @@ class _TodLobbyScreenState extends ConsumerState<TodLobbyScreen> {
     ]);
   }
 
-  Widget _lobbyView(state, bool isHost) {
-    final game = state.game!; final code = game.id.replaceAll('-', '').substring(0, 6).toUpperCase();
-    final canStart = state.players.length >= 4;
-    return ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
-      GestureDetector(onTap: () => _shareCode(game.id),
-        child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(gradient: KinrelGradients.igniteGradient, borderRadius: BorderRadius.circular(14)),
-          child: Column(children: [
-            Text('Share Code', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.9))),
-            const SizedBox(height: 8),
-            Text(code, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 36, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 8)),
-            const SizedBox(height: 4),
-            Text('${state.players.length}/12 players', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: Colors.white.withValues(alpha: 0.8))),
-          ]))),
-      const SizedBox(height: 16),
-      Text('Players (${state.players.length})', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),
-      const SizedBox(height: 8),
-      ...state.players.map((p) => Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(10), border: Border.all(color: p.userId == ref.read(supabaseProvider)?.auth.currentUser?.id ? KinrelColors.orange : KinrelColors.border)),
-        child: Row(children: [
-          DKAvatar(initials: PersonAvatar.initialsFor(p.userName)),
-          const SizedBox(width: 8),
-          Expanded(child: Text(p.userId == ref.read(supabaseProvider)?.auth.currentUser?.id ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
-          if (p.userId == game.hostUserId) Text('👑', style: TextStyle(fontSize: 14)),
-        ]))),
-      const SizedBox(height: 20),
-      PendingInvitesSection(gameId: state.game!.id),
-      const SizedBox(height: KinrelSpacing.md),
-            LobbyChatPanel(
-              gameTable: 'truthordare_games',
-              gameId: state.game!.id,
-              familyId: widget.familyId,
-            ),
-      if (isHost) DKButton(label: canStart ? 'Start Game' : 'Need 4+ players', variant: DKButtonVariant.gradient, fullWidth: true, onPressed: canStart ? () => ref.read(todProvider(widget.familyId).notifier).startGame() : null)
-      else Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: KinrelColors.border)),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange)), const SizedBox(width: 8), Text('Waiting for host...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim))])),
-    ]);
+  Widget _lobbyView(TodState state, bool isHost) {
+    final game = state.game!;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+    final notifier = ref.read(todProvider(widget.familyId).notifier);
+
+    // Map provider state → TemporaryLobbyConfig
+    final lobbyStatus = game.isInProgress
+        ? TemporaryLobbyStatus.starting
+        : game.isCompleted
+            ? TemporaryLobbyStatus.finished
+            : TemporaryLobbyStatus.waiting;
+
+    final lobbyPlayers = state.players
+        .map((p) => TemporaryLobbyPlayer(
+              userId: p.userId,
+              userName: p.userName,
+              isReady: p.isReady,
+              isHost: p.userId == game.hostUserId,
+              joinedAt: p.joinedAt,
+            ))
+        .toList();
+
+    final config = TemporaryLobbyConfig(
+      gameTable: 'truthordare_games',
+      gameId: game.id,
+      familyId: widget.familyId,
+      hostUserId: game.hostUserId,
+      players: lobbyPlayers,
+      maxPlayers: 12,
+      status: lobbyStatus,
+      subtitle: 'Spin the bottle',
+    );
+
+    return TemporaryLobbyView(
+      config: config,
+      myUserId: myId,
+      onToggleReady: (isReady) => notifier.toggleReady(isReady),
+      onStartMatch: () => notifier.startGame(),
+      onCancelRoom: () => notifier.leaveGame(),
+      onInviteFamily: isHost
+          ? () {
+              final code = game.id
+                  .replaceAll('-', '')
+                  .substring(0, 6)
+                  .toUpperCase();
+              GameMotionTokens.tap();
+              InviteFamilySheet.show(
+                context,
+                familyId: widget.familyId,
+                gameType: GameType.truthordare,
+                gameId: game.id,
+                roomCode: code,
+                currentPlayerIds: state.players
+                    .map((p) => p.userId)
+                    .whereType<String>()
+                    .toSet(),
+                maxPlayers: 12,
+                currentPlayers: state.players.length,
+              );
+            }
+          : null,
+      footer: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PendingInvitesSection(gameId: game.id),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbyChatPanel(
+            gameTable: 'truthordare_games',
+            gameId: game.id,
+            familyId: widget.familyId,
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _rule(String text, {bool highlight = false}) => Text(text, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: highlight ? KinrelColors.orange : KinrelColors.textDim, height: 1.4));

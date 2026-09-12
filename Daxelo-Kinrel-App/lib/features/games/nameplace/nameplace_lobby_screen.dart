@@ -17,6 +17,7 @@ import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/spectator_toggle.dart';
+import '../shared/widgets/temporary_lobby_view.dart';
 import 'nameplace_provider.dart';
 
 class NameplaceLobbyScreen extends ConsumerStatefulWidget {
@@ -165,55 +166,80 @@ class _NameplaceLobbyScreenState extends ConsumerState<NameplaceLobbyScreen> {
     ]);
   }
 
-  Widget _lobbyView(state, bool isHost) {
+  Widget _lobbyView(NameplaceState state, bool isHost) {
     final game = state.game!;
-    final code = game.id.replaceAll('-', '').substring(0, 6).toUpperCase();
-    final canStart = state.players.length >= 2;
-    return ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
-      GestureDetector(
-        onTap: () => _shareCode(game.id),
-        child: Container(padding: const EdgeInsets.all(KinrelSpacing.lg),
-          decoration: BoxDecoration(gradient: KinrelGradients.igniteGradient, borderRadius: BorderRadius.circular(KinrelRadius.lg)),
-          child: Column(children: [
-            Text('Share Code', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.9))),
-            const SizedBox(height: KinrelSpacing.sm),
-            Text(code, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 36, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 8)),
-            const SizedBox(height: 4),
-            Text('${state.players.length}/20 players', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: Colors.white.withValues(alpha: 0.8))),
-          ]),
-        ),
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+    final notifier = ref.read(nameplaceProvider(widget.familyId).notifier);
+
+    // Map provider state → TemporaryLobbyConfig
+    final lobbyStatus = game.isInProgress
+        ? TemporaryLobbyStatus.starting
+        : game.isCompleted
+            ? TemporaryLobbyStatus.finished
+            : TemporaryLobbyStatus.waiting;
+
+    final lobbyPlayers = state.players
+        .map((p) => TemporaryLobbyPlayer(
+              userId: p.userId,
+              userName: p.userName,
+              isReady: p.isReady,
+              isHost: p.userId == game.hostUserId,
+              joinedAt: p.joinedAt,
+            ))
+        .toList();
+
+    final config = TemporaryLobbyConfig(
+      gameTable: 'nameplace_games',
+      gameId: game.id,
+      familyId: widget.familyId,
+      hostUserId: game.hostUserId,
+      players: lobbyPlayers,
+      maxPlayers: 20,
+      status: lobbyStatus,
+      subtitle: '${game.totalRounds} rounds · ${game.roundTimerSeconds}s/round',
+    );
+
+    return TemporaryLobbyView(
+      config: config,
+      myUserId: myId,
+      onToggleReady: (isReady) => notifier.toggleReady(isReady),
+      onStartMatch: () => notifier.startGame(),
+      onCancelRoom: () => notifier.leaveGame(),
+      onInviteFamily: isHost
+          ? () {
+              final code = game.id
+                  .replaceAll('-', '')
+                  .substring(0, 6)
+                  .toUpperCase();
+              GameMotionTokens.tap();
+              InviteFamilySheet.show(
+                context,
+                familyId: widget.familyId,
+                gameType: GameType.nameplace,
+                gameId: game.id,
+                roomCode: code,
+                currentPlayerIds: state.players
+                    .map((p) => p.userId)
+                    .whereType<String>()
+                    .toSet(),
+                maxPlayers: 20,
+                currentPlayers: state.players.length,
+              );
+            }
+          : null,
+      footer: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PendingInvitesSection(gameId: game.id),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbyChatPanel(
+            gameTable: 'nameplace_games',
+            gameId: game.id,
+            familyId: widget.familyId,
+          ),
+        ],
       ),
-      const SizedBox(height: KinrelSpacing.lg),
-      _sectionLabel('Players (${state.players.length})'),
-      const SizedBox(height: KinrelSpacing.sm),
-      ...state.players.map((p) => Container(margin: const EdgeInsets.only(bottom: KinrelSpacing.sm), padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.md, vertical: KinrelSpacing.md),
-        decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.lg), border: Border.all(color: p.userId == ref.read(supabaseProvider)?.auth.currentUser?.id ? KinrelColors.orange : KinrelColors.border, width: p.userId == ref.read(supabaseProvider)?.auth.currentUser?.id ? 2 : 1)),
-        child: Row(children: [
-          DKAvatar(initials: PersonAvatar.initialsFor(p.userName)),
-          const SizedBox(width: KinrelSpacing.md),
-          Expanded(child: Text(p.userId == ref.read(supabaseProvider)?.auth.currentUser?.id ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
-          if (p.userId == game.hostUserId) Text('👑', style: TextStyle(fontSize: 14)),
-        ]),
-      )),
-      const SizedBox(height: KinrelSpacing.xl),
-      if (isHost) ...[
-        PendingInvitesSection(gameId: state.game!.id),
-        const SizedBox(height: KinrelSpacing.md),
-            LobbyChatPanel(
-              gameTable: 'nameplace_games',
-              gameId: state.game!.id,
-              familyId: widget.familyId,
-            ),
-        DKButton(label: canStart ? 'Start Game' : 'Need 2+ players', variant: DKButtonVariant.gradient, fullWidth: true, onPressed: canStart ? () => ref.read(nameplaceProvider(widget.familyId).notifier).startGame() : null)
-      ] else
-        Container(padding: const EdgeInsets.all(KinrelSpacing.lg), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.lg), border: Border.all(color: KinrelColors.border)),
-          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange)),
-            const SizedBox(width: KinrelSpacing.sm),
-            Text('Waiting for host...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
-          ]),
-        ),
-    ]);
+    );
   }
 
   Widget _sectionLabel(String text) => Text(text, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim, letterSpacing: 0.5));

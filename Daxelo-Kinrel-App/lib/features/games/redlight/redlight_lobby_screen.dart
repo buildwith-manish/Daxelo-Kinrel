@@ -19,6 +19,7 @@ import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/spectator_toggle.dart';
+import '../shared/widgets/temporary_lobby_view.dart';
 import 'redlight_models.dart';
 import 'redlight_provider.dart';
 
@@ -283,104 +284,83 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
     bool isHost,
     bool canStart,
   ) {
-    final code = state.round?.id != null
-        ? state.round!.id.replaceAll('-', '').substring(0, 6).toUpperCase()
-        : '------';
+    final round = state.round!;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
 
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
-      children: [
-        // Share code card
-        GestureDetector(
-          onTap: () => _shareCode(state.round?.id),
-          child: Container(
-            padding: const EdgeInsets.all(KinrelSpacing.lg),
-            decoration: BoxDecoration(
-              gradient: KinrelGradients.igniteGradient,
-              borderRadius: BorderRadius.circular(KinrelRadius.lg),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  'Share Code',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.9),
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: KinrelSpacing.sm),
-                Text(
-                  code,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: 8,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Tap to share with family',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
-                ),
-              ],
-            ),
+    // Map provider state → TemporaryLobbyConfig
+    final lobbyStatus = round.isActive || round.isCountdown
+        ? TemporaryLobbyStatus.starting
+        : round.isFinished
+            ? TemporaryLobbyStatus.finished
+            : TemporaryLobbyStatus.waiting;
+
+    final lobbyPlayers = state.players
+        .map((p) => TemporaryLobbyPlayer(
+              userId: p.userId,
+              userName: p.userName,
+              isReady: p.isReady,
+              isHost: p.userId == round.hostUserId,
+              joinedAt: p.joinedAt,
+            ))
+        .toList();
+
+    final subtitle = StringBuffer()
+      ..write(round.callerCharacter.label);
+    if (round.teamMode) subtitle.write(' · Teams');
+    if (round.eliminationMode) subtitle.write(' · Elimination');
+
+    final config = TemporaryLobbyConfig(
+      gameTable: 'redlight_rounds',
+      gameId: round.id,
+      familyId: widget.familyId,
+      hostUserId: round.hostUserId,
+      players: lobbyPlayers,
+      maxPlayers: 20,
+      status: lobbyStatus,
+      subtitle: subtitle.toString(),
+    );
+
+    return TemporaryLobbyView(
+      config: config,
+      myUserId: myId,
+      onToggleReady: (isReady) => notifier.toggleReady(isReady),
+      onStartMatch: () => notifier.startGame(),
+      onCancelRoom: () => notifier.leaveRound(),
+      onInviteFamily: isHost
+          ? () {
+              final code = round.id
+                  .replaceAll('-', '')
+                  .substring(0, 6)
+                  .toUpperCase();
+              GameMotionTokens.tap();
+              InviteFamilySheet.show(
+                context,
+                familyId: widget.familyId,
+                gameType: GameType.redlight,
+                gameId: round.id,
+                roomCode: code,
+                currentPlayerIds: state.players
+                    .map((p) => p.userId)
+                    .whereType<String>()
+                    .toSet(),
+                maxPlayers: 20,
+                currentPlayers: state.players.length,
+              );
+            }
+          : null,
+      footer: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (state.isCountdown) _countdownBanner(state.countdownSeconds),
+          PendingInvitesSection(gameId: round.id),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbyChatPanel(
+            gameTable: 'redlight_rounds',
+            gameId: round.id,
+            familyId: widget.familyId,
           ),
-        ),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        // Game settings summary
-        _settingsSummary(state),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        // Players
-        _sectionLabel('Players (${state.players.length}/20)'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _playerList(state),
-        const SizedBox(height: KinrelSpacing.xl),
-
-        if (state.isCountdown)
-          _countdownBanner(state.countdownSeconds),
-
-                  PendingInvitesSection(gameId: state.round!.id),
-        const SizedBox(height: KinrelSpacing.md),
-            LobbyChatPanel(
-              gameTable: 'redlight_rounds',
-              gameId: state.round!.id,
-              familyId: widget.familyId,
-            ),
-        DKButton(
-          label: isHost
-              ? (canStart ? 'Start Game' : 'Waiting for players…')
-              : 'Waiting for host…',
-          variant: DKButtonVariant.gradient,
-          fullWidth: true,
-          onPressed: isHost && canStart
-              ? () => notifier.startGame()
-              : null,
-        ),
-        if (isHost && !canStart)
-          Padding(
-            padding: const EdgeInsets.only(top: KinrelSpacing.sm),
-            child: Text(
-              'Need at least 3 players to start (currently ${state.players.length}).',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 12,
-                color: KinrelColors.warning,
-              ),
-            ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 

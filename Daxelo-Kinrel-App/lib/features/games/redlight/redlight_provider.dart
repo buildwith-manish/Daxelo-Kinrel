@@ -20,6 +20,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/config/env_config.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
+import '../shared/services/temporary_room_service.dart';
 import 'redlight_models.dart';
 
 class RedlightState {
@@ -336,6 +337,10 @@ class RedlightNotifier extends StateNotifier<RedlightState> {
           createdAt: round.createdAt,
         );
         state = state.copyWith(round: finishedRound);
+        // Schedule the temporary room (and all temporary player associations)
+        // for deletion 30s after the round ends. The hourly pg_cron job is
+        // the safety net if the user closes the app before this fires.
+        _scheduleRoomCleanup(round.id);
       }
     });
 
@@ -625,24 +630,83 @@ class RedlightNotifier extends StateNotifier<RedlightState> {
     );
   }
 
-  /// Leave the round (manual exit).
+  /// Leave the round (manual exit). If the user is the host AND the
+  /// round is still in the lobby phase, the entire room is deleted
+  /// (cascade to child tables + invites) via the temporary-room
+  /// service. Otherwise the player's own row is deleted (which the
+  /// server-side trigger will also catch).
   Future<void> leaveRound() async {
     final rid = _roundId;
     final myId = _myId;
+    final round = state.round;
     if (rid != null && myId != null) {
       _socket?.emit('redlight:leave', {'roundId': rid, 'userId': myId});
       final client = _client;
       if (client != null) {
         try {
-          await client
-              .from('redlight_players')
-              .delete()
-              .eq('roundId', rid)
-              .eq('userId', myId);
+          if (round != null &&
+              round.isLobby &&
+              round.hostUserId == myId) {
+            await _ref.read(temporaryRoomServiceProvider).cancelWaitingRoom(
+                  gameTable: 'redlight_rounds',
+                  gameId: rid,
+                );
+          } else {
+            await client
+                .from('redlight_players')
+                .delete()
+                .eq('roundId', rid)
+                .eq('userId', myId);
+          }
         } catch (_) {}
       }
     }
     _cleanup();
+  }
+
+  /// Toggle the calling player's `isReady` flag in the waiting lobby.
+  Future<void> toggleReady(bool isReady) async {
+    final rid = _roundId;
+    if (rid == null) return;
+    await _ref.read(temporaryRoomServiceProvider).toggleReady(
+          gameTable: 'redlight_rounds',
+          gameId: rid,
+          isReady: isReady,
+        );
+    // Optimistically update local state; realtime will confirm.
+    final myId = _myId;
+    if (myId != null) {
+      final next = state.players
+          .map((p) => p.userId == myId
+              ? RedlightPlayer(
+                  id: p.id,
+                  roundId: p.roundId,
+                  userId: p.userId,
+                  userName: p.userName,
+                  teamId: p.teamId,
+                  progress: p.progress,
+                  alive: p.alive,
+                  powerups: p.powerups,
+                  joinedAt: p.joinedAt,
+                  isReady: isReady,
+                  readyAt: isReady ? DateTime.now() : null,
+                )
+              : p)
+          .toList();
+      state = state.copyWith(players: next);
+    }
+  }
+
+  /// Schedule the temporary room (and all temporary player associations)
+  /// for deletion 30s after the round ends. The hourly pg_cron job is
+  /// the safety net if the user closes the app before this fires.
+  void _scheduleRoomCleanup(String gameId) {
+    Timer(const Duration(seconds: 30), () {
+      _ref.read(temporaryRoomServiceProvider).endGame(
+            gameTable: 'redlight_rounds',
+            gameId: gameId,
+          );
+    });
   }
 
   void _cleanup() {

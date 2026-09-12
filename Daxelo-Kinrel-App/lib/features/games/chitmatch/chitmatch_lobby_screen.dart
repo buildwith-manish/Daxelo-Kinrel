@@ -3,6 +3,14 @@ import '../../../core/widgets/person_avatar.dart';
 //
 // TripleMatch — Lobby screen.
 // Route: /family/$familyId/chitmatch/lobby
+//
+// Two distinct phases after the game is created:
+//   1. `waiting` / `in_progress` / `completed` — uses the shared
+//      `TemporaryLobbyView` widget (players / ready / Start prioritized
+//      over the room code).
+//   2. `setup` (host tapped "Start Setup", players are submitting words)
+//      — uses the existing `_wordSubmissionView` so the unique
+//      word-submission flow is preserved.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +27,7 @@ import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/spectator_toggle.dart';
+import '../shared/widgets/temporary_lobby_view.dart';
 import 'chitmatch_models.dart';
 import 'chitmatch_provider.dart';
 
@@ -198,47 +207,79 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
 
   Widget _lobbyView(ChitmatchState state, bool isHost) {
     final game = state.game!;
-    final code = game.id.replaceAll('-', '').substring(0, 6).toUpperCase();
-    final canStart = state.players.length >= 4;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+    final notifier = ref.read(chitmatchProvider(widget.familyId).notifier);
 
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
-      children: [
-        GestureDetector(
-          onTap: () => _shareCode(game.id),
-          child: Container(
-            padding: const EdgeInsets.all(KinrelSpacing.lg),
-            decoration: BoxDecoration(gradient: KinrelGradients.igniteGradient, borderRadius: BorderRadius.circular(KinrelRadius.lg)),
-            child: Column(children: [
-              Text('Share Code', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.9), letterSpacing: 1)),
-              const SizedBox(height: KinrelSpacing.sm),
-              Text(code, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 36, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 8)),
-              const SizedBox(height: 4),
-              Text('Waiting (${state.players.length}/${game.playerCount})', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, color: Colors.white.withValues(alpha: 0.8))),
-            ]),
-          ),
-        ),
-        const SizedBox(height: KinrelSpacing.lg),
-        _sectionLabel('Players (${state.players.length}/${game.playerCount})'),
-        const SizedBox(height: KinrelSpacing.sm),
-        ...state.players.map((p) => _playerTile(p, game.hostUserId)),
-        const SizedBox(height: KinrelSpacing.xl),
-        if (isHost) ...[
-          PendingInvitesSection(gameId: state.game!.id),
+    // Map provider state → TemporaryLobbyConfig
+    final lobbyStatus = game.isInProgress
+        ? TemporaryLobbyStatus.starting
+        : game.isCompleted
+            ? TemporaryLobbyStatus.finished
+            : TemporaryLobbyStatus.waiting;
+
+    final lobbyPlayers = state.players
+        .map((p) => TemporaryLobbyPlayer(
+              userId: p.userId,
+              userName: p.userName,
+              isReady: p.isReady,
+              isHost: p.userId == game.hostUserId,
+              joinedAt: p.joinedAt,
+            ))
+        .toList();
+
+    final config = TemporaryLobbyConfig(
+      gameTable: 'chitmatch_games',
+      gameId: game.id,
+      familyId: widget.familyId,
+      hostUserId: game.hostUserId,
+      players: lobbyPlayers,
+      maxPlayers: game.playerCount,
+      status: lobbyStatus,
+      subtitle: '${game.playerCount} players · ${game.roundTimerSeconds}s/round',
+    );
+
+    return TemporaryLobbyView(
+      config: config,
+      myUserId: myId,
+      onToggleReady: (isReady) => notifier.toggleReady(isReady),
+      // In chitmatch, the host's Start button kicks off the word-submission
+      // setup phase rather than jumping straight into gameplay.
+      onStartMatch: () => _startSetup(),
+      onCancelRoom: () => notifier.leaveGame(),
+      onInviteFamily: isHost
+          ? () {
+              final code = game.id
+                  .replaceAll('-', '')
+                  .substring(0, 6)
+                  .toUpperCase();
+              GameMotionTokens.tap();
+              InviteFamilySheet.show(
+                context,
+                familyId: widget.familyId,
+                gameType: GameType.chitmatch,
+                gameId: game.id,
+                roomCode: code,
+                currentPlayerIds: state.players
+                    .map((p) => p.userId)
+                    .whereType<String>()
+                    .toSet(),
+                maxPlayers: game.playerCount,
+                currentPlayers: state.players.length,
+              );
+            }
+          : null,
+      footer: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PendingInvitesSection(gameId: game.id),
           const SizedBox(height: KinrelSpacing.md),
-            LobbyChatPanel(
-              gameTable: 'chitmatch_games',
-              gameId: state.game!.id,
-              familyId: widget.familyId,
-            ),
-          DKButton(
-            label: canStart ? 'Start Setup (Submit Words)' : 'Need 4+ players',
-            variant: DKButtonVariant.gradient, fullWidth: true,
-            onPressed: canStart ? _startSetup : null,
-          )
-        ] else
-          _waitingIndicator(),
-      ],
+          LobbyChatPanel(
+            gameTable: 'chitmatch_games',
+            gameId: game.id,
+            familyId: widget.familyId,
+          ),
+        ],
+      ),
     );
   }
 

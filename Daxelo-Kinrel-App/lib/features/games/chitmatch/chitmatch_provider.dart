@@ -13,6 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/data/game_invite_chat_sync.dart';
+import '../shared/services/temporary_room_service.dart';
 import 'chitmatch_game_logic.dart';
 import 'chitmatch_models.dart';
 
@@ -409,12 +410,14 @@ class ChitmatchNotifier extends StateNotifier<ChitmatchState> {
         await client.from('chitmatch_games').update({
           'status': 'completed',
           'completedAt': DateTime.now().toIso8601String(),
+          'lastActivityAt': DateTime.now().toIso8601String(),
           'winnerUserIds': winnerIds,
           'winnerNames': winnerNames,
         }).eq('id', gameId);
 
         GameMotionTokens.celebrate();
         state = state.copyWith(isResolving: false, lastRoundResult: resolution);
+        _scheduleRoomCleanup(gameId);
       } else {
         // Next round
         final roundEnds = DateTime.now().add(Duration(seconds: game.roundTimerSeconds));
@@ -466,7 +469,85 @@ class ChitmatchNotifier extends StateNotifier<ChitmatchState> {
     _roundTimer = null;
   }
 
-  void leaveGame() {
+  /// Schedule the temporary room (and all temporary player associations)
+  /// for deletion 30s after the game ends. The hourly pg_cron job is the
+  /// safety net if the user closes the app before this fires.
+  void _scheduleRoomCleanup(String gameId) {
+    Timer(const Duration(seconds: 30), () {
+      _ref.read(temporaryRoomServiceProvider).endGame(
+            gameTable: 'chitmatch_games',
+            gameId: gameId,
+          );
+    });
+  }
+
+  /// Leave the game. If the user is the host AND the game is still in
+  /// `waiting` status, the entire room is deleted (cascade to child
+  /// tables + invites) via the temporary-room service. Otherwise the
+  /// player's own row is deleted (which the server-side trigger will
+  /// also catch).
+  Future<void> leaveGame() async {
+    final client = _client;
+    final gameId = _gameId;
+    final myId = _myId;
+    final game = state.game;
+    _stopRoundTimer();
+    if (client == null || gameId == null || myId == null) {
+      _cleanup();
+      return;
+    }
+    try {
+      if (game != null && game.isWaiting && game.hostUserId == myId) {
+        await _ref.read(temporaryRoomServiceProvider).cancelWaitingRoom(
+              gameTable: 'chitmatch_games',
+              gameId: gameId,
+            );
+      } else {
+        await client
+            .from('chitmatch_players')
+            .delete()
+            .eq('gameId', gameId)
+            .eq('userId', myId);
+      }
+    } catch (_) {}
+    _cleanup();
+  }
+
+  /// Toggle the calling player's `isReady` flag in the waiting lobby.
+  Future<void> toggleReady(bool isReady) async {
+    final gameId = _gameId;
+    if (gameId == null) return;
+    await _ref.read(temporaryRoomServiceProvider).toggleReady(
+          gameTable: 'chitmatch_games',
+          gameId: gameId,
+          isReady: isReady,
+        );
+    // Optimistically update local state; realtime will confirm.
+    final myId = _myId;
+    if (myId != null) {
+      final next = state.players
+          .map((p) => p.userId == myId
+              ? ChitmatchPlayerModel(
+                  id: p.id,
+                  gameId: p.gameId,
+                  userId: p.userId,
+                  userName: p.userName,
+                  turnOrder: p.turnOrder,
+                  submittedWord: p.submittedWord,
+                  currentHand: p.currentHand,
+                  selectedChitIndex: p.selectedChitIndex,
+                  hasWon: p.hasWon,
+                  joinedAt: p.joinedAt,
+                  isReady: isReady,
+                  readyAt: isReady ? DateTime.now() : null,
+                )
+              : p)
+          .toList();
+      state = state.copyWith(players: next);
+    }
+  }
+
+  void _cleanup() {
     _stopRoundTimer();
     _channel?.unsubscribe();
     _channel = null;

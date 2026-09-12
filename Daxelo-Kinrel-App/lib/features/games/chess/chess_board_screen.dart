@@ -22,6 +22,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/services/temporary_room_service.dart';
 import 'chess_models.dart';
 import 'chess_provider.dart';
 
@@ -716,7 +717,16 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
             fullWidth: true,
             icon: Icons.refresh_rounded,
             onPressed: () {
+              final gameId = ref.read(chessProvider(widget.familyId)).game?.id;
               ref.read(chessProvider(widget.familyId).notifier).leaveGame();
+              // Eager end-game cleanup (safety-net Timer also fires 30s
+              // after the game completed in the provider).
+              if (gameId != null) {
+                ref.read(temporaryRoomServiceProvider).endGame(
+                      gameTable: 'chess_games',
+                      gameId: gameId,
+                    );
+              }
               if (context.mounted) {
                 context.pushReplacement(
                   '/family/${widget.familyId}/chess/lobby',
@@ -730,7 +740,14 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
             variant: DKButtonVariant.secondary,
             fullWidth: true,
             onPressed: () {
+              final gameId = ref.read(chessProvider(widget.familyId)).game?.id;
               ref.read(chessProvider(widget.familyId).notifier).leaveGame();
+              if (gameId != null) {
+                ref.read(temporaryRoomServiceProvider).endGame(
+                      gameTable: 'chess_games',
+                      gameId: gameId,
+                    );
+              }
               if (context.mounted) {
                 context.go('/games?familyId=${widget.familyId}');
               }
