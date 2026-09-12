@@ -41,10 +41,17 @@ const String _kAccountsKey = 'kinrel_multi_accounts';
 const String _kActiveAccountKey = 'kinrel_active_account';
 
 /// Represents a stored account session.
+///
+/// Privacy contract: `email` is kept on the model for auth/session
+/// restoration only and must NEVER be rendered in quick-switch menus,
+/// profile previews, or any public-facing UI. UI layers should rely on
+/// [displayName] and [username] instead. See `AccountSwitcherSheet` for
+/// the canonical identity-focused rendering.
 class StoredAccount {
   final String userId;
   final String email;
   final String? displayName;
+  final String? username;
   final String? avatarUrl;
   final String accessToken;
   final String refreshToken;
@@ -55,6 +62,7 @@ class StoredAccount {
     required this.userId,
     required this.email,
     this.displayName,
+    this.username,
     this.avatarUrl,
     required this.accessToken,
     required this.refreshToken,
@@ -66,6 +74,7 @@ class StoredAccount {
     'userId': userId,
     'email': email,
     'displayName': displayName,
+    'username': username,
     'avatarUrl': avatarUrl,
     'accessToken': accessToken,
     'refreshToken': refreshToken,
@@ -77,6 +86,10 @@ class StoredAccount {
     userId: json['userId'] as String,
     email: json['email'] as String,
     displayName: json['displayName'] as String?,
+    // Backward-compatible: older stored accounts (pre-username field) have
+    // no `username` key — `as String?` returns null, which is the desired
+    // fallback so the UI shows the neutral '@username' placeholder.
+    username: json['username'] as String?,
     avatarUrl: json['avatarUrl'] as String?,
     accessToken: json['accessToken'] as String,
     refreshToken: json['refreshToken'] as String,
@@ -121,8 +134,14 @@ class MultiAccountService {
 
   /// Save the current Supabase session as a stored account.
   /// Called after sign-in or when the user explicitly adds an account.
+  ///
+  /// Identity fields (`displayName`, `username`, `avatarUrl`) are sourced
+  /// from Supabase auth user metadata when not explicitly supplied, so the
+  /// stored account always reflects the latest identity the user has set
+  /// (e.g., after they update their username via the username setup flow).
   Future<void> saveCurrentSession({
     String? displayName,
+    String? username,
     String? avatarUrl,
     String? preferredLanguage,
   }) async {
@@ -132,11 +151,20 @@ class MultiAccountService {
       final user = client.auth.currentUser;
       if (session == null || user == null) return;
 
+      // Some flows store display name under 'display_name' (e.g., signup)
+      // while others use 'name' (e.g., profile_screen). Try both so the
+      // stored account always has the freshest display name available.
+      final metadata = user.userMetadata;
+      final effectiveDisplayName = displayName
+          ?? metadata?['display_name'] as String?
+          ?? metadata?['name'] as String?;
+
       final account = StoredAccount(
         userId: user.id,
         email: user.email ?? '',
-        displayName: displayName ?? user.userMetadata?['display_name'] as String?,
-        avatarUrl: avatarUrl ?? user.userMetadata?['avatar_url'] as String?,
+        displayName: effectiveDisplayName,
+        username: username ?? metadata?['username'] as String?,
+        avatarUrl: avatarUrl ?? metadata?['avatar_url'] as String?,
         accessToken: session.accessToken,
         refreshToken: session.refreshToken ?? '',
         preferredLanguage: preferredLanguage,
@@ -194,11 +222,14 @@ class MultiAccountService {
         return false;
       }
 
-      // Update the stored tokens (they may have been refreshed)
+      // Update the stored tokens (they may have been refreshed).
+      // Identity fields (displayName, username, avatarUrl) are preserved
+      // as-is — the switch operation only refreshes auth tokens.
       final updatedAccount = StoredAccount(
         userId: target.userId,
         email: target.email,
         displayName: target.displayName,
+        username: target.username,
         avatarUrl: target.avatarUrl,
         accessToken: response.session!.accessToken,
         refreshToken: response.session!.refreshToken ?? target.refreshToken,
@@ -240,6 +271,67 @@ class MultiAccountService {
       debugPrint('✅ MultiAccount: removed account $userId');
     } catch (e) {
       debugPrint('⚠️ MultiAccount: failed to remove account: $e');
+    }
+  }
+
+  /// Refresh the active account's identity metadata (display name,
+  /// username, avatar URL) from the live Supabase session WITHOUT touching
+  /// auth tokens.
+  ///
+  /// Used by the Account Switcher sheet on every load so the displayed
+  /// identity stays current even for accounts that were stored before the
+  /// `username` field existed on [StoredAccount]. After this call, the
+  /// active account's stored identity matches whatever Supabase auth
+  /// user metadata currently reports.
+  ///
+  /// Returns true if a stored account was actually updated, false if the
+  /// active user is not stored or no field changed.
+  Future<bool> refreshActiveAccountIdentity({
+    String? displayName,
+    String? username,
+    String? avatarUrl,
+  }) async {
+    try {
+      final client = Supabase.instance.client;
+      final user = client.auth.currentUser;
+      if (user == null) return false;
+
+      final accounts = await getAccounts();
+      final idx = accounts.indexWhere((a) => a.userId == user.id);
+      if (idx == -1) return false;
+
+      final existing = accounts[idx];
+      final newDisplayName = displayName ?? existing.displayName;
+      final newUsername = username ?? existing.username;
+      final newAvatarUrl = avatarUrl ?? existing.avatarUrl;
+
+      // Skip the write if nothing actually changed — avoids needless
+      // secure-storage round-trips on every switcher open.
+      if (newDisplayName == existing.displayName &&
+          newUsername == existing.username &&
+          newAvatarUrl == existing.avatarUrl) {
+        return false;
+      }
+
+      accounts[idx] = StoredAccount(
+        userId: existing.userId,
+        email: existing.email,
+        displayName: newDisplayName,
+        username: newUsername,
+        avatarUrl: newAvatarUrl,
+        accessToken: existing.accessToken,
+        refreshToken: existing.refreshToken,
+        preferredLanguage: existing.preferredLanguage,
+        storedAt: existing.storedAt,
+      );
+
+      await _storage.write(key: _kAccountsKey, value: json.encode(accounts));
+      debugPrint('✅ MultiAccount: refreshed identity for ${existing.userId} '
+          '(username=${newUsername ?? '<null>'})');
+      return true;
+    } catch (e) {
+      debugPrint('⚠️ MultiAccount: failed to refresh identity: $e');
+      return false;
     }
   }
 
