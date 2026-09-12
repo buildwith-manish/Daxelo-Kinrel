@@ -5,6 +5,14 @@
 // Shows all signed-in accounts with avatars, allows instant switching,
 // adding new accounts, and removing accounts. Similar to Instagram/X/Gmail.
 //
+// PRIVACY CONTRACT (v5.191): This sheet NEVER displays email addresses.
+// Each account row shows only: avatar, display name (primary),
+// '@<username>' (secondary), and an active-account checkmark. If a
+// username is unavailable, a neutral '@username' placeholder is shown
+// so the row never falls back to the user's email. Email remains
+// accessible only inside account settings / account information screens
+// — not here, not in profile previews, not in any public-facing UI.
+//
 // v5.190: Add Account flow now uses context.push (not context.go) and
 // emits [ACCOUNT] debug logs at each step of the multi-account flow.
 // See _addAccount() and _switchAccount() below.
@@ -44,8 +52,24 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
     // Also get the current Supabase user (might not be in storage yet)
     final currentUser = Supabase.instance.client.auth.currentUser;
     if (currentUser != null && !accounts.any((a) => a.userId == currentUser.id)) {
-      // Current session not saved — add it
+      // Current session not saved — add it. saveCurrentSession also
+      // captures the username + display name from auth user metadata.
       await MultiAccountService.instance.saveCurrentSession();
+      _accounts = await MultiAccountService.instance.getAccounts();
+    } else if (currentUser != null) {
+      // Already stored — refresh identity metadata (display name,
+      // username, avatar URL) from the live Supabase session so the
+      // displayed identity stays current even for accounts that were
+      // stored before the `username` field existed on StoredAccount.
+      // This is the backfill path that lets existing users see their
+      // @username in the switcher without having to re-add the account.
+      final metadata = currentUser.userMetadata;
+      await MultiAccountService.instance.refreshActiveAccountIdentity(
+        displayName: metadata?['display_name'] as String?
+            ?? metadata?['name'] as String?,
+        username: metadata?['username'] as String?,
+        avatarUrl: metadata?['avatar_url'] as String?,
+      );
       _accounts = await MultiAccountService.instance.getAccounts();
     } else {
       _accounts = accounts;
@@ -67,7 +91,9 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
       return;
     }
 
-    debugPrint('[ACCOUNT] Switching to ${account.email} (${account.userId})');
+    // Privacy: log/display identity, never the email.
+    final identity = _accountIdentity(account);
+    debugPrint('[ACCOUNT] Switching to ${identity.primaryText} (${account.userId})');
     setState(() => _isSwitching = true);
 
     final success = await MultiAccountService.instance.switchToAccount(
@@ -77,7 +103,7 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
     if (mounted) {
       setState(() => _isSwitching = false);
       if (success) {
-        debugPrint('[ACCOUNT] Active account changed → ${account.email}');
+        debugPrint('[ACCOUNT] Active account changed → ${identity.primaryText}');
         // Invalidate key providers so the UI refreshes with the new account's data
         ref.invalidate(currentUserProvider);
         Navigator.pop(context);
@@ -90,13 +116,13 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
         context.go('/home');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Switched to ${account.email}'),
+            content: Text('Switched to ${identity.primaryText}'),
             duration: const Duration(seconds: 2),
           ),
         );
       } else {
         debugPrint(
-          '[ACCOUNT] Switch FAILED for ${account.email} — session may have expired',
+          '[ACCOUNT] Switch FAILED for ${identity.primaryText} — session may have expired',
         );
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -109,12 +135,15 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
   }
 
   Future<void> _removeAccount(StoredAccount account) async {
+    // Privacy: confirmation dialog + snackbar use the account's display
+    // name (or neutral fallback), NEVER the email.
+    final identity = _accountIdentity(account);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Remove Account?'),
         content: Text(
-          'Remove ${account.email} from this device? You can sign in again later.',
+          'Remove ${identity.primaryText} from this device? You can sign in again later.',
         ),
         actions: [
           TextButton(
@@ -135,10 +164,37 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
       await _loadAccounts();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Removed ${account.email}')),
+          SnackBar(content: Text('Removed ${identity.primaryText}')),
         );
       }
     }
+  }
+
+  /// Build identity strings for an account, NEVER falling back to email.
+  ///
+  /// - [primaryText]: trimmed `displayName`, or a neutral 'Kinrel User'
+  ///   placeholder when no display name is set.
+  /// - [secondaryText]: '@<username>' when username is available, or the
+  ///   neutral '@username' placeholder literal when not. The literal
+  ///   placeholder intentionally does not expose the email.
+  /// - [initialsSource]: string used to derive avatar initials (display
+  ///   name preferred, then username, then 'K').
+  ({String primaryText, String secondaryText, String initialsSource})
+      _accountIdentity(StoredAccount account) {
+    final displayName =
+        (account.displayName != null && account.displayName!.trim().isNotEmpty)
+            ? account.displayName!.trim()
+            : null;
+    final username =
+        (account.username != null && account.username!.trim().isNotEmpty)
+            ? account.username!.trim()
+            : null;
+
+    return (
+      primaryText: displayName ?? 'Kinrel User',
+      secondaryText: username != null ? '@$username' : '@username',
+      initialsSource: displayName ?? username ?? 'K',
+    );
   }
 
   void _addAccount() {
@@ -254,8 +310,10 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                // Privacy: do not mention email here either — keep the
+                // sheet identity-focused end-to-end.
                 subtitle: Text(
-                  'Sign in with another email or Google',
+                  'Sign in with another account',
                   style: theme.textTheme.bodySmall,
                 ),
                 onTap: _addAccount,
@@ -287,12 +345,28 @@ class _AccountTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final initials = (account.displayName ?? account.email)
+    // PRIVACY: derive every visible identity string from displayName /
+    // username only. Never fall back to email — not for initials, not
+    // for the title, not for the subtitle.
+    final displayName =
+        (account.displayName != null && account.displayName!.trim().isNotEmpty)
+            ? account.displayName!.trim()
+            : null;
+    final username =
+        (account.username != null && account.username!.trim().isNotEmpty)
+            ? account.username!.trim()
+            : null;
+
+    final primaryText = displayName ?? 'Kinrel User';
+    final secondaryText = username != null ? '@$username' : '@username';
+    final initialsSource = displayName ?? username ?? 'K';
+    final initials = initialsSource
         .split(' ')
         .where((w) => w.isNotEmpty)
         .take(2)
         .map((w) => w[0].toUpperCase())
         .join();
+    final safeInitials = initials.isNotEmpty ? initials : 'K';
 
     return ListTile(
       leading: CircleAvatar(
@@ -305,7 +379,7 @@ class _AccountTile extends StatelessWidget {
             : null,
         child: (account.avatarUrl == null || account.avatarUrl!.isEmpty)
             ? Text(
-                initials,
+                safeInitials,
                 style: TextStyle(
                   color: isActive ? KinrelColors.orange : theme.colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
@@ -314,14 +388,14 @@ class _AccountTile extends StatelessWidget {
             : null,
       ),
       title: Text(
-        account.displayName ?? account.email,
+        primaryText,
         style: TextStyle(
           fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
           color: isActive ? theme.colorScheme.primary : null,
         ),
       ),
       subtitle: Text(
-        account.email,
+        secondaryText,
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.outline,
         ),
