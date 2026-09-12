@@ -511,6 +511,12 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
         // Merge the snapshot into lastLayoutPositionsProvider so the
         // next layout pass uses preservePositions=true with the
         // complete previousPositions map.
+        //
+        // v5.212 (BRANCH-EXPAND FLAG): set justRestoredFromSnapshotProvider
+        // to true so the next graphLayoutProvider pass can log the
+        // appropriate debug message (BRANCH-EXPAND vs. other layout
+        // passes). The flag is auto-reset by graphLayoutProvider after
+        // it reads it, so it only fires once per restore.
         final snapshot = ref.read(
             preCollapseLayoutSnapshotProvider(widget.familyId));
         if (snapshot != null &&
@@ -529,6 +535,14 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
           };
           ref.read(lastLayoutPositionsProvider(widget.familyId).notifier)
               .state = merged;
+          // v5.212: Set the branch-expand flow flag BEFORE invalidating
+          // graphLayoutProvider so the layout pass can detect this is
+          // a branch-expand recompute (vs. initial load, family switch,
+          // realtime invalidation, or relationship-create).
+          ref
+              .read(justRestoredFromSnapshotProvider(widget.familyId)
+                  .notifier)
+              .state = true;
           // Remove the consumed snapshot entry so a subsequent collapse
           // of the same branch captures a fresh snapshot.
           final newSnapshot =
@@ -1355,21 +1369,76 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                 // that occurred when a fresh layout recompute placed
                 // newly-revealed descendants at the same ring slot as
                 // pre-existing ring nodes.
+                //
+                // v5.212 (SNAPSHOT VALIDATION): validate positions AT
+                // CAPTURE TIME before saving. If any node's position is
+                // degenerate (at origin (0,0), or a duplicate of another
+                // node's position), correct it BEFORE saving so bad data
+                // never enters the snapshot. This is the "fix bad data
+                // at the source" approach — a restored snapshot can
+                // never again introduce overlapping positions because
+                // the snapshot itself was already validated.
+                //
+                // Repairs applied:
+                //   1. Origin (0,0): replace with a tiny radial offset
+                //      (0.5px in X) so the node has a unique coordinate.
+                //   2. Duplicate pair: nudge the LATER node (by insertion
+                //      order) by 180px in X — same minHorizontal used by
+                //      the de-overlap pass. This guarantees every node
+                //      in the snapshot has a unique (x, y).
                 final currentLayout = ref
                     .read(graphLayoutProvider(widget.familyId))
                     .valueOrNull;
                 if (currentLayout != null &&
                     currentLayout.positions.isNotEmpty) {
+                  // v5.212: Validate + repair positions BEFORE snapshot.
+                  final validatedPositions = Map<String, Offset>.from(
+                      currentLayout.positions);
+                  var repairCount = 0;
+                  final entries = validatedPositions.entries.toList();
+                  // Repair 1: any node at (0,0) gets nudged to (0.5, 0).
+                  // (0,0) is the canvas origin — distinct nodes should
+                  // never be there since radial layout places the
+                  // anchor at (maxRadius + padding, maxRadius + padding).
+                  for (final entry in entries) {
+                    if (entry.value.dx == 0.0 && entry.value.dy == 0.0) {
+                      validatedPositions[entry.key] =
+                          const Offset(0.5, 0.0);
+                      repairCount++;
+                    }
+                  }
+                  // Repair 2: any duplicate pair gets nudged.
+                  final repairedEntries =
+                      validatedPositions.entries.toList();
+                  for (var i = 0; i < repairedEntries.length; i++) {
+                    for (var j = i + 1; j < repairedEntries.length; j++) {
+                      final idA = repairedEntries[i].key;
+                      final idB = repairedEntries[j].key;
+                      final a = validatedPositions[idA]!;
+                      final b = validatedPositions[idB]!;
+                      if ((a.dx - b.dx).abs() <= 1.0 &&
+                          (a.dy - b.dy).abs() <= 1.0) {
+                        // Nudge B by 180px in X (minHorizontal spacing).
+                        validatedPositions[idB] =
+                            Offset(b.dx + 180.0, b.dy);
+                        repairCount++;
+                      }
+                    }
+                  }
+                  if (repairCount > 0) {
+                    debugPrint(
+                        '[BRANCH-COLLAPSE] v5.212: repaired $repairCount '
+                        'degenerate position(s) at SNAPSHOT-CAPTURE time '
+                        '(root=$rootPersonId) — bad data prevented from '
+                        'entering the snapshot.');
+                  }
+                  // Save the VALIDATED positions into the snapshot.
                   final snapshot = Map<String, Map<String, Offset>>.from(
                     ref.read(preCollapseLayoutSnapshotProvider(
                         widget.familyId)) ??
                         {},
                   );
-                  // Copy the current positions into the snapshot,
-                  // keyed by the branch root's personId. Use a deep
-                  // copy so subsequent layout mutations don't leak.
-                  snapshot[rootPersonId] =
-                      Map<String, Offset>.from(currentLayout.positions);
+                  snapshot[rootPersonId] = validatedPositions;
                   ref
                       .read(preCollapseLayoutSnapshotProvider(
                           widget.familyId).notifier)

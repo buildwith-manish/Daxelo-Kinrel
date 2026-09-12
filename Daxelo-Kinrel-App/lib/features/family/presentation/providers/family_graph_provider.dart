@@ -2304,48 +2304,97 @@ final graphLayoutProvider =
   var previousPositions = isExpansionRecompute
       ? ref.read(lastLayoutPositionsProvider(familyId))
       : null;
-  // v5.208/v5.211 (OVERLAP FIX): Detect if the previous positions are
-  // degenerate — ANY pair of nodes at the same point, OR all at origin.
-  // This can happen when:
-  //   - A prior layout pass produced overlapping nodes (layout bug)
-  //   - A stale cache from a previous broken version
-  //   - A v5.210 snapshot/restore cycle where the SNAPSHOT itself had
-  //     overlapping positions (e.g. the pre-collapse layout was broken)
-  //   - Two nodes ended up at the same (x, y) due to angular collision
+  // v5.212 (TARGETED OVERLAP REPAIR): When the previousPositions cache
+  // contains a pair of nodes at the same (x, y) point, do NOT discard
+  // the entire map. Discarding the whole map (the v5.211 approach)
+  // forces a fresh global layout recompute — which is the exact same
+  // path that causes newly-revealed branch-expand nodes to land on
+  // the anchor's position, re-introducing the overlap bug that v5.210
+  // was specifically designed to fix.
   //
-  // v5.211 EXPANDED the check: instead of only firing when ALL nodes are
-  // at the same point, now fires when ANY pair of nodes is at the same
-  // point (within 1px tolerance). This catches partial-overlap cases
-  // (e.g. 2 of 3 nodes overlapping at center) that v5.208 missed.
+  // Instead, walk the cached map pairwise and nudge ONLY the specific
+  // overlapping node(s) by a small radial offset from their neighbor.
+  // Every other node's restored position stays UNCHANGED, so the user
+  // sees their pre-collapse layout preserved with one tiny correction.
   //
-  // When detected, clear the cache and force a fresh global layout —
-  // do NOT preserve degenerate positions. The fresh layout will place
-  // nodes on concentric rings with proper angular separation.
+  // This is a localized repair — the repaired map is written back to
+  // lastLayoutPositionsProvider and used as the `previousPositions`
+  // input to RadialLayout with preservePositions=true. RadialLayout's
+  // existing v5.211 final non-overlap pass in radial_layout.dart is
+  // the second-line safety net that catches anything this pass missed.
+  //
+  // Detection threshold: < 1px in BOTH dx AND dy. Two distinct nodes
+  // should never be that close intentionally — angular placement
+  // guarantees a minimum gap, so anything within 1px is a degenerate
+  // overlap from a snapshot/restore cycle or a layout bug.
+  //
+  // DEBUG LOG (branch-expand flow): read [justRestoredFromSnapshotProvider]
+  // — a per-family flag set by branch_affordance.dart's v5.210 restore
+  // path — to detect when this guard fires DURING a branch-expand flow
+  // specifically. The flag is reset to false immediately after reading
+  // so it only fires once per restore. The log message differs:
+  //   - branch-expand: '[GRAPH-LAYOUT] v5.212 (BRANCH-EXPAND): ...'
+  //   - other:         '[GRAPH-LAYOUT] v5.212: ...'
+  // This lets a manual test (collapse → expand → check logs) verify
+  // the fix without false positives from other layout passes.
+  final isBranchExpandFlow =
+      ref.read(justRestoredFromSnapshotProvider(familyId));
+  if (isBranchExpandFlow) {
+    // Reset immediately — only fire once per restore.
+    ref.read(justRestoredFromSnapshotProvider(familyId).notifier).state =
+        false;
+  }
+
   if (previousPositions != null && previousPositions.isNotEmpty) {
-    final values = previousPositions.values.toList();
-    bool hasOverlap = false;
-    if (values.length > 1) {
-      // v5.211: O(n²) pair check — for typical family graphs (≤ 50
+    final entries = previousPositions.entries.toList();
+    if (entries.length > 1) {
+      final repaired = <String, Offset>{
+        for (final e in entries) e.key: e.value,
+      };
+      var overlapCount = 0;
+
+      // O(n²) pairwise check. For typical family graphs (≤ 50
       // visible nodes) this is ≤ 1225 comparisons, negligible cost.
-      // For larger graphs the early-exit on first overlap keeps it cheap.
-      outer:
-      for (var i = 0; i < values.length; i++) {
-        for (var j = i + 1; j < values.length; j++) {
-          final a = values[i];
-          final b = values[j];
+      for (var i = 0; i < entries.length; i++) {
+        for (var j = i + 1; j < entries.length; j++) {
+          final idA = entries[i].key;
+          final idB = entries[j].key;
+          final a = repaired[idA]!;
+          final b = repaired[idB]!;
           if ((a.dx - b.dx).abs() <= 1.0 && (a.dy - b.dy).abs() <= 1.0) {
-            hasOverlap = true;
-            break outer;
+            overlapCount++;
+            // Nudge B by a small radial offset along X (180px, the
+            // same minHorizontal used by the de-overlap pass). This
+            // is a one-time correction — the node moves to a fresh
+            // slot, and the next layout pass preserves it from there.
+            // (We deliberately don't push A because A's relationships
+            // to other nodes depend on A's position; pushing only B
+            // minimizes disruption to the restored layout.)
+            repaired[idB] = Offset(b.dx + 180.0, b.dy);
           }
         }
       }
-    }
-    if (hasOverlap) {
-      // At least two previous positions are at the same point —
-      // degenerate. Clear the cache and do a fresh layout.
-      debugPrint('[GRAPH-LAYOUT] v5.211: Detected overlapping previous positions (any pair at same point), clearing cache for fresh layout.');
-      ref.read(lastLayoutPositionsProvider(familyId).notifier).state = null;
-      previousPositions = null;
+
+      if (overlapCount > 0) {
+        // Write the repaired map back to the cache so the NEXT
+        // layout pass picks it up too (avoids re-detecting the same
+        // overlap on every invalidation).
+        ref
+            .read(lastLayoutPositionsProvider(familyId).notifier)
+            .state = repaired;
+        previousPositions = repaired;
+        if (isBranchExpandFlow) {
+          debugPrint(
+              '[GRAPH-LAYOUT] v5.212 (BRANCH-EXPAND): repaired $overlapCount '
+              'overlapping pair(s) in restored snapshot — kept all other '
+              'positions unchanged (NOT discarding cache).');
+        } else {
+          debugPrint(
+              '[GRAPH-LAYOUT] v5.212: repaired $overlapCount overlapping '
+              'pair(s) in previousPositions cache (targeted nudge, did NOT '
+              'discard the whole map).');
+        }
+      }
     }
   }
   final preservePositions = previousPositions != null &&
@@ -2498,6 +2547,28 @@ final lastLayoutPositionsProvider =
 final preCollapseLayoutSnapshotProvider =
     StateProvider.family<Map<String, Map<String, Offset>>?, String>(
   (ref, familyId) => null,
+);
+
+/// v5.212 (BRANCH-EXPAND DETECTION FLAG): A per-family boolean flag
+/// that [branch_affordance.dart]'s `_fetchAndExpandBranch` sets to
+/// `true` immediately AFTER merging the pre-collapse snapshot into
+/// [lastLayoutPositionsProvider] (just before invalidating
+/// [graphLayoutProvider]).
+///
+/// [graphLayoutProvider] reads this flag at the START of its layout
+/// pass to determine whether this recompute is a branch-expand flow
+/// (vs. an initial load, a family switch, a realtime invalidation,
+/// or a manual relationship-create). The flag is reset to `false`
+/// immediately after being read so it only fires once per restore.
+///
+/// This is the cleanest signal for the v5.212 debug log: when the
+/// targeted overlap-repair guard fires DURING a branch-expand flow,
+/// it logs a different message than when it fires for other reasons
+/// (e.g. stale cache from a previous version). This lets a manual
+/// test (collapse → expand → check logs) verify the fix is working.
+final justRestoredFromSnapshotProvider =
+    StateProvider.family<bool, String>(
+  (ref, familyId) => false,
 );
 
 /// v5.145 (STEP 3): Runs RadialLayout.compute() in a background isolate

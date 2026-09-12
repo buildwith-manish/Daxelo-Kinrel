@@ -54,6 +54,7 @@ import '../../features/family/presentation/providers/family_graph_provider.dart'
         graphRealtimeProvider,
         lastLayoutPositionsProvider, // v5.207: for branch expand layout fix
         preCollapseLayoutSnapshotProvider, // v5.210: for snapshot/restore
+        justRestoredFromSnapshotProvider, // v5.212: branch-expand flag
         selectedEdgeProvider,
         selectedNodeProvider,
         unlinkedPersonIdsProvider; // v5.9

@@ -247,7 +247,6 @@ class ExpandCollapseState {
     this.nodeExpansionState = const <String, int>{},
     this.currentDisclosureLevel = DisclosureLevel.immediate,
     this.visibleNodeIds = const <String>{},
-    this.collapsedPositions = const <String, Map<String, Offset>>{},
   });
 
   /// Maps node IDs to their expansion bitmask.
@@ -263,17 +262,11 @@ class ExpandCollapseState {
   /// Set of node IDs currently visible in the graph.
   final Set<String> visibleNodeIds;
 
-  /// Cached positions for collapsed branches, keyed by
-  /// "nodeId_branchType". Used to restore positions when
-  /// re-expanding a branch.
-  final Map<String, Map<String, Offset>> collapsedPositions;
-
   /// Creates a copy with optional overrides.
   ExpandCollapseState copyWith({
     Map<String, int>? nodeExpansionState,
     int? currentDisclosureLevel,
     Set<String>? visibleNodeIds,
-    Map<String, Map<String, Offset>>? collapsedPositions,
   }) {
     return ExpandCollapseState(
       nodeExpansionState:
@@ -281,8 +274,6 @@ class ExpandCollapseState {
       currentDisclosureLevel:
           currentDisclosureLevel ?? this.currentDisclosureLevel,
       visibleNodeIds: visibleNodeIds ?? this.visibleNodeIds,
-      collapsedPositions:
-          collapsedPositions ?? this.collapsedPositions,
     );
   }
 }
@@ -393,30 +384,20 @@ class ExpandCollapseController extends StateNotifier<ExpandCollapseState> {
 
   /// Collapses all branches for all nodes, returning to the
   /// default disclosure level.
+  ///
+  /// v5.212 (DEAD-CODE REMOVAL): the previous implementation cached
+  /// empty position placeholders into a `collapsedPositions` map that
+  /// was never read by any other file (the actual position-restore
+  /// path lives in `branch_affordance.dart` via
+  /// `preCollapseLayoutSnapshotProvider`). The cache + the
+  /// `getExpandedPositions`/`saveCollapsedPositions`/
+  /// `getCollapsedPositions` methods were entirely dead code that
+  /// looked like the active position-restore path but wasn't —
+  /// misleading for future debugging. Removed.
   void collapseAll() {
-    // Cache positions for all currently expanded branches before
-    // collapsing.
-    final collapsedPositions =
-        Map<String, Map<String, Offset>>.of(state.collapsedPositions);
-
-    for (final entry in state.nodeExpansionState.entries) {
-      final nodeId = entry.key;
-      final bitmask = entry.value;
-      if (bitmask != ExpansionBitmask.none) {
-        final expandedBranches = ExpansionBitmask.expandedBranches(bitmask);
-        for (final branch in expandedBranches) {
-          final cacheKey = '${nodeId}_${branch.name}';
-          // Store empty placeholder; actual positions come from
-          // the layout service callback.
-          collapsedPositions[cacheKey] = <String, Offset>{};
-        }
-      }
-    }
-
     state = state.copyWith(
       nodeExpansionState: <String, int>{},
       currentDisclosureLevel: DisclosureLevel.immediate,
-      collapsedPositions: collapsedPositions,
     );
   }
 
@@ -448,41 +429,6 @@ class ExpandCollapseController extends StateNotifier<ExpandCollapseState> {
   /// layout service).
   void updateVisibleNodes(Set<String> visibleIds) {
     state = state.copyWith(visibleNodeIds: visibleIds);
-  }
-
-  /// Returns cached positions for nodes that were previously in a
-  /// collapsed branch. Used to restore positions on re-expansion.
-  Map<String, Offset> getExpandedPositions() {
-    final positions = <String, Offset>{};
-    for (final entry in state.collapsedPositions.entries) {
-      positions.addAll(entry.value);
-    }
-    return positions;
-  }
-
-  /// Saves positions for a collapsed branch so they can be restored
-  /// when the branch is re-expanded.
-  void saveCollapsedPositions(
-    String nodeId,
-    BranchType branchType,
-    Map<String, Offset> positions,
-  ) {
-    final key = '${nodeId}_${branchType.name}';
-    final updated = Map<String, Map<String, Offset>>.of(
-      state.collapsedPositions,
-    );
-    updated[key] = positions;
-    state = state.copyWith(collapsedPositions: updated);
-  }
-
-  /// Returns previously cached positions for a branch, or null if
-  /// not cached.
-  Map<String, Offset>? getCollapsedPositions(
-    String nodeId,
-    BranchType branchType,
-  ) {
-    final key = '${nodeId}_${branchType.name}';
-    return state.collapsedPositions[key];
   }
 
   // ── Node Count Limits ────────────────────────────────────────────
@@ -575,22 +521,20 @@ class ExpandCollapseController extends StateNotifier<ExpandCollapseState> {
     AnalyticsService.instance.logGraphNodeTapped();
   }
 
-  /// Collapses a branch: clears the bit, caches positions.
+  /// Collapses a branch: clears the bit.
+  ///
+  /// v5.212 (DEAD-CODE REMOVAL): the previous implementation called
+  /// `getCollapsedPositions` + `saveCollapsedPositions` here to cache
+  /// positions before collapse. That cache was never read by any
+  /// other file (the active position-restore path lives in
+  /// `branch_affordance.dart` via `preCollapseLayoutSnapshotProvider`).
+  /// The cache write was pure overhead with no consumer. Removed.
   Future<void> _collapseBranch(
     String nodeId,
     BranchType branchType,
     int bitmask,
     Map<String, int> currentState,
   ) async {
-    // Cache positions before collapsing.
-    final cachedPositions = getCollapsedPositions(nodeId, branchType);
-    if (cachedPositions == null || cachedPositions.isEmpty) {
-      // No cached positions — save current positions.
-      // The actual position data comes from the layout layer,
-      // so we store an empty placeholder here.
-      saveCollapsedPositions(nodeId, branchType, <String, Offset>{});
-    }
-
     // Clear the bit.
     currentState[nodeId] =
         (currentState[nodeId] ?? ExpansionBitmask.none) & ~bitmask;
