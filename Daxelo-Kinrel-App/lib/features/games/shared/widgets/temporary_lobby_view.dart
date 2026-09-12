@@ -1,14 +1,15 @@
 // lib/features/games/shared/widgets/temporary_lobby_view.dart
 //
-// TemporaryLobbyView — shared lobby UI for Pattern B multiplayer games.
+// TemporaryLobbyView — shared lobby UI for ALL multiplayer games.
 //
-// Replaces the per-game lobby view code with a single, opinionated widget
-// that prioritizes the human, "family-game-event" feel over technical
-// details:
+// Universal layout (same for every game):
 //
 //   ┌────────────────────────────────────┐
-//   │      ✨  Everyone is Ready         │  ← status banner (large)
+//   │      ✨  Everyone is Ready         │  ← status banner
 //   │   Match starts when host taps Go   │
+//   ├────────────────────────────────────┤
+//   │  Room: ABC123 · 2/6 players         │  ← room metadata (visible
+//   │  Auto-closes in 04:32               │     during entire lobby phase)
 //   ├────────────────────────────────────┤
 //   │ 👤  Manish                ✓ READY  │  ← player avatars + names +
 //   │ 👤  Priya                  ✓ READY  │    ready status (primary focus)
@@ -18,7 +19,7 @@
 //   │       [   I'm Ready  ✅   ]         │  ← my ready toggle
 //   │       [   Start Match    ▶  ]       │  ← Start Match (host only)
 //   ├────────────────────────────────────┤
-//   │   Room code: ABC123   · 2/6 players │  ← room code demoted to footnote
+//   │   Pending invites + Lobby chat      │  ← optional footer
 //   └────────────────────────────────────┘
 //
 // State machine (driven by the parent provider's `status` field):
@@ -29,6 +30,8 @@
 // Each game passes a `TemporaryLobbyConfig` describing its room shape
 // (table names, max players, current player ids, ready flags, etc.) plus
 // callbacks for toggleReady / startMatch / cancelRoom.
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -87,7 +90,7 @@ extension TemporaryLobbyStatusX on TemporaryLobbyStatus {
   }
 }
 
-/// Configuration passed into TemporaryLobbyView by each Pattern B game.
+/// Configuration passed into TemporaryLobbyView by each game.
 class TemporaryLobbyConfig {
   const TemporaryLobbyConfig({
     required this.gameTable,
@@ -100,6 +103,7 @@ class TemporaryLobbyConfig {
     this.roomCode,
     this.subtitle,
     this.showReadyToggle = true,
+    this.autoCloseSeconds = 300, // 5 minutes default
   });
 
   /// e.g. 'antakshari_games' / 'redlight_rounds'
@@ -131,6 +135,11 @@ class TemporaryLobbyConfig {
   /// Whether to show the "I'm Ready" toggle. Set false for games (like
   /// chitmatch during word submission) that have their own pre-start flow.
   final bool showReadyToggle;
+
+  /// Auto-close countdown in seconds. Default 300 (5 minutes). This is
+  /// the inactivity expiry; the room also gets cleaned up by a server-side
+  /// pg_cron job as a safety net.
+  final int autoCloseSeconds;
 
   String get derivedRoomCode {
     if (roomCode != null) return roomCode!;
@@ -174,7 +183,7 @@ class TemporaryLobbyConfig {
   }
 }
 
-/// The shared lobby widget.
+/// The shared lobby widget — universal layout for every multiplayer game.
 ///
 /// Usage from a game's lobby screen:
 ///   TemporaryLobbyView(
@@ -184,8 +193,12 @@ class TemporaryLobbyConfig {
 ///     onStartMatch: () => notifier.startGame(),
 ///     onInviteFamily: () => InviteFamilySheet.show(...),
 ///     onCancelRoom: () => notifier.leaveGame(),
+///     footer: Column(children: [
+///       PendingInvitesSection(gameId: ...),
+///       LobbyChatPanel(...),
+///     ]),
 ///   )
-class TemporaryLobbyView extends StatelessWidget {
+class TemporaryLobbyView extends StatefulWidget {
   const TemporaryLobbyView({
     super.key,
     required this.config,
@@ -218,44 +231,123 @@ class TemporaryLobbyView extends StatelessWidget {
   /// per-game lobby chat panel or pending-invites section).
   final Widget? footer;
 
-  bool get _isHost => config.hostUserId == myUserId;
+  @override
+  State<TemporaryLobbyView> createState() => _TemporaryLobbyViewState();
+}
+
+class _TemporaryLobbyViewState extends State<TemporaryLobbyView> {
+  /// Live countdown of seconds remaining until auto-close. Initialized to
+  /// the config's autoCloseSeconds and ticks down once per second. The
+  /// countdown is paused (reset to full duration) whenever the lobby
+  /// sees any activity — see TemporaryRoomService.touchActivity which
+  /// bumps lastActivityAt on the server side. Locally, we re-set this
+  /// timer to the full duration whenever the player list changes.
+  late int _secondsRemaining;
+  Timer? _countdownTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _secondsRemaining = widget.config.autoCloseSeconds;
+    _startCountdown();
+  }
+
+  @override
+  void didUpdateWidget(covariant TemporaryLobbyView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If the player count changed (someone joined or left), the server's
+    // lastActivityAt was just bumped — reset our local countdown to match.
+    if (oldWidget.config.players.length != widget.config.players.length) {
+      _secondsRemaining = widget.config.autoCloseSeconds;
+    }
+    // Once the room is no longer in waiting state, stop the countdown.
+    if (widget.config.status != TemporaryLobbyStatus.waiting) {
+      _countdownTimer?.cancel();
+      _countdownTimer = null;
+    } else if (_countdownTimer == null) {
+      _startCountdown();
+    }
+  }
+
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    if (widget.config.status != TemporaryLobbyStatus.waiting) return;
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      if (_secondsRemaining > 0) {
+        setState(() => _secondsRemaining--);
+      } else {
+        _countdownTimer?.cancel();
+        _countdownTimer = null;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    super.dispose();
+  }
+
+  bool get _isHost => widget.config.hostUserId == widget.myUserId;
   bool get _isMyReady {
-    final me = config.players
-        .where((p) => p.userId == myUserId)
+    final me = widget.config.players
+        .where((p) => p.userId == widget.myUserId)
         .firstOrNull;
     return me?.isReady ?? false;
   }
 
+  String get _countdownLabel {
+    final m = (_secondsRemaining ~/ 60).toString().padLeft(2, '0');
+    final s = (_secondsRemaining % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final config = widget.config;
     return ListView(
       padding: const EdgeInsets.all(KinrelSpacing.base),
       children: [
+        // ── 1. Status banner (top) ────────────────────────────────────
         _StatusBanner(config: config),
-        const SizedBox(height: KinrelSpacing.lg),
-        _PlayerRoster(
+        const SizedBox(height: KinrelSpacing.sm),
+
+        // ── 2. Room metadata (DIRECTLY below the banner — always visible) ─
+        _RoomMetadataBar(
           config: config,
-          myUserId: myUserId,
-          onInviteFamily: onInviteFamily,
+          countdownLabel: _countdownLabel,
+          secondsRemaining: _secondsRemaining,
+          totalSeconds: config.autoCloseSeconds,
         ),
         const SizedBox(height: KinrelSpacing.lg),
+
+        // ── 3. Player roster ──────────────────────────────────────────
+        _PlayerRoster(
+          config: config,
+          myUserId: widget.myUserId,
+          onInviteFamily: widget.onInviteFamily,
+        ),
+        const SizedBox(height: KinrelSpacing.lg),
+
+        // ── 4. Action buttons (only in waiting state) ────────────────
         if (config.status == TemporaryLobbyStatus.waiting) ...[
           if (config.showReadyToggle)
             _ReadyToggle(
               isReady: _isMyReady,
-              onPressed: () => onToggleReady(!_isMyReady),
+              onPressed: () => widget.onToggleReady(!_isMyReady),
             ),
           const SizedBox(height: KinrelSpacing.sm),
           _StartMatchButton(
             config: config,
             isHost: _isHost,
-            onStartMatch: onStartMatch,
+            onStartMatch: widget.onStartMatch,
           ),
           const SizedBox(height: KinrelSpacing.sm),
           if (_isHost)
             TextButton(
               onPressed: () async {
-                await onCancelRoom();
+                await widget.onCancelRoom();
                 if (context.canPop()) {
                   context.pop();
                 } else {
@@ -273,12 +365,12 @@ class TemporaryLobbyView extends StatelessWidget {
               ),
             ),
         ],
-        if (footer != null) ...[
+
+        // ── 5. Footer (pending invites + lobby chat) ──────────────────
+        if (widget.footer != null) ...[
           const SizedBox(height: KinrelSpacing.lg),
-          footer!,
+          widget.footer!,
         ],
-        const SizedBox(height: KinrelSpacing.xl),
-        _RoomCodeFooter(config: config),
       ],
     );
   }
@@ -374,6 +466,134 @@ class _StatusBanner extends StatelessWidget {
   }
 }
 
+/// Room metadata bar — shown directly below the status banner. Contains:
+///   • Room code (6-char display)
+///   • Player count (N/max)
+///   • Auto-close countdown (live MM:SS timer)
+///
+/// This is always visible during the lobby phase so users can always see
+/// the room code + how long until the room auto-closes.
+class _RoomMetadataBar extends StatelessWidget {
+  const _RoomMetadataBar({
+    required this.config,
+    required this.countdownLabel,
+    required this.secondsRemaining,
+    required this.totalSeconds,
+  });
+
+  final TemporaryLobbyConfig config;
+  final String countdownLabel;
+  final int secondsRemaining;
+  final int totalSeconds;
+
+  @override
+  Widget build(BuildContext context) {
+    // Color the countdown based on time remaining:
+    //   > 50% → dim (plenty of time)
+    //   25-50% → orange (getting low)
+    //   < 25% → red (urgent)
+    final ratio = totalSeconds > 0 ? secondsRemaining / totalSeconds : 0;
+    final countdownColor = ratio > 0.5
+        ? KinrelColors.textDim
+        : ratio > 0.25
+            ? KinrelColors.warning
+            : KinrelColors.red;
+
+    final isWaiting = config.status == TemporaryLobbyStatus.waiting;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: KinrelSpacing.md,
+        vertical: KinrelSpacing.sm + 2,
+      ),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        border: Border.all(color: KinrelColors.border),
+      ),
+      child: Row(
+        children: [
+          // Room code chip
+          Icon(Icons.tag, size: 14, color: KinrelColors.textDim),
+          const SizedBox(width: 4),
+          Text(
+            'Room ${config.derivedRoomCode}',
+            style: TextStyle(
+              fontFamily: KinrelTypography.monoFont,
+              fontSize: 12,
+              color: KinrelColors.textWhite,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(width: KinrelSpacing.sm),
+          _dot(),
+          const SizedBox(width: KinrelSpacing.sm),
+          // Player count chip
+          Icon(Icons.people_outline, size: 14, color: KinrelColors.textDim),
+          const SizedBox(width: 4),
+          Text(
+            '${config.players.length}/${config.maxPlayers} players',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 11,
+              color: KinrelColors.textDim,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const Spacer(),
+          // Auto-close countdown (only shown in waiting state)
+          if (isWaiting) ...[
+            Icon(Icons.timer_outlined, size: 14, color: countdownColor),
+            const SizedBox(width: 4),
+            Text(
+              'Auto-closes in $countdownLabel',
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 11,
+                color: countdownColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ] else if (config.status == TemporaryLobbyStatus.starting) ...[
+            Text(
+              'Match starting…',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 11,
+                color: KinrelColors.orange,
+                fontWeight: FontWeight.w600,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ] else ...[
+            Text(
+              'Game finished',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 11,
+                color: KinrelColors.success,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _dot() {
+    return Container(
+      width: 3,
+      height: 3,
+      decoration: const BoxDecoration(
+        color: KinrelColors.textDim,
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+}
+
 class _PlayerRoster extends StatelessWidget {
   const _PlayerRoster({
     required this.config,
@@ -441,7 +661,7 @@ class _PlayerRoster extends StatelessWidget {
           ],
           for (int i = 0; i < emptySlots; i++) ...[
             Divider(height: 1, color: KinrelColors.border.withValues(alpha: 0.5)),
-            _EmptySlot(index: i + 1),
+            const _EmptySlot(),
           ],
           if (onInviteFamily != null && emptySlots > 0) ...[
             Divider(height: 1, color: KinrelColors.border.withValues(alpha: 0.5)),
@@ -575,8 +795,7 @@ class _PlayerTile extends StatelessWidget {
 }
 
 class _EmptySlot extends StatelessWidget {
-  const _EmptySlot({required this.index});
-  final int index;
+  const _EmptySlot();
 
   @override
   Widget build(BuildContext context) {
@@ -658,84 +877,6 @@ class _StartMatchButton extends StatelessWidget {
       variant: DKButtonVariant.gradient,
       fullWidth: true,
       onPressed: canStart ? onStartMatch : null,
-    );
-  }
-}
-
-class _RoomCodeFooter extends StatelessWidget {
-  const _RoomCodeFooter({required this.config});
-  final TemporaryLobbyConfig config;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: KinrelSpacing.md,
-        vertical: KinrelSpacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(KinrelRadius.md),
-        border: Border.all(color: KinrelColors.border.withValues(alpha: 0.5)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.tag,
-            size: 14,
-            color: KinrelColors.textDim,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            'Room ${config.derivedRoomCode}',
-            style: TextStyle(
-              fontFamily: KinrelTypography.monoFont,
-              fontSize: 11,
-              color: KinrelColors.textDim,
-              fontWeight: FontWeight.w500,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            width: 3,
-            height: 3,
-            decoration: const BoxDecoration(
-              color: KinrelColors.textDim,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '${config.players.length}/${config.maxPlayers} players',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 11,
-              color: KinrelColors.textDim,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            width: 3,
-            height: 3,
-            decoration: const BoxDecoration(
-              color: KinrelColors.textDim,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'auto-closes in 5 min',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 10,
-              color: KinrelColors.textDim.withValues(alpha: 0.7),
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

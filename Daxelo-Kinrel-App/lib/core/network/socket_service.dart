@@ -281,12 +281,27 @@ class SocketService {
 
       // Perform delta sync on every (re)connection
       _performDeltaSync();
+
+      // Notify connection-change subscribers (e.g. lobby chat panel so it
+      // can re-join its chat room after a reconnect).
+      for (final cb in _connectionChangeCallbacks) {
+        try {
+          cb(true);
+        } catch (_) {}
+      }
     });
 
     socket.onDisconnect((_) {
       debugPrint('[SocketService] 🔴 Disconnected');
       _ref.read(socketStatusProvider.notifier).state =
           SocketStatus.disconnected;
+
+      // Notify connection-change subscribers.
+      for (final cb in _connectionChangeCallbacks) {
+        try {
+          cb(false);
+        } catch (_) {}
+      }
     });
 
     // socket_io_client uses onReconnect for reconnect events
@@ -452,6 +467,18 @@ class SocketService {
       }
     });
 
+    // ── In-lobby chat typing indicators ───────────────────────────────
+    socket.on('game:chat:typing', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _gameChatTypingCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling game:chat:typing: $e');
+      }
+    });
+
     // ── Spectator count updates ────────────────────────────────────────
     socket.on('game:spectator:count', (data) {
       try {
@@ -516,6 +543,53 @@ class SocketService {
       'isSpectator': isSpectator,
       'timestamp': DateTime.now().toUtc().toIso8601String(),
     });
+  }
+
+  // ── In-lobby chat typing indicator API ───────────────────────────────
+
+  final Set<void Function(Map<String, dynamic>)> _gameChatTypingCallbacks =
+      {};
+
+  /// Subscribe to lobby chat typing indicators. Returns an unsubscribe fn.
+  VoidCallback onGameChatTyping(
+      void Function(Map<String, dynamic>) callback) {
+    _gameChatTypingCallbacks.add(callback);
+    return () => _gameChatTypingCallbacks.remove(callback);
+  }
+
+  /// Broadcast a typing indicator to a game's lobby. The server re-broadcasts
+  /// to everyone in the chat room. Pass [isTyping]=false to clear.
+  void emitGameChatTyping({
+    required String gameTable,
+    required String gameId,
+    required String userId,
+    required String userName,
+    required bool isTyping,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:chat:typing', {
+      'gameTable': gameTable,
+      'gameId': gameId,
+      'userId': userId,
+      'userName': userName,
+      'isTyping': isTyping,
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
+  // ── Connection change subscription ───────────────────────────────────
+
+  final Set<void Function(bool)> _connectionChangeCallbacks = {};
+
+  /// Subscribe to socket connect/disconnect events. Returns an unsubscribe fn.
+  /// Used by widgets that need to re-join rooms after reconnection (e.g.
+  /// the lobby chat panel).
+  VoidCallback onConnectionChange(void Function(bool connected) callback) {
+    _connectionChangeCallbacks.add(callback);
+    // Immediately invoke with the current state so the caller can initialize.
+    callback(isConnected);
+    return () => _connectionChangeCallbacks.remove(callback);
   }
 
   // ── Spectator count API ──────────────────────────────────────────────

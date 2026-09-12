@@ -293,6 +293,33 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
+  @SubscribeMessage('game:chat:typing')
+  handleGameChatTyping(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: {
+      gameTable: string;
+      gameId: string;
+      userId: string;
+      userName: string;
+      isTyping: boolean;
+      timestamp: string;
+    },
+  ) {
+    const roomName = `game-chat:${data.gameTable}:${data.gameId}`;
+    // Broadcast typing indicator to everyone in the chat room EXCEPT the
+    // sender (they already know they're typing).
+    this.server.to(roomName).emit('game:chat:typing', {
+      ...data,
+      timestamp: new Date().toISOString(),
+    });
+    // Note: socket.io's `to(roomName)` includes the sender; to exclude them
+    // we'd use `broadcast.to(roomName)`. We deliberately include the sender
+    // so the sender's own client gets an echo confirmation that the typing
+    // event was received by the server (which the client uses to clear the
+    // local optimistic typing state). The client filters out its own typing
+    // events in the _onTyping handler.
+  }
+
   // ── Spectator count tracking ─────────────────────────────────────────
   // Players + spectators both join the game's spectator room. The server
   // maintains a count of connected sockets per room and broadcasts updates.
