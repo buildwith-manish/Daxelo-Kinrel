@@ -2304,28 +2304,46 @@ final graphLayoutProvider =
   var previousPositions = isExpansionRecompute
       ? ref.read(lastLayoutPositionsProvider(familyId))
       : null;
-  // v5.208 (OVERLAP FIX): Detect if the previous positions are
-  // degenerate (all at the same point, or all at origin). This can
-  // happen when a prior layout pass produced overlapping nodes (e.g.
-  // from a layout bug, a stale cache, or a branch expand that
-  // didn't properly recalculate). If detected, clear the cache and
-  // force a fresh global layout — do NOT preserve degenerate positions.
+  // v5.208/v5.211 (OVERLAP FIX): Detect if the previous positions are
+  // degenerate — ANY pair of nodes at the same point, OR all at origin.
+  // This can happen when:
+  //   - A prior layout pass produced overlapping nodes (layout bug)
+  //   - A stale cache from a previous broken version
+  //   - A v5.210 snapshot/restore cycle where the SNAPSHOT itself had
+  //     overlapping positions (e.g. the pre-collapse layout was broken)
+  //   - Two nodes ended up at the same (x, y) due to angular collision
+  //
+  // v5.211 EXPANDED the check: instead of only firing when ALL nodes are
+  // at the same point, now fires when ANY pair of nodes is at the same
+  // point (within 1px tolerance). This catches partial-overlap cases
+  // (e.g. 2 of 3 nodes overlapping at center) that v5.208 missed.
+  //
+  // When detected, clear the cache and force a fresh global layout —
+  // do NOT preserve degenerate positions. The fresh layout will place
+  // nodes on concentric rings with proper angular separation.
   if (previousPositions != null && previousPositions.isNotEmpty) {
     final values = previousPositions.values.toList();
-    bool allSame = true;
+    bool hasOverlap = false;
     if (values.length > 1) {
-      final first = values.first;
-      for (final v in values.skip(1)) {
-        if ((v.dx - first.dx).abs() > 1.0 || (v.dy - first.dy).abs() > 1.0) {
-          allSame = false;
-          break;
+      // v5.211: O(n²) pair check — for typical family graphs (≤ 50
+      // visible nodes) this is ≤ 1225 comparisons, negligible cost.
+      // For larger graphs the early-exit on first overlap keeps it cheap.
+      outer:
+      for (var i = 0; i < values.length; i++) {
+        for (var j = i + 1; j < values.length; j++) {
+          final a = values[i];
+          final b = values[j];
+          if ((a.dx - b.dx).abs() <= 1.0 && (a.dy - b.dy).abs() <= 1.0) {
+            hasOverlap = true;
+            break outer;
+          }
         }
       }
     }
-    if (allSame) {
-      // All previous positions are at the same point — degenerate.
-      // Clear the cache and do a fresh layout.
-      debugPrint('[GRAPH-LAYOUT] v5.208: Detected degenerate previous positions (all at same point), clearing cache for fresh layout.');
+    if (hasOverlap) {
+      // At least two previous positions are at the same point —
+      // degenerate. Clear the cache and do a fresh layout.
+      debugPrint('[GRAPH-LAYOUT] v5.211: Detected overlapping previous positions (any pair at same point), clearing cache for fresh layout.');
       ref.read(lastLayoutPositionsProvider(familyId).notifier).state = null;
       previousPositions = null;
     }

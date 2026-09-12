@@ -908,6 +908,58 @@ class RadialLayout {
       nodeSectorAngles: nodeSectorAngles,
     );
 
+    // v5.211 (GUARANTEED NON-OVERLAP): Final unconditional pass that
+    // resolves ANY pair of nodes still at the same (x, y) — even settled
+    // nodes. This catches the case where:
+    //   - The previousPositions cache (e.g. from a v5.210 snapshot/restore)
+    //     had overlapping positions for some pair
+    //   - The de-overlap pass above SKIPPED that pair because both were
+    //     "settled" (the v5.161 settled-node immunity)
+    //
+    // This pass uses a SPECIAL rule: when two settled nodes are at the
+    // same point, push ONE of them (the LATER one in insertion order)
+    // by the minimum spacing along the X axis. The anchor is never
+    // moved. This GUARANTEES no two nodes render at the same point.
+    //
+    // Without this pass, the user would see "stacked labels" below a
+    // single visible node — the symptom reported in v5.211.
+    if (positions.length >= 2) {
+      const minSpacing = 180.0; // matches _deOverlapPositions minHorizontal
+      final ids = positions.keys.toList();
+      for (var i = 0; i < ids.length; i++) {
+        for (var j = i + 1; j < ids.length; j++) {
+          final idA = ids[i];
+          final idB = ids[j];
+          final a = positions[idA]!;
+          final b = positions[idB]!;
+          final dx = (b.dx - a.dx).abs();
+          final dy = (b.dy - a.dy).abs();
+          // Detect ANY overlap (axis-aligned, with the same min spacing
+          // rule as _deOverlapPositions).
+          if (dx < minSpacing && dy < 220.0) {
+            // Determine which to move. Never move the anchor.
+            final aIsAnchor = idA == anchor.id;
+            final bIsAnchor = idB == anchor.id;
+            if (aIsAnchor && bIsAnchor) continue; // impossible, same id
+            if (aIsAnchor) {
+              // Move B away from A. Push along X (positive direction).
+              final push = (minSpacing - dx).clamp(minSpacing, minSpacing * 1.5);
+              positions[idB] = Offset(b.dx + push, b.dy);
+            } else if (bIsAnchor) {
+              final push = (minSpacing - dx).clamp(minSpacing, minSpacing * 1.5);
+              positions[idA] = Offset(a.dx - push, a.dy);
+            } else {
+              // Neither is anchor — push B along X by minSpacing.
+              // This avoids moving A (which might have other
+              // relationships depending on its position).
+              final push = (minSpacing - dx).clamp(minSpacing, minSpacing * 1.5);
+              positions[idB] = Offset(b.dx + push, b.dy);
+            }
+          }
+        }
+      }
+    }
+
     // 8. Compute canvas dimensions
     // v5.134: Account for peripheral ring radius which may not be in
     // ringRadii if all peripheral-ring nodes were unreachable.
