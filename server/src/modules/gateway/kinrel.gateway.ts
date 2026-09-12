@@ -44,6 +44,25 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private connectedUsers = new Map<string, string>();
   private graphDebounceTimers = new Map<string, NodeJS.Timeout>();
 
+  /**
+   * Presence tracker — for each socket, which game rooms it has joined.
+   * Map<socketId, Array<{ gameTable, gameId, userId, userName, isHost }>>
+   *
+   * Used by handleDisconnect() to broadcast room:player_left events with
+   * reason 'disconnected' to all rooms the disconnected socket was in,
+   * and to detect host disconnects (which auto-close the room).
+   */
+  private socketGameRooms = new Map<
+    string,
+    Array<{
+      gameTable: string;
+      gameId: string;
+      userId: string;
+      userName: string;
+      isHost: boolean;
+    }>
+  >();
+
   async handleConnection(client: Socket) {
     try {
       const token =
@@ -106,7 +125,122 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (userId) {
       this.connectedUsers.delete(client.id);
     }
+
+    // Look up all the game rooms this socket had joined, and broadcast
+    // room:player_left with reason 'disconnected' to each. If the
+    // disconnecting user was the host of a waiting room, auto-close it.
+    const rooms = this.socketGameRooms.get(client.id) || [];
+    this.socketGameRooms.delete(client.id);
+    for (const r of rooms) {
+      const roomName = `game-room:${r.gameTable}:${r.gameId}`;
+      const chatRoomName = `game-chat:${r.gameTable}:${r.gameId}`;
+
+      // Broadcast a player_left event so all clients can update their
+      // lobby UI immediately (no refresh needed).
+      this.server.to(roomName).emit('room:player_left', {
+        gameTable: r.gameTable,
+        gameId: r.gameId,
+        userId: r.userId,
+        userName: r.userName,
+        reason: 'disconnected',
+        timestamp: new Date().toISOString(),
+      });
+
+      // Broadcast a system chat message: "Manish left the room (disconnected)"
+      this.server.to(chatRoomName).emit('game:chat:message', {
+        gameTable: r.gameTable,
+        gameId: r.gameId,
+        familyId: '',
+        type: 'system',
+        content: `${r.userName} disconnected`,
+        senderName: 'System',
+        senderId: 'system',
+        isSpectator: false,
+        timestamp: new Date().toISOString(),
+      });
+
+      // If the disconnecting user was the host AND the game is still in a
+      // pre-game state, auto-close the room. All clients will receive a
+      // 'room:closed' event and auto-navigate back to the game hub.
+      if (r.isHost) {
+        this._autoCloseRoom(r.gameTable, r.gameId, r.userName, 'host_disconnected');
+      }
+    }
+
     console.log(`[WS] Disconnected: ${client.id}`);
+  }
+
+  /**
+   * Auto-close a room: broadcast room:closed to all participants, then
+   * attempt to delete the game row + invites via direct DB call.
+   * Used when the host disconnects or leaves without explicitly closing.
+   */
+  private async _autoCloseRoom(
+    gameTable: string,
+    gameId: string,
+    closedByName: string,
+    reason: string,
+  ) {
+    // Whitelist of allowed game tables — prevents SQL injection since
+    // gameTable is interpolated into raw SQL below.
+    const allowedTables = new Set([
+      'antakshari_games', 'chitmatch_games', 'bingo_games', 'ludo_games',
+      'sos_games', 'dotsboxes_games', 'nameplace_games',
+      'truthordare_games', 'twotruths_games', 'redlight_rounds',
+      'chess_games', 'tictactoe_games', 'checkers_games', 'carrom_games',
+    ]);
+    if (!allowedTables.has(gameTable)) {
+      console.warn(`[WS] _autoCloseRoom: refusing unknown game table: ${gameTable}`);
+      return;
+    }
+
+    const roomName = `game-room:${gameTable}:${gameId}`;
+    const chatRoomName = `game-chat:${gameTable}:${gameId}`;
+
+    // Broadcast close event to everyone in the room.
+    this.server.to(roomName).emit('room:closed', {
+      gameTable,
+      gameId,
+      closedBy: closedByName,
+      reason, // 'host_disconnected' | 'host_left' | 'host_closed' | 'expired'
+      timestamp: new Date().toISOString(),
+    });
+
+    // Broadcast a system chat message.
+    this.server.to(chatRoomName).emit('game:chat:message', {
+      gameTable,
+      gameId,
+      familyId: '',
+      type: 'system',
+      content: `${closedByName} closed the room`,
+      senderName: 'System',
+      senderId: 'system',
+      isSpectator: false,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Best-effort DB cleanup: delete the game row + invites. The
+    // cascade FK on the game table will delete child rows (players,
+    // turns, moves, etc.). We wrap in a try/catch because the game
+    // table might already be gone (e.g., host cancelled twice).
+    try {
+      // Delete invites first (no FK to game table).
+      await this.prisma.$executeRawUnsafe(
+        `DELETE FROM "public"."game_invites" WHERE "gameTable" = $1 AND "gameId" = $2`,
+        gameTable,
+        gameId,
+      );
+      // Then delete the game row itself. gameTable is whitelisted above.
+      await this.prisma.$executeRawUnsafe(
+        `DELETE FROM "public"."${gameTable}" WHERE "id" = $1`,
+        gameId,
+      );
+    } catch (err) {
+      console.warn(
+        `[WS] _autoCloseRoom: DB cleanup failed for ${gameTable}:${gameId}:`,
+        (err as Error).message,
+      );
+    }
   }
 
   @SubscribeMessage('join:family')
@@ -318,6 +452,178 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // event was received by the server (which the client uses to clear the
     // local optimistic typing state). The client filters out its own typing
     // events in the _onTyping handler.
+  }
+
+  // ── Game room presence + lifecycle ───────────────────────────────────
+  //
+  // These events track which sockets are in which game rooms so that
+  // handleDisconnect() can broadcast room:player_left events when a
+  // socket drops. They also drive the system chat messages
+  // ("X joined the room", "X left the room") and the host-close flow.
+  //
+  // NOTE: Supabase Realtime already broadcasts the player_row INSERT /
+  // UPDATE / DELETE events to all subscribers. The events below ADD:
+  //   • Instant presence awareness (no DB round-trip needed for "X is
+  //     typing" / "X just joined")
+  //   • System chat messages
+  //   • Disconnect detection (Supabase Realtime can't detect a closed
+  //     socket — only the Socket.IO gateway knows when a client drops)
+  //   • Host-close auto-navigation (room:closed event)
+
+  @SubscribeMessage('game:room:join')
+  handleGameRoomJoin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: {
+      gameTable: string;
+      gameId: string;
+      userId: string;
+      userName: string;
+      isHost: boolean;
+    },
+  ) {
+    const userId = (client as any).userId || data.userId;
+    if (!userId || userId !== data.userId) {
+      client.emit('error', { message: 'Not authenticated' });
+      return;
+    }
+
+    const roomName = `game-room:${data.gameTable}:${data.gameId}`;
+    const chatRoomName = `game-chat:${data.gameTable}:${data.gameId}`;
+    client.join(roomName);
+    // Also auto-join the chat room so they receive system messages.
+    client.join(chatRoomName);
+
+    // Track this socket's room membership so handleDisconnect can clean up.
+    const rooms = this.socketGameRooms.get(client.id) || [];
+    // Avoid duplicate entries if the client emits join twice.
+    if (!rooms.some(
+      (r) => r.gameTable === data.gameTable && r.gameId === data.gameId,
+    )) {
+      rooms.push({
+        gameTable: data.gameTable,
+        gameId: data.gameId,
+        userId: data.userId,
+        userName: data.userName,
+        isHost: data.isHost,
+      });
+      this.socketGameRooms.set(client.id, rooms);
+    }
+
+    // Broadcast a player_joined event so all clients can update their
+    // lobby UI immediately (no refresh needed). This fires IN ADDITION
+    // to the Supabase Realtime player_row INSERT event — clients should
+    // dedupe by userId.
+    this.server.to(roomName).emit('room:player_joined', {
+      gameTable: data.gameTable,
+      gameId: data.gameId,
+      userId: data.userId,
+      userName: data.userName,
+      isHost: data.isHost,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Broadcast a system chat message: "Manish joined the room"
+    this.server.to(chatRoomName).emit('game:chat:message', {
+      gameTable: data.gameTable,
+      gameId: data.gameId,
+      familyId: '',
+      type: 'system',
+      content: `${data.userName} joined the room`,
+      senderName: 'System',
+      senderId: 'system',
+      isSpectator: false,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  @SubscribeMessage('game:room:leave')
+  handleGameRoomLeave(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: {
+      gameTable: string;
+      gameId: string;
+      userId: string;
+      userName: string;
+      isHost: boolean;
+    },
+  ) {
+    const roomName = `game-room:${data.gameTable}:${data.gameId}`;
+    const chatRoomName = `game-chat:${data.gameTable}:${data.gameId}`;
+
+    // Broadcast player_left BEFORE removing the socket from the room,
+    // so the leaving socket also receives the event (it can use it to
+    // confirm its leave was acked).
+    this.server.to(roomName).emit('room:player_left', {
+      gameTable: data.gameTable,
+      gameId: data.gameId,
+      userId: data.userId,
+      userName: data.userName,
+      reason: 'left',
+      timestamp: new Date().toISOString(),
+    });
+
+    // System chat message: "Manish left the room"
+    this.server.to(chatRoomName).emit('game:chat:message', {
+      gameTable: data.gameTable,
+      gameId: data.gameId,
+      familyId: '',
+      type: 'system',
+      content: `${data.userName} left the room`,
+      senderName: 'System',
+      senderId: 'system',
+      isSpectator: false,
+      timestamp: new Date().toISOString(),
+    });
+
+    // If the host is leaving a waiting room, auto-close it (deletes the
+    // game row, broadcasts room:closed). Otherwise just remove the player.
+    if (data.isHost) {
+      this._autoCloseRoom(
+        data.gameTable,
+        data.gameId,
+        data.userName,
+        'host_left',
+      );
+    }
+
+    // Remove the socket from the room.
+    client.leave(roomName);
+    client.leave(chatRoomName);
+
+    // Remove from the presence tracker.
+    const rooms = this.socketGameRooms.get(client.id) || [];
+    const filtered = rooms.filter(
+      (r) => !(r.gameTable === data.gameTable && r.gameId === data.gameId),
+    );
+    if (filtered.length === 0) {
+      this.socketGameRooms.delete(client.id);
+    } else {
+      this.socketGameRooms.set(client.id, filtered);
+    }
+  }
+
+  @SubscribeMessage('game:room:close')
+  handleGameRoomClose(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: {
+      gameTable: string;
+      gameId: string;
+      userId: string;
+      userName: string;
+    },
+  ) {
+    const userId = (client as any).userId;
+    if (!userId || userId !== data.userId) {
+      client.emit('error', { message: 'Not authenticated' });
+      return;
+    }
+    // Host explicitly closes the room — auto-close with reason 'host_closed'.
+    this._autoCloseRoom(
+      data.gameTable,
+      data.gameId,
+      data.userName,
+      'host_closed',
+    );
   }
 
   // ── Spectator count tracking ─────────────────────────────────────────

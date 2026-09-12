@@ -490,6 +490,42 @@ class SocketService {
         debugPrint('[SocketService] Error handling game:spectator:count: $e');
       }
     });
+
+    // ── Room lifecycle events ──────────────────────────────────────────
+    // Fired by the server's handleDisconnect() and the game:room:join /
+    // game:room:leave / game:room:close handlers.
+    socket.on('room:player_joined', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _roomPlayerJoinedCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling room:player_joined: $e');
+      }
+    });
+
+    socket.on('room:player_left', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _roomPlayerLeftCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling room:player_left: $e');
+      }
+    });
+
+    socket.on('room:closed', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _roomClosedCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling room:closed: $e');
+      }
+    });
   }
 
   // ── In-lobby chat / reactions API ────────────────────────────────────
@@ -590,6 +626,119 @@ class SocketService {
     // Immediately invoke with the current state so the caller can initialize.
     callback(isConnected);
     return () => _connectionChangeCallbacks.remove(callback);
+  }
+
+  // ── Game room presence + lifecycle API ───────────────────────────────
+  //
+  // These methods drive the real-time room lifecycle across all multiplayer
+  // games:
+  //   • joinGameRoom  → server tracks socket → room membership + emits
+  //                      room:player_joined + system chat "X joined the room"
+  //   • leaveGameRoom → emits room:player_left + system chat "X left the room".
+  //                      If the leaver is the host, server auto-closes the room
+  //                      (broadcasts room:closed + deletes the game row).
+  //   • closeGameRoom → host-only: emits room:closed + deletes the game row.
+  //
+  // The server's handleDisconnect() hook uses the membership tracker to
+  // auto-broadcast room:player_left with reason='disconnected' when a socket
+  // drops. If the disconnecting socket was the host, the server auto-closes
+  // the room.
+
+  final Set<void Function(Map<String, dynamic>)> _roomPlayerJoinedCallbacks =
+      {};
+  final Set<void Function(Map<String, dynamic>)> _roomPlayerLeftCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _roomClosedCallbacks = {};
+
+  /// Subscribe to room:player_joined events. Returns an unsubscribe fn.
+  /// Payload: { gameTable, gameId, userId, userName, isHost, timestamp }
+  VoidCallback onRoomPlayerJoined(
+      void Function(Map<String, dynamic>) callback) {
+    _roomPlayerJoinedCallbacks.add(callback);
+    return () => _roomPlayerJoinedCallbacks.remove(callback);
+  }
+
+  /// Subscribe to room:player_left events. Returns an unsubscribe fn.
+  /// Payload: { gameTable, gameId, userId, userName, reason, timestamp }
+  /// reason is one of: 'left' | 'disconnected'
+  VoidCallback onRoomPlayerLeft(
+      void Function(Map<String, dynamic>) callback) {
+    _roomPlayerLeftCallbacks.add(callback);
+    return () => _roomPlayerLeftCallbacks.remove(callback);
+  }
+
+  /// Subscribe to room:closed events. Returns an unsubscribe fn.
+  /// Payload: { gameTable, gameId, closedBy, reason, timestamp }
+  /// reason is one of: 'host_left' | 'host_disconnected' | 'host_closed' | 'expired'
+  ///
+  /// On receiving this event, lobby screens should auto-navigate back to
+  /// the game hub (the room has been deleted — no further action needed).
+  VoidCallback onRoomClosed(void Function(Map<String, dynamic>) callback) {
+    _roomClosedCallbacks.add(callback);
+    return () => _roomClosedCallbacks.remove(callback);
+  }
+
+  /// Announce that you've joined a game's room. The server tracks your
+  /// socket → room membership, broadcasts room:player_joined to all
+  /// participants, and emits a system chat message "X joined the room".
+  void joinGameRoom({
+    required String gameTable,
+    required String gameId,
+    required String userId,
+    required String userName,
+    required bool isHost,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:room:join', {
+      'gameTable': gameTable,
+      'gameId': gameId,
+      'userId': userId,
+      'userName': userName,
+      'isHost': isHost,
+    });
+  }
+
+  /// Announce that you've left a game's room. The server broadcasts
+  /// room:player_left to all participants and emits a system chat message
+  /// "X left the room". If you were the host, the server auto-closes the
+  /// room (broadcasts room:closed).
+  void leaveGameRoom({
+    required String gameTable,
+    required String gameId,
+    required String userId,
+    required String userName,
+    required bool isHost,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:room:leave', {
+      'gameTable': gameTable,
+      'gameId': gameId,
+      'userId': userId,
+      'userName': userName,
+      'isHost': isHost,
+    });
+  }
+
+  /// Host-only: forcibly close a game's room. The server broadcasts
+  /// room:closed to all participants (so they auto-navigate back to the
+  /// game hub) + a system chat message "X closed the room", then deletes
+  /// the game row + all child rows (players, turns, etc.) and any pending
+  /// game_invites.
+  void closeGameRoom({
+    required String gameTable,
+    required String gameId,
+    required String userId,
+    required String userName,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:room:close', {
+      'gameTable': gameTable,
+      'gameId': gameId,
+      'userId': userId,
+      'userName': userName,
+    });
   }
 
   // ── Spectator count API ──────────────────────────────────────────────

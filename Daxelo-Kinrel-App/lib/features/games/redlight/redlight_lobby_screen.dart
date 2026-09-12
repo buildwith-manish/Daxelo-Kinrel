@@ -20,6 +20,7 @@ import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/spectator_toggle.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
+import '../shared/widgets/room_lifecycle_listener.dart';
 import 'redlight_models.dart';
 import 'redlight_provider.dart';
 
@@ -320,47 +321,53 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
       subtitle: subtitle.toString(),
     );
 
-    return TemporaryLobbyView(
-      config: config,
-      myUserId: myId,
-      onToggleReady: (isReady) => notifier.toggleReady(isReady),
-      onStartMatch: () async => notifier.startGame(),
-      onCancelRoom: () => notifier.leaveRound(),
-      onInviteFamily: isHost
-          ? () {
-              final code = round.id
-                  .replaceAll('-', '')
-                  .substring(0, 6)
-                  .toUpperCase();
-              GameMotionTokens.tap();
-              InviteFamilySheet.show(
-                context,
-                familyId: widget.familyId,
-                gameType: GameType.redlight,
-                gameId: round.id,
-                roomCode: code,
-                currentPlayerIds: state.players
-                    .map((p) => p.userId)
-                    .whereType<String>()
-                    .toSet(),
-                maxPlayers: 20,
-                currentPlayers: state.players.length,
-              );
-            }
-          : null,
-      footer: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (state.isCountdown) _countdownBanner(state.countdownSeconds),
-          PendingInvitesSection(gameId: round.id),
-          const SizedBox(height: KinrelSpacing.md),
-          LobbyChatPanel(
-            gameTable: 'redlight_rounds',
-            gameId: round.id,
-            familyId: widget.familyId,
-          ),
-        ],
-      ),
+    return RoomLifecycleListener(
+          gameTable: 'redlight_rounds',
+          gameId: round.id,
+          familyId: widget.familyId,
+          isHost: (round.hostUserId == myId),
+          child: TemporaryLobbyView(
+        config: config,
+        myUserId: myId,
+        onToggleReady: (isReady) => notifier.toggleReady(isReady),
+        onStartMatch: () async => notifier.startGame(),
+        onCancelRoom: () => notifier.leaveRound(),
+        onInviteFamily: isHost
+            ? () {
+                final code = round.id
+                    .replaceAll('-', '')
+                    .substring(0, 6)
+                    .toUpperCase();
+                GameMotionTokens.tap();
+                InviteFamilySheet.show(
+                  context,
+                  familyId: widget.familyId,
+                  gameType: GameType.redlight,
+                  gameId: round.id,
+                  roomCode: code,
+                  currentPlayerIds: state.players
+                      .map((p) => p.userId)
+                      .whereType<String>()
+                      .toSet(),
+                  maxPlayers: 20,
+                  currentPlayers: state.players.length,
+                );
+              }
+            : null,
+        footer: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (state.isCountdown) _countdownBanner(state.countdownSeconds),
+            PendingInvitesSection(gameId: round.id),
+            const SizedBox(height: KinrelSpacing.md),
+            LobbyChatPanel(
+              gameTable: 'redlight_rounds',
+              gameId: round.id,
+              familyId: widget.familyId,
+            ),
+          ],
+        ),
+    ),
     );
   }
 

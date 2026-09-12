@@ -19,6 +19,7 @@ import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/spectator_toggle.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
+import '../shared/widgets/room_lifecycle_listener.dart';
 import 'bingo_models.dart';
 import 'bingo_provider.dart';
 
@@ -297,46 +298,52 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
       showReadyToggle: false, // Bingo has no player table → no ready flag.
     );
 
-    return TemporaryLobbyView(
-      config: config,
-      myUserId: myId,
-      onToggleReady: (_) async {}, // No-op for bingo (no isReady column).
-      onStartMatch: () => notifier.startGame(),
-      onCancelRoom: () => notifier.leaveGame(),
-      onInviteFamily: isHost
-          ? () {
-              final code = game.id
-                  .replaceAll('-', '')
-                  .substring(0, 6)
-                  .toUpperCase();
-              GameMotionTokens.tap();
-              InviteFamilySheet.show(
-                context,
-                familyId: widget.familyId,
-                gameType: GameType.bingo,
-                gameId: game.id,
-                roomCode: code,
-                currentPlayerIds: state.allCards
-                    .map((c) => c.playerId)
-                    .whereType<String>()
-                    .toSet(),
-                maxPlayers: game.maxPlayers,
-                currentPlayers: state.allCards.length,
-              );
-            }
-          : null,
-      footer: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          PendingInvitesSection(gameId: game.id),
-          const SizedBox(height: KinrelSpacing.md),
-          LobbyChatPanel(
-            gameTable: 'bingo_games',
-            gameId: game.id,
-            familyId: widget.familyId,
-          ),
-        ],
-      ),
+    return RoomLifecycleListener(
+          gameTable: 'bingo_games',
+          gameId: game.id,
+          familyId: widget.familyId,
+          isHost: (game.hostUserId == myId),
+          child: TemporaryLobbyView(
+        config: config,
+        myUserId: myId,
+        onToggleReady: (_) async {}, // No-op for bingo (no isReady column).
+        onStartMatch: () => notifier.startGame(),
+        onCancelRoom: () => notifier.leaveGame(),
+        onInviteFamily: isHost
+            ? () {
+                final code = game.id
+                    .replaceAll('-', '')
+                    .substring(0, 6)
+                    .toUpperCase();
+                GameMotionTokens.tap();
+                InviteFamilySheet.show(
+                  context,
+                  familyId: widget.familyId,
+                  gameType: GameType.bingo,
+                  gameId: game.id,
+                  roomCode: code,
+                  currentPlayerIds: state.allCards
+                      .map((c) => c.playerId)
+                      .whereType<String>()
+                      .toSet(),
+                  maxPlayers: game.maxPlayers,
+                  currentPlayers: state.allCards.length,
+                );
+              }
+            : null,
+        footer: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PendingInvitesSection(gameId: game.id),
+            const SizedBox(height: KinrelSpacing.md),
+            LobbyChatPanel(
+              gameTable: 'bingo_games',
+              gameId: game.id,
+              familyId: widget.familyId,
+            ),
+          ],
+        ),
+    ),
     );
   }
 

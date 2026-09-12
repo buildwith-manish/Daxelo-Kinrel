@@ -28,6 +28,7 @@ import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/spectator_toggle.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
+import '../shared/widgets/room_lifecycle_listener.dart';
 import 'chitmatch_models.dart';
 import 'chitmatch_provider.dart';
 
@@ -238,48 +239,54 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
       subtitle: '${game.playerCount} players · ${game.roundTimerSeconds}s/round',
     );
 
-    return TemporaryLobbyView(
-      config: config,
-      myUserId: myId,
-      onToggleReady: (isReady) => notifier.toggleReady(isReady),
-      // In chitmatch, the host's Start button kicks off the word-submission
-      // setup phase rather than jumping straight into gameplay.
-      onStartMatch: () => _startSetup(),
-      onCancelRoom: () => notifier.leaveGame(),
-      onInviteFamily: isHost
-          ? () {
-              final code = game.id
-                  .replaceAll('-', '')
-                  .substring(0, 6)
-                  .toUpperCase();
-              GameMotionTokens.tap();
-              InviteFamilySheet.show(
-                context,
-                familyId: widget.familyId,
-                gameType: GameType.chitmatch,
-                gameId: game.id,
-                roomCode: code,
-                currentPlayerIds: state.players
-                    .map((p) => p.userId)
-                    .whereType<String>()
-                    .toSet(),
-                maxPlayers: game.playerCount,
-                currentPlayers: state.players.length,
-              );
-            }
-          : null,
-      footer: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          PendingInvitesSection(gameId: game.id),
-          const SizedBox(height: KinrelSpacing.md),
-          LobbyChatPanel(
-            gameTable: 'chitmatch_games',
-            gameId: game.id,
-            familyId: widget.familyId,
-          ),
-        ],
-      ),
+    return RoomLifecycleListener(
+          gameTable: 'chitmatch_games',
+          gameId: game.id,
+          familyId: widget.familyId,
+          isHost: (game.hostUserId == myId),
+          child: TemporaryLobbyView(
+        config: config,
+        myUserId: myId,
+        onToggleReady: (isReady) => notifier.toggleReady(isReady),
+        // In chitmatch, the host's Start button kicks off the word-submission
+        // setup phase rather than jumping straight into gameplay.
+        onStartMatch: () => _startSetup(),
+        onCancelRoom: () => notifier.leaveGame(),
+        onInviteFamily: isHost
+            ? () {
+                final code = game.id
+                    .replaceAll('-', '')
+                    .substring(0, 6)
+                    .toUpperCase();
+                GameMotionTokens.tap();
+                InviteFamilySheet.show(
+                  context,
+                  familyId: widget.familyId,
+                  gameType: GameType.chitmatch,
+                  gameId: game.id,
+                  roomCode: code,
+                  currentPlayerIds: state.players
+                      .map((p) => p.userId)
+                      .whereType<String>()
+                      .toSet(),
+                  maxPlayers: game.playerCount,
+                  currentPlayers: state.players.length,
+                );
+              }
+            : null,
+        footer: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PendingInvitesSection(gameId: game.id),
+            const SizedBox(height: KinrelSpacing.md),
+            LobbyChatPanel(
+              gameTable: 'chitmatch_games',
+              gameId: game.id,
+              familyId: widget.familyId,
+            ),
+          ],
+        ),
+    ),
     );
   }
 
