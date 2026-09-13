@@ -23,6 +23,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/widgets/leave_game_dialog.dart';
 import 'antakshari_models.dart';
 import 'antakshari_provider.dart';
 
@@ -97,9 +98,28 @@ class _AntakshariGameScreenState
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
-          onPressed: () {
+          onPressed: () async {
+            final state = ref.read(antakshariProvider(widget.familyId));
+            final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+            final shouldLeave = await LeaveGameDialog.show(
+              context,
+              isHost: (state.game?.hostUserId == myId),
+              gameName: 'Antakshari',
+            );
+            if (shouldLeave != true) return;
+            if (!context.mounted) return;
             ref.read(antakshariProvider(widget.familyId).notifier).leaveGame();
-            Navigator.of(context).pop();
+            if (state.game?.id != null) {
+              ref.read(temporaryRoomServiceProvider).endGame(
+                    gameTable: 'antakshari_games',
+                    gameId: state.game!.id,
+                  );
+            }
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/family/${widget.familyId}');
+            }
           },
         ),
         title: Text(

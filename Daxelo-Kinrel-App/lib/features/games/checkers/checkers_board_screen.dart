@@ -26,6 +26,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/services/temporary_room_service.dart';
+import '../shared/widgets/leave_game_dialog.dart';
 import 'checkers_game_logic.dart';
 import 'checkers_models.dart';
 import 'checkers_provider.dart';
@@ -69,9 +70,27 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
-          onPressed: () {
+          onPressed: () async {
+            final state = ref.read(checkersProvider(widget.familyId));
+            final shouldLeave = await LeaveGameDialog.show(
+              context,
+              isHost: false,
+              gameName: 'Checkers',
+            );
+            if (shouldLeave != true) return;
+            if (!context.mounted) return;
             ref.read(checkersProvider(widget.familyId).notifier).leaveGame();
-            Navigator.of(context).pop();
+            if (state.game?.id != null) {
+              ref.read(temporaryRoomServiceProvider).endGame(
+                    gameTable: 'checkers_games',
+                    gameId: state.game!.id,
+                  );
+            }
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/family/${widget.familyId}');
+            }
           },
         ),
         title: Text(

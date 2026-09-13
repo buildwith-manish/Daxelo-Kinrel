@@ -22,6 +22,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/widgets/badges_toast.dart';
 import 'bingo_models.dart';
 import 'bingo_provider.dart';
@@ -120,9 +121,28 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
-          onPressed: () {
+          onPressed: () async {
+            final state = ref.read(bingoProvider(widget.familyId));
+            final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+            final shouldLeave = await LeaveGameDialog.show(
+              context,
+              isHost: (state.game?.hostUserId == myId),
+              gameName: 'Bingo',
+            );
+            if (shouldLeave != true) return;
+            if (!context.mounted) return;
             ref.read(bingoProvider(widget.familyId).notifier).leaveGame();
-            Navigator.of(context).pop();
+            if (state.game?.id != null) {
+              ref.read(temporaryRoomServiceProvider).endGame(
+                    gameTable: 'bingo_games',
+                    gameId: state.game!.id,
+                  );
+            }
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/family/${widget.familyId}');
+            }
           },
         ),
         title: Text(

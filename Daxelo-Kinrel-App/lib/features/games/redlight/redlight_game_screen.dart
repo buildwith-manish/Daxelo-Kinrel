@@ -22,6 +22,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/widgets/leave_game_dialog.dart';
 import 'redlight_models.dart';
 import 'redlight_provider.dart';
 
@@ -83,11 +84,28 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
-          onPressed: () {
-            ref
-                .read(redlightProvider(widget.familyId).notifier)
-                .leaveRound();
-            Navigator.of(context).pop();
+          onPressed: () async {
+            final state = ref.read(redlightProvider(widget.familyId));
+            final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+            final shouldLeave = await LeaveGameDialog.show(
+              context,
+              isHost: (state.game?.hostUserId == myId),
+              gameName: 'Freeze & Dash',
+            );
+            if (shouldLeave != true) return;
+            if (!context.mounted) return;
+            ref.read(redlightProvider(widget.familyId).notifier).leaveRound();
+            if (state.game?.id != null) {
+              ref.read(temporaryRoomServiceProvider).endGame(
+                    gameTable: 'redlight_rounds',
+                    gameId: state.game!.id,
+                  );
+            }
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/family/${widget.familyId}');
+            }
           },
         ),
         title: Text(
