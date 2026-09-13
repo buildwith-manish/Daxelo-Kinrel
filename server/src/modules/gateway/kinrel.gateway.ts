@@ -663,6 +663,57 @@ export class KinrelGateway implements OnGatewayConnection, OnGatewayDisconnect {
     );
   }
 
+  // ── Universal reactions ──────────────────────────────────────────────
+  //
+  // Universal reactions (❤️ 👏 🔥 😂 🎉) can be sent at any time during
+  // a game. The server broadcasts them to everyone in the game room
+  // (so each client can render a floating-emoji overlay) AND to the
+  // chat room (so the lobby chat panel can show "John reacted ❤️" as
+  // an activity message).
+  //
+  // Reactions are ephemeral — they're not persisted to the DB. The
+  // winner's reaction counts on the results screen are tracked by the
+  // client-side ReactionsAggregator (subscribes to onGameReaction,
+  // groups by emoji, displays the totals on the WinCelebration widget).
+
+  @SubscribeMessage('game:reaction')
+  handleGameReaction(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: {
+      gameTable: string;
+      gameId: string;
+      familyId: string;
+      emoji: string;
+      userId: string;
+      userName: string;
+      timestamp: string;
+    },
+  ) {
+    const roomName = `game-room:${data.gameTable}:${data.gameId}`;
+    const chatRoomName = `game-chat:${data.gameTable}:${data.gameId}`;
+
+    // Broadcast the reaction to everyone in the room (each client renders
+    // a floating emoji via the ReactionOverlay widget).
+    this.server.to(roomName).emit('game:reaction', {
+      ...data,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Also broadcast a system chat message: "John reacted ❤️"
+    // This makes the lobby feel alive (activity-based lobby).
+    this.server.to(chatRoomName).emit('game:chat:message', {
+      gameTable: data.gameTable,
+      gameId: data.gameId,
+      familyId: data.familyId,
+      type: 'system',
+      content: `${data.userName} reacted ${data.emoji}`,
+      senderName: 'System',
+      senderId: 'system',
+      isSpectator: false,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   // ── Spectator count tracking ─────────────────────────────────────────
   // Players + spectators both join the game's spectator room. The server
   // maintains a count of connected sockets per room and broadcasts updates.

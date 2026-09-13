@@ -526,6 +526,18 @@ class SocketService {
         debugPrint('[SocketService] Error handling room:closed: $e');
       }
     });
+
+    // ── Universal reactions ───────────────────────────────────────────
+    socket.on('game:reaction', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _gameReactionCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling game:reaction: $e');
+      }
+    });
   }
 
   // ── In-lobby chat / reactions API ────────────────────────────────────
@@ -738,6 +750,45 @@ class SocketService {
       'gameId': gameId,
       'userId': userId,
       'userName': userName,
+    });
+  }
+
+  // ── Universal reactions API ─────────────────────────────────────────
+  //
+  // Universal reactions (❤️ 👏 🔥 😂 🎉) can be sent at any time during
+  // a game (lobby, gameplay, results). The server broadcasts them to
+  // everyone in the room; each client renders a floating-emoji overlay.
+  // The lobby chat panel also surfaces them as activity messages:
+  //   "John reacted ❤️"
+
+  final Set<void Function(Map<String, dynamic>)> _gameReactionCallbacks = {};
+
+  /// Subscribe to incoming reaction broadcasts. Returns an unsubscribe fn.
+  /// Payload: { gameTable, gameId, familyId, emoji, userId, userName, timestamp }
+  VoidCallback onGameReaction(void Function(Map<String, dynamic>) callback) {
+    _gameReactionCallbacks.add(callback);
+    return () => _gameReactionCallbacks.remove(callback);
+  }
+
+  /// Send a universal reaction to everyone in the room.
+  void emitGameReaction({
+    required String gameTable,
+    required String gameId,
+    required String familyId,
+    required String emoji,
+    required String userId,
+    required String userName,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:reaction', {
+      'gameTable': gameTable,
+      'gameId': gameId,
+      'familyId': familyId,
+      'emoji': emoji,
+      'userId': userId,
+      'userName': userName,
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
     });
   }
 
