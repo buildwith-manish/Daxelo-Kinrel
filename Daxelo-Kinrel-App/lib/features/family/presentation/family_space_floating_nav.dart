@@ -49,6 +49,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/utils/accessibility_utils.dart';
+import '../../../shared/widgets/bottom_nav_repaint_guard.dart';
 
 /// A single navigation item for [FamilySpaceFloatingNav].
 class _NavTab {
@@ -127,67 +128,75 @@ class FamilySpaceFloatingNav extends StatelessWidget {
     final currentIndex = _currentIndex(location);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: _sideMargin,
-        right: _sideMargin,
-        bottom: bottomInset > 0 ? bottomInset + _bottomMargin : _bottomMargin,
-      ),
-      child: Container(
-        height: _height,
-        decoration: BoxDecoration(
-          color: KinrelColors.darkCard.withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(_cornerRadius),
-          border: Border.all(
-            color: const Color(0xFF3A3A4A),
-            width: 0.5,
-          ),
-          boxShadow: [
-            // Primary drop shadow — deep float effect
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.50),
-              blurRadius: 30,
-              offset: const Offset(0, 12),
-            ),
-            // Secondary tight shadow — defines the card edge
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-            // Subtle orange glow — gives the bar a premium warmth and
-            // makes the active state feel intentional.
-            if (currentIndex >= 0)
-              BoxShadow(
-                color: KinrelColors.orange.withValues(alpha: 0.18),
-                blurRadius: 24,
-                offset: const Offset(0, 6),
-              ),
-          ],
+    // Wrap in BottomNavRepaintGuard so the bar repaints immediately on
+    // the next frame after mount (and on app resume). Without this, the
+    // BackdropFilter below can sample an empty backdrop on the first
+    // frame on Flutter Web, making the entire bar invisible until an
+    // unrelated tap forces a tree rebuild. See bottom_nav_repaint_guard.dart
+    // for the full rationale — same fix as the global DKBottomNav.
+    return BottomNavRepaintGuard(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: _sideMargin,
+          right: _sideMargin,
+          bottom: bottomInset > 0 ? bottomInset + _bottomMargin : _bottomMargin,
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(_cornerRadius),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: List.generate(_tabs.length, (index) {
-                final tab = _tabs[index];
-                final isSelected = index == currentIndex;
-                return Expanded(
-                  child: semanticTab(
-                    label: tab.label,
-                    index: index,
-                    isSelected: isSelected,
-                    totalTabs: _tabs.length,
-                    child: _NavTabButton(
-                      tab: tab,
+        child: Container(
+          height: _height,
+          decoration: BoxDecoration(
+            color: KinrelColors.darkCard.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(_cornerRadius),
+            border: Border.all(
+              color: const Color(0xFF3A3A4A),
+              width: 0.5,
+            ),
+            boxShadow: [
+              // Primary drop shadow — deep float effect
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.50),
+                blurRadius: 30,
+                offset: const Offset(0, 12),
+              ),
+              // Secondary tight shadow — defines the card edge
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+              // Subtle orange glow — gives the bar a premium warmth and
+              // makes the active state feel intentional.
+              if (currentIndex >= 0)
+                BoxShadow(
+                  color: KinrelColors.orange.withValues(alpha: 0.18),
+                  blurRadius: 24,
+                  offset: const Offset(0, 6),
+                ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(_cornerRadius),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: List.generate(_tabs.length, (index) {
+                  final tab = _tabs[index];
+                  final isSelected = index == currentIndex;
+                  return Expanded(
+                    child: semanticTab(
+                      label: tab.label,
+                      index: index,
                       isSelected: isSelected,
-                      onTap: () => _onTap(context, index),
+                      totalTabs: _tabs.length,
+                      child: _NavTabButton(
+                        tab: tab,
+                        isSelected: isSelected,
+                        onTap: () => _onTap(context, index),
+                      ),
                     ),
-                  ),
-                );
-              }),
+                  );
+                }),
+              ),
             ),
           ),
         ),

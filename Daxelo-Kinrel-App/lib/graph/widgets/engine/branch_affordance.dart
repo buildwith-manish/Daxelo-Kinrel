@@ -519,6 +519,54 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
         // it reads it, so it only fires once per restore.
         final snapshot = ref.read(
             preCollapseLayoutSnapshotProvider(widget.familyId));
+        // [BUG-TRACE-v2] Issue 1: log the EXACT rootPersonId at lookup
+        // time + the snapshot's stored keys + whether the snapshot's
+        // stored root matches the lookup root byte-for-byte. This
+        // directly addresses the user's question: "verify the rootPersonId
+        // used at capture time in the 'Collapse this Branch' confirm
+        // handler is the exact same ID used at lookup time in the expand
+        // handler."
+        //
+        // We also log hashCode + length of the ID string so a subtle
+        // difference (e.g. trailing whitespace, casing) is detectable
+        // even when the printed strings look identical.
+        final lookupRoot = branch.rootPersonId;
+        final lookupRootHash = lookupRoot.hashCode;
+        final lookupRootLen = lookupRoot.length;
+        final snapshotKeys = snapshot?.keys.toList() ?? <String>[];
+        final snapshotKeyHashes = snapshotKeys.isEmpty
+            ? <String, int>{}
+            : {for (final k in snapshotKeys) k: k.hashCode};
+        // Find the stored key that MOST CLOSELY matches the lookup root
+        // (case-insensitive, trimmed) so we can report whether the
+        // difference is whitespace/casing vs. completely different IDs.
+        String? bestMatchKey;
+        var bestMatchReason = 'no snapshot';
+        if (snapshot != null && snapshotKeys.isNotEmpty) {
+          for (final k in snapshotKeys) {
+            if (k == lookupRoot) {
+              bestMatchKey = k;
+              bestMatchReason = 'EXACT MATCH';
+              break;
+            }
+            if (k.trim().toLowerCase() == lookupRoot.trim().toLowerCase()) {
+              bestMatchKey ??= k;
+              bestMatchReason = 'matches after trim+lowercase (whitespace/case difference)';
+            }
+          }
+          if (bestMatchKey == null) {
+            bestMatchReason = 'no match — lookup root is NOT in snapshot';
+          }
+        }
+        debugPrint(
+            '[BUG-TRACE-v2] EXPAND-RESTORE-LOOKUP root=$lookupRoot '
+            'rootHash=$lookupRootLen chars/$lookupRootHash '
+            'snapshotNull=${snapshot == null} '
+            'snapshotKeys=$snapshotKeys '
+            'snapshotKeyHashes=$snapshotKeyHashes '
+            'snapshotContainsRootExact=${snapshot?.containsKey(lookupRoot) ?? false} '
+            'bestMatchKey=$bestMatchKey '
+            'bestMatchReason=$bestMatchReason');
         // [BUG-TRACE] Diagnostic case 1 + 2: log whether
         // restoredFromSnapshot will end up true or false for THIS
         // specific branch expand, and — if false — log the EXACT reason
@@ -628,10 +676,54 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
     // positions are available).
     if (mounted) {
       if (!restoredFromSnapshot) {
-        // v5.207: Clear cached positions so the layout provider does a
-        // fresh global ring-fill instead of preserving old positions.
-        ref.read(lastLayoutPositionsProvider(widget.familyId).notifier)
-            .state = null;
+        // v5.213 (CASE 1 HARDENING): when restoredFromSnapshot is false
+        // (snapshot was missing or didn't contain rootPersonId), the
+        // original v5.207 path ALWAYS cleared the cache and forced a
+        // fresh global layout recompute. That fresh layout sometimes
+        // placed newly-revealed descendants at the same ring slot as
+        // pre-existing ring nodes — re-introducing the overlap bug.
+        //
+        // With the v5.213 case 2 fix, this branch should be rarer (the
+        // collapse path now falls back to lastLayoutPositionsProvider
+        // when currentLayout is null). But it can still occur if the
+        // cache was empty at BOTH capture time AND now.
+        //
+        // HARDENING: only clear the cache if it doesn't contain
+        // positions for any of the about-to-be-revealed descendants.
+        // If the cache DOES have positions for the descendants (e.g.
+        // they were positioned before the collapse and the cache wasn't
+        // cleared), preserve those positions — preservePositions=true
+        // will keep them stable, and the layout engine will only need
+        // to place any genuinely-new nodes (which the v5.211/v5.212
+        // guard + radial_layout.dart's local-expansion path handle).
+        final existingCache = ref.read(
+            lastLayoutPositionsProvider(widget.familyId));
+        // If the cache has positions for ANY of the about-to-be-revealed
+        // descendants, preserve the cache. Otherwise, clear it (v5.207).
+        final cacheHasAnyRevealed = existingCache != null
+            ? revealedIds.any(existingCache.containsKey)
+            : false;
+        if (cacheHasAnyRevealed) {
+          final cache = existingCache;
+          debugPrint(
+              '[BUG-TRACE] EXPAND-PRESERVE-CACHE: restoredFromSnapshot=false '
+              'but lastLayoutPositionsProvider cache already has positions for '
+              '${revealedIds.where(cache.containsKey).length} of '
+              '${revealedIds.length} revealed descendants — PRESERVING cache '
+              'instead of clearing. Avoids the fresh-layout overlap bug.');
+          // Do NOT clear — let the layout pass use preservePositions=true
+          // with the existing cache.
+        } else {
+          // v5.207: Clear cached positions so the layout provider does a
+          // fresh global ring-fill instead of preserving old positions.
+          debugPrint(
+              '[BUG-TRACE] EXPAND-CLEAR-CACHE: restoredFromSnapshot=false AND '
+              'cache has no positions for any revealed descendant — clearing '
+              'cache + fresh layout. This is the original overlap-prone path '
+              'but unavoidable here (we have no positions to restore).');
+          ref.read(lastLayoutPositionsProvider(widget.familyId).notifier)
+              .state = null;
+        }
       }
       // Invalidate the layout provider to trigger a recomputation.
       // For restored manual branches, this triggers a layout pass that
@@ -1425,6 +1517,34 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                 final currentLayout = ref
                     .read(graphLayoutProvider(widget.familyId))
                     .valueOrNull;
+                // v5.213 (CASE 2 FIX): FALLBACK when currentLayout is null
+                // or its positions map is empty. The original v5.210/v5.212
+                // path silently SKIPPED the snapshot save when
+                // currentLayout was null — this is the root cause of the
+                // "snapshot missing rootPersonId key" branch-expand case.
+                // The expand path then fell through to clearing
+                // lastLayoutPositionsProvider and forcing a fresh global
+                // layout recompute, which re-introduces the overlap bug
+                // that v5.210 was specifically designed to fix.
+                //
+                // Common scenarios where currentLayout is null at collapse
+                // time:
+                //   - User collapsed a branch DURING the initial layout
+                //     (graphLayoutProvider still AsyncLoading).
+                //   - A recent invalidation is still in-flight (e.g.
+                //     proximity changed, familyGraphProvider refetched).
+                //   - The provider errored and valueOrNull returns null.
+                //
+                // FIX: when currentLayout is null/empty, fall back to the
+                // lastLayoutPositionsProvider cache. This cache holds the
+                // positions from the LAST SUCCESSFUL layout pass — which
+                // is exactly what we want to restore on the subsequent
+                // expand. If even the cache is null/empty, we genuinely
+                // cannot capture a snapshot (no positions exist anywhere)
+                // — but that's a degenerate state we can't help with
+                // here.
+                final cacheFallback = ref.read(
+                    lastLayoutPositionsProvider(widget.familyId));
                 // [BUG-TRACE] Diagnostic case 2: log snapshot-capture
                 // conditions at the moment "Collapse this Branch" is
                 // confirmed. If currentLayout is null or its positions
@@ -1432,23 +1552,47 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                 // NEVER be saved — which is the root cause of the
                 // "snapshot missing rootPersonId key" branch-expand case.
                 debugPrint(
-                    '[BUG-TRACE] COLLAPSE-CAPTURE root=$rootPersonId '
+                    '[BUG-TRACE-v2] COLLAPSE-CAPTURE-LOOKUP root=$rootPersonId '
+                    'rootHash=${rootPersonId.length} chars/${rootPersonId.hashCode} '
                     'currentLayout=${currentLayout == null ? "NULL" : "OK"} '
                     'positionsCount=${currentLayout?.positions.length ?? 0} '
-                    'positionsKeys=${currentLayout?.positions.keys.toList().take(5).toList()}');
+                    'positionsKeys=${currentLayout?.positions.keys.toList().take(5).toList()} '
+                    'cacheFallbackCount=${cacheFallback?.length ?? 0} '
+                    'cacheFallbackKeys=${cacheFallback?.keys.toList().take(5).toList() ?? []}');
+                // Pick the positions source: prefer currentLayout, fall
+                // back to cache, give up if both are empty.
+                final Map<String, Offset>? positionsSource;
                 if (currentLayout != null &&
                     currentLayout.positions.isNotEmpty) {
+                  positionsSource = currentLayout.positions;
+                } else if (cacheFallback != null &&
+                    cacheFallback.isNotEmpty) {
+                  positionsSource = cacheFallback;
+                  debugPrint(
+                      '[BUG-TRACE] COLLAPSE-CAPTURE FALLBACK: currentLayout was null/empty — '
+                      'using lastLayoutPositionsProvider cache with ${cacheFallback.length} entries '
+                      'as the snapshot source. This prevents the "snapshot missing rootPersonId" '
+                      'expand-time failure that was re-introducing the overlap bug.');
+                } else {
+                  positionsSource = null;
+                  debugPrint(
+                      '[BUG-TRACE] COLLAPSE-CAPTURE NO-SOURCE: both currentLayout AND '
+                      'lastLayoutPositionsProvider cache are null/empty — cannot snapshot. '
+                      'The subsequent expand will fall through to cache-clear + fresh layout.');
+                }
+                if (positionsSource != null &&
+                    positionsSource.isNotEmpty) {
                   // [BUG-TRACE] Confirm the rootPersonId is actually KEYED
                   // in the snapshot positions map (a sanity check — the
                   // root itself should always have a position from the
                   // layout pass; if it doesn't, the snapshot will be
                   // missing the most important key).
                   debugPrint(
-                      '[BUG-TRACE] COLLAPSE-CAPTURE rootInPositions=${currentLayout.positions.containsKey(rootPersonId)} '
-                      'rootPos=${currentLayout.positions[rootPersonId]}');
+                      '[BUG-TRACE] COLLAPSE-CAPTURE rootInPositions=${positionsSource.containsKey(rootPersonId)} '
+                      'rootPos=${positionsSource[rootPersonId]}');
                   // v5.212: Validate + repair positions BEFORE snapshot.
                   final validatedPositions = Map<String, Offset>.from(
-                      currentLayout.positions);
+                      positionsSource);
                   var repairCount = 0;
                   final entries = validatedPositions.entries.toList();
                   // Repair 1: any node at (0,0) gets nudged to (0.5, 0).
@@ -1498,6 +1642,16 @@ extension _BranchAffordanceMethods on _FamilyGraphEngineViewState {
                       .read(preCollapseLayoutSnapshotProvider(
                           widget.familyId).notifier)
                       .state = snapshot;
+                  // [BUG-TRACE-v2] Issue 1: confirm the snapshot was
+                  // actually saved, with the EXACT rootPersonId used as
+                  // the key. This + the EXPAND-RESTORE-LOOKUP log above
+                  // closes the loop: if both logs print the same
+                  // rootPersonId + hashCode, capture and lookup agree.
+                  debugPrint(
+                      '[BUG-TRACE-v2] COLLAPSE-CAPTURE-SAVED root=$rootPersonId '
+                      'rootHash=${rootPersonId.length} chars/${rootPersonId.hashCode} '
+                      'positionsCount=${validatedPositions.length} '
+                      'snapshotTotalKeys=${snapshot.length}');
                 }
 
                 // Manually collapse — works for ANY node with descendants.

@@ -1,0 +1,27 @@
+// lib/features/games/shared/multiplayer/multiplayer.dart
+//
+// Barrel export for the unified multiplayer room framework.
+// Every multiplayer game imports this to get the full room-lifecycle
+// API in one line:
+//
+//   import '../shared/multiplayer/multiplayer.dart';
+//
+// What you get:
+//   • RoomConfig (per-game preset: SOS, Bingo, Ludo, Chess, ...)
+//   • RoomState + RoomParticipant + RoomSpectator + RoomEvent
+//   • RoomController (StateNotifier that manages the full room lifecycle)
+//   • roomControllerProvider (Riverpod provider family)
+//   • LobbyView (shared lobby view widget)
+//   • RoomSetupView (shared setup view widget)
+//   • AutoCloseTimer (countdown widget)
+//   • CancelRoomButton (large visible Cancel button)
+//   • BackButtonGuard (host: Close Room? / player: Leave Room?)
+
+export 'room_config.dart';
+export 'room_state.dart';
+export 'room_controller.dart';
+export 'widgets/lobby_view.dart';
+export 'widgets/room_setup_view.dart';
+export 'widgets/auto_close_timer.dart';
+export 'widgets/cancel_room_button.dart';
+export 'widgets/back_button_guard.dart';

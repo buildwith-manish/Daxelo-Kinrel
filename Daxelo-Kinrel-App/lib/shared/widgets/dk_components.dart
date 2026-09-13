@@ -32,6 +32,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shimmer/shimmer.dart';
 
+import 'bottom_nav_repaint_guard.dart';
+
 import '../../core/constants/brand_colors.dart';
 import '../../core/constants/brand_typography.dart';
 import '../../core/constants/brand_spacing.dart';
@@ -1094,46 +1096,54 @@ class DKBottomNav extends StatelessWidget {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     const floatGap = 12.0;
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 12,
-        right: 12,
-        bottom: bottomInset > 0 ? bottomInset + floatGap : floatGap,
-      ),
-      child: Container(
-        height: 80, // was 64 — thicker, more substantial
-        decoration: BoxDecoration(
-          color: isLight
-              ? DKColors.lightCard
-              : DKColors.darkCard.withValues(alpha: 0.92),
-          // All four corners rounded now — floating capsule shape
-          borderRadius: BorderRadius.circular(KinrelRadius.xl),
-          border: isLight
-              ? Border.all(color: const Color(0xFFE5E7EB), width: 1)
-              : Border.all(color: const Color(0xFF3A3A4A), width: 0.5),
-          boxShadow: [
-            // Primary drop shadow — gives the float effect
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isLight ? 0.12 : 0.40),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-            // Secondary tight shadow — defines the capsule edge
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isLight ? 0.06 : 0.20),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
+    // Wrap in BottomNavRepaintGuard so the bar repaints immediately on
+    // the next frame after mount (and on app resume). Without this, the
+    // BackdropFilter below can sample an empty backdrop on the first
+    // frame on Flutter Web, making the entire bar invisible until an
+    // unrelated tap forces a tree rebuild. See bottom_nav_repaint_guard.dart
+    // for the full rationale.
+    return BottomNavRepaintGuard(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 12,
+          right: 12,
+          bottom: bottomInset > 0 ? bottomInset + floatGap : floatGap,
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(KinrelRadius.xl),
-          child: isLight
-              ? _buildContent(isLight)
-              : BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                  child: _buildContent(isLight),
-                ),
+        child: Container(
+          height: 80, // was 64 — thicker, more substantial
+          decoration: BoxDecoration(
+            color: isLight
+                ? DKColors.lightCard
+                : DKColors.darkCard.withValues(alpha: 0.92),
+            // All four corners rounded now — floating capsule shape
+            borderRadius: BorderRadius.circular(KinrelRadius.xl),
+            border: isLight
+                ? Border.all(color: const Color(0xFFE5E7EB), width: 1)
+                : Border.all(color: const Color(0xFF3A3A4A), width: 0.5),
+            boxShadow: [
+              // Primary drop shadow — gives the float effect
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isLight ? 0.12 : 0.40),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+              // Secondary tight shadow — defines the capsule edge
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isLight ? 0.06 : 0.20),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(KinrelRadius.xl),
+            child: isLight
+                ? _buildContent(isLight)
+                : BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                    child: _buildContent(isLight),
+                  ),
+          ),
         ),
       ),
     );

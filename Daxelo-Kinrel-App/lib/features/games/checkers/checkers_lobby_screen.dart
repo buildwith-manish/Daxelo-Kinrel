@@ -15,6 +15,8 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
+import '../shared/multiplayer/multiplayer.dart';
+import '../shared/widgets/spectator_toggle.dart';
 import '../../family/presentation/add_member_source.dart';
 import 'checkers_provider.dart';
 
@@ -34,6 +36,11 @@ class _CheckersLobbyScreenState extends ConsumerState<CheckersLobbyScreen> {
   String? _selectedOpponentId;
   String _selectedOpponentName = '';
   bool _creating = false;
+  bool _spectatorsEnabled = true;
+  int _autoCloseMinutes = 5;
+
+  RoomControllerKey get _roomKey =>
+      RoomControllerKey(RoomConfig.checkers, widget.familyId);
 
   @override
   void initState() {
@@ -122,6 +129,17 @@ class _CheckersLobbyScreenState extends ConsumerState<CheckersLobbyScreen> {
         } catch (_) {
           // best-effort — game was created, opponent will see it via Realtime
         }
+        // Attach the shared multiplayer room-lifecycle framework
+        // (auto-close deadline, spectator flag, host-ready, host join).
+        // Must happen BEFORE pushReplacement so the board screen sees
+        // the room columns set on the game row.
+        await ref.read(roomControllerProvider(_roomKey).notifier)
+            .attachToExistingGame(
+          gameId,
+          spectatorsEnabled: _spectatorsEnabled,
+          autoCloseMinutes: _autoCloseMinutes,
+        );
+        if (!mounted) return;
         context.pushReplacement(
           '/family/${widget.familyId}/checkers/board/$gameId',
         );
@@ -194,6 +212,35 @@ class _CheckersLobbyScreenState extends ConsumerState<CheckersLobbyScreen> {
 
                 // Rules summary
                 _rulesCard(),
+                const SizedBox(height: KinrelSpacing.lg),
+                // Spectator toggle
+                SpectatorToggle(
+                  value: _spectatorsEnabled,
+                  onChanged: (v) => setState(() => _spectatorsEnabled = v),
+                ),
+                const SizedBox(height: KinrelSpacing.md),
+                // Auto-close duration selector
+                Text(
+                  'Auto-close room after',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.textDim,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: KinrelSpacing.sm),
+                Wrap(
+                  spacing: KinrelSpacing.sm,
+                  runSpacing: KinrelSpacing.sm,
+                  children: [
+                    _autoCloseOption(3, '3 min'),
+                    _autoCloseOption(5, '5 min'),
+                    _autoCloseOption(10, '10 min'),
+                    _autoCloseOption(15, '15 min'),
+                  ],
+                ),
                 const SizedBox(height: KinrelSpacing.lg),
 
                 Text(
@@ -325,6 +372,34 @@ class _CheckersLobbyScreenState extends ConsumerState<CheckersLobbyScreen> {
           const SizedBox(height: 4),
           _ruleLine('• Win by capturing all pieces or blocking all moves'),
         ],
+      ),
+    );
+  }
+
+  Widget _autoCloseOption(int minutes, String label) {
+    final selected = minutes == _autoCloseMinutes;
+    return GestureDetector(
+      onTap: () => setState(() => _autoCloseMinutes = minutes),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            vertical: KinrelSpacing.sm, horizontal: KinrelSpacing.md),
+        decoration: BoxDecoration(
+          color: KinrelColors.darkCard,
+          borderRadius: BorderRadius.circular(KinrelRadius.lg),
+          border: Border.all(
+            color: selected ? KinrelColors.orange : KinrelColors.border,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: KinrelTypography.bodyFont,
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected ? KinrelColors.orange : KinrelColors.textDim,
+          ),
+        ),
       ),
     );
   }

@@ -316,9 +316,19 @@ class RadialLayout {
     // Assign signed generation: positive for descendants, negative for
     // ancestors, 0 for same-generation (spouse/sibling/anchor).
     final signedGen = <String, int>{};
+    // [BUG-TRACE-v2] Issue 2: collect per-node diagnostic data so we can
+    // confirm whether the misclassification (child placed as spouse) is
+    // happening in _computeDirection. The data is logged AFTER the loop.
+    final directionDiag = <String, Map<String, dynamic>>{};
     for (final person in persons) {
       if (person.id == anchor.id) {
         signedGen[person.id] = 0;
+        directionDiag[person.id] = {
+          'hops': 0,
+          'direction': 'N/A (anchor)',
+          'signedGen': 0,
+          'edges': <Map<String, dynamic>>[],
+        };
         continue;
       }
       final hops = hopDistance[person.id];
@@ -329,6 +339,12 @@ class RadialLayout {
         // give them a dedicated full-circle spread.
         signedGen[person.id] = peripheralRing;
         unreachableIds.add(person.id);
+        directionDiag[person.id] = {
+          'hops': null,
+          'direction': 'unreachable',
+          'signedGen': peripheralRing,
+          'edges': <Map<String, dynamic>>[],
+        };
         continue;
       }
       // Determine direction from the relationship connecting this
@@ -336,6 +352,76 @@ class RadialLayout {
       // (descendant) if we can't determine.
       final direction = _computeDirection(person.id, anchor.id, relationships);
       signedGen[person.id] = direction == -1 ? -hops : hops;
+      // [BUG-TRACE-v2] Issue 2: collect ALL edges between this person
+      // and the anchor so we can see EXACTLY what labelAtoB the DB
+      // returned. This is the smoking gun for the misclassification —
+      // if labelAtoB is null or not in _parentKeys/_childKeys,
+      // _computeDirection returns 0 (same-gen as spouse).
+      final personAnchorEdges = <Map<String, dynamic>>[];
+      for (final r in relationships) {
+        final isPersonToAnchor =
+            r.fromPersonId == person.id && r.toPersonId == anchor.id;
+        final isAnchorToPerson =
+            r.fromPersonId == anchor.id && r.toPersonId == person.id;
+        if (isPersonToAnchor || isAnchorToPerson) {
+          final key = (r.labelAtoB ?? r.relationshipKey).toLowerCase();
+          final inParentKeys = _parentKeys.contains(key);
+          final inChildKeys = _childKeys.contains(key);
+          final inSpouseKeys = _spouseKeys.contains(key);
+          final inSiblingKeys = _siblingKeys.contains(key);
+          personAnchorEdges.add({
+            'from': r.fromPersonId,
+            'to': r.toPersonId,
+            'relationshipKey': r.relationshipKey,
+            'labelAtoB': r.labelAtoB,
+            'normalizedKey': key,
+            'isPersonToAnchor': isPersonToAnchor,
+            'isAnchorToPerson': isAnchorToPerson,
+            'inParentKeys': inParentKeys,
+            'inChildKeys': inChildKeys,
+            'inSpouseKeys': inSpouseKeys,
+            'inSiblingKeys': inSiblingKeys,
+          });
+        }
+      }
+      directionDiag[person.id] = {
+        'hops': hops,
+        'direction': direction,
+        'signedGen': direction == -1 ? -hops : hops,
+        'edges': personAnchorEdges,
+      };
+    }
+
+    // [BUG-TRACE-v2] Issue 2: log the per-node direction diagnostics so
+    // we can confirm WHERE the misclassification happens. If Account 2
+    // (a child of Account 1, labelAtoB='son') shows direction=0 +
+    // signedGen=0, then _computeDirection returned 0 (default for
+    // spouse/sibling) even though 'son' IS in _childKeys — pointing to
+    // an edge-direction bug (the edge is stored as person→anchor with
+    // labelAtoB='son', which is interpreted as "anchor is person's son",
+    // i.e. person is the parent of anchor, NOT the child of anchor).
+    debugPrint(
+        '[BUG-TRACE-v2] DIRECTION-DIAG anchor=${anchor.id} nodeCount=${persons.length} '
+        'preservePositions=$preservePositions');
+    for (final entry in directionDiag.entries) {
+      final id = entry.key;
+      final diag = entry.value;
+      final edges = diag['edges'] as List;
+      final edgesStr = edges.isEmpty
+          ? 'NONE (no direct edge to anchor — direction defaults to 0 = same-gen/spouse)'
+          : edges.map((e) {
+              final dir = (e['isAnchorToPerson'] as bool)
+                  ? 'anchor→person'
+                  : 'person→anchor';
+              return '$dir labelAtoB=${e['labelAtoB']} relationshipKey=${e['relationshipKey']} '
+                  'normalizedKey=${e['normalizedKey']} '
+                  'parentKeys=${e['inParentKeys']} childKeys=${e['inChildKeys']} '
+                  'spouseKeys=${e['inSpouseKeys']} siblingKeys=${e['inSiblingKeys']}';
+            }).join(' | ');
+      debugPrint(
+          '[BUG-TRACE-v2]   node=$id hops=${diag['hops']} '
+          'direction=${diag['direction']} signedGen=${diag['signedGen']} '
+          'edges=[$edgesStr]');
     }
 
     final generationGroups = <int, List<GraphPerson>>{};
