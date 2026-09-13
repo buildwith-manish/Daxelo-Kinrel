@@ -166,17 +166,21 @@ class TemporaryLobbyConfig {
   String get bannerSubtitle {
     switch (status) {
       case TemporaryLobbyStatus.waiting:
+        // Smart waiting experience:
+        //   • <2 players → "1 of N Joined · Invite Family Members"
+        //   • 2+ players, not all ready → "X of Y Ready · tap I'm Ready"
+        //   • all ready, host hasn't started → "Match starts when host
+        //     taps Start Match"
         if (players.length < 2) {
-          final need = 2 - players.length;
-          return 'Need $need more to start · ${players.length}/$maxPlayers here';
+          return '${players.length} of $maxPlayers Joined · Invite Family Members';
         }
         if (!allReady) {
           final ready = players.where((p) => p.isReady).length;
-          return '$ready of ${players.length} ready · tap "I\'m Ready" when you\'re in';
+          return '$ready of ${players.length} Ready · tap "I\'m Ready" when you\'re in';
         }
-        return 'Host can start the match · ${players.length}/$maxPlayers ready';
+        return 'Everyone is Ready · Host can start the match';
       case TemporaryLobbyStatus.starting:
-        return 'Loading the match…';
+        return 'Match starts in…';
       case TemporaryLobbyStatus.finished:
         return 'Hope you had fun! This room will close shortly.';
     }
@@ -313,6 +317,11 @@ class _TemporaryLobbyViewState extends State<TemporaryLobbyView> {
         _StatusBanner(config: config),
         const SizedBox(height: KinrelSpacing.sm),
 
+        // ── 1b. Match-start countdown (only when starting) ────────────
+        if (config.status == TemporaryLobbyStatus.starting)
+          _MatchStartCountdown(),
+        const SizedBox(height: KinrelSpacing.sm),
+
         // ── 2. Room metadata (DIRECTLY below the banner — always visible) ─
         _RoomMetadataBar(
           config: config,
@@ -379,6 +388,83 @@ class _TemporaryLobbyViewState extends State<TemporaryLobbyView> {
 // ────────────────────────────────────────────────────────────────────
 // Sub-widgets
 // ────────────────────────────────────────────────────────────────────
+
+/// Animated match-start countdown (10, 9, 8, …, GO!) shown when the
+/// host taps Start Match. Builds urgency + excitement.
+class _MatchStartCountdown extends StatefulWidget {
+  @override
+  State<_MatchStartCountdown> createState() => _MatchStartCountdownState();
+}
+
+class _MatchStartCountdownState extends State<_MatchStartCountdown>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  int _count = 10;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          if (!mounted) return;
+          setState(() {
+            _count--;
+            if (_count < 0) _count = 0;
+          });
+          _controller.forward(from: 0.0);
+        }
+      });
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ScaleTransition(
+        scale: _controller,
+        child: Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: KinrelColors.orange,
+            boxShadow: [
+              BoxShadow(
+                color: KinrelColors.orange.withValues(alpha: 0.5),
+                blurRadius: 18,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Center(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Text(
+                '$_count',
+                key: ValueKey(_count),
+                style: TextStyle(
+                  fontFamily: KinrelTypography.monoFont,
+                  fontSize: 32,
+                  fontWeight: FontWeight.w800,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _StatusBanner extends StatelessWidget {
   const _StatusBanner({required this.config});

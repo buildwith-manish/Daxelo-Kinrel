@@ -171,6 +171,15 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
     }
     if (!mounted) return;
 
+    // Skip reaction-system messages — they're rendered as floating emojis
+    // by the ReactionOverlay widget, not as chat text. This keeps the chat
+    // clean and prevents reaction spam from drowning out real messages.
+    final type = (msg['type'] ?? 'text') as String;
+    final content = (msg['content'] ?? '') as String;
+    if (type == 'system' && content.contains(' reacted ')) {
+      return;
+    }
+
     // Clear typing indicator if the typing user just sent a real message.
     // (Side-effect: Set.remove returns true if the element was present.)
     final senderId = msg['senderId'] as String?;
