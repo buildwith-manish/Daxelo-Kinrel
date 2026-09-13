@@ -201,9 +201,9 @@ class RoomConfig {
     gameTable: GameTableKind.truthordareGames,
     minPlayers: 2,
     maxPlayers: 20,
-    lobbyStatusValue: 'lobby',
-    activeStatusValue: 'active',
-    finishedStatusValue: 'finished',
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
     cancelledStatusValue: 'cancelled',
   );
 
@@ -211,9 +211,9 @@ class RoomConfig {
     gameTable: GameTableKind.twotruthsGames,
     minPlayers: 2,
     maxPlayers: 20,
-    lobbyStatusValue: 'lobby',
-    activeStatusValue: 'active',
-    finishedStatusValue: 'finished',
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
     cancelledStatusValue: 'cancelled',
   );
 
@@ -221,9 +221,9 @@ class RoomConfig {
     gameTable: GameTableKind.dotsboxesGames,
     minPlayers: 2,
     maxPlayers: 4,
-    lobbyStatusValue: 'lobby',
-    activeStatusValue: 'active',
-    finishedStatusValue: 'finished',
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
     cancelledStatusValue: 'cancelled',
   );
 
@@ -231,9 +231,9 @@ class RoomConfig {
     gameTable: GameTableKind.nameplaceGames,
     minPlayers: 2,
     maxPlayers: 20,
-    lobbyStatusValue: 'lobby',
-    activeStatusValue: 'active',
-    finishedStatusValue: 'finished',
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
     cancelledStatusValue: 'cancelled',
   );
 
@@ -241,9 +241,9 @@ class RoomConfig {
     gameTable: GameTableKind.chitmatchGames,
     minPlayers: 2,
     maxPlayers: 20,
-    lobbyStatusValue: 'lobby',
-    activeStatusValue: 'active',
-    finishedStatusValue: 'finished',
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
     cancelledStatusValue: 'cancelled',
   );
 
@@ -251,9 +251,9 @@ class RoomConfig {
     gameTable: GameTableKind.antakshariGames,
     minPlayers: 2,
     maxPlayers: 50,
-    lobbyStatusValue: 'lobby',
-    activeStatusValue: 'active',
-    finishedStatusValue: 'finished',
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
     cancelledStatusValue: 'cancelled',
   );
 

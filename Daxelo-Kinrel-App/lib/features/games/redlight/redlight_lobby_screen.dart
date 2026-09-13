@@ -1,8 +1,31 @@
-import '../../../core/widgets/person_avatar.dart';
 // lib/features/games/redlight/redlight_lobby_screen.dart
 //
 // Freeze & Dash — Lobby / Setup screen.
 // Route: /family/$familyId/freeze-dash/lobby
+//
+// Refactored to use the shared multiplayer framework:
+//   • RoomSetupView for the setup view (caller character + map theme +
+//     weather modifier + game modes + spectator toggle + auto-close
+//     duration + Create button)
+//   • LobbyView for the in-room view (auto-close timer, share code,
+//     players list, pending invites, lobby chat, ready toggle / start
+//     button, cancel room button)
+//   • BackButtonGuard for the back button (host: Close Room? / player:
+//     Leave Room?)
+//
+// NOTE: Freeze & Dash uses the `redlight_rounds` table (not `_games`)
+// and exposes `createRound` / `joinRound` / `leaveRound` instead of
+// the standard `createGame` / `joinGame` / `leaveGame` names. The
+// RoomController doesn't care about the naming — it just needs the
+// id, so we pass the roundId to `attachToExistingGame` /
+// `attachOnJoin`.
+//
+// The existing RedlightNotifier handles game-specific logic (creating
+// the redlight_rounds row + host's redlight_players row, emitting
+// the start-countdown event when the host starts). The RoomController
+// handles the shared room lifecycle.
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,14 +34,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
-import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/multiplayer/multiplayer.dart';
 import '../shared/models/game_invite.dart';
-import '../shared/widgets/invite_family_sheet.dart';
-import '../shared/widgets/pending_invites_section.dart';
-import '../shared/widgets/lobby_chat_panel.dart';
-import '../shared/widgets/spectator_toggle.dart';
 import 'redlight_models.dart';
 import 'redlight_provider.dart';
 
@@ -37,48 +56,72 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
   WeatherModifier? _weather;
   bool _teamMode = false;
   bool _eliminationMode = false;
-  bool _creating = false;
-  bool _spectatorsEnabled = true;
+
+  /// The room controller key for this Freeze & Dash lobby.
+  RoomControllerKey get _roomKey =>
+      RoomControllerKey(RoomConfig.redlight, widget.familyId);
+
+  /// The `?join=<roundId>` query param from the deep-link.
+  String? get _joinIdFromRoute =>
+      GoRouterState.of(context).uri.queryParameters['join'];
 
   @override
   void initState() {
     super.initState();
-    // If a roundId was passed via query (join flow), auto-join.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final joinId = GoRouterState.of(context).uri.queryParameters['join'];
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final joinId = _joinIdFromRoute;
       if (joinId != null && joinId.isNotEmpty) {
-        ref.read(redlightProvider(widget.familyId).notifier).joinRound(joinId);
+        // Non-host joining via deep-link: attach via the game provider
+        // first (existing logic), then attach the room controller.
+        final ok = await ref
+            .read(redlightProvider(widget.familyId).notifier)
+            .joinRound(joinId);
+        if (ok) {
+          await ref
+              .read(roomControllerProvider(_roomKey).notifier)
+              .attachOnJoin(joinId);
+        }
       }
     });
   }
 
-  /// When the host presses "Create Game", create the round and STAY on
-  /// the lobby screen — the host needs to see the share code and wait
-  /// for players to join. Don't push to the game screen yet.
   Future<void> _createRound() async {
-    setState(() => _creating = true);
-    final notifier = ref.read(redlightProvider(widget.familyId).notifier);
-    await notifier.createRound(
-      callerCharacter: _caller,
-      mapTheme: _mapTheme,
-      weatherModifier: _weather,
-      teamMode: _teamMode,
-      eliminationMode: _eliminationMode,
-    );
-    if (mounted) setState(() => _creating = false);
+    // 1. Let the game provider create the round row with game-specific
+    //    fields. Returns the roundId.
+    final roundId = await ref
+        .read(redlightProvider(widget.familyId).notifier)
+        .createRound(
+          callerCharacter: _caller,
+          mapTheme: _mapTheme,
+          weatherModifier: _weather,
+          teamMode: _teamMode,
+          eliminationMode: _eliminationMode,
+        );
+    if (roundId == null) return;
+    // 2. Attach the room-lifecycle framework (auto-close, spectator,
+    //    ready, lobby chat persistence, disconnect detection).
+    //    The controller only needs the row id — roundId or gameId is
+    //    interchangeable here.
+    await ref
+        .read(roomControllerProvider(_roomKey).notifier)
+        .attachToExistingGame(
+          roundId,
+          spectatorsEnabled: true,
+          autoCloseMinutes: 10,
+        );
   }
 
   Future<void> _shareCode(String? roundId) async {
     if (roundId == null) return;
-    // Show a 6-char code (first 6 chars of the roundId)
     final code = roundId.replaceAll('-', '').substring(0, 6).toUpperCase();
-    GameMotionTokens.tap();
+    unawaited(GameMotionTokens.tap());
     if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: KinrelColors.darkCard,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(KinrelRadius.lg)),
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(KinrelRadius.lg)),
       ),
       builder: (_) => Padding(
         padding: const EdgeInsets.all(KinrelSpacing.xl),
@@ -120,7 +163,13 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
               label: 'Done',
               variant: DKButtonVariant.primary,
               fullWidth: true,
-              onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/family/${widget.familyId}');
+                }
+              },
             ),
           ],
         ),
@@ -130,47 +179,61 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(redlightProvider(widget.familyId));
-    final notifier = ref.read(redlightProvider(widget.familyId).notifier);
-    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-    final isHost =
-        state.round?.hostUserId == myId || state.round == null;
-    final canStart =
-        state.round == null ? true : (isHost && state.players.length >= 3);
+    final redlightState = ref.watch(redlightProvider(widget.familyId));
+    final roomState = ref.watch(roomControllerProvider(_roomKey));
+    // The framework stores the roundId as `gameId`; the game provider
+    // stores it as `round.id`. Either way, it's the same row id.
+    final hasRound = redlightState.round != null || roomState.hasGame;
 
     // Auto-navigate to the game screen once the countdown or active
     // phase begins (host pressed Start, or we joined a running game).
-    ref.listen<RedlightState>(redlightProvider(widget.familyId),
-        (previous, next) {
-      final shouldNavigate = next.isCountdown ||
-          next.isActive ||
-          next.phase != RedlightPhase.waiting ||
-          next.countdownSeconds > 0;
-      final wasNavigating = previous != null &&
-          (previous.isCountdown ||
-              previous.isActive ||
-              previous.phase != RedlightPhase.waiting ||
-              previous.countdownSeconds > 0);
-      final roundId = next.round?.id;
-      if (shouldNavigate && !wasNavigating && roundId != null && mounted) {
-        context.pushReplacement(
-          '/family/${widget.familyId}/freeze-dash/game/$roundId',
-        );
-      }
-    });
+    ref.listen<RedlightState>(
+      redlightProvider(widget.familyId),
+      (previous, next) {
+        final shouldNavigate = next.isCountdown ||
+            next.isActive ||
+            next.phase != RedlightPhase.waiting ||
+            next.countdownSeconds > 0;
+        final wasNavigating = previous != null &&
+            (previous.isCountdown ||
+                previous.isActive ||
+                previous.phase != RedlightPhase.waiting ||
+                previous.countdownSeconds > 0);
+        final roundId = next.round?.id;
+        if (shouldNavigate && !wasNavigating && roundId != null && mounted) {
+          context.pushReplacement(
+            '/family/${widget.familyId}/freeze-dash/game/$roundId',
+          );
+        }
+      },
+    );
 
-    final hasRound = state.round != null;
+    // Auto-navigate back to setup if room was cancelled/closed
+    ref.listen<RoomState>(
+      roomControllerProvider(_roomKey),
+      (previous, next) {
+        if (next.isCancelled && previous != null && !previous.isCancelled) {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go('/family/${widget.familyId}');
+          }
+        }
+      },
+    );
 
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (state.round != null) {
-              notifier.leaveRound();
+        leading: BackButtonGuard(
+          roomKey: _roomKey,
+          onExit: () {
+            ref.read(redlightProvider(widget.familyId).notifier).leaveRound();
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/family/${widget.familyId}');
             }
-            if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); }
           },
         ),
         title: Text(
@@ -185,59 +248,58 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
         actions: [
-          if (hasRound && isHost)
+          if (hasRound && roomState.isHost)
             IconButton(
-              tooltip: 'Invite family member',
-              icon: const Icon(Icons.person_add_outlined),
-              onPressed: () {
-                final code = state.round!.id.replaceAll('-', '').substring(0, 6).toUpperCase();
-                GameMotionTokens.tap();
-                InviteFamilySheet.show(
-                  context,
-                  familyId: widget.familyId,
-                  gameType: GameType.redlight,
-                  gameId: state.round!.id,
-                  roomCode: code,
-                  currentPlayerIds: state.players.map((p) => p.userId).whereType<String>().toSet(),
-                  maxPlayers: 20,
-                  currentPlayers: state.players.length,
-                );
-              },
-            ),
-          if (hasRound)
-            IconButton(
+              tooltip: 'Share code',
               icon: const Icon(Icons.share_outlined),
-              onPressed: () => _shareCode(state.round?.id),
+              onPressed: () => _shareCode(
+                roomState.gameId ?? redlightState.round?.id,
+              ),
             ),
         ],
       ),
-      body: state.isLoading
+      body: redlightState.isLoading
           ? const Center(
               child: CircularProgressIndicator(color: KinrelColors.orange),
             )
-          : state.error != null && !hasRound
-          ? DKErrorState(
-              message: state.error!,
-              onRetry: () {
-                notifier.createRound(
-                  callerCharacter: _caller,
-                  mapTheme: _mapTheme,
-                  weatherModifier: _weather,
-                  teamMode: _teamMode,
-                  eliminationMode: _eliminationMode,
-                );
-              },
-            )
-          : hasRound
-              ? _lobbyView(state, notifier, isHost, canStart)
-              : _setupView(state),
+          : (redlightState.error != null && !hasRound)
+              ? DKErrorState(
+                  message: redlightState.error!,
+                  onRetry: _createRound,
+                )
+              : hasRound
+                  ? LobbyView(
+                      roomKey: _roomKey,
+                      gameType: GameType.redlight,
+                      gameDisplayName: 'Freeze & Dash',
+                      // RedlightNotifier.startGame() returns void (it
+                      // just emits a socket event). Wrap in an async
+                      // closure so it satisfies Future<void> Function().
+                      startGame: () async => ref
+                          .read(redlightProvider(widget.familyId).notifier)
+                          .startGame(),
+                    )
+                  : _setupView(),
     );
   }
 
-  /// Pre-game setup form — caller, map, weather, modes + "Create Game".
-  Widget _setupView(RedlightState state) {
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
+  /// The setup view (no round yet) — uses RoomSetupView wrapper.
+  Widget _setupView() {
+    return RoomSetupView(
+      roomKey: _roomKey,
+      createButtonLabel: 'Create Game',
+      createGame: () async {
+        await _createRound();
+        return null;
+      },
+      defaultAutoCloseMinutes: 10,
+      child: _gameSetupFields(),
+    );
+  }
+
+  Widget _gameSetupFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionLabel('Caller Character'),
         const SizedBox(height: KinrelSpacing.sm),
@@ -257,196 +319,25 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
         _sectionLabel('Game Modes'),
         const SizedBox(height: KinrelSpacing.sm),
         _modeToggles(),
-        const SizedBox(height: KinrelSpacing.xl),
-
-                SpectatorToggle(
-          value: _spectatorsEnabled,
-          onChanged: (v) => setState(() => _spectatorsEnabled = v),
-        ),
-        const SizedBox(height: KinrelSpacing.md),
-        DKButton(
-          label: 'Create Game',
-          variant: DKButtonVariant.gradient,
-          fullWidth: true,
-          isLoading: _creating,
-          onPressed: _createRound,
-        ),
-      ],
-    );
-  }
-
-  /// Lobby view — shown after the round is created. Displays the share
-  /// code prominently, the player list, and the Start button.
-  Widget _lobbyView(
-    RedlightState state,
-    RedlightNotifier notifier,
-    bool isHost,
-    bool canStart,
-  ) {
-    final code = state.round?.id != null
-        ? state.round!.id.replaceAll('-', '').substring(0, 6).toUpperCase()
-        : '------';
-
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
-      children: [
-        // Share code card
-        GestureDetector(
-          onTap: () => _shareCode(state.round?.id),
-          child: Container(
-            padding: const EdgeInsets.all(KinrelSpacing.lg),
-            decoration: BoxDecoration(
-              gradient: KinrelGradients.igniteGradient,
-              borderRadius: BorderRadius.circular(KinrelRadius.lg),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  'Share Code',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.9),
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: KinrelSpacing.sm),
-                Text(
-                  code,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: 8,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Tap to share with family',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
         const SizedBox(height: KinrelSpacing.lg),
 
-        // Game settings summary
-        _settingsSummary(state),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        // Players
-        _sectionLabel('Players (${state.players.length}/20)'),
+        _sectionLabel('How to Play'),
         const SizedBox(height: KinrelSpacing.sm),
-        _playerList(state),
-        const SizedBox(height: KinrelSpacing.xl),
-
-        if (state.isCountdown)
-          _countdownBanner(state.countdownSeconds),
-
-                  PendingInvitesSection(gameId: state.round!.id),
-        const SizedBox(height: KinrelSpacing.md),
-            LobbyChatPanel(
-              gameTable: 'redlight_rounds',
-              gameId: state.round!.id,
-              familyId: widget.familyId,
-            ),
-        DKButton(
-          label: isHost
-              ? (canStart ? 'Start Game' : 'Waiting for players…')
-              : 'Waiting for host…',
-          variant: DKButtonVariant.gradient,
-          fullWidth: true,
-          onPressed: isHost && canStart
-              ? () => notifier.startGame()
-              : null,
-        ),
-        if (isHost && !canStart)
-          Padding(
-            padding: const EdgeInsets.only(top: KinrelSpacing.sm),
-            child: Text(
-              'Need at least 3 players to start (currently ${state.players.length}).',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 12,
-                color: KinrelColors.warning,
-              ),
-            ),
-          ),
+        _rulesCard(),
       ],
-    );
-  }
-
-  /// Compact summary of the game settings (read-only once created).
-  Widget _settingsSummary(RedlightState state) {
-    final round = state.round;
-    if (round == null) return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.all(KinrelSpacing.md),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      child: Row(
-        children: [
-          Text(round.callerCharacter.emoji, style: const TextStyle(fontSize: 24)),
-          const SizedBox(width: KinrelSpacing.sm),
-          Expanded(
-            child: Wrap(
-              spacing: KinrelSpacing.sm,
-              runSpacing: 4,
-              children: [
-                _chip(round.callerCharacter.label),
-                _chip(round.mapTheme.emoji + ' ' + round.mapTheme.label),
-                if (round.weatherModifier != null)
-                  _chip(round.weatherModifier!.emoji + ' ' + round.weatherModifier!.label),
-                if (round.teamMode) _chip('Team Mode'),
-                if (round.eliminationMode) _chip('Elimination'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _chip(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.sm, vertical: 3),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkElevated,
-        borderRadius: BorderRadius.circular(KinrelRadius.xs),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: KinrelTypography.bodyFont,
-          fontSize: 11,
-          color: KinrelColors.textDim,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
     );
   }
 
   Widget _sectionLabel(String text) => Text(
-    text,
-    style: TextStyle(
-      fontFamily: KinrelTypography.displayFont,
-      fontSize: 13,
-      fontWeight: FontWeight.w600,
-      color: KinrelColors.textDim,
-      letterSpacing: 0.5,
-    ),
-  );
+        text,
+        style: TextStyle(
+          fontFamily: KinrelTypography.displayFont,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: KinrelColors.textDim,
+          letterSpacing: 0.5,
+        ),
+      );
 
   Widget _callerSelector() {
     return Wrap(
@@ -456,7 +347,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
         final selected = c == _caller;
         return GestureDetector(
           onTap: () {
-            GameMotionTokens.tap();
+            unawaited(GameMotionTokens.tap());
             setState(() => _caller = c);
           },
           child: Container(
@@ -469,9 +360,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
               color: KinrelColors.darkCard,
               borderRadius: BorderRadius.circular(KinrelRadius.lg),
               border: Border.all(
-                color: selected
-                    ? KinrelColors.orange
-                    : KinrelColors.border,
+                color: selected ? KinrelColors.orange : KinrelColors.border,
                 width: selected ? 2 : 1,
               ),
             ),
@@ -507,7 +396,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
         final selected = m == _mapTheme;
         return GestureDetector(
           onTap: () {
-            GameMotionTokens.tap();
+            unawaited(GameMotionTokens.tap());
             setState(() => _mapTheme = m);
           },
           child: Container(
@@ -520,9 +409,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
               color: KinrelColors.darkCard,
               borderRadius: BorderRadius.circular(KinrelRadius.lg),
               border: Border.all(
-                color: selected
-                    ? KinrelColors.orange
-                    : KinrelColors.border,
+                color: selected ? KinrelColors.orange : KinrelColors.border,
                 width: selected ? 2 : 1,
               ),
             ),
@@ -561,7 +448,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
         final emoji = w == null ? '☀️' : w.emoji;
         return GestureDetector(
           onTap: () {
-            GameMotionTokens.tap();
+            unawaited(GameMotionTokens.tap());
             setState(() => _weather = w);
           },
           child: Container(
@@ -573,9 +460,7 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
               color: KinrelColors.darkCard,
               borderRadius: BorderRadius.circular(KinrelRadius.lg),
               border: Border.all(
-                color: selected
-                    ? KinrelColors.orange
-                    : KinrelColors.border,
+                color: selected ? KinrelColors.orange : KinrelColors.border,
                 width: selected ? 2 : 1,
               ),
             ),
@@ -608,7 +493,8 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
       children: [
         _modeRow(
           label: 'Team Mode',
-          description: 'Two teams compete — first team with all members at 100% wins.',
+          description:
+              'Two teams compete — first team with all members at 100% wins.',
           value: _teamMode,
           onChanged: (v) => setState(() => _teamMode = v),
         ),
@@ -675,91 +561,66 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
     );
   }
 
-  Widget _playerList(RedlightState state) {
-    if (state.players.isEmpty) {
-      return DKEmptyState(
-        icon: Icons.group_outlined,
-        title: 'No players yet',
-        subtitle: 'Share the code to invite family members.',
-      );
-    }
+  Widget _rulesCard() {
     return Container(
+      padding: const EdgeInsets.all(KinrelSpacing.md),
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
         border: Border.all(color: KinrelColors.border),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (int i = 0; i < state.players.length; i++) ...[
-            if (i > 0)
-              Divider(
-                height: 1,
-                color: KinrelColors.border.withValues(alpha: 0.5),
-              ),
-            ListTile(
-              leading: DKAvatar(initials: PersonAvatar.initialsFor(state.players[i].userName)),
-              title: Text(
-                state.players[i].userName,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 14,
-                  color: KinrelColors.textWhite,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              trailing: state.players[i].userId == state.round?.hostUserId
-                  ? Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: KinrelSpacing.sm,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: KinrelColors.orange.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(KinrelRadius.xs),
-                      ),
-                      child: Text(
-                        'HOST',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.monoFont,
-                          fontSize: 10,
-                          color: KinrelColors.orange,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    )
-                  : null,
-            ),
-          ],
+          _ruleLine('1.', 'Host picks a Caller, Map, and (optional) Weather modifier.'),
+          const SizedBox(height: 6),
+          _ruleLine('2.', 'When the Caller turns GREEN, hold to Run.'),
+          const SizedBox(height: 6),
+          _ruleLine('3.', 'When the Caller turns RED, release immediately — or get caught.'),
+          const SizedBox(height: 6),
+          _ruleLine('4.', 'Caught = knockback (-10% progress) or elimination (in Elimination mode).'),
+          const SizedBox(height: 6),
+          _ruleLine('5.', 'First player (or team) to reach 100% progress wins!'),
+          const SizedBox(height: 6),
+          _ruleLine(
+            '★',
+            'Caller: ${_caller.emoji} ${_caller.label} · Map: ${_mapTheme.emoji} ${_mapTheme.label}'
+            '${_weather != null ? ' · Weather: ${_weather!.emoji} ${_weather!.label}' : ''}',
+            highlight: true,
+          ),
         ],
       ),
     );
   }
 
-  Widget _countdownBanner(int seconds) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: KinrelSpacing.lg),
-      padding: const EdgeInsets.all(KinrelSpacing.lg),
-      decoration: BoxDecoration(
-        color: KinrelColors.orange.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.orange),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            'Starting in $seconds…',
+  Widget _ruleLine(String num, String text, {bool highlight = false}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 24,
+          child: Text(
+            num,
             style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 22,
+              fontFamily: KinrelTypography.monoFont,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: KinrelColors.orange,
+              color: highlight ? KinrelColors.orange : KinrelColors.textDim,
             ),
           ),
-        ],
-      ),
+        ),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 12,
+              color: highlight ? KinrelColors.textWhite : KinrelColors.textDim,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
