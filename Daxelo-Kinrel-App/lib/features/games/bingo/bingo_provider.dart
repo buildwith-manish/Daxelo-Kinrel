@@ -22,6 +22,7 @@ import '../../../core/config/env_config.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/data/game_invite_chat_sync.dart';
+import '../shared/services/temporary_room_service.dart';
 import 'bingo_models.dart';
 
 class BingoState {
@@ -456,11 +457,21 @@ class BingoNotifier extends StateNotifier<BingoState> {
     }
   }
 
-  /// Leave the game.
+  /// Leave the game. If the user is the host AND the game is still in
+  /// `waiting` status, the entire room is deleted (cascade to child
+  /// tables + invites) via the temporary-room service. Otherwise the
+  /// player's own row is deleted (bingo uses `bingo_cards` as the
+  /// per-player table; the server-side trigger bumps lastActivityAt on
+  /// that DELETE).
+  ///
+  /// Note: bingo has no `bingo_players` table, so `toggleReady` is a
+  /// no-op — see the `TemporaryLobbyConfig(showReadyToggle: false)`
+  /// wiring in the lobby screen.
   Future<void> leaveGame() async {
     final client = _client;
     final gameId = _gameId;
     final myId = _myId;
+    final game = state.game;
     _channel?.unsubscribe();
     _channel = null;
     if (client == null || gameId == null || myId == null) {
@@ -468,13 +479,32 @@ class BingoNotifier extends StateNotifier<BingoState> {
       return;
     }
     try {
-      await client
-          .from('bingo_cards')
-          .delete()
-          .eq('gameId', gameId)
-          .eq('playerId', myId);
+      if (game != null && game.isWaiting && game.hostUserId == myId) {
+        await _ref.read(temporaryRoomServiceProvider).cancelWaitingRoom(
+              gameTable: 'bingo_games',
+              gameId: gameId,
+            );
+      } else {
+        await client
+            .from('bingo_cards')
+            .delete()
+            .eq('gameId', gameId)
+            .eq('playerId', myId);
+      }
     } catch (_) {}
     _gameId = null;
+  }
+
+  /// Schedule the temporary room (and all temporary player associations)
+  /// for deletion 30s after the game ends. The hourly pg_cron job is
+  /// the safety net if the user closes the app before this fires.
+  void _scheduleRoomCleanup(String gameId) {
+    Timer(const Duration(seconds: 30), () {
+      _ref.read(temporaryRoomServiceProvider).endGame(
+            gameTable: 'bingo_games',
+            gameId: gameId,
+          );
+    });
   }
 
   // ── Realtime subscription ────────────────────────────────────────
@@ -501,6 +531,14 @@ class BingoNotifier extends StateNotifier<BingoState> {
             final oldNumbers = state.game?.numbersCalled ?? const [];
             if (updated.numbersCalled.length > oldNumbers.length) {
               GameMotionTokens.success();
+            }
+            // Detect transition to completed — schedule temporary-room
+            // cleanup 30s later. The Edge Function bingo-verify-claim is
+            // authoritative for marking the game completed; we just hook
+            // the realtime transition to fire the cleanup Timer.
+            final wasCompleted = state.game?.isCompleted ?? false;
+            if (updated.isCompleted && !wasCompleted) {
+              _scheduleRoomCleanup(updated.id);
             }
             state = state.copyWith(game: updated);
           },

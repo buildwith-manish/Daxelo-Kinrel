@@ -23,9 +23,11 @@ class TtGame {
 }
 
 class TtPlayer {
-  const TtPlayer({required this.id, required this.gameId, required this.userId, required this.userName, required this.turnOrder, required this.totalScore, required this.hasGuessed, required this.joinedAt});
+  const TtPlayer({required this.id, required this.gameId, required this.userId, required this.userName, required this.turnOrder, required this.totalScore, required this.hasGuessed, required this.joinedAt, this.isReady = false, this.readyAt});
   final String id; final String gameId; final String userId; final String userName; final int turnOrder; final int totalScore; final bool hasGuessed; final DateTime joinedAt;
-  factory TtPlayer.fromJson(Map<String, dynamic> json) => TtPlayer(id: json['id'] ?? '', gameId: json['gameId'] ?? '', userId: json['userId'] ?? '', userName: json['userName'] ?? 'Player', turnOrder: json['turnOrder'] ?? 0, totalScore: json['totalScore'] ?? 0, hasGuessed: json['hasGuessed'] ?? false, joinedAt: DateTime.tryParse(json['joinedAt'] ?? '') ?? DateTime.now());
+  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
+  final bool isReady; final DateTime? readyAt;
+  factory TtPlayer.fromJson(Map<String, dynamic> json) => TtPlayer(id: json['id'] ?? '', gameId: json['gameId'] ?? '', userId: json['userId'] ?? '', userName: json['userName'] ?? 'Player', turnOrder: json['turnOrder'] ?? 0, totalScore: json['totalScore'] ?? 0, hasGuessed: json['hasGuessed'] ?? false, joinedAt: DateTime.tryParse(json['joinedAt'] ?? '') ?? DateTime.now(), isReady: json['isReady'] ?? false, readyAt: json['readyAt'] != null ? DateTime.tryParse(json['readyAt']) : null);
 }
 
 class TtRound {

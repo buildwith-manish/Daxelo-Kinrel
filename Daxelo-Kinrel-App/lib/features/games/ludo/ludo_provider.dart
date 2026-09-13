@@ -19,6 +19,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/data/game_invite_chat_sync.dart';
+import '../shared/services/temporary_room_service.dart';
 import 'ludo_game_logic.dart';
 import 'ludo_models.dart';
 
@@ -480,11 +481,13 @@ class LudoNotifier extends StateNotifier<LudoState> {
           'winnerId': myId,
           'winnerName': _myName,
           'completedAt': DateTime.now().toIso8601String(),
+          'lastActivityAt': DateTime.now().toIso8601String(),
           'lastDiceRoll': null,
           'consecutiveSixes': 0,
           'extraTurnPending': false,
         }).eq('id', gameId);
         GameMotionTokens.celebrate();
+        _scheduleRoomCleanup(gameId);
       } else if (extraTurn) {
         // Same player goes again
         nextTurnPlayerId = myId;
@@ -519,8 +522,82 @@ class LudoNotifier extends StateNotifier<LudoState> {
     }
   }
 
-  /// Leave the game.
-  void leaveGame() {
+  /// Leave the game. If the user is the host AND the game is still in
+  /// `waiting` status, the entire room is deleted (cascade to child
+  /// tables + invites) via the temporary-room service. Otherwise the
+  /// player's own row is deleted (which the server-side trigger will
+  /// also catch).
+  Future<void> leaveGame() async {
+    final client = _client;
+    final gameId = _gameId;
+    final myId = _myId;
+    final game = state.game;
+    if (client == null || gameId == null || myId == null) {
+      _cleanup();
+      return;
+    }
+    try {
+      if (game != null && game.isWaiting && game.hostUserId == myId) {
+        await _ref.read(temporaryRoomServiceProvider).cancelWaitingRoom(
+              gameTable: 'ludo_games',
+              gameId: gameId,
+            );
+      } else {
+        await client
+            .from('ludo_players')
+            .delete()
+            .eq('gameId', gameId)
+            .eq('userId', myId);
+      }
+    } catch (_) {}
+    _cleanup();
+  }
+
+  /// Toggle the calling player's `isReady` flag in the waiting lobby.
+  Future<void> toggleReady(bool isReady) async {
+    final gameId = _gameId;
+    if (gameId == null) return;
+    await _ref.read(temporaryRoomServiceProvider).toggleReady(
+          gameTable: 'ludo_games',
+          gameId: gameId,
+          isReady: isReady,
+        );
+    // Optimistically update local state; realtime will confirm.
+    final myId = _myId;
+    if (myId != null) {
+      final next = state.players
+          .map((p) => p.userId == myId
+              ? LudoPlayer(
+                  id: p.id,
+                  gameId: p.gameId,
+                  userId: p.userId,
+                  userName: p.userName,
+                  color: p.color,
+                  turnOrder: p.turnOrder,
+                  tokensFinished: p.tokensFinished,
+                  joinedAt: p.joinedAt,
+                  isReady: isReady,
+                  readyAt: isReady ? DateTime.now() : null,
+                )
+              : p)
+          .toList();
+      state = state.copyWith(players: next);
+    }
+  }
+
+  /// Schedule the temporary room (and all temporary player associations)
+  /// for deletion 30s after the game ends. The hourly pg_cron job is the
+  /// safety net if the user closes the app before this fires.
+  void _scheduleRoomCleanup(String gameId) {
+    Timer(const Duration(seconds: 30), () {
+      _ref.read(temporaryRoomServiceProvider).endGame(
+            gameTable: 'ludo_games',
+            gameId: gameId,
+          );
+    });
+  }
+
+  void _cleanup() {
     _channel?.unsubscribe();
     _channel = null;
     _gameId = null;

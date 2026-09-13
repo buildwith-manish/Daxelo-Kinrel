@@ -23,6 +23,8 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/services/temporary_room_service.dart';
+import '../shared/widgets/leave_game_dialog.dart';
 import 'ludo_game_logic.dart';
 import 'ludo_models.dart';
 import 'ludo_provider.dart';
@@ -164,9 +166,28 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
-          onPressed: () {
+          onPressed: () async {
+            final state = ref.read(ludoProvider(widget.familyId));
+            final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+            final shouldLeave = await LeaveGameDialog.show(
+              context,
+              isHost: (state.game?.hostUserId == myId),
+              gameName: 'Ludo',
+            );
+            if (shouldLeave != true) return;
+            if (!context.mounted) return;
             ref.read(ludoProvider(widget.familyId).notifier).leaveGame();
-            Navigator.of(context).pop();
+            if (state.game?.id != null) {
+              ref.read(temporaryRoomServiceProvider).endGame(
+                    gameTable: 'ludo_games',
+                    gameId: state.game!.id,
+                  );
+            }
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/family/${widget.familyId}');
+            }
           },
         ),
         title: Text(

@@ -119,6 +119,8 @@ class ChitmatchPlayerModel {
     this.selectedChitIndex,
     required this.hasWon,
     required this.joinedAt,
+    this.isReady = false,
+    this.readyAt,
   });
 
   final String id;
@@ -131,6 +133,9 @@ class ChitmatchPlayerModel {
   final int? selectedChitIndex;
   final bool hasWon;
   final DateTime joinedAt;
+  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
+  final bool isReady;
+  final DateTime? readyAt;
 
   factory ChitmatchPlayerModel.fromJson(Map<String, dynamic> json) => ChitmatchPlayerModel(
     id: json['id'] ?? '',
@@ -143,6 +148,10 @@ class ChitmatchPlayerModel {
     selectedChitIndex: json['selectedChitIndex'],
     hasWon: json['hasWon'] ?? false,
     joinedAt: DateTime.tryParse(json['joinedAt'] ?? '') ?? DateTime.now(),
+    isReady: json['isReady'] ?? false,
+    readyAt: json['readyAt'] != null
+        ? DateTime.tryParse(json['readyAt'])
+        : null,
   );
 }
 

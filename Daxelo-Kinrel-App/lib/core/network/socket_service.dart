@@ -281,12 +281,27 @@ class SocketService {
 
       // Perform delta sync on every (re)connection
       _performDeltaSync();
+
+      // Notify connection-change subscribers (e.g. lobby chat panel so it
+      // can re-join its chat room after a reconnect).
+      for (final cb in _connectionChangeCallbacks) {
+        try {
+          cb(true);
+        } catch (_) {}
+      }
     });
 
     socket.onDisconnect((_) {
       debugPrint('[SocketService] 🔴 Disconnected');
       _ref.read(socketStatusProvider.notifier).state =
           SocketStatus.disconnected;
+
+      // Notify connection-change subscribers.
+      for (final cb in _connectionChangeCallbacks) {
+        try {
+          cb(false);
+        } catch (_) {}
+      }
     });
 
     // socket_io_client uses onReconnect for reconnect events
@@ -452,6 +467,18 @@ class SocketService {
       }
     });
 
+    // ── In-lobby chat typing indicators ───────────────────────────────
+    socket.on('game:chat:typing', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _gameChatTypingCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling game:chat:typing: $e');
+      }
+    });
+
     // ── Spectator count updates ────────────────────────────────────────
     socket.on('game:spectator:count', (data) {
       try {
@@ -461,6 +488,54 @@ class SocketService {
         }
       } catch (e) {
         debugPrint('[SocketService] Error handling game:spectator:count: $e');
+      }
+    });
+
+    // ── Room lifecycle events ──────────────────────────────────────────
+    // Fired by the server's handleDisconnect() and the game:room:join /
+    // game:room:leave / game:room:close handlers.
+    socket.on('room:player_joined', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _roomPlayerJoinedCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling room:player_joined: $e');
+      }
+    });
+
+    socket.on('room:player_left', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _roomPlayerLeftCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling room:player_left: $e');
+      }
+    });
+
+    socket.on('room:closed', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _roomClosedCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling room:closed: $e');
+      }
+    });
+
+    // ── Universal reactions ───────────────────────────────────────────
+    socket.on('game:reaction', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _gameReactionCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] Error handling game:reaction: $e');
       }
     });
   }
@@ -514,6 +589,205 @@ class SocketService {
       'senderName': senderName ?? 'Family member',
       'senderId': _ref.read(supabaseProvider)?.auth.currentUser?.id ?? '',
       'isSpectator': isSpectator,
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
+  // ── In-lobby chat typing indicator API ───────────────────────────────
+
+  final Set<void Function(Map<String, dynamic>)> _gameChatTypingCallbacks =
+      {};
+
+  /// Subscribe to lobby chat typing indicators. Returns an unsubscribe fn.
+  VoidCallback onGameChatTyping(
+      void Function(Map<String, dynamic>) callback) {
+    _gameChatTypingCallbacks.add(callback);
+    return () => _gameChatTypingCallbacks.remove(callback);
+  }
+
+  /// Broadcast a typing indicator to a game's lobby. The server re-broadcasts
+  /// to everyone in the chat room. Pass [isTyping]=false to clear.
+  void emitGameChatTyping({
+    required String gameTable,
+    required String gameId,
+    required String userId,
+    required String userName,
+    required bool isTyping,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:chat:typing', {
+      'gameTable': gameTable,
+      'gameId': gameId,
+      'userId': userId,
+      'userName': userName,
+      'isTyping': isTyping,
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
+  // ── Connection change subscription ───────────────────────────────────
+
+  final Set<void Function(bool)> _connectionChangeCallbacks = {};
+
+  /// Subscribe to socket connect/disconnect events. Returns an unsubscribe fn.
+  /// Used by widgets that need to re-join rooms after reconnection (e.g.
+  /// the lobby chat panel).
+  VoidCallback onConnectionChange(void Function(bool connected) callback) {
+    _connectionChangeCallbacks.add(callback);
+    // Immediately invoke with the current state so the caller can initialize.
+    callback(isConnected);
+    return () => _connectionChangeCallbacks.remove(callback);
+  }
+
+  // ── Game room presence + lifecycle API ───────────────────────────────
+  //
+  // These methods drive the real-time room lifecycle across all multiplayer
+  // games:
+  //   • joinGameRoom  → server tracks socket → room membership + emits
+  //                      room:player_joined + system chat "X joined the room"
+  //   • leaveGameRoom → emits room:player_left + system chat "X left the room".
+  //                      If the leaver is the host, server auto-closes the room
+  //                      (broadcasts room:closed + deletes the game row).
+  //   • closeGameRoom → host-only: emits room:closed + deletes the game row.
+  //
+  // The server's handleDisconnect() hook uses the membership tracker to
+  // auto-broadcast room:player_left with reason='disconnected' when a socket
+  // drops. If the disconnecting socket was the host, the server auto-closes
+  // the room.
+
+  final Set<void Function(Map<String, dynamic>)> _roomPlayerJoinedCallbacks =
+      {};
+  final Set<void Function(Map<String, dynamic>)> _roomPlayerLeftCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _roomClosedCallbacks = {};
+
+  /// Subscribe to room:player_joined events. Returns an unsubscribe fn.
+  /// Payload: { gameTable, gameId, userId, userName, isHost, timestamp }
+  VoidCallback onRoomPlayerJoined(
+      void Function(Map<String, dynamic>) callback) {
+    _roomPlayerJoinedCallbacks.add(callback);
+    return () => _roomPlayerJoinedCallbacks.remove(callback);
+  }
+
+  /// Subscribe to room:player_left events. Returns an unsubscribe fn.
+  /// Payload: { gameTable, gameId, userId, userName, reason, timestamp }
+  /// reason is one of: 'left' | 'disconnected'
+  VoidCallback onRoomPlayerLeft(
+      void Function(Map<String, dynamic>) callback) {
+    _roomPlayerLeftCallbacks.add(callback);
+    return () => _roomPlayerLeftCallbacks.remove(callback);
+  }
+
+  /// Subscribe to room:closed events. Returns an unsubscribe fn.
+  /// Payload: { gameTable, gameId, closedBy, reason, timestamp }
+  /// reason is one of: 'host_left' | 'host_disconnected' | 'host_closed' | 'expired'
+  ///
+  /// On receiving this event, lobby screens should auto-navigate back to
+  /// the game hub (the room has been deleted — no further action needed).
+  VoidCallback onRoomClosed(void Function(Map<String, dynamic>) callback) {
+    _roomClosedCallbacks.add(callback);
+    return () => _roomClosedCallbacks.remove(callback);
+  }
+
+  /// Announce that you've joined a game's room. The server tracks your
+  /// socket → room membership, broadcasts room:player_joined to all
+  /// participants, and emits a system chat message "X joined the room".
+  void joinGameRoom({
+    required String gameTable,
+    required String gameId,
+    required String userId,
+    required String userName,
+    required bool isHost,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:room:join', {
+      'gameTable': gameTable,
+      'gameId': gameId,
+      'userId': userId,
+      'userName': userName,
+      'isHost': isHost,
+    });
+  }
+
+  /// Announce that you've left a game's room. The server broadcasts
+  /// room:player_left to all participants and emits a system chat message
+  /// "X left the room". If you were the host, the server auto-closes the
+  /// room (broadcasts room:closed).
+  void leaveGameRoom({
+    required String gameTable,
+    required String gameId,
+    required String userId,
+    required String userName,
+    required bool isHost,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:room:leave', {
+      'gameTable': gameTable,
+      'gameId': gameId,
+      'userId': userId,
+      'userName': userName,
+      'isHost': isHost,
+    });
+  }
+
+  /// Host-only: forcibly close a game's room. The server broadcasts
+  /// room:closed to all participants (so they auto-navigate back to the
+  /// game hub) + a system chat message "X closed the room", then deletes
+  /// the game row + all child rows (players, turns, etc.) and any pending
+  /// game_invites.
+  void closeGameRoom({
+    required String gameTable,
+    required String gameId,
+    required String userId,
+    required String userName,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:room:close', {
+      'gameTable': gameTable,
+      'gameId': gameId,
+      'userId': userId,
+      'userName': userName,
+    });
+  }
+
+  // ── Universal reactions API ─────────────────────────────────────────
+  //
+  // Universal reactions (❤️ 👏 🔥 😂 🎉) can be sent at any time during
+  // a game (lobby, gameplay, results). The server broadcasts them to
+  // everyone in the room; each client renders a floating-emoji overlay.
+  // The lobby chat panel also surfaces them as activity messages:
+  //   "John reacted ❤️"
+
+  final Set<void Function(Map<String, dynamic>)> _gameReactionCallbacks = {};
+
+  /// Subscribe to incoming reaction broadcasts. Returns an unsubscribe fn.
+  /// Payload: { gameTable, gameId, familyId, emoji, userId, userName, timestamp }
+  VoidCallback onGameReaction(void Function(Map<String, dynamic>) callback) {
+    _gameReactionCallbacks.add(callback);
+    return () => _gameReactionCallbacks.remove(callback);
+  }
+
+  /// Send a universal reaction to everyone in the room.
+  void emitGameReaction({
+    required String gameTable,
+    required String gameId,
+    required String familyId,
+    required String emoji,
+    required String userId,
+    required String userName,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('game:reaction', {
+      'gameTable': gameTable,
+      'gameId': gameId,
+      'familyId': familyId,
+      'emoji': emoji,
+      'userId': userId,
+      'userName': userName,
       'timestamp': DateTime.now().toUtc().toIso8601String(),
     });
   }

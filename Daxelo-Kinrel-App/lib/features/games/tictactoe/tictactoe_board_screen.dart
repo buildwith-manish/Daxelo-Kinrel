@@ -9,6 +9,8 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/services/temporary_room_service.dart';
+import '../shared/widgets/leave_game_dialog.dart';
 import 'tictactoe_game_logic.dart';
 import 'tictactoe_models.dart';
 import 'tictactoe_provider.dart';
@@ -34,7 +36,31 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () { ref.read(tttProvider(widget.familyId).notifier).leaveGame(); if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () async {
+            final state = ref.read(tttProvider(widget.familyId));
+            final shouldLeave = await LeaveGameDialog.show(
+              context,
+              isHost: false,
+              gameName: 'Tic-Tac-Toe',
+            );
+            if (shouldLeave != true) return;
+            if (!context.mounted) return;
+            ref.read(tttProvider(widget.familyId).notifier).leaveGame();
+            if (state.game?.id != null) {
+              ref.read(temporaryRoomServiceProvider).endGame(
+                    gameTable: 'tictactoe_games',
+                    gameId: state.game!.id,
+                  );
+            }
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/family/${widget.familyId}');
+            }
+          },
+        ),
         title: Text('Tic-Tac-Toe', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
@@ -176,10 +202,24 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
         ]).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.92, 0.92), end: const Offset(1.0, 1.0), duration: 400.ms, curve: Curves.easeOutBack),
         const SizedBox(height: KinrelSpacing.xxl),
         DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
-          onPressed: () { ref.read(tttProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.pushReplacement('/family/${widget.familyId}/tictactoe/lobby'); }),
+          onPressed: () {
+            final gameId = ref.read(tttProvider(widget.familyId)).game?.id;
+            ref.read(tttProvider(widget.familyId).notifier).leaveGame();
+            if (gameId != null) {
+              ref.read(temporaryRoomServiceProvider).endGame(gameTable: 'tictactoe_games', gameId: gameId);
+            }
+            if (context.mounted) context.pushReplacement('/family/${widget.familyId}/tictactoe/lobby');
+          }),
         const SizedBox(height: KinrelSpacing.sm),
         DKButton(label: 'Back to Hub', variant: DKButtonVariant.secondary, fullWidth: true,
-          onPressed: () { ref.read(tttProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.go('/games?familyId=${widget.familyId}'); }),
+          onPressed: () {
+            final gameId = ref.read(tttProvider(widget.familyId)).game?.id;
+            ref.read(tttProvider(widget.familyId).notifier).leaveGame();
+            if (gameId != null) {
+              ref.read(temporaryRoomServiceProvider).endGame(gameTable: 'tictactoe_games', gameId: gameId);
+            }
+            if (context.mounted) context.go('/games?familyId=${widget.familyId}');
+          }),
       ]),
     );
   }

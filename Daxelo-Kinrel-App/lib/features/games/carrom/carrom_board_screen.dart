@@ -21,6 +21,8 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/services/temporary_room_service.dart';
+import '../shared/widgets/leave_game_dialog.dart';
 import 'carrom_constants.dart';
 import 'carrom_game_logic.dart';
 import 'carrom_models.dart';
@@ -68,9 +70,27 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
-          onPressed: () {
+          onPressed: () async {
+            final state = ref.read(carromProvider(widget.familyId));
+            final shouldLeave = await LeaveGameDialog.show(
+              context,
+              isHost: false,
+              gameName: 'Carrom',
+            );
+            if (shouldLeave != true) return;
+            if (!context.mounted) return;
             ref.read(carromProvider(widget.familyId).notifier).leaveGame();
-            Navigator.of(context).pop();
+            if (state.game?.id != null) {
+              ref.read(temporaryRoomServiceProvider).endGame(
+                    gameTable: 'carrom_games',
+                    gameId: state.game!.id,
+                  );
+            }
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/family/${widget.familyId}');
+            }
           },
         ),
         title: Text(
@@ -542,7 +562,14 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen> {
             fullWidth: true,
             icon: Icons.refresh_rounded,
             onPressed: () {
+              final gameId = ref.read(carromProvider(widget.familyId)).game?.id;
               ref.read(carromProvider(widget.familyId).notifier).leaveGame();
+              if (gameId != null) {
+                ref.read(temporaryRoomServiceProvider).endGame(
+                      gameTable: 'carrom_games',
+                      gameId: gameId,
+                    );
+              }
               if (context.mounted) {
                 context.pushReplacement(
                   '/family/${widget.familyId}/carrom/lobby',
@@ -556,7 +583,14 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen> {
             variant: DKButtonVariant.secondary,
             fullWidth: true,
             onPressed: () {
+              final gameId = ref.read(carromProvider(widget.familyId)).game?.id;
               ref.read(carromProvider(widget.familyId).notifier).leaveGame();
+              if (gameId != null) {
+                ref.read(temporaryRoomServiceProvider).endGame(
+                      gameTable: 'carrom_games',
+                      gameId: gameId,
+                    );
+              }
               if (context.mounted) {
                 context.go('/games?familyId=${widget.familyId}');
               }

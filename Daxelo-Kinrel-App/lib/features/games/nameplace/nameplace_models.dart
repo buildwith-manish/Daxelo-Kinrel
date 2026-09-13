@@ -99,6 +99,8 @@ class NameplacePlayer {
     required this.totalScore,
     required this.hasSubmitted,
     required this.joinedAt,
+    this.isReady = false,
+    this.readyAt,
   });
 
   final String id;
@@ -109,6 +111,9 @@ class NameplacePlayer {
   final int totalScore;
   final bool hasSubmitted;
   final DateTime joinedAt;
+  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
+  final bool isReady;
+  final DateTime? readyAt;
 
   factory NameplacePlayer.fromJson(Map<String, dynamic> json) => NameplacePlayer(
     id: json['id'] ?? '',
@@ -119,6 +124,10 @@ class NameplacePlayer {
     totalScore: json['totalScore'] ?? 0,
     hasSubmitted: json['hasSubmitted'] ?? false,
     joinedAt: DateTime.tryParse(json['joinedAt'] ?? '') ?? DateTime.now(),
+    isReady: json['isReady'] ?? false,
+    readyAt: json['readyAt'] != null
+        ? DateTime.tryParse(json['readyAt'])
+        : null,
   );
 }
 

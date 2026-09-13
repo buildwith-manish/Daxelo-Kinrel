@@ -106,6 +106,8 @@ class LudoPlayer {
     required this.turnOrder,
     required this.tokensFinished,
     required this.joinedAt,
+    this.isReady = false,
+    this.readyAt,
   });
 
   final String id;
@@ -116,6 +118,9 @@ class LudoPlayer {
   final int turnOrder;
   final int tokensFinished;
   final DateTime joinedAt;
+  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
+  final bool isReady;
+  final DateTime? readyAt;
 
   factory LudoPlayer.fromJson(Map<String, dynamic> json) => LudoPlayer(
     id: json['id'] ?? '',
@@ -127,6 +132,10 @@ class LudoPlayer {
     tokensFinished: json['tokensFinished'] ?? 0,
     joinedAt:
         DateTime.tryParse(json['joinedAt'] ?? '') ?? DateTime.now(),
+    isReady: json['isReady'] ?? false,
+    readyAt: json['readyAt'] != null
+        ? DateTime.tryParse(json['readyAt'])
+        : null,
   );
 }
 

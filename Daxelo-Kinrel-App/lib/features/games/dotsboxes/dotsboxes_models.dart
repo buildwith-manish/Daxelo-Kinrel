@@ -17,9 +17,11 @@ class DbGame {
 }
 
 class DbPlayer {
-  const DbPlayer({required this.id, required this.gameId, required this.userId, required this.userName, required this.turnOrder, required this.playerColor, required this.boxesCaptured, required this.joinedAt});
+  const DbPlayer({required this.id, required this.gameId, required this.userId, required this.userName, required this.turnOrder, required this.playerColor, required this.boxesCaptured, required this.joinedAt, this.isReady = false, this.readyAt});
   final String id; final String gameId; final String userId; final String userName; final int turnOrder; final int playerColor; final int boxesCaptured; final DateTime joinedAt;
-  factory DbPlayer.fromJson(Map<String, dynamic> json) => DbPlayer(id: json['id'] ?? '', gameId: json['gameId'] ?? '', userId: json['userId'] ?? '', userName: json['userName'] ?? 'Player', turnOrder: json['turnOrder'] ?? 0, playerColor: json['playerColor'] ?? 0, boxesCaptured: json['boxesCaptured'] ?? 0, joinedAt: DateTime.tryParse(json['joinedAt'] ?? '') ?? DateTime.now());
+  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
+  final bool isReady; final DateTime? readyAt;
+  factory DbPlayer.fromJson(Map<String, dynamic> json) => DbPlayer(id: json['id'] ?? '', gameId: json['gameId'] ?? '', userId: json['userId'] ?? '', userName: json['userName'] ?? 'Player', turnOrder: json['turnOrder'] ?? 0, playerColor: json['playerColor'] ?? 0, boxesCaptured: json['boxesCaptured'] ?? 0, joinedAt: DateTime.tryParse(json['joinedAt'] ?? '') ?? DateTime.now(), isReady: json['isReady'] ?? false, readyAt: json['readyAt'] != null ? DateTime.tryParse(json['readyAt']) : null);
 }
 
 class DbLineRecord {

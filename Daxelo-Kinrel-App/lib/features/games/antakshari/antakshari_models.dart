@@ -189,6 +189,8 @@ class AntakshariPlayer {
     required this.isEliminated,
     this.eliminatedAt,
     required this.joinedAt,
+    this.isReady = false,
+    this.readyAt,
   });
 
   final String id;
@@ -199,6 +201,9 @@ class AntakshariPlayer {
   final bool isEliminated;
   final DateTime? eliminatedAt;
   final DateTime joinedAt;
+  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
+  final bool isReady;
+  final DateTime? readyAt;
 
   factory AntakshariPlayer.fromJson(Map<String, dynamic> json) =>
       AntakshariPlayer(
@@ -213,6 +218,10 @@ class AntakshariPlayer {
             : null,
         joinedAt:
             DateTime.tryParse(json['joinedAt'] ?? '') ?? DateTime.now(),
+        isReady: json['isReady'] ?? false,
+        readyAt: json['readyAt'] != null
+            ? DateTime.tryParse(json['readyAt'])
+            : null,
       );
 }
 

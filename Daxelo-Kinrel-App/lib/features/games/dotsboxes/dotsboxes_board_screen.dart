@@ -9,6 +9,8 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/services/temporary_room_service.dart';
+import '../shared/widgets/leave_game_dialog.dart';
 import 'dotsboxes_game_logic.dart';
 import 'dotsboxes_models.dart';
 import 'dotsboxes_provider.dart';
@@ -34,7 +36,32 @@ class _DotsboxesBoardScreenState extends ConsumerState<DotsboxesBoardScreen> {
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () { ref.read(dbProvider(widget.familyId).notifier).leaveGame(); if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () async {
+            final state = ref.read(dbProvider(widget.familyId));
+            final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+            final shouldLeave = await LeaveGameDialog.show(
+              context,
+              isHost: (state.game?.hostUserId == myId),
+              gameName: 'Dots & Boxes',
+            );
+            if (shouldLeave != true) return;
+            if (!context.mounted) return;
+            ref.read(dbProvider(widget.familyId).notifier).leaveGame();
+            if (state.game?.id != null) {
+              ref.read(temporaryRoomServiceProvider).endGame(
+                    gameTable: 'dotsboxes_games',
+                    gameId: state.game!.id,
+                  );
+            }
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/family/${widget.familyId}');
+            }
+          },
+        ),
         title: Text('Dots & Boxes', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),

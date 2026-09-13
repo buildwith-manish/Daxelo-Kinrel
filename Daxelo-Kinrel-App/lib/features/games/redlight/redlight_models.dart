@@ -231,6 +231,8 @@ class RedlightPlayer {
     required this.alive,
     required this.powerups,
     required this.joinedAt,
+    this.isReady = false,
+    this.readyAt,
   });
 
   final String id;
@@ -242,6 +244,9 @@ class RedlightPlayer {
   final bool alive;
   final List<ActivePowerup> powerups;
   final DateTime joinedAt;
+  /// Temporary-room ready flag — true when this player has tapped "I'm Ready" in the lobby.
+  final bool isReady;
+  final DateTime? readyAt;
 
   factory RedlightPlayer.fromJson(Map<String, dynamic> json) {
     final rawPowerups = (json['powerups'] as List?) ?? [];
@@ -258,6 +263,10 @@ class RedlightPlayer {
           .toList(),
       joinedAt:
           DateTime.tryParse(json['joinedAt'] ?? '') ?? DateTime.now(),
+      isReady: json['isReady'] ?? false,
+      readyAt: json['readyAt'] != null
+          ? DateTime.tryParse(json['readyAt'])
+          : null,
     );
   }
 
@@ -276,6 +285,8 @@ class RedlightPlayer {
         alive: alive ?? this.alive,
         powerups: powerups ?? this.powerups,
         joinedAt: joinedAt,
+        isReady: isReady,
+        readyAt: readyAt,
       );
 }
 

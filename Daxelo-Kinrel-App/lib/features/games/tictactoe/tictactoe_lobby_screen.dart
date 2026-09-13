@@ -10,6 +10,8 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
+import '../shared/multiplayer/multiplayer.dart';
+import '../shared/widgets/spectator_toggle.dart';
 import '../../family/presentation/add_member_source.dart';
 import 'tictactoe_provider.dart';
 
@@ -23,6 +25,9 @@ class TttLobbyScreen extends ConsumerStatefulWidget {
 class _TttLobbyScreenState extends ConsumerState<TttLobbyScreen> {
   List<Map<String, dynamic>> _members = []; bool _loading = true; String? _error;
   String? _opponentId; String _opponentName = ''; int _bestOf = 1; bool _creating = false;
+  bool _spectatorsEnabled = true; int _autoCloseMinutes = 5;
+
+  RoomControllerKey get _roomKey => RoomControllerKey(RoomConfig.tictactoe, widget.familyId);
 
   @override
   void initState() { super.initState(); _loadMembers(); }
@@ -62,6 +67,14 @@ class _TttLobbyScreenState extends ConsumerState<TttLobbyScreen> {
         try {
           await ref.read(socketServiceProvider).sendGameInvite(toUserId: _opponentId!, invite: invite);
         } catch (_) {}
+        // Attach the shared multiplayer room-lifecycle framework
+        // (auto-close deadline, spectator flag, host-ready, host join).
+        // Must happen BEFORE pushReplacement so the board screen sees
+        // the room columns set on the game row.
+        await ref.read(roomControllerProvider(_roomKey).notifier).attachToExistingGame(
+          gameId, spectatorsEnabled: _spectatorsEnabled, autoCloseMinutes: _autoCloseMinutes,
+        );
+        if (!mounted) return;
         context.pushReplacement('/family/${widget.familyId}/tictactoe/board/$gameId');
       }
       setState(() => _creating = false);
@@ -96,6 +109,16 @@ class _TttLobbyScreenState extends ConsumerState<TttLobbyScreen> {
                 child: Center(child: Text('$n', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 16, fontWeight: FontWeight.w700, color: sel ? KinrelColors.orange : KinrelColors.textDim)))));
           }).toList()),
           const SizedBox(height: KinrelSpacing.lg),
+          // Spectator toggle
+          SpectatorToggle(value: _spectatorsEnabled, onChanged: (v) => setState(() => _spectatorsEnabled = v)),
+          const SizedBox(height: KinrelSpacing.md),
+          // Auto-close duration selector
+          Text('Auto-close room after', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim, letterSpacing: 0.5)),
+          const SizedBox(height: KinrelSpacing.sm),
+          Wrap(spacing: KinrelSpacing.sm, runSpacing: KinrelSpacing.sm, children: [
+            _autoCloseOption(3, '3 min'), _autoCloseOption(5, '5 min'), _autoCloseOption(10, '10 min'), _autoCloseOption(15, '15 min'),
+          ]),
+          const SizedBox(height: KinrelSpacing.lg),
           Text('SELECT OPPONENT', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
           const SizedBox(height: KinrelSpacing.sm),
           ..._members.map((m) {
@@ -114,6 +137,20 @@ class _TttLobbyScreenState extends ConsumerState<TttLobbyScreen> {
           DKButton(label: _opponentId == null ? 'Select an opponent' : 'Challenge $_opponentName',
             variant: DKButtonVariant.gradient, fullWidth: true, isLoading: _creating, onPressed: _opponentId == null ? null : _createGame),
         ]),
+    );
+  }
+
+  Widget _autoCloseOption(int minutes, String label) {
+    final sel = minutes == _autoCloseMinutes;
+    return GestureDetector(
+      onTap: () => setState(() => _autoCloseMinutes = minutes),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: KinrelSpacing.sm, horizontal: KinrelSpacing.md),
+        decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.lg),
+          border: Border.all(color: sel ? KinrelColors.orange : KinrelColors.border, width: sel ? 2 : 1)),
+        child: Text(label, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12,
+          fontWeight: sel ? FontWeight.w700 : FontWeight.w500, color: sel ? KinrelColors.orange : KinrelColors.textDim)),
+      ),
     );
   }
 }

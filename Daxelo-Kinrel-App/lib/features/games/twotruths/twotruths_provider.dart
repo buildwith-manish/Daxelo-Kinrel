@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/data/game_invite_chat_sync.dart';
+import '../shared/services/temporary_room_service.dart';
 import 'twotruths_game_logic.dart';
 import 'twotruths_models.dart';
 
@@ -167,8 +168,9 @@ class TtNotifier extends StateNotifier<TtState> {
       final scores = {for (final p in players) p.userId: p.totalScore};
       final finalResult = computeFinalScores(scores);
       final winnerNames = players.where((p) => finalResult.winnerIds.contains(p.userId)).map((p) => p.userName).toList();
-      await client.from('twotruths_games').update({'status': 'completed', 'completedAt': DateTime.now().toIso8601String(), 'winnerUserIds': finalResult.winnerIds, 'winnerNames': winnerNames}).eq('id', gameId);
+      await client.from('twotruths_games').update({'status': 'completed', 'completedAt': DateTime.now().toIso8601String(), 'lastActivityAt': DateTime.now().toIso8601String(), 'winnerUserIds': finalResult.winnerIds, 'winnerNames': winnerNames}).eq('id', gameId);
       GameMotionTokens.celebrate();
+      _scheduleRoomCleanup(gameId);
     } else {
       await _startRound(game.currentRound + 1);
       state = state.copyWith(clearGuess: true);
@@ -185,7 +187,87 @@ class TtNotifier extends StateNotifier<TtState> {
   }
 
   void _stopRoundTimer() { _roundTimer?.cancel(); _roundTimer = null; }
-  void leaveGame() { _stopRoundTimer(); _channel?.unsubscribe(); _channel = null; _gameId = null; }
+
+  /// Leave the game. If the user is the host AND the game is still in
+  /// `waiting` status, the entire room is deleted (cascade to child
+  /// tables + invites) via the temporary-room service. Otherwise the
+  /// player's own row is deleted (which the server-side trigger will
+  /// also catch).
+  Future<void> leaveGame() async {
+    final client = _client;
+    final gameId = _gameId;
+    final myId = _myId;
+    final game = state.game;
+    _cleanup();
+    if (client == null || gameId == null || myId == null || game == null) {
+      return;
+    }
+    try {
+      if (game.isWaiting && game.hostUserId == myId) {
+        await _ref.read(temporaryRoomServiceProvider).cancelWaitingRoom(
+              gameTable: 'twotruths_games',
+              gameId: gameId,
+            );
+      } else {
+        await client
+            .from('twotruths_players')
+            .delete()
+            .eq('gameId', gameId)
+            .eq('userId', myId);
+      }
+    } catch (_) {}
+  }
+
+  /// Toggle the calling player's `isReady` flag in the waiting lobby.
+  Future<void> toggleReady(bool isReady) async {
+    final gameId = _gameId;
+    if (gameId == null) return;
+    await _ref.read(temporaryRoomServiceProvider).toggleReady(
+          gameTable: 'twotruths_games',
+          gameId: gameId,
+          isReady: isReady,
+        );
+    // Optimistically update local state; realtime will confirm.
+    final myId = _myId;
+    if (myId != null) {
+      final next = state.players
+          .map((p) => p.userId == myId
+              ? TtPlayer(
+                  id: p.id,
+                  gameId: p.gameId,
+                  userId: p.userId,
+                  userName: p.userName,
+                  turnOrder: p.turnOrder,
+                  totalScore: p.totalScore,
+                  hasGuessed: p.hasGuessed,
+                  joinedAt: p.joinedAt,
+                  isReady: isReady,
+                  readyAt: isReady ? DateTime.now() : null,
+                )
+              : p)
+          .toList();
+      state = state.copyWith(players: next);
+    }
+  }
+
+  /// Schedule the temporary room (and all temporary player associations)
+  /// for deletion 30s after the game ends. The hourly pg_cron job is the
+  /// safety net if the user closes the app before this fires.
+  void _scheduleRoomCleanup(String gameId) {
+    Timer(const Duration(seconds: 30), () {
+      _ref.read(temporaryRoomServiceProvider).endGame(
+            gameTable: 'twotruths_games',
+            gameId: gameId,
+          );
+    });
+  }
+
+  void _cleanup() {
+    _stopRoundTimer();
+    _channel?.unsubscribe();
+    _channel = null;
+    _gameId = null;
+  }
 
   void _subscribeToRealtime(String gameId) {
     _channel?.unsubscribe(); final client = _client; if (client == null) return;
