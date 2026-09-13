@@ -13,6 +13,8 @@ import '../../../shared/widgets/dk_components.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../services/game_asset_manager.dart';
 import '../shared/icons/game_icons.dart';
+import '../shared/widgets/create_game_cta_card.dart';
+import '../shared/widgets/family_presence_strip.dart';
 
 class GamesHubScreen extends ConsumerStatefulWidget {
   const GamesHubScreen({super.key, this.familyId});
@@ -22,6 +24,8 @@ class GamesHubScreen extends ConsumerStatefulWidget {
 }
 
 class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
+  final ScrollController _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -45,6 +49,20 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
   }
 
   @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToGamesList() {
+    _scrollController.animateTo(
+      320, // approx offset where the first game card sits
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
@@ -60,11 +78,25 @@ class _GamesHubScreenState extends ConsumerState<GamesHubScreen> {
       bottomNavigationBar: widget.familyId != null
           ? FamilySpaceFloatingNav(familyId: widget.familyId!)
           : null,
-      body: ListView(padding: const EdgeInsets.fromLTRB(KinrelSpacing.base, KinrelSpacing.base, KinrelSpacing.base, 120), children: [
+      body: ListView(
+        controller: _scrollController,
+        padding: const EdgeInsets.fromLTRB(KinrelSpacing.base, KinrelSpacing.base, KinrelSpacing.base, 120),
+        children: [
         Text('Family Games', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
         const SizedBox(height: 8),
         Text('Download games to play with your family', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)),
         const SizedBox(height: 20),
+
+        // ── Family presence strip (online / playing / spectating) ────
+        if (widget.familyId != null)
+          FamilyPresenceStrip(familyId: widget.familyId!),
+
+        // ── Big gradient Create Game CTA ─────────────────────────────
+        CreateGameCtaCard(
+          onPickGame: _scrollToGamesList,
+          activeGamesCount: 0, // TODO: wire to activeGamesProvider when available
+        ),
+
         _GameCatalogCard(
           gameId: 'ghost-painter',
           name: 'Ghost Painter',

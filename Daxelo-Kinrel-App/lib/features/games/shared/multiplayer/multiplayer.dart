@@ -16,6 +16,7 @@
 //   • AutoCloseTimer (countdown widget)
 //   • CancelRoomButton (large visible Cancel button)
 //   • BackButtonGuard (host: Close Room? / player: Leave Room?)
+//   • MatchCountdown (5-4-3-2-1-GO overlay synced across all clients)
 
 export 'room_config.dart';
 export 'room_state.dart';
@@ -25,3 +26,4 @@ export 'widgets/room_setup_view.dart';
 export 'widgets/auto_close_timer.dart';
 export 'widgets/cancel_room_button.dart';
 export 'widgets/back_button_guard.dart';
+export 'widgets/match_countdown.dart';

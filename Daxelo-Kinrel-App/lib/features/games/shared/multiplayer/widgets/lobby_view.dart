@@ -40,6 +40,7 @@ import '../room_controller.dart';
 import '../room_state.dart';
 import 'auto_close_timer.dart';
 import 'cancel_room_button.dart';
+import 'match_countdown.dart';
 
 class LobbyView extends ConsumerStatefulWidget {
   const LobbyView({
@@ -65,12 +66,33 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
   bool _isStarting = false;
 
   Future<void> _handleStart() async {
+    final controller =
+        ref.read(roomControllerProvider(widget.roomKey).notifier);
     setState(() => _isStarting = true);
     try {
-      await widget.startGame();
+      // Kick off the 5-second countdown. The actual game-row transition
+      // (lobby → active) happens in widget.startGame() when the
+      // countdown fires its onComplete callback.
+      final ok = await controller.startMatchWithCountdown(
+        onCountdownComplete: widget.startGame,
+      );
+      if (!ok && mounted) {
+        // Countdown failed to start — startGame() will not be called
+        // automatically. Surface the friendly error from the controller.
+        final st = ref.read(roomControllerProvider(widget.roomKey));
+        if (st.friendlyError == null) {
+          // No specific error; just clear the local starting flag.
+        }
+      }
     } finally {
       if (mounted) setState(() => _isStarting = false);
     }
+  }
+
+  void _cancelCountdown() {
+    ref
+        .read(roomControllerProvider(widget.roomKey).notifier)
+        .cancelCountdown();
   }
 
   @override
@@ -84,11 +106,22 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
         ? state.gameId!.replaceAll('-', '').substring(0, 6).toUpperCase()
         : '------';
 
-    return ListView(
+    return Stack(
+      children: [
+        ListView(
       padding: const EdgeInsets.all(KinrelSpacing.base),
       children: [
         // ── Auto-close countdown ─────────────────────────────────────
         AutoCloseTimer(roomKey: widget.roomKey),
+
+        // ── Lobby header (Family Game Night + dynamic subtitle) ──────
+        _LobbyHeader(
+          gameDisplayName: widget.gameDisplayName,
+          subtitle: state.lobbySubtitle(minPlayers: config.minPlayers),
+          playerCount: state.playerCount,
+          maxPlayers: config.maxPlayers,
+        ),
+        const SizedBox(height: KinrelSpacing.md),
 
         // ── Share code card ──────────────────────────────────────────
         Container(
@@ -99,15 +132,38 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
           ),
           child: Column(
             children: [
-              Text(
-                'Share Code',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white.withValues(alpha: 0.9),
-                  letterSpacing: 1,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Share Code',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.9),
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  // Live "1 of N Players Joined" pill
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${state.playerCount} of ${config.maxPlayers} Players Joined',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.monoFont,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: KinrelSpacing.sm),
               Text(
@@ -122,9 +178,7 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
               ),
               const SizedBox(height: 4),
               Text(
-                config.minPlayers > state.playerCount
-                    ? 'Waiting for ${config.minPlayers - state.playerCount} more player(s)'
-                    : 'Room ready',
+                _shareCodeSubtitle(state, config),
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
                   fontSize: 11,
@@ -135,6 +189,10 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
           ),
         ),
         const SizedBox(height: KinrelSpacing.lg),
+
+        // ── Presence avatar row (online indicators) ─────────────────
+        _PresenceAvatarRow(participants: state.participants),
+        const SizedBox(height: KinrelSpacing.md),
 
         // ── Players list ─────────────────────────────────────────────
         _sectionLabel('Players (${state.playerCount}/${config.maxPlayers})'),
@@ -218,20 +276,14 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
         ] else if (isHost) ...[
           // Host: never sees "Tap when you're ready" — host is auto-ready.
           // Host sees "Waiting for players..." + Start button (only when
-          // all required players are ready).
+          // all required players are ready). Tapping Start triggers the
+          // 5-second match countdown, then the game's own start callback.
           DKButton(
-            label: state.playerCount < config.minPlayers
-                ? 'Waiting for ${config.minPlayers - state.playerCount} more…'
-                : (!state.allRequiredReady
-                    ? 'Waiting for players to ready up…'
-                    : 'Start Match'),
+            label: _hostStartButtonLabel(state, config),
             variant: DKButtonVariant.gradient,
             fullWidth: true,
             isLoading: _isStarting,
-            onPressed: (state.playerCount >= config.minPlayers &&
-                    state.allRequiredReady)
-                ? _handleStart
-                : null,
+            onPressed: _canStart(state, config) ? _handleStart : null,
           ),
           CancelRoomButton(roomKey: widget.roomKey),
         ] else ...[
@@ -251,7 +303,46 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
           ),
         ],
       ],
+    ),
+
+        // ── 5-second match-start countdown overlay (synced across all clients)
+        if (state.isCountdown)
+          MatchCountdown(
+            roomKey: widget.roomKey,
+            onCancel: isHost ? _cancelCountdown : null,
+          ),
+      ],
     );
+  }
+
+  bool _canStart(RoomState state, RoomConfig config) =>
+      state.playerCount >= config.minPlayers &&
+      state.allRequiredReady &&
+      !state.isCountdown;
+
+  String _hostStartButtonLabel(RoomState state, RoomConfig config) {
+    if (state.isCountdown) {
+      final s = state.secondsUntilCountdownEnds ?? 0;
+      return 'Starting in $s\u2026';
+    }
+    if (state.playerCount < config.minPlayers) {
+      return 'Waiting for ${config.minPlayers - state.playerCount} more\u2026';
+    }
+    if (!state.allRequiredReady) {
+      return 'Waiting for players to ready up\u2026';
+    }
+    return 'Start Match';
+  }
+
+  String _shareCodeSubtitle(RoomState state, RoomConfig config) {
+    final missing = config.minPlayers - state.playerCount;
+    if (missing > 0) {
+      return 'Waiting for $missing more player${missing == 1 ? '' : 's'} \u2022 Invite family members';
+    }
+    if (!state.allRequiredReady) {
+      return 'Waiting for players to ready up \u2022 ${state.readyCount}/${state.playerCount} ready';
+    }
+    return 'Room ready \u2022 Tap Start Match to begin';
   }
 
   Widget _sectionLabel(String text) => Text(
@@ -440,6 +531,228 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Lobby header showing "Family Game Night 🎮" + dynamic subtitle.
+///
+/// Per the spec:
+///   Family Game Night 🎮
+///   Waiting for 1 more player • Invite family members
+///
+/// Replaces the bare "Room C364FC" header — people care about activity
+/// and family context, not room IDs.
+class _LobbyHeader extends StatelessWidget {
+  const _LobbyHeader({
+    required this.gameDisplayName,
+    required this.subtitle,
+    required this.playerCount,
+    required this.maxPlayers,
+  });
+
+  final String gameDisplayName;
+  final String subtitle;
+  final int playerCount;
+  final int maxPlayers;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: KinrelSpacing.lg, vertical: KinrelSpacing.md),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(KinrelRadius.lg),
+        border: Border.all(color: KinrelColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              gradient: KinrelGradients.igniteGradient,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.sports_esports_rounded,
+                color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: KinrelSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Family Game Night \u{1F3AE}',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 11,
+                    color: KinrelColors.textDim,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: KinrelSpacing.sm),
+          // Compact player count badge
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: KinrelColors.orange.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '$playerCount/$maxPlayers',
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.orange,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Horizontal row of participant avatars with online/ready indicators.
+///
+/// Renders up to 8 avatars. If there are more, shows "+N" overflow chip.
+/// Each avatar has a small status dot:
+///   • green = online + ready
+///   • orange = online + not ready
+///   • grey = offline
+class _PresenceAvatarRow extends StatelessWidget {
+  const _PresenceAvatarRow({required this.participants});
+  final List<RoomParticipant> participants;
+
+  @override
+  Widget build(BuildContext context) {
+    if (participants.isEmpty) return const SizedBox.shrink();
+    const maxAvatars = 8;
+    final shown = participants.take(maxAvatars).toList();
+    final overflow = participants.length - shown.length;
+
+    return SizedBox(
+      height: 44,
+      child: Row(
+        children: [
+          ...List.generate(shown.length, (i) {
+            final p = shown[i];
+            return Transform.translate(
+              offset: Offset(-i * 8.0, 0),
+              child: _PresenceAvatar(participant: p),
+            );
+          }),
+          if (overflow > 0)
+            Transform.translate(
+              offset: Offset(-shown.length * 8.0, 0),
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: KinrelColors.darkElevated,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: KinrelColors.darkSurface, width: 2),
+                ),
+                child: Center(
+                  child: Text(
+                    '+$overflow',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.monoFont,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: KinrelColors.textDim,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(width: KinrelSpacing.md),
+          Expanded(
+            child: Text(
+              _summary,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 11,
+                color: KinrelColors.textDim,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String get _summary {
+    final online = participants.where((p) => p.isOnline).length;
+    final ready = participants.where((p) => p.isReady || p.isHost).length;
+    return '$online online \u2022 $ready ready';
+  }
+}
+
+class _PresenceAvatar extends StatelessWidget {
+  const _PresenceAvatar({required this.participant});
+  final RoomParticipant participant;
+
+  @override
+  Widget build(BuildContext context) {
+    final isOnline = participant.isOnline;
+    final isReady = participant.isReady || participant.isHost;
+    final dotColor = !isOnline
+        ? KinrelColors.textDim
+        : (isReady ? KinrelColors.tealAccent : KinrelColors.orange);
+
+    return Stack(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: KinrelColors.orange.withValues(alpha: 0.12),
+            shape: BoxShape.circle,
+            border: Border.all(color: KinrelColors.darkSurface, width: 2),
+          ),
+          child: Center(
+            child: Text(
+              (participant.userName ?? '?')[0].toUpperCase(),
+              style: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.orange,
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          right: 0,
+          bottom: 0,
+          child: Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: dotColor,
+              shape: BoxShape.circle,
+              border: Border.all(color: KinrelColors.darkSurface, width: 2),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
