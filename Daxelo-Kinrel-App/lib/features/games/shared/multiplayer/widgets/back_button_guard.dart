@@ -1,46 +1,41 @@
 // lib/features/games/shared/multiplayer/widgets/back_button_guard.dart
 //
-// Wraps the lobby screen's Back button to enforce the host-vs-player
-// confirmation flow per the spec:
+// BackButtonGuard — the AppBar back button for every multiplayer game
+// lobby. NEVER immediately exits the room — always shows a confirmation
+// dialog first.
 //
-//   Host pressing Back:
-//     "Close Room?"
-//     "Closing the room will remove all players and end the lobby."
-//     Buttons: Cancel, Close Room
-//     → On "Close Room": calls RoomController.cancelRoom() (closes +
-//       deletes + notifies all participants + returns to setup).
+// Per the spec:
+//   Pressing the Back Button must never immediately leave the room.
+//   Both actions (back button + Close Room button) must first show a
+//   confirmation dialog.
 //
-//   Player pressing Back:
-//     "Leave Room?"
-//     "You will leave this room."
-//     Buttons: Stay, Leave
-//     → On "Leave": calls RoomController.leaveRoom() (removes the
-//       participant, frees their slot, posts a 'leave' system event).
+// Behaviour by role:
+//   Host:
+//     "Close Room?" dialog (uses showRoomCloseConfirmDialog)
+//     On confirm → RoomController.cancelRoom() (deletes room + all
+//     players + spectators + posts cancel event + clears local cache).
+//   Player:
+//     "Leave Room?" dialog (uses showLeaveRoomDialog)
+//     On confirm → RoomController.leaveRoom() (removes participant +
+//     frees slot + posts leave event).
+//   Spectator:
+//     "Leave Spectator?" dialog (uses showLeaveSpectatorDialog)
+//     On confirm → RoomController.leaveRoom() (calls fn_leave_spectator).
 //
-//   Spectator pressing Back:
-//     "Leave Spectator?"
-//     "You will stop watching this room."
-//     Buttons: Stay, Leave
-//     → On "Leave": calls RoomController.leaveRoom() (calls
-//       fn_leave_spectator which marks the spectator row as left +
-//       posts a 'spectator_leave' system event).
+// If no active room (state.hasGame == false), exits immediately without
+// a dialog — there's nothing to close.
 //
-// Usage:
-//   AppBar(
-//     leading: BackButtonGuard(
-//       roomKey: roomKey,
-//       onExit: () => context.go('/family/$familyId'),
-//     ),
-//     ...
-//   )
+// IMPORTANT: This widget only guards the AppBar back button. To also
+// intercept the Android SYSTEM back button + iOS swipe-back gesture,
+// wrap the lobby body in RoomExitGuard (see room_exit_guard.dart).
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/constants/brand_colors.dart';
-import '../../../../../core/constants/brand_spacing.dart';
 import '../../../../../core/constants/brand_typography.dart';
 import '../room_controller.dart';
+import 'room_close_dialog.dart';
 
 class BackButtonGuard extends ConsumerWidget {
   const BackButtonGuard({
@@ -61,15 +56,24 @@ class BackButtonGuard extends ConsumerWidget {
       icon: const Icon(Icons.arrow_back),
       onPressed: () async {
         if (!hasGame) {
-          // No active room — just exit.
+          // No active room — just exit, no dialog needed.
           onExit();
           return;
         }
-        final shouldExit = await _showConfirmDialog(context, state);
-        if (shouldExit != true) return;
-
-        // Perform the appropriate action based on the user's role
         final controller = ref.read(roomControllerProvider(roomKey).notifier);
+
+        // Show the appropriate confirmation dialog based on role.
+        final bool? confirmed;
+        if (state.isHost) {
+          confirmed = await showRoomCloseConfirmDialog(context);
+        } else if (state.isSpectator) {
+          confirmed = await showLeaveSpectatorDialog(context);
+        } else {
+          confirmed = await showLeaveRoomDialog(context);
+        }
+        if (confirmed != true) return;
+
+        // Perform the appropriate action based on role.
         if (state.isHost) {
           await controller.cancelRoom();
         } else {
@@ -77,94 +81,6 @@ class BackButtonGuard extends ConsumerWidget {
         }
         onExit();
       },
-    );
-  }
-
-  Future<bool?> _showConfirmDialog(
-    BuildContext context,
-    dynamic state,
-  ) {
-    final isHost = state.isHost;
-    final isSpectator = state.isSpectator;
-
-    final title = isHost
-        ? 'Close Room?'
-        : isSpectator
-            ? 'Leave Spectator?'
-            : 'Leave Room?';
-    final body = isHost
-        ? 'Closing the room will remove all players and end the lobby.'
-        : isSpectator
-            ? 'You will stop watching this room.'
-            : 'You will leave this room.';
-    final positiveLabel = isHost ? 'Close Room' : 'Leave';
-    final negativeLabel = isHost ? 'Cancel' : 'Stay';
-
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: KinrelColors.darkCard,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        ),
-        title: Row(
-          children: [
-            Icon(
-              isHost ? Icons.warning_amber_rounded : Icons.logout,
-              color: isHost ? KinrelColors.error : KinrelColors.orange,
-              size: 24,
-            ),
-            const SizedBox(width: KinrelSpacing.sm),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          body,
-          style: TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            fontSize: 13,
-            color: KinrelColors.textDim,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(
-              negativeLabel,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                color: KinrelColors.textDim,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor:
-                  isHost ? KinrelColors.error : KinrelColors.orange,
-            ),
-            child: Text(
-              positiveLabel,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontWeight: FontWeight.w700,
-                color: isHost ? KinrelColors.error : KinrelColors.orange,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

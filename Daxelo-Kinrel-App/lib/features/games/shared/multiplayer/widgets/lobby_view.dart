@@ -41,6 +41,7 @@ import '../room_state.dart';
 import 'auto_close_timer.dart';
 import 'cancel_room_button.dart';
 import 'match_countdown.dart';
+import 'room_exit_guard.dart';
 
 class LobbyView extends ConsumerStatefulWidget {
   const LobbyView({
@@ -50,6 +51,7 @@ class LobbyView extends ConsumerStatefulWidget {
     required this.gameDisplayName,
     required this.startGame,
     this.extraSetupFields,
+    this.onExit,
   });
 
   final RoomControllerKey roomKey;
@@ -57,6 +59,13 @@ class LobbyView extends ConsumerStatefulWidget {
   final String gameDisplayName;
   final Future<void> Function() startGame;
   final Widget? extraSetupFields;
+
+  /// Called when the user confirms they want to leave/close the room
+  /// (via the back button, system back gesture, or Close Room button).
+  /// Typically navigates to the game setup screen or the games hub.
+  /// If null, the LobbyView just clears its state and lets the parent
+  /// decide what to render next (parent watches state.hasGame == false).
+  final VoidCallback? onExit;
 
   @override
   ConsumerState<LobbyView> createState() => _LobbyViewState();
@@ -106,7 +115,20 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
         ? state.gameId!.replaceAll('-', '').substring(0, 6).toUpperCase()
         : '------';
 
-    return Stack(
+    // Wrap the entire lobby body in RoomExitGuard so the Android system
+    // back button + iOS swipe-back gesture are intercepted and show the
+    // same confirmation dialog as the AppBar back button + Close Room
+    // button. The onExit callback is forwarded from the parent (or
+    // defaults to a no-op — the parent watches state.hasGame == false
+    // and re-renders the setup screen automatically).
+    return RoomExitGuard(
+      roomKey: widget.roomKey,
+      onExit: () {
+        if (widget.onExit != null) {
+          widget.onExit!();
+        }
+      },
+      child: Stack(
       children: [
         ListView(
       padding: const EdgeInsets.all(KinrelSpacing.base),
@@ -285,7 +307,10 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
             isLoading: _isStarting,
             onPressed: _canStart(state, config) ? _handleStart : null,
           ),
-          CancelRoomButton(roomKey: widget.roomKey),
+          CancelRoomButton(
+            roomKey: widget.roomKey,
+            onCancelled: widget.onExit,
+          ),
         ] else ...[
           // Non-host player: single Ready / Not Ready toggle.
           _readyToggle(state),
@@ -312,6 +337,7 @@ class _LobbyViewState extends ConsumerState<LobbyView> {
             onCancel: isHost ? _cancelCountdown : null,
           ),
       ],
+      ),
     );
   }
 

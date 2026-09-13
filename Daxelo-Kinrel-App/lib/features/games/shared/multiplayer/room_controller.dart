@@ -39,6 +39,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../../core/services/supabase_service.dart';
+import '../../providers/game_invite_status_provider.dart';
 import 'room_config.dart';
 import 'room_state.dart';
 
@@ -655,6 +656,15 @@ class RoomController extends StateNotifier<RoomState> {
 
   /// Host: cancel the room. Closes + deletes the room, notifies all
   /// participants in real time via the 'cancel' room event.
+  ///
+  /// Per the spec:
+  ///   • Delete the room immediately from the database.
+  ///   • Remove all players.
+  ///   • Remove all spectators.
+  ///   • Close all realtime subscriptions/sockets.
+  ///   • Clear any local room cache.
+  ///   • Navigate back to the game lobby/create room screen.
+  ///   • Closed rooms are permanently removed and cannot reappear.
   Future<void> cancelRoom() async {
     final client = _client;
     final myId = _myId;
@@ -662,22 +672,49 @@ class RoomController extends StateNotifier<RoomState> {
     if (client == null || myId == null || gameId == null) return;
     if (!state.isHost) return;
 
-    state = state.copyWith(isSubmitting: true, clearError: true, clearFriendlyError: true);
+    state = state.copyWith(
+        isSubmitting: true, clearError: true, clearFriendlyError: true);
     try {
+      // 1. Server-side: delete the room + all participants + spectators +
+      //    game-row data. Posts a 'cancel' event that fans out via
+      //    realtime to all connected clients (including us).
       await client.rpc('fn_cancel_game_room', params: {
         'p_game_table': gameTable,
         'p_game_id': gameId,
         'p_user_id': myId,
       });
-      // The RPC posts the 'cancel' event, realtime fans it out, and
-      // connected clients (including us) navigate back to the setup
-      // screen via the LobbyView's listener.
+
+      // 2. Local cleanup: stop heartbeat + auto-close timer + lobby poll
+      //    + countdown timer + unsubscribe the realtime channel.
       _cleanup();
+
+      // 3. Clear all local state so the room can never be restored from
+      //    cache. The LobbyView watches state and will re-render the
+      //    setup screen (since hasGame == false).
       state = const RoomState();
+
+      // 4. Invalidate Riverpod caches that may hold stale room data.
+      //    This ensures deleted rooms never reappear from any cache.
+      _invalidateStaleCaches(gameId);
     } catch (e) {
       debugPrint('[RoomController] cancelRoom error: $e');
       state = state.copyWith(isSubmitting: false);
       _setError(e, fallback: 'Couldn\'t cancel the room. Tap to try again.');
+    }
+  }
+
+  /// Invalidate Riverpod providers that may hold stale room data after
+  /// a room is closed. This is the "clear any local room cache" step
+  /// from the spec — without it, the PendingInvitesSection + invite
+  /// status badges + game invite chat sync would keep showing data
+  /// for a deleted room.
+  void _invalidateStaleCaches(String gameId) {
+    try {
+      // Invalidate the game invite status provider (tracks pending/
+      // accepted/declined invites for this gameId).
+      _ref.invalidate(gameInviteStatusProvider(gameId));
+    } catch (_) {
+      // Provider may not be watched — ignore.
     }
   }
 
@@ -707,7 +744,10 @@ class RoomController extends StateNotifier<RoomState> {
         });
       }
     } catch (_) {}
+    // Clear local state + invalidate caches (same as cancelRoom — a
+    // departed user should never see stale room data either).
     state = const RoomState();
+    _invalidateStaleCaches(gameId);
   }
 
   /// Send a chat message to the lobby (persisted + broadcast via realtime).
