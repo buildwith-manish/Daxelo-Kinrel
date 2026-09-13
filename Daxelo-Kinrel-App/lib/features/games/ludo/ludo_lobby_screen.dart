@@ -2,6 +2,23 @@
 //
 // Ludo — Lobby screen to start a game and invite 1-3 family members.
 // Route: /family/$familyId/ludo/lobby
+//
+// Refactored to use the shared multiplayer framework:
+//   • RoomSetupView for the setup view (player count + spectator toggle +
+//     auto-close duration + Create button)
+//   • LobbyView for the in-room view (auto-close timer, share code,
+//     players list, pending invites, lobby chat, ready toggle / start
+//     button, cancel room button)
+//   • BackButtonGuard for the back button (host: Close Room? / player:
+//     Leave Room?)
+//
+// The existing LudoNotifier handles game-specific logic (creating the
+// ludo_games row + host's ludo_players + token rows, transitioning to
+// 'in_progress' when the host starts the match, calling the
+// ludo-roll-dice Edge Function). The RoomController handles the shared
+// room lifecycle.
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,14 +27,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
-import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/multiplayer/multiplayer.dart';
 import '../shared/models/game_invite.dart';
-import '../shared/widgets/invite_family_sheet.dart';
-import '../shared/widgets/pending_invites_section.dart';
-import '../shared/widgets/lobby_chat_panel.dart';
-import '../shared/widgets/spectator_toggle.dart';
 import 'ludo_game_logic.dart';
 import 'ludo_provider.dart';
 
@@ -31,36 +44,45 @@ class LudoLobbyScreen extends ConsumerStatefulWidget {
 
 class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
   int _playerCount = 4;
-  bool _creating = false;
-  bool _spectatorsEnabled = true;
+
+  RoomControllerKey get _roomKey =>
+      RoomControllerKey(RoomConfig.ludo, widget.familyId);
+
+  String? get _joinIdFromRoute =>
+      GoRouterState.of(context).uri.queryParameters['join'];
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final joinId = GoRouterState.of(context).uri.queryParameters['join'];
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final joinId = _joinIdFromRoute;
       if (joinId != null && joinId.isNotEmpty) {
-        ref.read(ludoProvider(widget.familyId).notifier).joinGame(joinId);
+        final ok = await ref
+            .read(ludoProvider(widget.familyId).notifier)
+            .joinGame(joinId);
+        if (ok) {
+          await ref.read(roomControllerProvider(_roomKey).notifier).attachOnJoin(joinId);
+        }
       }
     });
   }
 
   Future<void> _createGame() async {
-    setState(() => _creating = true);
-    final notifier = ref.read(ludoProvider(widget.familyId).notifier);
-    final gameId = await notifier.createGame(playerCount: _playerCount);
-      if (gameId != null) {
-        await ref.read(supabaseProvider)?.from('ludo_games').update({'spectatorsEnabled': _spectatorsEnabled}).eq('id', gameId);
-      }
-
-    if (mounted) setState(() => _creating = false);
-    // Stay on lobby to wait for players
+    final gameId = await ref
+        .read(ludoProvider(widget.familyId).notifier)
+        .createGame(playerCount: _playerCount);
+    if (gameId == null) return;
+    await ref.read(roomControllerProvider(_roomKey).notifier).attachToExistingGame(
+          gameId,
+          spectatorsEnabled: true,
+          autoCloseMinutes: 5,
+        );
   }
 
   Future<void> _shareCode(String? gameId) async {
     if (gameId == null) return;
     final code = gameId.replaceAll('-', '').substring(0, 6).toUpperCase();
-    GameMotionTokens.tap();
+    unawaited(GameMotionTokens.tap());
     if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
@@ -109,7 +131,13 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
               label: 'Done',
               variant: DKButtonVariant.primary,
               fullWidth: true,
-              onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/family/${widget.familyId}');
+                }
+              },
             ),
           ],
         ),
@@ -119,14 +147,11 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(ludoProvider(widget.familyId));
-    final notifier = ref.read(ludoProvider(widget.familyId).notifier);
-    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-    final isHost = state.game?.hostUserId == myId || state.game == null;
-    final canStart = state.game == null
-        ? true
-        : (isHost && state.players.length >= 2);
+    final ludoState = ref.watch(ludoProvider(widget.familyId));
+    final roomState = ref.watch(roomControllerProvider(_roomKey));
+    final hasGame = ludoState.game != null || roomState.hasGame;
 
+    // Auto-navigate to board when game starts
     ref.listen<LudoState>(ludoProvider(widget.familyId), (previous, next) {
       if (next.isInProgress &&
           !(previous?.isInProgress ?? false) &&
@@ -138,16 +163,29 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
       }
     });
 
-    final hasGame = state.game != null;
+    // Auto-navigate back to setup if room was cancelled
+    ref.listen<RoomState>(roomControllerProvider(_roomKey), (previous, next) {
+      if (next.isCancelled && previous != null && !previous.isCancelled) {
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/family/${widget.familyId}');
+        }
+      }
+    });
 
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (state.game != null) notifier.leaveGame();
-            if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); }
+        leading: BackButtonGuard(
+          roomKey: _roomKey,
+          onExit: () {
+            ref.read(ludoProvider(widget.familyId).notifier).leaveGame();
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/family/${widget.familyId}');
+            }
           },
         ),
         title: Text(
@@ -162,219 +200,123 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
         actions: [
-          if (hasGame && isHost)
+          if (hasGame && roomState.isHost)
             IconButton(
-              tooltip: 'Invite family member',
-              icon: const Icon(Icons.person_add_outlined),
-              onPressed: () {
-                final code = state.game?.id != null ? state.game!.id.replaceAll('-', '').substring(0, 6).toUpperCase() : '------';
-                final maxP = state.game?.playerCount ?? 4;
-                GameMotionTokens.tap();
-                InviteFamilySheet.show(
-                  context,
-                  familyId: widget.familyId,
-                  gameType: GameType.ludo,
-                  gameId: state.game?.id ?? '',
-                  roomCode: code,
-                  currentPlayerIds: state.players
-                      .map((p) => p.userId)
-                      .whereType<String>()
-                      .toSet(),
-                  maxPlayers: maxP,
-                  currentPlayers: state.players.length,
-                );
-              },
-            ),
-          if (hasGame)
-          IconButton(
+              tooltip: 'Share code',
               icon: const Icon(Icons.share_outlined),
-              onPressed: () => _shareCode(state.game?.id),
+              onPressed: () =>
+                  _shareCode(roomState.gameId ?? ludoState.game?.id),
             ),
         ],
       ),
-      body: state.isLoading
+      body: ludoState.isLoading
           ? const Center(
               child: CircularProgressIndicator(color: KinrelColors.orange),
             )
-          : state.error != null && !hasGame
-          ? DKErrorState(
-              message: state.error!,
-              onRetry: () => notifier.createGame(playerCount: _playerCount),
-            )
           : hasGame
-              ? _lobbyView(state, notifier, isHost, canStart)
-              : _setupView(state),
+              ? LobbyView(
+                  roomKey: _roomKey,
+                  gameType: GameType.ludo,
+                  gameDisplayName: 'Ludo',
+                  startGame: () => ref
+                      .read(ludoProvider(widget.familyId).notifier)
+                      .startGame(),
+                )
+              : _setupView(),
     );
   }
 
-  Widget _setupView(LudoState state) {
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
+  Widget _setupView() {
+    return RoomSetupView(
+      roomKey: _roomKey,
+      createButtonLabel: 'Create Game',
+      createGame: () async {
+        await _createGame();
+        return null;
+      },
+      defaultAutoCloseMinutes: 5,
+      child: _gameSetupFields(),
+    );
+  }
+
+  Widget _gameSetupFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionLabel('Number of Players'),
+        _sectionLabel('Players'),
         const SizedBox(height: KinrelSpacing.sm),
         _playerCountSelector(),
         const SizedBox(height: KinrelSpacing.lg),
-
-        _sectionLabel('Color Order'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _colorOrderCard(),
-        const SizedBox(height: KinrelSpacing.lg),
-
+        // Color legend
+        _colorLegend(),
+        const SizedBox(height: KinrelSpacing.xl),
         _sectionLabel('How to Play'),
         const SizedBox(height: KinrelSpacing.sm),
         _rulesCard(),
-        const SizedBox(height: KinrelSpacing.xl),
-
-                SpectatorToggle(
-          value: _spectatorsEnabled,
-          onChanged: (v) => setState(() => _spectatorsEnabled = v),
-        ),
-        const SizedBox(height: KinrelSpacing.md),
-        DKButton(
-          label: 'Create Game',
-          variant: DKButtonVariant.gradient,
-          fullWidth: true,
-          isLoading: _creating,
-          onPressed: _createGame,
-        ),
-      ],
-    );
-  }
-
-  Widget _lobbyView(
-    LudoState state,
-    LudoNotifier notifier,
-    bool isHost,
-    bool canStart,
-  ) {
-    final code = state.game?.id != null
-        ? state.game!.id.replaceAll('-', '').substring(0, 6).toUpperCase()
-        : '------';
-    final maxP = state.game?.playerCount ?? 4;
-
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
-      children: [
-        GestureDetector(
-          onTap: () => _shareCode(state.game?.id),
-          child: Container(
-            padding: const EdgeInsets.all(KinrelSpacing.lg),
-            decoration: BoxDecoration(
-              gradient: KinrelGradients.igniteGradient,
-              borderRadius: BorderRadius.circular(KinrelRadius.lg),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  'Share Code',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.9),
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: KinrelSpacing.sm),
-                Text(
-                  code,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: 8,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Waiting for family to join (${state.players.length}/$maxP)',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        _sectionLabel('Players (${state.players.length}/$maxP)'),
-        const SizedBox(height: KinrelSpacing.sm),
-        ...state.players.map((p) => _playerTile(p, state.game?.hostUserId)),
-        const SizedBox(height: KinrelSpacing.xl),
-
-                  PendingInvitesSection(gameId: state.game!.id),
-        const SizedBox(height: KinrelSpacing.md),
-            LobbyChatPanel(
-              gameTable: 'ludo_games',
-              gameId: state.game!.id,
-              familyId: widget.familyId,
-            ),
-        DKButton(
-          label: isHost
-              ? (canStart
-                    ? 'Start Game'
-                    : 'Waiting for ${2 - state.players.length} more player…')
-              : 'Waiting for host…',
-          variant: DKButtonVariant.gradient,
-          fullWidth: true,
-          onPressed: isHost && canStart
-              ? () => notifier.startGame()
-              : null,
-        ),
       ],
     );
   }
 
   Widget _sectionLabel(String text) => Text(
-    text,
-    style: TextStyle(
-      fontFamily: KinrelTypography.displayFont,
-      fontSize: 13,
-      fontWeight: FontWeight.w600,
-      color: KinrelColors.textDim,
-      letterSpacing: 0.5,
-    ),
-  );
+        text,
+        style: TextStyle(
+          fontFamily: KinrelTypography.displayFont,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: KinrelColors.textDim,
+          letterSpacing: 0.5,
+        ),
+      );
 
   Widget _playerCountSelector() {
     return Wrap(
       spacing: KinrelSpacing.sm,
       runSpacing: KinrelSpacing.sm,
-      children: [2, 3, 4].map((n) {
-        final selected = n == _playerCount;
+      children: [2, 3, 4].map((c) {
+        final selected = c == _playerCount;
         return GestureDetector(
           onTap: () {
-            GameMotionTokens.tap();
-            setState(() => _playerCount = n);
+            unawaited(GameMotionTokens.tap());
+            setState(() => _playerCount = c);
           },
           child: Container(
-            width: 60,
-            padding: const EdgeInsets.symmetric(vertical: KinrelSpacing.sm),
+            padding: const EdgeInsets.symmetric(
+              vertical: KinrelSpacing.sm,
+              horizontal: KinrelSpacing.md,
+            ),
             decoration: BoxDecoration(
               color: KinrelColors.darkCard,
-              borderRadius: BorderRadius.circular(KinrelRadius.md),
+              borderRadius: BorderRadius.circular(KinrelRadius.lg),
               border: Border.all(
                 color: selected ? KinrelColors.orange : KinrelColors.border,
                 width: selected ? 2 : 1,
               ),
             ),
-            child: Center(
-              child: Text(
-                '$n',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.monoFont,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: selected
-                      ? KinrelColors.orange
-                      : KinrelColors.textDim,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  c == 2
+                      ? Icons.person_outline
+                      : c == 3
+                          ? Icons.group_outlined
+                          : Icons.groups_outlined,
+                  size: 18,
+                  color: selected ? KinrelColors.orange : KinrelColors.textDim,
                 ),
-              ),
+                const SizedBox(width: 6),
+                Text(
+                  '$c players',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 13,
+                    color: selected
+                        ? KinrelColors.textWhite
+                        : KinrelColors.textDim,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -382,8 +324,8 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
     );
   }
 
-  Widget _colorOrderCard() {
-    final colors = [LudoColor.red, LudoColor.blue, LudoColor.green, LudoColor.yellow];
+  Widget _colorLegend() {
+    final colors = LudoColor.values.take(_playerCount).toList();
     return Container(
       padding: const EdgeInsets.all(KinrelSpacing.md),
       decoration: BoxDecoration(
@@ -392,47 +334,53 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
         border: Border.all(color: KinrelColors.border),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: colors.take(_playerCount).map((c) {
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _colorValue(c),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                c.name.toUpperCase(),
-                style: TextStyle(
-                  fontFamily: KinrelTypography.monoFont,
-                  fontSize: 9,
-                  color: KinrelColors.textDim,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          );
-        }).toList(),
+        children: colors.map(_colorChip).toList(),
       ),
     );
   }
 
-  /// Original Kinrel-branded color mapping (matches board screen).
+  Widget _colorChip(LudoColor color) {
+    final c = _colorValue(color);
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: c,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              color.name,
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 10,
+                color: KinrelColors.textDim,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Map LudoColor → Material Color. Matches the board screen's mapping.
   Color _colorValue(LudoColor c) {
     switch (c) {
       case LudoColor.red:
-        return KinrelColors.orange;     // "Ember"
+        return KinrelColors.orange;
       case LudoColor.blue:
-        return KinrelColors.blue;       // "Azure"
+        return KinrelColors.blue;
       case LudoColor.green:
-        return KinrelColors.tealAccent; // "Jade"
+        return KinrelColors.tealAccent;
       case LudoColor.yellow:
-        return KinrelColors.gold;       // "Gold"
+        return KinrelColors.gold;
     }
   }
 
@@ -447,21 +395,15 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _ruleLine('1.', 'Roll a 6 to move a token out of home base onto the board.'),
+          _ruleLine('1.', 'Roll the dice on your turn. Roll a 6 to move a token out of base.'),
           const SizedBox(height: 6),
-          _ruleLine('2.', 'Rolling a 6 grants an extra turn.'),
+          _ruleLine('2.', 'Move tokens around the board toward the home column.'),
           const SizedBox(height: 6),
-          _ruleLine('3.', 'Move tokens clockwise around the track by the number rolled.'),
+          _ruleLine('3.', 'Roll a 6 → roll again. Land on an opponent → send them back to base.'),
           const SizedBox(height: 6),
-          _ruleLine('4.', 'Land on an opponent (non-safe square) → send them home!'),
+          _ruleLine('4.', 'Get all 4 tokens home to win.'),
           const SizedBox(height: 6),
-          _ruleLine('5.', 'Safe squares (starred) protect tokens from capture.'),
-          const SizedBox(height: 6),
-          _ruleLine('6.', 'After a full loop, enter your home column → reach the center.'),
-          const SizedBox(height: 6),
-          _ruleLine('7.', 'Must roll the exact number to reach the center.'),
-          const SizedBox(height: 6),
-          _ruleLine('★', 'Three 6s in a row = forfeit your turn!', highlight: true),
+          _ruleLine('★', 'Dice rolls are server-authoritative — clients never roll.', highlight: true),
         ],
       ),
     );
@@ -495,60 +437,6 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _playerTile(player, String? hostUserId) {
-    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-    final isMe = player.userId == myId;
-    return Container(
-      margin: const EdgeInsets.only(bottom: KinrelSpacing.sm),
-      padding: const EdgeInsets.symmetric(
-        horizontal: KinrelSpacing.md,
-        vertical: KinrelSpacing.md,
-      ),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(
-          color: isMe ? KinrelColors.orange : KinrelColors.border,
-          width: isMe ? 2 : 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          DKAvatar(
-            initials: player.userName.isNotEmpty
-                ? player.userName[0].toUpperCase()
-                : '?',
-          ),
-          const SizedBox(width: KinrelSpacing.md),
-          Expanded(
-            child: Text(
-              isMe ? '${player.userName} (You)' : player.userName,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: KinrelColors.textWhite,
-              ),
-            ),
-          ),
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _colorValue(player.color),
-              border: Border.all(color: Colors.white, width: 1),
-            ),
-          ),
-          if (player.userId == hostUserId) ...[
-            const SizedBox(width: 4),
-            Text('👑', style: TextStyle(fontSize: 14)),
-          ],
-        ],
-      ),
     );
   }
 }

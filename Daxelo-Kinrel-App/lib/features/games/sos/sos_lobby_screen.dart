@@ -2,6 +2,24 @@
 //
 // SOS Game — Lobby / Setup screen.
 // Route: /family/$familyId/sos/lobby
+//
+// This screen is the reference implementation of the SHARED multiplayer
+// framework. It uses:
+//   • RoomSetupView for the create-game setup view (mode selector + rules +
+//     spectator toggle + auto-close duration + Create button)
+//   • LobbyView for the in-room view (auto-close timer, share code,
+//     players list, pending invites, lobby chat, ready toggle / start
+//     button, cancel room button)
+//   • BackButtonGuard for the back button (host: Close Room? / player:
+//     Leave Room?)
+//
+// The existing SosNotifier handles game-specific logic (creating the
+// sos_games row + host player row in sos_players, transitioning to
+// 'active' when the host starts the match). The RoomController handles
+// the shared room lifecycle (auto-close, spectator, ready, leave,
+// cancel, lobby chat persistence, disconnect detection).
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,15 +28,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
-import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/multiplayer/multiplayer.dart';
 import '../shared/models/game_invite.dart';
-import '../shared/widgets/invite_family_sheet.dart';
-import '../shared/widgets/pending_invites_section.dart';
-import '../shared/widgets/lobby_chat_panel.dart';
-import '../shared/widgets/spectator_toggle.dart';
-import 'sos_connection_status.dart';
 import 'sos_models.dart';
 import 'sos_provider.dart';
 import 'sos_reconnecting_banner.dart';
@@ -33,52 +46,48 @@ class SosLobbyScreen extends ConsumerStatefulWidget {
 
 class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
   SosMode _mode = SosMode.twoPlayer;
-  bool _creating = false;
-  bool _spectatorsEnabled = true;
+
+  /// The room controller key for this SOS lobby.
+  RoomControllerKey get _roomKey =>
+      RoomControllerKey(RoomConfig.sos, widget.familyId);
+
+  /// The `?join=<gameId>` query param from the deep-link.
+  String? get _joinIdFromRoute =>
+      GoRouterState.of(context).uri.queryParameters['join'];
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final joinId = GoRouterState.of(context).uri.queryParameters['join'];
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final joinId = _joinIdFromRoute;
       if (joinId != null && joinId.isNotEmpty) {
-        ref.read(sosProvider(widget.familyId).notifier).joinGame(joinId);
+        // Non-host joining via deep-link: attach via SOS provider first
+        // (existing logic), then attach the room controller.
+        final ok = await ref.read(sosProvider(widget.familyId).notifier).joinGame(joinId);
+        if (ok) {
+          await ref.read(roomControllerProvider(_roomKey).notifier).attachOnJoin(joinId);
+        }
       }
     });
   }
 
-  /// The `?join=<gameId>` query param from the deep-link (chat card tap,
-  /// invite dialog accept, share-code open). Captured at initState so we
-  /// can retry the same join if it fails (network blip, server hiccup)
-  /// without the user having to re-tap the chat card.
-  String? get _joinIdFromRoute =>
-      GoRouterState.of(context).uri.queryParameters['join'];
-
-  /// Retry entry point — branches on whether we got here via a `?join=` deep
-  /// link or via the "Create Game" button. If we have a joinId and no game
-  /// loaded yet, retry the join. Otherwise retry the realtime subscription.
-  Future<void> _retry() async {
-    final notifier = ref.read(sosProvider(widget.familyId).notifier);
-    final state = ref.read(sosProvider(widget.familyId));
-    final joinId = _joinIdFromRoute;
-    if (state.game == null && joinId != null && joinId.isNotEmpty) {
-      await notifier.joinGame(joinId);
-    } else {
-      await notifier.retryConnection();
-    }
-  }
-
   Future<void> _createGame() async {
-    setState(() => _creating = true);
-    final notifier = ref.read(sosProvider(widget.familyId).notifier);
-    await notifier.createGame(mode: _mode);
-    if (mounted) setState(() => _creating = false);
+    // 1. Let SOS provider create the game row with game-specific fields
+    final gameId = await ref.read(sosProvider(widget.familyId).notifier).createGame(mode: _mode);
+    if (gameId == null) return;
+    // 2. Attach the room-lifecycle framework (auto-close, spectator,
+    //    ready, lobby chat persistence, disconnect detection)
+    await ref.read(roomControllerProvider(_roomKey).notifier).attachToExistingGame(
+          gameId,
+          spectatorsEnabled: true,
+          autoCloseMinutes: 5,
+        );
   }
 
   Future<void> _shareCode(String? gameId) async {
     if (gameId == null) return;
     final code = gameId.replaceAll('-', '').substring(0, 6).toUpperCase();
-    GameMotionTokens.tap();
+    unawaited(GameMotionTokens.tap());
     if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
@@ -137,15 +146,23 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
     );
   }
 
+  Future<void> _retry() async {
+    final notifier = ref.read(sosProvider(widget.familyId).notifier);
+    final state = ref.read(sosProvider(widget.familyId));
+    final joinId = _joinIdFromRoute;
+    if (state.game == null && joinId != null && joinId.isNotEmpty) {
+      await notifier.joinGame(joinId);
+    } else {
+      await notifier.retryConnection();
+    }
+    await ref.read(roomControllerProvider(_roomKey).notifier).retryConnection();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(sosProvider(widget.familyId));
-    final notifier = ref.read(sosProvider(widget.familyId).notifier);
-    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-    final isHost = state.game?.hostUserId == myId || state.game == null;
-    final canStart = state.game == null
-        ? true
-        : (isHost && state.players.length >= (state.game?.mode.minPlayers ?? 2));
+    final sosState = ref.watch(sosProvider(widget.familyId));
+    final roomState = ref.watch(roomControllerProvider(_roomKey));
+    final hasGame = sosState.game != null || roomState.hasGame;
 
     // Auto-navigate to the board once the game becomes active
     ref.listen<SosState>(sosProvider(widget.familyId), (previous, next) {
@@ -159,18 +176,31 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
       }
     });
 
-    final hasGame = state.game != null;
+    // Auto-navigate back to setup if room was cancelled/closed
+    ref.listen<RoomState>(roomControllerProvider(_roomKey), (previous, next) {
+      if (next.isCancelled && previous != null && !previous.isCancelled) {
+        // Room was cancelled / auto-closed — bail to the family hub.
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/family/${widget.familyId}');
+        }
+      }
+    });
 
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (state.game != null) {
-              notifier.leaveGame();
+        leading: BackButtonGuard(
+          roomKey: _roomKey,
+          onExit: () {
+            // Also leave the SOS provider's room
+            ref.read(sosProvider(widget.familyId).notifier).leaveGame();
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/family/${widget.familyId}');
             }
-            if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); }
           },
         ),
         title: Text(
@@ -185,77 +215,73 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
         actions: [
-          if (hasGame && isHost)
+          if (hasGame && roomState.isHost)
             IconButton(
-              tooltip: 'Invite family member',
-              icon: const Icon(Icons.person_add_outlined),
-              onPressed: () {
-                final code = state.game?.id != null ? state.game!.id.replaceAll('-', '').substring(0, 6).toUpperCase() : '------';
-                final maxP = (state.game?.mode ?? SosMode.twoPlayer).maxPlayers;
-                GameMotionTokens.tap();
-                InviteFamilySheet.show(
-                  context,
-                  familyId: widget.familyId,
-                  gameType: GameType.sos,
-                  gameId: state.game?.id ?? '',
-                  roomCode: code,
-                  currentPlayerIds: state.players
-                      .map((p) => p.userId)
-                      .whereType<String>()
-                      .toSet(),
-                  maxPlayers: maxP,
-                  currentPlayers: state.players.length,
-                );
-              },
-            ),
-          if (hasGame)
-          IconButton(
+              tooltip: 'Share code',
               icon: const Icon(Icons.share_outlined),
-              onPressed: () => _shareCode(state.game?.id),
+              onPressed: () => _shareCode(roomState.gameId ?? sosState.game?.id),
             ),
         ],
       ),
       body: Column(
         children: [
-          // Non-blocking connection banner — visible only when the
-          // realtime channel is connecting / reconnecting / errored.
-          // Hidden when status is idle or connected (the common case).
           SosReconnectingBanner(
-            status: state.connectionStatus,
-            friendlyError: state.friendlyError,
+            status: sosState.connectionStatus,
+            friendlyError: sosState.friendlyError ?? roomState.friendlyError,
             onRetry: _retry,
           ),
           Expanded(
-            child: state.isLoading
+            child: sosState.isLoading
                 ? const Center(
                     child: CircularProgressIndicator(color: KinrelColors.orange),
                   )
-                : state.friendlyError != null && !hasGame
+                : (sosState.friendlyError != null && !hasGame)
                 ? DKErrorState(
-                    // Use friendlyError, never raw state.error — the raw
-                    // error may contain Postgres / Realtime internals.
-                    message: state.friendlyError!,
+                    message: sosState.friendlyError!,
                     onRetry: _retry,
                   )
                 : hasGame
-                    ? _lobbyView(state, notifier, isHost, canStart)
-                    : _setupView(state),
+                    ? LobbyView(
+                        roomKey: _roomKey,
+                        gameType: GameType.sos,
+                        gameDisplayName: 'SOS',
+                        startGame: () => ref.read(sosProvider(widget.familyId).notifier).startGame(),
+                      )
+                    : _setupView(),
           ),
         ],
       ),
     );
   }
 
-  Widget _setupView(SosState state) {
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
+  /// The setup view (no game yet) — uses RoomSetupView wrapper.
+  Widget _setupView() {
+    return RoomSetupView(
+      roomKey: _roomKey,
+      createButtonLabel: 'Create Game',
+      createGame: () async {
+        // The actual create happens in _createGame, but RoomSetupView
+        // calls this callback to get the game-specific fields. We
+        // delegate to _createGame which writes everything.
+        await _createGame();
+        // Returning null signals "no game-specific fields to write via
+        // the room controller's createRoom path" — we already attached
+        // via attachToExistingGame.
+        return null;
+      },
+      defaultAutoCloseMinutes: 5,
+      child: _gameSetupFields(),
+    );
+  }
+
+  Widget _gameSetupFields() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionLabel('Game Mode'),
         const SizedBox(height: KinrelSpacing.sm),
         _modeSelector(),
         const SizedBox(height: KinrelSpacing.lg),
-
-        // Mode description
         Container(
           padding: const EdgeInsets.all(KinrelSpacing.md),
           decoration: BoxDecoration(
@@ -281,182 +307,23 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
           ),
         ),
         const SizedBox(height: KinrelSpacing.xl),
-
-        // Rules summary
         _sectionLabel('How to Play'),
         const SizedBox(height: KinrelSpacing.sm),
         _rulesCard(),
-        const SizedBox(height: KinrelSpacing.xl),
-
-                SpectatorToggle(
-          value: _spectatorsEnabled,
-          onChanged: (v) => setState(() => _spectatorsEnabled = v),
-        ),
-        const SizedBox(height: KinrelSpacing.md),
-        DKButton(
-          label: 'Create Game',
-          variant: DKButtonVariant.gradient,
-          fullWidth: true,
-          isLoading: _creating,
-          onPressed: _createGame,
-        ),
-      ],
-    );
-  }
-
-  Widget _lobbyView(
-    SosState state,
-    SosNotifier notifier,
-    bool isHost,
-    bool canStart,
-  ) {
-    final code = state.game?.id != null
-        ? state.game!.id.replaceAll('-', '').substring(0, 6).toUpperCase()
-        : '------';
-    final mode = state.game?.mode ?? SosMode.twoPlayer;
-    final minPlayers = mode.minPlayers;
-
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
-      children: [
-        // Share code card
-        GestureDetector(
-          onTap: () => _shareCode(state.game?.id),
-          child: Container(
-            padding: const EdgeInsets.all(KinrelSpacing.lg),
-            decoration: BoxDecoration(
-              gradient: KinrelGradients.igniteGradient,
-              borderRadius: BorderRadius.circular(KinrelRadius.lg),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  'Share Code',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.9),
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: KinrelSpacing.sm),
-                Text(
-                  code,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: 8,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  mode == SosMode.fourPlayerTeams
-                      ? 'Waiting for ${minPlayers - state.players.length} more players'
-                      : 'Waiting for ${minPlayers - state.players.length} more player',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        // Mode + teams summary
-        _modeSummary(state),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        // Players list
-        _sectionLabel('Players (${state.players.length}/${mode.maxPlayers})'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _playerList(state),
-        const SizedBox(height: KinrelSpacing.xl),
-
-                  PendingInvitesSection(gameId: state.game!.id),
-        const SizedBox(height: KinrelSpacing.md),
-            LobbyChatPanel(
-              gameTable: 'sos_games',
-              gameId: state.game!.id,
-              familyId: widget.familyId,
-            ),
-        // Inline error surface — shown only when a transient error occurs
-        // while the game IS loaded (e.g. startGame() failed with a network
-        // blip). Uses friendlyError, never raw state.error. The banner at
-        // the top of the screen handles connection-status errors; this
-        // handles action-specific errors (start, place, etc.).
-        if (state.friendlyError != null &&
-            state.connectionStatus == SosConnectionStatus.connected) ...[
-          Container(
-            padding: const EdgeInsets.all(KinrelSpacing.md),
-            margin: const EdgeInsets.only(bottom: KinrelSpacing.md),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEF4444).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(KinrelRadius.md),
-              border: Border.all(
-                color: const Color(0xFFEF4444).withValues(alpha: 0.3),
-              ),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.error_outline,
-                    color: Color(0xFFEF4444), size: 18),
-                const SizedBox(width: KinrelSpacing.sm),
-                Expanded(
-                  child: Text(
-                    state.friendlyError!,
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.bodyFont,
-                      fontSize: 12,
-                      color: KinrelColors.textWhite,
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: _retry,
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFFEF4444),
-                    minimumSize: const Size(44, 28),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
-        ],
-        DKButton(
-          label: isHost
-              ? (canStart
-                    ? 'Start Game'
-                    : 'Waiting for ${minPlayers - state.players.length} more…')
-              : 'Waiting for host…',
-          variant: DKButtonVariant.gradient,
-          fullWidth: true,
-          isLoading: state.isSubmitting,
-          onPressed: isHost && canStart
-              ? () => notifier.startGame()
-              : null,
-        ),
       ],
     );
   }
 
   Widget _sectionLabel(String text) => Text(
-    text,
-    style: TextStyle(
-      fontFamily: KinrelTypography.displayFont,
-      fontSize: 13,
-      fontWeight: FontWeight.w600,
-      color: KinrelColors.textDim,
-      letterSpacing: 0.5,
-    ),
-  );
+        text,
+        style: TextStyle(
+          fontFamily: KinrelTypography.displayFont,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: KinrelColors.textDim,
+          letterSpacing: 0.5,
+        ),
+      );
 
   Widget _modeSelector() {
     return Wrap(
@@ -573,166 +440,6 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _modeSummary(SosState state) {
-    final mode = state.game?.mode ?? SosMode.twoPlayer;
-    return Container(
-      padding: const EdgeInsets.all(KinrelSpacing.md),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                mode == SosMode.twoPlayer
-                    ? Icons.person_outline
-                    : Icons.groups_outlined,
-                size: 20,
-                color: KinrelColors.orange,
-              ),
-              const SizedBox(width: KinrelSpacing.sm),
-              Text(
-                mode.label,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-            ],
-          ),
-          if (mode == SosMode.fourPlayerTeams) ...[
-            const SizedBox(height: KinrelSpacing.sm),
-            Row(
-              children: [
-                _teamChip(SosTeam.s),
-                const SizedBox(width: KinrelSpacing.sm),
-                _teamChip(SosTeam.o),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _teamChip(SosTeam team) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.sm, vertical: 3),
-      decoration: BoxDecoration(
-        color: Color(team.colorValue).withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(KinrelRadius.xs),
-        border: Border.all(color: Color(team.colorValue), width: 1),
-      ),
-      child: Text(
-        team.label,
-        style: TextStyle(
-          fontFamily: KinrelTypography.monoFont,
-          fontSize: 11,
-          color: Color(team.colorValue),
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-
-  Widget _playerList(SosState state) {
-    if (state.players.isEmpty) {
-      return DKEmptyState(
-        icon: Icons.group_outlined,
-        title: 'No players yet',
-        subtitle: 'Share the code to invite family members.',
-      );
-    }
-    return Container(
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      child: Column(
-        children: [
-          for (int i = 0; i < state.players.length; i++) ...[
-            if (i > 0)
-              Divider(height: 1, color: KinrelColors.border.withValues(alpha: 0.5)),
-            _playerTile(state.players[i], state.game?.hostUserId),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _playerTile(SosPlayer player, String? hostUserId) {
-    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-    final isMe = player.userId == myId;
-    return ListTile(
-      leading: DKAvatar(
-        initials: player.userName.isNotEmpty
-            ? player.userName[0].toUpperCase()
-            : '?',
-        borderColor: player.team != null
-            ? Color(player.team!.colorValue)
-            : null,
-      ),
-      title: Row(
-        children: [
-          Text(
-            isMe ? '${player.userName} (You)' : player.userName,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 14,
-              color: KinrelColors.textWhite,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          if (player.team != null) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(
-                color: Color(player.team!.colorValue).withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                player.team!.name,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.monoFont,
-                  fontSize: 10,
-                  color: Color(player.team!.colorValue),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-      trailing: player.userId == hostUserId
-          ? Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: KinrelColors.orange.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(KinrelRadius.xs),
-              ),
-              child: Text(
-                'HOST',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.monoFont,
-                  fontSize: 10,
-                  color: KinrelColors.orange,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1,
-                ),
-              ),
-            )
-          : null,
     );
   }
 }
