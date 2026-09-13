@@ -22,6 +22,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/widgets/badges_toast.dart';
 import 'bingo_models.dart';

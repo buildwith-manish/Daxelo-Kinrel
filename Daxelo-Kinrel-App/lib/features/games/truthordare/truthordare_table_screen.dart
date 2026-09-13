@@ -11,6 +11,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import 'truthordare_models.dart';
 import 'truthordare_provider.dart';
@@ -98,6 +99,40 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
             }
           },
         ),
+        title: Text('Round ${game.roundNumber}', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
+      ),
+      body: SafeArea(child: Column(children: [
+        // Players ring
+        Expanded(flex: 3, child: _playersRing(state, game, myId)),
+        // Bottle / action area
+        Expanded(flex: 2, child: _actionArea(state, game, isMySpin, round, iAmSelected, showChoice, showPrompt, showCompleted, myId)),
+      ])),
+    );
+  }
+
+  Widget _playersRing(TodState state, TodGame game, String? myId) {
+    final players = state.players;
+    return Center(child: SizedBox(width: 280, height: 280, child: Stack(children: [
+      // Player avatars arranged in a circle
+      ...players.asMap().entries.map((entry) {
+        final i = entry.key; final p = entry.value;
+        final angle = (i / players.length) * 2 * math.pi - math.pi / 2;
+        final radius = 120.0;
+        final x = 140 + radius * math.cos(angle) - 20;
+        final y = 140 + radius * math.sin(angle) - 20;
+        final isSpinner = p.userId == game.currentSpinnerId;
+        final isSelected = state.currentRound?.selectedPlayerId == p.userId;
+        return Positioned(left: x, top: y, child: Column(children: [
+          Container(width: 40, height: 40, decoration: BoxDecoration(shape: BoxShape.circle,
+            color: isSpinner ? KinrelColors.orange : (isSelected ? KinrelColors.success : KinrelColors.darkElevated),
+            border: Border.all(color: isSpinner ? KinrelColors.orange : (isSelected ? KinrelColors.success : KinrelColors.border), width: 2),
+            boxShadow: isSelected ? [BoxShadow(color: KinrelColors.success.withValues(alpha: 0.5), blurRadius: 10, spreadRadius: 2)] : null,
+          ), child: Center(child: Text(PersonAvatar.initialsFor(p.userName), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: isSpinner || isSelected ? Colors.white : KinrelColors.textDim)))),
+          const SizedBox(height: 2),
+          Text(p.userName.split(' ').first, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 9, color: isSpinner ? KinrelColors.orange : (isSelected ? KinrelColors.success : KinrelColors.textDim), fontWeight: FontWeight.w600)),
+        ]));
+      }),
       // Bottle in center
       Positioned(left: 110, top: 110, child: Transform.rotate(angle: _bottleAngle, child: Container(width: 60, height: 60, decoration: BoxDecoration(shape: BoxShape.circle, color: KinrelColors.darkCard, border: Border.all(color: KinrelColors.orange, width: 2)),
         child: Center(child: Icon(Icons.rotate_right, size: 28, color: KinrelColors.orange)),
