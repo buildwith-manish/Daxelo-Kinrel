@@ -4,7 +4,8 @@
 // Supports two invite modes (per spec):
 //
 //   1. "Invite Specific Members" (default)
-//      - List of Find-on-Kinrel-linked family members.
+//      - List of family members (real Kinrel accounts, sourced from the
+//        family membership source — see family_invite_members_provider).
 //      - Each row has a single-tap "Invite" button (instant send).
 //      - OR multi-select via checkboxes + "Send N invites" button at bottom.
 //      - Per-member status badges (Pending / Accepted / Declined / Expired).
@@ -14,8 +15,19 @@
 //      - Confirmation dialog: "Invite all N family members to [Game]?"
 //      - Sends invites simultaneously; first-come-first-served for room slots.
 //
+// MEMBERS (2026-09-14 fix): the list comes from the shared
+// familyInviteMembersProvider — fn_get_linked_family_members now reads
+// FamilyMember (the membership source) JOIN User plus Find-on-Kinrel
+// linked Persons, so every real member appears. The list is LIVE: the
+// provider subscribes to FamilyMember/Person realtime (members added /
+// removed / linked refresh automatically) and this sheet subscribes to
+// game_invites realtime so invitation statuses refresh as invites land
+// or are answered. Rows show avatar, name, @username, role, online
+// status, invitation status, and a clear Invite action.
+//
 // Edge cases handled (per spec):
-//   • Empty family-linked list → "No linked family members yet" empty state.
+//   • Empty account-linked list → accurate empty state that NEVER claims
+//     "no linked members" when members exist (uses family stats).
 //   • Room full (currentPlayers >= maxPlayers) → Invite buttons disabled,
 //     banner explains why.
 //   • User already in room → "In room" badge instead of Invite button.
@@ -24,10 +36,13 @@
 //     "first-come, first-served" note.
 //   • Status tracking via gameInviteStatusProvider — every invite is marked
 //     'pending' on send, then 'accepted' / 'declined' / 'expired' as
-//     responses arrive.
+//     responses arrive; syncFromDb reconciles with durable rows.
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
@@ -36,28 +51,17 @@ import '../../../../core/network/socket_service.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../chat/providers/chat_provider.dart';
 import '../../../family/presentation/add_member_source.dart';
+import '../../../presence/last_seen_provider.dart';
 import '../models/game_invite.dart';
 import '../models/game_invite_status.dart';
 import '../providers/game_invite_status_provider.dart';
+import '../providers/family_invite_members_provider.dart';
 import 'invite_status_badge.dart';
 import 'recent_players_section.dart';
 import 'package:go_router/go_router.dart';
 
 /// Invite scope selected by the host at the top of the sheet.
 enum _InviteMode { specific, entire }
-
-/// A single linked family member returned by `fn_get_linked_family_members`.
-class _LinkedMember {
-  const _LinkedMember({
-    required this.user,
-    required this.personId,
-    required this.linkedAt,
-  });
-
-  final KinrelUser user;
-  final String personId;
-  final DateTime? linkedAt;
-}
 
 /// The sheet widget. Open via [InviteFamilySheet.show] as a modal bottom sheet.
 class InviteFamilySheet extends ConsumerStatefulWidget {
@@ -125,9 +129,10 @@ class InviteFamilySheet extends ConsumerStatefulWidget {
 }
 
 class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
-  List<_LinkedMember> _members = [];
-  bool _loading = true;
-  String? _error;
+  /// game_invites realtime channel (invite statuses for THIS room).
+  RealtimeChannel? _inviteChannel;
+  Timer? _statusSyncDebounce;
+  bool _disposed = false;
 
   /// Search query for filtering the member list (local filter, not RPC).
   /// Filters by name, username, or email — case-insensitive.
@@ -150,49 +155,96 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadMembers());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _subscribeToInviteChanges();
+      _syncInviteStatuses();
+    });
   }
 
-  Future<void> _loadMembers() async {
+  @override
+  void dispose() {
+    _disposed = true;
+    _statusSyncDebounce?.cancel();
+    // NEVER touch ref after dispose — the channel was captured alive.
+    _inviteChannel?.unsubscribe();
+    _inviteChannel = null;
+    super.dispose();
+  }
+
+  /// Live invitation-status sync: any game_invites change for THIS game
+  /// room (invite sent / accepted / declined / expired) triggers a
+  /// debounced reconciliation of the status badges with the database.
+  void _subscribeToInviteChanges() {
     final client = ref.read(supabaseProvider);
-    if (client == null) {
-      setState(() {
-        _loading = false;
-        _error = 'Not signed in';
-      });
-      return;
-    }
-    try {
-      final resp = await client.rpc(
-        'fn_get_linked_family_members',
-        params: {'p_family_id': widget.familyId},
-      ).timeout(const Duration(seconds: 15));
+    if (client == null) return;
 
-      final rows = (resp as List).cast<Map<String, dynamic>>();
-      final members = rows.map((r) {
-        final user = KinrelUser.fromJson(r);
-        final rawTs = r['linkedAt'];
-        DateTime? ts;
-        if (rawTs is String) ts = DateTime.tryParse(rawTs);
-        return _LinkedMember(
-          user: user,
-          personId: (r['personId'] ?? '') as String,
-          linkedAt: ts,
-        );
-      }).toList();
-
-      if (!mounted) return;
-      setState(() {
-        _members = members;
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = '$e';
+    void onChanged(_) {
+      if (_disposed) return;
+      _statusSyncDebounce?.cancel();
+      _statusSyncDebounce = Timer(const Duration(milliseconds: 500), () {
+        if (!_disposed && mounted) _syncInviteStatuses();
       });
     }
+
+    _inviteChannel = client
+        .channel('game-invite-status:${widget.gameId}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'game_invites',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'gameId',
+            value: widget.gameId,
+          ),
+          callback: onChanged,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'game_invites',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'gameId',
+            value: widget.gameId,
+          ),
+          callback: onChanged,
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.delete,
+          schema: 'public',
+          table: 'game_invites',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'gameId',
+            value: widget.gameId,
+          ),
+          callback: onChanged,
+        )
+        .subscribe();
+  }
+
+  /// Reconcile invite-status badges with the durable game_invites rows
+  /// (recipient responses are persisted by GameInviteListener, so this
+  /// works even when the realtime socket event leg failed).
+  Future<void> _syncInviteStatuses() async {
+    final members =
+        ref.read(familyInviteMembersProvider(widget.familyId)).members;
+    final lookup = <String,
+        ({String name, String? username, String? avatarUrl,
+        String? photoThumb})>{};
+    for (final m in members) {
+      lookup[m.user.id] = (
+        name: m.user.name,
+        username: m.user.username,
+        avatarUrl: m.user.avatarUrl,
+        photoThumb: m.user.photoThumb,
+      );
+    }
+    await ref
+        .read(gameInviteStatusProvider(widget.gameId).notifier)
+        .syncFromDb(nameLookup: lookup);
   }
 
   bool get _isRoomFull =>
@@ -259,7 +311,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
 
   /// Send a single invite to one member and mark them as 'pending' in the
   /// status provider. Single-tap path.
-  Future<void> _sendInvite(_LinkedMember m) async {
+  Future<void> _sendInvite(FamilyInviteMember m) async {
     if (_sendingTo.contains(m.user.id)) return;
     if (_isRoomFull) return;
     if (widget.currentPlayerIds.contains(m.user.id)) return;
@@ -364,7 +416,9 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
   /// Send invites to all selected members (multi-select path).
   Future<void> _sendSelectedInvites() async {
     if (_selectedUserIds.isEmpty) return;
-    final selected = _members
+    final allMembers =
+        ref.read(familyInviteMembersProvider(widget.familyId)).members;
+    final selected = allMembers
         .where((m) => _selectedUserIds.contains(m.user.id))
         .toList();
     setState(() {
@@ -472,7 +526,9 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
   /// Send invites to ALL linked family members at once.
   /// Caller must already have shown the confirmation dialog.
   Future<void> _sendBulkInvites() async {
-    final eligible = _members
+    final eligible = ref
+        .read(familyInviteMembersProvider(widget.familyId))
+        .members
         .where((m) =>
             !widget.currentPlayerIds.contains(m.user.id) &&
             !_isRoomFull)
@@ -577,7 +633,9 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
 
   /// Show the "Invite all N members?" confirmation dialog before bulk send.
   Future<void> _confirmBulkInvite() async {
-    final eligible = _members
+    final eligible = ref
+        .read(familyInviteMembersProvider(widget.familyId))
+        .members
         .where((m) =>
             !widget.currentPlayerIds.contains(m.user.id) &&
             !_isRoomFull)
@@ -659,6 +717,11 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
   @override
   Widget build(BuildContext context) {
     final inviteStatus = ref.watch(gameInviteStatusProvider(widget.gameId));
+    // The single shared membership source + live realtime refresh.
+    final memberState =
+        ref.watch(familyInviteMembersProvider(widget.familyId));
+    // Live online/last-seen state (updated via UserPresence realtime).
+    ref.watch(lastSeenProvider);
 
     final roomFullBanner = _isRoomFull
         ? Container(
@@ -706,7 +769,8 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
           _buildModeSelector(),
           roomFullBanner,
           Expanded(
-            child: _buildBody(ScrollController(), inviteStatus),
+            child: _buildBody(
+                ScrollController(), inviteStatus, memberState),
           ),
           if (_mode == _InviteMode.specific && _selectedUserIds.isNotEmpty)
             _buildMultiSelectBar(),
@@ -845,13 +909,15 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
   }
 
   Widget _buildBody(
-      ScrollController scrollController, GameInviteState inviteStatus) {
-    if (_loading) {
+      ScrollController scrollController,
+      GameInviteState inviteStatus,
+      FamilyInviteMembersState memberState) {
+    if (memberState.loading) {
       return const Center(
         child: CircularProgressIndicator(color: KinrelColors.orange),
       );
     }
-    if (_error != null) {
+    if (memberState.error != null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(KinrelSpacing.xl),
@@ -872,7 +938,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
               ),
               const SizedBox(height: 4),
               Text(
-                _error!,
+                memberState.error!,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -883,31 +949,53 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
               const SizedBox(height: KinrelSpacing.md),
               DKTextButton(
                 label: 'Retry',
-                onPressed: () {
-                  setState(() {
-                    _loading = true;
-                    _error = null;
-                  });
-                  _loadMembers();
-                },
+                onPressed: () => ref
+                    .read(familyInviteMembersProvider(widget.familyId)
+                        .notifier)
+                    .load(),
               ),
             ],
           ),
         ),
       );
     }
-    if (_members.isEmpty) {
-      return _buildEmptyState();
+    if (memberState.members.isEmpty) {
+      return _buildEmptyState(memberState);
     }
     switch (_mode) {
       case _InviteMode.specific:
-        return _buildSpecificList(scrollController, inviteStatus);
+        return _buildSpecificList(
+            scrollController, inviteStatus, memberState);
       case _InviteMode.entire:
-        return _buildEntireFamilyView(inviteStatus);
+        return _buildEntireFamilyView(inviteStatus, memberState);
     }
   }
 
-  Widget _buildEmptyState() {
+  /// ACCURATE empty state — never claims the family has no members when
+  /// it does. Uses the family stats fetched alongside the member list:
+  ///   • family has other members, but none link a Kinrel account →
+  ///     "N members haven't linked their Kinrel accounts yet"
+  ///   • caller is the only member → invite people to the family first.
+  Widget _buildEmptyState(FamilyInviteMembersState memberState) {
+    final stats = memberState.stats;
+    final hasOtherMembers = stats.membershipCount > 1;
+
+    final String title;
+    final String subtitle;
+    if (hasOtherMembers) {
+      title =
+          '${stats.membershipCount} members, no linked Kinrel accounts yet.';
+      subtitle = stats.unlinkedPersonCount > 0
+          ? 'Invite them to join Kinrel first, or link their accounts from '
+              'your Family screen — then they can join your games.'
+          : 'Invite them to join Kinrel first, or add them from your '
+              'Family screen.';
+    } else {
+      title = 'You\'re the only member of this family.';
+      subtitle = 'Invite family members to your family first, then come '
+          'back to play ${widget.gameType.displayName} together.';
+    }
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(KinrelSpacing.xl),
@@ -925,7 +1013,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
             ),
             const SizedBox(height: KinrelSpacing.lg),
             Text(
-              'No linked Kinrel members in this family yet.',
+              title,
               style: TextStyle(
                 fontFamily: KinrelTypography.displayFont,
                 fontSize: 15,
@@ -936,8 +1024,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
             ),
             const SizedBox(height: KinrelSpacing.sm),
             Text(
-              'Invite them to join Kinrel first, or add them from your '
-              'Family screen.',
+              subtitle,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
@@ -955,17 +1042,37 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
   // ── Specific Members mode ────────────────────────────────────────────
 
   Widget _buildSpecificList(
-      ScrollController scrollController, GameInviteState inviteStatus) {
+      ScrollController scrollController,
+      GameInviteState inviteStatus,
+      FamilyInviteMembersState memberState) {
     // Compute "selection full" state — can't multi-select more than remaining
     // slots (existing players in room + selected invites can't exceed max).
     final selectionFull =
         _selectedUserIds.length >= _remainingSlots && _remainingSlots > 0;
 
+    // Members with LIVE presence: merge the RPC snapshot with the
+    // UserPresence realtime cache, then sort online-first (the fastest
+    // invites are the ones someone will actually see).
+    final presenceMap = ref.read(lastSeenProvider);
+    final members = memberState.members
+        .map((m) {
+      final live = presenceMap[m.user.id];
+      if (live == null) return m;
+      return m.copyWith(isOnline: live.isOnline, lastSeenAt: live.lastSeenAt);
+    })
+        .toList()
+      ..sort((a, b) {
+        final aOnline = (a.isOnline ?? false) ? 1 : 0;
+        final bOnline = (b.isOnline ?? false) ? 1 : 0;
+        if (aOnline != bOnline) return bOnline - aOnline;
+        return (a.user.name).compareTo(b.user.name);
+      });
+
     // Filter members by search query (local filter, case-insensitive).
     final query = _searchQuery.trim().toLowerCase();
     final filtered = query.isEmpty
-        ? _members
-        : _members.where((m) {
+        ? members
+        : members.where((m) {
             final name = (m.user.name).toLowerCase();
             final username = (m.user.username ?? '').toLowerCase();
             final email = (m.user.email ?? '').toLowerCase();
@@ -987,6 +1094,52 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                   padding: const EdgeInsets.fromLTRB(
                       KinrelSpacing.lg, KinrelSpacing.sm, KinrelSpacing.lg, 90),
                   children: [
+                    // ── Member count header (live) ────────────────
+                    if (query.isEmpty)
+                      Padding(
+                        padding:
+                            const EdgeInsets.only(bottom: KinrelSpacing.sm),
+                        child: Row(children: [
+                          Text(
+                            'FAMILY MEMBERS',
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.monoFont,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: KinrelColors.textDim,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${members.length}',
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.monoFont,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: KinrelColors.orange,
+                            ),
+                          ),
+                          const Spacer(),
+                          // Online dot + count
+                          Container(
+                            width: 7, height: 7,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF22C55E),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${memberState.onlineCount} online',
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.monoFont,
+                              fontSize: 10,
+                              color: KinrelColors.textDim,
+                            ),
+                          ),
+                        ]),
+                      ),
                     // ── Recently Played With ──────────────────────
                     // Only show when not searching (avoids clutter).
                     if (query.isEmpty)
@@ -1116,7 +1269,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
   }
 
   Widget _buildMemberTile(
-    _LinkedMember m, {
+    FamilyInviteMember m, {
     required bool isSelected,
     required InviteMemberStatus? status,
     required bool selectionFull,
@@ -1126,6 +1279,20 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     final multiSelectActive = _selectedUserIds.isNotEmpty;
     final disabled = _isRoomFull || isInRoom;
     final canSelect = !disabled && (!selectionFull || isSelected);
+
+    // Presence label: live "online" or "last seen X ago".
+    final presence = ref.read(lastSeenProvider)[m.user.id];
+    final isOnline = presence?.isOnline ?? (m.isOnline ?? false);
+    final presenceLabel = presence != null
+        ? formatLastSeen(presence)
+        : (isOnline
+            ? 'online'
+            : (m.lastSeenAt != null
+                ? formatLastSeen(UserLastSeen(
+                    userId: m.user.id,
+                    isOnline: false,
+                    lastSeenAt: m.lastSeenAt))
+                : 'offline'));
 
     // Single-tap Invite button label & color
     String buttonLabel;
@@ -1205,7 +1372,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                     : (canSelect ? KinrelColors.textDim : KinrelColors.darkElevated),
               ),
             ),
-          _buildAvatar(m.user),
+          _buildAvatar(m.user, isOnline: isOnline),
           const SizedBox(width: KinrelSpacing.md),
           Expanded(
             child: Column(
@@ -1225,32 +1392,69 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
                       ),
                     ),
                   ),
+                  // Role chip (real joined member vs linked person).
+                  if (m.isMember) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: KinrelColors.darkElevated,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'MEMBER',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.monoFont,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w700,
+                          color: KinrelColors.textSilver,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ),
+                  ],
                   if (status != null) ...[
                     const SizedBox(width: 6),
                     InviteStatusBadge(status: status, compact: true),
                   ],
                 ]),
                 const SizedBox(height: 2),
-                if (m.user.username != null && m.user.username!.isNotEmpty)
-                  Row(children: [
-                    Text(
-                      '@${m.user.username}',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.monoFont,
-                        fontSize: 12,
-                        color: KinrelColors.orange,
+                Row(children: [
+                  if (m.user.username != null &&
+                      m.user.username!.isNotEmpty) ...[
+                    Flexible(
+                      child: Text(
+                        '@${m.user.username}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.monoFont,
+                          fontSize: 12,
+                          color: KinrelColors.orange,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      m.user.displayId,
+                  ],
+                  // Live presence: online (green) / last seen (dim).
+                  Flexible(
+                    child: Text(
+                      presenceLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontFamily: KinrelTypography.monoFont,
+                        fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11,
-                        color: KinrelColors.textDim,
+                        fontWeight:
+                            isOnline ? FontWeight.w600 : FontWeight.w400,
+                        color: isOnline
+                            ? const Color(0xFF22C55E)
+                            : KinrelColors.textDim,
                       ),
                     ),
-                  ]),
+                  ),
+                ]),
                 if (m.user.bio != null && m.user.bio!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
@@ -1330,18 +1534,20 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
 
   // ── Entire Family Space mode ────────────────────────────────────────
 
-  Widget _buildEntireFamilyView(GameInviteState inviteStatus) {
-    final eligible = _members
+  Widget _buildEntireFamilyView(
+      GameInviteState inviteStatus, FamilyInviteMembersState memberState) {
+    final members = memberState.members;
+    final eligible = members
         .where((m) =>
             !widget.currentPlayerIds.contains(m.user.id) && !_isRoomFull)
         .toList();
-    final alreadyInRoom = _members
+    final alreadyInRoom = members
         .where((m) => widget.currentPlayerIds.contains(m.user.id))
         .length;
     final overCapacity =
         eligible.length > _remainingSlots && _remainingSlots > 0;
 
-    if (_members.isEmpty) return _buildEmptyState();
+    if (members.isEmpty) return _buildEmptyState(memberState);
 
     return ListView(
       padding: const EdgeInsets.all(KinrelSpacing.lg),
@@ -1378,8 +1584,8 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Sends a real-time invite to every Find-on-Kinrel-linked '
-                'family member in this space simultaneously.',
+                'Sends a real-time invite to every family member with a '
+                'Kinrel account in this space simultaneously.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: KinrelTypography.bodyFont,
@@ -1468,7 +1674,11 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
 
         // Breakdown
         const SizedBox(height: KinrelSpacing.lg),
-        _breakdownRow('Linked family members', _members.length.toString()),
+        _breakdownRow('Family members', members.length.toString()),
+        _breakdownRow(
+          'Online now',
+          memberState.onlineCount.toString(),
+        ),
         if (alreadyInRoom > 0)
           _breakdownRow('Already in room', alreadyInRoom.toString()),
         _breakdownRow(
@@ -1550,7 +1760,38 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
 
   // ── Avatars ──────────────────────────────────────────────────────────
 
-  Widget _buildAvatar(KinrelUser user) {
+  /// Avatar with a live online-status dot (green = online, dim = offline).
+  Widget _buildAvatar(KinrelUser user, {bool isOnline = false}) {
+    return SizedBox(
+      width: 44, height: 44,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          _buildAvatarImage(user),
+          Positioned(
+            right: -1, bottom: -1,
+            child: Container(
+              width: 12, height: 12,
+              decoration: BoxDecoration(
+                color: isOnline
+                    ? const Color(0xFF22C55E)
+                    : KinrelColors.darkElevated,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isOnline
+                      ? KinrelColors.darkSurface
+                      : KinrelColors.border,
+                  width: 2,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvatarImage(KinrelUser user) {
     final photo = user.photoThumb ?? user.avatarUrl;
     if (photo != null && photo.isNotEmpty) {
       return ClipOval(

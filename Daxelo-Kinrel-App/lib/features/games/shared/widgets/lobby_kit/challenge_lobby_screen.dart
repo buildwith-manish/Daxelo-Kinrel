@@ -27,7 +27,8 @@ import '../../../../../shared/widgets/dk_components.dart';
 import '../../../game_motion_tokens.dart';
 import '../../models/game_invite.dart';
 import '../../multiplayer/multiplayer.dart';
-import '../../../../family/presentation/add_member_source.dart';
+import '../../../../presence/last_seen_provider.dart';
+import '../../providers/family_invite_members_provider.dart';
 import '../../../../../core/constants/brand_spacing.dart';
 import 'how_to_play_card.dart';
 import 'lobby_hero.dart';
@@ -136,9 +137,6 @@ class ChallengeLobbyScreen extends ConsumerStatefulWidget {
 }
 
 class _ChallengeLobbyScreenState extends ConsumerState<ChallengeLobbyScreen> {
-  List<Map<String, dynamic>> _members = [];
-  bool _loading = true;
-  String? _error;
   String? _selectedOpponentId;
   String _selectedOpponentName = '';
   bool _creating = false;
@@ -150,51 +148,31 @@ class _ChallengeLobbyScreenState extends ConsumerState<ChallengeLobbyScreen> {
   RoomControllerKey get _roomKey =>
       RoomControllerKey(widget.spec.roomConfig, widget.familyId);
 
-  @override
-  void initState() {
-    super.initState();
-    _loadFamilyMembers();
-  }
+  // Members come from the shared familyInviteMembersProvider — the
+  // membership-source RPC (FamilyMember JOIN User + linked Persons)
+  // with realtime sync: the opponent list refreshes automatically when
+  // members are added / removed / linked. Live online status comes
+  // from lastSeenProvider (UserPresence realtime).
+  FamilyInviteMembersState get _memberState =>
+      ref.watch(familyInviteMembersProvider(widget.familyId));
 
-  Future<void> _loadFamilyMembers() async {
-    final client = ref.read(supabaseProvider);
-    final myId = client?.auth.currentUser?.id;
-    if (client == null || myId == null) {
-      setState(() {
-        _loading = false;
-        _error = 'Not signed in';
+  /// Opponents sorted online-first (a live opponent accepts fastest).
+  List<FamilyInviteMember> get _opponents {
+    final presenceMap = ref.watch(lastSeenProvider);
+    final members = _memberState.members
+        .map((m) {
+      final live = presenceMap[m.user.id];
+      if (live == null) return m;
+      return m.copyWith(isOnline: live.isOnline, lastSeenAt: live.lastSeenAt);
+    })
+        .toList()
+      ..sort((a, b) {
+        final aOnline = (a.isOnline ?? false) ? 1 : 0;
+        final bOnline = (b.isOnline ?? false) ? 1 : 0;
+        if (aOnline != bOnline) return bOnline - aOnline;
+        return (a.user.name).compareTo(b.user.name);
       });
-      return;
-    }
-    try {
-      // Only real linked Kinrel accounts are listed (matches the
-      // Family-Space invite flow).
-      final resp = await client.rpc(
-        'fn_get_linked_family_members',
-        params: {'p_family_id': widget.familyId},
-      ).timeout(const Duration(seconds: 15));
-
-      final rows = (resp as List).cast<Map<String, dynamic>>();
-      final members = rows.map((r) {
-        final user = KinrelUser.fromJson(r);
-        return {
-          'userId': user.id,
-          'name': user.name,
-          'username': user.username,
-          'avatarUrl': user.avatarUrl,
-          'photoThumb': user.photoThumb,
-        };
-      }).toList();
-      setState(() {
-        _members = members;
-        _loading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _loading = false;
-        _error = '$e';
-      });
-    }
+    return members;
   }
 
   Future<void> _createGame() async {
@@ -293,18 +271,30 @@ class _ChallengeLobbyScreenState extends ConsumerState<ChallengeLobbyScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
       ),
-      body: _loading
+      body: _memberState.loading
           ? const Center(
               child: CircularProgressIndicator(color: KinrelColors.orange),
             )
-          : _error != null
-              ? DKErrorState(message: _error!, onRetry: _loadFamilyMembers)
-              : _members.isEmpty
+          : _memberState.error != null
+              ? DKErrorState(
+                  message: _memberState.error!,
+                  onRetry: () => ref
+                      .read(familyInviteMembersProvider(widget.familyId)
+                          .notifier)
+                      .load(),
+                )
+              : _memberState.members.isEmpty
                   ? DKEmptyState(
                       icon: Icons.group_outlined,
-                      title: 'No family members to challenge',
-                      subtitle:
-                          'Invite family members to your family first, then come back to play ${spec.title}.',
+                      title: _memberState.stats.membershipCount > 1
+                          ? 'No linked Kinrel accounts yet'
+                          : 'No family members to challenge',
+                      subtitle: _memberState.stats.membershipCount > 1
+                          ? 'Members in this family haven\'t linked Kinrel '
+                              'accounts yet — invite them to join Kinrel, then '
+                              'come back to play ${spec.title}.'
+                          : 'Invite family members to your family first, then '
+                              'come back to play ${spec.title}.',
                     )
                   : _body(),
     );
@@ -334,20 +324,21 @@ class _ChallengeLobbyScreenState extends ConsumerState<ChallengeLobbyScreen> {
               // ── Primary decision: who to challenge ─────────────────
               const SizedBox(height: 16),
               LobbySection(
-                label: 'Select Opponent',
+                label:
+                    'Select Opponent  ·  ${_opponents.length} member${_opponents.length == 1 ? '' : 's'}  ·  ${_memberState.onlineCount} online',
                 child: Column(
                   children: [
-                    for (int i = 0; i < _members.length; i++) ...[
+                    for (int i = 0; i < _opponents.length; i++) ...[
                       if (i > 0) const SizedBox(height: 8),
                       _OpponentTile(
-                        name: _members[i]['name'] as String,
+                        member: _opponents[i],
                         isSelected:
-                            _selectedOpponentId == _members[i]['userId'],
+                            _selectedOpponentId == _opponents[i].user.id,
                         onTap: () {
                           GameMotionTokens.tap();
                           setState(() {
-                            _selectedOpponentId = _members[i]['userId'] as String;
-                            _selectedOpponentName = _members[i]['name'] as String;
+                            _selectedOpponentId = _opponents[i].user.id;
+                            _selectedOpponentName = _opponents[i].user.name;
                           });
                         },
                       ),
@@ -431,17 +422,21 @@ class _ChallengeLobbyScreenState extends ConsumerState<ChallengeLobbyScreen> {
 
 class _OpponentTile extends StatelessWidget {
   const _OpponentTile({
-    required this.name,
+    required this.member,
     required this.isSelected,
     required this.onTap,
   });
 
-  final String name;
+  /// The family member being offered as an opponent — carries avatar,
+  /// username and live online status.
+  final FamilyInviteMember member;
   final bool isSelected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final isOnline = member.isOnline ?? false;
+    final name = member.user.name;
     return Material(
       color: isSelected
           ? KinrelColors.orange.withValues(alpha: 0.08)
@@ -461,22 +456,90 @@ class _OpponentTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              DKAvatar(
-                initials: name.isNotEmpty ? name[0].toUpperCase() : '?',
-                borderColor: isSelected ? KinrelColors.orange : null,
+              // Avatar with live online dot.
+              SizedBox(
+                width: 44,
+                height: 44,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    _OpponentAvatar(member: member),
+                    Positioned(
+                      right: -1,
+                      bottom: -1,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: isOnline
+                              ? const Color(0xFF22C55E)
+                              : KinrelColors.darkElevated,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isOnline
+                                ? KinrelColors.darkCard
+                                : KinrelColors.border,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  name,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: isSelected
-                        ? KinrelColors.textWhite
-                        : KinrelColors.textDim,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color:
+                            isSelected ? KinrelColors.textWhite : KinrelColors.textDim,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Row(children: [
+                      if (member.user.username != null &&
+                          member.user.username!.isNotEmpty) ...[
+                        Flexible(
+                          child: Text(
+                            '@${member.user.username}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.monoFont,
+                              fontSize: 11,
+                              color: KinrelColors.orange,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Flexible(
+                        child: Text(
+                          isOnline ? 'online' : 'offline',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 11,
+                            fontWeight:
+                                isOnline ? FontWeight.w600 : FontWeight.w400,
+                            color: isOnline
+                                ? const Color(0xFF22C55E)
+                                : KinrelColors.textDim,
+                          ),
+                        ),
+                      ),
+                    ]),
+                  ],
                 ),
               ),
               if (isSelected)
@@ -489,6 +552,38 @@ class _OpponentTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Avatar for an opponent tile: photo when available, initials otherwise.
+class _OpponentAvatar extends StatelessWidget {
+  const _OpponentAvatar({required this.member});
+
+  final FamilyInviteMember member;
+
+  @override
+  Widget build(BuildContext context) {
+    final photo = member.user.photoThumb ?? member.user.avatarUrl;
+    if (photo != null && photo.isNotEmpty) {
+      return ClipOval(
+        child: Image.network(
+          photo,
+          width: 44,
+          height: 44,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) =>
+              _initialsAvatar(context, member.user.initials),
+        ),
+      );
+    }
+    return _initialsAvatar(context, member.user.initials);
+  }
+
+  Widget _initialsAvatar(BuildContext context, String initials) {
+    return DKAvatar(
+      initials: initials,
+      borderColor: Colors.transparent,
     );
   }
 }

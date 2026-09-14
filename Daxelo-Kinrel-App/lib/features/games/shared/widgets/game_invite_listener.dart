@@ -11,6 +11,8 @@
 //
 // Placement: see `lib/main.dart` or the root `MaterialApp.router` builder.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,6 +21,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/network/socket_service.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../models/game_invite.dart';
 
 class GameInviteListener extends ConsumerStatefulWidget {
@@ -83,6 +86,10 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
         // best-effort — even if ack fails, navigate locally
       }
     }
+    // Persist the response so the host's invite sheet (watching the
+    // game_invites realtime feed) shows an accurate Accepted badge even
+    // if the socket event leg failed. Best-effort — never blocks nav.
+    unawaited(_persistInviteStatus(invite, 'accepted'));
     if (!mounted) return;
     // Navigate the recipient into the host's lobby with the join code.
     GoRouter.of(context).go(invite.joinRoute);
@@ -94,6 +101,32 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
       try {
         await socket.declineGameInvite(invite);
       } catch (_) {}
+    }
+    // Persist the decline (same rationale as _acceptInvite).
+    unawaited(_persistInviteStatus(invite, 'declined'));
+  }
+
+  /// Update the durable game_invites row for this recipient + game so
+  /// invitation statuses stay accurate and survive sheet reopens.
+  /// RLS: game_invites_update_invited lets the invited user update.
+  Future<void> _persistInviteStatus(
+      GameInvite invite, String status) async {
+    try {
+      final client = ref.read(supabaseProvider);
+      final myId = client?.auth.currentUser?.id;
+      if (client == null || myId == null) return;
+      await client
+          .from('game_invites')
+          .update({
+            'status': status,
+            'respondedAt': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('gameId', invite.gameId)
+          .eq('invitedUserId', myId)
+          .timeout(const Duration(seconds: 8));
+    } catch (e) {
+      debugPrint('⚠️ GameInviteListener: persist $status failed '
+          '(non-blocking): $e');
     }
   }
 
