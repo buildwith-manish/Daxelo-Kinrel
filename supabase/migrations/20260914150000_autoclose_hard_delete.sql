@@ -38,6 +38,10 @@
 -- =====================================================================
 
 -- ── 1) fn_reap_disconnected_players → hard-delete on host disconnect ──
+--    Host detection mirrors 20260913130000: game_participants.role='host'
+--    first (board games have NO hostUserId column — a hostUserId-only
+--    check silently skips chess/checkers/tictactoe/carrom rooms), with
+--    the game-row hostUserId column as fallback for older rows.
 CREATE OR REPLACE FUNCTION public.fn_reap_disconnected_players(
     p_stale_threshold_seconds integer DEFAULT 60
 )
@@ -49,11 +53,13 @@ AS $$
     DECLARE
         v_reaped_count integer := 0;
         r record;
-        v_host_id text;
+        v_host_user_id text;
         v_table_name text;
+        v_is_host boolean := false;
+        v_has_host_col boolean := false;
     BEGIN
         FOR r IN
-            SELECT "gameTable", "gameId", "familyId", "userId", "userName"
+            SELECT "gameTable", "gameId", "familyId", "userId", "userName", "role"
             FROM "game_participants"
             WHERE "connectionState" = 'online'
               AND "leftAt" IS NULL
@@ -75,30 +81,42 @@ AS $$
                 (r."gameTable", r."gameId", r."familyId", r."userId", r."userName", 'leave',
                  jsonb_build_object('reason', 'disconnected'));
 
+            -- Host? role first, hostUserId column fallback.
+            v_table_name := r."gameTable";
+            v_is_host := (r."role" = 'host');
+            IF NOT v_is_host THEN
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = v_table_name
+                      AND column_name = 'hostUserId'
+                ) INTO v_has_host_col;
+                IF v_has_host_col THEN
+                    BEGIN
+                        EXECUTE format(
+                            'SELECT "hostUserId" FROM %I WHERE "id" = $1',
+                            v_table_name
+                        ) INTO v_host_user_id USING r."gameId";
+                        v_is_host := (v_host_user_id = r."userId");
+                    EXCEPTION WHEN OTHERS THEN
+                        v_is_host := false;
+                    END;
+                END IF;
+            END IF;
+
             -- If they're the host, close the room — HARD delete, same
             -- contract as fn_cancel_game_room: post the event first
             -- (realtime WAL delivers it to every connected client),
             -- then remove the room from the database entirely.
-            v_table_name := r."gameTable";
-            BEGIN
-                EXECUTE format(
-                    'SELECT "hostUserId" FROM %I WHERE "id" = $1',
-                    v_table_name
-                ) INTO v_host_id USING r."gameId";
+            IF v_is_host THEN
+                INSERT INTO "game_room_events"
+                    ("gameTable", "gameId", "familyId", "userId", "userName", "eventType", "payload")
+                VALUES
+                    (r."gameTable", r."gameId", r."familyId", NULL, 'System', 'auto_close',
+                     jsonb_build_object('reason', 'host_disconnected'));
 
-                IF v_host_id = r."userId" THEN
-                    INSERT INTO "game_room_events"
-                        ("gameTable", "gameId", "familyId", "userId", "userName", "eventType", "payload")
-                    VALUES
-                        (r."gameTable", r."gameId", r."familyId", NULL, 'System', 'auto_close',
-                         jsonb_build_object('reason', 'host_disconnected'));
-
-                    PERFORM public.fn__hard_delete_room(r."gameTable", r."gameId");
-                END IF;
-            EXCEPTION WHEN OTHERS THEN
-                -- Table doesn't exist or row missing — skip
-                NULL;
-            END;
+                PERFORM public.fn__hard_delete_room(r."gameTable", r."gameId");
+            END IF;
 
             v_reaped_count := v_reaped_count + 1;
         END LOOP;
