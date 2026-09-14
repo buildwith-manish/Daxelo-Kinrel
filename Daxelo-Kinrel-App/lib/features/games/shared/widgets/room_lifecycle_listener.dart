@@ -113,7 +113,7 @@ class _RoomLifecycleListenerState
   }
 
   void _attach() {
-    final socket = _socket ??= ref.read(socketServiceProvider);
+    final SocketService socket = _socket ??= ref.read(socketServiceProvider);
 
     // Capture the user identity once, while `ref` is still valid.
     _myUserId =
@@ -165,7 +165,7 @@ class _RoomLifecycleListenerState
   }
 
   void _tryJoin() {
-    final socket = _socket ??= ref.read(socketServiceProvider);
+    final SocketService socket = _socket ??= ref.read(socketServiceProvider);
     // Refresh identity if it wasn't captured yet (e.g. _attach ran
     // before sign-in completed).
     if (_myUserId.isEmpty && mounted) {

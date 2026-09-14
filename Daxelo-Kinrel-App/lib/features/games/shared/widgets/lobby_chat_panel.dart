@@ -134,7 +134,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
   }
 
   void _attach() {
-    final socket = _socket ??= ref.read(socketServiceProvider);
+    final SocketService socket = _socket ??= ref.read(socketServiceProvider);
 
     // Subscribe to incoming chat messages.
     _unsubMessage = socket.onGameChatMessage(_onMessage);
@@ -154,7 +154,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
   }
 
   void _tryJoin() {
-    final socket = _socket ??= ref.read(socketServiceProvider);
+    final SocketService socket = _socket ??= ref.read(socketServiceProvider);
     socket.joinGameChatRoom(
       gameTable: widget.gameTable,
       gameId: widget.gameId,
