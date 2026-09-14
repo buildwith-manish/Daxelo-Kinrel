@@ -24,15 +24,16 @@
 //
 // On confirm: calls RoomController.cancelRoom() which:
 //   1. Calls fn_cancel_game_room RPC (host-only check server-side)
-//   2. Server marks game row cancelledAt + closedAt = now()
-//   3. Server DELETEs from game_participants WHERE gameId = ...
-//   4. Server DELETEs from game_spectators WHERE gameId = ...
-//   5. Server DELETEs from the game's *_players table WHERE gameId = ...
-//   6. Server posts a 'cancel' room event (fanned out via realtime)
-//   7. Local _cleanup() stops heartbeat + auto-close timer + lobby
+//   2. Server posts the 'cancel' room event (fanned out via realtime so
+//      every connected client leaves immediately)
+//   3. Server HARD-DELETES the game row + game_participants +
+//      game_spectators + game_invites + event log (children cascade)
+//      — the room is gone from the database the moment it is closed,
+//      so it can never reappear when the host taps Play again
+//   4. Local _cleanup() stops heartbeat + auto-close timer + lobby
 //      poll + countdown timer + unsubscribes the realtime channel
-//   8. Local state is cleared to const RoomState()
-//   9. onCancelled callback fires (typically navigates to setup screen)
+//   5. Local state is cleared to const RoomState()
+//   6. onCancelled callback fires (typically navigates to setup screen)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

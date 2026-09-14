@@ -89,9 +89,18 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
           : state.error != null && state.game == null
           ? DKErrorState(
               message: state.error!,
-              onRetry: () => ref
-                  .read(chessProvider(widget.familyId).notifier)
-                  .loadGame(widget.gameId),
+              // Room closed by the host → terminal state, offer a clean
+              // exit back to the games hub instead of a pointless retry.
+              actionLabel:
+                  state.error == kRoomClosedMessage ? 'Back to Games' : null,
+              icon: state.error == kRoomClosedMessage
+                  ? Icons.meeting_room_rounded
+                  : null,
+              onRetry: state.error == kRoomClosedMessage
+                  ? () => context.go('/games?familyId=${widget.familyId}')
+                  : () => ref
+                      .read(chessProvider(widget.familyId).notifier)
+                      .loadGame(widget.gameId),
             )
           : state.game == null
           ? const Center(

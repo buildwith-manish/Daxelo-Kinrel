@@ -1964,6 +1964,7 @@ class DKErrorState extends StatelessWidget {
     required this.message,
     required this.onRetry,
     this.icon,
+    this.actionLabel,
   });
 
   /// Error message to display.
@@ -1974,6 +1975,11 @@ class DKErrorState extends StatelessWidget {
 
   /// Optional custom icon. Default [Icons.error_outline_rounded].
   final IconData? icon;
+
+  /// Optional custom label for the action button. Default 'Try Again'.
+  /// Use e.g. 'Back to Games' when the error is terminal (closed room)
+  /// and the only sensible action is navigating away.
+  final String? actionLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -2009,9 +2015,11 @@ class DKErrorState extends StatelessWidget {
           ).animate().fadeIn(duration: 300.ms, delay: 100.ms),
           const SizedBox(height: KinrelSpacing.xl),
           DKButton(
-                label: 'Try Again',
+                label: actionLabel ?? 'Try Again',
                 variant: DKButtonVariant.secondary,
-                icon: Icons.refresh_rounded,
+                icon: actionLabel != null
+                    ? Icons.arrow_back_rounded
+                    : Icons.refresh_rounded,
                 onPressed: onRetry,
               )
               .animate()

@@ -52,7 +52,9 @@ class TodNotifier extends StateNotifier<TodState> {
     if (client == null || myId == null) { state = state.copyWith(error: 'Not signed in'); return false; }
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final gameResp = await client.from('truthordare_games').select().eq('id', gameId).single();
+      // Closed / deleted room → friendly error, prompt a new room.
+      final gameResp = await client.from('truthordare_games').select().eq('id', gameId).maybeSingle();
+      if (isRoomRowClosed(gameResp)) { state = state.copyWith(isLoading: false, error: kRoomClosedMessage); return false; }
       final game = TodGame.fromJson(gameResp as Map<String, dynamic>); _gameId = gameId;
       final playersResp = await client.from('truthordare_players').select().eq('gameId', gameId).order('seatPosition', ascending: true);
       final existing = playersResp.map((p) => TodPlayer.fromJson(p as Map<String, dynamic>)).toList();

@@ -654,7 +654,7 @@ class RoomController extends StateNotifier<RoomState> {
     _countdownFired = false;
   }
 
-  /// Host: cancel the room. Closes + deletes the room, notifies all
+  /// Host: cancel the room. Closes + HARD-DELETES the room, notifies all
   /// participants in real time via the 'cancel' room event.
   ///
   /// Per the spec:
@@ -664,7 +664,9 @@ class RoomController extends StateNotifier<RoomState> {
   ///   • Close all realtime subscriptions/sockets.
   ///   • Clear any local room cache.
   ///   • Navigate back to the game lobby/create room screen.
-  ///   • Closed rooms are permanently removed and cannot reappear.
+  ///   • Closed rooms are permanently removed and cannot reappear —
+  ///     when the host taps Play for this game again they are prompted
+  ///     to create a new room (no closed room is ever restored).
   Future<void> cancelRoom() async {
     final client = _client;
     final myId = _myId;
@@ -675,9 +677,10 @@ class RoomController extends StateNotifier<RoomState> {
     state = state.copyWith(
         isSubmitting: true, clearError: true, clearFriendlyError: true);
     try {
-      // 1. Server-side: delete the room + all participants + spectators +
-      //    game-row data. Posts a 'cancel' event that fans out via
-      //    realtime to all connected clients (including us).
+      // 1. Server-side: HARD-DELETE the room + all participants +
+      //    spectators + invites + event log + all cascading game data.
+      //    The RPC posts a 'cancel' event FIRST so every connected client
+      //    is notified in real time before the rows disappear.
       await client.rpc('fn_cancel_game_room', params: {
         'p_game_table': gameTable,
         'p_game_id': gameId,
@@ -719,7 +722,9 @@ class RoomController extends StateNotifier<RoomState> {
   }
 
   /// Leave the room (manual exit). If the host leaves, the room is
-  /// closed automatically by the RPC (host_leave → close).
+  /// closed AND hard-deleted by the RPC (host_leave → delete — a room
+  /// without its host must never linger in the database or reappear
+  /// later); non-host players simply free their slot.
   Future<void> leaveRoom() async {
     final client = _client;
     final myId = _myId;

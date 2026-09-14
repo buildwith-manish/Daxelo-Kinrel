@@ -127,7 +127,9 @@ class NameplaceNotifier extends StateNotifier<NameplaceState> {
     if (client == null || myId == null) { state = state.copyWith(error: 'Not signed in'); return false; }
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final gameResp = await client.from('nameplace_games').select().eq('id', gameId).single();
+      // Closed / deleted room → friendly error, prompt a new room.
+      final gameResp = await client.from('nameplace_games').select().eq('id', gameId).maybeSingle();
+      if (isRoomRowClosed(gameResp)) { state = state.copyWith(isLoading: false, error: kRoomClosedMessage); return false; }
       final game = NameplaceGame.fromJson(gameResp as Map<String, dynamic>);
       _gameId = gameId;
       final playersResp = await client.from('nameplace_players').select().eq('gameId', gameId).order('turnOrder', ascending: true);

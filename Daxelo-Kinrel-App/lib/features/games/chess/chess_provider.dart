@@ -170,11 +170,18 @@ class ChessNotifier extends StateNotifier<ChessState> {
     }
     state = state.copyWith(isLoading: true, clearError: true);
     try {
+      // maybeSingle → a deleted (closed) room returns null instead of
+      // throwing, so we can show a friendly "room closed" message and
+      // send the user back to create a new room.
       final gameResp = await client
           .from('chess_games')
           .select()
           .eq('id', gameId)
-          .single();
+          .maybeSingle();
+      if (isRoomRowClosed(gameResp)) {
+        state = const ChessState(error: kRoomClosedMessage);
+        return false;
+      }
       final game = ChessGame.fromJson(gameResp as Map<String, dynamic>);
       _gameId = game.id;
       _logic = chess.Chess.fromFEN(game.boardState);
@@ -570,6 +577,27 @@ class ChessNotifier extends StateNotifier<ChessState> {
                 lastMove: (move.fromSquare, move.toSquare),
               );
             }
+          },
+        )
+        // ── Game row DELETE = the room was closed by the host (or the
+        //    opponent left) → fn_end_game hard-deleted it. Show a friendly
+        //    "room closed" state instead of hanging on a dead board.
+        .onPostgresChanges(
+          event: PostgresChangeEvent.delete,
+          schema: 'public',
+          table: 'chess_games',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: gameId,
+          ),
+          callback: (payload) {
+            debugPrint('[Chess] game row deleted — room closed');
+            _channel?.unsubscribe();
+            _channel = null;
+            _gameId = null;
+            _logic = null;
+            state = const ChessState(error: kRoomClosedMessage);
           },
         )
         .subscribe();

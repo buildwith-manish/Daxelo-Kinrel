@@ -284,12 +284,22 @@ class SosNotifier extends StateNotifier<SosState> {
       connectionStatus: SosConnectionStatus.connecting,
     );
     try {
-      // Fetch the game
+      // Fetch the game. maybeSingle → a deleted (closed) room returns
+      // null instead of throwing, so we can show a friendly message and
+      // prompt the user to create a new room instead of joining a ghost.
       final gameResp = await client
           .from('sos_games')
           .select()
           .eq('id', gameId)
-          .single();
+          .maybeSingle();
+      if (isRoomRowClosed(gameResp)) {
+        state = state.copyWith(
+          isLoading: false,
+          error: kRoomClosedMessage,
+          friendlyError: kRoomClosedMessage,
+        );
+        return false;
+      }
       final game = SosGame.fromJson(gameResp as Map<String, dynamic>);
       _gameId = game.id;
 

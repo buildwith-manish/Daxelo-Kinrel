@@ -46,6 +46,16 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
       body: state.isLoading && state.game == null ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
+        // Room closed by the host → terminal state, offer a clean exit
+        // back to the games hub instead of an infinite spinner.
+        : state.error != null && state.game == null ? DKErrorState(
+            message: state.error!,
+            actionLabel: state.error == kRoomClosedMessage ? 'Back to Games' : null,
+            icon: state.error == kRoomClosedMessage ? Icons.meeting_room_rounded : null,
+            onRetry: state.error == kRoomClosedMessage
+                ? () => context.go('/games?familyId=${widget.familyId}')
+                : () => ref.read(tttProvider(widget.familyId).notifier).loadGame(widget.gameId),
+          )
         : state.game == null ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
         : _gameView(state, myId),
     );

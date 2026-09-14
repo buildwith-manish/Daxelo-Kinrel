@@ -61,7 +61,11 @@ class TttNotifier extends StateNotifier<TttState> {
     if (client == null) { state = state.copyWith(error: 'Not signed in'); return false; }
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final gameResp = await client.from('tictactoe_games').select().eq('id', gameId).single();
+      // maybeSingle → a deleted (closed) room returns null instead of
+      // throwing, so we can show a friendly "room closed" message and
+      // send the user back to create a new room.
+      final gameResp = await client.from('tictactoe_games').select().eq('id', gameId).maybeSingle();
+      if (isRoomRowClosed(gameResp)) { state = const TttState(error: kRoomClosedMessage); return false; }
       final game = TttGame.fromJson(gameResp as Map<String, dynamic>);
       _gameId = gameId;
       final roundsResp = await client.from('tictactoe_rounds').select().eq('gameId', gameId).order('roundNumber', ascending: true);
@@ -171,6 +175,16 @@ class TttNotifier extends StateNotifier<TttState> {
       .onPostgresChanges(event: PostgresChangeEvent.update, schema: 'public', table: 'tictactoe_games',
         filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'id', value: gameId),
         callback: (payload) { final updated = TttGame.fromJson(payload.newRecord); if (updated.isCompleted) GameMotionTokens.celebrate(); state = state.copyWith(game: updated); })
+      // ── Game row DELETE = the room was closed by the host (or the
+      //    opponent left) → fn_end_game hard-deleted it. Show a friendly
+      //    "room closed" state instead of hanging on a dead board.
+      .onPostgresChanges(event: PostgresChangeEvent.delete, schema: 'public', table: 'tictactoe_games',
+        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'id', value: gameId),
+        callback: (payload) {
+          debugPrint('[TTT] game row deleted — room closed');
+          _channel?.unsubscribe(); _channel = null; _gameId = null;
+          state = const TttState(error: kRoomClosedMessage);
+        })
       .onPostgresChanges(event: PostgresChangeEvent.update, schema: 'public', table: 'tictactoe_rounds',
         filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'gameId', value: gameId),
         callback: (payload) async {
