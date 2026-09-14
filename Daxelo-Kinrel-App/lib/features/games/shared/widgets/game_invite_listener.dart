@@ -55,36 +55,39 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
   // leg and the DB-realtime leg deliver the same invite within ~seconds
   // of each other; only the first surfaces a dialog.
   final Map<String, DateTime> _shownPairAt = {};
+  bool _dbLegAttached = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _attach());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _attachSocket());
   }
 
-  void _attach() {
+  void _attachSocket() {
     final socket = ref.read(socketServiceProvider);
     _socket = socket;
     _unsub = socket.onGameInviteReceived(_handleInvite);
+  }
 
-    // Leg 2 — durable rows. Attach now if signed in; otherwise wait for
-    // the signedIn auth event (this widget mounts at app boot, before
-    // the session is recovered).
-    final client = ref.read(supabaseProvider);
-    if (client != null) {
-      if (client.auth.currentUser != null) {
-        _subscribeToInviteRows(client);
-      }
-      _authSub = client.auth.onAuthStateChange.listen((data) {
-        if (!mounted) return;
-        if (data.event == AuthChangeEvent.signedIn) {
-          _subscribeToInviteRows(client);
-        } else if (data.event == AuthChangeEvent.signedOut) {
-          _inviteChannel?.unsubscribe();
-          _inviteChannel = null;
-        }
-      });
+  /// Leg 2 — durable rows. supabaseProvider is null until Supabase
+  /// finishes initializing, so this is driven from build() (which
+  /// watches the provider) rather than a one-shot initState read.
+  void _ensureDbLegAttached(SupabaseClient client) {
+    if (!mounted || _dbLegAttached) return;
+    _dbLegAttached = true;
+
+    if (client.auth.currentUser != null) {
+      _subscribeToInviteRows(client);
     }
+    _authSub = client.auth.onAuthStateChange.listen((data) {
+      if (!mounted) return;
+      if (data.event == AuthChangeEvent.signedIn) {
+        _subscribeToInviteRows(client);
+      } else if (data.event == AuthChangeEvent.signedOut) {
+        _inviteChannel?.unsubscribe();
+        _inviteChannel = null;
+      }
+    });
   }
 
   /// Supabase realtime on game_invites INSERT for ME. RLS
@@ -245,7 +248,16 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    // Rebuilds when Supabase finishes initializing → attach leg 2 then.
+    final client = ref.watch(supabaseProvider);
+    if (client != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _ensureDbLegAttached(client);
+      });
+    }
+    return widget.child;
+  }
 }
 
 /// The Accept / Decline dialog shown when an invite arrives.

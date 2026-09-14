@@ -22,6 +22,11 @@
 //
 // Placement: wraps the app root in main.dart's MaterialApp.builder,
 // around GameInviteListener.
+//
+// NOTE: supabaseProvider returns null until Supabase finishes
+// initializing, so this widget WATCHES it from build() and attaches in
+// a post-frame callback as soon as the client is available (a
+// one-shot initState read would silently no-op on cold boot).
 
 import 'dart:async';
 
@@ -52,24 +57,25 @@ class _PresenceHeartbeatState extends ConsumerState<PresenceHeartbeat> {
   Timer? _heartbeatTimer;
   StreamSubscription<dynamic>? _authSub;
   bool _started = false;
+  bool _online = false;
 
   @override
-  void initState() {
-    super.initState();
-    // Post-frame: touching providers (ref.read) inside initState throws
-    // during the first build.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _attach());
+  void dispose() {
+    // The app root never disposes in practice; the auth listener and the
+    // server-side sweeper cover teardown for killed sessions.
+    _heartbeatTimer?.cancel();
+    unawaited(_authSub?.cancel());
+    super.dispose();
   }
 
-  void _attach() {
-    if (!mounted) return;
-    final client = ref.read(supabaseProvider);
-    if (client == null) return;
+  /// Attach once the Supabase client is available. Idempotent.
+  void _ensureStarted(SupabaseClient client) {
+    if (!mounted || _started) return;
+    _started = true;
 
-    // Start immediately when the user is already signed in (session
-    // recovered from storage on app boot).
-    final user = client.auth.currentUser;
-    if (user != null) {
+    // If a session was already recovered (app boot with a saved
+    // session), start beating immediately.
+    if (client.auth.currentUser != null) {
       _start();
     }
 
@@ -90,8 +96,8 @@ class _PresenceHeartbeatState extends ConsumerState<PresenceHeartbeat> {
   }
 
   void _start() {
-    if (_started) return;
-    _started = true;
+    if (_online) return;
+    _online = true;
     debugPrint('🟢 PresenceHeartbeat: online + 30s heartbeat started');
     _beat(); // immediate first beat
     _heartbeatTimer?.cancel();
@@ -105,7 +111,7 @@ class _PresenceHeartbeatState extends ConsumerState<PresenceHeartbeat> {
   }
 
   void _stop({bool markOffline = false}) {
-    _started = false;
+    _online = false;
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
     if (markOffline) {
@@ -117,14 +123,14 @@ class _PresenceHeartbeatState extends ConsumerState<PresenceHeartbeat> {
   }
 
   @override
-  void dispose() {
-    // The app root never disposes in practice; the auth listener and the
-    // server-side sweeper cover teardown for killed sessions.
-    _heartbeatTimer?.cancel();
-    unawaited(_authSub?.cancel());
-    super.dispose();
+  Widget build(BuildContext context) {
+    // Rebuilds when Supabase finishes initializing → attach then.
+    final client = ref.watch(supabaseProvider);
+    if (client != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _ensureStarted(client);
+      });
+    }
+    return widget.child;
   }
-
-  @override
-  Widget build(BuildContext context) => widget.child;
 }
