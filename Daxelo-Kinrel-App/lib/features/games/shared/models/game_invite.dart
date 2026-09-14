@@ -114,6 +114,17 @@ extension GameTypeX on GameType {
     }
     return null;
   }
+
+  /// Board games where the opponent is attached when the game row is
+  /// created (challenge flow). Accepting an invite for one of these
+  /// should land the recipient directly on the game board — the lobby /
+  /// challenge setup screen would be wrong (the game already has both
+  /// players).
+  bool get isChallengeGame =>
+      this == GameType.chess ||
+      this == GameType.checkers ||
+      this == GameType.carrom ||
+      this == GameType.tictactoe;
 }
 
 /// A real-time game invite, sent from a host to a linked family member.
@@ -206,27 +217,12 @@ class GameInvite {
         if (message != null) 'message': message,
       };
 
-  /// Board games where the opponent is attached when the game row is
-  /// created (challenge flow). Accepting an invite for one of these
-  /// should land the recipient directly on the game board — the lobby /
-  /// challenge setup would be wrong (the game already has both players).
-  bool get isChallengeGame {
-    switch (this) {
-      case GameType.chess:
-      case GameType.checkers:
-      case GameType.carrom:
-      case GameType.tictactoe:
-        return true;
-      default:
-        return false;
-    }
-  }
-
   /// Deep-link path that navigates the recipient into the host's game:
-  ///   • challenge games → the board (opponent already attached),
+  ///   • challenge games (chess/checkers/carrom/tictactoe — opponent
+  ///     already attached at creation) → the board directly,
   ///   • temporary-room games → the lobby with the room code pre-applied
   ///     via the `?join=<gameId>` query param.
-  String get joinRoute => isChallengeGame
+  String get joinRoute => gameType.isChallengeGame
       ? '/family/$familyId/${gameType.routeSegment}/board/$gameId'
       : '/family/$familyId/${gameType.routeSegment}/lobby?join=$gameId';
 }
