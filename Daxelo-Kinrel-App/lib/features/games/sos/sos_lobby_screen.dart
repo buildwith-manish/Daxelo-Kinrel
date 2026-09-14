@@ -166,14 +166,13 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
+        // Plain back button — the route-level onExit guard
+        // (app_router.dart) intercepts this while a room is active and
+        // shows the "Close Room?" / "Leave Room?" confirmation dialog
+        // first; only a confirmed exit leaves the room.
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (state.game != null) {
-              notifier.leaveGame();
-            }
-            if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); }
-          },
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
         title: Text(
           'SOS',

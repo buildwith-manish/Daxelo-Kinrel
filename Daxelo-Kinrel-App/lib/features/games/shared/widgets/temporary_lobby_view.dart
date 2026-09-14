@@ -41,6 +41,8 @@ import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../shared/widgets/dk_components.dart';
 import '../../game_motion_tokens.dart';
+import '../multiplayer/widgets/room_close_dialog.dart';
+import 'room_exit_barrier.dart';
 
 /// One player row in the lobby.
 class TemporaryLobbyPlayer {
@@ -310,75 +312,119 @@ class _TemporaryLobbyViewState extends State<TemporaryLobbyView> {
   @override
   Widget build(BuildContext context) {
     final config = widget.config;
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
+    // Layout: scrollable lobby content on top + a PINNED action bar at
+    // the bottom. Pinning the action bar guarantees the host's Close
+    // Room button is ALWAYS on screen — even when the player roster is
+    // long (Bingo/Ludo with 8 slots) and would otherwise push it far
+    // below the scroll fold.
+    final actions = _buildActions(config);
+
+    return Column(
       children: [
-        // ── 1. Status banner (top) ────────────────────────────────────
-        _StatusBanner(config: config),
-        const SizedBox(height: KinrelSpacing.sm),
+        // ── Scrollable lobby content ────────────────────────────────
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(
+                KinrelSpacing.base, KinrelSpacing.base, KinrelSpacing.base, 0),
+            children: [
+              // ── 1. Status banner (top) ────────────────────────────
+              _StatusBanner(config: config),
+              const SizedBox(height: KinrelSpacing.sm),
 
-        // ── 1b. Match-start countdown (only when starting) ────────────
-        if (config.status == TemporaryLobbyStatus.starting)
-          _MatchStartCountdown(),
-        const SizedBox(height: KinrelSpacing.sm),
+              // ── 1b. Match-start countdown (only when starting) ────
+              if (config.status == TemporaryLobbyStatus.starting)
+                _MatchStartCountdown(),
+              const SizedBox(height: KinrelSpacing.sm),
 
-        // ── 2. Room metadata (DIRECTLY below the banner — always visible) ─
-        _RoomMetadataBar(
-          config: config,
-          countdownLabel: _countdownLabel,
-          secondsRemaining: _secondsRemaining,
-          totalSeconds: config.autoCloseSeconds,
+              // ── 2. Room metadata (DIRECTLY below the banner) ──────
+              _RoomMetadataBar(
+                config: config,
+                countdownLabel: _countdownLabel,
+                secondsRemaining: _secondsRemaining,
+                totalSeconds: config.autoCloseSeconds,
+              ),
+              const SizedBox(height: KinrelSpacing.lg),
+
+              // ── 3. Player roster ──────────────────────────────────
+              _PlayerRoster(
+                config: config,
+                myUserId: widget.myUserId,
+                onInviteFamily: widget.onInviteFamily,
+              ),
+
+              // ── 4. Footer (pending invites + lobby chat) ──────────
+              if (widget.footer != null) ...[
+                const SizedBox(height: KinrelSpacing.lg),
+                widget.footer!,
+              ],
+              const SizedBox(height: KinrelSpacing.base),
+            ],
+          ),
         ),
-        const SizedBox(height: KinrelSpacing.lg),
 
-        // ── 3. Player roster ──────────────────────────────────────────
-        _PlayerRoster(
-          config: config,
-          myUserId: widget.myUserId,
-          onInviteFamily: widget.onInviteFamily,
-        ),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        // ── 4. Action buttons (only in waiting state) ────────────────
-        if (config.status == TemporaryLobbyStatus.waiting) ...[
-          if (config.showReadyToggle)
-            _ReadyToggle(
-              isReady: _isMyReady,
-              onPressed: () => widget.onToggleReady(!_isMyReady),
+        // ── 5. PINNED action bar (always visible, never scrolls) ────
+        if (actions != null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(KinrelSpacing.base,
+                KinrelSpacing.sm, KinrelSpacing.base, KinrelSpacing.base),
+            decoration: BoxDecoration(
+              color: KinrelColors.darkSurface,
+              border: Border(
+                top: BorderSide(
+                  color: KinrelColors.border.withValues(alpha: 0.5),
+                  width: 1,
+                ),
+              ),
             ),
+            child: actions,
+          ),
+      ],
+    );
+  }
+
+  /// Builds the pinned action bar contents: the host's Close Room button
+  /// is ALWAYS present while the room is open (waiting AND starting —
+  /// it must never disappear), alongside the ready toggle + start-match
+  /// button. Returns null when the room is finished (no actions).
+  Widget? _buildActions(TemporaryLobbyConfig config) {
+    if (config.status != TemporaryLobbyStatus.waiting &&
+        config.status != TemporaryLobbyStatus.starting) {
+      return null;
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (config.status == TemporaryLobbyStatus.waiting &&
+            config.showReadyToggle)
+          _ReadyToggle(
+            isReady: _isMyReady,
+            onPressed: () => widget.onToggleReady(!_isMyReady),
+          ),
+        if (config.status == TemporaryLobbyStatus.waiting) ...[
           const SizedBox(height: KinrelSpacing.sm),
           _StartMatchButton(
             config: config,
             isHost: _isHost,
             onStartMatch: widget.onStartMatch,
           ),
-          const SizedBox(height: KinrelSpacing.sm),
-          if (_isHost)
-            TextButton(
-              onPressed: () async {
-                await widget.onCancelRoom();
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  context.go('/family/${config.familyId}');
-                }
-              },
-              child: Text(
-                'Cancel room',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 12,
-                  color: KinrelColors.textDim,
-                  decoration: TextDecoration.underline,
-                ),
-              ),
-            ),
         ],
-
-        // ── 5. Footer (pending invites + lobby chat) ──────────────────
-        if (widget.footer != null) ...[
-          const SizedBox(height: KinrelSpacing.lg),
-          widget.footer!,
+        // Host-only prominent Close Room button — ALWAYS visible while
+        // the room is open (pinned above the fold). Tapping it first
+        // shows the shared confirmation dialog ("Are you sure you want
+        // to close this room?" → Cancel / Close Room); the room is only
+        // deleted after the host confirms. Cancelling keeps the host in
+        // the room.
+        if (_isHost) ...[
+          const SizedBox(height: KinrelSpacing.sm),
+          _CloseRoomButton(
+            onCancelRoom: widget.onCancelRoom,
+            fallbackRoute: '/family/${config.familyId}',
+            // Registry key — must match the route-level onExit guard
+            // in app_router.dart ('<gameTable>/<familyId>').
+            exitKey: '${config.gameTable}/${config.familyId}',
+          ),
         ],
       ],
     );
@@ -963,6 +1009,161 @@ class _StartMatchButton extends StatelessWidget {
       variant: DKButtonVariant.gradient,
       fullWidth: true,
       onPressed: canStart ? onStartMatch : null,
+    );
+  }
+}
+
+/// Prominent, full-width "Close Room" button — host only.
+///
+/// Per the spec:
+///   • Large + clearly visible at all times while the room is open
+///     (never hidden behind menus or secondary actions).
+///   • NEVER closes the room immediately — tapping it first shows the
+///     shared confirmation dialog ("Are you sure you want to close this
+///     room?" → [Cancel] [Close Room]).
+///   • The room is only deleted after the host confirms (onCancelRoom
+///     → fn_cancel_waiting_room RPC removes all participants and the
+///     game row, then notifies the other clients via realtime).
+///   • Cancel keeps the host in the room.
+///
+/// Shows a spinner while the deletion RPC is in-flight, then navigates
+/// back to the family hub once it completes.
+class _CloseRoomButton extends StatefulWidget {
+  const _CloseRoomButton({
+    required this.onCancelRoom,
+    required this.fallbackRoute,
+    required this.exitKey,
+  });
+
+  final Future<void> Function() onCancelRoom;
+  final String fallbackRoute;
+
+  /// Key used to mark this exit as pre-confirmed in
+  /// [RoomExitConfirmations] so the route-level onExit guard does not
+  /// show a second confirmation dialog for the same exit.
+  final String exitKey;
+
+  @override
+  State<_CloseRoomButton> createState() => _CloseRoomButtonState();
+}
+
+class _CloseRoomButtonState extends State<_CloseRoomButton> {
+  bool _busy = false;
+
+  Future<void> _confirmAndClose() async {
+    if (_busy) return; // ignore double taps while in-flight
+
+    // Always show the confirmation dialog first — never close directly.
+    final confirmed = await showRoomCloseConfirmDialog(context);
+    if (confirmed != true) return; // cancelled — stay in the room
+    if (!mounted) return;
+
+    GameMotionTokens.tap();
+    setState(() => _busy = true);
+    try {
+      // Delete the room for everyone (host-only server-side RPC).
+      await widget.onCancelRoom();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+    if (!mounted) return;
+
+    // Mark this exit as already confirmed so the route-level onExit
+    // guard (app_router.dart) lets it through without a second dialog.
+    RoomExitConfirmations.mark(widget.exitKey);
+
+    // Room deleted — leave the lobby screen.
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(widget.fallbackRoute);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: KinrelSpacing.md),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _busy ? null : _confirmAndClose,
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: KinrelSpacing.lg, vertical: 18),
+            decoration: BoxDecoration(
+              color: _busy
+                  ? KinrelColors.error.withValues(alpha: 0.5)
+                  : KinrelColors.error.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(KinrelRadius.md),
+              border: Border.all(
+                color: KinrelColors.error.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
+              boxShadow: _busy
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: KinrelColors.error.withValues(alpha: 0.2),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (_busy)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                          KinrelColors.error),
+                    ),
+                  )
+                else
+                  const Icon(Icons.warning_amber_rounded,
+                      color: KinrelColors.error, size: 22),
+                const SizedBox(width: KinrelSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Close Room',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: KinrelColors.error,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Removes all players and spectators',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 10,
+                          color: KinrelColors.error.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right,
+                    color: KinrelColors.error.withValues(alpha: 0.7),
+                    size: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

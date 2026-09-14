@@ -110,7 +110,7 @@ class _RoomExitGuardState extends ConsumerState<RoomExitGuard> {
 
     return PopScope(
       canPop: canPop,
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return; // system already popped (canPop was true)
         await _handleBackNavigation();
       },

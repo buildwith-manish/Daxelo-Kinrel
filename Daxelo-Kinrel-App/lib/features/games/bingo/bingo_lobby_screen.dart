@@ -155,10 +155,10 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (state.game != null) notifier.leaveGame();
-            if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); }
-          },
+          // Plain pop — the route-level onExit guard (app_router.dart)
+          // intercepts this while a room is active and shows the
+          // confirmation dialog first.
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
         title: Text(
           'Bingo',

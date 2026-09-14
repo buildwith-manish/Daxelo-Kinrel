@@ -10,7 +10,6 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/services/temporary_room_service.dart';
-import '../shared/widgets/leave_game_dialog.dart';
 import 'tictactoe_game_logic.dart';
 import 'tictactoe_models.dart';
 import 'tictactoe_provider.dart';
@@ -38,28 +37,10 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
-          onPressed: () async {
-            final state = ref.read(tttProvider(widget.familyId));
-            final shouldLeave = await LeaveGameDialog.show(
-              context,
-              isHost: false,
-              gameName: 'Tic-Tac-Toe',
-            );
-            if (shouldLeave != true) return;
-            if (!context.mounted) return;
-            ref.read(tttProvider(widget.familyId).notifier).leaveGame();
-            if (state.game?.id != null) {
-              ref.read(temporaryRoomServiceProvider).endGame(
-                    gameTable: 'tictactoe_games',
-                    gameId: state.game!.id,
-                  );
-            }
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/family/${widget.familyId}');
-            }
-          },
+          // Plain pop — the route-level onExit guard (app_router.dart)
+          // intercepts this while a game room is active and shows the
+          // confirmation dialog first.
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
         title: Text('Tic-Tac-Toe', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,

@@ -123,6 +123,28 @@ import '../../features/games/twotruths/twotruths_submit_screen.dart';
 import '../../features/games/twotruths/twotruths_guess_screen.dart';
 import '../../features/games/twotruths/twotruths_results_screen.dart';
 import '../../features/games/dotsboxes/dotsboxes_lobby_screen.dart';
+
+// ── Multiplayer room exit guards ────────────────────────────────────────
+// Route-level GoRoute.onExit guards for all 14 multiplayer games: every
+// exit path (app-bar back, Android hardware back, iOS swipe-back AND the
+// browser back button on web) shows the "Close Room?" / "Leave Room?"
+// confirmation dialog while a room is active. See room_exit_barrier.dart.
+import '../../features/games/shared/widgets/room_exit_barrier.dart';
+import '../../features/games/shared/services/temporary_room_service.dart';
+import '../../features/games/sos/sos_provider.dart';
+import '../../features/games/bingo/bingo_provider.dart';
+import '../../features/games/ludo/ludo_provider.dart';
+import '../../features/games/antakshari/antakshari_provider.dart';
+import '../../features/games/chitmatch/chitmatch_provider.dart';
+import '../../features/games/dotsboxes/dotsboxes_provider.dart';
+import '../../features/games/nameplace/nameplace_provider.dart';
+import '../../features/games/redlight/redlight_provider.dart';
+import '../../features/games/truthordare/truthordare_provider.dart';
+import '../../features/games/twotruths/twotruths_provider.dart';
+import '../../features/games/tictactoe/tictactoe_provider.dart';
+import '../../features/games/chess/chess_provider.dart';
+import '../../features/games/checkers/checkers_provider.dart';
+import '../../features/games/carrom/carrom_provider.dart';
 import '../../features/games/dotsboxes/dotsboxes_board_screen.dart';
 import '../../features/family/presentation/person_detail_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
@@ -725,6 +747,178 @@ String? _handleRedirect(Ref ref, GoRouterState state) {
 /// GoRouter re-evaluates the redirect callback automatically, eliminating
 /// the need for fragile cooldown timers and preventing redirect loops.
 final routerProvider = Provider<GoRouter>((ref) {
+  // ─────────────────────────────────────────────────────────────────────
+  // MULTIPLAYER ROOM EXIT GUARDS (all 14 games)
+  //
+  // One GoRoute.onExit guard per multiplayer game route. While a room is
+  // active, EVERY exit path (app-bar back button, Android hardware back,
+  // iOS swipe-back, AND the browser back button on web — which PopScope
+  // cannot intercept) first shows the shared confirmation dialog:
+  //   • Host  → "Close Room?" — confirming deletes the room for everyone
+  //              (fn_cancel_waiting_room / fn_end_game) and allows exit.
+  //   • Player→ "Leave Room?" — confirming removes their slot.
+  //   • Cancel → the exit is BLOCKED; the user stays in the room.
+  // Pre-confirmed exits (the in-screen Close Room button already showed
+  // its dialog) pass through without a second dialog.
+  // ─────────────────────────────────────────────────────────────────────
+  String? _myUserId() =>
+      ref.read(supabaseProvider)?.auth.currentUser?.id;
+
+  final sosLobbyExit = guardGameRoomExit(
+    gameTable: 'sos_games',
+    readState: (fid) => ref.read(sosProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isLobby,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(sosProvider(fid).notifier).leaveGame(),
+  );
+
+  final bingoLobbyExit = guardGameRoomExit(
+    gameTable: 'bingo_games',
+    readState: (fid) => ref.read(bingoProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(bingoProvider(fid).notifier).leaveGame(),
+  );
+
+  final ludoLobbyExit = guardGameRoomExit(
+    gameTable: 'ludo_games',
+    readState: (fid) => ref.read(ludoProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(ludoProvider(fid).notifier).leaveGame(),
+  );
+
+  final antakshariLobbyExit = guardGameRoomExit(
+    gameTable: 'antakshari_games',
+    readState: (fid) => ref.read(antakshariProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(antakshariProvider(fid).notifier).leaveGame(),
+  );
+
+  final chitmatchLobbyExit = guardGameRoomExit(
+    gameTable: 'chitmatch_games',
+    readState: (fid) => ref.read(chitmatchProvider(fid)),
+    hasRoom: (s) =>
+        s.game != null && (s.game!.isWaiting || s.game!.isSetup),
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(chitmatchProvider(fid).notifier).leaveGame(),
+  );
+
+  final dotsboxesLobbyExit = guardGameRoomExit(
+    gameTable: 'dotsboxes_games',
+    readState: (fid) => ref.read(dbProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(dbProvider(fid).notifier).leaveGame(),
+  );
+
+  final nameplaceLobbyExit = guardGameRoomExit(
+    gameTable: 'nameplace_games',
+    readState: (fid) => ref.read(nameplaceProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(nameplaceProvider(fid).notifier).leaveGame(),
+  );
+
+  final redlightLobbyExit = guardGameRoomExit(
+    gameTable: 'redlight_rounds',
+    readState: (fid) => ref.read(redlightProvider(fid)),
+    hasRoom: (s) => s.round != null && s.round!.isLobby,
+    isHost: (s) => s.round?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(redlightProvider(fid).notifier).leaveRound(),
+  );
+
+  final truthordareLobbyExit = guardGameRoomExit(
+    gameTable: 'truthordare_games',
+    readState: (fid) => ref.read(todProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(todProvider(fid).notifier).leaveGame(),
+  );
+
+  final twotruthsLobbyExit = guardGameRoomExit(
+    gameTable: 'twotruths_games',
+    readState: (fid) => ref.read(ttProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(ttProvider(fid).notifier).leaveGame(),
+  );
+
+  // Board-based games: the board screen IS the room. Leaving mid-game
+  // deletes the game row (fn_end_game) so the opponent sees it end.
+  final tictactoeBoardExit = guardGameRoomExit(
+    gameTable: 'tictactoe_games',
+    readState: (fid) => ref.read(tttProvider(fid)),
+    hasRoom: (s) => s.game != null && !s.isCompleted,
+    isHost: (s) => s.game?.playerXId == _myUserId(),
+    leave: (fid) async {
+      final s = ref.read(tttProvider(fid));
+      ref.read(tttProvider(fid).notifier).leaveGame();
+      final gid = s.game?.id;
+      if (gid != null) {
+        await ref.read(temporaryRoomServiceProvider).endGame(
+              gameTable: 'tictactoe_games',
+              gameId: gid,
+            );
+      }
+    },
+  );
+
+  final chessBoardExit = guardGameRoomExit(
+    gameTable: 'chess_games',
+    readState: (fid) => ref.read(chessProvider(fid)),
+    hasRoom: (s) => s.game != null && !s.isCompleted,
+    isHost: (s) => s.game?.playerWhiteId == _myUserId(),
+    leave: (fid) async {
+      final s = ref.read(chessProvider(fid));
+      ref.read(chessProvider(fid).notifier).leaveGame();
+      final gid = s.game?.id;
+      if (gid != null) {
+        await ref.read(temporaryRoomServiceProvider).endGame(
+              gameTable: 'chess_games',
+              gameId: gid,
+            );
+      }
+    },
+  );
+
+  final checkersBoardExit = guardGameRoomExit(
+    gameTable: 'checkers_games',
+    readState: (fid) => ref.read(checkersProvider(fid)),
+    hasRoom: (s) => s.game != null && !s.isCompleted,
+    isHost: (s) => s.game?.playerOneId == _myUserId(),
+    leave: (fid) async {
+      final s = ref.read(checkersProvider(fid));
+      ref.read(checkersProvider(fid).notifier).leaveGame();
+      final gid = s.game?.id;
+      if (gid != null) {
+        await ref.read(temporaryRoomServiceProvider).endGame(
+              gameTable: 'checkers_games',
+              gameId: gid,
+            );
+      }
+    },
+  );
+
+  final carromBoardExit = guardGameRoomExit(
+    gameTable: 'carrom_games',
+    readState: (fid) => ref.read(carromProvider(fid)),
+    hasRoom: (s) => s.game != null && !s.isCompleted,
+    isHost: (s) => s.game?.playerOneId == _myUserId(),
+    leave: (fid) async {
+      final s = ref.read(carromProvider(fid));
+      ref.read(carromProvider(fid).notifier).leaveGame();
+      final gid = s.game?.id;
+      if (gid != null) {
+        await ref.read(temporaryRoomServiceProvider).endGame(
+              gameTable: 'carrom_games',
+              gameId: gid,
+            );
+      }
+    },
+  );
+
   // Listen to auth state changes and notify GoRouter to re-evaluate
   // redirects. This is the proper way to handle auth-based navigation
   // instead of the fragile cooldown mechanism that caused ANR.
@@ -1330,6 +1524,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Freeze & Dash (Red Light, Green Light) ──────────────────────
       GoRoute(
         path: '/family/:id/freeze-dash/lobby',
+        onExit: redlightLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: RedlightLobbyScreen(familyId: state.pathParameters['id']!),
@@ -1359,6 +1554,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── SOS Game ───────────────────────────────────────────────────
       GoRoute(
         path: '/family/:id/sos/lobby',
+        onExit: sosLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: SosLobbyScreen(familyId: state.pathParameters['id']!),
@@ -1388,6 +1584,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Antakshari Game ────────────────────────────────────────────
       GoRoute(
         path: '/family/:id/antakshari/lobby',
+        onExit: antakshariLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: AntakshariLobbyScreen(familyId: state.pathParameters['id']!),
@@ -1407,6 +1604,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Bingo Game ───────────────────────────────────────────────────
       GoRoute(
         path: '/family/:id/bingo/lobby',
+        onExit: bingoLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: BingoLobbyScreen(familyId: state.pathParameters['id']!),
@@ -1433,6 +1631,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/family/:id/checkers/board/:gameId',
+        onExit: checkersBoardExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: CheckersBoardScreen(
@@ -1445,6 +1644,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Ludo Game ────────────────────────────────────────────────────
       GoRoute(
         path: '/family/:id/ludo/lobby',
+        onExit: ludoLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: LudoLobbyScreen(familyId: state.pathParameters['id']!),
@@ -1471,6 +1671,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/family/:id/carrom/board/:gameId',
+        onExit: carromBoardExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: CarromBoardScreen(
@@ -1490,6 +1691,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/family/:id/chess/board/:gameId',
+        onExit: chessBoardExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: ChessBoardScreen(
@@ -1502,6 +1704,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── TripleMatch Game ────────────────────────────────────────────
       GoRoute(
         path: '/family/:id/chitmatch/lobby',
+        onExit: chitmatchLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: ChitmatchLobbyScreen(familyId: state.pathParameters['id']!),
@@ -1521,6 +1724,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Name, Place, Animal, Thing Game ─────────────────────────────
       GoRoute(
         path: '/family/:id/nameplace/lobby',
+        onExit: nameplaceLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: NameplaceLobbyScreen(familyId: state.pathParameters['id']!),
@@ -1567,6 +1771,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/family/:id/tictactoe/board/:gameId',
+        onExit: tictactoeBoardExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: TttBoardScreen(
@@ -1579,6 +1784,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Truth or Dare Game ──────────────────────────────────────────
       GoRoute(
         path: '/family/:id/truthordare/lobby',
+        onExit: truthordareLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: TodLobbyScreen(familyId: state.pathParameters['id']!),
@@ -1612,6 +1818,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Two Truths and a Lie Game ──────────────────────────────────
       GoRoute(
         path: '/family/:id/twotruths/lobby',
+        onExit: twotruthsLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: TtLobbyScreen(familyId: state.pathParameters['id']!),
@@ -1651,6 +1858,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Dots and Boxes Game ───────────────────────────────────────
       GoRoute(
         path: '/family/:id/dotsboxes/lobby',
+        onExit: dotsboxesLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: DotsboxesLobbyScreen(familyId: state.pathParameters['id']!),

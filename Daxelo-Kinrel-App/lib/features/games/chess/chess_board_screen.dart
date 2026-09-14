@@ -23,7 +23,6 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/services/temporary_room_service.dart';
-import '../shared/widgets/leave_game_dialog.dart';
 import 'chess_models.dart';
 import 'chess_provider.dart';
 
@@ -66,40 +65,10 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
-          onPressed: () async {
-            // Show confirmation dialog before leaving — prevents
-            // accidental exits during a live game.
-            final state = ref.read(chessProvider(widget.familyId));
-            final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-            // Chess has no hostUserId column (Pattern A — 2-player direct
-            // challenge), so neither player's leave closes the room for
-            // others. The other player just sees the game end.
-            final shouldLeave = await LeaveGameDialog.show(
-              context,
-              isHost: false, // Pattern A — no host
-              gameName: 'Chess',
-            );
-            if (shouldLeave != true) return;
-            if (!context.mounted) return;
-            ref.read(chessProvider(widget.familyId).notifier).leaveGame();
-            // Eager end-game cleanup — deletes the game row so the
-            // opponent sees the game end immediately.
-            if (state.game?.id != null) {
-              ref.read(temporaryRoomServiceProvider).endGame(
-                    gameTable: 'chess_games',
-                    gameId: state.game!.id,
-                  );
-            }
-            // Mark the unused var as read — `myId` will be needed when
-            // chess eventually grows a hostUserId column.
-            // ignore: unused_local_variable
-            myId;
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/family/${widget.familyId}');
-            }
-          },
+          // Plain pop — the route-level onExit guard (app_router.dart)
+          // intercepts this while a game room is active and shows the
+          // confirmation dialog first.
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
         title: Text(
           'Chess',

@@ -217,7 +217,7 @@ class WinCelebration extends StatelessWidget {
                 end: const Offset(1.0, 1.0),
               )
               .then(delay: 200.ms)
-              .shake(duration: 400.ms, hz: 4, amount: 0.4),
+              .shakeX(duration: 400.ms, hz: 4, amount: 0.4),
 
           const SizedBox(height: KinrelSpacing.lg),
 
