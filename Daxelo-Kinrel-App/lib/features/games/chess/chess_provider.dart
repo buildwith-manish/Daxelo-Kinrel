@@ -364,6 +364,15 @@ class ChessNotifier extends StateNotifier<ChessState> {
         specialMove = 'promotion';
       }
 
+      // SAN notation — must be computed BEFORE applying the move
+      // (move_to_san reads the current position for disambiguation).
+      // NOTE: chess.dart 0.8.1's `history` is a List<State> of position
+      // objects, NOT SAN strings — `history.last` was a State instance
+      // and json-encoding the move row threw "Converting object to an
+      // encodable object failed", silently rolling back every
+      // chess_moves INSERT (the opponent's realtime never fired).
+      final notation = logic.move_to_san(matchedMove);
+
       // Apply the move (returns bool in chess.dart 0.8.1)
       final success = logic.move(moveObj);
       if (!success) {
@@ -376,10 +385,6 @@ class ChessNotifier extends StateNotifier<ChessState> {
         );
         return false;
       }
-
-      // Get SAN notation from history (chess.dart history is a getter, not a method)
-      final hist = logic.history;
-      final notation = hist.isNotEmpty ? hist.last : '$from-$to';
 
       // Get the new FEN
       final newFen = logic.fen;
