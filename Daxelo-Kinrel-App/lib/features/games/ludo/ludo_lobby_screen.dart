@@ -2,6 +2,11 @@
 //
 // Ludo — Lobby screen to start a game and invite 1-3 family members.
 // Route: /family/$familyId/ludo/lobby
+//
+// v2 (premium lobby system): setup phase renders the shared
+// LobbySetupScreen — compact hero, visible player count + color order,
+// spectator toggle, collapsible How to Play, pinned Create Game CTA.
+// Waiting-room phase still renders TemporaryLobbyView.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,9 +20,9 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
+import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
-import '../shared/widgets/spectator_toggle.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
@@ -153,14 +158,16 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
           // confirmation dialog first.
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
-        title: Text(
-          'Ludo',
-          style: TextStyle(
-            fontFamily: KinrelTypography.displayFont,
-            fontWeight: FontWeight.w600,
-            color: KinrelColors.textWhite,
-          ),
-        ),
+        title: hasGame
+            ? Text(
+                'Ludo',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textWhite,
+                ),
+              )
+            : null,
         backgroundColor: KinrelColors.darkCard,
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
@@ -218,37 +225,48 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
   }
 
   Widget _setupView(LudoState state) {
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
-      children: [
-        _sectionLabel('Number of Players'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _playerCountSelector(),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        _sectionLabel('Color Order'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _colorOrderCard(),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        _sectionLabel('How to Play'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _rulesCard(),
-        const SizedBox(height: KinrelSpacing.xl),
-
-                SpectatorToggle(
-          value: _spectatorsEnabled,
-          onChanged: (v) => setState(() => _spectatorsEnabled = v),
-        ),
-        const SizedBox(height: KinrelSpacing.md),
-        DKButton(
-          label: 'Create Game',
-          variant: DKButtonVariant.gradient,
-          fullWidth: true,
-          isLoading: _creating,
-          onPressed: _createGame,
-        ),
+    return LobbySetupScreen(
+      gameId: 'ludo',
+      title: 'Ludo',
+      tagline: 'Race your tokens home before anyone else',
+      facts: [
+        LobbyFact(icon: Icons.group_outlined, label: '$_playerCount players'),
+        const LobbyFact(icon: Icons.casino_outlined, label: 'Dice classic'),
       ],
+      settings: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LobbySection(
+            label: 'Number of Players',
+            child: LobbyNumberRow(
+              numbers: const [2, 3, 4],
+              selected: _playerCount,
+              onSelect: (n) => setState(() => _playerCount = n),
+            ),
+          ),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbySection(
+            label: 'Color Order',
+            child: _colorOrderCard(),
+          ),
+        ],
+      ),
+      rules: const [
+        LobbyRule('Roll a 6 to move a token out of home base onto the board.'),
+        LobbyRule('Rolling a 6 grants an extra turn.'),
+        LobbyRule('Move tokens clockwise around the track by the number rolled.'),
+        LobbyRule('Land on an opponent (non-safe square) → send them home!'),
+        LobbyRule('Safe squares (starred) protect tokens from capture.'),
+        LobbyRule('After a full loop, enter your home column → reach the center.'),
+        LobbyRule('Must roll the exact number to reach the center.'),
+      ],
+      rulesFootnote: 'Three 6s in a row = forfeit your turn!',
+      spectatorsEnabled: _spectatorsEnabled,
+      onSpectatorsChanged: (v) => setState(() => _spectatorsEnabled = v),
+      ctaLabel: 'Create Game',
+      ctaHint: 'Up to ${_playerCount - 1} family members can join',
+      ctaLoading: _creating,
+      onCtaPressed: _createGame,
     );
   }
 
@@ -338,58 +356,6 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
     );
   }
 
-  Widget _sectionLabel(String text) => Text(
-    text,
-    style: TextStyle(
-      fontFamily: KinrelTypography.displayFont,
-      fontSize: 13,
-      fontWeight: FontWeight.w600,
-      color: KinrelColors.textDim,
-      letterSpacing: 0.5,
-    ),
-  );
-
-  Widget _playerCountSelector() {
-    return Wrap(
-      spacing: KinrelSpacing.sm,
-      runSpacing: KinrelSpacing.sm,
-      children: [2, 3, 4].map((n) {
-        final selected = n == _playerCount;
-        return GestureDetector(
-          onTap: () {
-            GameMotionTokens.tap();
-            setState(() => _playerCount = n);
-          },
-          child: Container(
-            width: 60,
-            padding: const EdgeInsets.symmetric(vertical: KinrelSpacing.sm),
-            decoration: BoxDecoration(
-              color: KinrelColors.darkCard,
-              borderRadius: BorderRadius.circular(KinrelRadius.md),
-              border: Border.all(
-                color: selected ? KinrelColors.orange : KinrelColors.border,
-                width: selected ? 2 : 1,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                '$n',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.monoFont,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: selected
-                      ? KinrelColors.orange
-                      : KinrelColors.textDim,
-                ),
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
   Widget _colorOrderCard() {
     final colors = [LudoColor.red, LudoColor.blue, LudoColor.green, LudoColor.yellow];
     return Container(
@@ -442,121 +408,5 @@ class _LudoLobbyScreenState extends ConsumerState<LudoLobbyScreen> {
       case LudoColor.yellow:
         return KinrelColors.gold;       // "Gold"
     }
-  }
-
-  Widget _rulesCard() {
-    return Container(
-      padding: const EdgeInsets.all(KinrelSpacing.md),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _ruleLine('1.', 'Roll a 6 to move a token out of home base onto the board.'),
-          const SizedBox(height: 6),
-          _ruleLine('2.', 'Rolling a 6 grants an extra turn.'),
-          const SizedBox(height: 6),
-          _ruleLine('3.', 'Move tokens clockwise around the track by the number rolled.'),
-          const SizedBox(height: 6),
-          _ruleLine('4.', 'Land on an opponent (non-safe square) → send them home!'),
-          const SizedBox(height: 6),
-          _ruleLine('5.', 'Safe squares (starred) protect tokens from capture.'),
-          const SizedBox(height: 6),
-          _ruleLine('6.', 'After a full loop, enter your home column → reach the center.'),
-          const SizedBox(height: 6),
-          _ruleLine('7.', 'Must roll the exact number to reach the center.'),
-          const SizedBox(height: 6),
-          _ruleLine('★', 'Three 6s in a row = forfeit your turn!', highlight: true),
-        ],
-      ),
-    );
-  }
-
-  Widget _ruleLine(String num, String text, {bool highlight = false}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 24,
-          child: Text(
-            num,
-            style: TextStyle(
-              fontFamily: KinrelTypography.monoFont,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: highlight ? KinrelColors.orange : KinrelColors.textDim,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 12,
-              color: highlight ? KinrelColors.textWhite : KinrelColors.textDim,
-              height: 1.4,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _playerTile(player, String? hostUserId) {
-    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-    final isMe = player.userId == myId;
-    return Container(
-      margin: const EdgeInsets.only(bottom: KinrelSpacing.sm),
-      padding: const EdgeInsets.symmetric(
-        horizontal: KinrelSpacing.md,
-        vertical: KinrelSpacing.md,
-      ),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(
-          color: isMe ? KinrelColors.orange : KinrelColors.border,
-          width: isMe ? 2 : 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          DKAvatar(
-            initials: player.userName.isNotEmpty
-                ? player.userName[0].toUpperCase()
-                : '?',
-          ),
-          const SizedBox(width: KinrelSpacing.md),
-          Expanded(
-            child: Text(
-              isMe ? '${player.userName} (You)' : player.userName,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: KinrelColors.textWhite,
-              ),
-            ),
-          ),
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _colorValue(player.color),
-              border: Border.all(color: Colors.white, width: 1),
-            ),
-          ),
-          if (player.userId == hostUserId) ...[
-            const SizedBox(width: 4),
-            Text('👑', style: TextStyle(fontSize: 14)),
-          ],
-        ],
-      ),
-    );
   }
 }

@@ -2,6 +2,11 @@
 //
 // Bingo — Lobby / Setup screen.
 // Route: /family/$familyId/bingo/lobby
+//
+// v2 (premium lobby system): setup phase renders the shared
+// LobbySetupScreen — compact hero, visible win-pattern + call-speed
+// settings, spectator toggle, collapsible How to Play, pinned
+// Create Game CTA. Waiting-room phase still renders TemporaryLobbyView.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,9 +20,9 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
+import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
-import '../shared/widgets/spectator_toggle.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
@@ -161,14 +166,16 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
           // confirmation dialog first.
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
-        title: Text(
-          'Bingo',
-          style: TextStyle(
-            fontFamily: KinrelTypography.displayFont,
-            fontWeight: FontWeight.w600,
-            color: KinrelColors.textWhite,
-          ),
-        ),
+        title: hasGame
+            ? Text(
+                'Bingo',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textWhite,
+                ),
+              )
+            : null,
         backgroundColor: KinrelColors.darkCard,
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
@@ -231,37 +238,62 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
   }
 
   Widget _setupView(BingoState state) {
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
-      children: [
-        _sectionLabel('Win Pattern'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _winPatternSelector(),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        _sectionLabel('Call Speed: every ${_callInterval}s'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _callIntervalSlider(),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        _sectionLabel('How to Play'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _rulesCard(),
-        const SizedBox(height: KinrelSpacing.xl),
-
-                SpectatorToggle(
-          value: _spectatorsEnabled,
-          onChanged: (v) => setState(() => _spectatorsEnabled = v),
-        ),
-        const SizedBox(height: KinrelSpacing.md),
-        DKButton(
-          label: 'Create Game',
-          variant: DKButtonVariant.gradient,
-          fullWidth: true,
-          isLoading: _creating,
-          onPressed: _createGame,
+    return LobbySetupScreen(
+      gameId: 'bingo',
+      title: 'Bingo',
+      tagline: 'Mark your card, race to shout BINGO first',
+      facts: const [
+        LobbyFact(icon: Icons.groups_outlined, label: 'Up to 30 players'),
+        LobbyFact(icon: Icons.grid_on_outlined, label: '5×5 cards'),
+      ],
+      settings: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LobbySection(
+            label: 'Win Pattern',
+            child: LobbyChoiceGrid<BingoWinPattern>(
+              options: [
+                for (final p in BingoWinPattern.values)
+                  LobbyOption(
+                    value: p,
+                    label: p.label,
+                    caption: p.description,
+                  ),
+              ],
+              selected: _winPattern,
+              onSelect: (p) => setState(() => _winPattern = p),
+            ),
+          ),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbySliderRow(
+            label: 'Call Speed',
+            valueLabel: 'every $_callInterval s',
+            value: _callInterval,
+            min: 3,
+            max: 15,
+            divisions: 12,
+            onChanged: (v) => setState(() => _callInterval = v),
+          ),
+        ],
+      ),
+      rules: [
+        const LobbyRule('Each player gets a random 5×5 card with numbers 1-75.'),
+        LobbyRule('The caller (automated) announces a random number every $_callInterval s.'),
+        const LobbyRule('Tap matching numbers on your card to mark them.'),
+        const LobbyRule('Center space is FREE — already marked.'),
+        LobbyRule(
+          _winPattern == BingoWinPattern.line
+              ? 'Complete any row, column, or diagonal → tap BINGO!'
+              : 'Mark every number on your card → tap BINGO!',
         ),
       ],
+      rulesFootnote: 'Wins are verified server-side — no cheating!',
+      spectatorsEnabled: _spectatorsEnabled,
+      onSpectatorsChanged: (v) => setState(() => _spectatorsEnabled = v),
+      ctaLabel: 'Create Game',
+      ctaHint: 'Everyone gets a random card — up to 29 family members can join',
+      ctaLoading: _creating,
+      onCtaPressed: _createGame,
     );
   }
 
@@ -352,254 +384,6 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
           ],
         ),
     ),
-    );
-  }
-
-  Widget _sectionLabel(String text) => Text(
-    text,
-    style: TextStyle(
-      fontFamily: KinrelTypography.displayFont,
-      fontSize: 13,
-      fontWeight: FontWeight.w600,
-      color: KinrelColors.textDim,
-      letterSpacing: 0.5,
-    ),
-  );
-
-  Widget _winPatternSelector() {
-    return Wrap(
-      spacing: KinrelSpacing.sm,
-      runSpacing: KinrelSpacing.sm,
-      children: BingoWinPattern.values.map((p) {
-        final selected = p == _winPattern;
-        return GestureDetector(
-          onTap: () {
-            GameMotionTokens.tap();
-            setState(() => _winPattern = p);
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              vertical: KinrelSpacing.sm,
-              horizontal: KinrelSpacing.md,
-            ),
-            decoration: BoxDecoration(
-              color: KinrelColors.darkCard,
-              borderRadius: BorderRadius.circular(KinrelRadius.lg),
-              border: Border.all(
-                color: selected ? KinrelColors.orange : KinrelColors.border,
-                width: selected ? 2 : 1,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  p.label,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 13,
-                    color: selected
-                        ? KinrelColors.textWhite
-                        : KinrelColors.textDim,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  p.description,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 10,
-                    color: KinrelColors.textDim,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _callIntervalSlider() {
-    return Slider(
-      value: _callInterval.toDouble(),
-      min: 3,
-      max: 15,
-      divisions: 12,
-      activeColor: KinrelColors.orange,
-      label: '${_callInterval}s',
-      onChanged: (v) => setState(() => _callInterval = v.round()),
-    );
-  }
-
-  Widget _rulesCard() {
-    return Container(
-      padding: const EdgeInsets.all(KinrelSpacing.md),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _ruleLine('1.', 'Each player gets a random 5×5 card with numbers 1-75.'),
-          const SizedBox(height: 6),
-          _ruleLine('2.', 'The caller (automated) announces a random number every ${_callInterval}s.'),
-          const SizedBox(height: 6),
-          _ruleLine('3.', 'Tap matching numbers on your card to mark them.'),
-          const SizedBox(height: 6),
-          _ruleLine('4.', 'Center space is FREE — already marked.'),
-          const SizedBox(height: 6),
-          _ruleLine(
-            '5.',
-            _winPattern == BingoWinPattern.line
-                ? 'Complete any row, column, or diagonal → tap BINGO!'
-                : 'Mark every number on your card → tap BINGO!',
-          ),
-          const SizedBox(height: 6),
-          _ruleLine('★', 'Wins are verified server-side — no cheating!', highlight: true),
-        ],
-      ),
-    );
-  }
-
-  Widget _ruleLine(String num, String text, {bool highlight = false}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 24,
-          child: Text(
-            num,
-            style: TextStyle(
-              fontFamily: KinrelTypography.monoFont,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: highlight ? KinrelColors.orange : KinrelColors.textDim,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 12,
-              color: highlight ? KinrelColors.textWhite : KinrelColors.textDim,
-              height: 1.4,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _settingsSummary(BingoState state) {
-    final game = state.game;
-    if (game == null) return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.all(KinrelSpacing.md),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      child: Wrap(
-        spacing: KinrelSpacing.sm,
-        runSpacing: 4,
-        children: [
-          _chip(game.winPattern.label),
-          _chip('${game.callIntervalSeconds}s/number'),
-          _chip('Max ${game.maxPlayers} players'),
-        ],
-      ),
-    );
-  }
-
-  Widget _chip(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.sm, vertical: 3),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkElevated,
-        borderRadius: BorderRadius.circular(KinrelRadius.xs),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: KinrelTypography.bodyFont,
-          fontSize: 11,
-          color: KinrelColors.textDim,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-
-  Widget _playerList(BingoState state) {
-    if (state.allCards.isEmpty) {
-      return DKEmptyState(
-        icon: Icons.group_outlined,
-        title: 'No players yet',
-        subtitle: 'Share the code to invite family members.',
-      );
-    }
-    return Container(
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      child: Column(
-        children: [
-          for (int i = 0; i < state.allCards.length; i++) ...[
-            if (i > 0)
-              Divider(height: 1, color: KinrelColors.border.withValues(alpha: 0.5)),
-            _playerTile(state.allCards[i], state.game?.hostUserId),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _playerTile(BingoCard card, String? hostUserId) {
-    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-    final isMe = card.playerId == myId;
-    return ListTile(
-      leading: DKAvatar(
-        initials: card.playerName.isNotEmpty
-            ? card.playerName[0].toUpperCase()
-            : '?',
-      ),
-      title: Text(
-        isMe ? '${card.playerName} (You)' : card.playerName,
-        style: TextStyle(
-          fontFamily: KinrelTypography.bodyFont,
-          fontSize: 14,
-          color: KinrelColors.textWhite,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      trailing: card.playerId == hostUserId
-          ? Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: KinrelColors.orange.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(KinrelRadius.xs),
-              ),
-              child: Text(
-                'HOST',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.monoFont,
-                  fontSize: 10,
-                  color: KinrelColors.orange,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1,
-                ),
-              ),
-            )
-          : null,
     );
   }
 }

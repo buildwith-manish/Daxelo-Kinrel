@@ -1,5 +1,8 @@
-import '../../../core/widgets/person_avatar.dart';
 // lib/features/games/truthordare/truthordare_lobby_screen.dart
+//
+// v2 (premium lobby system): setup phase renders the shared
+// LobbySetupScreen — compact hero, approved-prompts status, spectator
+// toggle, collapsible How to Play, pinned Create Game CTA.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,9 +14,9 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
+import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
-import '../shared/widgets/spectator_toggle.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
 import 'truthordare_provider.dart';
@@ -74,7 +77,6 @@ class _TodLobbyScreenState extends ConsumerState<TodLobbyScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(todProvider(widget.familyId));
-    final notifier = ref.read(todProvider(widget.familyId).notifier);
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     final isHost = state.game?.hostUserId == myId || state.game == null;
     final hasGame = state.game != null;
@@ -95,11 +97,13 @@ class _TodLobbyScreenState extends ConsumerState<TodLobbyScreen> {
           // confirmation dialog first.
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
-        title: Text('Truth or Dare', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: hasGame
+            ? Text('Truth or Dare', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))
+            : null,
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [
-          IconButton(icon: const Icon(Icons.add_circle_outline), onPressed: () => context.push('/family/${widget.familyId}/truthordare/submit')),
-          IconButton(icon: const Icon(Icons.rate_review), onPressed: () => context.push('/family/${widget.familyId}/truthordare/review')),
+          IconButton(icon: const Icon(Icons.add_circle_outline), tooltip: 'Submit a prompt', onPressed: () => context.push('/family/${widget.familyId}/truthordare/submit')),
+          IconButton(icon: const Icon(Icons.rate_review), tooltip: 'Review prompts', onPressed: () => context.push('/family/${widget.familyId}/truthordare/review')),
           if (hasGame && isHost)
             IconButton(
               tooltip: 'Invite family member',
@@ -128,33 +132,37 @@ class _TodLobbyScreenState extends ConsumerState<TodLobbyScreen> {
   }
 
   Widget _setupView() {
-    return ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
-      Text('Truth or Dare', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
-      const SizedBox(height: 4),
-      Text('Spin the bottle, pick Truth or Dare, answer family-submitted prompts!', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
-      const SizedBox(height: KinrelSpacing.lg),
-      // Rules
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: KinrelColors.border)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _rule('1. Each round, the spinner taps to spin the bottle.'),
-          const SizedBox(height: 4), _rule('2. The bottle lands on a random player (never the spinner).'),
-          const SizedBox(height: 4), _rule('3. That player picks Truth or Dare.'),
-          const SizedBox(height: 4), _rule('4. A random approved prompt is revealed.'),
-          const SizedBox(height: 4), _rule('5. Complete the prompt and tap Done!'),
-          const SizedBox(height: 4), _rule('★ Submit your own prompts via the + icon!', highlight: true),
-        ])),
-      const SizedBox(height: KinrelSpacing.lg),
-      // Approved prompt count
-      FutureBuilder(future: _loadPromptCount(),
-        builder: (context, snapshot) => Text('${snapshot.data ?? 0} approved prompts ready', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim))),
-      const SizedBox(height: KinrelSpacing.xl),
-            SpectatorToggle(
-        value: _spectatorsEnabled,
-        onChanged: (v) => setState(() => _spectatorsEnabled = v),
+    return LobbySetupScreen(
+      gameId: 'truthordare',
+      title: 'Truth or Dare',
+      tagline: 'Spin the bottle, pick your side, own the moment',
+      facts: const [
+        LobbyFact(icon: Icons.group_outlined, label: '4–12 players'),
+        LobbyFact(icon: Icons.celebration_outlined, label: 'Party classic'),
+      ],
+      settings: FutureBuilder<int>(
+        future: _loadPromptCount(),
+        builder: (context, snapshot) => LobbyInfoNote(
+          icon: Icons.library_books_rounded,
+          text: '${snapshot.data ?? 0} approved family prompts ready — '
+              'submit your own via the + button in the top bar.',
+        ),
       ),
-      const SizedBox(height: KinrelSpacing.md),
-      DKButton(label: 'Create Game', variant: DKButtonVariant.gradient, fullWidth: true, isLoading: _creating, onPressed: _createGame),
-    ]);
+      rules: const [
+        LobbyRule('Each round, the spinner taps to spin the bottle.'),
+        LobbyRule('The bottle lands on a random player (never the spinner).'),
+        LobbyRule('That player picks Truth or Dare.'),
+        LobbyRule('A random approved prompt is revealed.'),
+        LobbyRule('Complete the prompt and tap Done!'),
+      ],
+      rulesFootnote: 'Submit your own prompts via the + icon in the top bar!',
+      spectatorsEnabled: _spectatorsEnabled,
+      onSpectatorsChanged: (v) => setState(() => _spectatorsEnabled = v),
+      ctaLabel: 'Create Game',
+      ctaHint: '4-12 players — perfect for family game night',
+      ctaLoading: _creating,
+      onCtaPressed: _createGame,
+    );
   }
 
   Widget _lobbyView(TodState state, bool isHost) {
@@ -238,6 +246,4 @@ class _TodLobbyScreenState extends ConsumerState<TodLobbyScreen> {
     ),
     );
   }
-
-  Widget _rule(String text, {bool highlight = false}) => Text(text, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: highlight ? KinrelColors.orange : KinrelColors.textDim, height: 1.4));
 }

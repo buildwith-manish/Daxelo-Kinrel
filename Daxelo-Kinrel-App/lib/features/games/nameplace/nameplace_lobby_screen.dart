@@ -1,6 +1,9 @@
-import '../../../core/widgets/person_avatar.dart';
 // lib/features/games/nameplace/nameplace_lobby_screen.dart
 // Route: /family/$familyId/nameplace/lobby
+//
+// v2 (premium lobby system): setup phase renders the shared
+// LobbySetupScreen — compact hero, visible rounds/timer/categories,
+// spectator toggle, collapsible How to Play, pinned Create Game CTA.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,9 +17,9 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
+import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
-import '../shared/widgets/spectator_toggle.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
@@ -80,7 +83,6 @@ class _NameplaceLobbyScreenState extends ConsumerState<NameplaceLobbyScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(nameplaceProvider(widget.familyId));
-    final notifier = ref.read(nameplaceProvider(widget.familyId).notifier);
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     final isHost = state.game?.hostUserId == myId || state.game == null;
     final hasGame = state.game != null;
@@ -101,7 +103,9 @@ class _NameplaceLobbyScreenState extends ConsumerState<NameplaceLobbyScreen> {
           // confirmation dialog first.
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
-        title: Text('Name, Place, Animal, Thing', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        title: hasGame
+            ? Text('Name, Place, Animal, Thing', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))
+            : null,
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [
           if (hasGame && isHost)
@@ -143,41 +147,69 @@ class _NameplaceLobbyScreenState extends ConsumerState<NameplaceLobbyScreen> {
   }
 
   Widget _setupView() {
-    return ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
-      _sectionLabel('Total Rounds'),
-      const SizedBox(height: KinrelSpacing.sm),
-      Slider(value: _totalRounds.toDouble(), min: 1, max: 10, divisions: 9, activeColor: KinrelColors.orange, label: '$_totalRounds', onChanged: (v) => setState(() => _totalRounds = v.round())),
-      const SizedBox(height: KinrelSpacing.lg),
-      _sectionLabel('Round Timer: ${_roundTimer}s'),
-      const SizedBox(height: KinrelSpacing.sm),
-      Slider(value: _roundTimer.toDouble(), min: 30, max: 120, divisions: 9, activeColor: KinrelColors.orange, label: '${_roundTimer}s', onChanged: (v) => setState(() => _roundTimer = v.round())),
-      const SizedBox(height: KinrelSpacing.lg),
-      _sectionLabel('Categories'),
-      const SizedBox(height: KinrelSpacing.sm),
-      Wrap(spacing: 6, runSpacing: 4, children: ['Name', 'Place', 'Animal', 'Thing', 'Movie'].map((c) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(8), border: Border.all(color: KinrelColors.border)),
-        child: Text(c, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textWhite, fontWeight: FontWeight.w600)),
-      )).toList()),
-      const SizedBox(height: KinrelSpacing.lg),
-      _sectionLabel('How to Play'),
-      const SizedBox(height: KinrelSpacing.sm),
-      Container(padding: const EdgeInsets.all(KinrelSpacing.md), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.lg), border: Border.all(color: KinrelColors.border)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _ruleLine('1.', 'Each round, one player picks a letter.'),
-          const SizedBox(height: 6), _ruleLine('2.', 'All players write one answer per category starting with that letter.'),
-          const SizedBox(height: 6), _ruleLine('3.', 'Can\'t answer? Enter a dash (-).'),
-          const SizedBox(height: 6), _ruleLine('4.', 'Unique answer = 10 pts. Duplicate = 5 pts. Dash = 0 pts.'),
-          const SizedBox(height: 6), _ruleLine('★', 'Highest total after $_totalRounds rounds wins!', highlight: true),
-        ])),
-      const SizedBox(height: KinrelSpacing.xl),
-            SpectatorToggle(
-        value: _spectatorsEnabled,
-        onChanged: (v) => setState(() => _spectatorsEnabled = v),
+    return LobbySetupScreen(
+      gameId: 'nameplace',
+      title: 'Name, Place, Animal, Thing',
+      tagline: 'One letter, five categories, fastest minds win',
+      facts: [
+        LobbyFact(icon: Icons.layers_outlined, label: '$_totalRounds rounds'),
+        LobbyFact(icon: Icons.timer_outlined, label: '$_roundTimer s/round'),
+      ],
+      settings: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LobbySliderRow(
+            label: 'Total Rounds',
+            valueLabel: '$_totalRounds',
+            value: _totalRounds,
+            min: 1,
+            max: 10,
+            divisions: 9,
+            onChanged: (v) => setState(() => _totalRounds = v),
+          ),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbySliderRow(
+            label: 'Round Timer',
+            valueLabel: '$_roundTimer s',
+            value: _roundTimer,
+            min: 30,
+            max: 120,
+            divisions: 9,
+            onChanged: (v) => setState(() => _roundTimer = v),
+          ),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbySection(
+            label: 'Categories',
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: ['Name', 'Place', 'Animal', 'Thing', 'Movie'].map((c) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: KinrelColors.darkCard,
+                  borderRadius: BorderRadius.circular(KinrelRadius.full),
+                  border: Border.all(color: KinrelColors.border),
+                ),
+                child: Text(c, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textWhite, fontWeight: FontWeight.w600)),
+              )).toList(),
+            ),
+          ),
+        ],
       ),
-      const SizedBox(height: KinrelSpacing.md),
-      DKButton(label: 'Create Game', variant: DKButtonVariant.gradient, fullWidth: true, isLoading: _creating, onPressed: _createGame),
-    ]);
+      rules: const [
+        LobbyRule('Each round, one player picks a letter.'),
+        LobbyRule('All players write one answer per category starting with that letter.'),
+        LobbyRule('Can\'t answer? Enter a dash (-).'),
+        LobbyRule('Unique answer = 10 pts. Duplicate = 5 pts. Dash = 0 pts.'),
+      ],
+      rulesFootnote: 'Highest total after $_totalRounds rounds wins!',
+      spectatorsEnabled: _spectatorsEnabled,
+      onSpectatorsChanged: (v) => setState(() => _spectatorsEnabled = v),
+      ctaLabel: 'Create Game',
+      ctaHint: 'Up to 19 family members can join',
+      ctaLoading: _creating,
+      onCtaPressed: _createGame,
+    );
   }
 
   Widget _lobbyView(NameplaceState state, bool isHost) {
@@ -261,10 +293,4 @@ class _NameplaceLobbyScreenState extends ConsumerState<NameplaceLobbyScreen> {
     ),
     );
   }
-
-  Widget _sectionLabel(String text) => Text(text, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim, letterSpacing: 0.5));
-  Widget _ruleLine(String num, String text, {bool highlight = false}) => Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    SizedBox(width: 24, child: Text(num, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: highlight ? KinrelColors.orange : KinrelColors.textDim))),
-    Expanded(child: Text(text, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: highlight ? KinrelColors.textWhite : KinrelColors.textDim, height: 1.4))),
-  ]);
 }

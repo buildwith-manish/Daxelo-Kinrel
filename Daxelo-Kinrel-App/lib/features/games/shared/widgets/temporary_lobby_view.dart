@@ -327,32 +327,29 @@ class _TemporaryLobbyViewState extends State<TemporaryLobbyView> {
             padding: const EdgeInsets.fromLTRB(
                 KinrelSpacing.base, KinrelSpacing.base, KinrelSpacing.base, 0),
             children: [
-              // ── 1. Status banner (top) ────────────────────────────
-              _StatusBanner(config: config),
-              const SizedBox(height: KinrelSpacing.sm),
-
-              // ── 1b. Match-start countdown (only when starting) ────
-              if (config.status == TemporaryLobbyStatus.starting)
-                _MatchStartCountdown(),
-              const SizedBox(height: KinrelSpacing.sm),
-
-              // ── 2. Room metadata (DIRECTLY below the banner) ──────
-              _RoomMetadataBar(
+              // ── 1. Room header card (status + room facts, one glance) ─
+              _RoomHeaderCard(
                 config: config,
                 countdownLabel: _countdownLabel,
                 secondsRemaining: _secondsRemaining,
                 totalSeconds: config.autoCloseSeconds,
               ),
+
+              // ── 1b. Match-start countdown (only when starting) ────
+              if (config.status == TemporaryLobbyStatus.starting) ...[
+                const SizedBox(height: KinrelSpacing.sm),
+                _MatchStartCountdown(),
+              ],
               const SizedBox(height: KinrelSpacing.lg),
 
-              // ── 3. Player roster ──────────────────────────────────
+              // ── 2. Player roster ──────────────────────────────
               _PlayerRoster(
                 config: config,
                 myUserId: widget.myUserId,
                 onInviteFamily: widget.onInviteFamily,
               ),
 
-              // ── 4. Footer (pending invites + lobby chat) ──────────
+              // ── 3. Footer (pending invites + lobby chat) ─────────
               if (widget.footer != null) ...[
                 const SizedBox(height: KinrelSpacing.lg),
                 widget.footer!,
@@ -362,7 +359,7 @@ class _TemporaryLobbyViewState extends State<TemporaryLobbyView> {
           ),
         ),
 
-        // ── 5. PINNED action bar (always visible, never scrolls) ────
+        // ── 4. PINNED action bar (always visible, never scrolls) ────
         if (actions != null)
           Container(
             width: double.infinity,
@@ -512,101 +509,22 @@ class _MatchStartCountdownState extends State<_MatchStartCountdown>
   }
 }
 
-class _StatusBanner extends StatelessWidget {
-  const _StatusBanner({required this.config});
-  final TemporaryLobbyConfig config;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _bannerColor(config.status, config.allReady);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      padding: const EdgeInsets.symmetric(
-        horizontal: KinrelSpacing.lg,
-        vertical: KinrelSpacing.md,
-      ),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            color.withValues(alpha: 0.3),
-            color.withValues(alpha: 0.1),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: color.withValues(alpha: 0.6), width: 1.5),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.25),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                config.status.emoji,
-                style: const TextStyle(fontSize: 22),
-              ),
-            ),
-          ),
-          const SizedBox(width: KinrelSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  config.bannerTitle,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: KinrelColors.textWhite,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  config.bannerSubtitle,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 12,
-                    color: KinrelColors.textDim,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _bannerColor(TemporaryLobbyStatus s, bool allReady) {
-    switch (s) {
-      case TemporaryLobbyStatus.waiting:
-        return allReady ? KinrelColors.success : KinrelColors.orange;
-      case TemporaryLobbyStatus.starting:
-        return KinrelColors.orange;
-      case TemporaryLobbyStatus.finished:
-        return KinrelColors.success;
-    }
-  }
-}
-
-/// Room metadata bar — shown directly below the status banner. Contains:
-///   • Room code (6-char display)
-///   • Player count (N/max)
-///   • Auto-close countdown (live MM:SS timer)
+/// Room header card — the single status surface at the top of the
+/// waiting room. Merges the previous status banner + room metadata bar
+/// into ONE cohesive card so the room's state is readable at a glance:
 ///
-/// This is always visible during the lobby phase so users can always see
-/// the room code + how long until the room auto-closes.
-class _RoomMetadataBar extends StatelessWidget {
-  const _RoomMetadataBar({
+///   ┌────────────────────────────────────┐
+///   │ (emoji)  Everyone is Ready         │  ← live status (gradient
+///   │          Match starts when host…   │    tinted by state)
+///   │ ────────────────────────────────── │
+///   │ #A1B2C3   2/6 players   ⏱ 04:32   │  ← room facts strip
+///   └────────────────────────────────────┘
+///
+/// The room code is prominent (mono, tap area owned by the app bar's
+/// share action) and the auto-close countdown color shifts
+/// dim → orange → red as time runs out.
+class _RoomHeaderCard extends StatelessWidget {
+  const _RoomHeaderCard({
     required this.config,
     required this.countdownLabel,
     required this.secondsRemaining,
@@ -620,6 +538,8 @@ class _RoomMetadataBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = _statusColor(config.status, config.allReady);
+
     // Color the countdown based on time remaining:
     //   > 50% → dim (plenty of time)
     //   25-50% → orange (getting low)
@@ -633,85 +553,167 @@ class _RoomMetadataBar extends StatelessWidget {
 
     final isWaiting = config.status == TemporaryLobbyStatus.waiting;
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.symmetric(
         horizontal: KinrelSpacing.md,
         vertical: KinrelSpacing.sm + 2,
       ),
       decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.md),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      child: Row(
-        children: [
-          // Room code chip
-          Icon(Icons.tag, size: 14, color: KinrelColors.textDim),
-          const SizedBox(width: 4),
-          Text(
-            'Room ${config.derivedRoomCode}',
-            style: TextStyle(
-              fontFamily: KinrelTypography.monoFont,
-              fontSize: 12,
-              color: KinrelColors.textWhite,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(width: KinrelSpacing.sm),
-          _dot(),
-          const SizedBox(width: KinrelSpacing.sm),
-          // Player count chip
-          Icon(Icons.people_outline, size: 14, color: KinrelColors.textDim),
-          const SizedBox(width: 4),
-          Text(
-            '${config.players.length}/${config.maxPlayers} players',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 11,
-              color: KinrelColors.textDim,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const Spacer(),
-          // Auto-close countdown (only shown in waiting state)
-          if (isWaiting) ...[
-            Icon(Icons.timer_outlined, size: 14, color: countdownColor),
-            const SizedBox(width: 4),
-            Text(
-              'Auto-closes in $countdownLabel',
-              style: TextStyle(
-                fontFamily: KinrelTypography.monoFont,
-                fontSize: 11,
-                color: countdownColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ] else if (config.status == TemporaryLobbyStatus.starting) ...[
-            Text(
-              'Match starting…',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 11,
-                color: KinrelColors.orange,
-                fontWeight: FontWeight.w600,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ] else ...[
-            Text(
-              'Game finished',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 11,
-                color: KinrelColors.success,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            color.withValues(alpha: 0.24),
+            color.withValues(alpha: 0.08),
           ],
+        ),
+        borderRadius: BorderRadius.circular(KinrelRadius.lg),
+        border: Border.all(color: color.withValues(alpha: 0.55), width: 1.5),
+      ),
+      child: Column(
+        children: [
+          // ── Status row ────────────────────────────────────────────
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.25),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    config.status.emoji,
+                    style: const TextStyle(fontSize: 22),
+                  ),
+                ),
+              ),
+              const SizedBox(width: KinrelSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      config.bannerTitle,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.displayFont,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: KinrelColors.textWhite,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      config.bannerSubtitle,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 12,
+                        color: KinrelColors.textDim,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // ── Room facts strip ──────────────────────────────────────
+          const SizedBox(height: KinrelSpacing.sm + 2),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: KinrelSpacing.sm),
+            decoration: BoxDecoration(
+              color: KinrelColors.darkCard.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(KinrelRadius.md),
+              border:
+                  Border.all(color: KinrelColors.border.withValues(alpha: 0.7)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.tag, size: 14, color: KinrelColors.orange),
+                const SizedBox(width: 4),
+                Text(
+                  config.derivedRoomCode,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.monoFont,
+                    fontSize: 12,
+                    color: KinrelColors.textWhite,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const SizedBox(width: KinrelSpacing.sm),
+                _dot(),
+                const SizedBox(width: KinrelSpacing.sm),
+                Icon(Icons.people_outline,
+                    size: 14, color: KinrelColors.textDim),
+                const SizedBox(width: 4),
+                Text(
+                  '${config.players.length}/${config.maxPlayers}',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 11,
+                    color: KinrelColors.textDim,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                if (isWaiting) ...[
+                  Icon(Icons.timer_outlined,
+                      size: 14, color: countdownColor),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$countdownLabel left',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.monoFont,
+                      fontSize: 11,
+                      color: countdownColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ] else if (config.status ==
+                    TemporaryLobbyStatus.starting) ...[
+                  Text(
+                    'Match starting…',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 11,
+                      color: KinrelColors.orange,
+                      fontWeight: FontWeight.w600,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ] else ...[
+                  Text(
+                    'Game finished',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 11,
+                      color: KinrelColors.success,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  Color _statusColor(TemporaryLobbyStatus s, bool allReady) {
+    switch (s) {
+      case TemporaryLobbyStatus.waiting:
+        return allReady ? KinrelColors.success : KinrelColors.orange;
+      case TemporaryLobbyStatus.starting:
+        return KinrelColors.orange;
+      case TemporaryLobbyStatus.finished:
+        return KinrelColors.success;
+    }
   }
 
   Widget _dot() {

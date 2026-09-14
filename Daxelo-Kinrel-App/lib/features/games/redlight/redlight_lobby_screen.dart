@@ -1,8 +1,12 @@
-import '../../../core/widgets/person_avatar.dart';
 // lib/features/games/redlight/redlight_lobby_screen.dart
 //
 // Freeze & Dash — Lobby / Setup screen.
 // Route: /family/$familyId/freeze-dash/lobby
+//
+// v2 (premium lobby system): setup phase renders the shared
+// LobbySetupScreen — compact hero, visible caller/map/weather/mode
+// settings, spectator toggle, collapsible How to Play, pinned
+// Create Game CTA. Waiting-room phase still renders TemporaryLobbyView.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,9 +20,9 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
+import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
-import '../shared/widgets/spectator_toggle.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
@@ -174,14 +178,16 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
           // confirmation dialog first.
           onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
-        title: Text(
-          'Freeze & Dash',
-          style: TextStyle(
-            fontFamily: KinrelTypography.displayFont,
-            fontWeight: FontWeight.w600,
-            color: KinrelColors.textWhite,
-          ),
-        ),
+        title: hasRound
+            ? Text(
+                'Freeze & Dash',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textWhite,
+                ),
+              )
+            : null,
         backgroundColor: KinrelColors.darkCard,
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
@@ -244,42 +250,95 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
 
   /// Pre-game setup form — caller, map, weather, modes + "Create Game".
   Widget _setupView(RedlightState state) {
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
-      children: [
-        _sectionLabel('Caller Character'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _callerSelector(),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        _sectionLabel('Map Theme'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _mapSelector(),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        _sectionLabel('Weather Modifier'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _weatherSelector(),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        _sectionLabel('Game Modes'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _modeToggles(),
-        const SizedBox(height: KinrelSpacing.xl),
-
-                SpectatorToggle(
-          value: _spectatorsEnabled,
-          onChanged: (v) => setState(() => _spectatorsEnabled = v),
-        ),
-        const SizedBox(height: KinrelSpacing.md),
-        DKButton(
-          label: 'Create Game',
-          variant: DKButtonVariant.gradient,
-          fullWidth: true,
-          isLoading: _creating,
-          onPressed: _createRound,
-        ),
+    return LobbySetupScreen(
+      gameId: 'freeze-dash',
+      title: 'Freeze & Dash',
+      tagline: 'Sprint when they look away, freeze when they turn',
+      facts: [
+        const LobbyFact(icon: Icons.group_outlined, label: '3–20 players'),
+        LobbyFact(icon: Icons.bolt_outlined, label: _teamMode ? 'Team race' : 'Solo race'),
       ],
+      settings: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LobbySection(
+            label: 'Caller Character',
+            child: LobbyChoiceGrid<CallerCharacter>(
+              options: [
+                for (final c in CallerCharacter.values)
+                  LobbyOption(value: c, label: c.label, emoji: c.emoji),
+              ],
+              selected: _caller,
+              onSelect: (c) => setState(() => _caller = c),
+            ),
+          ),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbySection(
+            label: 'Map Theme',
+            child: LobbyChoiceGrid<MapTheme>(
+              options: [
+                for (final m in MapTheme.values)
+                  LobbyOption(value: m, label: m.label, emoji: m.emoji),
+              ],
+              selected: _mapTheme,
+              onSelect: (m) => setState(() => _mapTheme = m),
+            ),
+          ),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbySection(
+            label: 'Weather Modifier',
+            child: LobbyChoiceGrid<WeatherModifier?>(
+              options: [
+                const LobbyOption(value: null, label: 'None', emoji: '☀️'),
+                for (final w in WeatherModifier.values)
+                  LobbyOption(value: w, label: w.label, emoji: w.emoji),
+              ],
+              selected: _weather,
+              onSelect: (w) => setState(() => _weather = w),
+            ),
+          ),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbySection(
+            label: 'Game Modes',
+            child: Column(
+              children: [
+                LobbySwitchRow(
+                  icon: Icons.flag_outlined,
+                  label: 'Team Mode',
+                  caption: 'Two teams compete — first team with all members at 100% wins.',
+                  value: _teamMode,
+                  onChanged: (v) => setState(() => _teamMode = v),
+                ),
+                const SizedBox(height: KinrelSpacing.sm),
+                LobbySwitchRow(
+                  icon: Icons.person_off_outlined,
+                  label: 'Elimination Mode',
+                  caption: 'Caught = eliminated. Default is knockback (-10% progress).',
+                  value: _eliminationMode,
+                  onChanged: (v) => setState(() => _eliminationMode = v),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      rules: const [
+        LobbyRule('Dash forward while the caller is looking away.'),
+        LobbyRule('FREEZE the instant the caller turns around.'),
+        LobbyRule('Caught moving = knockback (-10% progress).'),
+        LobbyRule('First player to reach 100% wins the race.'),
+      ],
+      rulesFootnote: _teamMode
+          ? 'Team mode: first team with ALL members at 100% wins.'
+          : (_eliminationMode
+              ? 'Elimination: caught players are out until the next round.'
+              : null),
+      spectatorsEnabled: _spectatorsEnabled,
+      onSpectatorsChanged: (v) => setState(() => _spectatorsEnabled = v),
+      ctaLabel: 'Create Game',
+      ctaHint: 'The caller is played by the game — everyone races live',
+      ctaLoading: _creating,
+      onCtaPressed: _createRound,
     );
   }
 
@@ -374,359 +433,6 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
           ],
         ),
     ),
-    );
-  }
-
-  /// Compact summary of the game settings (read-only once created).
-  Widget _settingsSummary(RedlightState state) {
-    final round = state.round;
-    if (round == null) return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.all(KinrelSpacing.md),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      child: Row(
-        children: [
-          Text(round.callerCharacter.emoji, style: const TextStyle(fontSize: 24)),
-          const SizedBox(width: KinrelSpacing.sm),
-          Expanded(
-            child: Wrap(
-              spacing: KinrelSpacing.sm,
-              runSpacing: 4,
-              children: [
-                _chip(round.callerCharacter.label),
-                _chip(round.mapTheme.emoji + ' ' + round.mapTheme.label),
-                if (round.weatherModifier != null)
-                  _chip(round.weatherModifier!.emoji + ' ' + round.weatherModifier!.label),
-                if (round.teamMode) _chip('Team Mode'),
-                if (round.eliminationMode) _chip('Elimination'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _chip(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.sm, vertical: 3),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkElevated,
-        borderRadius: BorderRadius.circular(KinrelRadius.xs),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: KinrelTypography.bodyFont,
-          fontSize: 11,
-          color: KinrelColors.textDim,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-
-  Widget _sectionLabel(String text) => Text(
-    text,
-    style: TextStyle(
-      fontFamily: KinrelTypography.displayFont,
-      fontSize: 13,
-      fontWeight: FontWeight.w600,
-      color: KinrelColors.textDim,
-      letterSpacing: 0.5,
-    ),
-  );
-
-  Widget _callerSelector() {
-    return Wrap(
-      spacing: KinrelSpacing.sm,
-      runSpacing: KinrelSpacing.sm,
-      children: CallerCharacter.values.map((c) {
-        final selected = c == _caller;
-        return GestureDetector(
-          onTap: () {
-            GameMotionTokens.tap();
-            setState(() => _caller = c);
-          },
-          child: Container(
-            width: 72,
-            padding: const EdgeInsets.symmetric(
-              vertical: KinrelSpacing.sm,
-              horizontal: KinrelSpacing.xs,
-            ),
-            decoration: BoxDecoration(
-              color: KinrelColors.darkCard,
-              borderRadius: BorderRadius.circular(KinrelRadius.lg),
-              border: Border.all(
-                color: selected
-                    ? KinrelColors.orange
-                    : KinrelColors.border,
-                width: selected ? 2 : 1,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(c.emoji, style: const TextStyle(fontSize: 28)),
-                const SizedBox(height: 4),
-                Text(
-                  c.label,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 11,
-                    color: selected
-                        ? KinrelColors.textWhite
-                        : KinrelColors.textDim,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _mapSelector() {
-    return Wrap(
-      spacing: KinrelSpacing.sm,
-      runSpacing: KinrelSpacing.sm,
-      children: MapTheme.values.map((m) {
-        final selected = m == _mapTheme;
-        return GestureDetector(
-          onTap: () {
-            GameMotionTokens.tap();
-            setState(() => _mapTheme = m);
-          },
-          child: Container(
-            width: 80,
-            padding: const EdgeInsets.symmetric(
-              vertical: KinrelSpacing.sm,
-              horizontal: KinrelSpacing.xs,
-            ),
-            decoration: BoxDecoration(
-              color: KinrelColors.darkCard,
-              borderRadius: BorderRadius.circular(KinrelRadius.lg),
-              border: Border.all(
-                color: selected
-                    ? KinrelColors.orange
-                    : KinrelColors.border,
-                width: selected ? 2 : 1,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(m.emoji, style: const TextStyle(fontSize: 26)),
-                const SizedBox(height: 4),
-                Text(
-                  m.label,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 11,
-                    color: selected
-                        ? KinrelColors.textWhite
-                        : KinrelColors.textDim,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _weatherSelector() {
-    final options = [null, ...WeatherModifier.values];
-    return Wrap(
-      spacing: KinrelSpacing.sm,
-      runSpacing: KinrelSpacing.sm,
-      children: options.map((w) {
-        final selected = w == _weather;
-        final label = w == null ? 'None' : w.label;
-        final emoji = w == null ? '☀️' : w.emoji;
-        return GestureDetector(
-          onTap: () {
-            GameMotionTokens.tap();
-            setState(() => _weather = w);
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              vertical: KinrelSpacing.sm,
-              horizontal: KinrelSpacing.md,
-            ),
-            decoration: BoxDecoration(
-              color: KinrelColors.darkCard,
-              borderRadius: BorderRadius.circular(KinrelRadius.lg),
-              border: Border.all(
-                color: selected
-                    ? KinrelColors.orange
-                    : KinrelColors.border,
-                width: selected ? 2 : 1,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(emoji, style: const TextStyle(fontSize: 18)),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 12,
-                    color: selected
-                        ? KinrelColors.textWhite
-                        : KinrelColors.textDim,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _modeToggles() {
-    return Column(
-      children: [
-        _modeRow(
-          label: 'Team Mode',
-          description: 'Two teams compete — first team with all members at 100% wins.',
-          value: _teamMode,
-          onChanged: (v) => setState(() => _teamMode = v),
-        ),
-        const SizedBox(height: KinrelSpacing.sm),
-        _modeRow(
-          label: 'Elimination Mode',
-          description:
-              'Caught = eliminated. Default is knockback (-10% progress).',
-          value: _eliminationMode,
-          onChanged: (v) => setState(() => _eliminationMode = v),
-        ),
-      ],
-    );
-  }
-
-  Widget _modeRow({
-    required String label,
-    required String description,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(KinrelSpacing.md),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 11,
-                    color: KinrelColors.textDim,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Switch.adaptive(
-            value: value,
-            activeColor: KinrelColors.orange,
-            onChanged: onChanged,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _playerList(RedlightState state) {
-    if (state.players.isEmpty) {
-      return DKEmptyState(
-        icon: Icons.group_outlined,
-        title: 'No players yet',
-        subtitle: 'Share the code to invite family members.',
-      );
-    }
-    return Container(
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      child: Column(
-        children: [
-          for (int i = 0; i < state.players.length; i++) ...[
-            if (i > 0)
-              Divider(
-                height: 1,
-                color: KinrelColors.border.withValues(alpha: 0.5),
-              ),
-            ListTile(
-              leading: DKAvatar(initials: PersonAvatar.initialsFor(state.players[i].userName)),
-              title: Text(
-                state.players[i].userName,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 14,
-                  color: KinrelColors.textWhite,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              trailing: state.players[i].userId == state.round?.hostUserId
-                  ? Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: KinrelSpacing.sm,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: KinrelColors.orange.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(KinrelRadius.xs),
-                      ),
-                      child: Text(
-                        'HOST',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.monoFont,
-                          fontSize: 10,
-                          color: KinrelColors.orange,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    )
-                  : null,
-            ),
-          ],
-        ],
-      ),
     );
   }
 
