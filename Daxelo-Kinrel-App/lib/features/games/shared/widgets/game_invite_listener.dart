@@ -34,6 +34,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/network/socket_service.dart';
+import '../../../../core/routing/app_router.dart' show rootNavigatorKey;
 import '../../../../core/services/supabase_service.dart';
 import '../models/game_invite.dart';
 
@@ -191,8 +192,19 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
   }
 
   void _showInviteDialog(GameInvite invite) {
+    // This widget lives ABOVE the Router in the widget tree
+    // (MaterialApp.builder wraps the Router), so its own context has no
+    // Navigator ancestor and showDialog(context: context) would fail.
+    // Use the router's root navigator key instead — its currentContext is
+    // inside the navigator.
+    final navContext = rootNavigatorKey.currentContext;
+    if (navContext == null) {
+      debugPrint('⚠️ GameInviteListener: no navigator context — invite '
+          'dialog skipped (invite still delivered via DM + push)');
+      return;
+    }
     showDialog<void>(
-      context: context,
+      context: navContext,
       barrierDismissible: false,
       builder: (dialogContext) => _GameInviteDialog(
         invite: invite,
@@ -223,7 +235,9 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
     unawaited(_persistInviteStatus(invite, 'accepted'));
     if (!mounted) return;
     // Navigate the recipient into the host's lobby with the join code.
-    GoRouter.of(context).go(invite.joinRoute);
+    // Use the root navigator's context (same reason as the dialog).
+    final navContext = rootNavigatorKey.currentContext ?? context;
+    GoRouter.of(navContext).go(invite.joinRoute);
   }
 
   Future<void> _declineInvite(GameInvite invite) async {

@@ -249,7 +249,10 @@ import '../../features/gedcom/presentation/gedcom_export_screen.dart';
 import '../../features/gedcom/presentation/your_data_screen.dart';
 
 /// Key for accessing the router's navigator state
-final _rootNavigatorKey = GlobalKey<NavigatorState>();
+/// Public root navigator key — lets root-level widgets (e.g.
+/// GameInviteListener, which lives ABOVE the Router in the tree) show
+/// dialogs via its currentContext.
+final rootNavigatorKey = GlobalKey<NavigatorState>();
 
 // ═══════════════════════════════════════════════════════════════════════
 // P2 — CustomTransitionPage Helpers
@@ -940,7 +943,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(authNotifier.dispose);
 
   return GoRouter(
-    navigatorKey: _rootNavigatorKey,
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/splash',
     debugLogDiagnostics: true,
     refreshListenable: authNotifier,
