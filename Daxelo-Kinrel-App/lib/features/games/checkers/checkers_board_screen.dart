@@ -25,6 +25,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
 import 'checkers_game_logic.dart';
 import 'checkers_models.dart';
@@ -60,11 +61,15 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
 
     // Show results inline when game completes
-    if (state.isCompleted) {
-      return _resultsView(state, myId);
-    }
-
-    return DKScaffold(
+    //
+    // RoomKeepAlive: keep the room framework (host heartbeat + room
+    // realtime) alive for the whole lifetime of this screen — the
+    // challenge lobby that attached the RoomController is replaced by
+    // this route; without a watch the autoDispose controller dies and
+    // the server-side reaper auto-closes the room ~60-75s in.
+    Widget view = RoomKeepAlive(
+      roomKey: RoomControllerKey(RoomConfig.checkers, widget.familyId),
+      child: DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
@@ -111,7 +116,13 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
               child: CircularProgressIndicator(color: KinrelColors.orange),
             )
           : _gameView(state, myId),
+      ),
     );
+
+    if (state.isCompleted) {
+      return _resultsView(state, myId);
+    }
+    return view;
   }
 
   Widget _gameView(CheckersState state, String? myId) {

@@ -22,6 +22,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
 import 'chess_models.dart';
 import 'chess_provider.dart';
@@ -56,11 +57,14 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
     final state = ref.watch(chessProvider(widget.familyId));
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
 
-    if (state.isCompleted) {
-      return _resultsView(state, myId);
-    }
-
-    return DKScaffold(
+    // Keep the room framework (host heartbeat + room realtime) alive for
+    // the whole lifetime of this screen — the challenge lobby that
+    // attached the RoomController is replaced by this route, and without
+    // a watch the autoDispose controller dies and the server-side reaper
+    // auto-closes the room ~60-75s into the game.
+    Widget view = RoomKeepAlive(
+      roomKey: RoomControllerKey(RoomConfig.chess, widget.familyId),
+      child: DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
@@ -107,7 +111,14 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
               child: CircularProgressIndicator(color: KinrelColors.orange),
             )
           : _gameView(state, myId),
+      ),
     );
+
+    // The completed-game results view doesn't need the room anymore.
+    if (state.isCompleted) {
+      return _resultsView(state, myId);
+    }
+    return view;
   }
 
   Widget _gameView(ChessState state, String? myId) {
@@ -540,42 +551,49 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
   }
 
   /// Unicode chess piece glyphs.
+  ///
+  /// NOTE: we deliberately use the SOLID glyphs (♚♛♜♝♞♟, U+265A–265F) for
+  /// BOTH colors — the two sides are distinguished by the glyph COLOR
+  /// (white = amber, black = slate), not by different characters. The
+  /// outline "white" glyphs (♔♕♖♗♘♙, U+2654–2659) are missing from every
+  /// bundled app font (Outfit / DMSans / NotoSans) AND from the browser
+  /// fallback on some platforms, so they rendered as tofu — the entire
+  /// white army was invisible. The solid glyphs are universally present.
   String _pieceUnicode(chess.Piece piece) {
-    // White pieces (uppercase): ♔♕♖♗♘♙
-    // Black pieces (lowercase): ♚♛♜♝♞♟
     switch (piece.type) {
       case chess.PieceType.KING:
-        return piece.color == chess.Color.WHITE ? '♔' : '♚';
+        return '♚';
       case chess.PieceType.QUEEN:
-        return piece.color == chess.Color.WHITE ? '♕' : '♛';
+        return '♛';
       case chess.PieceType.ROOK:
-        return piece.color == chess.Color.WHITE ? '♖' : '♜';
+        return '♜';
       case chess.PieceType.BISHOP:
-        return piece.color == chess.Color.WHITE ? '♗' : '♝';
+        return '♝';
       case chess.PieceType.KNIGHT:
-        return piece.color == chess.Color.WHITE ? '♘' : '♞';
+        return '♞';
       case chess.PieceType.PAWN:
-        return piece.color == chess.Color.WHITE ? '♙' : '♟';
+        return '♟';
       default:
         return '?';
     }
   }
 
   /// Get the glyph for a piece letter (for captured pieces display).
+  /// Same solid-glyph rule as [_pieceUnicode] — color differentiates sides.
   String _pieceGlyph(String letter, bool isWhite) {
     switch (letter.toUpperCase()) {
       case 'K':
-        return isWhite ? '♔' : '♚';
+        return '♚';
       case 'Q':
-        return isWhite ? '♕' : '♛';
+        return '♛';
       case 'R':
-        return isWhite ? '♖' : '♜';
+        return '♜';
       case 'B':
-        return isWhite ? '♗' : '♝';
+        return '♝';
       case 'N':
-        return isWhite ? '♘' : '♞';
+        return '♞';
       case 'P':
-        return isWhite ? '♙' : '♟';
+        return '♟';
       default:
         return '?';
     }

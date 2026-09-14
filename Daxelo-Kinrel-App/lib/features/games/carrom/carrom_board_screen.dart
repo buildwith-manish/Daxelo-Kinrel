@@ -21,6 +21,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
 import 'carrom_constants.dart';
 import 'carrom_game_logic.dart';
@@ -60,11 +61,14 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen> {
     final state = ref.watch(carromProvider(widget.familyId));
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
 
-    if (state.isCompleted) {
-      return _resultsView(state, myId);
-    }
-
-    return DKScaffold(
+    // RoomKeepAlive: keep the room framework (host heartbeat + room
+    // realtime) alive for the whole lifetime of this screen — the
+    // challenge lobby that attached the RoomController is replaced by
+    // this route; without a watch the autoDispose controller dies and
+    // the server-side reaper auto-closes the room ~60-75s in.
+    Widget view = RoomKeepAlive(
+      roomKey: RoomControllerKey(RoomConfig.carrom, widget.familyId),
+      child: DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
@@ -111,7 +115,13 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen> {
               child: CircularProgressIndicator(color: KinrelColors.orange),
             )
           : _gameView(state, myId),
+      ),
     );
+
+    if (state.isCompleted) {
+      return _resultsView(state, myId);
+    }
+    return view;
   }
 
   Widget _gameView(CarromState state, String? myId) {

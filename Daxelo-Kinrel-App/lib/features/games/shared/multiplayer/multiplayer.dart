@@ -33,3 +33,4 @@ export 'widgets/back_button_guard.dart';
 export 'widgets/room_exit_guard.dart';
 export 'widgets/room_close_dialog.dart';
 export 'widgets/match_countdown.dart';
+export 'widgets/room_keep_alive.dart';

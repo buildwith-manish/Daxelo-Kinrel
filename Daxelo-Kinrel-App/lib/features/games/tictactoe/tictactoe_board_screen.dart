@@ -9,6 +9,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
 import 'tictactoe_game_logic.dart';
 import 'tictactoe_models.dart';
@@ -30,9 +31,14 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
     final state = ref.watch(tttProvider(widget.familyId));
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
 
-    if (state.isCompleted) return _resultsView(state, myId);
-
-    return DKScaffold(
+    // RoomKeepAlive: keep the room framework (host heartbeat + room
+    // realtime) alive for the whole lifetime of this screen — the
+    // challenge lobby that attached the RoomController is replaced by
+    // this route; without a watch the autoDispose controller dies and
+    // the server-side reaper auto-closes the room ~60-75s in.
+    Widget view = RoomKeepAlive(
+      roomKey: RoomControllerKey(RoomConfig.tictactoe, widget.familyId),
+      child: DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
@@ -58,7 +64,11 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
           )
         : state.game == null ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
         : _gameView(state, myId),
+      ),
     );
+
+    if (state.isCompleted) return _resultsView(state, myId);
+    return view;
   }
 
   Widget _gameView(TttState state, String? myId) {
