@@ -2335,15 +2335,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // v5.2: Cancel the family member listener to prevent leaks.
     _memberListListener?.close();
     _memberListListener = null;
-    // Tier 1 / Last Seen — mark the user as offline when the chat
-    // notifier disposes (which happens when the chat screen closes).
-    // Other family members will then see "last seen X ago" instead of
-    // "online". Best-effort — the RPC fires-and-forgets; if the user
-    // force-kills the app, the row stays "online" until the next
-    // heartbeat / app open updates it. (A proper app-lifecycle
-    // observer would catch force-kill; for v1 the chat-screen-close
-    // trigger covers the common case.)
-    ref.read(lastSeenProvider.notifier).updateMyPresence(false);
+    // Tier 1 / Last Seen — Task 4: presence is now owned APP-WIDE by the
+    // PresenceHeartbeat (marks online on boot/sign-in + 30s heartbeat,
+    // offline on sign-out) and the server-side sweeper handles killed
+    // sessions. Closing a chat screen must NOT flip the user offline —
+    // they are still using the app elsewhere (games hub, lobby, etc.).
     super.dispose();
   }
 }

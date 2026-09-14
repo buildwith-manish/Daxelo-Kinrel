@@ -1,21 +1,34 @@
 // lib/features/games/shared/widgets/game_invite_listener.dart
 //
-// Global listener for incoming game invites delivered via the
-// NestJS KinrelGateway socket (`game:invite:received` event).
+// Global listener for incoming game invites.
 //
-// Wrap the app's root navigator with this widget so that any incoming
-// invite — regardless of which screen the user is on — surfaces an
-// Accept / Decline dialog. Accepting navigates the user into the host's
-// game lobby with the correct room code applied via the `?join=` query
-// parameter (the standard deep-link format for joining a game).
+// Task 4 (2026-09-14): invites now arrive over TWO redundant legs so
+// delivery is guaranteed even when one fails:
 //
-// Placement: see `lib/main.dart` or the root `MaterialApp.router` builder.
+//   1. NestJS KinrelGateway socket — `game:invite:received` event
+//      (instant, when the recipient is online and the gateway is up).
+//
+//   2. Supabase Realtime — game_invites INSERT events filtered to
+//      invitedUserId = me. The durable row is written by every send
+//      path (single / multi-select / bulk), so this leg alone delivers
+//      the invite even when the socket gateway is cold-starting or
+//      unreachable. game_invites is in the supabase_realtime
+//      publication with REPLICA IDENTITY FULL.
+//
+// Both legs funnel into _handleInvite, which dedupes by (gameId,
+// fromUserId) within a short window so the two legs never double-show
+// the same invitation. Accepting navigates the user into the host's
+// game lobby via the standard `?join=` deep-link format.
+//
+// Placement: wrapped around the root navigator in main.dart
+// (inside PresenceHeartbeat).
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
@@ -35,7 +48,13 @@ class GameInviteListener extends ConsumerStatefulWidget {
 class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
   SocketService? _socket;
   VoidCallback? _unsub;
+  RealtimeChannel? _inviteChannel;
+  StreamSubscription<dynamic>? _authSub;
   final Set<String> _shownInviteIds = {}; // dedupe within session
+  // Cross-leg dedupe: (gameId:fromUserId) → last shown time. The socket
+  // leg and the DB-realtime leg deliver the same invite within ~seconds
+  // of each other; only the first surfaces a dialog.
+  final Map<String, DateTime> _shownPairAt = {};
 
   @override
   void initState() {
@@ -47,15 +66,102 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
     final socket = ref.read(socketServiceProvider);
     _socket = socket;
     _unsub = socket.onGameInviteReceived(_handleInvite);
+
+    // Leg 2 — durable rows. Attach now if signed in; otherwise wait for
+    // the signedIn auth event (this widget mounts at app boot, before
+    // the session is recovered).
+    final client = ref.read(supabaseProvider);
+    if (client != null) {
+      if (client.auth.currentUser != null) {
+        _subscribeToInviteRows(client);
+      }
+      _authSub = client.auth.onAuthStateChange.listen((data) {
+        if (!mounted) return;
+        if (data.event == AuthChangeEvent.signedIn) {
+          _subscribeToInviteRows(client);
+        } else if (data.event == AuthChangeEvent.signedOut) {
+          _inviteChannel?.unsubscribe();
+          _inviteChannel = null;
+        }
+      });
+    }
+  }
+
+  /// Supabase realtime on game_invites INSERT for ME. RLS
+  /// (game_invites_select_self) guarantees I only see rows I'm part of,
+  /// and the invitedUserId filter narrows it to incoming invitations.
+  void _subscribeToInviteRows(SupabaseClient client) {
+    final myId = client.auth.currentUser?.id;
+    if (myId == null || _inviteChannel != null) return;
+
+    _inviteChannel = client
+        .channel('game_invites_inbox')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'game_invites',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'invitedUserId',
+            value: myId,
+          ),
+          callback: (payload) {
+            final row = payload.newRecord;
+            if (row['status'] != 'pending') return;
+            final invite = _inviteFromRow(row);
+            if (invite != null) _handleInvite(invite);
+          },
+        )
+        .subscribe();
+    debugPrint('📡 GameInviteListener: game_invites realtime attached');
+  }
+
+  /// Map a game_invites DB row onto a [GameInvite] for the dialog flow.
+  GameInvite? _inviteFromRow(Map<String, dynamic> row) {
+    final gameId = row['gameId'] as String?;
+    if (gameId == null || gameId.isEmpty) return null;
+    final gameType = GameTypeX.fromRouteSegment(
+            (row['gameType'] as String?) ?? '') ??
+        GameTypeX.fromDisplayName((row['gameType'] as String?) ?? '');
+    if (gameType == null) return null;
+
+    int toInt(dynamic v, int fallback) =>
+        v is num ? v.toInt() : (v is String ? int.tryParse(v) ?? fallback : fallback);
+
+    return GameInvite(
+      inviteId: (row['id'] as String?) ?? 'db_${gameId}',
+      gameType: gameType,
+      gameId: gameId,
+      roomCode: (row['roomCode'] as String?) ?? '',
+      familyId: (row['familyId'] as String?) ?? '',
+      fromUserId: (row['invitedByUserId'] as String?) ?? '',
+      fromName: (row['invitedByName'] as String?) ?? 'A family member',
+      maxPlayers: toInt(row['maxPlayers'], 2),
+      currentPlayers: toInt(row['currentPlayers'], 1),
+      message: row['message'] as String?,
+      timestamp: DateTime.tryParse((row['createdAt'] as String?) ?? ''),
+    );
   }
 
   void _handleInvite(GameInvite invite) {
-    // Dedupe — same invite may arrive twice if socket reconnects.
-    if (_shownInviteIds.contains(invite.inviteId)) return;
-    _shownInviteIds.add(invite.inviteId);
-
-    // Also listen for the response if the recipient acts elsewhere.
     if (!mounted) return;
+
+    // Dedupe — same invite may arrive on both legs (socket + DB row)
+    // or twice if the socket reconnects.
+    final pairKey = '${invite.gameId}:${invite.fromUserId}';
+    final lastShown = _shownPairAt[pairKey];
+    final now = DateTime.now();
+    if (lastShown != null && now.difference(lastShown).inSeconds < 30) {
+      // Same invitation already surfaced recently — skip the duplicate
+      // leg but remember the id for session-level dedupe.
+      _shownInviteIds.add(invite.inviteId);
+      return;
+    }
+    if (_shownInviteIds.contains(invite.inviteId)) return;
+
+    _shownInviteIds.add(invite.inviteId);
+    _shownPairAt[pairKey] = now;
+
     _showInviteDialog(invite);
   }
 
@@ -133,6 +239,8 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
   @override
   void dispose() {
     _unsub?.call();
+    _inviteChannel?.unsubscribe();
+    unawaited(_authSub?.cancel());
     super.dispose();
   }
 

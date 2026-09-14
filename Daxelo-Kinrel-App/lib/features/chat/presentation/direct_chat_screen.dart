@@ -560,6 +560,10 @@ class _DirectMessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Task 4 — interactive game-invite card (Specific-Members invites)
+    if (message.isGameInvite) {
+      return _buildGameInviteBubble(context);
+    }
     // Special heart-themed card for Thinking of You messages
     if (message.isThinkingOfYou) {
       return _buildThinkingOfYouBubble(context);
@@ -730,5 +734,191 @@ class _DirectMessageBubble extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Task 4 — game-invite card for Specific-Members invitations.
+  ///
+  /// Renders a Kinrel-orange card with the game name, room code, player
+  /// count and a JOIN button (recipient side) that deep-links into the
+  /// host's lobby via the standard ?join=<gameId> route. Malformed JSON
+  /// (or a missing payload) degrades gracefully to the text bubble so
+  /// the thread never breaks.
+  Widget _buildGameInviteBubble(BuildContext context) {
+    final payload = message.gameInvitePayload;
+    if (payload == null) return _buildTextBubble(context);
+
+    final gameSegment = (payload['gameType'] as String? ?? '').trim();
+    final gameId = payload['gameId'] as String? ?? '';
+    final roomCode = (payload['roomCode'] as String? ?? '').trim();
+    final familyId = payload['familyId'] as String? ?? '';
+    final fromName = payload['fromName'] as String? ?? 'A family member';
+    final maxPlayers = (payload['maxPlayers'] as num?)?.toInt() ?? 0;
+    final currentPlayers = (payload['currentPlayers'] as num?)?.toInt() ?? 0;
+    final inviteMessage = payload['message'] as String?;
+
+    final displayName = _gameDisplayName(gameSegment);
+    final joinRoute =
+        '/family/$familyId/$gameSegment/lobby?join=$gameId';
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.82,
+        ),
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: KinrelColors.darkCard,
+          borderRadius: BorderRadius.circular(KinrelRadius.lg),
+          border: Border.all(
+            color: KinrelColors.orange.withValues(alpha: 0.35),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: KinrelColors.orange.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(KinrelRadius.md),
+                  ),
+                  child: const Icon(
+                    Icons.sports_esports,
+                    color: KinrelColors.orange,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$displayName invitation',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: KinrelColors.textWhite,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'From $fromName'
+                        '${roomCode.isNotEmpty ? ' · Room $roomCode' : ''}'
+                        '${maxPlayers > 0 ? ' · $currentPlayers/$maxPlayers players' : ''}',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.monoFont,
+                          fontSize: 10,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (inviteMessage != null && inviteMessage.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                inviteMessage,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 12.5,
+                  color: KinrelColors.textWhite,
+                  height: 1.35,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Material(
+                    color: isMe
+                        ? KinrelColors.darkElevated
+                        : KinrelColors.orange,
+                    borderRadius: BorderRadius.circular(KinrelRadius.md),
+                    child: InkWell(
+                      onTap: isMe
+                          ? null
+                          : () => GoRouter.of(context).go(joinRoute),
+                      borderRadius: BorderRadius.circular(KinrelRadius.md),
+                      child: Container(
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 10),
+                        child: Center(
+                          child: Text(
+                            isMe ? 'Invitation sent' : 'Join game',
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: isMe
+                                  ? KinrelColors.textDim
+                                  : KinrelColors.textWhite,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message.formattedTime,
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 9,
+                color: KinrelColors.textDim,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Friendly name for a game route segment ('sos' → 'SOS').
+String _gameDisplayName(String segment) {
+  switch (segment) {
+    case 'bingo':
+      return 'Bingo';
+    case 'ludo':
+      return 'Ludo';
+    case 'checkers':
+      return 'Checkers';
+    case 'carrom':
+      return 'Carrom';
+    case 'chess':
+      return 'Chess';
+    case 'chitmatch':
+      return 'TripleMatch';
+    case 'nameplace':
+      return 'Name, Place, Animal, Thing';
+    case 'tictactoe':
+      return 'Tic-Tac-Toe';
+    case 'truthordare':
+      return 'Truth or Dare';
+    case 'twotruths':
+      return 'Two Truths and a Lie';
+    case 'dotsboxes':
+      return 'Dots and Boxes';
+    case 'antakshari':
+      return 'Antakshari';
+    case 'freeze-dash':
+      return 'Freeze & Dash';
+    case 'sos':
+    default:
+      return 'SOS';
   }
 }

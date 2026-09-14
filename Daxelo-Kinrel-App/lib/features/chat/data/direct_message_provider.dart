@@ -14,6 +14,7 @@
 //   - Notification tap (opens the DM with the sender)
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -55,11 +56,31 @@ class DirectMessage {
   final String senderId;
   final String receiverId;
   final String content;
-  final String messageType; // 'text' | 'thinking_of_you'
+  final String messageType; // 'text' | 'thinking_of_you' | 'gameInvite'
   final bool isRead;
   final DateTime createdAt;
 
   bool get isThinkingOfYou => messageType == 'thinking_of_you';
+
+  bool get isGameInvite => messageType == 'gameInvite';
+
+  /// Parsed game-invite payload (messageType == 'gameInvite').
+  ///
+  /// Specific-Members game invites are delivered as a DM whose content
+  /// is a JSON blob: gameType, gameId, roomCode, familyId, fromName,
+  /// maxPlayers, currentPlayers, message. Returns null when the content
+  /// is not valid JSON or missing the gameId (older / hand-typed rows).
+  Map<String, dynamic>? get gameInvitePayload {
+    if (!isGameInvite) return null;
+    try {
+      final decoded = jsonDecode(content);
+      if (decoded is Map<String, dynamic> &&
+          (decoded['gameId'] as String?)?.isNotEmpty == true) {
+        return decoded;
+      }
+    } catch (_) {}
+    return null;
+  }
 
   String get formattedTime {
     final hour = createdAt.hour;
@@ -148,6 +169,8 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
   final String otherUserId;
   final Ref ref;
 
+  RealtimeChannel? _channel;
+
   String? get _currentUserId =>
       ref.read(supabaseProvider)?.auth.currentUser?.id;
 
@@ -169,6 +192,55 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
     await _loadPeerInfo();
     await _loadMessages();
     _markAsRead();
+    _subscribeToRealtime();
+  }
+
+  /// Task 4 — live DM sync.
+  ///
+  /// Subscribes to DirectMessage INSERT events addressed to me (RLS
+  /// keeps everything else private). New messages — including game
+  /// invites sent via the Specific-Members flow — appear in an open DM
+  /// screen instantly, with no refresh. UPDATE events (read receipts)
+  /// also refresh the ticks.
+  void _subscribeToRealtime() {
+    final client = _client;
+    final myId = _currentUserId;
+    if (client == null || myId == null) return;
+
+    _channel = client
+        .channel('dm_convo:$otherUserId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'DirectMessage',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'receiverId',
+            value: myId,
+          ),
+          callback: (payload) {
+            final row = payload.newRecord;
+            // Only refresh when the new message belongs to THIS
+            // conversation (filter is by receiver only — sender varies).
+            final senderId = row['senderId'] as String?;
+            if (senderId != otherUserId) return;
+            unawaited(refresh());
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'DirectMessage',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'receiverId',
+            value: myId,
+          ),
+          callback: (payload) {
+            unawaited(refresh());
+          },
+        )
+        .subscribe();
   }
 
   /// Load the other user's name + avatar for the AppBar.
@@ -309,6 +381,13 @@ class DirectChatNotifier extends StateNotifier<DirectChatState> {
     await _loadMessages();
     _markAsRead();
   }
+
+  @override
+  void dispose() {
+    _channel?.unsubscribe();
+    _channel = null;
+    super.dispose();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -319,6 +398,47 @@ final directChatProvider = StateNotifierProvider.family<
     DirectChatNotifier, DirectChatState, String>((ref, otherUserId) {
   return DirectChatNotifier(otherUserId: otherUserId, ref: ref);
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// Task 4 — Send a game invite as a DIRECT MESSAGE (Specific Members)
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Inserts a private game-invite DM addressed to [toUserId] only.
+///
+/// Called by InviteFamilySheet when the host invites SPECIFIC members
+/// (single tap or multi-select): the invite lands in that member's DM
+/// thread — never in the family group chat. The family chat card is
+/// reserved for the explicit "Entire Family" bulk flow.
+///
+/// Content is a JSON payload (gameType / gameId / roomCode / familyId /
+/// fromName / maxPlayers / currentPlayers / message) which
+/// DirectChatScreen renders as an interactive invite card with a Join
+/// action. Best-effort: failures are logged, never thrown — the durable
+/// game_invites row + socket event are the authoritative invite legs.
+Future<void> sendGameInviteDm({
+  required SupabaseClient client,
+  required String toUserId,
+  required Map<String, dynamic> inviteJson,
+}) async {
+  final myUserId = client.auth.currentUser?.id;
+  if (myUserId == null) return;
+  final now = DateTime.now();
+  final msgId = _generateId();
+  try {
+    await client.from('DirectMessage').insert({
+      'id': msgId,
+      'senderId': myUserId,
+      'receiverId': toUserId,
+      'content': jsonEncode(inviteJson),
+      'messageType': 'gameInvite',
+      'isRead': false,
+      'createdAt': now.toIso8601String(),
+      'updatedAt': now.toIso8601String(),
+    });
+  } catch (e) {
+    debugPrint('⚠️ sendGameInviteDm insert failed (non-blocking): $e');
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // v113 — DM Inbox Provider
@@ -362,6 +482,8 @@ class DmInboxItem {
 /// an `isArchived` column.
 final dmInboxProvider =
     FutureProvider<List<DmInboxItem>>((ref) async {
+  // Task 4 — live inbox: refetch whenever a new DM lands for me.
+  ref.watch(dmInboxTickProvider);
   final client = Supabase.instance.client;
   final myUserId = client.auth.currentUser?.id;
   if (myUserId == null) return [];
@@ -384,7 +506,9 @@ final dmInboxProvider =
           otherUserId: otherId,
           otherUserName: map['otherUserName'] as String? ?? 'Member',
           otherUserAvatar: map['otherUserAvatar'] as String?,
-          lastMessage: (map['lastMessage'] as String? ?? '').truncateTo(40),
+          lastMessage:
+              _invitePreview(map['lastMessage'] as String? ?? '')
+                  .truncateTo(40),
           lastMessageTime:
               DateTime.tryParse(map['lastMessageTime'] as String? ?? '') ??
                   DateTime.now(),
@@ -468,7 +592,8 @@ final dmInboxProvider =
         otherUserId: otherId,
         otherUserName: name,
         otherUserAvatar: avatarUrl,
-        lastMessage: (data['lastMessage'] as String).truncateTo(40),
+        lastMessage:
+            _invitePreview(data['lastMessage'] as String).truncateTo(40),
         lastMessageTime: data['lastMessageTime'] as DateTime,
         unreadCount: unreadCount,
         isArchived: isArchived,
@@ -482,6 +607,83 @@ final dmInboxProvider =
     return [];
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// Task 4 — DM inbox live refresh
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Increments whenever a new DM addressed to the current user lands
+/// (DirectMessage realtime INSERT, receiverId = me). [dmInboxProvider]
+/// watches this, so the inbox list (unread badges, last-message
+/// previews, new game-invite DMs) refreshes instantly with no manual
+/// reload.
+class DmInboxTickNotifier extends StateNotifier<int> {
+  DmInboxTickNotifier(this._ref) : super(0) {
+    _init();
+  }
+
+  final Ref _ref;
+  RealtimeChannel? _channel;
+
+  SupabaseClient? get _client => _ref.read(supabaseProvider);
+
+  void _init() {
+    final client = _client;
+    final myId = client?.auth.currentUser?.id;
+    if (client == null || myId == null) return;
+
+    _channel = client
+        .channel('dm_inbox_tick')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'DirectMessage',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'receiverId',
+            value: myId,
+          ),
+          callback: (payload) {
+            if (mounted) state = state + 1;
+          },
+        )
+        .subscribe();
+  }
+
+  @override
+  void dispose() {
+    _channel?.unsubscribe();
+    _channel = null;
+    super.dispose();
+  }
+}
+
+final dmInboxTickProvider =
+    StateNotifierProvider<DmInboxTickNotifier, int>((ref) {
+  return DmInboxTickNotifier(ref);
+});
+
+/// Task 4 — friendly inbox preview for game-invite DMs.
+///
+/// Specific-Members invites are DMs whose content is a JSON payload.
+/// In the inbox list we show "🎮 Game invite: SOS" instead of raw JSON.
+/// Non-JSON content passes through unchanged.
+String _invitePreview(String content) {
+  final trimmed = content.trim();
+  if (!trimmed.startsWith('{')) return content;
+  try {
+    final decoded = jsonDecode(trimmed);
+    if (decoded is Map<String, dynamic> &&
+        decoded['gameId'] != null) {
+      final gameType = decoded['gameType'] as String? ?? 'game';
+      final from = decoded['fromName'] as String?;
+      return from == null || from.isEmpty
+          ? '🎮 Game invite: $gameType'
+          : '🎮 $from invited you to $gameType';
+    }
+  } catch (_) {}
+  return content;
+}
 
 /// Extension for truncating strings for preview display.
 extension _StringTruncate on String {

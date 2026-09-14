@@ -24,6 +24,7 @@ import '../../../../../core/constants/brand_typography.dart';
 import '../../../../../core/network/socket_service.dart';
 import '../../../../../core/services/supabase_service.dart';
 import '../../../../../shared/widgets/dk_components.dart';
+import '../../../../chat/data/direct_message_provider.dart';
 import '../../../game_motion_tokens.dart';
 import '../../models/game_invite.dart';
 import '../../multiplayer/multiplayer.dart';
@@ -212,6 +213,19 @@ class _ChallengeLobbyScreenState extends ConsumerState<ChallengeLobbyScreen> {
     }
   }
 
+  /// Notify the selected opponent about the challenge.
+  ///
+  /// Task 4 — a board-game challenge targets ONE specific member, so it
+  /// follows the same routing rule as Specific-Members invites:
+  ///   1. Durable game_invites row (status pending) — triggers FCM push
+  ///      and lets the recipient's GameInviteListener leg-2 (DB realtime)
+  ///      surface the Accept / Decline dialog even when the socket is
+  ///      down.
+  ///   2. Socket.IO game:invite:send (instant, when the gateway is up).
+  ///   3. Private game-invite DM with a Join action — never the family
+  ///      group chat.
+  /// All legs are best-effort: the game row is already created with the
+  /// opponent attached, so nothing here can break the challenge itself.
   Future<void> _sendInvite(String gameId) async {
     final client = ref.read(supabaseProvider);
     final myId = client?.auth.currentUser?.id ?? '';
@@ -233,12 +247,66 @@ class _ChallengeLobbyScreenState extends ConsumerState<ChallengeLobbyScreen> {
       message: '$myName challenged you to ${widget.spec.title}',
       timestamp: DateTime.now().toUtc(),
     );
+
+    // 1. Durable row (drives push + DB-realtime dialog delivery).
+    try {
+      if (client != null) {
+        await client.from('game_invites').insert({
+          'gameTable': _gameTableName(),
+          'gameId': gameId,
+          'gameType': widget.spec.gameType.routeSegment,
+          'familyId': widget.familyId,
+          'roomCode': code,
+          'invitedUserId': _selectedOpponentId!,
+          'invitedByUserId': myId,
+          'invitedByName': myName,
+          'maxPlayers': 2,
+          'currentPlayers': 1,
+          'message': invite.message,
+          'status': 'pending',
+          'sourceGameId': null,
+        });
+      }
+    } catch (_) {
+      // best-effort — socket + DM legs still go out
+    }
+
+    // 2. Socket.IO realtime event.
     try {
       await ref
           .read(socketServiceProvider)
           .sendGameInvite(toUserId: _selectedOpponentId!, invite: invite);
     } catch (_) {
       // best-effort — game was created, opponent will see it via Realtime
+    }
+
+    // 3. Private DM card with a Join action (never the family chat).
+    try {
+      if (client != null) {
+        await sendGameInviteDm(
+          client: client,
+          toUserId: _selectedOpponentId!,
+          inviteJson: invite.toJson(),
+        );
+      }
+    } catch (_) {
+      // best-effort, never blocks the challenge
+    }
+  }
+
+  /// Board-game table name for the game_invites row.
+  String _gameTableName() {
+    switch (widget.spec.gameType) {
+      case GameType.chess:
+        return 'chess_games';
+      case GameType.checkers:
+        return 'checkers_games';
+      case GameType.carrom:
+        return 'carrom_games';
+      case GameType.tictactoe:
+        return 'tictactoe_games';
+      default:
+        return '${widget.spec.gameType.routeSegment}_games';
     }
   }
 

@@ -15,6 +15,17 @@
 //      - Confirmation dialog: "Invite all N family members to [Game]?"
 //      - Sends invites simultaneously; first-come-first-served for room slots.
 //
+// INVITE ROUTING (Task 4, 2026-09-14):
+//   • Specific Members (single tap or multi-select) → the invitation is
+//     delivered ONLY to the selected members: durable game_invites row
+//     (+ FCM push), Socket.IO game:invite:send, and a PRIVATE
+//     game-invite DM (DirectMessage, messageType='gameInvite') rendered
+//     as an interactive card with a Join action in their DM thread.
+//     NEVER the family group chat.
+//   • Entire Family (explicit selection + confirmation dialog) → every
+//     member still gets their own game_invites row + socket event, and
+//     the room card is ALSO posted to the family group chat thread.
+//
 // MEMBERS (2026-09-14 fix): the list comes from the shared
 // familyInviteMembersProvider — fn_get_linked_family_members now reads
 // FamilyMember (the membership source) JOIN User plus Find-on-Kinrel
@@ -50,6 +61,7 @@ import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/network/socket_service.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../chat/providers/chat_provider.dart';
+import '../../../chat/data/direct_message_provider.dart';
 import '../../../family/presentation/add_member_source.dart';
 import '../../../presence/last_seen_provider.dart';
 import '../models/game_invite.dart';
@@ -281,10 +293,14 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
   /// (ChatNotifier.sendGameInvite inserts a ChatMessage row with
   /// messageType='gameInvite').
   ///
+  /// Task 4 routing rule: ONLY the "Entire Family" bulk path calls this —
+  /// a group-wide invitation is visible to the whole family thread.
+  /// Specific-member invites are delivered as private DMs instead
+  /// (sendGameInviteDm) and never touch the family chat.
+  ///
   /// One card per invite-send ACTION — it represents the room as a whole,
   /// not one card per recipient — so this is called exactly once per user
-  /// action (single send / multi-select send / bulk send), never inside the
-  /// per-recipient loop.
+  /// action, never inside the per-recipient loop.
   ///
   /// Best-effort and fully additive: wrapped in its own try/catch that only
   /// debugPrints on failure. A failed chat card must never block, roll back,
@@ -311,6 +327,11 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
 
   /// Send a single invite to one member and mark them as 'pending' in the
   /// status provider. Single-tap path.
+  ///
+  /// Task 4 routing rule: a SPECIFIC-member invite is delivered ONLY to
+  /// that member — durable game_invites row (+ FCM push), socket event,
+  /// and a private game-invite DM. It never posts to the family group
+  /// chat (that card is reserved for the explicit "Entire Family" flow).
   Future<void> _sendInvite(FamilyInviteMember m) async {
     if (_sendingTo.contains(m.user.id)) return;
     if (_isRoomFull) return;
@@ -318,7 +339,10 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
 
     setState(() => _sendingTo.add(m.user.id));
 
+    // Capture BEFORE any await — the sheet may pop while the invite legs
+    // are in flight (ref must never be touched after dispose).
     final socket = ref.read(socketServiceProvider);
+    final client = ref.read(supabaseProvider);
     final base = _buildInvite();
     final invite = GameInvite(
       inviteId:
@@ -345,7 +369,6 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     try {
       // 1. Insert into game_invites table — this triggers the FCM push
       //    via the AFTER INSERT trigger on the table.
-      final client = ref.read(supabaseProvider);
       if (client != null) {
         await client.from('game_invites').insert({
           'gameTable': _gameTableName(widget.gameType),
@@ -402,18 +425,29 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
         );
       }
     } finally {
-      // 4. Post the persistent game-invite card to the family chat thread
-      //    — once per send action, tied to the DURABLE invite row (not the
-      //    realtime socket leg, which can fail while the invite itself was
-      //    persisted). Best-effort, never blocks or rolls back the invite
-      //    flow above.
-      if (inviteRowInserted) {
-        await _postInviteChatCard();
+      // 4. Task 4 — deliver the invite as a PRIVATE direct message to
+      //    this specific member only (never the family group chat). The
+      //    DM is a durable, visible surface: it appears in the member's
+      //    DM thread + inbox with a Join action, live via DirectMessage
+      //    realtime. Tied to the durable game_invites row so a fully
+      //    failed action never posts a DM. Best-effort, never blocks or
+      //    rolls back the invite flow above.
+      if (inviteRowInserted && client != null) {
+        await sendGameInviteDm(
+          client: client,
+          toUserId: m.user.id,
+          inviteJson: invite.toJson(),
+        );
       }
     }
   }
 
   /// Send invites to all selected members (multi-select path).
+  ///
+  /// Task 4 routing rule: selected SPECIFIC members each receive a
+  /// private game-invite DM (plus their durable game_invites row +
+  /// socket event). Nothing is posted to the family group chat — that
+  /// card is reserved for the explicit "Entire Family" bulk flow.
   Future<void> _sendSelectedInvites() async {
     if (_selectedUserIds.isEmpty) return;
     final allMembers =
@@ -427,14 +461,19 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
       }
     });
 
+    // Capture BEFORE any await — the sheet may pop while invite legs are
+    // in flight (ref must never be touched after dispose).
     final socket = ref.read(socketServiceProvider);
+    final client = ref.read(supabaseProvider);
     final base = _buildInvite();
     int sent = 0;
     // Durable invites persisted to game_invites (row + FCM push trigger).
-    // The chat card accompanies these — not the realtime socket leg, which
-    // can fail per-recipient while the invite itself was persisted.
+    // The private invite DM accompanies each of these — not the realtime
+    // socket leg, which can fail per-recipient while the invite itself
+    // was persisted.
     int inserted = 0;
     final records = <InviteRecord>[];
+    final dmTargets = <String, Map<String, dynamic>>{};
 
     for (final m in selected) {
       final invite = GameInvite(
@@ -453,7 +492,6 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
       );
       try {
         // Insert into game_invites (triggers FCM push via AFTER INSERT trigger)
-        final client = ref.read(supabaseProvider);
         if (client != null) {
           await client.from('game_invites').insert({
             'gameTable': _gameTableName(widget.gameType),
@@ -471,6 +509,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
             'sourceGameId': null,
           });
           inserted++;
+          dmTargets[m.user.id] = invite.toJson();
         }
         // Send realtime Socket.IO event
         await socket.sendGameInvite(toUserId: m.user.id, invite: invite);
@@ -495,13 +534,18 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
           .markManyPending(records);
     }
 
-    // One persistent chat card per send action (not per recipient) — the
-    // card represents the invite/room as a whole for the family thread.
-    // Tied to the durable game_invites rows (`inserted > 0`), so a fully-
-    // failed action (or a socket outage) never posts a card, while a
-    // persisted invite always gets one.
-    if (inserted > 0) {
-      await _postInviteChatCard();
+    // Task 4 — one private invite DM per selected member (never the
+    // family group chat). Tied to the durable game_invites rows, so a
+    // fully-failed action (or socket outage) posts nothing, while every
+    // persisted invite reaches its recipient's DM thread + inbox.
+    if (inserted > 0 && client != null) {
+      for (final entry in dmTargets.entries) {
+        await sendGameInviteDm(
+          client: client,
+          toUserId: entry.key,
+          inviteJson: entry.value,
+        );
+      }
     }
 
     if (!mounted) return;
@@ -525,6 +569,11 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
 
   /// Send invites to ALL linked family members at once.
   /// Caller must already have shown the confirmation dialog.
+  ///
+  /// Task 4 routing rule: this is the ONLY path that posts a game-invite
+  /// card to the family GROUP chat — "Entire Family" was explicitly
+  /// selected, so the whole thread sees the room card. Every recipient
+  /// still also gets their own durable game_invites row + socket event.
   Future<void> _sendBulkInvites() async {
     final eligible = ref
         .read(familyInviteMembersProvider(widget.familyId))
@@ -541,8 +590,9 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
     final base = _buildInvite();
     int sent = 0;
     // Durable invites persisted to game_invites (row + FCM push trigger).
-    // The chat card accompanies these — not the realtime socket leg, which
-    // can fail per-recipient while the invite itself was persisted.
+    // The family chat card accompanies these — not the realtime socket
+    // leg, which can fail per-recipient while the invite itself was
+    // persisted.
     int inserted = 0;
     final records = <InviteRecord>[];
 
