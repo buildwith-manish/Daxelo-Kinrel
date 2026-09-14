@@ -206,10 +206,29 @@ class GameInvite {
         if (message != null) 'message': message,
       };
 
-  /// Deep-link path that navigates the recipient into the host's lobby
-  /// with the room code pre-applied via the `?join=<gameId>` query param.
-  String get joinRoute =>
-      '/family/$familyId/${gameType.routeSegment}/lobby?join=$gameId';
+  /// Board games where the opponent is attached when the game row is
+  /// created (challenge flow). Accepting an invite for one of these
+  /// should land the recipient directly on the game board — the lobby /
+  /// challenge setup would be wrong (the game already has both players).
+  bool get isChallengeGame {
+    switch (this) {
+      case GameType.chess:
+      case GameType.checkers:
+      case GameType.carrom:
+      case GameType.tictactoe:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /// Deep-link path that navigates the recipient into the host's game:
+  ///   • challenge games → the board (opponent already attached),
+  ///   • temporary-room games → the lobby with the room code pre-applied
+  ///     via the `?join=<gameId>` query param.
+  String get joinRoute => isChallengeGame
+      ? '/family/$familyId/${gameType.routeSegment}/board/$gameId'
+      : '/family/$familyId/${gameType.routeSegment}/lobby?join=$gameId';
 }
 
 /// Server-relayed event: recipient tapped "Accept" on their invite dialog.

@@ -121,7 +121,7 @@ BEGIN
   BEGIN
     v_jobid := cron.schedule(
       'sweep-stale-user-presence',
-      '*/10 * * * * *',
+      '15 seconds',
       'SELECT public.fn_sweep_stale_presence();'
     );
     RAISE NOTICE 'Scheduled sweep-stale-user-presence (jobid=%)', v_jobid;
@@ -129,7 +129,7 @@ BEGIN
     BEGIN
       v_jobid := cron.alter_job(
         jobname := 'sweep-stale-user-presence',
-        schedule := '*/10 * * * * *',
+        schedule := '15 seconds',
         command := 'SELECT public.fn_sweep_stale_presence();',
         active := true
       );
