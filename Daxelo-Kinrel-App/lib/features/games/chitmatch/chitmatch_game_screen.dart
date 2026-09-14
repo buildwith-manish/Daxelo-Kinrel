@@ -22,6 +22,7 @@ import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import 'chitmatch_models.dart';
 import 'chitmatch_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
 class ChitmatchGameScreen extends ConsumerStatefulWidget {
   const ChitmatchGameScreen({super.key, required this.familyId, required this.gameId});
@@ -324,6 +325,11 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
               Text(p.chitPassed, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.orange)),
             ]),
           )),
+        MatchEcosystemSummary(
+          gameTable: 'chitmatch_games',
+          gameId: widget.gameId,
+          familyId: widget.familyId,
+        ),
           const SizedBox(height: KinrelSpacing.xl),
         ],
         DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,

@@ -27,6 +27,7 @@ import 'carrom_constants.dart';
 import 'carrom_game_logic.dart';
 import 'carrom_models.dart';
 import 'carrom_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
 class CarromBoardScreen extends ConsumerStatefulWidget {
   const CarromBoardScreen({
@@ -555,6 +556,11 @@ class _CarromBoardScreenState extends ConsumerState<CarromBoardScreen> {
                 duration: 400.ms,
                 curve: Curves.easeOutBack,
               ),
+          MatchEcosystemSummary(
+            gameTable: 'carrom_games',
+            gameId: game.id,
+            familyId: widget.familyId,
+          ),
           const SizedBox(height: KinrelSpacing.xxl),
           DKButton(
             label: 'Play Again',

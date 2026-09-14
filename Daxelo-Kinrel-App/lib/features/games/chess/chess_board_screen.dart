@@ -25,6 +25,7 @@ import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
 import 'chess_models.dart';
 import 'chess_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
 class ChessBoardScreen extends ConsumerStatefulWidget {
   const ChessBoardScreen({
@@ -749,6 +750,11 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
                 duration: 400.ms,
                 curve: Curves.easeOutBack,
               ),
+          MatchEcosystemSummary(
+            gameTable: 'chess_games',
+            gameId: game.id,
+            familyId: widget.familyId,
+          ),
           const SizedBox(height: KinrelSpacing.xxl),
           DKButton(
             label: 'Play Again',

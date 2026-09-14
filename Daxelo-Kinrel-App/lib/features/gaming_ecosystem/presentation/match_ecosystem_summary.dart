@@ -1,0 +1,451 @@
+// lib/features/gaming_ecosystem/presentation/match_ecosystem_summary.dart
+//
+// MatchEcosystemSummary — the post-match rewards + sportsmanship surface
+// shown on every game's results view.
+//
+// Flow:
+//   1. The game's results screen embeds this widget with (gameTable, gameId,
+//      familyId, participants).
+//   2. It calls fn_get_match_ecosystem — the FIRST render processes +
+//      archives the match (badges evaluated, challenges advanced, milestones
+//      checked, activity logged, Cup points awarded) and returns rewards.
+//   3. The banner celebrates: new badges (gold glow), completed challenges
+//      (purple), family milestones (amber), with staggered entrance
+//      animations (emotionally rewarding feedback, zero clutter).
+//   4. A sportsmanship row lets players cheer opponents (gg / great move /
+//      well played / fun game) — one tap, persisted, and the receiver's
+//      sportsmanship score grows.
+//
+// The widget renders nothing when the match produced no rewards (e.g. a
+// cancelled room) — results screens stay clean.
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/constants/brand_colors.dart';
+import '../../../core/constants/brand_typography.dart';
+import '../../../core/services/supabase_service.dart';
+import '../data/gaming_models.dart';
+import '../data/gaming_providers.dart';
+import 'widgets/gaming_kit.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+
+class MatchEcosystemSummary extends ConsumerWidget {
+  const MatchEcosystemSummary({
+    super.key,
+    required this.gameTable,
+    required this.gameId,
+    required this.familyId,
+    this.padding = const EdgeInsets.only(top: 14),
+  });
+
+  final String gameTable;
+  final String gameId;
+  final String familyId;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ecoAsync = ref.watch(
+        matchEcosystemProvider(MatchEcosystemKey(gameTable: gameTable, gameId: gameId)));
+
+    return Padding(
+      padding: padding,
+      child: ecoAsync.maybeWhen(
+        data: (eco) => eco == null || !eco.hasRewards
+            ? _SportsmanshipSection(
+                eco: eco,
+                gameTable: gameTable,
+                gameId: gameId,
+                familyId: familyId,
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _RewardsBanner(eco: eco),
+                  _SportsmanshipSection(
+                    eco: eco,
+                    gameTable: gameTable,
+                    gameId: gameId,
+                    familyId: familyId,
+                  ),
+                ],
+              ),
+        orElse: () => const SizedBox.shrink(),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Rewards banner
+// ═══════════════════════════════════════════════════════════════════════
+
+class _RewardsBanner extends ConsumerWidget {
+  const _RewardsBanner({required this.eco});
+  final MatchEcosystemResult eco;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rows = <Widget>[];
+
+    // New badges — highest emotional value, shown first.
+    for (final pb in eco.newBadges) {
+      for (final b in pb.badges) {
+        rows.add(_RewardRow(
+          leading: GamingBadgeChip(
+            icon: b.icon,
+            name: b.name,
+            tier: b.tier,
+            earned: true,
+            size: 46,
+            showName: false,
+          ),
+          accent: KinrelColors.brightGold,
+          title: '${pb.userName == '' ? 'You' : pb.userName} earned ${b.name}!',
+          subtitle: b.description,
+        ));
+      }
+    }
+
+    // Completed challenges.
+    for (final pc in eco.completedChallenges) {
+      for (final c in pc.challenges) {
+        rows.add(_RewardRow(
+          leading: Text(c.icon, style: const TextStyle(fontSize: 24)),
+          accent: const Color(0xFF8B5CF6),
+          title: 'Challenge complete: ${c.title}',
+          subtitle: '+${c.rewardPoints} bonus points',
+        ));
+      }
+    }
+
+    // Family milestones.
+    for (final m in eco.milestones) {
+      rows.add(_RewardRow(
+        leading: const Text('🏆', style: TextStyle(fontSize: 24)),
+        accent: KinrelColors.gold,
+        title: 'Family milestone unlocked!',
+        subtitle: m.description,
+      ));
+    }
+
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF221509), Color(0xFF161218)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: KinrelColors.gold.withValues(alpha: 0.4)),
+        boxShadow: [
+          BoxShadow(
+            color: KinrelColors.gold.withValues(alpha: 0.14),
+            blurRadius: 22,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('✨', style: TextStyle(fontSize: 18)),
+              const SizedBox(width: 8),
+              Text(
+                'FAMILY MOMENTS FROM THIS MATCH',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.monoFont,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.4,
+                  color: KinrelColors.brightGold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...rows
+              .map((r) => r
+                  .animate()
+                  .fadeIn(duration: 350.ms)
+                  .slideX(begin: 0.05, end: 0, duration: 350.ms))
+              .expand((r) => [r, const SizedBox(height: 10)])
+              .toList()
+            ..removeLast(),
+        ],
+      ),
+    );
+  }
+}
+
+class _RewardRow extends StatelessWidget {
+  const _RewardRow({
+    required this.leading,
+    required this.accent,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final Widget leading;
+  final Color accent;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(width: 46, height: 46, child: Center(child: leading)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: KinrelColors.textWhite,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 11.5,
+                  height: 1.3,
+                  color: KinrelColors.textSilver,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Icon(Icons.celebration_rounded, size: 18, color: accent),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Sportsmanship
+// ═══════════════════════════════════════════════════════════════════════
+
+class _SportsmanshipSection extends ConsumerStatefulWidget {
+  const _SportsmanshipSection({
+    required this.eco,
+    required this.gameTable,
+    required this.gameId,
+    required this.familyId,
+  });
+
+  final MatchEcosystemResult? eco;
+  final String gameTable;
+  final String gameId;
+  final String familyId;
+
+  @override
+  ConsumerState<_SportsmanshipSection> createState() =>
+      _SportsmanshipSectionState();
+}
+
+class _SportsmanshipSectionState extends ConsumerState<_SportsmanshipSection> {
+  final Set<String> _sentTo = {};
+
+  @override
+  Widget build(BuildContext context) {
+    final client = ref.read(supabaseProvider);
+    final myId = client?.auth.currentUser?.id;
+    final eco = widget.eco;
+
+    // Cheerable opponents = other players of this match.
+    final others = (eco?.players ?? const <MatchPlayerResult>[])
+        .where((p) => p.userId.isNotEmpty && p.userId != myId)
+        .take(3)
+        .toList();
+    if (others.isEmpty || myId == null) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(16),
+        border:
+            Border.all(color: KinrelColors.success.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('💚', style: TextStyle(fontSize: 16)),
+              const SizedBox(width: 8),
+              Text(
+                'SAY WELL PLAYED',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.monoFont,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.4,
+                  color: KinrelColors.success,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          for (final p in others) _CheerRow(player: p),
+        ],
+      ),
+    );
+  }
+
+  Widget _CheerRow({required MatchPlayerResult player}) {
+    final sent = _sentTo.contains(player.userId);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              player.userName.isEmpty ? 'Family member' : player.userName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.textWhite,
+              ),
+            ),
+          ),
+          _CheerChip(
+            emoji: '🤝',
+            label: 'GG',
+            sent: sent,
+            onTap: () => _cheer(player, 'gg'),
+          ),
+          const SizedBox(width: 6),
+          _CheerChip(
+            emoji: '👏',
+            label: 'Well played',
+            sent: sent,
+            onTap: () => _cheer(player, 'well_played'),
+          ),
+          const SizedBox(width: 6),
+          _CheerChip(
+            emoji: '🎉',
+            label: 'Fun game',
+            sent: sent,
+            onTap: () => _cheer(player, 'fun_game'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _cheer(MatchPlayerResult player, String kind) async {
+    if (_sentTo.contains(player.userId)) return;
+    setState(() => _sentTo.add(player.userId));
+    final newBadges = await sendSportsmanship(
+      ref: ref,
+      matchId: widget.gameId,
+      gameTable: widget.gameTable,
+      familyId: widget.familyId,
+      toUserId: player.userId,
+      toName: player.userName,
+      kind: kind,
+    );
+    if (!mounted) return;
+    if (newBadges.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: KinrelColors.darkElevated,
+          content: Row(
+            children: [
+              Text(newBadges.first.icon,
+                  style: const TextStyle(fontSize: 20)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Badge earned: ${newBadges.first.name}!',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    // Refresh dashboard so hub reflects new sportsmanship + badges.
+    ref.invalidate(gamingDashboardProvider);
+  }
+}
+
+class _CheerChip extends StatelessWidget {
+  const _CheerChip({
+    required this.emoji,
+    required this.label,
+    required this.sent,
+    required this.onTap,
+  });
+
+  final String emoji;
+  final String label;
+  final bool sent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: sent ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: sent
+              ? KinrelColors.success.withValues(alpha: 0.16)
+              : KinrelColors.darkElevated,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: sent
+                ? KinrelColors.success
+                : Colors.white.withValues(alpha: 0.08),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 12)),
+            const SizedBox(width: 4),
+            Text(
+              sent ? 'Sent' : label,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: sent ? KinrelColors.success : KinrelColors.textSilver,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

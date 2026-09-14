@@ -17,6 +17,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import 'nameplace_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
 class NameplaceResultsScreen extends ConsumerStatefulWidget {
   const NameplaceResultsScreen({super.key, required this.familyId, required this.gameId});
@@ -192,6 +193,11 @@ class _NameplaceResultsScreenState extends ConsumerState<NameplaceResultsScreen>
             ]),
           );
         }),
+        MatchEcosystemSummary(
+          gameTable: 'nameplace_games',
+          gameId: widget.gameId,
+          familyId: widget.familyId,
+        ),
         const SizedBox(height: KinrelSpacing.xxl),
         DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
           onPressed: () { ref.read(nameplaceProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.pushReplacement('/family/${widget.familyId}/nameplace/lobby'); }),

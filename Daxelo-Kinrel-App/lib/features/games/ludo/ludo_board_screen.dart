@@ -28,6 +28,7 @@ import '../shared/widgets/leave_game_dialog.dart';
 import 'ludo_game_logic.dart';
 import 'ludo_models.dart';
 import 'ludo_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
 class LudoBoardScreen extends ConsumerStatefulWidget {
   const LudoBoardScreen({
@@ -961,6 +962,11 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
                 duration: 400.ms,
                 curve: Curves.easeOutBack,
               ),
+          MatchEcosystemSummary(
+            gameTable: 'ludo_games',
+            gameId: widget.gameId,
+            familyId: widget.familyId,
+          ),
           const SizedBox(height: KinrelSpacing.xxl),
           DKButton(
             label: 'Play Again',

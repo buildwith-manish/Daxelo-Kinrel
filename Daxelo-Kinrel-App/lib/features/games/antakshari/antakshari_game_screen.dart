@@ -27,6 +27,7 @@ import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import 'antakshari_models.dart';
 import 'antakshari_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
 class AntakshariGameScreen extends ConsumerStatefulWidget {
   const AntakshariGameScreen({
@@ -1021,6 +1022,11 @@ class _AntakshariGameScreenState
             ),
             const SizedBox(height: KinrelSpacing.sm),
             ...state.turns.reversed.take(5).map((t) => _turnHistoryRow(t)),
+          MatchEcosystemSummary(
+            gameTable: 'antakshari_games',
+            gameId: widget.gameId,
+            familyId: widget.familyId,
+          ),
             const SizedBox(height: KinrelSpacing.xxl),
           ],
           DKButton(

@@ -30,6 +30,7 @@ import '../shared/services/temporary_room_service.dart';
 import 'checkers_game_logic.dart';
 import 'checkers_models.dart';
 import 'checkers_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
 class CheckersBoardScreen extends ConsumerStatefulWidget {
   const CheckersBoardScreen({
@@ -690,6 +691,11 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
             ),
             const SizedBox(height: KinrelSpacing.sm),
             ...state.moves.reversed.take(10).map((m) => _moveHistoryRow(m)),
+          MatchEcosystemSummary(
+            gameTable: 'checkers_games',
+            gameId: game.id,
+            familyId: widget.familyId,
+          ),
             const SizedBox(height: KinrelSpacing.xl),
           ],
           DKButton(

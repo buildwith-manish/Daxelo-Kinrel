@@ -14,6 +14,7 @@ import '../shared/services/temporary_room_service.dart';
 import 'tictactoe_game_logic.dart';
 import 'tictactoe_models.dart';
 import 'tictactoe_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
 class TttBoardScreen extends ConsumerStatefulWidget {
   const TttBoardScreen({super.key, required this.familyId, required this.gameId});
@@ -201,6 +202,11 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
           const SizedBox(height: KinrelSpacing.sm),
           Text('${game.roundsWonX} — ${game.roundsWonO}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 16, color: KinrelColors.textDim)),
         ]).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.92, 0.92), end: const Offset(1.0, 1.0), duration: 400.ms, curve: Curves.easeOutBack),
+        MatchEcosystemSummary(
+          gameTable: 'tictactoe_games',
+          gameId: game.id,
+          familyId: widget.familyId,
+        ),
         const SizedBox(height: KinrelSpacing.xxl),
         DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
           onPressed: () {

@@ -86,6 +86,14 @@ import '../../features/calendar/presentation/event_create_screen.dart';
 import '../../features/calendar/presentation/event_detail_screen.dart';
 import '../../features/calendar/models/calendar_models.dart';
 import '../../features/games/presentation/games_hub_screen.dart';
+import '../../features/gaming_ecosystem/presentation/gaming_leaderboard_screen.dart';
+import '../../features/gaming_ecosystem/presentation/gaming_challenges_screen.dart';
+import '../../features/gaming_ecosystem/presentation/gaming_achievements_screen.dart';
+import '../../features/gaming_ecosystem/presentation/gaming_match_history_screen.dart';
+import '../../features/gaming_ecosystem/presentation/gaming_activity_feed_screen.dart';
+import '../../features/gaming_ecosystem/presentation/gaming_player_profile_screen.dart';
+import '../../features/gaming_ecosystem/presentation/gaming_milestones_screen.dart';
+import '../../features/gaming_ecosystem/presentation/gaming_season_screen.dart';
 import '../../features/games/ghost_painter/ghost_painter_draw_screen.dart';
 import '../../features/games/ghost_painter/ghost_painter_guess_screen.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
@@ -1504,6 +1512,81 @@ final routerProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           child: GamesHubScreen(
             familyId: state.uri.queryParameters['familyId'],
+          ),
+        ),
+      ),
+
+      // ── Family Gaming Ecosystem ──────────────────────────────────
+      GoRoute(
+        path: '/family/:id/gaming/leaderboard',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: GamingLeaderboardScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/gaming/challenges',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: GamingChallengesScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/gaming/achievements',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: GamingAchievementsScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/gaming/match-history',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: GamingMatchHistoryScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/gaming/activity',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: GamingActivityFeedScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/gaming/player/:userId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: GamingPlayerProfileScreen(
+            familyId: state.pathParameters['id']!,
+            userId: state.pathParameters['userId']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/gaming/milestones',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: GamingMilestonesScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/gaming/season',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: GamingSeasonScreen(
+            familyId: state.pathParameters['id']!,
           ),
         ),
       ),

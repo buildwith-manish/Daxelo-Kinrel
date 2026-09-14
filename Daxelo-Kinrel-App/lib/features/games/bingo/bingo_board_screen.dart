@@ -27,6 +27,7 @@ import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/widgets/badges_toast.dart';
 import 'bingo_models.dart';
 import 'bingo_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
 class BingoBoardScreen extends ConsumerStatefulWidget {
   const BingoBoardScreen({
@@ -783,6 +784,11 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
           const SizedBox(height: KinrelSpacing.xl),
           // Stats
           _statsCard(game),
+          MatchEcosystemSummary(
+            gameTable: 'bingo_games',
+            gameId: widget.gameId,
+            familyId: widget.familyId,
+          ),
           const SizedBox(height: KinrelSpacing.xxl),
           DKButton(
             label: 'Play Again',

@@ -15,6 +15,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import 'redlight_models.dart';
 import 'redlight_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
 class RedlightResultsScreen extends ConsumerWidget {
   const RedlightResultsScreen({
@@ -143,6 +144,11 @@ class RedlightResultsScreen extends ConsumerWidget {
                             end: 0,
                             duration: 250.ms,
                           ),
+                    MatchEcosystemSummary(
+                      gameTable: 'redlight_rounds',
+                      gameId: roundId,
+                      familyId: familyId,
+                    ),
                     const SizedBox(height: KinrelSpacing.xxl),
                     DKButton(
                       label: 'Play Again',

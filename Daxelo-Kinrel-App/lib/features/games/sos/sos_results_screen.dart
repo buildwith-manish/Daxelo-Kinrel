@@ -15,6 +15,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import 'sos_models.dart';
 import 'sos_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
 class SosResultsScreen extends ConsumerWidget {
   const SosResultsScreen({
@@ -125,6 +126,11 @@ class SosResultsScreen extends ConsumerWidget {
                   .slideY(begin: 0.08, end: 0, duration: 250.ms),
           ],
 
+          MatchEcosystemSummary(
+            gameTable: 'sos_games',
+            gameId: gameId,
+            familyId: familyId,
+          ),
           const SizedBox(height: KinrelSpacing.xxl),
           DKButton(
             label: 'Play Again',

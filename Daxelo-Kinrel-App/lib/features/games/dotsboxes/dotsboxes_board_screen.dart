@@ -14,6 +14,7 @@ import '../shared/widgets/leave_game_dialog.dart';
 import 'dotsboxes_game_logic.dart';
 import 'dotsboxes_models.dart';
 import 'dotsboxes_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
 class DotsboxesBoardScreen extends ConsumerStatefulWidget {
   const DotsboxesBoardScreen({super.key, required this.familyId, required this.gameId});
@@ -198,6 +199,11 @@ class _DotsboxesBoardScreenState extends ConsumerState<DotsboxesBoardScreen> {
               Expanded(child: Text(p.userId == myId ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
               Text('${p.boxesCaptured} boxes', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 14, fontWeight: FontWeight.w800, color: color))]));
         }),
+        MatchEcosystemSummary(
+          gameTable: 'dotsboxes_games',
+          gameId: widget.gameId,
+          familyId: widget.familyId,
+        ),
         const SizedBox(height: KinrelSpacing.xxl),
         DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
           onPressed: () { ref.read(dbProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.pushReplacement('/family/${widget.familyId}/dotsboxes/lobby'); }),

@@ -12,6 +12,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import 'twotruths_models.dart';
 import 'twotruths_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
 class TtResultsScreen extends ConsumerStatefulWidget {
   const TtResultsScreen({super.key, required this.familyId, required this.gameId}); final String familyId; final String gameId;
@@ -136,6 +137,11 @@ class _TtResultsScreenState extends ConsumerState<TtResultsScreen> {
               const SizedBox(width: 8), Expanded(child: Text(p.userId == myId ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
               Text('${p.totalScore}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 16, fontWeight: FontWeight.w800, color: KinrelColors.orange))]));
         }),
+        MatchEcosystemSummary(
+          gameTable: 'twotruths_games',
+          gameId: widget.gameId,
+          familyId: widget.familyId,
+        ),
         const SizedBox(height: KinrelSpacing.xxl),
         DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
           onPressed: () { ref.read(ttProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.pushReplacement('/family/${widget.familyId}/twotruths/lobby'); }),
