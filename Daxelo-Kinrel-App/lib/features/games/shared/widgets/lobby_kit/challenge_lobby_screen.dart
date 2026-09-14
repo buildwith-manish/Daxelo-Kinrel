@@ -314,6 +314,17 @@ class _ChallengeLobbyScreenState extends ConsumerState<ChallengeLobbyScreen> {
   Widget build(BuildContext context) {
     final spec = widget.spec;
 
+    // Keep the (autoDispose) room controller ALIVE while this lobby is
+    // mounted. _createGame attaches it via ref.read(...notifier) — a
+    // read registers no lasting dependency, so without a watch here the
+    // provider is disposed the moment the frame after attach completes
+    // (the lobby is then replaced by the board route and there is a
+    // one-frame gap with zero watchers). The attach's 20s heartbeat
+    // would be cancelled before its first tick and the server-side
+    // reaper would auto-close the room ~60s in. The board screen's
+    // RoomKeepAlive takes over the watch on navigation.
+    ref.watch(roomControllerProvider(_roomKey));
+
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
