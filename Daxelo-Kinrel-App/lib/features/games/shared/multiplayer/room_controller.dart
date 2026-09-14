@@ -39,7 +39,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../../core/services/supabase_service.dart';
-import '../../providers/game_invite_status_provider.dart';
+import '../providers/game_invite_status_provider.dart';
 import 'room_config.dart';
 import 'room_state.dart';
 
