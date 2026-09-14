@@ -268,11 +268,18 @@ final matchEcosystemProvider = FutureProvider.autoDispose
     .family<MatchEcosystemResult?, MatchEcosystemKey>((ref, key) async {
   final client = ref.watch(supabaseProvider);
   if (client == null) return null;
+  Future<Object?> call() => client.rpc('fn_get_match_ecosystem', params: {
+        'p_game_table': key.gameTable,
+        'p_game_id': key.gameId,
+      });
   try {
-    final raw = await client.rpc('fn_get_match_ecosystem', params: {
-      'p_game_table': key.gameTable,
-      'p_game_id': key.gameId,
-    });
+    var raw = await call();
+    if (raw == null) {
+      // The results screen can render in the same tick the winning move's
+      // UPDATE commits — give the row a moment and try once more.
+      await Future.delayed(const Duration(milliseconds: 2500));
+      raw = await call();
+    }
     if (raw == null) return null;
     return MatchEcosystemResult.fromJson(_asMap(raw));
   } catch (e) {

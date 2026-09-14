@@ -378,9 +378,12 @@ class _SeasonBanner extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    '${season.daysRemaining} days left · '
-                    '${myRank != null ? "you're #$myRank with" : "earn your first"} '
-                    '$myPoints pts',
+                    myPoints > 0
+                        ? '${season.daysRemaining} days left · '
+                          '${myRank != null ? "you're #$myRank with" : "you have"} '
+                          '$myPoints pts'
+                        : '${season.daysRemaining} days left · '
+                          'play a match to earn Cup points',
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
                       fontSize: 12,

@@ -480,8 +480,9 @@ BEGIN
     v_winner_ids := '{}';  -- party game: no winners, participation only
   ELSIF p_game_table IN ('antakshari_games','chitmatch_games','dotsboxes_games',
                           'nameplace_games','twotruths_games') THEN
+    -- winnerUserIds is a jsonb array on these tables
     EXECUTE format(
-      'SELECT COALESCE("winnerUserIds", ''{}'') FROM public.%I WHERE "id" = $1',
+      'SELECT ARRAY(SELECT jsonb_array_elements_text(COALESCE("winnerUserIds", ''[]''::jsonb))) FROM public.%I WHERE "id" = $1',
       p_game_table)
       INTO v_winner_ids USING p_game_id;
   ELSE
@@ -536,6 +537,8 @@ BEGIN
   END IF;
 
   -- ── Load live participants (rows still exist at this point) ──
+  -- role filter includes 'host': the room host IS a player in every game
+  -- (RoomController.createRoom records the host with role='host').
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
       'userId', gp."userId",
       'userName', COALESCE(gp."userName",'Family Member'),
@@ -544,9 +547,36 @@ BEGIN
   FROM "game_participants" gp
   WHERE gp."gameTable" = p_game_table
     AND gp."gameId" = p_game_id
-    AND gp."role" = 'player';
+    AND gp."role" IN ('player','host');
 
   v_player_count := jsonb_array_length(v_participants);
+
+  -- ── Inline-player games (Pattern A: chess / checkers / carrom / tictactoe)
+  --    create rooms via their own providers (ChallengeLobbyScreen), which do
+  --    NOT write game_participants. Derive participants from the game row's
+  --    player columns so those matches are archived too.
+  IF v_player_count = 0 AND p_game_table IN ('chess_games','checkers_games','carrom_games','tictactoe_games') THEN
+    DECLARE
+      v_p1_id text; v_p1_name text; v_p2_id text; v_p2_name text;
+    BEGIN
+      IF p_game_table = 'tictactoe_games' THEN
+        EXECUTE format('SELECT "playerXId","playerXName","playerOId","playerOName" FROM public.%I WHERE "id" = $1', p_game_table)
+          INTO v_p1_id, v_p1_name, v_p2_id, v_p2_name USING p_game_id;
+      ELSIF p_game_table = 'chess_games' THEN
+        EXECUTE format('SELECT "playerWhiteId","playerWhiteName","playerBlackId","playerBlackName" FROM public.%I WHERE "id" = $1', p_game_table)
+          INTO v_p1_id, v_p1_name, v_p2_id, v_p2_name USING p_game_id;
+      ELSE -- checkers + carrom
+        EXECUTE format('SELECT "playerOneId","playerOneName","playerTwoId","playerTwoName" FROM public.%I WHERE "id" = $1', p_game_table)
+          INTO v_p1_id, v_p1_name, v_p2_id, v_p2_name USING p_game_id;
+      END IF;
+
+      v_participants := jsonb_build_array(
+        jsonb_build_object('userId', v_p1_id, 'userName', COALESCE(v_p1_name,'Player'), 'role', 'player'),
+        jsonb_build_object('userId', v_p2_id, 'userName', COALESCE(v_p2_name,'Player'), 'role', 'player'));
+      v_player_count := 2;
+    END;
+  END IF;
+
   IF v_player_count = 0 THEN
     RETURN NULL; -- nobody recorded → nothing to archive
   END IF;
@@ -699,7 +729,7 @@ BEGIN
     CASE
       WHEN array_length(v_winner_ids,1) IS NULL
         THEN format('%s · %s players · a fun family moment', (v_meta->>'name'), v_player_count::text)
-      ELSE format('%s won %s · %s players', (v_meta->>'name'), array_to_string(v_winner_names, ' & '), v_player_count)
+      ELSE format('%s won %s · %s players', array_to_string(v_winner_names, ' & '), (v_meta->>'name'), v_player_count)
     END,
     jsonb_build_object(
       'gameTable', p_game_table,
@@ -1017,11 +1047,14 @@ BEGIN
       ELSE v_progress := 0;
     END CASE;
 
-    -- Upsert the progress row
+    -- Upsert the progress row. Family-wide templates track under the '*'
+    -- sentinel userId so every family member sees the SAME shared progress.
     INSERT INTO "game_challenge_progress"
       ("templateSlug","familyId","userId","periodKey","progress","target")
     VALUES
-      (v_t."slug", p_family_id, p_user_id, v_period_key, v_progress, v_t."target")
+      (v_t."slug", p_family_id,
+       CASE WHEN v_t."familyWide" THEN '*' ELSE p_user_id END,
+       v_period_key, v_progress, v_t."target")
     ON CONFLICT ("templateSlug","familyId","userId","periodKey") DO UPDATE SET
       "progress" = EXCLUDED."progress",
       "updatedAt" = now();
@@ -1031,7 +1064,8 @@ BEGIN
       UPDATE "game_challenge_progress"
       SET "completedAt" = now(), "updatedAt" = now()
       WHERE "templateSlug"=v_t."slug" AND "familyId"=p_family_id
-        AND "userId"=p_user_id AND "periodKey"=v_period_key
+        AND "userId" = CASE WHEN v_t."familyWide" THEN '*' ELSE p_user_id END
+        AND "periodKey"=v_period_key
         AND "completedAt" IS NULL
       RETURNING 1 INTO v_progress;
 
