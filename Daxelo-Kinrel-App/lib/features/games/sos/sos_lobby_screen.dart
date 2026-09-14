@@ -21,6 +21,7 @@ import '../shared/widgets/spectator_toggle.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
 import 'sos_connection_status.dart';
+import '../shared/services/temporary_room_service.dart';
 import 'sos_models.dart';
 import 'sos_provider.dart';
 import 'sos_reconnecting_banner.dart';
@@ -231,7 +232,9 @@ class _SosLobbyScreenState extends ConsumerState<SosLobbyScreen> {
                 ? const Center(
                     child: CircularProgressIndicator(color: KinrelColors.orange),
                   )
-                : state.friendlyError != null && !hasGame
+                : state.friendlyError != null &&
+                        !hasGame &&
+                        state.friendlyError != kRoomClosedMessage
                 ? DKErrorState(
                     // Use friendlyError, never raw state.error — the raw
                     // error may contain Postgres / Realtime internals.

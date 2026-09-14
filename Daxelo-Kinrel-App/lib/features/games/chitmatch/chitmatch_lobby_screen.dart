@@ -28,6 +28,7 @@ import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/spectator_toggle.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
+import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
 import 'chitmatch_models.dart';
 import 'chitmatch_provider.dart';
@@ -172,7 +173,13 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
       body: state.isLoading
         ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
         : state.error != null && !hasGame
-          ? DKErrorState(message: state.error!, onRetry: () => notifier.createGame(playerCount: _playerCount, roundTimerSeconds: _roundTimer))
+          ? DKErrorState(
+              message: state.error!,
+              // Closed room → the button creates a NEW room (per spec the
+              // closed one is deleted and must never reappear).
+              actionLabel: state.error == kRoomClosedMessage ? 'Create New Room' : null,
+              icon: state.error == kRoomClosedMessage ? Icons.meeting_room_rounded : null,
+              onRetry: () => notifier.createGame(playerCount: _playerCount, roundTimerSeconds: _roundTimer))
           : !hasGame
             ? _setupView(state)
             : state.game!.isWaiting

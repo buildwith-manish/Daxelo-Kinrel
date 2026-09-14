@@ -28,6 +28,7 @@ import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
+import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
 import '../shared/widgets/spectator_toggle.dart';
 import 'antakshari_models.dart';
@@ -220,6 +221,13 @@ class _AntakshariLobbyScreenState
           : state.error != null && !hasGame
           ? DKErrorState(
               message: state.error!,
+              // Closed room → the button creates a NEW room (per spec the
+              // closed one is deleted and must never reappear).
+              actionLabel:
+                  state.error == kRoomClosedMessage ? 'Create New Room' : null,
+              icon: state.error == kRoomClosedMessage
+                  ? Icons.meeting_room_rounded
+                  : null,
               onRetry: _createGame,
             )
           : hasGame
