@@ -234,8 +234,11 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
     // if the socket event leg failed. Best-effort — never blocks nav.
     unawaited(_persistInviteStatus(invite, 'accepted'));
     if (!mounted) return;
-    // Navigate the recipient into the host's lobby with the join code.
+    // Navigate the recipient into the host's game.
     // Use the root navigator's context (same reason as the dialog).
+    debugPrint('➡️ GameInviteListener: accept → ${invite.joinRoute} '
+        '(gameType=${invite.gameType.name}, '
+        'challengeGame=${invite.gameType.isChallengeGame})');
     final navContext = rootNavigatorKey.currentContext ?? context;
     GoRouter.of(navContext).go(invite.joinRoute);
   }
