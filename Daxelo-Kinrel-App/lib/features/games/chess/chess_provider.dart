@@ -203,7 +203,7 @@ class ChessNotifier extends StateNotifier<ChessState> {
         isCheckmate: _logic!.in_checkmate,
         isStalemate: _logic!.in_stalemate,
       );
-      _subscribeToRealtime(gameId);
+      await _subscribeToRealtime(gameId);
       return true;
     } catch (e) {
       debugPrint('[Chess] loadGame error: $e');
@@ -534,10 +534,23 @@ class ChessNotifier extends StateNotifier<ChessState> {
 
   // ── Realtime subscription ────────────────────────────────────────
 
-  void _subscribeToRealtime(String gameId) {
+  Future<void> _subscribeToRealtime(String gameId) async {
     _channel?.unsubscribe();
     final client = _client;
     if (client == null) return;
+
+    // Belt & braces: the socket-level access token is normally set by
+    // supabase's own auth listener, but a channel's join payload
+    // captures socket.accessToken at subscribe() time — re-asserting
+    // it here guarantees postgres_changes RLS doesn't silently drop
+    // every event when the join raced an auth refresh. (Same pattern
+    // as GameInviteListener's TOKEN RACE FIX.)
+    final token = client.auth.currentSession?.accessToken;
+    if (token != null) {
+      try {
+        await client.realtime.setAuth(token);
+      } catch (_) {}
+    }
 
     _channel = client
         .channel('chess_game:$gameId')
@@ -551,6 +564,8 @@ class ChessNotifier extends StateNotifier<ChessState> {
             value: gameId,
           ),
           callback: (payload) {
+            debugPrint('[Chess] realtime UPDATE event (turn='
+                '${payload.newRecord['currentTurnColor']})');
             final updated = ChessGame.fromJson(payload.newRecord);
             // Rebuild the logic engine from the new FEN
             _logic = chess.Chess.fromFEN(updated.boardState);
@@ -575,6 +590,8 @@ class ChessNotifier extends StateNotifier<ChessState> {
             value: gameId,
           ),
           callback: (payload) {
+            debugPrint('[Chess] realtime MOVE event '
+                '(${payload.newRecord['notation']})');
             final move = ChessMoveRecord.fromJson(payload.newRecord);
             if (!state.moves.any((m) => m.id == move.id)) {
               state = state.copyWith(
@@ -605,7 +622,10 @@ class ChessNotifier extends StateNotifier<ChessState> {
             state = const ChessState(error: kRoomClosedMessage);
           },
         )
-        .subscribe();
+        .subscribe((status, [error]) {
+          debugPrint('[Chess] channel status: $status'
+              '${error != null ? " err=$error" : ""}');
+        });
   }
 
   @override
