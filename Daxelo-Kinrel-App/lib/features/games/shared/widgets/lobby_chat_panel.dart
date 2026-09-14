@@ -92,6 +92,14 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
   /// Connection status — reflected in the header.
   bool _socketConnected = false;
 
+  /// Socket service captured while the element is alive. Using `ref`
+  /// inside dispose() throws "Cannot use ref after the widget was
+  /// disposed" — which aborts the element unmount mid-way and leaves
+  /// ancestor watch-subscriptions (game providers) alive, causing stale
+  /// room state to reappear after a room is closed. Capturing the
+  /// instance up front keeps dispose() ref-free.
+  SocketService? _socket;
+
   VoidCallback? _unsubMessage;
   VoidCallback? _unsubTyping;
   VoidCallback? _unsubConnect;
@@ -126,7 +134,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
   }
 
   void _attach() {
-    final socket = ref.read(socketServiceProvider);
+    final socket = _socket ??= ref.read(socketServiceProvider);
 
     // Subscribe to incoming chat messages.
     _unsubMessage = socket.onGameChatMessage(_onMessage);
@@ -146,7 +154,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
   }
 
   void _tryJoin() {
-    final socket = ref.read(socketServiceProvider);
+    final socket = _socket ??= ref.read(socketServiceProvider);
     socket.joinGameChatRoom(
       gameTable: widget.gameTable,
       gameId: widget.gameId,
@@ -318,10 +326,13 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
     _unsubMessage?.call();
     _unsubTyping?.call();
     _unsubConnect?.call();
-    ref.read(socketServiceProvider).leaveGameChatRoom(
-          gameTable: widget.gameTable,
-          gameId: widget.gameId,
-        );
+    // Never touch `ref` here — see the _socket field docs. Using the
+    // captured instance keeps dispose() ref-free so the element (and the
+    // game provider subscriptions above it) unmount cleanly.
+    _socket?.leaveGameChatRoom(
+      gameTable: widget.gameTable,
+      gameId: widget.gameId,
+    );
     _textCtrl.dispose();
     _scrollCtrl.removeListener(_onScroll);
     _scrollCtrl.dispose();

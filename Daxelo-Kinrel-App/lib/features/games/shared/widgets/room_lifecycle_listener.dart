@@ -94,6 +94,18 @@ class _RoomLifecycleListenerState
   VoidCallback? _unsubConnectionChange;
   bool _didJoin = false;
 
+  /// Socket service + user identity captured while the element is alive.
+  /// Using `ref` inside dispose() (via _tryLeave) throws "Cannot use ref
+  /// after the widget was disposed" — that exception aborts the element
+  /// unmount mid-way, leaving the ancestor game-provider watch
+  /// subscriptions alive. The provider is then never auto-disposed, its
+  /// poll timer keeps firing, and the closed room's stale state
+  /// REAPPEARS when the user taps Play again. Capturing the instances up
+  /// front keeps dispose() ref-free so the unmount always completes.
+  SocketService? _socket;
+  String _myUserId = '';
+  String _myUserName = 'Family member';
+
   @override
   void initState() {
     super.initState();
@@ -101,7 +113,15 @@ class _RoomLifecycleListenerState
   }
 
   void _attach() {
-    final socket = ref.read(socketServiceProvider);
+    final socket = _socket ??= ref.read(socketServiceProvider);
+
+    // Capture the user identity once, while `ref` is still valid.
+    _myUserId =
+        ref.read(supabaseProvider)?.auth.currentUser?.id ?? '';
+    _myUserName =
+        (ref.read(supabaseProvider)?.auth.currentUser?.userMetadata?['name']
+                as String?) ??
+            'Family member';
 
     // Subscribe to room events.
     _unsubPlayerJoined = socket.onRoomPlayerJoined((payload) {
@@ -145,18 +165,23 @@ class _RoomLifecycleListenerState
   }
 
   void _tryJoin() {
-    final socket = ref.read(socketServiceProvider);
-    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id ?? '';
-    final myName =
-        (ref.read(supabaseProvider)?.auth.currentUser?.userMetadata?['name']
-                as String?) ??
-            'Family member';
-    if (myId.isEmpty) return;
+    final socket = _socket ??= ref.read(socketServiceProvider);
+    // Refresh identity if it wasn't captured yet (e.g. _attach ran
+    // before sign-in completed).
+    if (_myUserId.isEmpty && mounted) {
+      _myUserId =
+          ref.read(supabaseProvider)?.auth.currentUser?.id ?? '';
+      _myUserName =
+          (ref.read(supabaseProvider)?.auth.currentUser?.userMetadata?['name']
+                  as String?) ??
+              'Family member';
+    }
+    if (_myUserId.isEmpty) return;
     socket.joinGameRoom(
       gameTable: widget.gameTable,
       gameId: widget.gameId,
-      userId: myId,
-      userName: myName,
+      userId: _myUserId,
+      userName: _myUserName,
       isHost: widget.isHost,
     );
     _didJoin = true;
@@ -164,17 +189,12 @@ class _RoomLifecycleListenerState
 
   void _tryLeave() {
     if (!_didJoin) return;
-    final socket = ref.read(socketServiceProvider);
-    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id ?? '';
-    final myName =
-        (ref.read(supabaseProvider)?.auth.currentUser?.userMetadata?['name']
-                as String?) ??
-            'Family member';
-    socket.leaveGameRoom(
+    // Uses only captured instances — safe to call from dispose().
+    _socket?.leaveGameRoom(
       gameTable: widget.gameTable,
       gameId: widget.gameId,
-      userId: myId,
-      userName: myName,
+      userId: _myUserId,
+      userName: _myUserName,
       isHost: widget.isHost,
     );
     _didJoin = false;
