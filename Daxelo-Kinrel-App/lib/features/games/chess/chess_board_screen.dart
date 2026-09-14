@@ -21,7 +21,6 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../game_motion_tokens.dart';
 import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
 import 'chess_models.dart';
@@ -131,14 +130,18 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
 
     // Parse the FEN to get the board
     final logic = chess.Chess.fromFEN(game.boardState);
-    // chess.dart 0.8.1 returns a flat List<Piece?> (64 elements)
-    // Convert to 2D List<List<Piece?>> for easier rendering
-    final flatBoard = logic.board as List;
+    // chess.dart 0.8.1 uses a 0x88 internal board: a FLAT List<Piece?> of
+    // 128 slots where each rank occupies 16 slots (8 playable + 8
+    // off-board). Indexing it as [row * 8 + col] only covered the first
+    // 64 slots — black pieces landed on wrong visual rows and the WHITE
+    // pieces (0x88 slots 96-119) were never read, rendering an army-less
+    // half board. Use the algebraic get(square) API instead, which maps
+    // square names ('a8' … 'h1') correctly for any internal layout.
     final board = List<List<chess.Piece?>>.generate(
       8,
       (row) => List<chess.Piece?>.generate(
         8,
-        (col) => flatBoard[row * 8 + col] as chess.Piece?,
+        (col) => logic.get('${'abcdefgh'[col]}${8 - row}'),
       ),
     );
 
