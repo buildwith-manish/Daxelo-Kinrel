@@ -77,12 +77,12 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
     _dbLegAttached = true;
 
     if (client.auth.currentUser != null) {
-      _subscribeToInviteRows(client);
+      unawaited(_subscribeToInviteRows(client));
     }
     _authSub = client.auth.onAuthStateChange.listen((data) {
       if (!mounted) return;
       if (data.event == AuthChangeEvent.signedIn) {
-        _subscribeToInviteRows(client);
+        unawaited(_subscribeToInviteRows(client));
       } else if (data.event == AuthChangeEvent.signedOut) {
         _inviteChannel?.unsubscribe();
         _inviteChannel = null;
@@ -93,9 +93,26 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
   /// Supabase realtime on game_invites INSERT for ME. RLS
   /// (game_invites_select_self) guarantees I only see rows I'm part of,
   /// and the invitedUserId filter narrows it to incoming invitations.
-  void _subscribeToInviteRows(SupabaseClient client) {
+  ///
+  /// TOKEN RACE FIX: a channel's join payload captures
+  /// `socket.accessToken` at subscribe() time. Subscribing directly in
+  /// the signedIn auth callback races supabase's own async setAuth()
+  /// (which suspends on a microtask) — the channel would join with the
+  /// ANON key and postgres_changes RLS would silently drop every event.
+  /// Awaiting setAuth here first guarantees the user's JWT is on the
+  /// socket before the channel joins.
+  Future<void> _subscribeToInviteRows(SupabaseClient client) async {
     final myId = client.auth.currentUser?.id;
     if (myId == null || _inviteChannel != null) return;
+
+    final token = client.auth.currentSession?.accessToken;
+    if (token != null) {
+      try {
+        await client.realtime.setAuth(token);
+      } catch (_) {
+        // Best-effort — setAuth also re-syncs on later auth events.
+      }
+    }
 
     _inviteChannel = client
         .channel('game_invites_inbox')
@@ -110,12 +127,17 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
           ),
           callback: (payload) {
             final row = payload.newRecord;
+            debugPrint('📨 GameInviteListener: game_invites INSERT event '
+                '(gameId=${row['gameId']})');
             if (row['status'] != 'pending') return;
             final invite = _inviteFromRow(row);
             if (invite != null) _handleInvite(invite);
           },
         )
-        .subscribe();
+        .subscribe((status, [error]) {
+          debugPrint('📡 GameInviteListener: game_invites channel '
+              '$status${error != null ? ' ($error)' : ''}');
+        });
     debugPrint('📡 GameInviteListener: game_invites realtime attached');
   }
 
