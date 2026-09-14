@@ -297,6 +297,10 @@ class SosNotifier extends StateNotifier<SosState> {
           isLoading: false,
           error: kRoomClosedMessage,
           friendlyError: kRoomClosedMessage,
+          // error status (not 'connecting') so the banner actually shows
+          // the closed-room message; the lobby falls through to the
+          // create-room setup view (see sos_lobby_screen).
+          connectionStatus: SosConnectionStatus.error,
         );
         return false;
       }
