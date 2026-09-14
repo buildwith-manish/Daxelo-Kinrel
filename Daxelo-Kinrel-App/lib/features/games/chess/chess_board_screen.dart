@@ -486,8 +486,17 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
         ),
       ),
     )
+        // NOTE: every other board uses .scale() here. fadeIn() parked the
+        // cells at opacity 0 whenever they weren't the last-move square —
+        // the entire board rendered invisible. Match the other boards'
+        // pop-in pattern (last-move square scales in from 0.92).
         .animate(target: isLastMoveTo ? 1 : 0)
-        .fadeIn(duration: 200.ms);
+        .scale(
+          begin: const Offset(0.92, 0.92),
+          end: const Offset(1.0, 1.0),
+          duration: 200.ms,
+          curve: Curves.easeOut,
+        );
   }
 
   /// Original piece rendering — Unicode chess glyphs styled with
