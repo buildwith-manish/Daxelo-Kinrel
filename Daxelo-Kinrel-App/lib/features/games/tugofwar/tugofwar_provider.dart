@@ -527,6 +527,14 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
     if (newGameId == null) return null;
 
     try {
+      // createGame inserts the host WITHOUT a team — restore the host's own
+      // side from the previous match so "same teams" is truly the same.
+      final myEntry = roster.where((p) => p.userId == myId).firstOrNull;
+      if (myEntry?.team != null) {
+        await client.from('tugofwar_players').update({
+          'team': myEntry!.team!.wire,
+        }).eq('gameId', newGameId).eq('userId', myId);
+      }
       final others = roster.where((p) => p.userId != myId).toList();
       if (others.isNotEmpty) {
         await client.from('tugofwar_players').upsert(
@@ -540,6 +548,22 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
               .toList(),
           onConflict: 'gameId,userId',
         );
+        // Record them in the shared room bookkeeping too — joinGame skips
+        // fn_record_room_join for players whose rows already exist, so
+        // without this the ecosystem archive would miss rematch players.
+        for (final p in others) {
+          if (p.userId.isEmpty) continue;
+          try {
+            await client.rpc('fn_record_room_join', params: {
+              'p_game_table': 'tugofwar_games',
+              'p_game_id': newGameId,
+              'p_family_id': familyId,
+              'p_user_id': p.userId,
+              'p_user_name': p.userName,
+              'p_role': 'player',
+            });
+          } catch (_) {}
+        }
       }
       // Fresh ids for the rematch invites.
       final roomCode =

@@ -286,21 +286,23 @@ class _TopBar extends StatelessWidget {
                     Icon(
                       game.hasTimer ? Icons.timer_outlined : Icons.all_inclusive,
                       size: 14,
-                      color: remaining != null && remaining <= 10
+                      color: game.isInProgress && remaining != null && remaining <= 10
                           ? KinrelColors.error
                           : KinrelColors.textDim,
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      remaining == null
-                          ? 'Unlimited'
-                          : '${(remaining ~/ 60).toString().padLeft(2, '0')}:'
-                              '${(remaining % 60).toString().padLeft(2, '0')}',
+                      !game.isInProgress
+                          ? (game.hasTimer ? '${game.matchDurationSec}s' : '∞')
+                          : remaining == null
+                              ? 'Unlimited'
+                              : '${(remaining ~/ 60).toString().padLeft(2, '0')}:'
+                                  '${(remaining % 60).toString().padLeft(2, '0')}',
                       style: TextStyle(
                         fontFamily: KinrelTypography.monoFont,
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: remaining != null && remaining <= 10
+                        color: game.isInProgress && remaining != null && remaining <= 10
                             ? KinrelColors.error
                             : KinrelColors.textWhite,
                       ),
@@ -1301,21 +1303,21 @@ class _RematchRow extends ConsumerWidget {
 
     Future<void> rematch(bool keepTeams) async {
       GameMotionTokens.tap();
+      // Capture the router BEFORE the await — the results view unmounts the
+      // moment the provider swaps to the new waiting game, which would
+      // otherwise leave us stranded on the old game screen.
+      final router = GoRouter.of(context);
       final newId = await notifier.rematch(keepTeams: keepTeams);
       if (newId == null) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Couldn\'t start the rematch — try again'),
-              backgroundColor: KinrelColors.error,
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Couldn\'t start the rematch — try again'),
+            backgroundColor: KinrelColors.error,
+          ),
+        );
         return;
       }
-      if (context.mounted) {
-        context.go('/family/$familyId/tug-of-war/lobby?join=$newId');
-      }
+      router.go('/family/$familyId/tug-of-war/lobby?join=$newId');
     }
 
     return Column(
