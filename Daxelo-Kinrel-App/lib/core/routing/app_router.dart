@@ -96,6 +96,9 @@ import '../../features/gaming_ecosystem/presentation/gaming_milestones_screen.da
 import '../../features/gaming_ecosystem/presentation/gaming_season_screen.dart';
 import '../../features/games/ghost_painter/ghost_painter_draw_screen.dart';
 import '../../features/games/ghost_painter/ghost_painter_guess_screen.dart';
+import '../../features/games/tugofwar/tugofwar_lobby_screen.dart';
+import '../../features/games/tugofwar/tugofwar_game_screen.dart';
+import '../../features/games/tugofwar/tugofwar_provider.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
 import '../../features/games/redlight/redlight_game_screen.dart';
 import '../../features/games/redlight/redlight_results_screen.dart';
@@ -846,6 +849,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
     isHost: (s) => s.game?.hostUserId == _myUserId(),
     leave: (fid) => ref.read(todProvider(fid).notifier).leaveGame(),
+  );
+
+  final tugOfWarLobbyExit = guardGameRoomExit(
+    gameTable: 'tugofwar_games',
+    readState: (fid) => ref.read(tugOfWarProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(tugOfWarProvider(fid).notifier).leaveGame(),
   );
 
   final twotruthsLobbyExit = guardGameRoomExit(
@@ -1604,6 +1615,26 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: GhostPainterGuessScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+
+      // ── Tug of War ───────────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/tug-of-war/lobby',
+        onExit: tugOfWarLobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: TugOfWarLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/tug-of-war/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: TugOfWarGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
         ),
       ),
 

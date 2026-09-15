@@ -40,6 +40,7 @@ const kGamePlayerTableMap = <String, String>{
   'truthordare_games': 'truthordare_players',
   'twotruths_games': 'twotruths_players',
   'redlight_rounds': 'redlight_players',
+  'tugofwar_games': 'tugofwar_players',
 };
 
 /// Player tables known to exist (bingo_players does NOT — bingo uses
@@ -55,6 +56,7 @@ const kPlayerTableExists = <String>{
   'truthordare_players',
   'twotruths_players',
   'redlight_players',
+  'tugofwar_players',
 };
 
 /// Returns the player table for a given game table, or null if the game

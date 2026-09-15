@@ -29,6 +29,7 @@ class GameIconTokens {
     'hot-seat':         Color(0xFFF59E0B), // amber
     'relation-riddles':  Color(0xFF8B5CF6), // purple
     'truth-streak':     Color(0xFFE8612A), // orange (Kinrel brand)
+    'tug-of-war':       Color(0xFFE8612A), // orange (Kinrel brand)
   };
 
   /// Get the accent color for a game.

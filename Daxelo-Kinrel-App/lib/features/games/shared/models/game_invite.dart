@@ -27,6 +27,7 @@ enum GameType {
   sos,
   antakshari,
   redlight, // Freeze & Dash
+  tugOfWar, // Tug of War
 }
 
 extension GameTypeX on GameType {
@@ -61,6 +62,8 @@ extension GameTypeX on GameType {
         return 'antakshari';
       case GameType.redlight:
         return 'freeze-dash';
+      case GameType.tugOfWar:
+        return 'tug-of-war';
     }
   }
 
@@ -95,6 +98,8 @@ extension GameTypeX on GameType {
         return 'Antakshari';
       case GameType.redlight:
         return 'Freeze & Dash';
+      case GameType.tugOfWar:
+        return 'Tug of War';
     }
   }
 

@@ -28,6 +28,7 @@ enum GameTableKind {
   nameplaceGames,    // nameplace_games
   chitmatchGames,    // chitmatch_games
   redlightRounds,    // redlight_rounds
+  tugofwarGames,     // tugofwar_games
 }
 
 extension GameTableKindX on GameTableKind {
@@ -48,6 +49,7 @@ extension GameTableKindX on GameTableKind {
       case GameTableKind.nameplaceGames:    return 'nameplace_games';
       case GameTableKind.chitmatchGames:    return 'chitmatch_games';
       case GameTableKind.redlightRounds:    return 'redlight_rounds';
+      case GameTableKind.tugofwarGames:     return 'tugofwar_games';
     }
   }
 
@@ -72,6 +74,7 @@ extension GameTableKindX on GameTableKind {
       case GameTableKind.nameplaceGames:    return 'nameplace_players';
       case GameTableKind.chitmatchGames:    return 'chitmatch_players';
       case GameTableKind.redlightRounds:    return 'redlight_players';
+      case GameTableKind.tugofwarGames:     return 'tugofwar_players';
     }
   }
 }
@@ -264,6 +267,16 @@ class RoomConfig {
     lobbyStatusValue: 'lobby',
     activeStatusValue: 'active',
     finishedStatusValue: 'finished',
+    cancelledStatusValue: 'cancelled',
+  );
+
+  static const tugofwar = RoomConfig(
+    gameTable: GameTableKind.tugofwarGames,
+    minPlayers: 2,
+    maxPlayers: 20, // 1v1 up to 10v10
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
     cancelledStatusValue: 'cancelled',
   );
 }

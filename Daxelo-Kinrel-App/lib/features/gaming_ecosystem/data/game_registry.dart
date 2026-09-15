@@ -176,6 +176,17 @@ const kGameCatalog = <GameCatalogEntry>[
     category: GameCategory.partyNight,
     sortOrder: 50,
   ),
+  GameCatalogEntry(
+    gameId: 'tug-of-war',
+    name: 'Tug of War',
+    description: 'Two teams, one rope — tap PULL with all your might!',
+    gameTable: 'tugofwar_games',
+    route: '/family/{familyId}/tug-of-war/lobby',
+    accent: 0xFFE8612A,
+    playersLabel: '2–20 players',
+    category: GameCategory.partyNight,
+    sortOrder: 60,
+  ),
 
   // ── Board Classics ─────────────────────────────────────────────────────
   GameCatalogEntry(
