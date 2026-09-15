@@ -165,6 +165,12 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
         callback: (payload) {
           final round = GhostPainterRound.fromJson(payload.newRecord);
           state = state.copyWith(activeRound: round);
+          // The round left the drawing phase (guessed correctly / ended /
+          // someone else transitioned it) — stop the local countdown so the
+          // timer can never downgrade a completed round back to 'guessing'.
+          if (round.status != 'drawing') {
+            _countdownTimer?.cancel();
+          }
         },
       )
       .subscribe();
@@ -257,15 +263,18 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
 
   /// Transition the round from 'drawing' to 'guessing' (drawer is done).
   /// Updates the Supabase row — other family members see this via Realtime.
+  /// Guarded: never downgrades a round that already left 'drawing'
+  /// (e.g. completed because someone guessed correctly).
   Future<void> transitionToGuessing() async {
     final client = _client;
     final roundId = state.activeRound?.id;
     if (client == null || roundId == null) return;
+    if (state.activeRound?.status != 'drawing') return; // already guessing/completed
     _countdownTimer?.cancel();
     try {
       await client.from('ghost_painter_rounds').update({
         'status': 'guessing',
-      }).eq('id', roundId);
+      }).eq('id', roundId).eq('status', 'drawing'); // server-side guard too
       // Update local state immediately for responsive UI
       final updatedRound = GhostPainterRound(
         id: state.activeRound!.id,
@@ -296,12 +305,19 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
     }
     // Tick every second to update the countdown UI
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      // The round may have moved on (completed via a correct guess, or
+      // transitioned by another device) — the timer must respect that.
+      if (state.activeRound?.status != 'drawing') {
+        timer.cancel();
+        return;
+      }
       final elapsed = DateTime.now().difference(round.startedAt).inSeconds;
       final totalDuration = round.endsAt!.difference(round.startedAt).inSeconds;
       final remainingNow = totalDuration - elapsed;
       if (remainingNow <= 0) {
         timer.cancel();
         transitionToGuessing();
+        return;
       }
       // State update triggers rebuild — the draw screen reads the countdown
       state = state.copyWith();
