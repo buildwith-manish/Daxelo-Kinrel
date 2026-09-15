@@ -10,6 +10,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 import '../game_motion_tokens.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/leave_game_dialog.dart';
@@ -39,6 +40,109 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
 
   @override
   void dispose() { _spinController.dispose(); super.dispose(); }
+
+  /// Close / leave flow. When the HOST ends an in-progress game the match
+  /// archives server-side (fn_end_game → fn__archive_family_match) — we then
+  /// surface the Family Moments sheet so the celebration (badges, completed
+  /// challenges, milestones) and the sportsmanship cheers are shown, matching
+  /// every other game's results experience.
+  Future<void> _onClosePressed() async {
+    final state = ref.read(todProvider(widget.familyId));
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+    final gameId = state.game?.id;
+    final iAmHost = state.game?.hostUserId == myId;
+    final wasInProgress = state.game != null && !state.game!.isWaiting;
+
+    final shouldLeave = await LeaveGameDialog.show(
+      context,
+      isHost: iAmHost,
+      gameName: 'Truth or Dare',
+    );
+    if (shouldLeave != true) return;
+    if (!mounted) return;
+
+    // End the match FIRST so the archive (stats/badges/challenges) is
+    // committed before the rewards sheet reads it.
+    if (gameId != null && iAmHost && wasInProgress) {
+      try {
+        await ref.read(temporaryRoomServiceProvider).endGame(
+              gameTable: 'truthordare_games',
+              gameId: gameId,
+            );
+      } catch (_) {}
+    }
+
+    ref.read(todProvider(widget.familyId).notifier).leaveGame();
+
+    if (mounted && gameId != null && iAmHost && wasInProgress) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: KinrelColors.darkSurface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (sheetContext) => SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Text('✨', style: TextStyle(fontSize: 18)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'FAMILY MOMENTS',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.monoFont,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.4,
+                      color: KinrelColors.brightGold,
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 4),
+                Text(
+                  'That was a game to remember!',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: KinrelColors.textWhite,
+                  ),
+                ),
+                MatchEcosystemSummary(
+                  gameTable: 'truthordare_games',
+                  gameId: gameId,
+                  familyId: widget.familyId,
+                  padding: const EdgeInsets.only(top: 16),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: DKButton(
+                    label: 'Back to Games',
+                    variant: DKButtonVariant.gradient,
+                    icon: Icons.sports_esports_rounded,
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (!mounted) return;
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/games?familyId=${widget.familyId}');
+    }
+  }
 
   void _spin() {
     final rng = math.Random();
@@ -75,29 +179,7 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
-          onPressed: () async {
-            final state = ref.read(todProvider(widget.familyId));
-            final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-            final shouldLeave = await LeaveGameDialog.show(
-              context,
-              isHost: (state.game?.hostUserId == myId),
-              gameName: 'Truth or Dare',
-            );
-            if (shouldLeave != true) return;
-            if (!context.mounted) return;
-            ref.read(todProvider(widget.familyId).notifier).leaveGame();
-            if (state.game?.id != null) {
-              ref.read(temporaryRoomServiceProvider).endGame(
-                    gameTable: 'truthordare_games',
-                    gameId: state.game!.id,
-                  );
-            }
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/family/${widget.familyId}');
-            }
-          },
+          onPressed: () => _onClosePressed(),
         ),
         title: Text('Round ${game.roundNumber}', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,

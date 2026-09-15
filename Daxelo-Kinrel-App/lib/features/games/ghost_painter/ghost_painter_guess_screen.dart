@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 import '../game_motion_tokens.dart';
 import 'ghost_painter_models.dart';
 import 'ghost_painter_provider.dart';
@@ -105,21 +106,35 @@ class _GhostPainterGuessScreenState extends ConsumerState<GhostPainterGuessScree
 
   Widget _buildRoundComplete(state, round) {
     final correctGuessers = state.guesses.where((g) => g.isCorrect).toList();
-    return Center(child: Padding(padding: const EdgeInsets.all(32), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(Icons.celebration_rounded, size: 48, color: const Color(0xFFEC4899)),
-      const SizedBox(height: 16),
-      Text('Round Complete!', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white)),
-      const SizedBox(height: 8),
-      Text('The word was: ${round.promptWord}', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 16, color: const Color(0xFFEC4899), fontWeight: FontWeight.w600)),
-      const SizedBox(height: 16),
-      if (correctGuessers.isNotEmpty) ...[
-        Text('Correct Guessers:', style: TextStyle(fontSize: 14, color: KinrelColors.textDim)),
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      children: [
+        const Icon(Icons.celebration_rounded, size: 48, color: Color(0xFFEC4899)),
+        const SizedBox(height: 16),
+        Text('Round Complete!', textAlign: TextAlign.center,
+          style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white)),
         const SizedBox(height: 8),
-        ...correctGuessers.map((g) => Padding(padding: const EdgeInsets.only(bottom: 4),
-          child: Text(g.userName, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: KinrelColors.success)))),
-      ] else
-        Text('Nobody guessed it!', style: TextStyle(fontSize: 14, color: KinrelColors.textDim)),
-    ])));
+        Text('The word was: ${round.promptWord}', textAlign: TextAlign.center,
+          style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 16, color: const Color(0xFFEC4899), fontWeight: FontWeight.w600)),
+        const SizedBox(height: 16),
+        if (correctGuessers.isNotEmpty) ...[
+          Text('Correct Guessers:', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: KinrelColors.textDim)),
+          const SizedBox(height: 8),
+          ...correctGuessers.map((g) => Padding(padding: const EdgeInsets.only(bottom: 4),
+            child: Text(g.userName, textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: KinrelColors.success)))),
+        ] else
+          Text('Nobody guessed it!', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: KinrelColors.textDim)),
+        // ── Family Gaming Ecosystem: rewards banner + sportsmanship ──
+        MatchEcosystemSummary(
+          gameTable: 'ghost_painter_rounds',
+          gameId: round.id,
+          familyId: widget.familyId,
+          padding: const EdgeInsets.only(top: 24),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
   }
 }
 

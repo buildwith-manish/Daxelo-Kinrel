@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 import '../game_motion_tokens.dart';
 import 'ghost_painter_models.dart';
 import 'ghost_painter_provider.dart';
@@ -55,7 +56,12 @@ class _GhostPainterDrawScreenState extends ConsumerState<GhostPainterDrawScreen>
       backgroundColor: const Color(0xFF1A1A2E),
       appBar: AppBar(
         leading: IconButton(icon: const Icon(Icons.close), onPressed: () async {
-          await ref.read(ghostPainterProvider(widget.familyId).notifier).endRound();
+          // Only abandon the round if it is still live — a completed round
+          // is already archived by the ecosystem trigger.
+          final round = ref.read(ghostPainterProvider(widget.familyId)).activeRound;
+          if (round != null && round.isActive) {
+            await ref.read(ghostPainterProvider(widget.familyId).notifier).endRound();
+          }
           if (context.mounted) Navigator.of(context).pop();
         }),
         title: Text('Ghost Painter', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600)),
@@ -68,11 +74,13 @@ class _GhostPainterDrawScreenState extends ConsumerState<GhostPainterDrawScreen>
             ),
         ],
       ),
-      body: round == null || !round.isActive
+      body: round == null
         ? _buildStartScreen()
         : round.status == 'drawing'
           ? _buildDrawCanvas(state, round)
-          : _buildWaitingForGuesses(state, round),
+          : round.status == 'guessing'
+            ? _buildWaitingForGuesses(state, round)
+            : _buildRoundComplete(state, round),
     );
   }
 
@@ -166,6 +174,43 @@ class _GhostPainterDrawScreenState extends ConsumerState<GhostPainterDrawScreen>
           child: Text('${g.userName}: ${g.guessText} ${g.isCorrect ? "✓" : ""}', style: TextStyle(fontSize: 14, color: g.isCorrect ? KinrelColors.success : Colors.white54)))),
       ],
     ]));
+  }
+
+  /// Round finished — the drawer sees the outcome plus the ecosystem
+  /// rewards banner (badges / challenges / milestones earned from this
+  /// round) and can cheer the guessers via the sportsmanship row.
+  Widget _buildRoundComplete(state, round) {
+    final correctGuessers = state.guesses.where((g) => g.isCorrect).toList();
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      children: [
+        Icon(Icons.celebration_rounded, size: 48, color: const Color(0xFFEC4899)),
+        const SizedBox(height: 16),
+        Text('Round Complete!', textAlign: TextAlign.center,
+          style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white)),
+        const SizedBox(height: 8),
+        Text('Your word was: ${round.promptWord}', textAlign: TextAlign.center,
+          style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 16, color: const Color(0xFFEC4899), fontWeight: FontWeight.w600)),
+        const SizedBox(height: 16),
+        if (correctGuessers.isNotEmpty) ...[
+          Text('Guessed correctly:', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: KinrelColors.textDim)),
+          const SizedBox(height: 8),
+          ...correctGuessers.map((g) => Padding(padding: const EdgeInsets.only(bottom: 4),
+            child: Text(g.userName, textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: KinrelColors.success)))),
+        ] else
+          Text('Nobody guessed it — your masterpiece stumped the family!',
+            textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: KinrelColors.textDim)),
+        // ── Family Gaming Ecosystem: rewards banner + sportsmanship ──
+        MatchEcosystemSummary(
+          gameTable: 'ghost_painter_rounds',
+          gameId: round.id,
+          familyId: widget.familyId,
+          padding: const EdgeInsets.only(top: 24),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
   }
 }
 
