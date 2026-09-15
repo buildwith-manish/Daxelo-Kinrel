@@ -9,7 +9,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../game_motion_tokens.dart';
+import '../shared/widgets/game_confetti.dart';
 import 'twotruths_models.dart';
 import 'twotruths_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
@@ -50,18 +50,9 @@ class _TtResultsScreenState extends ConsumerState<TtResultsScreen> {
         // Statements with lie revealed
         ...statements.asMap().entries.map((entry) {
           final i = entry.key; final text = entry.value; final isLie = (i + 1) == lieIdx;
-          return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: isLie ? KinrelColors.error : KinrelColors.success, width: isLie ? 2 : 1)),
-            child: Row(children: [
-              Container(width: 28, height: 28, decoration: BoxDecoration(shape: BoxShape.circle, color: isLie ? KinrelColors.error : KinrelColors.success),
-                child: Center(child: Icon(isLie ? Icons.close : Icons.check, size: 16, color: Colors.white))),
-              const SizedBox(width: 10),
-              Expanded(child: Text(text, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
-              if (isLie) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: KinrelColors.error, borderRadius: BorderRadius.circular(4)),
-                child: Text('LIE', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white))),
-            ]),
-          ).animate().fadeIn(duration: 300.ms, delay: (i * 200).ms).slideY(begin: 0.1, end: 0, duration: 300.ms);
+          return _revealCard(i, text, isLie)
+            .animate().fadeIn(duration: 300.ms, delay: (i * 200).ms).slideY(begin: 0.1, end: 0, duration: 300.ms)
+            .scale(begin: const Offset(0.92, 0.92), end: const Offset(1.0, 1.0), duration: 350.ms, curve: Curves.easeOutBack);
         }),
 
         const SizedBox(height: 20),
@@ -89,7 +80,7 @@ class _TtResultsScreenState extends ConsumerState<TtResultsScreen> {
         Text('TOTAL SCORES', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
         const SizedBox(height: 8),
         ...state.players.map((p) => Container(margin: const EdgeInsets.only(bottom: 4), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(8), border: Border.all(color: p.userId == myId ? KinrelColors.orange : KinrelColors.border)),
+          decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(10), border: Border.all(color: p.userId == myId ? KinrelColors.orange.withValues(alpha: 0.6) : KinrelColors.border)),
           child: Row(children: [
             DKAvatar(initials: PersonAvatar.initialsFor(p.userName)),
             const SizedBox(width: 8),
@@ -105,6 +96,44 @@ class _TtResultsScreenState extends ConsumerState<TtResultsScreen> {
     );
   }
 
+  /// Premium reveal card — layered dark surface with an accent glow in
+  /// the top-left corner, numbered chip and tinted border. Truths get a
+  /// success tint + check badge; the lie gets a coral tint + LIE badge.
+  Widget _revealCard(int i, String text, bool isLie) {
+    final accent = isLie ? KinrelColors.coral : KinrelColors.success;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Color.lerp(KinrelColors.darkCard, accent, 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accent.withValues(alpha: isLie ? 0.75 : 0.5), width: isLie ? 1.5 : 1),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.32), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(color: accent.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 6)),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(children: [
+          // Subtle accent glow in the top-left corner.
+          Positioned(top: -36, left: -36, child: Container(width: 130, height: 130, decoration: BoxDecoration(shape: BoxShape.circle,
+            gradient: RadialGradient(colors: [accent.withValues(alpha: 0.14), accent.withValues(alpha: 0.0)])))),
+          Padding(padding: const EdgeInsets.all(14), child: Row(children: [
+            Container(width: 28, height: 28, alignment: Alignment.center,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: accent.withValues(alpha: 0.18), border: Border.all(color: accent.withValues(alpha: 0.7))),
+              child: Icon(isLie ? Icons.close : Icons.check, size: 15, color: accent)),
+            const SizedBox(width: 10),
+            Expanded(child: Text(text, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
+            const SizedBox(width: 8),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(color: accent.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(4)),
+              child: Text(isLie ? 'LIE' : '0${i + 1}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white))),
+          ])),
+        ]),
+      ),
+    );
+  }
+
   Widget _finalResultsView(TtState state, String? myId) {
     final game = state.game!; final winners = game.winnerUserIds ?? []; final winnerNames = game.winnerNames ?? [];
     final isMyWin = winners.contains(myId); final sorted = List<TtPlayer>.from(state.players)..sort((a, b) => b.totalScore.compareTo(a.totalScore));
@@ -114,7 +143,8 @@ class _TtResultsScreenState extends ConsumerState<TtResultsScreen> {
       appBar: AppBar(automaticallyImplyLeading: false,
         title: Text('Final Results', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: Colors.transparent, foregroundColor: KinrelColors.textWhite, elevation: 0),
-      body: ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
+      body: Stack(children: [
+        ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
         const SizedBox(height: KinrelSpacing.lg),
         Column(children: [
           Text('🏆', style: TextStyle(fontSize: 64)).animate(onPlay: (c) => c.forward()).fadeIn(duration: 500.ms).scale(begin: const Offset(0.5, 0.5), end: const Offset(1.0, 1.0), duration: 500.ms, curve: Curves.elasticOut),
@@ -148,6 +178,12 @@ class _TtResultsScreenState extends ConsumerState<TtResultsScreen> {
         const SizedBox(height: 8),
         DKButton(label: 'Back to Hub', variant: DKButtonVariant.secondary, fullWidth: true,
           onPressed: () { ref.read(ttProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.go('/games?familyId=${widget.familyId}'); }),
+        ]),
+        // Winner celebration — the player with the most correct guesses.
+        if (isMyWin)
+          const Positioned.fill(
+            child: IgnorePointer(child: GameConfetti(burstCount: 2, density: 2)),
+          ),
       ]),
     );
   }

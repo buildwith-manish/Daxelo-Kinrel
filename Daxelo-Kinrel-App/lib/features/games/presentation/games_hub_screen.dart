@@ -883,7 +883,16 @@ class _GameGridCard extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: KinrelColors.darkCard,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              accent.withValues(alpha: isDownloaded ? 0.14 : 0.05),
+              KinrelColors.darkCard,
+              KinrelColors.darkCard,
+            ],
+            stops: const [0.0, 0.45, 1.0],
+          ),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isDownloaded
@@ -891,18 +900,48 @@ class _GameGridCard extends ConsumerWidget {
                 : Colors.white.withValues(alpha: 0.06),
             width: isDownloaded ? 1.5 : 1,
           ),
+          boxShadow: isDownloaded
+              ? [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.16),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ]
+              : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: GameIcon(gameId: game.gameId, size: 44),
+                // Icon plate — accent halo behind the glossy game icon.
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: RadialGradient(
+                      center: const Alignment(-0.4, -0.4),
+                      radius: 1.1,
+                      colors: [
+                        accent.withValues(alpha: 0.34),
+                        accent.withValues(alpha: 0.05),
+                      ],
+                    ),
+                    border: Border.all(
+                      color: accent.withValues(alpha: 0.22),
+                      width: 1,
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(3),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: GameIcon(gameId: game.gameId, size: 44),
+                    ),
                   ),
                 ),
                 const Spacer(),
@@ -922,14 +961,37 @@ class _GameGridCard extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 3),
-            Text(
-              game.playersLabel,
-              style: TextStyle(
-                fontFamily: KinrelTypography.monoFont,
-                fontSize: 10,
-                letterSpacing: 0.4,
-                color: accent.withValues(alpha: 0.9),
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: accent.withValues(alpha: 0.9),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withValues(alpha: 0.6),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    game.playersLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.monoFont,
+                      fontSize: 10,
+                      letterSpacing: 0.4,
+                      color: accent.withValues(alpha: 0.9),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -953,16 +1015,30 @@ class _GameGridCard extends ConsumerWidget {
         );
       case GameDownloadStatus.downloading:
         return SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2, color: accent),
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.4,
+            value: (dlState.progress >= 0 && dlState.progress <= 1)
+                ? dlState.progress
+                : null,
+            strokeCap: StrokeCap.round,
+            color: accent,
+          ),
         );
       case GameDownloadStatus.downloaded:
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(
             gradient: KinrelGradients.ignite,
             borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: KinrelColors.orange.withValues(alpha: 0.4),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
           child: Text(
             'PLAY',

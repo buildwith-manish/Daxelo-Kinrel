@@ -8,6 +8,9 @@
 //   • Captured pieces display + move history
 //   • Smooth piece-slide animation
 //   • Inline results view with confetti
+// Premium finish: wooden GameBoardShell table frame, directionally-lit
+// cream/brown squares, depth-shadowed glyphs, a pulsing danger glow on
+// the checked king's square, and physics GameConfetti for the winner.
 // Route: /family/$familyId/chess/board/:gameId
 
 import 'package:chess/chess.dart' as chess;
@@ -23,9 +26,18 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
+import '../shared/widgets/game_board_shell.dart';
+import '../shared/widgets/game_confetti.dart';
 import 'chess_models.dart';
 import 'chess_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
+
+/// Directionally-lit wooden squares (warm cream light / rich brown dark),
+/// lit from the top-left like a real table board.
+final List<BoxDecoration> _chessSquareShades = boardSquareShades(
+  lightSquare: const Color(0xFFC9B48F),
+  darkSquare: const Color(0xFF6B4A2F),
+);
 
 class ChessBoardScreen extends ConsumerStatefulWidget {
   const ChessBoardScreen({
@@ -62,7 +74,7 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
     // attached the RoomController is replaced by this route, and without
     // a watch the autoDispose controller dies and the server-side reaper
     // auto-closes the room ~60-75s into the game.
-    Widget view = RoomKeepAlive(
+    final Widget view = RoomKeepAlive(
       roomKey: RoomControllerKey(RoomConfig.chess, widget.familyId),
       child: DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
@@ -355,14 +367,13 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
     final inCheck = state.inCheck;
     final currentTurnColor = game.currentTurnColor;
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.orange, width: 2),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(KinrelRadius.lg - 2),
-        child: GridView.builder(
+    // Premium wooden table frame — bevelled rim, grain, accent under-glow.
+    return GameBoardShell(
+      accent: KinrelColors.orange,
+      surface: BoardSurface.wood,
+      radius: 22,
+      padding: 8,
+      child: GridView.builder(
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 8,
@@ -417,7 +428,6 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
             );
           },
         ),
-      ),
     );
   }
 
@@ -433,31 +443,17 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
     required String squareName,
     required bool isMyTurn,
   }) {
-    // Original Kinrel board colors — not standard white/brown
+    // Directionally-lit wooden squares — warm cream / rich brown, lit
+    // from the top-left like a physical board. Selection, last-move and
+    // check overlays render as translucent layers on top so the wood
+    // lighting shows through.
     final isLightSquare = (row + col) % 2 == 0;
-    Color bgColor;
-    if (isLightSquare) {
-      bgColor = const Color(0xFF2A2A3D); // dark elevated
-    } else {
-      bgColor = const Color(0xFF13141E); // dark surface
-    }
-
-    // Highlight selected
-    if (isSelected) {
-      bgColor = KinrelColors.orange.withValues(alpha: 0.4);
-    }
-    // Highlight last move
-    else if (isLastMoveTo) {
-      bgColor = KinrelColors.success.withValues(alpha: 0.2);
-    } else if (isLastMoveFrom) {
-      bgColor = KinrelColors.success.withValues(alpha: 0.1);
-    }
+    final squareShade = _chessSquareShades[isLightSquare ? 0 : 1];
 
     return GestureDetector(
       onTap: () => _onCellTap(squareName, isMyTurn),
       child: Container(
-        decoration: BoxDecoration(
-          color: bgColor,
+        decoration: squareShade.copyWith(
           border: Border.all(
             color: isSelected
                 ? KinrelColors.orange
@@ -469,6 +465,51 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
         ),
         child: Stack(
           children: [
+            // Selection tint over the lit wood.
+            if (isSelected)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: KinrelColors.orange.withValues(alpha: 0.4),
+                ),
+              ),
+            // Last-move tints.
+            if (!isSelected && isLastMoveTo)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: KinrelColors.success.withValues(alpha: 0.2),
+                ),
+              ),
+            if (!isSelected && isLastMoveFrom)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: KinrelColors.success.withValues(alpha: 0.1),
+                ),
+              ),
+            // Checked king's square — pulsing danger glow.
+            if (isKingInCheck)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(
+                        color: KinrelColors.error.withValues(alpha: 0.9),
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: KinrelColors.error.withValues(alpha: 0.55),
+                          blurRadius: 10,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  )
+                      .animate(onPlay: (c) => c.repeat(reverse: true))
+                      .fadeIn(duration: 600.ms, curve: Curves.easeInOut)
+                      .fadeOut(duration: 600.ms, curve: Curves.easeInOut),
+                ),
+              ),
             // Legal destination dot
             if (isLegalDest && piece == null)
               Center(
@@ -542,11 +583,12 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
         style: TextStyle(
           fontSize: 28,
           color: isWhite ? KinrelColors.amber : const Color(0xFF94A3B8),
+          // Soft drop shadow so the glyph "sits" on the board.
           shadows: [
             Shadow(
-              color: Colors.black.withValues(alpha: 0.5),
-              offset: const Offset(1, 1),
-              blurRadius: 2,
+              color: Colors.black.withValues(alpha: 0.55),
+              blurRadius: 3,
+              offset: const Offset(0, 1.5),
             ),
           ],
         ),
@@ -695,109 +737,120 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(KinrelSpacing.base),
+      body: Stack(
         children: [
-          const SizedBox(height: KinrelSpacing.lg),
-          Column(
+          ListView(
+            padding: const EdgeInsets.all(KinrelSpacing.base),
             children: [
-              Text(
-                isDraw ? '🤝' : '🏆',
-                style: TextStyle(fontSize: 64),
+              const SizedBox(height: KinrelSpacing.lg),
+              Column(
+                children: [
+                  Text(
+                    isDraw ? '🤝' : '🏆',
+                    style: TextStyle(fontSize: 64),
+                  )
+                      .animate(onPlay: (c) => c.forward())
+                      .fadeIn(duration: 500.ms)
+                      .scale(
+                        begin: const Offset(0.5, 0.5),
+                        end: const Offset(1.0, 1.0),
+                        duration: 500.ms,
+                        curve: Curves.elasticOut,
+                      ),
+                  const SizedBox(height: KinrelSpacing.sm),
+                  Text(
+                    isDraw
+                        ? (game.result == ChessResult.stalemate
+                              ? 'Stalemate — Draw!'
+                              : 'Draw!')
+                        : (isWinner ? 'Checkmate — You Won!' : 'Checkmate!'),
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: KinrelColors.textWhite,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  if (!isDraw) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      isWinner ? '$winnerName (You)' : winnerName,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.orange,
+                      ),
+                    ),
+                  ],
+                ],
               )
-                  .animate(onPlay: (c) => c.forward())
-                  .fadeIn(duration: 500.ms)
+                  .animate()
+                  .fadeIn(duration: 400.ms)
                   .scale(
-                    begin: const Offset(0.5, 0.5),
+                    begin: const Offset(0.92, 0.92),
                     end: const Offset(1.0, 1.0),
-                    duration: 500.ms,
-                    curve: Curves.elasticOut,
+                    duration: 400.ms,
+                    curve: Curves.easeOutBack,
                   ),
+              MatchEcosystemSummary(
+                gameTable: 'chess_games',
+                gameId: game.id,
+                familyId: widget.familyId,
+              ),
+              const SizedBox(height: KinrelSpacing.xxl),
+              DKButton(
+                label: 'Play Again',
+                variant: DKButtonVariant.gradient,
+                fullWidth: true,
+                icon: Icons.refresh_rounded,
+                onPressed: () {
+                  final gameId = ref.read(chessProvider(widget.familyId)).game?.id;
+                  ref.read(chessProvider(widget.familyId).notifier).leaveGame();
+                  // Eager end-game cleanup (safety-net Timer also fires 30s
+                  // after the game completed in the provider).
+                  if (gameId != null) {
+                    ref.read(temporaryRoomServiceProvider).endGame(
+                          gameTable: 'chess_games',
+                          gameId: gameId,
+                        );
+                  }
+                  if (context.mounted) {
+                    context.pushReplacement(
+                      '/family/${widget.familyId}/chess/lobby',
+                    );
+                  }
+                },
+              ),
               const SizedBox(height: KinrelSpacing.sm),
-              Text(
-                isDraw
-                    ? (game.result == ChessResult.stalemate
-                          ? 'Stalemate — Draw!'
-                          : 'Draw!')
-                    : (isWinner ? 'Checkmate — You Won!' : 'Checkmate!'),
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  color: KinrelColors.textWhite,
-                  letterSpacing: 2,
-                ),
+              DKButton(
+                label: 'Back to Hub',
+                variant: DKButtonVariant.secondary,
+                fullWidth: true,
+                onPressed: () {
+                  final gameId = ref.read(chessProvider(widget.familyId)).game?.id;
+                  ref.read(chessProvider(widget.familyId).notifier).leaveGame();
+                  if (gameId != null) {
+                    ref.read(temporaryRoomServiceProvider).endGame(
+                          gameTable: 'chess_games',
+                          gameId: gameId,
+                        );
+                  }
+                  if (context.mounted) {
+                    context.go('/games?familyId=${widget.familyId}');
+                  }
+                },
               ),
-              if (!isDraw) ...[
-                const SizedBox(height: 4),
-                Text(
-                  isWinner ? '$winnerName (You)' : winnerName,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    color: KinrelColors.orange,
-                  ),
-                ),
-              ],
             ],
-          )
-              .animate()
-              .fadeIn(duration: 400.ms)
-              .scale(
-                begin: const Offset(0.92, 0.92),
-                end: const Offset(1.0, 1.0),
-                duration: 400.ms,
-                curve: Curves.easeOutBack,
+          ),
+          // Confetti for the winner — no confetti on stalemate/draw.
+          if (!isDraw)
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: GameConfetti(burstCount: 2, density: 2),
               ),
-          MatchEcosystemSummary(
-            gameTable: 'chess_games',
-            gameId: game.id,
-            familyId: widget.familyId,
-          ),
-          const SizedBox(height: KinrelSpacing.xxl),
-          DKButton(
-            label: 'Play Again',
-            variant: DKButtonVariant.gradient,
-            fullWidth: true,
-            icon: Icons.refresh_rounded,
-            onPressed: () {
-              final gameId = ref.read(chessProvider(widget.familyId)).game?.id;
-              ref.read(chessProvider(widget.familyId).notifier).leaveGame();
-              // Eager end-game cleanup (safety-net Timer also fires 30s
-              // after the game completed in the provider).
-              if (gameId != null) {
-                ref.read(temporaryRoomServiceProvider).endGame(
-                      gameTable: 'chess_games',
-                      gameId: gameId,
-                    );
-              }
-              if (context.mounted) {
-                context.pushReplacement(
-                  '/family/${widget.familyId}/chess/lobby',
-                );
-              }
-            },
-          ),
-          const SizedBox(height: KinrelSpacing.sm),
-          DKButton(
-            label: 'Back to Hub',
-            variant: DKButtonVariant.secondary,
-            fullWidth: true,
-            onPressed: () {
-              final gameId = ref.read(chessProvider(widget.familyId)).game?.id;
-              ref.read(chessProvider(widget.familyId).notifier).leaveGame();
-              if (gameId != null) {
-                ref.read(temporaryRoomServiceProvider).endGame(
-                      gameTable: 'chess_games',
-                      gameId: gameId,
-                    );
-              }
-              if (context.mounted) {
-                context.go('/games?familyId=${widget.familyId}');
-              }
-            },
-          ),
+            ),
         ],
       ),
     );

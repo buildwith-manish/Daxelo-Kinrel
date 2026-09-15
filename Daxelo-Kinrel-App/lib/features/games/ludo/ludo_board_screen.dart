@@ -8,6 +8,10 @@ import '../../../core/widgets/person_avatar.dart';
 //   • Turn indicator with color
 //   • Token movement + capture animations
 //   • Inline results view with confetti
+// Premium finish: wooden GameBoardShell table frame, radially-lit home
+// bases (painter-level glow pools), glowing safe-square emblems, 3D
+// token chips in the four player colours, an ivory radial-gradient die
+// with drilled pips, and a physics GameConfetti volley for the winner.
 // Route: /family/$familyId/ludo/board/:gameId
 
 import 'dart:async';
@@ -24,6 +28,8 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/services/temporary_room_service.dart';
+import '../shared/widgets/game_board_shell.dart';
+import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import 'ludo_game_logic.dart';
 import 'ludo_models.dart';
@@ -103,36 +109,24 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
     }
   }
 
-  /// Original token shape — rounded square with inner glow,
-  /// distinct from generic Ludo apps that use plain circles.
-  Widget _tokenWidget(LudoToken token, bool isTappable, LudoState state) {
+  /// Physical 3D token chip in the player's colour — radially lit with
+  /// a specular highlight, dark rim and grounded drop shadow. Movable
+  /// tokens glow so the next move is obvious at a glance.
+  Widget _tokenWidget(LudoToken token, bool isTappable, double cellSize) {
     final color = _colorValue(token.color);
+    final size = cellSize * 0.84;
 
     return GestureDetector(
       onTap: isTappable
           ? () => ref.read(ludoProvider(widget.familyId).notifier).moveToken(token.id)
           : null,
-      child: Container(
-        margin: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(4), // rounded square, not circle
-          color: color,
-          border: Border.all(
-            color: isTappable ? Colors.white : Colors.white.withValues(alpha: 0.5),
-            width: isTappable ? 2.5 : 1.5,
-          ),
-          boxShadow: isTappable
-              ? [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.6),
-                    blurRadius: 6,
-                    spreadRadius: 1,
-                  ),
-                ]
-              : null,
-        ),
+      child: GamePiece3D(
+        color: color,
+        size: size,
+        glow: isTappable,
+        ring: isTappable ? Colors.white : null,
         child: token.isFinished
-            ? const Center(child: Icon(Icons.check, size: 8, color: Colors.white))
+            ? const Icon(Icons.check, size: 8, color: Colors.white)
             : null,
       )
           .animate(target: isTappable ? 1 : 0)
@@ -177,12 +171,16 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
             );
             if (shouldLeave != true) return;
             if (!context.mounted) return;
-            ref.read(ludoProvider(widget.familyId).notifier).leaveGame();
+            unawaited(
+              ref.read(ludoProvider(widget.familyId).notifier).leaveGame(),
+            );
             if (state.game?.id != null) {
-              ref.read(temporaryRoomServiceProvider).endGame(
-                    gameTable: 'ludo_games',
-                    gameId: state.game!.id,
-                  );
+              unawaited(
+                ref.read(temporaryRoomServiceProvider).endGame(
+                  gameTable: 'ludo_games',
+                  gameId: state.game!.id,
+                ),
+              );
             }
             if (context.canPop()) {
               context.pop();
@@ -421,32 +419,53 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
   }
 
   Widget _board(LudoState state, String? myId, List<LudoToken> legalTokens) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.orange, width: 2),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(KinrelRadius.lg - 2),
-        child: Stack(
-          children: [
-            // Board grid (15×15)
-            GridView.builder(
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 15,
+    // Premium wooden table frame — classic Ludo board presentation with
+    // a bevelled rim, grain and warm accent under-glow.
+    return GameBoardShell(
+      accent: KinrelColors.orange,
+      surface: BoardSurface.wood,
+      radius: 22,
+      padding: 8,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // The board is square (AspectRatio 1:1) — measure it once and
+          // place tokens in real pixel space so they sit exactly on their
+          // cells at every screen size.
+          final boardSize = constraints.maxWidth;
+          return Stack(
+            children: [
+              // Board grid (15×15)
+              GridView.builder(
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 15,
+                ),
+                itemCount: 225,
+                itemBuilder: (context, index) {
+                  final row = index ~/ 15;
+                  final col = index % 15;
+                  return _boardCell(row, col, state, legalTokens);
+                },
               ),
-              itemCount: 225,
-              itemBuilder: (context, index) {
-                final row = index ~/ 15;
-                final col = index % 15;
-                return _boardCell(row, col, state, legalTokens);
-              },
-            ),
-            // Tokens overlaid on the board
-            ..._tokenWidgets(state, myId, legalTokens),
-          ],
-        ),
+              // Radial colour pools for the four home bases — colours come
+              // from the same quadrant mapping the board used before.
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _LudoBaseGlowPainter(
+                    colors: [
+                      _colorValue(_homeBaseColor(2, 2)), // top-left yard
+                      _colorValue(_homeBaseColor(2, 11)), // top-right yard
+                      _colorValue(_homeBaseColor(11, 2)), // bottom-left yard
+                      _colorValue(_homeBaseColor(11, 11)), // bottom-right yard
+                    ],
+                  ),
+                ),
+              ),
+              // Tokens overlaid on the board
+              ..._tokenWidgets(state, myId, legalTokens, boardSize),
+            ],
+          );
+        },
       ),
     );
   }
@@ -464,7 +483,9 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
     if (isCenter) {
       bgColor = KinrelColors.darkCard; // center is dark with a gradient overlay
     } else if (isHomeBase) {
-      bgColor = _colorValue(_homeBaseColor(row, col)).withValues(alpha: 0.15);
+      // Flat alpha tint replaced by the radial base-glow painter that
+      // lights each 6×6 yard from its centre (see _LudoBaseGlowPainter).
+      bgColor = KinrelColors.darkElevated;
     } else if (isHomeColumn) {
       bgColor = _colorValue(_homeColumnColor(row, col)).withValues(alpha: 0.25);
     } else if (isTrack) {
@@ -514,16 +535,24 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
     }
 
     if (isSafe && isTrack) {
-      // Safe square marker — original diamond shape (not a star icon)
+      // Safe square marker — original diamond emblem, now with a soft
+      // amber glow so safe havens read instantly.
       return Center(
         child: Transform.rotate(
-          angle: 0.785398, // 45°
+          angle: 0.785398, // 45° — diamond orientation
           child: Container(
-            width: 6,
-            height: 6,
+            width: 7,
+            height: 7,
             decoration: BoxDecoration(
-              color: KinrelColors.amber.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(1),
+              color: KinrelColors.amber.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: KinrelColors.amber.withValues(alpha: 0.55),
+                  blurRadius: 5,
+                  spreadRadius: 1,
+                ),
+              ],
             ),
           ),
         ),
@@ -580,7 +609,15 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
     return LudoColor.red;
   }
 
-  List<Widget> _tokenWidgets(LudoState state, String? myId, List<LudoToken> legalTokens) {
+  List<Widget> _tokenWidgets(
+    LudoState state,
+    String? myId,
+    List<LudoToken> legalTokens,
+    double boardSize,
+  ) {
+    // Place each token exactly on its grid cell: cell = boardSize / 15,
+    // the 3D chip fills ~84% of the cell and is centred within it.
+    final cellSize = boardSize / 15;
     final widgets = <Widget>[];
     for (final token in state.allLogicTokens) {
       final coord = positionToGridCoord(token);
@@ -591,28 +628,17 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
 
       widgets.add(
         Positioned(
-          left: (coord.$2 / 15) * 1000,  // will be scaled by the parent
-          top: (coord.$1 / 15) * 1000,
-          child: FractionalTranslation(
-            translation: const Offset(0, 0),
-            child: SizedBox(
-              width: 1000 / 15,
-              height: 1000 / 15,
-              child: _tokenWidget(
-                token,
-                isLegal && isMyToken,
-                state,
-              ),
-            ),
+          left: coord.$2 * cellSize,
+          top: coord.$1 * cellSize,
+          width: cellSize,
+          height: cellSize,
+          child: Center(
+            child: _tokenWidget(token, isLegal && isMyToken, cellSize),
           ),
         ),
       );
     }
     return widgets;
-  }
-
-  String? _myId(LudoState state) {
-    return ref.read(supabaseProvider)?.auth.currentUser?.id;
   }
 
   Widget _diceAndStatusBar(
@@ -622,7 +648,6 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
     bool hasRolled,
     List<LudoToken> legalTokens,
   ) {
-    final game = state.game!;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       child: Column(
@@ -732,8 +757,9 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
     );
   }
 
-  /// Original dice design — diamond-shaped with pip dots,
-  /// distinct from generic Ludo apps that use plain boxes with numbers.
+  /// Dice — ivory radial-gradient face with drilled pips and a grounded
+  /// drop shadow; keeps the tumble animation. The whole die glows when
+  /// it's your roll.
   Widget _diceWidget(LudoState state, bool isMyTurn, bool hasRolled) {
     final canRoll = isMyTurn && !hasRolled && !state.isRolling;
     final displayValue = hasRolled ? (state.game?.lastDiceRoll ?? _displayDiceValue) : _displayDiceValue;
@@ -747,22 +773,32 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
         width: 60,
         height: 60,
         decoration: BoxDecoration(
-          // Diamond shape — rotate 45° via transform on the container below
-          color: canRoll ? KinrelColors.orange : KinrelColors.darkElevated,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: canRoll ? Colors.white : KinrelColors.border,
-            width: canRoll ? 2.5 : 1,
+          // Ivory die face — radially lit so it reads as a rounded cube.
+          gradient: const RadialGradient(
+            center: Alignment(-0.35, -0.4),
+            radius: 1.15,
+            colors: [Color(0xFFFFF8E7), Color(0xFFF3E7CE), Color(0xFFD9CDB8)],
+            stops: [0.0, 0.55, 1.0],
           ),
-          boxShadow: canRoll
-              ? [
-                  BoxShadow(
-                    color: KinrelColors.orangeGlowIntense,
-                    blurRadius: 10,
-                    spreadRadius: 2,
-                  ),
-                ]
-              : null,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: canRoll ? KinrelColors.orange : const Color(0xFFB9AB90),
+            width: canRoll ? 2.5 : 1.5,
+          ),
+          boxShadow: [
+            if (canRoll)
+              BoxShadow(
+                color: KinrelColors.orangeGlowIntense,
+                blurRadius: 10,
+                spreadRadius: 2,
+              ),
+            // Grounded drop shadow under the whole die.
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.45),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Center(
           child: state.isRolling
@@ -771,7 +807,7 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
                   height: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white,
+                    color: KinrelColors.orange,
                   ),
                 )
               : _dicePips(displayValue, canRoll),
@@ -793,19 +829,26 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
     );
   }
 
-  /// Render dice pips (dots) for values 1-6 — original layout,
-  /// not copied from any existing dice implementation.
+  /// Render dice pips (dots) for values 1-6 — original layout with a
+  /// drilled-pip finish: white fill, dark rim and a tiny inset shadow.
   Widget _dicePips(int value, bool isActive) {
-    final pipColor = isActive ? Colors.white : KinrelColors.textWhite;
+    final pipRim = isActive ? const Color(0xFF4A3F2E) : const Color(0xFF7A6E58);
     final pipSize = 6.0;
-    final gap = 10.0;
 
     Widget pip() => Container(
       width: pipSize,
       height: pipSize,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: pipColor,
+        color: Colors.white,
+        border: Border.all(color: pipRim, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 1,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
     );
 
@@ -916,86 +959,140 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(KinrelSpacing.base),
+      body: Stack(
         children: [
-          const SizedBox(height: KinrelSpacing.lg),
-          Column(
+          ListView(
+            padding: const EdgeInsets.all(KinrelSpacing.base),
             children: [
-              const Text('🏆', style: TextStyle(fontSize: 64))
-                  .animate(onPlay: (c) => c.forward())
-                  .fadeIn(duration: 500.ms)
-                  .scale(
-                    begin: const Offset(0.5, 0.5),
-                    end: const Offset(1.0, 1.0),
-                    duration: 500.ms,
-                    curve: Curves.elasticOut,
+              const SizedBox(height: KinrelSpacing.lg),
+              Column(
+                children: [
+                  const Text('🏆', style: TextStyle(fontSize: 64))
+                      .animate(onPlay: (c) => c.forward())
+                      .fadeIn(duration: 500.ms)
+                      .scale(
+                        begin: const Offset(0.5, 0.5),
+                        end: const Offset(1.0, 1.0),
+                        duration: 500.ms,
+                        curve: Curves.elasticOut,
+                      ),
+                  const SizedBox(height: KinrelSpacing.sm),
+                  Text(
+                    isWinner ? 'You Won!' : 'Winner!',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 32,
+                      fontWeight: FontWeight.w800,
+                      color: KinrelColors.textWhite,
+                      letterSpacing: 2,
+                    ),
                   ),
-              const SizedBox(height: KinrelSpacing.sm),
-              Text(
-                isWinner ? 'You Won!' : 'Winner!',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  color: KinrelColors.textWhite,
-                  letterSpacing: 2,
-                ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isWinner ? '$winnerName (You)' : winnerName,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.orange,
+                    ),
+                  ),
+                ],
+              )
+                  .animate()
+                  .fadeIn(duration: 400.ms)
+                  .scale(
+                    begin: const Offset(0.92, 0.92),
+                    end: const Offset(1.0, 1.0),
+                    duration: 400.ms,
+                    curve: Curves.easeOutBack,
+                  ),
+              MatchEcosystemSummary(
+                gameTable: 'ludo_games',
+                gameId: widget.gameId,
+                familyId: widget.familyId,
               ),
-              const SizedBox(height: 4),
-              Text(
-                isWinner ? '$winnerName (You)' : winnerName,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.orange,
-                ),
+              const SizedBox(height: KinrelSpacing.xxl),
+              DKButton(
+                label: 'Play Again',
+                variant: DKButtonVariant.gradient,
+                fullWidth: true,
+                icon: Icons.refresh_rounded,
+                onPressed: () {
+                  ref.read(ludoProvider(widget.familyId).notifier).leaveGame();
+                  if (context.mounted) {
+                    context.pushReplacement(
+                      '/family/${widget.familyId}/ludo/lobby',
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: KinrelSpacing.sm),
+              DKButton(
+                label: 'Back to Hub',
+                variant: DKButtonVariant.secondary,
+                fullWidth: true,
+                onPressed: () {
+                  ref.read(ludoProvider(widget.familyId).notifier).leaveGame();
+                  if (context.mounted) {
+                    context.go('/games?familyId=${widget.familyId}');
+                  }
+                },
               ),
             ],
-          )
-              .animate()
-              .fadeIn(duration: 400.ms)
-              .scale(
-                begin: const Offset(0.92, 0.92),
-                end: const Offset(1.0, 1.0),
-                duration: 400.ms,
-                curve: Curves.easeOutBack,
+          ),
+          // Physics confetti volley (density 2) for the winner.
+          if (game.winnerId != null)
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: GameConfetti(burstCount: 2, density: 2),
               ),
-          MatchEcosystemSummary(
-            gameTable: 'ludo_games',
-            gameId: widget.gameId,
-            familyId: widget.familyId,
-          ),
-          const SizedBox(height: KinrelSpacing.xxl),
-          DKButton(
-            label: 'Play Again',
-            variant: DKButtonVariant.gradient,
-            fullWidth: true,
-            icon: Icons.refresh_rounded,
-            onPressed: () {
-              ref.read(ludoProvider(widget.familyId).notifier).leaveGame();
-              if (context.mounted) {
-                context.pushReplacement(
-                  '/family/${widget.familyId}/ludo/lobby',
-                );
-              }
-            },
-          ),
-          const SizedBox(height: KinrelSpacing.sm),
-          DKButton(
-            label: 'Back to Hub',
-            variant: DKButtonVariant.secondary,
-            fullWidth: true,
-            onPressed: () {
-              ref.read(ludoProvider(widget.familyId).notifier).leaveGame();
-              if (context.mounted) {
-                context.go('/games?familyId=${widget.familyId}');
-              }
-            },
-          ),
+            ),
         ],
       ),
     );
   }
+}
+
+/// Paints the four home-base radial glows — one warm pool of colour per
+/// quadrant, lighter at each base's centre, so the yards read as lit
+/// bowls instead of flat alpha tints. Quadrant order matches the board
+/// layout: red (top-left), blue (top-right), yellow (bottom-left),
+/// green (bottom-right). Static content — never repaints.
+class _LudoBaseGlowPainter extends CustomPainter {
+  const _LudoBaseGlowPainter({required this.colors});
+
+  final List<Color> colors;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width;
+    const quadrants = [
+      (0.2, 0.2),
+      (0.8, 0.2),
+      (0.2, 0.8),
+      (0.8, 0.8),
+    ];
+    for (var i = 0; i < quadrants.length && i < colors.length; i++) {
+      final (fx, fy) = quadrants[i];
+      // Each base spans a 6×6 cell quadrant (40% of the board).
+      final rect = Rect.fromCenter(
+        center: Offset(fx * s, fy * s),
+        width: s * 0.4,
+        height: s * 0.4,
+      );
+      final paint = Paint()
+        ..shader = RadialGradient(
+          colors: [
+            colors[i].withValues(alpha: 0.38),
+            colors[i].withValues(alpha: 0.05),
+          ],
+          stops: const [0.25, 1.0],
+        ).createShader(rect);
+      canvas.drawRect(rect, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LudoBaseGlowPainter oldDelegate) => false;
 }

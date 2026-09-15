@@ -17,8 +17,9 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../game_motion_tokens.dart';
 import '../shared/services/temporary_room_service.dart';
+import '../shared/widgets/game_board_shell.dart';
+import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import 'chitmatch_models.dart';
 import 'chitmatch_provider.dart';
@@ -160,15 +161,12 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
                   const SizedBox(height: KinrelSpacing.xl),
                   // Status
                   if (isResolving)
-                    Column(children: [
-                      SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange)),
-                      const SizedBox(height: KinrelSpacing.sm),
-                      Text('Resolving round...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim)),
-                    ])
+                    GameTurnPill(label: 'Resolving round…', color: KinrelColors.orange, active: true,
+                      trailing: const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange)))
                   else if (selectedIndex != null)
-                    Text('Chit selected — waiting for others...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim))
+                    GameTurnPill(label: 'Chit selected — waiting for others…', color: KinrelColors.orange, active: true)
                   else if (game.isInProgress)
-                    Text('Tap a chit to pass it!', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.orange, fontWeight: FontWeight.w600)),
+                    GameTurnPill(label: 'Tap a chit to pass it!', color: KinrelColors.orange, active: true),
                 ],
               ),
             ),
@@ -190,21 +188,29 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
       margin: const EdgeInsets.all(KinrelSpacing.base),
       padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.md, vertical: KinrelSpacing.sm),
       decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.lg), border: Border.all(color: KinrelColors.border)),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _infoChip('Round', '${game.roundNumber}', Icons.repeat_rounded),
-          // Timer ring
-          SizedBox(width: 48, height: 48, child: Stack(
-            alignment: Alignment.center,
-            children: [
-              CircularProgressIndicator(value: progress, strokeWidth: 3, backgroundColor: KinrelColors.darkElevated, valueColor: AlwaysStoppedAnimation<Color>(timerColor)),
-              Text('${secondsRemaining}s', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: timerColor)),
-            ],
-          )),
-          _infoChip('Players', '${state.players.length}', Icons.people_rounded),
-        ],
-      ),
+      child: Column(children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _infoChip('Round', '${game.roundNumber}', Icons.repeat_rounded),
+            // Timer ring
+            SizedBox(width: 48, height: 48, child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CircularProgressIndicator(value: progress, strokeWidth: 3, backgroundColor: KinrelColors.darkElevated, valueColor: AlwaysStoppedAnimation<Color>(timerColor)),
+                Text('${secondsRemaining}s', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: timerColor)),
+              ],
+            )),
+            _infoChip('Players', '${state.players.length}', Icons.people_rounded),
+          ],
+        ),
+        const SizedBox(height: KinrelSpacing.sm),
+        // Thin accent progress bar mirroring the round countdown.
+        ClipRRect(borderRadius: BorderRadius.circular(2), child: SizedBox(height: 3, child: Stack(children: [
+          Container(color: KinrelColors.darkElevated),
+          Align(alignment: Alignment.centerLeft, child: FractionallySizedBox(widthFactor: progress, child: Container(color: timerColor))),
+        ]))),
+      ]),
     );
   }
 
@@ -217,41 +223,69 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
     ]);
   }
 
+  /// Premium chit card — layered dark surface with a subtle diagonal
+  /// card-back stripe pattern (cheap LinearGradient bands). Selecting
+  /// lifts the card (-2 translate) with an accent ring and a deeper
+  /// shadow. Three-of-a-kind hands get a success rim.
   Widget _chitCard(String word, int index, int? selectedIndex, bool isResolving, bool isThreeOfAKind) {
     final isSelected = index == selectedIndex;
     final canTap = !isResolving && !isThreeOfAKind;
+    final accent = isThreeOfAKind ? KinrelColors.success : KinrelColors.orange;
 
     return GestureDetector(
       onTap: canTap ? () => ref.read(chitmatchProvider(widget.familyId).notifier).selectChit(index) : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 80, height: 110,
+        width: 80, height: 112,
         margin: const EdgeInsets.symmetric(horizontal: 6),
+        transform: Matrix4.translationValues(0, isSelected ? -2 : 0, 0),
         decoration: BoxDecoration(
-          color: isSelected ? KinrelColors.orange : KinrelColors.darkElevated,
-          borderRadius: BorderRadius.circular(10),
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [KinrelColors.darkElevated, KinrelColors.darkCard]),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? Colors.white : (isThreeOfAKind ? KinrelColors.success : KinrelColors.border),
-            width: isSelected ? 2.5 : 1.5,
+            color: isSelected ? KinrelColors.orange : (isThreeOfAKind ? KinrelColors.success.withValues(alpha: 0.7) : KinrelColors.border),
+            width: isSelected ? 2 : 1.5,
           ),
-          boxShadow: isSelected ? [BoxShadow(color: KinrelColors.orangeGlowIntense, blurRadius: 8, spreadRadius: 1)] : null,
-        ),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.style, size: 20, color: isSelected ? Colors.white : KinrelColors.textDim),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(word, textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, fontWeight: FontWeight.w700,
-                color: isSelected ? Colors.white : KinrelColors.textWhite,
-              ),
-            ),
-          ),
-          if (isSelected) ...[
-            const SizedBox(height: 4),
-            Icon(Icons.arrow_forward, size: 12, color: Colors.white),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: isSelected ? 0.5 : 0.35), blurRadius: isSelected ? 16 : 8, offset: Offset(0, isSelected ? 8 : 4)),
+            if (isSelected) BoxShadow(color: KinrelColors.orange.withValues(alpha: 0.35), blurRadius: 18, spreadRadius: 1),
           ],
-        ]),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12.5),
+          child: Stack(children: [
+            // Card-back diagonal stripe pattern.
+            Positioned.fill(child: IgnorePointer(child: DecoratedBox(decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  accent.withValues(alpha: 0.06), Colors.transparent,
+                  accent.withValues(alpha: 0.06), Colors.transparent,
+                  accent.withValues(alpha: 0.06), Colors.transparent,
+                  accent.withValues(alpha: 0.06), Colors.transparent,
+                ],
+                stops: const [0.0, 0.07, 0.14, 0.21, 0.28, 0.35, 0.42, 1.0],
+              ),
+            )))),
+            Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.style, size: 20, color: isSelected ? Colors.white : KinrelColors.textDim),
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Text(word, textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 11, fontWeight: FontWeight.w700,
+                    color: isSelected ? Colors.white : KinrelColors.textWhite,
+                  ),
+                ),
+              ),
+              if (isSelected) ...[
+                const SizedBox(height: 4),
+                Icon(Icons.arrow_forward, size: 12, color: Colors.white),
+              ],
+            ]),
+          ]),
+        ),
       )
         .animate(target: isSelected ? 1 : 0)
         .scale(begin: const Offset(0.95, 0.95), end: const Offset(1.0, 1.0), duration: 200.ms, curve: Curves.elasticOut),
@@ -259,6 +293,7 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
   }
 
   Widget _playerStatusBar(ChitmatchState state) {
+    final game = state.game!;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       child: Container(
@@ -267,12 +302,30 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
           ...state.players.map((p) {
             final hasSelected = p.selectedChitIndex != null;
+            // While the round is live, players still choosing get a
+            // pulsing amber "waiting on you" ring (GameTurnPill-style).
+            final waiting = game.isInProgress && !hasSelected;
             return Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(width: 24, height: 24, decoration: BoxDecoration(shape: BoxShape.circle,
-                color: hasSelected ? KinrelColors.success : KinrelColors.darkElevated,
-                border: Border.all(color: hasSelected ? KinrelColors.success : KinrelColors.border, width: 1)),
-                child: Center(child: Text(PersonAvatar.initialsFor(p.userName), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: hasSelected ? Colors.white : KinrelColors.textDim))),
-              ),
+              SizedBox(width: 32, height: 32, child: Stack(alignment: Alignment.center, children: [
+                if (waiting)
+                  Container(
+                    width: 30, height: 30,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.75), width: 1.5),
+                      boxShadow: [BoxShadow(color: KinrelColors.orange.withValues(alpha: 0.35), blurRadius: 8)],
+                    ),
+                  )
+                    .animate(onPlay: (c) => c.repeat(reverse: true))
+                    .scale(begin: const Offset(0.94, 0.94), end: const Offset(1.16, 1.16), duration: 1000.ms, curve: Curves.easeInOut),
+                Container(width: 24, height: 24, decoration: BoxDecoration(shape: BoxShape.circle,
+                  color: hasSelected ? KinrelColors.success : KinrelColors.darkElevated,
+                  border: Border.all(color: hasSelected ? KinrelColors.success : KinrelColors.border, width: 1)),
+                  child: Center(child: Text(PersonAvatar.initialsFor(p.userName), style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 10, fontWeight: FontWeight.w700, color: hasSelected ? Colors.white : KinrelColors.textDim)))),
+              ])),
+              const SizedBox(height: 3),
+              Text(p.userName.split(' ').first, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 9, fontWeight: FontWeight.w600, color: hasSelected ? KinrelColors.textWhite : KinrelColors.textDim)),
             ]);
           }),
         ]),
@@ -295,7 +348,8 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
       appBar: AppBar(automaticallyImplyLeading: false,
         title: Text('Results', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: Colors.transparent, foregroundColor: KinrelColors.textWhite, elevation: 0),
-      body: ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
+      body: Stack(children: [
+        ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
         const SizedBox(height: KinrelSpacing.lg),
         Column(children: [
           Text('🏆', style: TextStyle(fontSize: 64)).animate(onPlay: (c) => c.forward()).fadeIn(duration: 500.ms).scale(begin: const Offset(0.5, 0.5), end: const Offset(1.0, 1.0), duration: 500.ms, curve: Curves.elasticOut),
@@ -337,6 +391,12 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
         const SizedBox(height: KinrelSpacing.sm),
         DKButton(label: 'Back to Hub', variant: DKButtonVariant.secondary, fullWidth: true,
           onPressed: () { ref.read(chitmatchProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.go('/games?familyId=${widget.familyId}'); }),
+        ]),
+        // Explicit match-won celebration state → confetti volley.
+        if (isMyWin)
+          const Positioned.fill(
+            child: IgnorePointer(child: GameConfetti(burstCount: 2, density: 2)),
+          ),
       ]),
     );
   }

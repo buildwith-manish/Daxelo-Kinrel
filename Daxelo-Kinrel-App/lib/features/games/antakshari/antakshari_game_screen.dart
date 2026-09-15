@@ -24,6 +24,7 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/services/temporary_room_service.dart';
+import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import 'antakshari_models.dart';
 import 'antakshari_provider.dart';
@@ -398,18 +399,26 @@ class _AntakshariGameScreenState
             height: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: isInChallengeWindow
-                  ? LinearGradient(
-                      colors: [
-                        KinrelColors.warning.withValues(alpha: 0.3),
+              gradient: RadialGradient(
+                center: const Alignment(-0.3, -0.3),
+                radius: 1.2,
+                colors: isInChallengeWindow
+                    ? [
+                        KinrelColors.warning.withValues(alpha: 0.55),
+                        KinrelColors.warning.withValues(alpha: 0.18),
                         KinrelColors.darkCard,
+                      ]
+                    : [
+                        KinrelColors.amber.withValues(alpha: 0.55),
+                        KinrelColors.orange.withValues(alpha: 0.85),
+                        KinrelColors.ember,
                       ],
-                    )
-                  : KinrelGradients.igniteGradient,
+                stops: const [0.0, 0.55, 1.0],
+              ),
               border: Border.all(
                 color: isInChallengeWindow
                     ? KinrelColors.warning
-                    : KinrelColors.orange,
+                    : KinrelColors.amber,
                 width: 3,
               ),
               boxShadow: [
@@ -417,9 +426,9 @@ class _AntakshariGameScreenState
                   color: (isInChallengeWindow
                       ? KinrelColors.warning
                       : KinrelColors.orange)
-                      .withValues(alpha: 0.4),
-                  blurRadius: 20,
-                  spreadRadius: 2,
+                      .withValues(alpha: 0.45),
+                  blurRadius: 26,
+                  spreadRadius: 3,
                 ),
               ],
             ),
@@ -431,8 +440,15 @@ class _AntakshariGameScreenState
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 56,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w900,
                   color: Colors.white,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -461,7 +477,8 @@ class _AntakshariGameScreenState
         children: [
           CircularProgressIndicator(
             value: progress,
-            strokeWidth: 4,
+            strokeWidth: 4.5,
+            strokeCap: StrokeCap.round,
             backgroundColor: KinrelColors.darkElevated,
             valueColor: AlwaysStoppedAnimation<Color>(color),
           ),
@@ -473,6 +490,12 @@ class _AntakshariGameScreenState
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
                 color: color,
+                shadows: [
+                  Shadow(
+                    color: color.withValues(alpha: 0.55),
+                    blurRadius: 8,
+                  ),
+                ],
               ),
             ),
           ),
@@ -994,7 +1017,8 @@ class _AntakshariGameScreenState
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
       ),
-      body: ListView(
+      body: Stack(children: [
+        ListView(
         padding: const EdgeInsets.all(KinrelSpacing.base),
         children: [
           const SizedBox(height: KinrelSpacing.lg),
@@ -1060,7 +1084,12 @@ class _AntakshariGameScreenState
             },
           ),
         ],
-      ),
+        ),
+        if (isMyWin)
+          const Positioned.fill(
+            child: IgnorePointer(child: GameConfetti(burstCount: 2, density: 2)),
+          ),
+      ]),
     );
   }
 

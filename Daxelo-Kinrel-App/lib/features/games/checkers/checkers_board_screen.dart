@@ -9,10 +9,10 @@
 //   • Capture fade-out animation
 //   • Captured piece counts + turn indicator
 //   • Inline results view with confetti
+// Premium finish: wooden GameBoardShell table frame, directionally-lit
+// tan/brown squares, 3D ivory & charcoal-brown chips (kings glow), and a
+// physics GameConfetti volley when a winner is crowned.
 // Route: /family/$familyId/checkers/board/:gameId
-
-import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -24,13 +24,28 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../game_motion_tokens.dart';
 import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
+import '../shared/widgets/game_board_shell.dart';
+import '../shared/widgets/game_confetti.dart';
 import 'checkers_game_logic.dart';
 import 'checkers_models.dart';
 import 'checkers_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
+
+/// Checkers brand accent — the family-hub game card orange.
+const Color _checkersAccent = KinrelColors.orange;
+
+/// Directionally-lit wooden squares (warm tan light / deep brown dark),
+/// lit from the top-left so the board reads as a physical table.
+final List<BoxDecoration> _checkersSquareShades = boardSquareShades(
+  lightSquare: const Color(0xFFB08968),
+  darkSquare: const Color(0xFF5C3A21),
+);
+
+/// Piece chip colours — warm ivory vs deep charcoal-brown.
+const Color _checkersLightPiece = Color(0xFFE8DCC8);
+const Color _checkersDarkPiece = Color(0xFF3A2A1E);
 
 class CheckersBoardScreen extends ConsumerStatefulWidget {
   const CheckersBoardScreen({
@@ -68,7 +83,7 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
     // challenge lobby that attached the RoomController is replaced by
     // this route; without a watch the autoDispose controller dies and
     // the server-side reaper auto-closes the room ~60-75s in.
-    Widget view = RoomKeepAlive(
+    final Widget view = RoomKeepAlive(
       roomKey: RoomControllerKey(RoomConfig.checkers, widget.familyId),
       child: DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
@@ -203,8 +218,8 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
         ? 1
         : 2;
     final turnColor = turnPlayerNumber == 1
-        ? const Color(0xFFEF4444) // red
-        : const Color(0xFF1F2937); // dark gray (black-ish)
+        ? _checkersLightPiece // ivory
+        : _checkersDarkPiece; // charcoal-brown
 
     return Container(
       margin: const EdgeInsets.all(KinrelSpacing.base),
@@ -234,8 +249,8 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
           const SizedBox(width: KinrelSpacing.sm),
           Text(
             isMyTurn
-                ? 'Your turn (Player ${myPlayerNumber == 1 ? "Red" : "Black"})'
-                : '$turnPlayerName\'s turn (${turnPlayerNumber == 1 ? "Red" : "Black"})',
+                ? 'Your turn (Player ${myPlayerNumber == 1 ? "Ivory" : "Black"})'
+                : '$turnPlayerName\'s turn (${turnPlayerNumber == 1 ? "Ivory" : "Black"})',
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 13,
@@ -256,20 +271,25 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
         ? game.playerTwoCaptured
         : game.playerOneCaptured;
 
+    // Chips carry the physical piece colours, flipped to whichever side
+    // "you" are playing.
+    final myPieceColor = myPlayerNumber == 2
+        ? _checkersDarkPiece
+        : _checkersLightPiece;
+    final opponentPieceColor = myPlayerNumber == 2
+        ? _checkersLightPiece
+        : _checkersDarkPiece;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _capturedChip(
-            'You captured',
-            myCaptured,
-            const Color(0xFFEF4444),
-          ),
+          _capturedChip('You captured', myCaptured, myPieceColor),
           _capturedChip(
             'Opponent captured',
             opponentCaptured,
-            const Color(0xFF1F2937),
+            opponentPieceColor,
           ),
         ],
       ),
@@ -292,7 +312,7 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.circle, size: 12, color: color),
+            GamePiece3D(color: color, size: 13),
             const SizedBox(width: 4),
             Text(
               '$count',
@@ -328,21 +348,13 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
         : <CheckersMove>[];
     final hasForcedCaptures = allCaptures.isNotEmpty;
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.orange, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: KinrelColors.orangeGlowSubtle,
-            blurRadius: 12,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(KinrelRadius.lg - 2),
-        child: GridView.builder(
+    // Premium wooden table frame — bevelled rim, grain, accent under-glow.
+    return GameBoardShell(
+      accent: _checkersAccent,
+      surface: BoardSurface.wood,
+      radius: 22,
+      padding: 8,
+      child: GridView.builder(
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 8,
@@ -396,7 +408,6 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
             );
           },
         ),
-      ),
     );
   }
 
@@ -417,17 +428,10 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
     required CheckersGame game,
     required CheckersState state,
   }) {
-    // Square background color
-    Color bgColor;
-    if (isDarkSquare) {
-      bgColor = isSelected
-          ? KinrelColors.orange.withValues(alpha: 0.4)
-          : (isLastMoveTo
-                ? KinrelColors.success.withValues(alpha: 0.2)
-                : const Color(0xFF3D2817)); // dark brown
-    } else {
-      bgColor = const Color(0xFFF5DEB3); // wheat/light
-    }
+    // Directionally-lit wooden square (tan light / brown dark). Selection
+    // and last-move tints render as translucent overlays on top so the
+    // top-left lighting stays visible through them.
+    final squareShade = _checkersSquareShades[isDarkSquare ? 1 : 0];
 
     // Forced capture highlight (red glow on the source piece's legal captures)
     final forcedCaptureSourceHighlight = hasForcedCaptures &&
@@ -439,8 +443,7 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
       onTap: () => _onCellTap(row, col, state, game, myId),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        decoration: BoxDecoration(
-          color: bgColor,
+        decoration: squareShade.copyWith(
           border: Border.all(
             color: isSelected
                 ? KinrelColors.orange
@@ -454,6 +457,20 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
         ),
         child: Stack(
           children: [
+            // Selection tint over the lit wood (dark squares, as before).
+            if (isDarkSquare && isSelected)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: KinrelColors.orange.withValues(alpha: 0.4),
+                ),
+              ),
+            // Last-move destination tint.
+            if (isDarkSquare && isLastMoveTo)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: KinrelColors.success.withValues(alpha: 0.2),
+                ),
+              ),
             // Legal destination dot
             if (isLegalDestination && piece == null)
               Center(
@@ -507,62 +524,30 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
       return const SizedBox.shrink();
     }
 
+    // Physical chips: warm ivory vs deep charcoal-brown, radially lit
+    // with a specular highlight and a grounded drop shadow.
     final pieceColor = piece.player == 1
-        ? const Color(0xFFEF4444) // red
-        : const Color(0xFF1F2937); // dark
+        ? _checkersLightPiece
+        : _checkersDarkPiece;
 
     return Opacity(
       opacity: fadingOut ? 0.3 : 1.0,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: pieceColor,
-          border: Border.all(
-            color: piece.isKing
-                ? KinrelColors.warning
-                : (isSelected
-                      ? Colors.white
-                      : (forcedHighlight
-                            ? KinrelColors.error
-                            : Colors.white.withValues(alpha: 0.3))),
-            width: piece.isKing ? 3 : (isSelected || forcedHighlight ? 2 : 1),
-          ),
-          boxShadow: piece.isKing || isKingPromo
-              ? [
-                  BoxShadow(
-                    color: KinrelColors.warning.withValues(alpha: 0.6),
-                    blurRadius: 8,
-                    spreadRadius: 1,
-                  ),
-                ]
-              : (isSelected
-                    ? [
-                        BoxShadow(
-                          color: pieceColor.withValues(alpha: 0.5),
-                          blurRadius: 6,
-                          spreadRadius: 1,
-                        ),
-                      ]
-                    : null),
-        ),
-        child: Stack(
-          children: [
-            Center(
-              child: piece.isKing
-                  ? const Text(
-                      '♛',
-                      style: TextStyle(
-                        fontSize: 20,
-                        color: KinrelColors.warning,
-                      ),
-                    )
-                  : null,
-            ),
-          ],
-        ),
+      child: GamePiece3D(
+        color: pieceColor,
+        size: 36,
+        // Kings (and fresh promotions) glow.
+        glow: piece.isKing || isKingPromo,
+        ring: piece.isKing
+            ? KinrelColors.warning
+            : (isSelected
+                  ? Colors.white
+                  : (forcedHighlight ? KinrelColors.error : null)),
+        child: piece.isKing
+            ? const Text(
+                '♛',
+                style: TextStyle(fontSize: 20, color: KinrelColors.warning),
+              )
+            : null,
       )
           .animate(target: isKingPromo ? 1 : 0)
           .scale(
@@ -627,117 +612,128 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(KinrelSpacing.base),
+      body: Stack(
         children: [
-          const SizedBox(height: KinrelSpacing.lg),
-          // Winner banner
-          Column(
+          ListView(
+            padding: const EdgeInsets.all(KinrelSpacing.base),
             children: [
-              const Text('🏆', style: TextStyle(fontSize: 64))
-                  .animate(onPlay: (c) => c.forward())
-                  .fadeIn(duration: 500.ms)
-                  .scale(
-                    begin: const Offset(0.5, 0.5),
-                    end: const Offset(1.0, 1.0),
-                    duration: 500.ms,
-                    curve: Curves.elasticOut,
+              const SizedBox(height: KinrelSpacing.lg),
+              // Winner banner
+              Column(
+                children: [
+                  const Text('🏆', style: TextStyle(fontSize: 64))
+                      .animate(onPlay: (c) => c.forward())
+                      .fadeIn(duration: 500.ms)
+                      .scale(
+                        begin: const Offset(0.5, 0.5),
+                        end: const Offset(1.0, 1.0),
+                        duration: 500.ms,
+                        curve: Curves.elasticOut,
+                      ),
+                  const SizedBox(height: KinrelSpacing.sm),
+                  Text(
+                    isWinner ? 'You Won!' : 'Winner!',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 32,
+                      fontWeight: FontWeight.w800,
+                      color: KinrelColors.textWhite,
+                      letterSpacing: 2,
+                    ),
                   ),
-              const SizedBox(height: KinrelSpacing.sm),
-              Text(
-                isWinner ? 'You Won!' : 'Winner!',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  color: KinrelColors.textWhite,
-                  letterSpacing: 2,
+                  const SizedBox(height: 4),
+                  Text(
+                    isWinner ? '$winnerName (You)' : winnerName,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      color: KinrelColors.orange,
+                    ),
+                  ),
+                ],
+              )
+                  .animate()
+                  .fadeIn(duration: 400.ms)
+                  .scale(
+                    begin: const Offset(0.92, 0.92),
+                    end: const Offset(1.0, 1.0),
+                    duration: 400.ms,
+                    curve: Curves.easeOutBack,
+                  ),
+              const SizedBox(height: KinrelSpacing.xl),
+              // Stats
+              _statsCard(game),
+              const SizedBox(height: KinrelSpacing.xl),
+              // Move history (last 10 moves)
+              if (state.moves.isNotEmpty) ...[
+                Text(
+                  'Move History',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: KinrelColors.textDim,
+                  ),
                 ),
+                const SizedBox(height: KinrelSpacing.sm),
+                ...state.moves.reversed.take(10).map((m) => _moveHistoryRow(m)),
+              MatchEcosystemSummary(
+                gameTable: 'checkers_games',
+                gameId: game.id,
+                familyId: widget.familyId,
               ),
-              const SizedBox(height: 4),
-              Text(
-                isWinner ? '$winnerName (You)' : winnerName,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.orange,
-                ),
+                const SizedBox(height: KinrelSpacing.xl),
+              ],
+              DKButton(
+                label: 'Play Again',
+                variant: DKButtonVariant.gradient,
+                fullWidth: true,
+                icon: Icons.refresh_rounded,
+                onPressed: () {
+                  final gameId = ref.read(checkersProvider(widget.familyId)).game?.id;
+                  ref.read(checkersProvider(widget.familyId).notifier).leaveGame();
+                  if (gameId != null) {
+                    ref.read(temporaryRoomServiceProvider).endGame(
+                          gameTable: 'checkers_games',
+                          gameId: gameId,
+                        );
+                  }
+                  if (context.mounted) {
+                    context.pushReplacement(
+                      '/family/${widget.familyId}/checkers/lobby',
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: KinrelSpacing.sm),
+              DKButton(
+                label: 'Back to Hub',
+                variant: DKButtonVariant.secondary,
+                fullWidth: true,
+                onPressed: () {
+                  final gameId = ref.read(checkersProvider(widget.familyId)).game?.id;
+                  ref.read(checkersProvider(widget.familyId).notifier).leaveGame();
+                  if (gameId != null) {
+                    ref.read(temporaryRoomServiceProvider).endGame(
+                          gameTable: 'checkers_games',
+                          gameId: gameId,
+                        );
+                  }
+                  if (context.mounted) {
+                    context.go('/games?familyId=${widget.familyId}');
+                  }
+                },
               ),
             ],
-          )
-              .animate()
-              .fadeIn(duration: 400.ms)
-              .scale(
-                begin: const Offset(0.92, 0.92),
-                end: const Offset(1.0, 1.0),
-                duration: 400.ms,
-                curve: Curves.easeOutBack,
-              ),
-          const SizedBox(height: KinrelSpacing.xl),
-          // Stats
-          _statsCard(game),
-          const SizedBox(height: KinrelSpacing.xl),
-          // Move history (last 10 moves)
-          if (state.moves.isNotEmpty) ...[
-            Text(
-              'Move History',
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: KinrelColors.textDim,
+          ),
+          // Physics confetti volley for the winner — draws stay calm.
+          if (game.winnerId != null)
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: GameConfetti(burstCount: 2, density: 2),
               ),
             ),
-            const SizedBox(height: KinrelSpacing.sm),
-            ...state.moves.reversed.take(10).map((m) => _moveHistoryRow(m)),
-          MatchEcosystemSummary(
-            gameTable: 'checkers_games',
-            gameId: game.id,
-            familyId: widget.familyId,
-          ),
-            const SizedBox(height: KinrelSpacing.xl),
-          ],
-          DKButton(
-            label: 'Play Again',
-            variant: DKButtonVariant.gradient,
-            fullWidth: true,
-            icon: Icons.refresh_rounded,
-            onPressed: () {
-              final gameId = ref.read(checkersProvider(widget.familyId)).game?.id;
-              ref.read(checkersProvider(widget.familyId).notifier).leaveGame();
-              if (gameId != null) {
-                ref.read(temporaryRoomServiceProvider).endGame(
-                      gameTable: 'checkers_games',
-                      gameId: gameId,
-                    );
-              }
-              if (context.mounted) {
-                context.pushReplacement(
-                  '/family/${widget.familyId}/checkers/lobby',
-                );
-              }
-            },
-          ),
-          const SizedBox(height: KinrelSpacing.sm),
-          DKButton(
-            label: 'Back to Hub',
-            variant: DKButtonVariant.secondary,
-            fullWidth: true,
-            onPressed: () {
-              final gameId = ref.read(checkersProvider(widget.familyId)).game?.id;
-              ref.read(checkersProvider(widget.familyId).notifier).leaveGame();
-              if (gameId != null) {
-                ref.read(temporaryRoomServiceProvider).endGame(
-                      gameTable: 'checkers_games',
-                      gameId: gameId,
-                    );
-              }
-              if (context.mounted) {
-                context.go('/games?familyId=${widget.familyId}');
-              }
-            },
-          ),
         ],
       ),
     );
@@ -756,15 +752,15 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
           _statRow('Total Moves', '${game.playerOneCaptured + game.playerTwoCaptured}'),
           const Divider(height: 24),
           _statRow(
-            'Red Captured',
+            'Ivory Captured',
             '${game.playerOneCaptured}',
-            color: const Color(0xFFEF4444),
+            color: _checkersLightPiece,
           ),
           const Divider(height: 24),
           _statRow(
             'Black Captured',
             '${game.playerTwoCaptured}',
-            color: const Color(0xFF1F2937),
+            color: const Color(0xFFA08363),
           ),
         ],
       ),

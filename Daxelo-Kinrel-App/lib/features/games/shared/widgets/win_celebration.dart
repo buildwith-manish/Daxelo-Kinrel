@@ -26,6 +26,8 @@
 //     "Tied Game!" (multiple winners)
 //   • Replay + Back to Hub actions (caller decides the routing)
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter/services.dart';
@@ -34,6 +36,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../shared/widgets/dk_components.dart';
+import 'game_confetti.dart';
 
 /// One reaction type with its emoji + count.
 class WinReaction {
@@ -191,19 +194,21 @@ class WinCelebration extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(KinrelSpacing.xl),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            KinrelColors.orange.withValues(alpha: 0.18),
-            KinrelColors.darkSurface,
-          ],
-        ),
-      ),
-      child: Column(
+    return Stack(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(KinrelSpacing.xl),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                KinrelColors.orange.withValues(alpha: 0.18),
+                KinrelColors.darkSurface,
+              ],
+            ),
+          ),
+          child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -342,7 +347,14 @@ class WinCelebration extends StatelessWidget {
               .animate()
               .fadeIn(duration: 500.ms, delay: 1000.ms),
         ],
-      ),
+          ),
+        ),
+        // Physics-based confetti celebration — fires automatically on
+        // mount, hibernates once every particle has landed.
+        const Positioned.fill(
+          child: GameConfetti(burstCount: 3),
+        ),
+      ],
     );
   }
 }
@@ -434,66 +446,167 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-/// Animated trophy + confetti burst icon.
+/// Animated trophy with rotating light rays + floating confetti emojis.
 class _TrophyBurst extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Glow background
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  KinrelColors.orange.withValues(alpha: 0.4),
-                  KinrelColors.orange.withValues(alpha: 0.0),
-                ],
+      child: SizedBox(
+        width: 150,
+        height: 150,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Rotating light rays behind the trophy.
+            const _TrophyRays(),
+            // Glow background
+            Container(
+              width: 104,
+              height: 104,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    KinrelColors.orange.withValues(alpha: 0.45),
+                    KinrelColors.orange.withValues(alpha: 0.0),
+                  ],
+                ),
               ),
             ),
-          ),
-          // Trophy
-          const Icon(
-            Icons.emoji_events_rounded,
-            size: 72,
-            color: KinrelColors.orange,
-          ),
-          // Surrounding confetti emojis (decorative)
-          ..._confettiSpots,
-        ],
+            // Trophy
+            const Icon(
+              Icons.emoji_events_rounded,
+              size: 72,
+              color: KinrelColors.orange,
+              shadows: [
+                Shadow(color: Color(0xB3000000), blurRadius: 12),
+              ],
+            ),
+            // Floating accent emojis around the trophy.
+            ..._confettiSpots,
+          ],
+        ),
       ),
     );
   }
 
   List<Widget> get _confettiSpots {
-    // 6 small emojis orbiting the trophy at fixed positions.
+    // 6 small emojis around the trophy, gently floating up and down.
     final emojis = ['🎉', '✨', '⭐', '🎊', '💫', '🏆'];
     final positions = [
-      const Offset(-50, -40),
-      const Offset(50, -40),
-      const Offset(-60, 0),
-      const Offset(60, 0),
-      const Offset(-50, 40),
-      const Offset(50, 40),
+      const Offset(-56, -44),
+      const Offset(56, -44),
+      const Offset(-64, 6),
+      const Offset(64, 6),
+      const Offset(-52, 50),
+      const Offset(52, 50),
     ];
-    List<Widget> spots = [];
-    for (int i = 0; i < emojis.length; i++) {
+    final List<Widget> spots = [];
+    for (var i = 0; i < emojis.length; i++) {
+      final dy = i.isEven ? -5.0 : 5.0;
       spots.add(
         Transform.translate(
           offset: positions[i],
           child: Text(
             emojis[i],
-            style: const TextStyle(fontSize: 18),
-          ),
+            style: const TextStyle(fontSize: 18, shadows: [
+              Shadow(color: Color(0x88000000), blurRadius: 6),
+            ]),
+          )
+              .animate(onPlay: (c) => c.repeat(reverse: true))
+              .moveY(
+                begin: dy,
+                end: -dy,
+                duration: 1400.ms,
+                curve: Curves.easeInOut,
+                delay: (i * 120).ms,
+              ),
         ),
       );
     }
     return spots;
   }
+}
+
+/// Slowly rotating golden rays behind the trophy — a classic
+/// "winner spotlight" treatment.
+class _TrophyRays extends StatefulWidget {
+  const _TrophyRays();
+
+  @override
+  State<_TrophyRays> createState() => _TrophyRaysState();
+}
+
+class _TrophyRaysState extends State<_TrophyRays>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _rot = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 14000),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _rot.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _rot,
+      builder: (context, _) {
+        return CustomPaint(
+          size: const Size(150, 150),
+          painter: _RaysPainter(rotation: _rot.value),
+        );
+      },
+    );
+  }
+}
+
+class _RaysPainter extends CustomPainter {
+  _RaysPainter({required this.rotation});
+
+  final double rotation;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.width / 2;
+    final rng = math.Random(3); // Fixed seed — stable ray widths.
+
+    // Rays fade from a warm glow at the trophy out to nothing.
+    final paint = Paint()
+      ..shader = RadialGradient(
+        center: Alignment.center,
+        radius: 1.0,
+        colors: [
+          KinrelColors.brightGold.withValues(alpha: 0.0),
+          KinrelColors.brightGold.withValues(alpha: 0.22),
+          KinrelColors.brightGold.withValues(alpha: 0.0),
+        ],
+        stops: const [0.30, 0.55, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
+
+    for (var i = 0; i < 12; i++) {
+      final base = (i / 12) * math.pi * 2 + rotation * math.pi * 2;
+      final halfWidth = 0.035 + rng.nextDouble() * 0.025;
+      final path = Path()
+        ..moveTo(center.dx, center.dy)
+        ..arcTo(
+          Rect.fromCircle(center: center, radius: radius),
+          base - halfWidth,
+          halfWidth * 2,
+          false,
+        )
+        ..close();
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RaysPainter oldDelegate) =>
+      oldDelegate.rotation != rotation;
 }
 
 /// Row of reaction tallies: ❤️ 12   👏 8   🔥 5   😂 3   🎉 2

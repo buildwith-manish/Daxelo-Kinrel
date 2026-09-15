@@ -11,6 +11,8 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
+import '../shared/widgets/game_board_shell.dart';
+import '../shared/widgets/game_confetti.dart';
 import 'tictactoe_game_logic.dart';
 import 'tictactoe_models.dart';
 import 'tictactoe_provider.dart';
@@ -132,15 +134,17 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
   }
 
   Widget _board(TttState state, List<String?> board, List<int>? winLine, bool isMyTurn, Mark? myMark) {
-    return Container(
-      decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(20), border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3), width: 2),
-        boxShadow: [BoxShadow(color: KinrelColors.orangeGlowSubtle, blurRadius: 12)]),
-      child: ClipRRect(borderRadius: BorderRadius.circular(18), child: GridView.builder(
+    return GameBoardShell(
+      accent: KinrelColors.orange,
+      surface: BoardSurface.slate,
+      radius: 24,
+      padding: 8,
+      child: GridView.builder(
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3),
         itemCount: 9,
         itemBuilder: (context, index) => _cell(index, board, winLine, isMyTurn, myMark),
-      )),
+      ),
     );
   }
 
@@ -149,13 +153,20 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
     final isWinCell = winLine?.contains(index) ?? false;
     final canTap = value == null && isMyTurn && winLine == null;
 
-    // Original piece design: X = orange diamond, O = purple circle
+    // Original piece design: X = orange cross, O = violet ring — now
+    // with layered depth (gradient strokes + grounded shadows).
     return GestureDetector(
       onTap: canTap ? () => ref.read(tttProvider(widget.familyId).notifier).placeMark(index) : null,
-      child: Container(
+      child: AnimatedContainer(
+        duration: GameMotionTokens.fast,
         decoration: BoxDecoration(
-          border: Border.all(color: KinrelColors.border.withValues(alpha: 0.3), width: 0.5),
-          color: isWinCell ? KinrelColors.success.withValues(alpha: 0.2) : (canTap ? KinrelColors.orange.withValues(alpha: 0.05) : null),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.045), width: 0.5),
+          color: isWinCell
+              ? KinrelColors.success.withValues(alpha: 0.16)
+              : (canTap ? KinrelColors.orange.withValues(alpha: 0.05) : null),
+          boxShadow: isWinCell
+              ? [BoxShadow(color: KinrelColors.success.withValues(alpha: 0.35), blurRadius: 18, spreadRadius: 2)]
+              : null,
         ),
         child: Center(child: _pieceWidget(value, isWinCell)),
       ),
@@ -166,17 +177,32 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
     if (value == null) return const SizedBox.shrink();
     final isX = value == 'X';
     final color = isX ? KinrelColors.orange : const Color(0xFF8B5CF6);
+    final light = Color.lerp(color, Colors.white, 0.45)!;
 
-    // Original design: X = cross shape with two rotated bars, O = ring
+    // X = cross with gradient strokes + drop shadow; O = double ring.
     if (isX) {
-      return SizedBox(width: 40, height: 40, child: Stack(alignment: Alignment.center, children: [
-        Transform.rotate(angle: 0.785, child: Container(width: 36, height: 6, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3), boxShadow: isWin ? [BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 8)] : null))),
-        Transform.rotate(angle: -0.785, child: Container(width: 36, height: 6, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3), boxShadow: isWin ? [BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 8)] : null))),
+      return SizedBox(width: 42, height: 42, child: Stack(alignment: Alignment.center, children: [
+        Transform.rotate(angle: 0.785, child: Container(width: 38, height: 6.5, decoration: BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [light, color]),
+          borderRadius: BorderRadius.circular(3.5),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 5, offset: const Offset(0, 2.5))] +
+              (isWin ? [BoxShadow(color: color.withValues(alpha: 0.65), blurRadius: 12)] : <BoxShadow>[]),
+        ))),
+        Transform.rotate(angle: -0.785, child: Container(width: 38, height: 6.5, decoration: BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [light, color]),
+          borderRadius: BorderRadius.circular(3.5),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 5, offset: const Offset(0, 2.5))] +
+              (isWin ? [BoxShadow(color: color.withValues(alpha: 0.65), blurRadius: 12)] : <BoxShadow>[]),
+        ))),
       ])).animate().scale(begin: const Offset(0.3, 0.3), end: const Offset(1.0, 1.0), duration: 300.ms, curve: Curves.elasticOut);
     } else {
-      return Container(width: 34, height: 34,
-        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: color, width: 5),
-          boxShadow: isWin ? [BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 8)] : null),
+      return Container(width: 36, height: 36,
+        decoration: BoxDecoration(shape: BoxShape.circle,
+          gradient: RadialGradient(center: const Alignment(-0.35, -0.35), colors: [Color.lerp(color, Colors.white, 0.22)!, color, Color.lerp(color, Colors.black, 0.35)!]),
+          border: Border.all(color: light, width: 4.5),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 5, offset: const Offset(0, 2.5))] +
+              (isWin ? [BoxShadow(color: color.withValues(alpha: 0.65), blurRadius: 12)] : <BoxShadow>[]),
+        ),
       ).animate().scale(begin: const Offset(0.3, 0.3), end: const Offset(1.0, 1.0), duration: 300.ms, curve: Curves.elasticOut);
     }
   }
@@ -191,7 +217,8 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
       appBar: AppBar(automaticallyImplyLeading: false,
         title: Text('Results', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: Colors.transparent, foregroundColor: KinrelColors.textWhite, elevation: 0),
-      body: ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
+      body: Stack(children: [
+        ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
         const SizedBox(height: KinrelSpacing.lg),
         Column(children: [
           Text('🏆', style: TextStyle(fontSize: 64)).animate(onPlay: (c) => c.forward()).fadeIn(duration: 500.ms).scale(begin: const Offset(0.5, 0.5), end: const Offset(1.0, 1.0), duration: 500.ms, curve: Curves.elasticOut),
@@ -227,6 +254,11 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
             }
             if (context.mounted) context.go('/games?familyId=${widget.familyId}');
           }),
+        ]),
+        if (isWinner)
+          const Positioned.fill(
+            child: IgnorePointer(child: GameConfetti(burstCount: 2, density: 2)),
+          ),
       ]),
     );
   }

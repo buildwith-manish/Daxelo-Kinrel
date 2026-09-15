@@ -16,10 +16,14 @@ import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/services/temporary_room_service.dart';
+import '../shared/widgets/game_board_shell.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import 'sos_models.dart';
 import 'sos_provider.dart';
 import 'sos_reconnecting_banner.dart';
+
+/// SOS brand accent (amber) — mirrors the game card on the family hub.
+const Color _sosAccent = Color(0xFFF59E0B);
 
 class SosBoardScreen extends ConsumerStatefulWidget {
   const SosBoardScreen({
@@ -329,13 +333,16 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
           // Turn indicator
           _turnIndicator(state, currentPlayer, isMyTurn, myId),
           const SizedBox(height: KinrelSpacing.sm),
-          // Grid
+          // Grid — premium slate table frame with an amber rim
           Expanded(
             child: Center(
               child: AspectRatio(
                 aspectRatio: 1.0,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
+                child: GameBoardShell(
+                  accent: _sosAccent,
+                  surface: BoardSurface.slate,
+                  radius: 22,
+                  padding: 8,
                   child: GridView.builder(
                     physics: const NeverScrollableScrollPhysics(),
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -550,63 +557,29 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
     SosLetter? myLetter,
     String? myId,
   }) {
-    final game = state.game!;
-    final isOccupied = letter != null;
     final move = state.moves
         .where((m) => m.rowIdx == row && m.colIdx == col)
         .firstOrNull;
     final cellTeam = move?.team;
     final cellColor = cellTeam != null
         ? Color(cellTeam.colorValue)
-        : (isOccupied ? KinrelColors.textWhite : KinrelColors.darkElevated);
+        : (letter != null ? KinrelColors.textWhite : KinrelColors.darkElevated);
     final isPartOfSequence = state.sequences.any(
       (seq) => seq.cells.any((c) => c.$1 == row && c.$2 == col),
     );
 
-    final canPlace = !isOccupied && isMyTurn && state.game!.isActive;
+    final canPlace = letter == null && isMyTurn && state.game!.isActive;
     final onTap = canPlace
         ? () => _onCellTap(row, col, state, myLetter)
         : null;
 
-    return GestureDetector(
+    return _SosCell(
+      letter: letter,
+      cellColor: cellColor,
+      isPartOfSequence: isPartOfSequence,
+      canPlace: canPlace,
+      accent: _sosAccent,
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        decoration: BoxDecoration(
-          color: isPartOfSequence
-              ? cellColor.withValues(alpha: 0.3)
-              : (isOccupied
-                    ? cellColor.withValues(alpha: 0.15)
-                    : KinrelColors.darkCard),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: isPartOfSequence
-                ? cellColor
-                : (canPlace
-                      ? KinrelColors.orange.withValues(alpha: 0.4)
-                      : KinrelColors.border),
-            width: isPartOfSequence ? 2 : 1,
-          ),
-        ),
-        child: Center(
-          child: Text(
-            letter ?? '',
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              color: cellColor,
-            ),
-          ),
-        ),
-      )
-          .animate(target: isOccupied ? 1 : 0)
-          .scale(
-            begin: const Offset(0.5, 0.5),
-            end: const Offset(1.0, 1.0),
-            duration: 200.ms,
-            curve: Curves.elasticOut,
-          ),
     );
   }
 
@@ -767,6 +740,122 @@ class _SosBoardScreenState extends ConsumerState<SosBoardScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A single SOS board cell.
+///
+/// Presentation-only — taps are forwarded through [onTap] exactly as
+/// before. Cells that complete an SOS glow in the owning player's
+/// color, letters carry a soft dark shadow so they read as printed on
+/// the board, and tappable empty squares give subtle hover/press
+/// feedback (4% white tint).
+class _SosCell extends StatefulWidget {
+  const _SosCell({
+    required this.letter,
+    required this.cellColor,
+    required this.isPartOfSequence,
+    required this.canPlace,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final String? letter;
+  final Color cellColor;
+  final bool isPartOfSequence;
+  final bool canPlace;
+  final Color accent;
+  final VoidCallback? onTap;
+
+  @override
+  State<_SosCell> createState() => _SosCellState();
+}
+
+class _SosCellState extends State<_SosCell> {
+  bool _hovered = false;
+
+  void _setHovered(bool value) {
+    if (_hovered != value) setState(() => _hovered = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isOccupied = widget.letter != null;
+    final isWin = widget.isPartOfSequence;
+
+    return MouseRegion(
+      cursor: widget.onTap != null && widget.canPlace
+          ? SystemMouseCursors.click
+          : MouseCursor.defer,
+      onEnter: widget.canPlace ? (_) => _setHovered(true) : null,
+      onExit: widget.canPlace ? (_) => _setHovered(false) : null,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: GameMotionTokens.fast,
+          decoration: BoxDecoration(
+            // Tappable empty squares get a faint accent wash; hovering
+            // lightens them a touch further (4% white).
+            color: isWin
+                ? widget.cellColor.withValues(alpha: 0.28)
+                : isOccupied
+                    ? widget.cellColor.withValues(alpha: 0.15)
+                    : widget.canPlace
+                        ? Color.lerp(
+                            KinrelColors.darkCard,
+                            _hovered ? Colors.white : widget.accent,
+                            0.04,
+                          )
+                        : KinrelColors.darkCard,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: isWin
+                  ? widget.cellColor.withValues(alpha: 0.9)
+                  : widget.canPlace
+                      ? widget.accent.withValues(alpha: 0.4)
+                      : KinrelColors.border,
+              width: isWin ? 2 : 1,
+            ),
+            // Completed SOS cells glow in the player's color.
+            boxShadow: isWin
+                ? [
+                    BoxShadow(
+                      color: widget.cellColor.withValues(alpha: 0.45),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Center(
+            child: Text(
+              widget.letter ?? '',
+              style: TextStyle(
+                fontFamily: KinrelTypography.displayFont,
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: widget.cellColor,
+                // Lit letter — soft dark shadow so glyphs sit on the
+                // board instead of floating above it.
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        )
+            .animate(target: isOccupied ? 1 : 0)
+            .scale(
+              begin: const Offset(0.5, 0.5),
+              end: const Offset(1.0, 1.0),
+              duration: 200.ms,
+              curve: Curves.elasticOut,
+            ),
       ),
     );
   }

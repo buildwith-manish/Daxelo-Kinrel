@@ -13,6 +13,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../shared/widgets/game_confetti.dart';
 import 'redlight_models.dart';
 import 'redlight_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
@@ -109,7 +110,8 @@ class RedlightResultsScreen extends ConsumerWidget {
                     color: KinrelColors.orange,
                   ),
                 )
-              : ListView(
+              : Stack(children: [
+                  ListView(
                   padding: const EdgeInsets.all(KinrelSpacing.base),
                   children: [
                     const SizedBox(height: KinrelSpacing.lg),
@@ -123,6 +125,10 @@ class RedlightResultsScreen extends ConsumerWidget {
                             duration: 400.ms,
                             curve: Curves.easeOutBack,
                           ),
+                    if (entries.length >= 2) ...[
+                      const SizedBox(height: KinrelSpacing.lg),
+                      _podium(entries),
+                    ],
                     const SizedBox(height: KinrelSpacing.xl),
                     Text(
                       'Final Standings',
@@ -183,8 +189,113 @@ class RedlightResultsScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
+                if (isWinnerView)
+                  const Positioned.fill(
+                    child: IgnorePointer(child: GameConfetti(burstCount: 2, density: 2)),
+                  ),
+              ]),
         );
       },
+    );
+  }
+
+  /// Olympic podium — 2nd / 1st / 3rd columns with gold/silver/bronze
+  /// accents and heights 72/100/56.
+  Widget _podium(List<_ResultRow> entries) {
+    final top3 = entries.take(3).toList();
+    if (top3.isEmpty) return const SizedBox.shrink();
+    // Arrange 2nd, 1st, 3rd; pad if fewer players.
+    final ordered = <_ResultRow?>[
+      top3.length > 1 ? top3[1] : null,
+      top3[0],
+      top3.length > 2 ? top3[2] : null,
+    ];
+    const heights = [72.0, 100.0, 56.0];
+    const accents = [
+      Color(0xFFC0C0C0), // silver
+      Color(0xFFFFD700), // gold
+      Color(0xFFCD7F32), // bronze
+    ];
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (int i = 0; i < ordered.length; i++)
+          _podiumColumn(ordered[i], heights[i], accents[i], i)
+              .animate(delay: (i * 120).ms)
+              .fadeIn(duration: 350.ms)
+              .slideY(begin: 0.15, end: 0, duration: 350.ms),
+      ],
+    );
+  }
+
+  Widget _podiumColumn(_ResultRow? entry, double height, Color accent, int slot) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (entry != null) ...[
+            DKAvatar(
+              initials: entry.userName.isNotEmpty ? entry.userName[0].toUpperCase() : '?',
+            ),
+            const SizedBox(height: 4),
+            Text(
+              entry.userName.split(' ').first,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: KinrelColors.textWhite,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${entry.progress.toStringAsFixed(0)}%',
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: accent,
+              ),
+            ),
+            const SizedBox(height: 6),
+          ],
+          Container(
+            width: 88,
+            height: height,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  accent.withValues(alpha: 0.42),
+                  accent.withValues(alpha: 0.10),
+                ],
+              ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              border: Border.all(color: accent.withValues(alpha: 0.65), width: 1.4),
+              boxShadow: [
+                BoxShadow(color: accent.withValues(alpha: 0.28), blurRadius: 14, offset: const Offset(0, 6)),
+              ],
+            ),
+            child: Center(
+              child: Text(
+                entry == null ? '' : '${slot == 1 ? 1 : slot == 0 ? 2 : 3}',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: height * 0.34,
+                  fontWeight: FontWeight.w800,
+                  color: accent.withValues(alpha: 0.9),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

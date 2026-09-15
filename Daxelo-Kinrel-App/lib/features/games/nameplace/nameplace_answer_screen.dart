@@ -105,7 +105,15 @@ class _NameplaceAnswerScreenState extends ConsumerState<NameplaceAnswerScreen> {
             Column(children: [
               Text('LETTER', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
               const SizedBox(height: 4),
-              Text(letter, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 56, fontWeight: FontWeight.w900, color: KinrelColors.orange))
+              Container(width: 72, height: 72,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: const RadialGradient(center: Alignment(-0.4, -0.4), radius: 1.25, colors: [Color(0xFFFFFDF6), Color(0xFFE7E0D4)]),
+                  border: Border.all(color: const Color(0xFFD9D3C7)),
+                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 10, offset: const Offset(0, 4))],
+                ),
+                child: Center(child: Text(letter, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 38, fontWeight: FontWeight.w800, color: Color(0xFF2A2118)))),
+              )
                 .animate().fadeIn(duration: 300.ms).scale(begin: const Offset(0.5, 0.5), end: const Offset(1.0, 1.0), duration: 400.ms, curve: Curves.elasticOut),
             ]),
             SizedBox(width: 56, height: 56, child: Stack(alignment: Alignment.center, children: [
@@ -120,22 +128,29 @@ class _NameplaceAnswerScreenState extends ConsumerState<NameplaceAnswerScreen> {
           ]),
           const SizedBox(height: KinrelSpacing.xl),
           // Category inputs
-          ...game.categories.map((cat) => Padding(
+          ...game.categories.map((cat) {
+            final (catAccent, catIcon) = _categoryStyle(cat);
+            return Padding(
             padding: const EdgeInsets.only(bottom: KinrelSpacing.md),
             child: Row(children: [
-              SizedBox(width: 80, child: Text(cat, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13, fontWeight: FontWeight.w700, color: KinrelColors.orange))),
+              SizedBox(width: 86, child: Row(children: [
+                Container(width: 28, height: 28, decoration: BoxDecoration(shape: BoxShape.circle, color: catAccent.withValues(alpha: 0.14), border: Border.all(color: catAccent.withValues(alpha: 0.45))),
+                  child: Center(child: Icon(catIcon, size: 15, color: catAccent))),
+                const SizedBox(width: 6),
+                Expanded(child: Text(cat, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13, fontWeight: FontWeight.w700, color: catAccent))),
+              ])),
               const SizedBox(width: KinrelSpacing.sm),
               Expanded(child: TextField(
                 controller: _controllerFor(cat),
                 style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 15, color: KinrelColors.textWhite),
                 decoration: InputDecoration(
                   hintText: '$cat starting with $letter...',
-                  hintStyle: TextStyle(fontSize: 12, color: KinrelColors.textDim),
+                  hintStyle: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim),
                   filled: true, fillColor: KinrelColors.darkCard,
                   isDense: true,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: KinrelColors.border)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: KinrelColors.orange, width: 2)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: catAccent, width: 2)),
                 ),
                 onChanged: (v) => ref.read(nameplaceProvider(widget.familyId).notifier).updateAnswer(cat, v),
               )),
@@ -147,7 +162,8 @@ class _NameplaceAnswerScreenState extends ConsumerState<NameplaceAnswerScreen> {
                 ),
               ),
             ]),
-          )),
+          );
+          }),
           const SizedBox(height: KinrelSpacing.xl),
           DKButton(
             label: allFilled ? 'Submit Answers' : 'Fill all categories (or dash)',
@@ -176,5 +192,16 @@ class _NameplaceAnswerScreenState extends ConsumerState<NameplaceAnswerScreen> {
         ]),
       )),
     ]));
+  }
+
+  /// Per-category accent tint + icon for the answer rows.
+  (Color, IconData) _categoryStyle(String category) {
+    switch (category.toLowerCase()) {
+      case 'name': return (KinrelColors.info, Icons.person_rounded);
+      case 'place': return (KinrelColors.tealAccent, Icons.place_rounded);
+      case 'animal': return (KinrelColors.success, Icons.pets_rounded);
+      case 'thing': return (KinrelColors.amber, Icons.edit_rounded);
+      default: return (KinrelColors.orange, Icons.style_rounded);
+    }
   }
 }

@@ -52,17 +52,17 @@ class _TodSubmitScreenState extends ConsumerState<TodSubmitScreen> {
         Text('CATEGORY', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
         const SizedBox(height: 8),
         Row(children: [
-          _catChip('truth', 'Truth', KinrelColors.info, Icons.lightbulb_outline),
+          _catChip('truth', 'Truth', KinrelColors.tealAccent, Icons.help_outline),
           const SizedBox(width: 8),
-          _catChip('dare', 'Dare', KinrelColors.error, Icons.local_fire_department_outlined),
+          _catChip('dare', 'Dare', KinrelColors.coral, Icons.local_fire_department),
         ]),
         const SizedBox(height: KinrelSpacing.lg),
         // Text input
         TextField(controller: _controller, maxLines: 3, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 15, color: KinrelColors.textWhite),
           decoration: InputDecoration(hintText: _category == 'truth' ? 'e.g., What is your favorite childhood memory?' : 'e.g., Sing the chorus of your favorite song',
-            hintStyle: TextStyle(fontSize: 13, color: KinrelColors.textDim), filled: true, fillColor: KinrelColors.darkCard,
+            hintStyle: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, color: KinrelColors.textDim), filled: true, fillColor: KinrelColors.darkCard,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: KinrelColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: KinrelColors.orange, width: 2))),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _category == 'truth' ? KinrelColors.tealAccent : KinrelColors.coral, width: 2))),
         ),
         const SizedBox(height: KinrelSpacing.md),
         DKButton(label: 'Submit for Review', variant: DKButtonVariant.gradient, fullWidth: true, isLoading: state.isSubmitting, onPressed: _submit),
@@ -71,14 +71,7 @@ class _TodSubmitScreenState extends ConsumerState<TodSubmitScreen> {
         Text('MY SUBMISSIONS', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.5)),
         const SizedBox(height: 8),
         if (state.myPrompts.isEmpty) Text('No submissions yet.', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim))
-        else ...state.myPrompts.map((p) => Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(8), border: Border.all(color: KinrelColors.border)),
-          child: Row(children: [
-            Icon(p.category == 'truth' ? Icons.lightbulb_outline : Icons.local_fire_department_outlined, size: 16, color: p.category == 'truth' ? KinrelColors.info : KinrelColors.error),
-            const SizedBox(width: 8),
-            Expanded(child: Text(p.promptText, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textWhite))),
-            _statusBadge(p.status),
-          ]))),
+        else ...state.myPrompts.map((p) => _myPromptCard(p)),
       ]),
     );
   }
@@ -86,9 +79,57 @@ class _TodSubmitScreenState extends ConsumerState<TodSubmitScreen> {
   Widget _catChip(String value, String label, Color color, IconData icon) {
     final sel = _category == value;
     return GestureDetector(onTap: () { GameMotionTokens.tap(); setState(() => _category = value); },
-      child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(color: sel ? color.withValues(alpha: 0.2) : KinrelColors.darkCard, borderRadius: BorderRadius.circular(10), border: Border.all(color: sel ? color : KinrelColors.border, width: sel ? 2 : 1)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 16, color: sel ? color : KinrelColors.textDim), const SizedBox(width: 6), Text(label, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: sel ? color : KinrelColors.textDim))])));
+      child: AnimatedContainer(duration: GameMotionTokens.fast, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(color: sel ? color.withValues(alpha: 0.14) : KinrelColors.darkCard, borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: sel ? color.withValues(alpha: 0.75) : KinrelColors.border, width: sel ? 1.5 : 1),
+          boxShadow: sel ? [BoxShadow(color: color.withValues(alpha: 0.22), blurRadius: 12, offset: const Offset(0, 4))] : null),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 26, height: 26, decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: sel ? 0.20 : 0.10), border: Border.all(color: color.withValues(alpha: sel ? 0.65 : 0.25))),
+            child: Center(child: Icon(icon, size: 14, color: sel ? color : KinrelColors.textDim))),
+          const SizedBox(width: 8),
+          Text(label, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: sel ? color : KinrelColors.textDim))])));
+  }
+
+  /// Premium submission card — layered dark surface with an accent glow
+  /// in the top-left corner, icon chip (teal = Truth, coral = Dare) and
+  /// a satisfying "done" state for approved prompts (success wash at
+  /// low alpha + gentle dimming).
+  Widget _myPromptCard(TodPrompt p) {
+    final isTruth = p.category == 'truth';
+    final accent = isTruth ? KinrelColors.tealAccent : KinrelColors.coral;
+    final isDone = p.status == TodPromptStatus.approved;
+    final cardAccent = isDone ? KinrelColors.success : accent;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cardAccent.withValues(alpha: 0.2)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(children: [
+          // Subtle accent glow in the top-left corner.
+          Positioned(top: -34, left: -34, child: Container(width: 130, height: 130, decoration: BoxDecoration(shape: BoxShape.circle,
+            gradient: RadialGradient(colors: [cardAccent.withValues(alpha: 0.13), cardAccent.withValues(alpha: 0.0)])))),
+          // Done state — low-alpha success wash + check watermark.
+          if (isDone) ...[
+            Positioned.fill(child: IgnorePointer(child: Container(color: KinrelColors.success.withValues(alpha: 0.05)))),
+            Positioned(right: 6, bottom: -8, child: IgnorePointer(child: Icon(Icons.check_circle, size: 54, color: KinrelColors.success.withValues(alpha: 0.14)))),
+          ],
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Opacity(opacity: isDone ? 0.72 : 1, child: Row(children: [
+              Container(width: 30, height: 30, decoration: BoxDecoration(shape: BoxShape.circle, color: accent.withValues(alpha: 0.14), border: Border.all(color: accent.withValues(alpha: 0.4))),
+                child: Center(child: Icon(isTruth ? Icons.help_outline : Icons.local_fire_department, size: 15, color: accent))),
+              const SizedBox(width: 10),
+              Expanded(child: Text(p.promptText, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textWhite))),
+              const SizedBox(width: 8),
+              _statusBadge(p.status),
+            ]))),
+        ]),
+      ),
+    );
   }
 
   Widget _statusBadge(TodPromptStatus status) {

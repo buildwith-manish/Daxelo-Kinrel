@@ -8,8 +8,9 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../game_motion_tokens.dart';
 import '../shared/services/temporary_room_service.dart';
+import '../shared/widgets/game_board_shell.dart';
+import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import 'dotsboxes_game_logic.dart';
 import 'dotsboxes_models.dart';
@@ -117,16 +118,22 @@ class _DotsboxesBoardScreenState extends ConsumerState<DotsboxesBoardScreen> {
       final cellSize = maxW / dotsCount;
       final dotRadius = cellSize * 0.08;
 
-      return Stack(children: [
-        // Grid: draw dots, lines, boxes
-        CustomPaint(size: Size(maxW, maxW), painter: _DotsBoardPainter(
-          dotsCount: dotsCount, cellSize: cellSize, dotRadius: dotRadius,
-          drawnLines: drawnLines, boxes: state.boxes, players: state.players,
-          lastCapture: state.lastCapture,
-        )),
-        // Tappable line areas
-        ..._buildTappableAreas(state, game, myId, cellSize, dotsCount, isMyTurn),
-      ]);
+      return GameBoardShell(
+        accent: KinrelColors.amber,
+        surface: BoardSurface.slate,
+        radius: 22,
+        padding: 10,
+        child: Stack(children: [
+          // Grid: draw dots, lines, boxes
+          CustomPaint(size: Size(maxW, maxW), painter: _DotsBoardPainter(
+            dotsCount: dotsCount, cellSize: cellSize, dotRadius: dotRadius,
+            drawnLines: drawnLines, boxes: state.boxes, players: state.players,
+            lastCapture: state.lastCapture,
+          )),
+          // Tappable line areas
+          ..._buildTappableAreas(state, game, myId, cellSize, dotsCount, isMyTurn),
+        ]),
+      );
     });
   }
 
@@ -174,7 +181,8 @@ class _DotsboxesBoardScreenState extends ConsumerState<DotsboxesBoardScreen> {
       appBar: AppBar(automaticallyImplyLeading: false,
         title: Text('Results', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: Colors.transparent, foregroundColor: KinrelColors.textWhite, elevation: 0),
-      body: ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
+      body: Stack(children: [
+        ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
         const SizedBox(height: KinrelSpacing.lg),
         Column(children: [
           Text('🏆', style: TextStyle(fontSize: 64)).animate(onPlay: (c) => c.forward()).fadeIn(duration: 500.ms).scale(begin: const Offset(0.5, 0.5), end: const Offset(1.0, 1.0), duration: 500.ms, curve: Curves.elasticOut),
@@ -210,6 +218,11 @@ class _DotsboxesBoardScreenState extends ConsumerState<DotsboxesBoardScreen> {
         const SizedBox(height: 8),
         DKButton(label: 'Back to Hub', variant: DKButtonVariant.secondary, fullWidth: true,
           onPressed: () { ref.read(dbProvider(widget.familyId).notifier).leaveGame(); if (context.mounted) context.go('/games?familyId=${widget.familyId}'); }),
+        ]),
+        if (isMyWin)
+          const Positioned.fill(
+            child: IgnorePointer(child: GameConfetti(burstCount: 2, density: 2)),
+          ),
       ]),
     );
   }
@@ -224,17 +237,41 @@ class _DotsBoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final colors = [const Color(0xFFE8612A), const Color(0xFF3B82F6), const Color(0xFF2DD4BF), const Color(0xFFD4AF37)];
     final dotPaint = Paint()..color = const Color(0xFFC9B4A8)..style = PaintingStyle.fill;
-    final linePaint = Paint()..color = const Color(0xFFF5F0EE)..strokeWidth = 3..strokeCap = StrokeCap.round;
+    final dotGlowPaint = Paint()
+      ..color = const Color(0xFFF59240).withValues(alpha: 0.16)
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+    final linePaint = Paint()
+      ..color = const Color(0xFFF5F0EE)
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    // Dark understroke painted beneath each line so lines sit on the
+    // board with a grounded shadow (drawn first, slightly offset).
+    final lineShadowPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.35)
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
 
-    // Draw captured boxes
+    // Draw captured boxes — player-color gradient (lit from top-left)
+    // instead of a flat alpha fill.
     for (final box in boxes) {
       if (!box.isCaptured) continue;
       final player = players.where((p) => p.userId == box.capturedByPlayerId).firstOrNull;
       final color = player != null ? colors[player.playerColor % 4] : KinrelColors.orange;
-      final paint = Paint()..color = color.withValues(alpha: 0.25);
-      canvas.drawRect(Rect.fromLTWH(box.boxCol * cellSize, box.boxRow * cellSize, cellSize, cellSize), paint);
+      final rect = Rect.fromLTWH(box.boxCol * cellSize, box.boxRow * cellSize, cellSize, cellSize);
+      final boxPaint = Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(color, Colors.white, 0.14)!.withValues(alpha: 0.34),
+            color.withValues(alpha: 0.20),
+            color.withValues(alpha: 0.28),
+          ],
+        ).createShader(rect);
+      canvas.drawRect(rect, boxPaint);
       // Draw initial
-      final tp = TextPainter(text: TextSpan(text: (player?.userName.isNotEmpty == true ? player!.userName[0] : '?'), style: TextStyle(color: color, fontSize: cellSize * 0.4, fontWeight: FontWeight.w800)), textDirection: TextDirection.ltr);
+      final tp = TextPainter(text: TextSpan(text: (player?.userName.isNotEmpty == true ? player!.userName[0] : '?'), style: TextStyle(color: Color.lerp(color, Colors.white, 0.35), fontSize: cellSize * 0.4, fontWeight: FontWeight.w800, shadows: [Shadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 3)])), textDirection: TextDirection.ltr);
       tp.layout(); tp.paint(canvas, Offset(box.boxCol * cellSize + (cellSize - tp.width) / 2, box.boxRow * cellSize + (cellSize - tp.height) / 2));
     }
 
@@ -243,14 +280,35 @@ class _DotsBoardPainter extends CustomPainter {
       final parts = key.split('_');
       final type = parts[0] == 'horizontal' ? LineType.horizontal : LineType.vertical;
       final row = int.parse(parts[1]); final col = int.parse(parts[2]);
+      // The most recent capture's lines get a warm glow highlight.
+      final isLast = lastCapture != null && lastCapture!.any((c) => c.$1 == row && c.$2 == col);
+      if (isLast) {
+        final glowPaint = Paint()
+          ..color = const Color(0xFFFFD700).withValues(alpha: 0.30)
+          ..strokeWidth = 7
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+        if (type == LineType.horizontal) {
+          canvas.drawLine(Offset(col * cellSize, row * cellSize), Offset((col + 1) * cellSize, row * cellSize), glowPaint);
+        } else {
+          canvas.drawLine(Offset(col * cellSize, row * cellSize), Offset(col * cellSize, (row + 1) * cellSize), glowPaint);
+        }
+      }
       if (type == LineType.horizontal) {
+        canvas.drawLine(Offset(col * cellSize, row * cellSize + 1.2), Offset((col + 1) * cellSize, row * cellSize + 1.2), lineShadowPaint);
         canvas.drawLine(Offset(col * cellSize, row * cellSize), Offset((col + 1) * cellSize, row * cellSize), linePaint);
       } else {
+        canvas.drawLine(Offset(col * cellSize + 1.2, row * cellSize), Offset(col * cellSize + 1.2, (row + 1) * cellSize), lineShadowPaint);
         canvas.drawLine(Offset(col * cellSize, row * cellSize), Offset(col * cellSize, (row + 1) * cellSize), linePaint);
       }
     }
 
-    // Draw dots
+    // Draw dots — warm halo underneath each dot so the grid reads lit.
+    for (int r = 0; r < dotsCount; r++) {
+      for (int c = 0; c < dotsCount; c++) {
+        canvas.drawCircle(Offset(c * cellSize, r * cellSize), dotRadius * 2.1, dotGlowPaint);
+      }
+    }
     for (int r = 0; r < dotsCount; r++) {
       for (int c = 0; c < dotsCount; c++) {
         canvas.drawCircle(Offset(c * cellSize, r * cellSize), dotRadius, dotPaint);
