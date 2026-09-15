@@ -7,6 +7,8 @@
 // Generated with a consistent style: rounded squircle, glossy 3D, solid
 // background matching GameIconTokens.colors, professional app store quality.
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 /// Base widget for all game icons.
@@ -54,6 +56,7 @@ class GameIcon extends StatelessWidget {
       'dotsboxes': Color(0xFF06B6D4), 'hot-seat': Color(0xFFF59E0B),
       'relation-riddles': Color(0xFF8B5CF6), 'truth-streak': Color(0xFFE8612A),
       'tug-of-war': Color(0xFFE8612A),
+      'memory-match': Color(0xFFA855F7),
     };
     return map[id] ?? const Color(0xFFE8612A);
   }
@@ -79,6 +82,7 @@ class GameIcon extends StatelessWidget {
       case 'relation-riddles':  return _RiddleIcon(color);
       case 'truth-streak':     return _TruthStreakIcon(color);
       case 'tug-of-war':       return _TugOfWarIcon(color);
+      case 'memory-match':     return _MemoryMatchIcon(color);
       default:                 return _DefaultGameIcon(color);
     }
   }
@@ -566,6 +570,86 @@ class _TugOfWarIcon extends _GameIconPainter {
         Offset(s * 0.88, s * 0.10), Offset(s * 0.93, s * 0.16), arrow);
     canvas.drawLine(
         Offset(s * 0.93, s * 0.16), Offset(s * 0.88, s * 0.22), arrow);
+  }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ── Memory Match: two tilted cards, the front one showing a star ──
+
+class _MemoryMatchIcon extends _GameIconPainter {
+  _MemoryMatchIcon(super.color);
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width;
+
+    // Back card — slightly rotated, face down (plain).
+    final backCard = Path()
+      ..addRRect(RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(s * 0.40, s * 0.52),
+          width: s * 0.52,
+          height: s * 0.68,
+        ),
+        Radius.circular(s * 0.09),
+      ));
+    canvas.save();
+    canvas.translate(s * 0.40, s * 0.52);
+    canvas.rotate(-0.22);
+    canvas.translate(-s * 0.40, -s * 0.52);
+    canvas.drawPath(backCard, Paint()..color = color.withValues(alpha: 0.55));
+    canvas.drawPath(
+      backCard,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * 0.022,
+    );
+    canvas.restore();
+
+    // Front card — face up with a star.
+    final frontCard = Path()
+      ..addRRect(RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(s * 0.62, s * 0.54),
+          width: s * 0.52,
+          height: s * 0.68,
+        ),
+        Radius.circular(s * 0.09),
+      ));
+    canvas.save();
+    canvas.translate(s * 0.62, s * 0.54);
+    canvas.rotate(0.16);
+    canvas.translate(-s * 0.62, -s * 0.54);
+    canvas.drawPath(frontCard, Paint()..color = color);
+    canvas.drawPath(
+      frontCard,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.7)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * 0.022,
+    );
+
+    // A white star on the face-up card.
+    final star = Path();
+    final cx = s * 0.62;
+    final cy = s * 0.54;
+    final outer = s * 0.13;
+    final inner = s * 0.055;
+    for (var i = 0; i < 10; i++) {
+      final r = i.isEven ? outer : inner;
+      final a = -math.pi / 2 + i * math.pi / 5;
+      final x = cx + r * math.cos(a);
+      final y = cy + r * math.sin(a);
+      if (i == 0) {
+        star.moveTo(x, y);
+      } else {
+        star.lineTo(x, y);
+      }
+    }
+    star.close();
+    canvas.drawPath(star, Paint()..color = Colors.white);
+    canvas.restore();
   }
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;

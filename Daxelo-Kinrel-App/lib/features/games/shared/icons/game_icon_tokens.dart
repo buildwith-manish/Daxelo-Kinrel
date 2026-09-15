@@ -30,6 +30,7 @@ class GameIconTokens {
     'relation-riddles':  Color(0xFF8B5CF6), // purple
     'truth-streak':     Color(0xFFE8612A), // orange (Kinrel brand)
     'tug-of-war':       Color(0xFFE8612A), // orange (Kinrel brand)
+    'memory-match':     Color(0xFFA855F7), // violet (card magic)
   };
 
   /// Get the accent color for a game.

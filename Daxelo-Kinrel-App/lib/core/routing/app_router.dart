@@ -99,6 +99,9 @@ import '../../features/games/ghost_painter/ghost_painter_guess_screen.dart';
 import '../../features/games/tugofwar/tugofwar_lobby_screen.dart';
 import '../../features/games/tugofwar/tugofwar_game_screen.dart';
 import '../../features/games/tugofwar/tugofwar_provider.dart';
+import '../../features/games/memorymatch/memorymatch_lobby_screen.dart';
+import '../../features/games/memorymatch/memorymatch_game_screen.dart';
+import '../../features/games/memorymatch/memorymatch_provider.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
 import '../../features/games/redlight/redlight_game_screen.dart';
 import '../../features/games/redlight/redlight_results_screen.dart';
@@ -857,6 +860,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
     isHost: (s) => s.game?.hostUserId == _myUserId(),
     leave: (fid) => ref.read(tugOfWarProvider(fid).notifier).leaveGame(),
+  );
+
+  final memoryMatchLobbyExit = guardGameRoomExit(
+    gameTable: 'memorymatch_games',
+    readState: (fid) => ref.read(memoryMatchProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(memoryMatchProvider(fid).notifier).leaveGame(),
   );
 
   final twotruthsLobbyExit = guardGameRoomExit(
@@ -1632,6 +1643,26 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: TugOfWarGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Memory Match ─────────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/memory-match/lobby',
+        onExit: memoryMatchLobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: MemoryMatchLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/memory-match/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: MemoryMatchGameScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),

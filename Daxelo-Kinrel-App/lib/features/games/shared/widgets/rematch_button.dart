@@ -135,6 +135,7 @@ class RematchButton extends ConsumerWidget {
       case GameType.antakshari: return 'antakshari_games';
       case GameType.redlight: return 'redlight_rounds';
       case GameType.tugOfWar: return 'tugofwar_games';
+      case GameType.memoryMatch: return 'memorymatch_games';
     }
   }
 }

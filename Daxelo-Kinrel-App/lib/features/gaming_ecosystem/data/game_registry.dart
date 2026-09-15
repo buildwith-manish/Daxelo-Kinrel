@@ -187,6 +187,17 @@ const kGameCatalog = <GameCatalogEntry>[
     category: GameCategory.partyNight,
     sortOrder: 60,
   ),
+  GameCatalogEntry(
+    gameId: 'memory-match',
+    name: 'Memory Match',
+    description: 'Flip, remember, match — sharpest memory wins!',
+    gameTable: 'memorymatch_games',
+    route: '/family/{familyId}/memory-match/lobby',
+    accent: 0xFFA855F7,
+    playersLabel: '2–4 players',
+    category: GameCategory.partyNight,
+    sortOrder: 70,
+  ),
 
   // ── Board Classics ─────────────────────────────────────────────────────
   GameCatalogEntry(

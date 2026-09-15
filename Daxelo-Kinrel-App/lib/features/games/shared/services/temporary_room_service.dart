@@ -41,6 +41,7 @@ const kGamePlayerTableMap = <String, String>{
   'twotruths_games': 'twotruths_players',
   'redlight_rounds': 'redlight_players',
   'tugofwar_games': 'tugofwar_players',
+  'memorymatch_games': 'memorymatch_players',
 };
 
 /// Player tables known to exist (bingo_players does NOT — bingo uses
@@ -57,6 +58,7 @@ const kPlayerTableExists = <String>{
   'twotruths_players',
   'redlight_players',
   'tugofwar_players',
+  'memorymatch_players',
 };
 
 /// Returns the player table for a given game table, or null if the game

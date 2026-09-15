@@ -28,6 +28,7 @@ enum GameType {
   antakshari,
   redlight, // Freeze & Dash
   tugOfWar, // Tug of War
+  memoryMatch, // Memory Match
 }
 
 extension GameTypeX on GameType {
@@ -64,6 +65,8 @@ extension GameTypeX on GameType {
         return 'freeze-dash';
       case GameType.tugOfWar:
         return 'tug-of-war';
+      case GameType.memoryMatch:
+        return 'memory-match';
     }
   }
 
@@ -100,6 +103,8 @@ extension GameTypeX on GameType {
         return 'Freeze & Dash';
       case GameType.tugOfWar:
         return 'Tug of War';
+      case GameType.memoryMatch:
+        return 'Memory Match';
     }
   }
 
