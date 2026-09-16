@@ -20,7 +20,6 @@ import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/lobby_kit/lobby_kit.dart';
-import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
 import '../shared/services/temporary_room_service.dart'
     show kRoomClosedMessage;
@@ -445,12 +444,6 @@ class _MemoryMatchLobbyScreenState
             .read(memoryMatchProvider(widget.familyId).notifier)
             .leaveGame(),
         onInviteFamily: isHost ? () => _openInviteSheet(state) : null,
-        footer: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            PendingInvitesSection(gameId: game.id),
-          ],
-        ),
       ),
     );
   }

@@ -114,6 +114,10 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
   @override
   void initState() {
     super.initState();
+    // Honor [initiallyExpanded] — when false (the lobby's pinned dock)
+    // the panel starts as a slim collapsed bar so the player roster
+    // keeps the space; one tap expands the full chat in place.
+    _collapsed = !widget.initiallyExpanded;
     _scrollCtrl.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _attach());
   }

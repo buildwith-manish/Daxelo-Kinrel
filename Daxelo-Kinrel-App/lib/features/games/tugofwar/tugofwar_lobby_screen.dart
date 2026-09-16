@@ -21,7 +21,6 @@ import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/lobby_kit/lobby_kit.dart';
-import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
 import '../shared/services/temporary_room_service.dart'
     show kRoomClosedMessage;
@@ -503,8 +502,6 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
                   .read(tugOfWarProvider(widget.familyId).notifier)
                   .assignTeams(TugOfWarTeamMode.random),
             ),
-            const SizedBox(height: KinrelSpacing.md),
-            PendingInvitesSection(gameId: game.id),
           ],
         ),
       ),

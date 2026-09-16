@@ -21,7 +21,6 @@ import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/lobby_kit/lobby_kit.dart';
-import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
@@ -418,20 +417,16 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
                 );
               }
             : null,
-        footer: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (state.isCountdown) _countdownBanner(state.countdownSeconds),
-            PendingInvitesSection(gameId: round.id),
-          ],
-        ),
+        // Game extras only — pending invites are rendered natively by
+        // TemporaryLobbyView's pinned Family Members section now.
+        footer: state.isCountdown ? _countdownBanner(state.countdownSeconds) : null,
     ),
     );
   }
 
   Widget _countdownBanner(int seconds) {
     return Container(
-      margin: const EdgeInsets.only(bottom: KinrelSpacing.lg),
+      margin: EdgeInsets.zero,
       padding: const EdgeInsets.all(KinrelSpacing.lg),
       decoration: BoxDecoration(
         color: KinrelColors.orange.withValues(alpha: 0.2),

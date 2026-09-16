@@ -2,29 +2,42 @@
 //
 // TemporaryLobbyView — shared lobby UI for ALL multiplayer games.
 //
-// Universal layout (same for every game) — one scrollable zone for
-// secondary content + three PINNED zones so the things a player needs
-// are always on screen:
+// Universal layout (same for every game). Everything is PINNED except
+// the player rows — so with a 30-slot room, scrolling affects ONLY the
+// player list while the invite area, chat and room actions stay
+// anchored in place:
 //
 //   ┌────────────────────────────────────┐
-//   │  (scrollable) status card, pending │  ← secondary content
-//   │  invites + game-specific extras    │
+//   │  Room status card                  │  ← FIXED lobby controls
+//   │  (code · N/M players · ⏱ 04:32)    │    (never scroll away)
 //   ├────────────────────────────────────┤
-//   │ 👤 #1  Manish     HOST   ✓ READY  │  ← FIXED-HEIGHT roster
-//   │ 👤 #2  Priya      ◄ YOU  ✓ READY  │     with INDEPENDENT
-//   │ 👤 #3  Aarav              waiting  │     scrolling. Rows keep
-//   │    #4  (open slot)           —     │     the actual JOIN ORDER
-//   │    #5  (open slot)           —     │     (slot #), the local
-//   │                                    │     player stays pinned +
+//   │ 👤 #1  Manish     HOST   ✓ READY  │  ← FLEXIBLE roster — the
+//   │ 👤 #2  Priya      ◄ YOU  ✓ READY  │     ONLY scrollable zone.
+//   │    #3  (open slot)           —     │     Rows keep the actual
+//   │    #4  (open slot)           —     │     JOIN ORDER (slot #),
+//   │    …                               │     the local player stays
 //   │                                    │     highlighted, and the
-//   │                                    │     list opens scrolled
-//   │                                    │     to the local player.
-//   ├────────────────────────────────────┤
-//   │  💬 Lobby chat ▾          2 new    │  ← pinned chat dock
+//   │                                    │     list opens scrolled to
+//   │                                    │     the local player.
+//   │  [game footer, e.g. team board]    │  ← capped game-extras dock
+//   ├────────────────────────────────────┤      (height-bounded)
+//   │ FAMILY MEMBERS            4 open   │  ← FIXED invite section —
+//   │ [👤 Invite Family Members      →]  │     directly below the
+//   │ 📬 2 invites pending · 1 accepted  │     player list, always
+//   ├────────────────────────────────────┤     visible without scroll
+//   │  💬 Lobby chat ▾          2 new    │  ← FIXED chat dock
 //   ├────────────────────────────────────┤      (collapsible)
-//   │ [Invite Family]     [Close Room]   │  ← PINNED actions —
-//   │ [    Ready / Start Match       ]   │     always visible,
-//   └────────────────────────────────────┘     never scroll away
+//   │ [      Start Match            ]    │  ← FIXED room actions —
+//   │ [         Close Room          ]    │     always visible, never
+//   └────────────────────────────────────┘     scroll away
+//
+// Separation of concerns (per the lobby UX spec):
+//   • PLAYER MANAGEMENT lives with the roster — the sticky
+//     "Invite Family Members" button sits in the Family Members
+//     section right below the player list, together with the live
+//     invite statuses, so inviting is always one tap away.
+//   • ROOM ACTIONS live in the bottom bar — Ready / Start Match /
+//     Close Room only. Clean separation, nothing mixed in between.
 //
 // State machine (driven by the parent provider's `status` field):
 //   waiting     → "Waiting for Players" (or "Everyone is Ready" if all ready)
@@ -48,6 +61,7 @@ import '../../../../shared/widgets/dk_components.dart';
 import '../../game_motion_tokens.dart';
 import '../multiplayer/widgets/room_close_dialog.dart';
 import 'lobby_chat_panel.dart';
+import 'pending_invites_section.dart';
 import 'room_exit_barrier.dart';
 
 /// One player row in the lobby.
@@ -205,11 +219,15 @@ class TemporaryLobbyConfig {
 ///     onStartMatch: () => notifier.startGame(),
 ///     onInviteFamily: () => InviteFamilySheet.show(...),
 ///     onCancelRoom: () => notifier.leaveGame(),
-///     footer: Column(children: [
-///       PendingInvitesSection(gameId: ...),
-///       LobbyChatPanel(...),
-///     ]),
+///     footer: TugTeamBoard(...),   // game extras only (optional)
 ///   )
+///
+/// Pending invites are rendered NATIVELY inside the Family Members
+/// section (compact) — games no longer pass PendingInvitesSection in
+/// the footer. The optional [footer] is for game-specific waiting-room
+/// content only (e.g. Tug of War's team board); it is rendered in a
+/// height-bounded dock between the roster and the invite section and
+/// never pushes the pinned zones off screen.
 class TemporaryLobbyView extends StatefulWidget {
   const TemporaryLobbyView({
     super.key,
@@ -236,11 +254,16 @@ class TemporaryLobbyView extends StatefulWidget {
   /// (it knows the right back route for its game).
   final Future<void> Function() onCancelRoom;
 
-  /// Optional callback to open the invite-family sheet.
+  /// Optional callback to open the invite-family sheet. When provided
+  /// (host), the sticky "Invite Family Members" button in the Family
+  /// Members section opens it. When null (non-host), the section shows
+  /// a muted note instead.
   final VoidCallback? onInviteFamily;
 
-  /// Optional extra widget rendered below the action buttons (e.g. the
-  /// per-game lobby chat panel or pending-invites section).
+  /// Optional game-specific waiting-room content (e.g. Tug of War's
+  /// team board). Rendered in a height-bounded dock directly below the
+  /// roster, above the Family Members section. Pending invites are
+  /// rendered natively by this widget — do NOT pass them here.
   final Widget? footer;
 
   @override
@@ -318,81 +341,130 @@ class _TemporaryLobbyViewState extends State<TemporaryLobbyView> {
   @override
   Widget build(BuildContext context) {
     final config = widget.config;
+    final isWaiting = config.status == TemporaryLobbyStatus.waiting;
 
-    // Layout: a scrollable zone on top (secondary content) + three
-    // PINNED zones below it. Pinning the roster guarantees every
-    // player can always see their own slot (auto-scrolled into view
-    // on open + highlighted), and pinning the chat dock + action bar
-    // keeps Invite / Lobby Chat / Ready / Start Match / Close Room
-    // reachable without scrolling — even in 30-slot Bingo rooms.
+    // Layout — ONLY the player rows scroll. Everything else is pinned:
+    //   1. FIXED  room status card (lobby controls)
+    //   2. FLEX   roster (internal scrolling) + capped game-extras dock
+    //   3. FIXED  Family Members / Invite Family section (sticky)
+    //   4. FIXED  lobby chat dock (collapsible)
+    //   5. FIXED  bottom action bar (room actions only)
+    //
+    // Because the roster zone is Flexible (not Expanded), the pinned
+    // stack below it always lays out at its natural size FIRST — the
+    // roster simply absorbs whatever height is left, so the pinned
+    // zones can never be pushed off screen, even when the chat dock
+    // expands or the game footer is tall.
     final actions = _buildActions(config);
 
     return LayoutBuilder(builder: (context, constraints) {
-      // Deterministic height budgets so the pinned zones can never
-      // overflow the viewport:
-      //   • Roster: ~⅓ of the available height (2–5 rows visible),
-      //     scrolling internally when the room has more slots.
-      //   • Action bar: fixed and known per status (compact row 46 +
-      //     DKButton 48 + spacing + container padding ≤ 186).
-      //   • Chat dock: whatever remains, clamped — it collapses to a
-      //     slim header bar by default.
-      final isWaiting = config.status == TemporaryLobbyStatus.waiting;
-      final actionsReserve = isWaiting ? 186.0 : 74.0;
-      var rosterCap = constraints.hasBoundedHeight
-          ? (constraints.maxHeight * 0.32).clamp(120.0, 312.0)
-          : 312.0;
-      var chatCap = 240.0;
+      // Chat-expansion cap. The dock itself is pinned and collapses to
+      // a slim bar by default; when expanded it may grow up to this
+      // height. The cap reserves room for the other pinned zones plus
+      // a minimum roster (3 rows) so expanding chat never starves the
+      // player list on small screens.
+      var chatCap = 216.0;
       if (constraints.hasBoundedHeight) {
         final h = constraints.maxHeight;
-        rosterCap = math.min(
-            rosterCap, (h - actionsReserve - 104).clamp(0.0, 312.0));
-        chatCap = (h - rosterCap - actionsReserve - 8).clamp(96.0, 264.0);
+        // Measured fixed-stack reserves with margin: header card ≈ 104,
+        // family section ≈ 156 (incl. the bounded invite-summary row),
+        // collapsed chat bar ≈ 52, action bar ≈ 136 waiting / 92
+        // otherwise (host Close-Room-only during the countdown).
+        final actionsReserve = isWaiting ? 136.0 : 92.0;
+        const fixedReserve = 104.0 + 156.0 + 52.0;
+        const middleMin = 3 * _PlayerRosterPanelState.rowExtent + 60.0;
+        final budget =
+            (h - fixedReserve - actionsReserve - middleMin).clamp(96.0, 264.0);
+        chatCap = math.min(budget, h * 0.36);
       }
 
       return Column(
         children: [
-          // ── 1. Scrollable secondary content ─────────────────────
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(KinrelSpacing.base,
-                  KinrelSpacing.base, KinrelSpacing.base, 0),
+          // ── 1. FIXED — room status card (never scrolls away) ─────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(KinrelSpacing.base,
+                KinrelSpacing.base, KinrelSpacing.base, 0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // ── 1a. Room header card (status + room facts) ────
                 _RoomHeaderCard(
                   config: config,
                   countdownLabel: _countdownLabel,
                   secondsRemaining: _secondsRemaining,
                   totalSeconds: config.autoCloseSeconds,
                 ),
-
-                // ── 1b. Match-start countdown (only when starting) ─
+                // Match-start countdown (only when starting) — brief,
+                // fixed below the status card.
                 if (config.status == TemporaryLobbyStatus.starting) ...[
-                  const SizedBox(height: KinrelSpacing.sm),
+                  const SizedBox(height: KinrelSpacing.md),
                   _MatchStartCountdown(),
                 ],
-
-                // ── 1c. Game footer (pending invites + extras) ────
-                if (widget.footer != null) ...[
-                  const SizedBox(height: KinrelSpacing.lg),
-                  widget.footer!,
-                ],
-                const SizedBox(height: KinrelSpacing.base),
               ],
             ),
           ),
 
-          // ── 2. FIXED-HEIGHT player roster (scrolls on its own) ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(KinrelSpacing.base,
-                KinrelSpacing.md, KinrelSpacing.base, 0),
-            child: _PlayerRosterPanel(
-              config: config,
-              myUserId: widget.myUserId,
-              viewportCap: rosterCap,
+          // ── 2. FLEX — roster (ONLY scrollable zone) + game extras ─
+          Flexible(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(KinrelSpacing.base,
+                  KinrelSpacing.md, KinrelSpacing.base, 0),
+              child: LayoutBuilder(builder: (context, middle) {
+                // Game-extras dock (e.g. Tug of War's team board):
+                // height-bounded so it never starves the roster below
+                // the 3-row minimum (12px dock gap + roster header +
+                // 3 rows), and never overflows the screen.
+                final footerCap = widget.footer == null
+                    ? 0.0
+                    : (middle.maxHeight -
+                            KinrelSpacing.md -
+                            _PlayerRosterPanelState.headerExtent -
+                            3 * _PlayerRosterPanelState.rowExtent)
+                        .clamp(0.0, middle.maxHeight * 0.52);
+                return Column(
+                  children: [
+                    // The roster — flexible; its ListView is the ONLY
+                    // scrollable surface in the whole lobby.
+                    Flexible(
+                      child: LayoutBuilder(builder: (context, zone) {
+                        return _PlayerRosterPanel(
+                          config: config,
+                          myUserId: widget.myUserId,
+                          maxZoneHeight: zone.maxHeight,
+                        );
+                      }),
+                    ),
+                    if (widget.footer != null) ...[
+                      const SizedBox(height: KinrelSpacing.md),
+                      ConstrainedBox(
+                        constraints:
+                            BoxConstraints(maxHeight: footerCap),
+                        child: SingleChildScrollView(
+                          child: widget.footer!,
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              }),
             ),
           ),
 
-          // ── 3. Pinned lobby chat dock (collapsible, in reach) ───
+          // ── 3. FIXED — Family Members / Invite Family ────────────
+          // Sticky invite section directly below the player list:
+          // always visible without scrolling, so the host can invite
+          // at any time — even in a 30-slot room.
+          if (isWaiting)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(KinrelSpacing.base,
+                  KinrelSpacing.md, KinrelSpacing.base, 0),
+              child: _FamilyInviteSection(
+                config: config,
+                isHost: _isHost,
+                onInviteFamily: widget.onInviteFamily,
+              ),
+            ),
+
+          // ── 4. FIXED — lobby chat dock (collapsible, in reach) ───
           Padding(
             padding:
                 const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
@@ -402,7 +474,7 @@ class _TemporaryLobbyViewState extends State<TemporaryLobbyView> {
             ),
           ),
 
-          // ── 4. PINNED action bar (always visible, never scrolls) ─
+          // ── 5. FIXED — bottom action bar (room actions only) ────
           if (actions != null)
             Container(
               width: double.infinity,
@@ -424,17 +496,16 @@ class _TemporaryLobbyViewState extends State<TemporaryLobbyView> {
     });
   }
 
-  /// Builds the pinned action bar contents. Everything a player needs
-  /// to DO in the room lives here — always visible, never scrolled
-  /// away:
+  /// Builds the pinned bottom action bar — ROOM ACTIONS ONLY (clean
+  /// separation from player management, which lives in the Family
+  /// Members section above):
   ///
-  ///   • Invite Family (when the game provides an invite flow and the
-  ///     room still has open slots) — compact, beside Close Room.
+  ///   • Ready toggle (non-host, waiting only)
+  ///   • Start Match (host; disabled until everyone is ready)
   ///   • Close Room (host) — ALWAYS present while the room is open
   ///     (waiting AND starting — it must never disappear). Tapping it
   ///     first shows the shared confirmation dialog; the room is only
   ///     deleted after the host confirms.
-  ///   • Ready toggle + Start Match button (waiting only).
   ///
   /// Returns null when the room is finished, or when there is nothing
   /// to pin (e.g. a non-host during the start countdown).
@@ -444,45 +515,16 @@ class _TemporaryLobbyViewState extends State<TemporaryLobbyView> {
       return null;
     }
     final isWaiting = config.status == TemporaryLobbyStatus.waiting;
-    final canInvite = isWaiting &&
-        widget.onInviteFamily != null &&
-        config.players.length < config.maxPlayers;
     final showReady = isWaiting && config.showReadyToggle;
-    final hasCompactRow = canInvite || _isHost;
 
     // Nothing to pin — e.g. a non-host during the start countdown,
     // who just waits for the match to begin.
-    if (!hasCompactRow && !isWaiting) return null;
+    if (!_isHost && !isWaiting) return null;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── Compact pinned row: Invite Family + Close Room ─────────
-        if (hasCompactRow) ...[
-          Row(
-            children: [
-              if (canInvite) ...[
-                Expanded(
-                  child: _InviteButton(
-                      onInviteFamily: widget.onInviteFamily!),
-                ),
-                const SizedBox(width: KinrelSpacing.sm),
-              ],
-              if (_isHost)
-                Expanded(
-                  child: _CloseRoomButton(
-                    onCancelRoom: widget.onCancelRoom,
-                    fallbackRoute: '/family/${config.familyId}',
-                    // Registry key — must match the route-level onExit
-                    // guard in app_router.dart ('<gameTable>/<familyId>').
-                    exitKey: '${config.gameTable}/${config.familyId}',
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: KinrelSpacing.sm),
-        ],
         if (showReady)
           _ReadyToggle(
             isReady: _isMyReady,
@@ -494,6 +536,16 @@ class _TemporaryLobbyViewState extends State<TemporaryLobbyView> {
             config: config,
             isHost: _isHost,
             onStartMatch: widget.onStartMatch,
+          ),
+        ],
+        if (_isHost) ...[
+          const SizedBox(height: KinrelSpacing.sm),
+          _CloseRoomButton(
+            onCancelRoom: widget.onCancelRoom,
+            fallbackRoute: '/family/${config.familyId}',
+            // Registry key — must match the route-level onExit
+            // guard in app_router.dart ('<gameTable>/<familyId>').
+            exitKey: '${config.gameTable}/${config.familyId}',
           ),
         ],
       ],
@@ -817,20 +869,24 @@ class _RoomHeaderCard extends StatelessWidget {
 ///     above it (slot #8 with a 5-row viewport opens showing ~#4–#8)
 ///     instead of always starting from the top. Later user scrolling
 ///     is never overridden.
+///   • The list is the ONLY scrollable surface in the lobby — it
+///     fills whatever height the flexible zone gives it (clamped to
+///     its content when the room is small) and scrolls internally
+///     when the room has more slots than fit.
 class _PlayerRosterPanel extends StatefulWidget {
   const _PlayerRosterPanel({
     required this.config,
     required this.myUserId,
-    required this.viewportCap,
+    required this.maxZoneHeight,
   });
 
   final TemporaryLobbyConfig config;
   final String? myUserId;
 
-  /// Maximum height of the scrollable slot list (the panel adds its
-  /// header on top). When the room has more slots than fit, the list
-  /// scrolls internally instead of growing the page.
-  final double viewportCap;
+  /// Maximum height of the whole panel (header + list) as granted by
+  /// the flexible middle zone. The panel sizes its list viewport to
+  /// min(content, this - [headerExtent]) so it never overflows.
+  final double maxZoneHeight;
 
   @override
   State<_PlayerRosterPanel> createState() => _PlayerRosterPanelState();
@@ -841,10 +897,19 @@ class _PlayerRosterPanelState extends State<_PlayerRosterPanel> {
   /// auto-scroll-to-my-position math exact.
   static const double rowExtent = 60.0;
 
+  /// Reserved height for the panel's header row (label + "You're #N"
+  /// chip + count). Intentionally a slight OVER-estimate of the real
+  /// ~40px so the list viewport can never push the card past its zone.
+  static const double headerExtent = 48.0;
+
   final ScrollController _scrollCtrl = ScrollController();
 
   /// Set once the one-time auto-scroll to my position has happened.
   bool _didAutoScroll = false;
+
+  /// Max height available for the scrollable slot list.
+  double get _listCap =>
+      (widget.maxZoneHeight - headerExtent).clamp(0.0, double.infinity);
 
   int get _emptySlots =>
       (widget.config.maxPlayers - widget.config.players.length)
@@ -918,7 +983,7 @@ class _PlayerRosterPanelState extends State<_PlayerRosterPanel> {
     if (myIndex < 0) return; // not a participant (yet) — stay at top
 
     final rows = players.length + _emptySlots;
-    final viewportH = (rows * rowExtent).clamp(0.0, widget.viewportCap);
+    final viewportH = (rows * rowExtent).clamp(0.0, _listCap);
     final maxExtent = _scrollCtrl.position.maxScrollExtent;
     final target =
         ((myIndex + 1) * rowExtent - viewportH).clamp(0.0, maxExtent);
@@ -941,9 +1006,9 @@ class _PlayerRosterPanelState extends State<_PlayerRosterPanel> {
       }
     }
     final rows = players.length + _emptySlots;
-    final viewportH = rows * rowExtent <= widget.viewportCap
+    final viewportH = rows * rowExtent <= _listCap
         ? rows * rowExtent
-        : widget.viewportCap;
+        : _listCap;
 
     return Container(
       decoration: BoxDecoration(
@@ -1312,58 +1377,213 @@ class _StartMatchButton extends StatelessWidget {
   }
 }
 
-/// Compact pinned "Invite Family" button — lives in the fixed action
-/// bar so the host can always reach the invite sheet without
-/// scrolling, even when the roster is long.
-class _InviteButton extends StatelessWidget {
-  const _InviteButton({required this.onInviteFamily});
+/// PINNED "Family Members / Invite Family" section — the invitation
+/// home, fixed directly below the player list in the bottom stack so
+/// it is ALWAYS visible without scrolling (even in a 30-slot room).
+///
+/// Contents:
+///   • Section label + live open-slots chip ("4 open" / "Room full")
+///   • The sticky "Invite Family Members" action (host): opens the
+///     invite sheet at any time. When the room is full it stays in
+///     place, disabled, with a clear "Room Full" state — never
+///     disappears (stable, predictable layout).
+///   • Non-hosts see a muted note (the host sends invites; anyone
+///     with the room code can join).
+///   • Compact live invite statuses (PendingInvitesSection, compact
+///     mode) so the host sees at a glance who has answered.
+class _FamilyInviteSection extends StatelessWidget {
+  const _FamilyInviteSection({
+    required this.config,
+    required this.isHost,
+    required this.onInviteFamily,
+  });
 
-  final VoidCallback onInviteFamily;
+  final TemporaryLobbyConfig config;
+  final bool isHost;
+  final VoidCallback? onInviteFamily;
+
+  int get _openSlots =>
+      (config.maxPlayers - config.players.length).clamp(0, config.maxPlayers);
 
   @override
   Widget build(BuildContext context) {
+    final open = _openSlots;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(KinrelRadius.lg),
+        border: Border.all(color: KinrelColors.border),
+      ),
+      padding: const EdgeInsets.all(KinrelSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Section header: label + open-slots chip ──────────────
+          Row(
+            children: [
+              Text(
+                'Family Members',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textDim,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: open > 0
+                      ? KinrelColors.orange.withValues(alpha: 0.14)
+                      : KinrelColors.textDim.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(KinrelRadius.xs),
+                  border: Border.all(
+                    color: open > 0
+                        ? KinrelColors.orange.withValues(alpha: 0.5)
+                        : KinrelColors.border,
+                  ),
+                ),
+                child: Text(
+                  open > 0 ? '$open open' : 'Room full',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.monoFont,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: open > 0 ? KinrelColors.orange : KinrelColors.textDim,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: KinrelSpacing.md),
+
+          // ── Sticky invite action ─────────────────────────────────
+          if (isHost && onInviteFamily != null)
+            _InviteFamilyRow(
+              onTap: onInviteFamily!,
+              enabled: open > 0,
+            )
+          else
+            _HostOnlyInviteNote(),
+
+          // ── Compact live invite statuses ────────────────────────
+          PendingInvitesSection(gameId: config.gameId, compact: true),
+        ],
+      ),
+    );
+  }
+}
+
+/// Full-width sticky invite row — the previous design's "Invite
+/// family" row, promoted to a prominent button that never scrolls
+/// away. Disabled (never hidden) when the room is full.
+class _InviteFamilyRow extends StatelessWidget {
+  const _InviteFamilyRow({
+    required this.onTap,
+    required this.enabled,
+  });
+
+  final VoidCallback onTap;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = enabled ? KinrelColors.orange : KinrelColors.textDim;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {
-          GameMotionTokens.tap();
-          onInviteFamily();
-        },
+        onTap: enabled
+            ? () {
+                GameMotionTokens.tap();
+                onTap();
+              }
+            : null,
         borderRadius: BorderRadius.circular(KinrelRadius.md),
         child: Container(
           padding: const EdgeInsets.symmetric(
               horizontal: KinrelSpacing.md, vertical: 13),
           decoration: BoxDecoration(
-            color: KinrelColors.orange.withValues(alpha: 0.14),
+            color: enabled
+                ? KinrelColors.orange.withValues(alpha: 0.14)
+                : KinrelColors.darkElevated,
             borderRadius: BorderRadius.circular(KinrelRadius.md),
             border: Border.all(
-              color: KinrelColors.orange.withValues(alpha: 0.55),
+              color: enabled
+                  ? KinrelColors.orange.withValues(alpha: 0.55)
+                  : KinrelColors.border,
               width: 1.2,
             ),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.person_add_alt_1,
-                  color: KinrelColors.orange, size: 18),
+              Icon(
+                enabled ? Icons.person_add_alt_1 : Icons.lock_outline,
+                color: fg,
+                size: 18,
+              ),
               const SizedBox(width: KinrelSpacing.sm),
-              Flexible(
+              Expanded(
                 child: Text(
-                  'Invite Family',
+                  enabled ? 'Invite Family Members' : 'Room Full',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
-                    color: KinrelColors.orange,
+                    color: fg,
                     letterSpacing: 0.3,
                   ),
                 ),
               ),
+              Icon(
+                Icons.chevron_right,
+                color: fg.withValues(alpha: 0.7),
+                size: 18,
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Muted note shown to non-hosts in the Family Members section.
+class _HostOnlyInviteNote extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: KinrelSpacing.md, vertical: 10),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkElevated,
+        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        border: Border.all(color: KinrelColors.border),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline,
+              size: 15, color: KinrelColors.textDim),
+          const SizedBox(width: KinrelSpacing.sm),
+          Expanded(
+            child: Text(
+              'The host invites family members — anyone with the room '
+              'code can join.',
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 11,
+                color: KinrelColors.textDim,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

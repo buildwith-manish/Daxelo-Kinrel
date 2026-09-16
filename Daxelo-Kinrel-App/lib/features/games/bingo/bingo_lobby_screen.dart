@@ -21,7 +21,6 @@ import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/lobby_kit/lobby_kit.dart';
-import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
@@ -370,12 +369,6 @@ class _BingoLobbyScreenState extends ConsumerState<BingoLobbyScreen> {
                 );
               }
             : null,
-        footer: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            PendingInvitesSection(gameId: game.id),
-          ],
-        ),
     ),
     );
   }
