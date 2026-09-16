@@ -1,7 +1,6 @@
 // lib/features/games/ghost_painter/ghost_painter_provider.dart
 
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -226,7 +225,9 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
     if (points.isEmpty) return;
     _pendingStrokes.add({
       'roundId': state.activeRound?.id,
-      'strokeData': jsonEncode(points.map((p) => p.toJson()).toList()),
+      // Insert as a native jsonb ARRAY — jsonEncode would store a
+      // string, which the readers (and SQL) then have to unwrap.
+      'strokeData': points.map((p) => p.toJson()).toList(),
       'sequenceOrder': sequenceOrder,
     });
     _strokeBatchTimer?.cancel();
