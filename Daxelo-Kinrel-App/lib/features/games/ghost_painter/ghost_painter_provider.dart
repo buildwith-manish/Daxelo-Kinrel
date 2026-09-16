@@ -65,9 +65,27 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
   Timer? _countdownTimer;
   final List<Map<String, dynamic>> _pendingStrokes = [];
 
+  /// Cold-start retries: when the app is deep-linked straight onto the
+  /// Ghost Painter screen, this notifier can be created BEFORE the
+  /// Supabase client/session is wired into Riverpod. Without a retry
+  /// the load bails once and the user is stranded on the start screen
+  /// even though an active round exists.
+  int _loadRetries = 0;
+
   Future<void> load() async {
     final client = _client;
-    if (client == null) { state = state.copyWith(isLoading: false, error: 'Not signed in'); return; }
+    if (client == null) {
+      if (_loadRetries < 6) {
+        _loadRetries++;
+        Future.delayed(const Duration(milliseconds: 900), () {
+          if (mounted && state.activeRound == null) load();
+        });
+      } else {
+        state = state.copyWith(isLoading: false, error: 'Not signed in');
+      }
+      return;
+    }
+    _loadRetries = 0;
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       // Fetch active round
