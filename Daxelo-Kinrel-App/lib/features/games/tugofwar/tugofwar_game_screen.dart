@@ -58,6 +58,11 @@ class _TugOfWarGameScreenState extends ConsumerState<TugOfWarGameScreen>
   bool _pressed = false;
   Timer? _pressTimer;
 
+  /// True once the first authoritative rope sample has been applied.
+  /// Reconnecting players SNAP to the live position instead of watching
+  /// the rope glide in from center (which would misread as a reset).
+  bool _ropeSynced = false;
+
   @override
   void initState() {
     super.initState();
@@ -102,10 +107,17 @@ class _TugOfWarGameScreenState extends ConsumerState<TugOfWarGameScreen>
     final me = state.playerFor(myId);
     final myTeam = me?.team;
 
-    // Feed authoritative rope samples into the spring.
+    // Feed authoritative rope samples into the spring. The FIRST sample
+    // snaps rather than glides, so anyone landing mid-match (reconnect,
+    // spectator, late joiner) sees the rope exactly where it truly is.
     final ropeTarget = state.game?.ropePosition;
     if (ropeTarget != null) {
-      _rope.setTarget(ropeTarget);
+      if (!_ropeSynced) {
+        _ropeSynced = true;
+        _rope.snapTo(ropeTarget);
+      } else {
+        _rope.setTarget(ropeTarget);
+      }
     }
 
     return ReactionOverlay(
@@ -253,7 +265,6 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final remaining = game.secondsRemaining;
-    final advantage = ((game.ropePosition.clamp(-1, 1) + 1) / 2);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(
@@ -316,27 +327,106 @@ class _TopBar extends StatelessWidget {
             ],
           ),
           const SizedBox(height: KinrelSpacing.sm),
-          // Advantage meter: Team A share vs Team B share.
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: SizedBox(
-              height: 8,
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: (advantage * 1000).clamp(1, 999).round(),
-                    child: Container(color: TugTeamBoardColors.a),
-                  ),
-                  Expanded(
-                    flex: ((1 - advantage) * 1000).clamp(1, 999).round(),
-                    child: Container(color: TugTeamBoardColors.b),
-                  ),
-                ],
-              ),
-            ),
+          // Advantage meter — the gold lead marker slides toward the
+          // leading team's side, mirroring the arena flag exactly.
+          _AdvantageMeter(
+            lead: game.ropePosition.clamp(-1.0, 1.0),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Tug-of-war progress meter. Fixed territory halves anchor each team to
+/// its side (Ember LEFT, Azure RIGHT — same as every other widget), and a
+/// gold flag marker slides toward the leading team: a Team A lead pulls it
+/// LEFT, a Team B lead pulls it RIGHT. The direction is identical to the
+/// arena rope, so every tap visibly pulls BOTH the rope and the marker
+/// toward the tapper's own team — for players, spectators and reconnecting
+/// users alike, with no inversion or side-swapping.
+class _AdvantageMeter extends StatelessWidget {
+  const _AdvantageMeter({required this.lead});
+
+  /// -1 (Team B leads) .. +1 (Team A leads) — the authoritative value.
+  final double lead;
+
+  @override
+  Widget build(BuildContext context) {
+    // Marker fraction from the LEFT edge: A's lead (+) slides it LEFT
+    // toward A's end; B's lead (-) slides it RIGHT toward B's end.
+    final markerFraction = ((1 - lead) / 2).clamp(0.0, 1.0);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final trackW = constraints.maxWidth;
+        const markerSize = 12.0;
+        final markerLeft = (trackW - markerSize) * markerFraction;
+
+        return SizedBox(
+          height: 14,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Territory halves — Ember owns the left half, Azure the
+              // right half (fixed sides, matching the arena + team cards).
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ColoredBox(
+                          color: TugTeamBoardColors.a.withValues(alpha: 0.32),
+                        ),
+                      ),
+                      Expanded(
+                        child: ColoredBox(
+                          color: TugTeamBoardColors.b.withValues(alpha: 0.32),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Center notch — the dead-even reference point.
+              Align(
+                alignment: Alignment.center,
+                child: Container(
+                  width: 1.5,
+                  color: Colors.white.withValues(alpha: 0.30),
+                ),
+              ),
+              // The lead marker — gold flag knob, slides toward the
+              // winning side exactly like the arena rope.
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                left: markerLeft,
+                top: 1,
+                width: markerSize,
+                height: markerSize,
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: KinrelColors.gold,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: KinrelColors.gold.withValues(alpha: 0.55),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

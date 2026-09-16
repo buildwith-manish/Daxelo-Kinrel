@@ -102,6 +102,16 @@ class RopePhysicsController extends ChangeNotifier {
 enum TugSide { a, b }
 
 /// The arena: track, rope, flag, victory lines, team glows.
+///
+/// DIRECTION CONTRACT (keep in sync with fn_tugofwar_pull):
+///   • Team A (Ember) ALWAYS renders on the LEFT, Team B (Azure) on the
+///     RIGHT — same anchoring as the lobby columns, team cards and the
+///     advantage meter.
+///   • `position` is the authoritative rope value: POSITIVE = Team A
+///     advantage. The flag therefore moves LEFT as A pulls and RIGHT as
+///     B pulls — every tap drags the rope toward the tapper's OWN side.
+///   • A wins at position = +1 (flag rests on A's LEFT victory line),
+///     B wins at position = -1 (flag rests on B's RIGHT victory line).
 class TugRopePainter extends CustomPainter {
   TugRopePainter({
     required this.position,
@@ -112,7 +122,7 @@ class TugRopePainter extends CustomPainter {
     this.wonSide,
   });
 
-  /// -1 .. +1 (+ = Team A advantage).
+  /// -1 .. +1 (+ = Team A advantage → flag LEFT toward A's side).
   final double position;
   final double velocity;
   final Duration elapsed;
@@ -204,10 +214,17 @@ class TugRopePainter extends CustomPainter {
         Offset(w / 2, 8), Offset(w / 2, h - 8), centerPaint);
 
     // Victory lines (pulse when the flag gets close).
+    //
+    // flagX is the SINGLE source of truth for the position→screen mapping:
+    // positive position (Team A pulling) moves the flag LEFT toward A's
+    // own victory line, negative moves it RIGHT toward B's line. Both the
+    // rope rendering and the closeness pulse below must use it so they can
+    // never disagree about which side the flag is on.
+    double flagX(double pos) => w / 2 - pos * (w / 2 - 18);
+
     void drawVictoryLine(TugSide side, double edgeX, Color color) {
       final closeness =
-          (1 - ((w / 2 + position * (w / 2 - 18)) - edgeX).abs() / (w / 2))
-              .clamp(0.0, 1.0);
+          (1 - (flagX(position) - edgeX).abs() / (w / 2)).clamp(0.0, 1.0);
       final pulse = wonSide != null
           ? 0.9
           : (0.35 + 0.45 * closeness * (0.5 + 0.5 * math.sin(t * 2).abs()));
@@ -225,7 +242,8 @@ class TugRopePainter extends CustomPainter {
     drawVictoryLine(TugSide.b, w - 14, teamBColor);
 
     // ── The rope ─────────────────────────────────────────────────────
-    final midX = w / 2 + position * (w / 2 - 18);
+    // Positive position (A pulling) → rope/flag shift LEFT toward A.
+    final midX = flagX(position);
     final sagBase = h * 0.16;
     final tension = (velocity.abs() / 3.2).clamp(0.0, 1.0);
     final sag = sagBase * (1 - 0.45 * tension);
@@ -301,7 +319,9 @@ class TugRopePainter extends CustomPainter {
         ..strokeCap = StrokeCap.round,
     );
 
-    // Pennant (waving triangle).
+    // Pennant (waving triangle). The pennant streams AWAY from the pull
+    // direction (like a flag on a moving rope): when A drags the rope
+    // leftward, the cloth points right, and vice versa.
     final flagW = w * 0.085;
     final flagH = h * 0.11;
     final leading = position >= 0 ? 1.0 : -1.0;
@@ -330,6 +350,8 @@ class TugRopePainter extends CustomPainter {
     );
 
     // ── Chalk dust when the rope is flying ───────────────────────────
+    // Positive velocity = flag moving LEFT (A pulling), so the dust term
+    // (+velocity*8) trails the motion to the RIGHT of the flag.
     if (tension > 0.25 && wonSide == null) {
       final dust = Paint()..color = Colors.white.withValues(alpha: 0.14);
       for (var i = 0; i < 6; i++) {
