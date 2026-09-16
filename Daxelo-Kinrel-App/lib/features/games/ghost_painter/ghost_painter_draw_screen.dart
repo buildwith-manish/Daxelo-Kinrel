@@ -46,6 +46,20 @@ class _GhostPainterDrawScreenState
   @override
   void initState() {
     super.initState();
+    // Seed previously-drawn strokes after a mid-round reload so the
+    // drawer still sees their earlier ink (one-time — local drawing
+    // appends on top; realtime echoes of our own strokes stay in
+    // provider state and are never re-seeded).
+    ref.listenManual(ghostPainterProvider(widget.familyId), (prev, next) {
+      if (_allStrokes.isEmpty && next.strokes.isNotEmpty) {
+        setState(() {
+          _allStrokes.addAll(
+            next.strokes
+                .map((s) => s.points.map((p) => Offset(p.x, p.y)).toList()),
+          );
+        });
+      }
+    }, fireImmediately: true);
     Future.microtask(
       () => ref.read(ghostPainterProvider(widget.familyId).notifier).load(),
     );
