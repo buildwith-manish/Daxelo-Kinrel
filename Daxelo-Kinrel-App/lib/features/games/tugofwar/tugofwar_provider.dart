@@ -148,6 +148,13 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
   int _pendingTaps = 0;
   bool _flushInFlight = false;
 
+  /// Cold-start retries: deep-linking or RELOADING straight onto the game
+  /// screen can create this notifier BEFORE the Supabase client/session is
+  /// wired into Riverpod. Without a retry the load bails once and a
+  /// reconnecting player is stranded on the loading spinner forever even
+  /// though the match is live (same class of bug as Ghost Painter f28fb88).
+  int _loadRetries = 0;
+
   // ── Public API ───────────────────────────────────────────────────
 
   /// Host: create a new room with the chosen settings.
@@ -601,6 +608,20 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
   // ── Data loading ─────────────────────────────────────────────────
 
   Future<void> loadGame(String gameId) async {
+    final client = _client;
+    final myId = _myId;
+    if (client == null || myId == null) {
+      // Supabase/session not wired yet — retry with backoff instead of
+      // silently bailing (reconnecting players depend on this path).
+      if (_loadRetries < 6) {
+        _loadRetries++;
+        Future.delayed(const Duration(milliseconds: 900), () {
+          if (mounted && state.game == null) loadGame(gameId);
+        });
+      }
+      return;
+    }
+    _loadRetries = 0;
     await _loadGame(gameId);
     await _refreshPlayers(gameId);
     _subscribeToRealtime(gameId);
