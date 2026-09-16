@@ -219,6 +219,9 @@ class _GamingDashboardBody extends ConsumerWidget {
           FamilyPresenceStrip(familyId: familyId),
           const SizedBox(height: 14),
 
+          // ── Family Game Night streak (ritual layer) ─────────────────
+          _PlayStreakBanner(familyId: familyId),
+
           dashAsync.when(
             loading: () => const _DashboardSkeleton(),
             error: (e, _) => GamingEmptyCard(
@@ -314,6 +317,207 @@ class _GamingDashboardBody extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 0. Family Game Night streak banner
+//
+//    Goal-Setting Theory as ritual: the streak rewards SHOWING UP
+//    TOGETHER, never winning — so nobody dreads playing. Loss
+//    aversion is deliberately soft-pedalled: a missed day never
+//    scolds, the card simply waits for the next family game night.
+// ═══════════════════════════════════════════════════════════════════════
+
+class _PlayStreakBanner extends ConsumerWidget {
+  const _PlayStreakBanner({required this.familyId});
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final streakAsync = ref.watch(familyPlayStreakProvider(familyId));
+    return streakAsync.maybeWhen(
+      data: (s) {
+        if (!s.isVisible) return const SizedBox.shrink();
+        return _StreakCard(streak: s);
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _StreakCard extends StatefulWidget {
+  const _StreakCard({required this.streak});
+  final FamilyPlayStreak streak;
+
+  @override
+  State<_StreakCard> createState() => _StreakCardState();
+}
+
+class _StreakCardState extends State<_StreakCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _flame = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _flame.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.streak;
+    final alive = s.currentStreakDays > 0;
+
+    // Copy — celebration when protected, gentle invite when not.
+    String title;
+    if (s.currentStreakDays >= 2) {
+      title = s.playedToday
+          ? '${s.currentStreakDays}-day streak — flame burning bright!'
+          : '${s.currentStreakDays}-day Family Game Night streak!';
+    } else if (s.currentStreakDays == 1) {
+      title = s.playedToday
+          ? 'Streak started today — keep it alive tomorrow!'
+          : 'Your streak from last time is waiting for tonight';
+    } else {
+      title = 'Start a Family Game Night streak';
+    }
+    final String subtitle = s.playedToday
+        ? 'Come back tomorrow and make it ${s.currentStreakDays + 1} — every night counts'
+        : 'Play any game together today to ${alive ? 'make it ${s.currentStreakDays + 1} in a row' : 'light the first flame'}';
+
+    final facts = <String>[
+      if (s.bestStreakDays > 0) 'Best ${s.bestStreakDays} days',
+      if (s.matchesThisWeek > 0)
+        '${s.matchesThisWeek} ${s.matchesThisWeek == 1 ? 'game' : 'games'} this week',
+      if (s.playersThisWeek > 0)
+        '${s.playersThisWeek} ${s.playersThisWeek == 1 ? 'player' : 'players'} joined in',
+    ];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: s.playedToday
+              ? const [Color(0xFF2B1A0E), Color(0xFF1D1409)]
+              : const [Color(0xFF3B1D0A), Color(0xFF241207)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: s.playedToday
+              ? KinrelColors.amber.withValues(alpha: 0.35)
+              : KinrelColors.orange.withValues(alpha: 0.5),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (s.playedToday ? KinrelColors.amber : KinrelColors.orange)
+                .withValues(alpha: 0.18),
+            blurRadius: 26,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Flame medallion — breathing glow.
+          ScaleTransition(
+            scale: Tween<double>(begin: 0.92, end: 1.08).animate(
+              CurvedAnimation(parent: _flame, curve: Curves.easeInOut),
+            ),
+            child: Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  center: const Alignment(-0.2, -0.3),
+                  colors: [
+                    (s.playedToday ? KinrelColors.amber : KinrelColors.orange)
+                        .withValues(alpha: 0.55),
+                    (s.playedToday ? KinrelColors.amber : KinrelColors.orange)
+                        .withValues(alpha: 0.12),
+                  ],
+                ),
+                border: Border.all(
+                  color: (s.playedToday
+                          ? KinrelColors.amber
+                          : KinrelColors.orange)
+                      .withValues(alpha: 0.6),
+                ),
+              ),
+              child: const Center(
+                child: Text('🔥', style: TextStyle(fontSize: 24)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: KinrelColors.textWhite,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 11.5,
+                    color: KinrelColors.textSilver,
+                    height: 1.25,
+                  ),
+                ),
+                if (facts.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      for (final f in facts)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            f,
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.monoFont,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                              color: KinrelColors.amber.withValues(alpha: 0.9),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    )
+        .animate()
+        .fadeIn(duration: 450.ms)
+        .slideY(begin: -0.04, end: 0, duration: 450.ms);
   }
 }
 

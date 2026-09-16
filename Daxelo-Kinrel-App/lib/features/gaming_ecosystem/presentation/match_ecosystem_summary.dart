@@ -52,17 +52,13 @@ class MatchEcosystemSummary extends ConsumerWidget {
     return Padding(
       padding: padding,
       child: ecoAsync.maybeWhen(
-        data: (eco) => eco == null || !eco.hasRewards
-            ? _SportsmanshipSection(
-                eco: eco,
-                gameTable: gameTable,
-                gameId: gameId,
-                familyId: familyId,
-              )
+        data: (eco) => eco == null
+            ? const SizedBox.shrink()
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _RewardsBanner(eco: eco),
+                  if (eco.hasRewards) _RewardsBanner(eco: eco),
+                  if (eco.hasScores) _SuperlativesSection(eco: eco),
                   _SportsmanshipSection(
                     eco: eco,
                     gameTable: gameTable,
@@ -106,6 +102,17 @@ class _RewardsBanner extends ConsumerWidget {
           subtitle: b.description,
         ));
       }
+    }
+
+    // Personal bests — competence & growth mindset: celebrate
+    // improvement, not just victory. Shown right after badges.
+    for (final pb in eco.personalBests) {
+      rows.add(_RewardRow(
+        leading: _personalBestIcon(pb.metric),
+        accent: KinrelColors.orange,
+        title: _personalBestTitle(pb),
+        subtitle: _personalBestSubtitle(pb),
+      ));
     }
 
     // Completed challenges.
@@ -183,6 +190,105 @@ class _RewardsBanner extends ConsumerWidget {
       ),
     );
   }
+
+  // ── Personal-best presentation (growth-mindset framing) ──────────
+
+  Widget _personalBestIcon(String metric) {
+    switch (metric) {
+      case 'fastest_win':
+        return const Text('⚡', style: TextStyle(fontSize: 24));
+      case 'accuracy_pct':
+        return const Text('🎯', style: TextStyle(fontSize: 24));
+      default:
+        return const Text('📈', style: TextStyle(fontSize: 24));
+    }
+  }
+
+  String _personalBestTitle(PersonalBestReward pb) {
+    final name = pb.userName.isEmpty ? 'You' : pb.userName;
+    switch (pb.metric) {
+      case 'fastest_win':
+        return pb.firstEver
+            ? '$name\'s first win is on the board!'
+            : '$name set a fastest win!';
+      case 'accuracy_pct':
+        return pb.firstEver
+            ? '$name\'s sharpest game yet: ${_fmtNum(pb.value)}%'
+            : 'New accuracy best for $name: ${_fmtNum(pb.value)}%';
+      default:
+        final unit = _scoreUnit(eco.gameTable);
+        return pb.firstEver
+            ? '$name\'s first recorded best: ${_fmtNum(pb.value)} $unit'
+            : 'New personal best for $name!';
+    }
+  }
+
+  String _personalBestSubtitle(PersonalBestReward pb) {
+    if (pb.metric == 'fastest_win') {
+      return pb.firstEver
+          ? 'Won ${_formatClock(pb.value)} in ${eco.gameName} — the clock starts now'
+          : '${_formatClock(pb.value)} — ${_improvementLine(pb)}';
+    }
+    if (pb.metric == 'accuracy_pct') {
+      return pb.firstEver
+          ? 'Every flip, shot and guess counted — beautifully played'
+          : '${_improvementLine(pb)} — keep growing!';
+    }
+    final unit = _scoreUnit(eco.gameTable);
+    return pb.firstEver
+        ? 'Beat it next match and watch the record climb'
+        : '${_fmtNum(pb.value)} $unit — ${_improvementLine(pb)}';
+  }
+
+  String _improvementLine(PersonalBestReward pb) {
+    final prev = pb.previousValue;
+    if (prev == null) return 'a brand-new record';
+    if (pb.metric == 'fastest_win') {
+      final delta = (prev - pb.value).toDouble();
+      if (delta <= 0) return 'matching your best';
+      return '${_formatClock(delta)} faster than before';
+    }
+    final delta = (pb.value - prev).toDouble();
+    if (delta <= 0) return 'matching your best';
+    final unit = pb.metric == 'accuracy_pct'
+        ? '%'
+        : _scoreUnit(eco.gameTable);
+    return '${_fmtNum(delta)} $unit better than before';
+  }
+}
+
+String _fmtNum(num v) {
+  if (v == v.roundToDouble()) return v.toInt().toString();
+  return v.toStringAsFixed(1);
+}
+
+String _formatClock(num seconds) {
+  final s = seconds.toInt();
+  if (s < 60) return '${s}s';
+  final m = s ~/ 60;
+  final rest = s % 60;
+  return rest == 0 ? '${m}m' : '${m}m ${rest}s';
+}
+
+/// Human unit for the score metric of each game table.
+String _scoreUnit(String gameTable) {
+  switch (gameTable) {
+    case 'memorymatch_games':
+      return 'pairs';
+    case 'tugofwar_games':
+      return 'pulls';
+    case 'dotsboxes_games':
+      return 'boxes';
+    case 'ludo_games':
+      return 'tokens home';
+    case 'redlight_rounds':
+      return 'm of progress';
+    case 'twotruths_games':
+    case 'ghost_painter_rounds':
+      return 'correct guesses';
+    default:
+      return 'points';
+  }
 }
 
 class _RewardRow extends StatelessWidget {
@@ -236,6 +342,149 @@ class _RewardRow extends StatelessWidget {
         ),
         Icon(Icons.celebration_rounded, size: 18, color: accent),
       ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Superlatives — benign social comparison: every player leaves with a
+// stat to be proud of, not just the winner.
+// ═══════════════════════════════════════════════════════════════════════
+
+class _SuperlativesSection extends ConsumerWidget {
+  const _SuperlativesSection({required this.eco});
+  final MatchEcosystemResult eco;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final client = ref.read(supabaseProvider);
+    final myId = client?.auth.currentUser?.id;
+
+    final scored = eco.players
+        .where((p) => p.score != null || p.accuracyPct != null)
+        .toList();
+    if (scored.length < 2) return const SizedBox.shrink();
+
+    // Top score (ties shared — superlatives never exclude).
+    final maxScore = scored
+        .map((p) => p.score ?? 0)
+        .reduce((a, b) => a > b ? a : b);
+    final topScorers = scored.where((p) => (p.score ?? 0) == maxScore);
+
+    // Sharpest accuracy among players who have one.
+    final accs = scored.where((p) => p.accuracyPct != null);
+    final maxAcc = accs.isEmpty
+        ? null
+        : accs.map((p) => p.accuracyPct!).reduce((a, b) => a > b ? a : b);
+    final sharpest = maxAcc == null
+        ? const <MatchPlayerResult>[]
+        : accs.where((p) => p.accuracyPct == maxAcc);
+
+    final unit = _scoreUnit(eco.gameTable);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: KinrelColors.orange.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('🏅', style: TextStyle(fontSize: 16)),
+              const SizedBox(width: 8),
+              Text(
+                'MATCH SUPERLATIVES',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.monoFont,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.4,
+                  color: KinrelColors.orange,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final p in topScorers)
+                _SuperlativeChip(
+                  emoji: '🎯',
+                  label:
+                      '${p.userName.isEmpty ? 'You' : p.userName} · top score (${_fmtNum(p.score ?? 0)} $unit)',
+                  mine: p.userId == myId,
+                ),
+              for (final p in sharpest)
+                if (maxAcc! > 0)
+                  _SuperlativeChip(
+                    emoji: '🧠',
+                    label:
+                        '${p.userName.isEmpty ? 'You' : p.userName} · sharpest (${p.accuracyPct}%)',
+                    mine: p.userId == myId,
+                  ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SuperlativeChip extends StatelessWidget {
+  const _SuperlativeChip({
+    required this.emoji,
+    required this.label,
+    this.mine = false,
+  });
+
+  final String emoji;
+  final String label;
+  final bool mine;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        gradient: mine
+            ? LinearGradient(colors: [
+                KinrelColors.orange.withValues(alpha: 0.22),
+                KinrelColors.orange.withValues(alpha: 0.08),
+              ])
+            : null,
+        color: mine ? null : KinrelColors.darkElevated,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: mine
+              ? KinrelColors.orange.withValues(alpha: 0.55)
+              : Colors.white.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 13)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: mine ? KinrelColors.textWhite : KinrelColors.textSilver,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

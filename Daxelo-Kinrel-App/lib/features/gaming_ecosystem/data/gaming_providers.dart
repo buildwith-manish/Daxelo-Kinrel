@@ -289,6 +289,26 @@ final matchEcosystemProvider = FutureProvider.autoDispose
 });
 
 // ─────────────────────────────────────────────────────────────────────────
+// Family play streak ("Family Game Night" ritual)
+// ─────────────────────────────────────────────────────────────────────────
+
+final familyPlayStreakProvider = FutureProvider.autoDispose
+    .family<FamilyPlayStreak, String>((ref, familyId) async {
+  final client = ref.watch(supabaseProvider);
+  if (client == null) return const FamilyPlayStreak();
+  try {
+    final raw = await client.rpc('fn_get_family_play_streak', params: {
+      'p_family_id': familyId,
+    });
+    if (raw == null) return const FamilyPlayStreak();
+    return FamilyPlayStreak.fromJson(_asMap(raw));
+  } catch (e) {
+    debugPrint('[GamingEcosystem] play streak error: $e');
+    return const FamilyPlayStreak();
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────
 // Sportsmanship
 // ─────────────────────────────────────────────────────────────────────────
 

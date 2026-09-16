@@ -658,6 +658,8 @@ class MatchEcosystemResult {
     this.completedChallenges = const [],
     this.milestones = const [],
     this.players = const [],
+    this.personalBests = const [],
+    this.participation = const {},
   });
 
   final String matchId;
@@ -674,10 +676,23 @@ class MatchEcosystemResult {
   final List<MilestoneReward> milestones;
   final List<MatchPlayerResult> players;
 
+  /// Server-computed personal bests broken this match (competence /
+  /// growth-mindset layer). Empty for matches that beat no records.
+  final List<PersonalBestReward> personalBests;
+
+  /// Weekly participation: userId → matches played in the last 7 days.
+  final Map<String, int> participation;
+
   bool get hasRewards =>
       newBadges.isNotEmpty ||
       completedChallenges.isNotEmpty ||
-      milestones.isNotEmpty;
+      milestones.isNotEmpty ||
+      personalBests.isNotEmpty;
+
+  /// True when the match produced per-player numeric scores (not every
+  /// game has them) — gates the superlatives section.
+  bool get hasScores =>
+      players.any((p) => p.score != null || p.accuracyPct != null);
 
   factory MatchEcosystemResult.fromJson(Map<String, dynamic> json) {
     return MatchEcosystemResult(
@@ -697,6 +712,86 @@ class MatchEcosystemResult {
           _list(json['completedChallenges'], PlayerChallengeRewards.fromJson),
       milestones: _list(json['milestones'], MilestoneReward.fromJson),
       players: _list(json['players'], MatchPlayerResult.fromJson),
+      personalBests: _list(json['personalBests'], PersonalBestReward.fromJson),
+      participation: _intMap(json['participation']),
+    );
+  }
+}
+
+/// A personal best recorded (or first-ever set) during a match.
+///
+/// Server-authoritative: computed by fn__record_match_highlights from
+/// the game's own tables — clients never submit values.
+class PersonalBestReward {
+  const PersonalBestReward({
+    required this.userId,
+    required this.userName,
+    required this.metric,
+    required this.value,
+    this.previousValue,
+    this.firstEver = false,
+  });
+
+  final String userId;
+  final String userName;
+
+  /// 'score' (higher better) | 'accuracy_pct' (higher better) |
+  /// 'fastest_win' (seconds, lower better).
+  final String metric;
+  final num value;
+  final num? previousValue;
+  final bool firstEver;
+
+  factory PersonalBestReward.fromJson(Map<String, dynamic> json) {
+    return PersonalBestReward(
+      userId: (json['userId'] as String?) ?? '',
+      userName: (json['userName'] as String?) ?? '',
+      metric: (json['metric'] as String?) ?? 'score',
+      value: json['value'] is num ? json['value'] as num : 0,
+      previousValue: json['previousValue'] is num
+          ? json['previousValue'] as num
+          : null,
+      firstEver: json['firstEver'] as bool? ?? false,
+    );
+  }
+}
+
+/// Family play-streak data (fn_get_family_play_streak) — the "Family
+/// Game Night" ritual layer. Rewards showing up together; never
+/// punishes losing.
+class FamilyPlayStreak {
+  const FamilyPlayStreak({
+    this.currentStreakDays = 0,
+    this.bestStreakDays = 0,
+    this.matchesThisWeek = 0,
+    this.playersThisWeek = 0,
+    this.playedToday = false,
+    this.lastPlayedAt,
+  });
+
+  final int currentStreakDays;
+  final int bestStreakDays;
+  final int matchesThisWeek;
+  final int playersThisWeek;
+  final bool playedToday;
+  final DateTime? lastPlayedAt;
+
+  /// Whether the hub should surface the streak card at all — hidden for
+  /// brand-new families so the hub stays clean until a ritual can start.
+  bool get isVisible =>
+      currentStreakDays > 0 || matchesThisWeek > 0;
+
+  factory FamilyPlayStreak.fromJson(Map<String, dynamic> json) {
+    return FamilyPlayStreak(
+      currentStreakDays:
+          (json['currentStreakDays'] as num?)?.toInt() ?? 0,
+      bestStreakDays: (json['bestStreakDays'] as num?)?.toInt() ?? 0,
+      matchesThisWeek: (json['matchesThisWeek'] as num?)?.toInt() ?? 0,
+      playersThisWeek: (json['playersThisWeek'] as num?)?.toInt() ?? 0,
+      playedToday: json['playedToday'] as bool? ?? false,
+      lastPlayedAt: json['lastPlayedAt'] == null
+          ? null
+          : DateTime.tryParse(json['lastPlayedAt'].toString()),
     );
   }
 }
@@ -759,17 +854,28 @@ class MatchPlayerResult {
     required this.userId,
     required this.userName,
     required this.result,
+    this.score,
+    this.accuracyPct,
   });
 
   final String userId;
   final String userName;
   final String result;
 
+  /// Server-extracted per-player score (game-specific unit — points,
+  /// pairs, pulls…). Null when the game has no numeric score.
+  final num? score;
+
+  /// Accuracy percentage 0–100 (games with hit/miss semantics).
+  final int? accuracyPct;
+
   factory MatchPlayerResult.fromJson(Map<String, dynamic> json) {
     return MatchPlayerResult(
       userId: (json['userId'] as String?) ?? '',
       userName: (json['userName'] as String?) ?? '',
       result: (json['result'] as String?) ?? 'played',
+      score: json['score'] is num ? json['score'] as num : null,
+      accuracyPct: (json['accuracyPct'] as num?)?.toInt(),
     );
   }
 }
@@ -780,4 +886,11 @@ List<T> _list<T>(Object? raw, T Function(Map<String, dynamic>) fromJson) {
       .whereType<Map>()
       .map((e) => fromJson(Map<String, dynamic>.from(e)))
       .toList();
+}
+
+Map<String, int> _intMap(Object? raw) {
+  if (raw is! Map) return const {};
+  return raw.map(
+    (k, v) => MapEntry(k.toString(), v is num ? v.toInt() : 0),
+  );
 }
