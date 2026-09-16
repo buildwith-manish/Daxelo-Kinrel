@@ -1,16 +1,25 @@
 // lib/features/games/bingo/bingo_provider.dart
 //
-// Bingo — Riverpod state + Supabase Realtime + Edge Function calls.
+// Bingo — Riverpod state + Supabase Realtime + server-authoritative RPCs.
 //
-// Architecture:
+// Architecture (v2 — 2026-09-19 sync repair):
 //   • Supabase stores games, cards, claims
 //   • Supabase Realtime broadcasts called numbers + winner
-//   • The bingo-caller Edge Function (cron-triggered) advances the
-//     number sequence server-side — clients NEVER call numbers themselves
-//   • The bingo-verify-claim Edge Function validates BINGO claims
-//     server-side — clients NEVER decide if a claim is valid
+//     (bingo_games/bingo_cards/bingo_claims are REPLICA IDENTITY FULL,
+//      so update payloads always carry every column)
+//   • fn_bingo_tick advances the number sequence server-side — clients
+//     run a 1 s watchdog while the game is in progress; the server
+//     serializes ticks and only advances when callIntervalSeconds have
+//     elapsed. A */15 s cron safety-net covers rooms whose clients all
+//     vanished (numbers keep flowing → draw auto-completes at 75).
+//   • fn_bingo_claim validates BINGO claims server-side (auth.uid()-
+//     based) and completes the game in one round-trip.
+//   • fn_bingo_start enforces host + ≥2 players with server timestamps.
 //   • Card generation happens client-side (random) but the card is
-//     persisted to Supabase so the server can verify wins against it
+//     persisted to Supabase so the server can verify wins against it.
+//   • Reconnection: the realtime channel re-fetches game + cards when it
+//     re-subscribes after a drop, and a 10 s safety poll covers any
+//     missed event while in progress.
 
 import 'dart:async';
 
@@ -18,7 +27,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/config/env_config.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/data/game_invite_chat_sync.dart';
@@ -34,6 +42,7 @@ class BingoState {
     this.isLoading = false,
     this.isSubmitting = false,
     this.isClaiming = false,
+    this.amSpectator = false,
     this.error,
     this.lastClaimValid,
     this.lastClaimReason,
@@ -46,6 +55,7 @@ class BingoState {
   final bool isLoading;
   final bool isSubmitting;
   final bool isClaiming;
+  final bool amSpectator;
   final String? error;
   final bool? lastClaimValid;
   final String? lastClaimReason;
@@ -71,9 +81,17 @@ class BingoState {
     return _checkWinPattern(myCard!, game!.numbersCalled, game!.winPattern);
   }
 
+  /// How many marks I'm still missing on called numbers (UX nudge).
+  int get unmarkedCalledCount {
+    if (myCard == null || game == null) return 0;
+    return myCalledNumbers
+        .where((n) => !myCard!.isMarked(n))
+        .length;
+  }
+
   /// Check if the player's marked numbers (filtered to called numbers)
   /// satisfy the win pattern. This is a CLIENT-SIDE HINT for the UI —
-  /// the actual win verification happens server-side via the Edge Function.
+  /// the actual win verification happens server-side via fn_bingo_claim.
   static bool _checkWinPattern(
     BingoCard card,
     List<int> calledNumbers,
@@ -153,20 +171,23 @@ class BingoState {
     bool? isLoading,
     bool? isSubmitting,
     bool? isClaiming,
+    bool? amSpectator,
     String? error,
     bool clearError = false,
     bool? lastClaimValid,
     String? lastClaimReason,
     bool clearClaim = false,
+    bool clearCard = false,
   }) =>
       BingoState(
         game: game ?? this.game,
-        myCard: myCard ?? this.myCard,
+        myCard: clearCard ? null : (myCard ?? this.myCard),
         allCards: allCards ?? this.allCards,
         claims: claims ?? this.claims,
         isLoading: isLoading ?? this.isLoading,
         isSubmitting: isSubmitting ?? this.isSubmitting,
         isClaiming: isClaiming ?? this.isClaiming,
+        amSpectator: amSpectator ?? this.amSpectator,
         error: clearError ? null : (error ?? this.error),
         lastClaimValid: clearClaim ? null : (lastClaimValid ?? this.lastClaimValid),
         lastClaimReason: clearClaim ? null : (lastClaimReason ?? this.lastClaimReason),
@@ -186,6 +207,9 @@ class BingoNotifier extends StateNotifier<BingoState> {
 
   RealtimeChannel? _channel;
   String? _gameId;
+  Timer? _tickTimer;
+  Timer? _safetyPollTimer;
+  bool _disposed = false;
 
   // ── Public API ───────────────────────────────────────────────────
 
@@ -218,11 +242,13 @@ class BingoNotifier extends StateNotifier<BingoState> {
           .insert(body)
           .select()
           .single();
-      final game = BingoGame.fromJson(resp as Map<String, dynamic>);
+      final game = BingoGame.fromJson(resp);
       _gameId = game.id;
 
       // Generate a card for the host immediately
       await _generateAndInsertCard(game.id, myId, _myName);
+      // Record the participant (archive + invite flows read these rows).
+      await _recordJoin(game.id, myId, role: 'host');
 
       state = state.copyWith(game: game, isLoading: false);
       _subscribeToRealtime(game.id);
@@ -235,7 +261,9 @@ class BingoNotifier extends StateNotifier<BingoState> {
     }
   }
 
-  /// Non-host: join an existing game.
+  /// Join an existing game — or, when the match is already underway and
+  /// the caller holds no card, seamlessly become a SPECTATOR instead of
+  /// dealing a mid-game card.
   Future<bool> joinGame(String gameId) async {
     final client = _client;
     final myId = _myId;
@@ -263,30 +291,60 @@ class BingoNotifier extends StateNotifier<BingoState> {
       final game = BingoGame.fromJson(gameResp as Map<String, dynamic>);
       _gameId = game.id;
 
-      // Check max players
       final cardsResp = await client
           .from('bingo_cards')
           .select()
           .eq('gameId', gameId);
-      if (cardsResp.length >= game.maxPlayers) {
+      final cards = cardsResp.map(BingoCard.fromJson).toList();
+      final myCard =
+          cards.where((c) => c.playerId == myId).firstOrNull;
+
+      if (game.isInProgress && myCard == null) {
+        // Mid-game arrival → spectate (no card, full realtime sync).
+        await _spectate(game.id);
         state = state.copyWith(
-          isLoading: false,
-          error: 'Game is full (${game.maxPlayers} players)',
-        );
-        return false;
+            game: game,
+            allCards: cards,
+            myCard: null,
+            amSpectator: true,
+            isLoading: false);
+        _subscribeToRealtime(game.id);
+        _startWatchdogs();
+        return true;
       }
 
-      // Generate a card for the new player (or fetch existing if re-joining)
-      final existingCard = cardsResp
-          .where((c) => c['playerId'] == myId)
-          .firstOrNull;
-      if (existingCard == null) {
+      if (game.isCompleted && myCard == null) {
+        // Finished game, no card → also spectate-style viewing (results).
+        await _spectate(game.id);
+        state = state.copyWith(
+            game: game,
+            allCards: cards,
+            amSpectator: true,
+            isLoading: false);
+        _subscribeToRealtime(game.id);
+        return true;
+      }
+
+      // Check max players (only blocks new cards)
+      if (myCard == null) {
+        if (cards.length >= game.maxPlayers) {
+          state = state.copyWith(
+            isLoading: false,
+            error: 'Game is full (${game.maxPlayers} players)',
+          );
+          return false;
+        }
         await _generateAndInsertCard(game.id, myId, _myName);
       }
 
-      state = state.copyWith(game: game, isLoading: false);
-      _subscribeToRealtime(gameId);
-      await _refreshCards(gameId);
+      await _recordJoin(game.id, myId,
+          role: game.hostUserId == myId ? 'host' : 'player');
+
+      state = state.copyWith(
+          game: game, isLoading: false, amSpectator: false);
+      _subscribeToRealtime(game.id);
+      await _refreshCards(game.id);
+      if (game.isInProgress) _startWatchdogs();
       // Keep the persistent game-invite chat card in the family thread in
       // sync with the new player count ("2/4 players" / "Full") for every
       // family member via realtime. Best-effort, never affects the join.
@@ -305,6 +363,41 @@ class BingoNotifier extends StateNotifier<BingoState> {
     }
   }
 
+  Future<void> _spectate(String gameId) async {
+    final client = _client;
+    final myId = _myId;
+    if (client == null || myId == null) return;
+    try {
+      await client.rpc('fn_spectate_game', params: {
+        'p_game_table': 'bingo_games',
+        'p_game_id': gameId,
+        'p_family_id': familyId,
+        'p_user_id': myId,
+        'p_user_name': _myName,
+      });
+    } catch (e) {
+      debugPrint('[Bingo] spectate error: $e');
+    }
+  }
+
+  Future<void> _recordJoin(String gameId, String userId,
+      {String role = 'player'}) async {
+    final client = _client;
+    if (client == null) return;
+    try {
+      await client.rpc('fn_record_room_join', params: {
+        'p_game_table': 'bingo_games',
+        'p_game_id': gameId,
+        'p_family_id': familyId,
+        'p_user_id': userId,
+        'p_user_name': _myName,
+        'p_role': role,
+      });
+    } catch (e) {
+      debugPrint('[Bingo] recordJoin error: $e');
+    }
+  }
+
   Future<void> _generateAndInsertCard(
     String gameId,
     String playerId,
@@ -313,7 +406,6 @@ class BingoNotifier extends StateNotifier<BingoState> {
     final client = _client;
     if (client == null) return;
     final cardNumbers = generateBingoCard();
-    // Convert to JSON-friendly format (List<List<int?>>, null for free space)
     final jsonGrid = cardNumbers
         .map((row) => row.map((cell) => cell).toList())
         .toList();
@@ -327,26 +419,39 @@ class BingoNotifier extends StateNotifier<BingoState> {
     });
   }
 
-  /// Host: start the game. Transitions to in_progress, which triggers
-  /// the bingo-caller Edge Function to start calling numbers.
+  /// Host: start the game. Server validates host + ≥2 players and stamps
+  /// server-side timestamps; the first number drops on the next tick.
   Future<void> startGame() async {
     final client = _client;
     final gameId = _gameId;
-    final game = state.game;
-    if (client == null || gameId == null || game == null) return;
-
-    if (state.allCards.length < 2) {
-      state = state.copyWith(error: 'Need at least 2 players to start');
-      return;
-    }
+    if (client == null || gameId == null) return;
 
     try {
-      await client.from('bingo_games').update({
-        'status': 'in_progress',
-        'startedAt': DateTime.now().toIso8601String(),
-        'lastCallAt': DateTime.now().toIso8601String(),
-      }).eq('id', gameId);
-      // The bingo-caller cron will pick this up and start calling numbers
+      final res = await client.rpc('fn_bingo_start', params: {
+        'p_game_id': gameId,
+      });
+      final data = (res as Map?)?.cast<String, dynamic>();
+      final ok = data?['ok'] == true;
+      if (!ok) {
+        final reason = data?['reason'] ?? 'unknown';
+        var friendly = 'Couldn\'t start the game';
+        switch (reason) {
+          case 'need_two_players':
+            friendly = 'Need at least 2 players to start';
+            break;
+          case 'not_host':
+            friendly = 'Only the host can start';
+            break;
+          case 'already_started':
+            friendly = 'Game already started';
+            break;
+        }
+        state = state.copyWith(error: friendly);
+        return;
+      }
+      // Realtime will deliver the in_progress transition; optimistically
+      // refresh so the host sees it instantly.
+      await refreshGame();
     } catch (e) {
       debugPrint('[Bingo] startGame error: $e');
       state = state.copyWith(error: '$e');
@@ -410,29 +515,20 @@ class BingoNotifier extends StateNotifier<BingoState> {
     }
   }
 
-  /// Player: claim BINGO! Triggers server-side verification.
+  /// Player: claim BINGO! Server-side verification + completion in one
+  /// RPC (fn_bingo_claim) — identity comes from auth.uid(), never the
+  /// payload.
   Future<bool> claimBingo() async {
     final client = _client;
     final gameId = _gameId;
-    final myId = _myId;
-    if (client == null || gameId == null || myId == null) return false;
+    if (client == null || gameId == null) return false;
 
     state = state.copyWith(isClaiming: true, clearClaim: true);
     try {
-      // Call the bingo-verify-claim Edge Function
-      final functionUrl =
-          '${EnvConfig.apiBaseUrl}/functions/v1/bingo-verify-claim';
-      final token = client.auth.currentSession?.accessToken;
-      final response = await client.functions.invoke(
-        'bingo-verify-claim',
-        body: {
-          'gameId': gameId,
-          'playerId': myId,
-        },
-        headers: token != null ? {'Authorization': 'Bearer $token'} : null,
-      );
-
-      final data = response.data as Map<String, dynamic>;
+      final res = await client.rpc('fn_bingo_claim', params: {
+        'p_game_id': gameId,
+      });
+      final data = (res as Map).cast<String, dynamic>();
       final isValid = data['valid'] == true;
       final reason = data['reason'] as String?;
 
@@ -471,19 +567,25 @@ class BingoNotifier extends StateNotifier<BingoState> {
   /// `waiting` status, the entire room is deleted (cascade to child
   /// tables + invites) via the temporary-room service. Otherwise the
   /// player's own row is deleted (bingo uses `bingo_cards` as the
-  /// per-player table; the server-side trigger bumps lastActivityAt on
-  /// that DELETE).
-  ///
-  /// Note: bingo has no `bingo_players` table, so `toggleReady` is a
-  /// no-op — see the `TemporaryLobbyConfig(showReadyToggle: false)`
-  /// wiring in the lobby screen.
+  /// per-player table). Mid-game rooms are NEVER torn down by a single
+  /// player leaving — the server-side caller keeps the match alive.
   Future<void> leaveGame() async {
     final client = _client;
     final gameId = _gameId;
     final myId = _myId;
     final game = state.game;
+    _stopWatchdogs();
     _channel?.unsubscribe();
     _channel = null;
+    if (state.amSpectator && client != null && gameId != null && myId != null) {
+      try {
+        await client.rpc('fn_leave_spectator', params: {
+          'p_game_table': 'bingo_games',
+          'p_game_id': gameId,
+          'p_user_id': myId,
+        });
+      } catch (_) {}
+    }
     if (client == null || gameId == null || myId == null) {
       _gameId = null;
       return;
@@ -505,6 +607,32 @@ class BingoNotifier extends StateNotifier<BingoState> {
     _gameId = null;
   }
 
+  /// Re-fetch the authoritative game row + cards (reconnection, post-
+  /// RPC refresh, safety poll).
+  Future<void> refreshGame() async {
+    final client = _client;
+    final gameId = _gameId;
+    if (client == null || gameId == null) return;
+    try {
+      final gameResp = await client
+          .from('bingo_games')
+          .select()
+          .eq('id', gameId)
+          .maybeSingle();
+      if (gameResp == null) return; // room gone — realtime handles it
+      final game = BingoGame.fromJson(gameResp);
+      state = state.copyWith(game: game);
+      await _refreshCards(gameId);
+      if (game.isInProgress) {
+        _startWatchdogs();
+      } else {
+        _stopWatchdogs();
+      }
+    } catch (e) {
+      debugPrint('[Bingo] refreshGame error: $e');
+    }
+  }
+
   /// Schedule the temporary room (and all temporary player associations)
   /// for deletion 30s after the game ends. The hourly pg_cron job is
   /// the safety net if the user closes the app before this fires.
@@ -515,6 +643,89 @@ class BingoNotifier extends StateNotifier<BingoState> {
             gameId: gameId,
           );
     });
+  }
+
+  // ── Watchdogs ────────────────────────────────────────────────────
+
+  /// While in progress: drive the server-side caller every second (the
+  /// server only advances when the interval elapses) + poll a full
+  /// refresh every 10 s as a realtime safety net.
+  void _startWatchdogs() {
+    _tickTimer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_disposed || !state.isInProgress) {
+        _stopWatchdogs();
+        return;
+      }
+      _tick();
+    });
+    _safetyPollTimer ??= Timer.periodic(const Duration(seconds: 10), (_) {
+      if (_disposed || !state.isInProgress) {
+        _stopWatchdogs();
+        return;
+      }
+      refreshGame();
+    });
+  }
+
+  void _stopWatchdogs() {
+    _tickTimer?.cancel();
+    _tickTimer = null;
+    _safetyPollTimer?.cancel();
+    _safetyPollTimer = null;
+  }
+
+  Future<void> _tick() async {
+    final client = _client;
+    final gameId = _gameId;
+    if (client == null || gameId == null) return;
+    try {
+      final res = await client.rpc('fn_bingo_tick', params: {
+        'p_game_id': gameId,
+      });
+      final data = (res as Map?)?.cast<String, dynamic>();
+      if (data == null) return;
+      // Merge the authoritative numbersCalled straight in — the realtime
+      // echo may arrive before/after, both are identical now that the
+      // payloads carry full rows.
+      final calledList = (data['numbersCalled'] as List?)
+              ?.map((e) => (e as num).toInt())
+              .toList() ??
+          state.game?.numbersCalled;
+      final status = data['status'] as String?;
+      final game = state.game;
+      if (game != null && calledList != null) {
+        final nextGame = BingoGame(
+          id: game.id,
+          familyId: game.familyId,
+          hostUserId: game.hostUserId,
+          hostUserName: game.hostUserName,
+          status: BingoStatusX.fromString(status),
+          winPattern: game.winPattern,
+          callIntervalSeconds: game.callIntervalSeconds,
+          numbersCalled: calledList,
+          winnerPlayerId: game.winnerPlayerId,
+          winnerPlayerName: game.winnerPlayerName,
+          maxPlayers: game.maxPlayers,
+          lastCallAt: game.lastCallAt,
+          startedAt: game.startedAt,
+          completedAt: game.completedAt,
+          createdAt: game.createdAt,
+        );
+        final grew = calledList.length > game.numbersCalled.length;
+        final completed = nextGame.isCompleted && !game.isCompleted;
+        state = state.copyWith(game: nextGame);
+        if (grew) GameMotionTokens.success();
+        if (completed) {
+          _stopWatchdogs();
+          _scheduleRoomCleanup(game.id);
+          // Winner info arrives via realtime; also refetch to be sure.
+          unawaited(refreshGame());
+        }
+      }
+    } catch (e) {
+      // Transient network errors are fine — the 10 s poll covers them.
+      debugPrint('[Bingo] tick error: $e');
+    }
   }
 
   // ── Realtime subscription ────────────────────────────────────────
@@ -543,11 +754,12 @@ class BingoNotifier extends StateNotifier<BingoState> {
               GameMotionTokens.success();
             }
             // Detect transition to completed — schedule temporary-room
-            // cleanup 30s later. The Edge Function bingo-verify-claim is
-            // authoritative for marking the game completed; we just hook
-            // the realtime transition to fire the cleanup Timer.
+            // cleanup 30s later. fn_bingo_claim is authoritative for
+            // marking the game completed; we just hook the realtime
+            // transition to fire the cleanup Timer.
             final wasCompleted = state.game?.isCompleted ?? false;
             if (updated.isCompleted && !wasCompleted) {
+              _stopWatchdogs();
               _scheduleRoomCleanup(updated.id);
             }
             state = state.copyWith(game: updated);
@@ -626,8 +838,25 @@ class BingoNotifier extends StateNotifier<BingoState> {
             state = state.copyWith(claims: [...state.claims, claim]);
           },
         )
-        .subscribe();
+        .subscribe((status, err) {
+          // Reconnection: whenever the channel (re-)subscribes after the
+          // initial attach, do a full authoritative refresh so numbers
+          // missed while the socket was down are recovered instantly.
+          if (status == RealtimeSubscribeStatus.subscribed) {
+            if (_hasSubscribedOnce) {
+              debugPrint('[Bingo] realtime re-subscribed → refetch');
+              refreshGame();
+            }
+            _hasSubscribedOnce = true;
+          } else if (status == RealtimeSubscribeStatus.closed ||
+              status == RealtimeSubscribeStatus.channelError ||
+              status == RealtimeSubscribeStatus.timedOut) {
+            debugPrint('[Bingo] realtime dropped: $status');
+          }
+        });
   }
+
+  bool _hasSubscribedOnce = false;
 
   Future<void> _refreshCards(String gameId) async {
     final client = _client;
@@ -638,11 +867,16 @@ class BingoNotifier extends StateNotifier<BingoState> {
           .from('bingo_cards')
           .select()
           .eq('gameId', gameId);
-      final cards = resp
-          .map((c) => BingoCard.fromJson(c as Map<String, dynamic>))
-          .toList();
+      final cards = resp.map(BingoCard.fromJson).toList();
       final myCard = cards.where((c) => c.playerId == myId).firstOrNull;
-      state = state.copyWith(allCards: cards, myCard: myCard);
+      state = state.copyWith(
+        allCards: cards,
+        myCard: myCard,
+        // If I genuinely have no card mid-game I'm a spectator.
+        amSpectator: myCard == null && state.game?.isInProgress == true
+            ? true
+            : (myCard == null ? state.amSpectator : false),
+      );
     } catch (e) {
       debugPrint('[Bingo] refreshCards error: $e');
     }
@@ -650,6 +884,8 @@ class BingoNotifier extends StateNotifier<BingoState> {
 
   @override
   void dispose() {
+    _disposed = true;
+    _stopWatchdogs();
     _channel?.unsubscribe();
     super.dispose();
   }

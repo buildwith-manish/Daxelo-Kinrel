@@ -136,6 +136,18 @@ class BingoGame {
   /// The most recently called number (or null if none called yet).
   int? get lastCalledNumber =>
       numbersCalled.isEmpty ? null : numbersCalled.last;
+
+  /// Seconds until the server calls the next number (from the
+  /// authoritative lastCallAt + callIntervalSeconds). 0 = due now / no
+  /// timer running. Drives the live "next in Ns" chip on the board.
+  int get secondsToNextCall {
+    if (!isInProgress) return 0;
+    final last = lastCallAt;
+    if (last == null) return 0; // first number drops on the next tick
+    final due = last.add(Duration(seconds: callIntervalSeconds));
+    final remaining = due.difference(DateTime.now()).inSeconds;
+    return remaining.clamp(0, callIntervalSeconds);
+  }
 }
 
 class BingoCard {
@@ -245,13 +257,11 @@ class BingoClaim {
 /// Columns: B(1-15), I(16-30), N(31-45), G(46-60), O(61-75)
 /// Center cell (N,3rd row) is the free space (null).
 List<List<int?>> generateBingoCard() {
-  final rand = DateTime.now().millisecondsSinceEpoch;
   final grid = List<List<int?>>.generate(5, (_) => List<int?>.filled(5, null));
 
   // Each column draws from its own 15-number range
   for (int col = 0; col < 5; col++) {
     final start = col * 15 + 1;
-    final end = start + 14;
     final pool = List<int>.generate(15, (i) => start + i)..shuffle();
     for (int row = 0; row < 5; row++) {
       if (row == 2 && col == 2) {
@@ -260,10 +270,6 @@ List<List<int?>> generateBingoCard() {
         grid[row][col] = pool[row];
       }
     }
-  }
-  // Use the timestamp for additional entropy
-  if (rand % 2 == 0) {
-    grid[0][0] = grid[0][0];
   }
   return grid;
 }

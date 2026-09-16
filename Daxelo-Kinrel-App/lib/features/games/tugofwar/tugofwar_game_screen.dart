@@ -111,8 +111,15 @@ class _TugOfWarGameScreenState extends ConsumerState<TugOfWarGameScreen>
     return ReactionOverlay(
       gameTable: 'tugofwar_games',
       gameId: widget.gameId,
-      child: DKScaffoldlessBackground(
-        child: SafeArea(
+      // Scaffold (not a bare Container) — the Material/Scaffold pair injects
+      // the theme's DefaultTextStyle. Without it every Text on this screen
+      // inherited a fallback ambient style that rendered gold double
+      // underlines beneath ALL text (verified live: avatar initials, stats,
+      // PULL! button, results view). Every other game screen uses Scaffold
+      // and renders clean.
+      child: Scaffold(
+        backgroundColor: KinrelColors.darkSurface,
+        body: SafeArea(
           child: state.isLoading && state.game == null
               ? const Center(
                   child: CircularProgressIndicator(color: KinrelColors.orange),
@@ -232,23 +239,6 @@ class TugTeamBoardColors {
 
   static const Color a = KinrelColors.orange; // Team Ember
   static const Color b = KinrelColors.blue; // Team Azure
-}
-
-/// Scaffold-free full-bleed dark background container.
-class DKScaffoldlessBackground extends StatelessWidget {
-  const DKScaffoldlessBackground({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      color: KinrelColors.darkSurface,
-      child: child,
-    );
-  }
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -478,11 +468,18 @@ class _TeamCard extends StatelessWidget {
                   ),
                 ),
               ),
+              Icon(
+                Icons.people_outline,
+                size: 11,
+                color: KinrelColors.textDim,
+              ),
+              const SizedBox(width: 2),
               Text(
-                '👥${stats.size}',
+                '${stats.size}',
                 style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
+                  fontFamily: KinrelTypography.monoFont,
                   fontSize: 10,
+                  fontWeight: FontWeight.w700,
                   color: KinrelColors.textDim,
                 ),
               ),
@@ -585,14 +582,26 @@ class _TeamCard extends StatelessWidget {
           if (topPuller != null && topPuller.pullCount > 0)
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                '🔥 ${topPuller.userName.split(' ').first} · ${topPuller.pullCount}',
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 9,
-                  color: KinrelColors.textDim,
-                ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.local_fire_department_outlined,
+                    size: 10,
+                    color: color,
+                  ),
+                  const SizedBox(width: 3),
+                  Expanded(
+                    child: Text(
+                      '${topPuller.userName.split(' ').first} · ${topPuller.pullCount}',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 9,
+                        color: KinrelColors.textDim,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
         ],
@@ -953,9 +962,10 @@ class _WinnerBanner extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(
-            '🏆',
-            style: const TextStyle(fontSize: 52),
+          Icon(
+            isDraw ? Icons.handshake_outlined : Icons.emoji_events,
+            size: 52,
+            color: isDraw ? KinrelColors.gold : winnerColor,
           ),
           const SizedBox(height: KinrelSpacing.sm),
           Text(
@@ -1037,7 +1047,7 @@ class _MvpRow extends StatelessWidget {
       children: [
         Expanded(
           child: _MvpCard(
-            emoji: '💪',
+            icon: Icons.fitness_center,
             title: 'Most Taps',
             player: mostTaps,
             value: '${mostTaps.pullCount}',
@@ -1046,7 +1056,7 @@ class _MvpRow extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: _MvpCard(
-            emoji: '⚡',
+            icon: Icons.bolt,
             title: 'Fastest',
             player: fastest,
             value:
@@ -1056,7 +1066,7 @@ class _MvpRow extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: _MvpCard(
-            emoji: '🥇',
+            icon: Icons.emoji_events_outlined,
             title: 'MVP',
             player: strongest,
             value: '${(bestShare * 100).round()}%',
@@ -1069,13 +1079,13 @@ class _MvpRow extends StatelessWidget {
 
 class _MvpCard extends StatelessWidget {
   const _MvpCard({
-    required this.emoji,
+    required this.icon,
     required this.title,
     required this.player,
     required this.value,
   });
 
-  final String emoji;
+  final IconData icon;
   final String title;
   final TugOfWarPlayer player;
   final String value;
@@ -1094,7 +1104,7 @@ class _MvpCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 20)),
+          Icon(icon, size: 20, color: color),
           const SizedBox(height: 4),
           Text(
             title,
@@ -1354,16 +1364,27 @@ class _RematchRow extends ConsumerWidget {
               borderRadius: BorderRadius.circular(KinrelRadius.md),
               border: Border.all(color: KinrelColors.border),
             ),
-            child: Text(
-              iWon
-                  ? 'Waiting for the host to set up the rematch… 🎉'
-                  : 'Waiting for the host to set up the rematch… 😤',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 12,
-                color: KinrelColors.textDim,
-              ),
+            child: Row(
+              children: [
+                Icon(
+                  iWon
+                      ? Icons.celebration_outlined
+                      : Icons.refresh,
+                  size: 14,
+                  color: iWon ? KinrelColors.gold : KinrelColors.textDim,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Waiting for the host to set up the rematch',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 12,
+                      color: KinrelColors.textDim,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: KinrelSpacing.sm),

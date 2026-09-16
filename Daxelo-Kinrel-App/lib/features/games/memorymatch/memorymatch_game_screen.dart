@@ -35,6 +35,7 @@ import '../game_motion_tokens.dart';
 import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/widgets/reactions_bar.dart';
+import 'memorymatch_card_faces.dart';
 import 'memorymatch_models.dart';
 import 'memorymatch_provider.dart';
 
@@ -221,7 +222,14 @@ class _TopBar extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(pack.emoji, style: const TextStyle(fontSize: 13)),
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: MemoryCardFaceIcon(
+                    symbolKey: MemoryCardFaces.previewSpecFor(game.cardPack).key,
+                    packId: game.cardPack,
+                  ),
+                ),
                 const SizedBox(width: 6),
                 Text(
                   pack.label,
@@ -306,10 +314,10 @@ class _TurnBanner extends StatelessWidget {
     final accent = isMyTurn ? KinrelColors.orange : KinrelColors.blue;
 
     final title = revealing
-        ? (revealingMatch ? 'It\'s a match! ✨' : 'No match — memorize! 🧠')
+        ? (revealingMatch ? 'It\'s a match!' : 'No match — memorize!')
         : isMyTurn
-            ? '🎮 Your Turn — flip two cards!'
-            : '🎮 $currentPlayerName\'s Turn';
+            ? 'Your Turn — flip two cards!'
+            : '$currentPlayerName\'s Turn';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -341,6 +349,20 @@ class _TurnBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
+            Icon(
+              revealing
+                  ? (revealingMatch
+                      ? Icons.auto_awesome
+                      : Icons.psychology_outlined)
+                  : Icons.style_outlined,
+              size: 18,
+              color: isMyTurn && !revealing
+                  ? Colors.white
+                  : revealingMatch
+                      ? KinrelColors.success
+                      : KinrelColors.textDim,
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
                 title,
@@ -361,14 +383,6 @@ class _TurnBanner extends StatelessWidget {
                 remaining: remaining,
                 total: game.turnSeconds,
                 color: isMyTurn ? Colors.white : accent,
-              ),
-            ] else if (revealing) ...[
-              Icon(
-                revealingMatch ? Icons.celebration_outlined : Icons.flip,
-                size: 18,
-                color: revealingMatch
-                    ? KinrelColors.success
-                    : KinrelColors.textDim,
               ),
             ],
           ],
@@ -813,15 +827,18 @@ class _MemoryCardTileState extends State<_MemoryCardTile>
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // The symbol — dimmed once owned, full-brightness while live.
+          // The symbol — a vector illustration that scales with the tile
+          // (16 px chips → full-card tiles). Dimmed once owned.
           AnimatedOpacity(
             duration: GameMotionTokens.normal,
             opacity: matched ? 0.55 : 1,
-            child: Text(
-              widget.pack.emojiFor(widget.card.symbolKey),
-              style: TextStyle(
-                fontSize: 30,
-                color: matched ? Colors.white : null,
+            child: Padding(
+              padding: EdgeInsets.all(
+                matched ? 12.0 : 9.0,
+              ),
+              child: MemoryCardFaceIcon(
+                symbolKey: widget.card.symbolKey,
+                packId: widget.pack.id,
               ),
             ),
           ),
@@ -1017,7 +1034,7 @@ class _ResultsView extends ConsumerWidget {
     final label = winnerNames.isEmpty
         ? 'Game Complete'
         : winnerNames.length == 1
-            ? '${winnerNames.first} wins! 🧠✨'
+            ? '${winnerNames.first} wins!'
             : '${winnerNames.join(' & ')} tie the win!';
 
     return Container(
@@ -1037,16 +1054,28 @@ class _ResultsView extends ConsumerWidget {
       ),
       child: Column(
         children: [
+          Icon(
+            iWon ? Icons.emoji_events : Icons.workspace_premium_outlined,
+            size: iWon ? 46 : 40,
+            color: Colors.white,
+            shadows: [
+              Shadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
           Text(
-            iWon ? '🏆 You Win!' : '🎮',
+            iWon ? 'You Win!' : 'Game Over',
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
-              fontSize: iWon ? 22 : 30,
+              fontSize: iWon ? 22 : 20,
               fontWeight: FontWeight.w800,
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 4),
           Text(
             label,
             textAlign: TextAlign.center,
@@ -1133,10 +1162,7 @@ class _PlacementRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Text(
-            placement.medal,
-            style: const TextStyle(fontSize: 22),
-          ),
+          _RankMedal(place: placement.place, color: seatColor),
           const SizedBox(width: 10),
           _AvatarBadge(
             name: placement.userName,
@@ -1182,6 +1208,63 @@ class _PlacementRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Vector rank medal — a colored medallion with the place number,
+/// replacing emoji medals (gold / silver / bronze / participant).
+class _RankMedal extends StatelessWidget {
+  const _RankMedal({required this.place, required this.color});
+
+  final int place;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final medalColor = switch (place) {
+      1 => const Color(0xFFFFC940), // gold
+      2 => const Color(0xFFC7CEDA), // silver
+      3 => const Color(0xFFD9905C), // bronze
+      _ => color.withValues(alpha: 0.65),
+    };
+    final glow = place <= 3 ? medalColor.withValues(alpha: 0.55) : Colors.transparent;
+    return Container(
+      width: 34,
+      height: 34,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(medalColor, Colors.white, 0.35)!,
+            medalColor,
+            Color.lerp(medalColor, Colors.black, 0.28)!,
+          ],
+        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.55), width: 1.5),
+        boxShadow: [
+          BoxShadow(color: glow, blurRadius: 9, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Text(
+        '$place',
+        style: TextStyle(
+          fontFamily: KinrelTypography.displayFont,
+          fontSize: 15,
+          fontWeight: FontWeight.w900,
+          color: Colors.white,
+          shadows: [
+            Shadow(
+              color: Colors.black.withValues(alpha: 0.45),
+              blurRadius: 2,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
       ),
     );
   }
