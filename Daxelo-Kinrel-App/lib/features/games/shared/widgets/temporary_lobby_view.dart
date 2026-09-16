@@ -2,25 +2,29 @@
 //
 // TemporaryLobbyView — shared lobby UI for ALL multiplayer games.
 //
-// Universal layout (same for every game):
+// Universal layout (same for every game) — one scrollable zone for
+// secondary content + three PINNED zones so the things a player needs
+// are always on screen:
 //
 //   ┌────────────────────────────────────┐
-//   │      ✨  Everyone is Ready         │  ← status banner
-//   │   Match starts when host taps Go   │
+//   │  (scrollable) status card, pending │  ← secondary content
+//   │  invites + game-specific extras    │
 //   ├────────────────────────────────────┤
-//   │  Room: ABC123 · 2/6 players         │  ← room metadata (visible
-//   │  Auto-closes in 04:32               │     during entire lobby phase)
+//   │ 👤 #1  Manish     HOST   ✓ READY  │  ← FIXED-HEIGHT roster
+//   │ 👤 #2  Priya      ◄ YOU  ✓ READY  │     with INDEPENDENT
+//   │ 👤 #3  Aarav              waiting  │     scrolling. Rows keep
+//   │    #4  (open slot)           —     │     the actual JOIN ORDER
+//   │    #5  (open slot)           —     │     (slot #), the local
+//   │                                    │     player stays pinned +
+//   │                                    │     highlighted, and the
+//   │                                    │     list opens scrolled
+//   │                                    │     to the local player.
 //   ├────────────────────────────────────┤
-//   │ 👤  Manish                ✓ READY  │  ← player avatars + names +
-//   │ 👤  Priya                  ✓ READY  │    ready status (primary focus)
-//   │ 👤  Aarav                   waiting  │
-//   │ 👤  (empty slot)              —     │
-//   ├────────────────────────────────────┤
-//   │       [   I'm Ready  ✅   ]         │  ← my ready toggle
-//   │       [   Start Match    ▶  ]       │  ← Start Match (host only)
-//   ├────────────────────────────────────┤
-//   │   Pending invites + Lobby chat      │  ← optional footer
-//   └────────────────────────────────────┘
+//   │  💬 Lobby chat ▾          2 new    │  ← pinned chat dock
+//   ├────────────────────────────────────┤      (collapsible)
+//   │ [Invite Family]     [Close Room]   │  ← PINNED actions —
+//   │ [    Ready / Start Match       ]   │     always visible,
+//   └────────────────────────────────────┘     never scroll away
 //
 // State machine (driven by the parent provider's `status` field):
 //   waiting     → "Waiting for Players" (or "Everyone is Ready" if all ready)
@@ -32,6 +36,7 @@
 // callbacks for toggleReady / startMatch / cancelRoom.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -42,6 +47,7 @@ import '../../../../core/constants/brand_typography.dart';
 import '../../../../shared/widgets/dk_components.dart';
 import '../../game_motion_tokens.dart';
 import '../multiplayer/widgets/room_close_dialog.dart';
+import 'lobby_chat_panel.dart';
 import 'room_exit_barrier.dart';
 
 /// One player row in the lobby.
@@ -312,115 +318,182 @@ class _TemporaryLobbyViewState extends State<TemporaryLobbyView> {
   @override
   Widget build(BuildContext context) {
     final config = widget.config;
-    // Layout: scrollable lobby content on top + a PINNED action bar at
-    // the bottom. Pinning the action bar guarantees the host's Close
-    // Room button is ALWAYS on screen — even when the player roster is
-    // long (Bingo/Ludo with 8 slots) and would otherwise push it far
-    // below the scroll fold.
+
+    // Layout: a scrollable zone on top (secondary content) + three
+    // PINNED zones below it. Pinning the roster guarantees every
+    // player can always see their own slot (auto-scrolled into view
+    // on open + highlighted), and pinning the chat dock + action bar
+    // keeps Invite / Lobby Chat / Ready / Start Match / Close Room
+    // reachable without scrolling — even in 30-slot Bingo rooms.
     final actions = _buildActions(config);
 
-    return Column(
-      children: [
-        // ── Scrollable lobby content ────────────────────────────────
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(
-                KinrelSpacing.base, KinrelSpacing.base, KinrelSpacing.base, 0),
-            children: [
-              // ── 1. Room header card (status + room facts, one glance) ─
-              _RoomHeaderCard(
-                config: config,
-                countdownLabel: _countdownLabel,
-                secondsRemaining: _secondsRemaining,
-                totalSeconds: config.autoCloseSeconds,
-              ),
+    return LayoutBuilder(builder: (context, constraints) {
+      // Deterministic height budgets so the pinned zones can never
+      // overflow the viewport:
+      //   • Roster: ~⅓ of the available height (2–5 rows visible),
+      //     scrolling internally when the room has more slots.
+      //   • Action bar: fixed and known per status (compact row 46 +
+      //     DKButton 48 + spacing + container padding ≤ 186).
+      //   • Chat dock: whatever remains, clamped — it collapses to a
+      //     slim header bar by default.
+      final isWaiting = config.status == TemporaryLobbyStatus.waiting;
+      final actionsReserve = isWaiting ? 186.0 : 74.0;
+      var rosterCap = constraints.hasBoundedHeight
+          ? (constraints.maxHeight * 0.32).clamp(120.0, 312.0)
+          : 312.0;
+      var chatCap = 240.0;
+      if (constraints.hasBoundedHeight) {
+        final h = constraints.maxHeight;
+        rosterCap = math.min(
+            rosterCap, (h - actionsReserve - 104).clamp(0.0, 312.0));
+        chatCap = (h - rosterCap - actionsReserve - 8).clamp(96.0, 264.0);
+      }
 
-              // ── 1b. Match-start countdown (only when starting) ────
-              if (config.status == TemporaryLobbyStatus.starting) ...[
-                const SizedBox(height: KinrelSpacing.sm),
-                _MatchStartCountdown(),
+      return Column(
+        children: [
+          // ── 1. Scrollable secondary content ─────────────────────
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(KinrelSpacing.base,
+                  KinrelSpacing.base, KinrelSpacing.base, 0),
+              children: [
+                // ── 1a. Room header card (status + room facts) ────
+                _RoomHeaderCard(
+                  config: config,
+                  countdownLabel: _countdownLabel,
+                  secondsRemaining: _secondsRemaining,
+                  totalSeconds: config.autoCloseSeconds,
+                ),
+
+                // ── 1b. Match-start countdown (only when starting) ─
+                if (config.status == TemporaryLobbyStatus.starting) ...[
+                  const SizedBox(height: KinrelSpacing.sm),
+                  _MatchStartCountdown(),
+                ],
+
+                // ── 1c. Game footer (pending invites + extras) ────
+                if (widget.footer != null) ...[
+                  const SizedBox(height: KinrelSpacing.lg),
+                  widget.footer!,
+                ],
+                const SizedBox(height: KinrelSpacing.base),
               ],
-              const SizedBox(height: KinrelSpacing.lg),
-
-              // ── 2. Player roster ──────────────────────────────
-              _PlayerRoster(
-                config: config,
-                myUserId: widget.myUserId,
-                onInviteFamily: widget.onInviteFamily,
-              ),
-
-              // ── 3. Footer (pending invites + lobby chat) ─────────
-              if (widget.footer != null) ...[
-                const SizedBox(height: KinrelSpacing.lg),
-                widget.footer!,
-              ],
-              const SizedBox(height: KinrelSpacing.base),
-            ],
+            ),
           ),
-        ),
 
-        // ── 4. PINNED action bar (always visible, never scrolls) ────
-        if (actions != null)
-          Container(
-            width: double.infinity,
+          // ── 2. FIXED-HEIGHT player roster (scrolls on its own) ──
+          Padding(
             padding: const EdgeInsets.fromLTRB(KinrelSpacing.base,
-                KinrelSpacing.sm, KinrelSpacing.base, KinrelSpacing.base),
-            decoration: BoxDecoration(
-              color: KinrelColors.darkSurface,
-              border: Border(
-                top: BorderSide(
-                  color: KinrelColors.border.withValues(alpha: 0.5),
-                  width: 1,
+                KinrelSpacing.md, KinrelSpacing.base, 0),
+            child: _PlayerRosterPanel(
+              config: config,
+              myUserId: widget.myUserId,
+              viewportCap: rosterCap,
+            ),
+          ),
+
+          // ── 3. Pinned lobby chat dock (collapsible, in reach) ───
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: KinrelSpacing.base),
+            child: _LobbyChatDock(
+              config: config,
+              expandedHeight: chatCap,
+            ),
+          ),
+
+          // ── 4. PINNED action bar (always visible, never scrolls) ─
+          if (actions != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(KinrelSpacing.base,
+                  KinrelSpacing.sm, KinrelSpacing.base, KinrelSpacing.base),
+              decoration: BoxDecoration(
+                color: KinrelColors.darkSurface,
+                border: Border(
+                  top: BorderSide(
+                    color: KinrelColors.border.withValues(alpha: 0.5),
+                    width: 1,
+                  ),
                 ),
               ),
+              child: actions,
             ),
-            child: actions,
-          ),
-      ],
-    );
+        ],
+      );
+    });
   }
 
-  /// Builds the pinned action bar contents: the host's Close Room button
-  /// is ALWAYS present while the room is open (waiting AND starting —
-  /// it must never disappear), alongside the ready toggle + start-match
-  /// button. Returns null when the room is finished (no actions).
+  /// Builds the pinned action bar contents. Everything a player needs
+  /// to DO in the room lives here — always visible, never scrolled
+  /// away:
+  ///
+  ///   • Invite Family (when the game provides an invite flow and the
+  ///     room still has open slots) — compact, beside Close Room.
+  ///   • Close Room (host) — ALWAYS present while the room is open
+  ///     (waiting AND starting — it must never disappear). Tapping it
+  ///     first shows the shared confirmation dialog; the room is only
+  ///     deleted after the host confirms.
+  ///   • Ready toggle + Start Match button (waiting only).
+  ///
+  /// Returns null when the room is finished, or when there is nothing
+  /// to pin (e.g. a non-host during the start countdown).
   Widget? _buildActions(TemporaryLobbyConfig config) {
     if (config.status != TemporaryLobbyStatus.waiting &&
         config.status != TemporaryLobbyStatus.starting) {
       return null;
     }
+    final isWaiting = config.status == TemporaryLobbyStatus.waiting;
+    final canInvite = isWaiting &&
+        widget.onInviteFamily != null &&
+        config.players.length < config.maxPlayers;
+    final showReady = isWaiting && config.showReadyToggle;
+    final hasCompactRow = canInvite || _isHost;
+
+    // Nothing to pin — e.g. a non-host during the start countdown,
+    // who just waits for the match to begin.
+    if (!hasCompactRow && !isWaiting) return null;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (config.status == TemporaryLobbyStatus.waiting &&
-            config.showReadyToggle)
+        // ── Compact pinned row: Invite Family + Close Room ─────────
+        if (hasCompactRow) ...[
+          Row(
+            children: [
+              if (canInvite) ...[
+                Expanded(
+                  child: _InviteButton(
+                      onInviteFamily: widget.onInviteFamily!),
+                ),
+                const SizedBox(width: KinrelSpacing.sm),
+              ],
+              if (_isHost)
+                Expanded(
+                  child: _CloseRoomButton(
+                    onCancelRoom: widget.onCancelRoom,
+                    fallbackRoute: '/family/${config.familyId}',
+                    // Registry key — must match the route-level onExit
+                    // guard in app_router.dart ('<gameTable>/<familyId>').
+                    exitKey: '${config.gameTable}/${config.familyId}',
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: KinrelSpacing.sm),
+        ],
+        if (showReady)
           _ReadyToggle(
             isReady: _isMyReady,
             onPressed: () => widget.onToggleReady(!_isMyReady),
           ),
-        if (config.status == TemporaryLobbyStatus.waiting) ...[
-          const SizedBox(height: KinrelSpacing.sm),
+        if (isWaiting) ...[
+          if (showReady) const SizedBox(height: KinrelSpacing.sm),
           _StartMatchButton(
             config: config,
             isHost: _isHost,
             onStartMatch: widget.onStartMatch,
-          ),
-        ],
-        // Host-only prominent Close Room button — ALWAYS visible while
-        // the room is open (pinned above the fold). Tapping it first
-        // shows the shared confirmation dialog ("Are you sure you want
-        // to close this room?" → Cancel / Close Room); the room is only
-        // deleted after the host confirms. Cancelling keeps the host in
-        // the room.
-        if (_isHost) ...[
-          const SizedBox(height: KinrelSpacing.sm),
-          _CloseRoomButton(
-            onCancelRoom: widget.onCancelRoom,
-            fallbackRoute: '/family/${config.familyId}',
-            // Registry key — must match the route-level onExit guard
-            // in app_router.dart ('<gameTable>/<familyId>').
-            exitKey: '${config.gameTable}/${config.familyId}',
           ),
         ],
       ],
@@ -728,22 +801,150 @@ class _RoomHeaderCard extends StatelessWidget {
   }
 }
 
-class _PlayerRoster extends StatelessWidget {
-  const _PlayerRoster({
+/// Fixed-height, independently scrollable player roster.
+///
+/// UX contract (identical across every game):
+///   • Rows preserve the ACTUAL JOIN ORDER — a stable sort by
+///     [TemporaryLobbyPlayer.joinedAt], so the host (room creator)
+///     naturally sits at slot #1 and later joiners below.
+///   • Every row shows its join slot number (#1, #2, …) so each
+///     player instantly identifies their position in the room.
+///   • The local player's row is permanently highlighted (orange
+///     tint + accent bar + YOU chip) — it survives joins, leaves and
+///     reconnects.
+///   • On open, the list auto-scrolls ONCE so the local player's row
+///     is visible near the BOTTOM of the viewport with a few slots
+///     above it (slot #8 with a 5-row viewport opens showing ~#4–#8)
+///     instead of always starting from the top. Later user scrolling
+///     is never overridden.
+class _PlayerRosterPanel extends StatefulWidget {
+  const _PlayerRosterPanel({
     required this.config,
     required this.myUserId,
-    required this.onInviteFamily,
+    required this.viewportCap,
   });
 
   final TemporaryLobbyConfig config;
   final String? myUserId;
-  final VoidCallback? onInviteFamily;
+
+  /// Maximum height of the scrollable slot list (the panel adds its
+  /// header on top). When the room has more slots than fit, the list
+  /// scrolls internally instead of growing the page.
+  final double viewportCap;
+
+  @override
+  State<_PlayerRosterPanel> createState() => _PlayerRosterPanelState();
+}
+
+class _PlayerRosterPanelState extends State<_PlayerRosterPanel> {
+  /// Fixed row height — a deterministic itemExtent keeps the
+  /// auto-scroll-to-my-position math exact.
+  static const double rowExtent = 60.0;
+
+  final ScrollController _scrollCtrl = ScrollController();
+
+  /// Set once the one-time auto-scroll to my position has happened.
+  bool _didAutoScroll = false;
+
+  int get _emptySlots =>
+      (widget.config.maxPlayers - widget.config.players.length)
+          .clamp(0, widget.config.maxPlayers);
+
+  /// Players in true join order: stable sort by joinedAt (nulls last,
+  /// keeping the incoming relative order as the tie-break).
+  List<TemporaryLobbyPlayer> _joinOrdered() {
+    final players = widget.config.players;
+    final indices = List<int>.generate(players.length, (i) => i);
+    indices.sort((x, y) {
+      final a = players[x].joinedAt;
+      final b = players[y].joinedAt;
+      int c;
+      if (a == null && b == null) {
+        c = 0;
+      } else if (a == null) {
+        c = 1;
+      } else if (b == null) {
+        c = -1;
+      } else {
+        c = a.compareTo(b);
+      }
+      return c != 0 ? c : x - y;
+    });
+    return [for (final i in indices) players[i]];
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _scrollToMyPosition());
+  }
+
+  @override
+  void didUpdateWidget(covariant _PlayerRosterPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // My row may only become known after the first frame (room state
+    // loads asynchronously). Keep retrying until the one-time
+    // auto-scroll lands.
+    if (!_didAutoScroll) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _scrollToMyPosition());
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  /// One-time jump (no animation — this IS the initial position)
+  /// that puts MY row at the bottom of the viewport with a few rows
+  /// above it. Slot #8 with a 5-row viewport therefore opens showing
+  /// ~#4–#8. The user's own scrolling afterwards is never overridden.
+  void _scrollToMyPosition() {
+    if (!mounted || _didAutoScroll || !_scrollCtrl.hasClients) return;
+    final players = _joinOrdered();
+    var myIndex = -1;
+    final myId = widget.myUserId;
+    if (myId != null) {
+      for (int i = 0; i < players.length; i++) {
+        if (players[i].userId == myId) {
+          myIndex = i;
+          break;
+        }
+      }
+    }
+    if (myIndex < 0) return; // not a participant (yet) — stay at top
+
+    final rows = players.length + _emptySlots;
+    final viewportH = (rows * rowExtent).clamp(0.0, widget.viewportCap);
+    final maxExtent = _scrollCtrl.position.maxScrollExtent;
+    final target =
+        ((myIndex + 1) * rowExtent - viewportH).clamp(0.0, maxExtent);
+    _scrollCtrl.jumpTo(target);
+    _didAutoScroll = true;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final players = config.players;
-    final emptySlots =
-        (config.maxPlayers - players.length).clamp(0, config.maxPlayers);
+    final config = widget.config;
+    final players = _joinOrdered();
+    final myId = widget.myUserId;
+    var myIndex = -1;
+    if (myId != null) {
+      for (int i = 0; i < players.length; i++) {
+        if (players[i].userId == myId) {
+          myIndex = i;
+          break;
+        }
+      }
+    }
+    final rows = players.length + _emptySlots;
+    final viewportH = rows * rowExtent <= widget.viewportCap
+        ? rows * rowExtent
+        : widget.viewportCap;
+
     return Container(
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
@@ -751,15 +952,13 @@ class _PlayerRoster extends StatelessWidget {
         border: Border.all(color: KinrelColors.border),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // ── Roster header: label + my position + live count ──────
           Padding(
-            padding: const EdgeInsets.fromLTRB(
-              KinrelSpacing.md,
-              KinrelSpacing.md,
-              KinrelSpacing.md,
-              KinrelSpacing.sm,
-            ),
+            padding: const EdgeInsets.fromLTRB(KinrelSpacing.md,
+                KinrelSpacing.md, KinrelSpacing.md, KinrelSpacing.sm),
             child: Row(
               children: [
                 Text(
@@ -772,6 +971,26 @@ class _PlayerRoster extends StatelessWidget {
                     letterSpacing: 0.5,
                   ),
                 ),
+                if (myIndex >= 0) ...[
+                  const SizedBox(width: KinrelSpacing.sm),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: KinrelColors.orange.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(KinrelRadius.xs),
+                    ),
+                    child: Text(
+                      'You\'re #${myIndex + 1}',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.monoFont,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: KinrelColors.orange,
+                      ),
+                    ),
+                  ),
+                ],
                 const Spacer(),
                 Text(
                   '${players.length}/${config.maxPlayers}',
@@ -785,180 +1004,258 @@ class _PlayerRoster extends StatelessWidget {
               ],
             ),
           ),
-          for (int i = 0; i < players.length; i++) ...[
-            if (i > 0)
-              Divider(height: 1, color: KinrelColors.border.withValues(alpha: 0.5)),
-            _PlayerTile(
-              player: players[i],
-              isMe: players[i].userId == myUserId,
+          // ── Fixed-height slot list (scrolls independently) ────────
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(KinrelRadius.lg - 1)),
+            child: SizedBox(
+              height: viewportH,
+              child: rows == 0
+                  ? const SizedBox.shrink()
+                  : ListView.builder(
+                      controller: _scrollCtrl,
+                      itemExtent: rowExtent,
+                      itemCount: rows,
+                      itemBuilder: (_, i) => i < players.length
+                          ? _PlayerSlotTile(
+                              player: players[i],
+                              slotNumber: i + 1,
+                              isMe: i == myIndex,
+                              showDivider: i != rows - 1,
+                            )
+                          : _EmptySlotTile(
+                              slotNumber: i + 1,
+                              showDivider: i != rows - 1,
+                            ),
+                    ),
             ),
-          ],
-          for (int i = 0; i < emptySlots; i++) ...[
-            Divider(height: 1, color: KinrelColors.border.withValues(alpha: 0.5)),
-            const _EmptySlot(),
-          ],
-          if (onInviteFamily != null && emptySlots > 0) ...[
-            Divider(height: 1, color: KinrelColors.border.withValues(alpha: 0.5)),
-            InkWell(
-              onTap: () {
-                GameMotionTokens.tap();
-                onInviteFamily!();
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: KinrelSpacing.md,
-                  vertical: KinrelSpacing.md,
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.person_add_alt_1,
-                      size: 20,
-                      color: KinrelColors.orange,
-                    ),
-                    const SizedBox(width: KinrelSpacing.sm),
-                    Text(
-                      'Invite family',
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: KinrelColors.orange,
-                      ),
-                    ),
-                    const Spacer(),
-                    Icon(
-                      Icons.chevron_right,
-                      size: 18,
-                      color: KinrelColors.textDim,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+          ),
         ],
       ),
     );
   }
 }
 
-class _PlayerTile extends StatelessWidget {
-  const _PlayerTile({required this.player, required this.isMe});
+/// One occupied roster row — join-order slot number, avatar, name +
+/// role chips, ready pill. The local player's row is highlighted.
+class _PlayerSlotTile extends StatelessWidget {
+  const _PlayerSlotTile({
+    required this.player,
+    required this.slotNumber,
+    required this.isMe,
+    required this.showDivider,
+  });
+
   final TemporaryLobbyPlayer player;
+  final int slotNumber;
   final bool isMe;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
     final readyColor =
         player.isReady ? KinrelColors.success : KinrelColors.textDim;
-    return ListTile(
-      leading: DKAvatar(
-        initials: player.userName.isNotEmpty
-            ? player.userName[0].toUpperCase()
-            : '?',
+    return Container(
+      height: _PlayerRosterPanelState.rowExtent,
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.md),
+      decoration: BoxDecoration(
+        // Persistent "this is YOU" highlight — orange wash + accent
+        // bar on the leading edge. Survives every rebuild.
+        color: isMe ? KinrelColors.orange.withValues(alpha: 0.10) : null,
+        border: Border(
+          left: isMe
+              ? const BorderSide(color: KinrelColors.orange, width: 3)
+              : BorderSide.none,
+          bottom: showDivider
+              ? BorderSide(
+                  color: KinrelColors.border.withValues(alpha: 0.5))
+              : BorderSide.none,
+        ),
       ),
-      title: Row(
+      child: Row(
         children: [
-          Flexible(
+          // Join-order slot number — instant position identification.
+          SizedBox(
+            width: 30,
             child: Text(
-              isMe ? '${player.userName} (You)' : player.userName,
-              overflow: TextOverflow.ellipsis,
+              '#$slotNumber',
               style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 14,
-                color: KinrelColors.textWhite,
-                fontWeight: FontWeight.w500,
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: isMe
+                    ? KinrelColors.orange
+                    : KinrelColors.textDim.withValues(alpha: 0.8),
               ),
             ),
           ),
-          if (player.isHost) ...[
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(
-                color: KinrelColors.orange.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(KinrelRadius.xs),
-              ),
-              child: Text(
-                'HOST',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.monoFont,
-                  fontSize: 9,
-                  color: KinrelColors.orange,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1,
+          DKAvatar(
+            initials: player.userName.isNotEmpty
+                ? player.userName[0].toUpperCase()
+                : '?',
+            borderColor: isMe ? KinrelColors.orange : null,
+          ),
+          const SizedBox(width: KinrelSpacing.sm),
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    player.userName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 14,
+                      color: KinrelColors.textWhite,
+                      fontWeight: isMe ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
                 ),
-              ),
+                if (isMe) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: KinrelColors.orange,
+                      borderRadius: BorderRadius.circular(KinrelRadius.xs),
+                    ),
+                    child: Text(
+                      'YOU',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.monoFont,
+                        fontSize: 9,
+                        color: KinrelColors.textWhite,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+                ],
+                if (player.isHost) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: KinrelColors.orange.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(KinrelRadius.xs),
+                    ),
+                    child: Text(
+                      'HOST',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.monoFont,
+                        fontSize: 9,
+                        color: KinrelColors.orange,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: readyColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(KinrelRadius.xs),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  player.isReady
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
+                  size: 14,
+                  color: readyColor,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  player.isReady ? 'READY' : 'WAITING',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.monoFont,
+                    fontSize: 10,
+                    color: readyColor,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
-      ),
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: readyColor.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(KinrelRadius.xs),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              player.isReady
-                  ? Icons.check_circle
-                  : Icons.radio_button_unchecked,
-              size: 14,
-              color: readyColor,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              player.isReady ? 'READY' : 'WAITING',
-              style: TextStyle(
-                fontFamily: KinrelTypography.monoFont,
-                fontSize: 10,
-                color: readyColor,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
 }
 
-class _EmptySlot extends StatelessWidget {
-  const _EmptySlot();
+/// One open roster row — numbered like occupied rows so the next
+/// joiner's future position is obvious at a glance.
+class _EmptySlotTile extends StatelessWidget {
+  const _EmptySlotTile({required this.slotNumber, required this.showDivider});
+
+  final int slotNumber;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: KinrelColors.darkElevated,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: KinrelColors.border.withValues(alpha: 0.5),
-            width: 1,
-          ),
-        ),
-        child: Icon(
-          Icons.person_outline,
-          size: 20,
-          color: KinrelColors.textDim.withValues(alpha: 0.6),
+    return Container(
+      height: _PlayerRosterPanelState.rowExtent,
+      padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.md),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: showDivider
+              ? BorderSide(
+                  color: KinrelColors.border.withValues(alpha: 0.5))
+              : BorderSide.none,
         ),
       ),
-      title: Text(
-        'Open slot',
-        style: TextStyle(
-          fontFamily: KinrelTypography.bodyFont,
-          fontSize: 13,
-          color: KinrelColors.textDim.withValues(alpha: 0.7),
-          fontStyle: FontStyle.italic,
-        ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 30,
+            child: Text(
+              '#$slotNumber',
+              style: TextStyle(
+                fontFamily: KinrelTypography.monoFont,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: KinrelColors.textDim.withValues(alpha: 0.5),
+              ),
+            ),
+          ),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: KinrelColors.darkElevated,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: KinrelColors.border.withValues(alpha: 0.5),
+                width: 1,
+              ),
+            ),
+            child: Icon(
+              Icons.person_outline,
+              size: 20,
+              color: KinrelColors.textDim.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(width: KinrelSpacing.sm),
+          Text(
+            'Open slot',
+            style: TextStyle(
+              fontFamily: KinrelTypography.bodyFont,
+              fontSize: 13,
+              color: KinrelColors.textDim.withValues(alpha: 0.7),
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1015,11 +1312,104 @@ class _StartMatchButton extends StatelessWidget {
   }
 }
 
-/// Prominent, full-width "Close Room" button — host only.
+/// Compact pinned "Invite Family" button — lives in the fixed action
+/// bar so the host can always reach the invite sheet without
+/// scrolling, even when the roster is long.
+class _InviteButton extends StatelessWidget {
+  const _InviteButton({required this.onInviteFamily});
+
+  final VoidCallback onInviteFamily;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          GameMotionTokens.tap();
+          onInviteFamily();
+        },
+        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: KinrelSpacing.md, vertical: 13),
+          decoration: BoxDecoration(
+            color: KinrelColors.orange.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(KinrelRadius.md),
+            border: Border.all(
+              color: KinrelColors.orange.withValues(alpha: 0.55),
+              width: 1.2,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.person_add_alt_1,
+                  color: KinrelColors.orange, size: 18),
+              const SizedBox(width: KinrelSpacing.sm),
+              Flexible(
+                child: Text(
+                  'Invite Family',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: KinrelColors.orange,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pinned, collapsible lobby chat dock — the shared [LobbyChatPanel]
+/// mounted permanently in the fixed zone below the roster.
+///
+/// Collapsed it is a slim "Lobby chat · N new" header bar, so the
+/// chat ACTION is always visible; tapping expands the full chat in
+/// place while the roster above keeps its fixed height. Keeping the
+/// panel mounted preserves message history and socket-room membership
+/// across expand/collapse cycles.
+class _LobbyChatDock extends StatelessWidget {
+  const _LobbyChatDock({required this.config, required this.expandedHeight});
+
+  final TemporaryLobbyConfig config;
+
+  /// Max panel height when expanded (clamped to the available space by
+  /// the caller so the pinned zones can never overflow the screen).
+  final double expandedHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+      alignment: Alignment.topCenter,
+      child: LobbyChatPanel(
+        gameTable: config.gameTable,
+        gameId: config.gameId,
+        familyId: config.familyId,
+        maxHeight: expandedHeight,
+        initiallyExpanded: false,
+      ),
+    );
+  }
+}
+
+/// Compact, pinned "Close Room" button — host only, always visible
+/// in the fixed action bar while the room is open (waiting AND
+/// starting — it must never disappear).
 ///
 /// Per the spec:
-///   • Large + clearly visible at all times while the room is open
-///     (never hidden behind menus or secondary actions).
+///   • Clearly visible at all times while the room is open (never
+///     hidden behind menus or secondary actions).
 ///   • NEVER closes the room immediately — tapping it first shows the
 ///     shared confirmation dialog ("Are you sure you want to close this
 ///     room?" → [Cancel] [Close Room]).
@@ -1029,7 +1419,7 @@ class _StartMatchButton extends StatelessWidget {
 ///   • Cancel keeps the host in the room.
 ///
 /// Shows a spinner while the deletion RPC is in-flight, then navigates
-/// back to the family hub once it completes.
+/// back once it completes.
 class _CloseRoomButton extends StatefulWidget {
   const _CloseRoomButton({
     required this.onCancelRoom,
@@ -1084,85 +1474,56 @@ class _CloseRoomButtonState extends State<_CloseRoomButton> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: KinrelSpacing.md),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _busy ? null : _confirmAndClose,
-          borderRadius: BorderRadius.circular(KinrelRadius.md),
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: KinrelSpacing.lg, vertical: 18),
-            decoration: BoxDecoration(
-              color: _busy
-                  ? KinrelColors.error.withValues(alpha: 0.5)
-                  : KinrelColors.error.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(KinrelRadius.md),
-              border: Border.all(
-                color: KinrelColors.error.withValues(alpha: 0.6),
-                width: 1.5,
-              ),
-              boxShadow: _busy
-                  ? null
-                  : [
-                      BoxShadow(
-                        color: KinrelColors.error.withValues(alpha: 0.2),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _busy ? null : _confirmAndClose,
+        borderRadius: BorderRadius.circular(KinrelRadius.md),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: KinrelSpacing.md, vertical: 13),
+          decoration: BoxDecoration(
+            color: _busy
+                ? KinrelColors.error.withValues(alpha: 0.5)
+                : KinrelColors.error.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(KinrelRadius.md),
+            border: Border.all(
+              color: KinrelColors.error.withValues(alpha: 0.6),
+              width: 1.2,
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (_busy)
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                          KinrelColors.error),
-                    ),
-                  )
-                else
-                  const Icon(Icons.warning_amber_rounded,
-                      color: KinrelColors.error, size: 22),
-                const SizedBox(width: KinrelSpacing.sm),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Close Room',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.displayFont,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: KinrelColors.error,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Removes all players and spectators',
-                        style: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 10,
-                          color: KinrelColors.error.withValues(alpha: 0.8),
-                        ),
-                      ),
-                    ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (_busy)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                        KinrelColors.error),
+                  ),
+                )
+              else
+                const Icon(Icons.warning_amber_rounded,
+                    color: KinrelColors.error, size: 18),
+              const SizedBox(width: KinrelSpacing.sm),
+              Flexible(
+                child: Text(
+                  'Close Room',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: KinrelColors.error,
+                    letterSpacing: 0.3,
                   ),
                 ),
-                Icon(Icons.chevron_right,
-                    color: KinrelColors.error.withValues(alpha: 0.7),
-                    size: 20),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

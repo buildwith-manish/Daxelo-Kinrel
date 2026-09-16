@@ -16,7 +16,6 @@ import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
 import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import '../shared/widgets/pending_invites_section.dart';
-import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
 import 'twotruths_models.dart';
@@ -243,12 +242,6 @@ class _TtLobbyScreenState extends ConsumerState<TtLobbyScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             PendingInvitesSection(gameId: game.id),
-            const SizedBox(height: KinrelSpacing.md),
-            LobbyChatPanel(
-              gameTable: 'twotruths_games',
-              gameId: game.id,
-              familyId: widget.familyId,
-            ),
           ],
         ),
     ),

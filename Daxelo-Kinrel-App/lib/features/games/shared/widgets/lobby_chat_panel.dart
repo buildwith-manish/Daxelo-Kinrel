@@ -383,6 +383,13 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
         border: Border.all(color: KinrelColors.border, width: 1),
       ),
       child: Column(
+        // min — the panel is now also embedded in the lobby's FIXED
+        // chat dock (bounded height constraints). With the default
+        // (max) a collapsed panel would still stretch to fill the
+        // dock; min keeps it a slim header bar until expanded. Under
+        // unbounded constraints (legacy page-scroll usage) the
+        // Container's maxHeight bounds it exactly as before.
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Header — tap to collapse / expand
           InkWell(

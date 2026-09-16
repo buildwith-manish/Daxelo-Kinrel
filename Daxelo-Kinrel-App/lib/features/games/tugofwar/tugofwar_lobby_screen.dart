@@ -20,7 +20,6 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
-import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
@@ -506,12 +505,6 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
             ),
             const SizedBox(height: KinrelSpacing.md),
             PendingInvitesSection(gameId: game.id),
-            const SizedBox(height: KinrelSpacing.md),
-            LobbyChatPanel(
-              gameTable: 'tugofwar_games',
-              gameId: game.id,
-              familyId: widget.familyId,
-            ),
           ],
         ),
       ),
