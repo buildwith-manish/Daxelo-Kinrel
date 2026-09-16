@@ -69,13 +69,33 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final state = ref.read(bingoProvider(widget.familyId));
-      if (state.game == null) {
-        ref.read(bingoProvider(widget.familyId).notifier).joinGame(widget.gameId);
-      }
-      _startCountdown();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _joinWithRetry());
+  }
+
+  /// Deep-linking straight onto this screen can mount the notifier
+  /// before Supabase finishes wiring into Riverpod — joinGame would
+  /// bail with "Not signed in" and never retry. Bounded retry (same
+  /// pattern as Ghost Painter's cold-start fix).
+  Future<void> _joinWithRetry() async {
+    const maxAttempts = 6;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (!mounted) return;
+      final client = ref.read(supabaseProvider);
+      if (client?.auth.currentUser != null) break;
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+    }
+    if (!mounted) return;
+    final state = ref.read(bingoProvider(widget.familyId));
+    // Join when there's no game OR when the provider still holds a
+    // DIFFERENT game (e.g. navigating from one board straight to
+    // another — the shared family-scoped notifier survives the route
+    // swap, so the stale game would otherwise render forever).
+    if (state.game?.id != widget.gameId) {
+      await ref
+          .read(bingoProvider(widget.familyId).notifier)
+          .joinGame(widget.gameId);
+    }
+    _startCountdown();
   }
 
   @override

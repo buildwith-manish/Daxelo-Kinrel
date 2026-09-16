@@ -99,7 +99,7 @@ CREATE OR REPLACE FUNCTION public.fn_bingo_tick(p_game_id text)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path TO 'public'
+SET search_path = 'public'
 AS $$
 DECLARE
     g record;
@@ -121,7 +121,8 @@ BEGIN
 
     IF g.status <> 'in_progress' THEN
         RETURN jsonb_build_object('ok', true, 'status', g.status,
-                                  'numbersCalled', g."numbersCalled");
+                                  'numbersCalled', g."numbersCalled",
+                                  'lastCallAt', to_jsonb(g."lastCallAt"));
     END IF;
 
     -- Keep the room's activity stamp fresh.
@@ -136,6 +137,7 @@ BEGIN
             'ok', true, 'status', 'in_progress',
             'called', NULL,
             'numbersCalled', g."numbersCalled",
+            'lastCallAt', to_jsonb(g."lastCallAt"),
             'nextDueMs',
             GREATEST(0, (EXTRACT(EPOCH FROM (g."lastCallAt" + make_interval(secs => v_interval) - now())) * 1000)::int));
     END IF;
@@ -148,7 +150,8 @@ BEGIN
                "lastActivityAt" = now()
          WHERE "id" = p_game_id;
         RETURN jsonb_build_object('ok', true, 'status', 'completed',
-                                  'draw', true, 'numbersCalled', g."numbersCalled");
+                                  'draw', true, 'numbersCalled', g."numbersCalled",
+                                  'lastCallAt', to_jsonb(now()));
     END IF;
 
     -- Serialize concurrent ticks, then re-read under lock.
@@ -160,6 +163,7 @@ BEGIN
             'ok', true, 'status', 'in_progress',
             'called', NULL,
             'numbersCalled', g."numbersCalled",
+            'lastCallAt', to_jsonb(g."lastCallAt"),
             'nextDueMs',
             GREATEST(0, (EXTRACT(EPOCH FROM (g."lastCallAt" + make_interval(secs => v_interval) - now())) * 1000)::int));
     END IF;
@@ -174,7 +178,8 @@ BEGIN
            SET "status" = 'completed', "completedAt" = now(), "lastActivityAt" = now()
          WHERE "id" = p_game_id;
         RETURN jsonb_build_object('ok', true, 'status', 'completed',
-                                  'draw', true, 'numbersCalled', g."numbersCalled");
+                                  'draw', true, 'numbersCalled', g."numbersCalled",
+                                  'lastCallAt', to_jsonb(now()));
     END IF;
 
     SELECT v_available[floor(random() * array_length(v_available, 1)) + 1]
@@ -190,6 +195,7 @@ BEGIN
         'ok', true, 'status', 'in_progress',
         'called', v_next,
         'numbersCalled', g."numbersCalled" || v_next,
+        'lastCallAt', to_jsonb(now()),
         'nextDueMs', v_interval * 1000);
 END;
 $$;
@@ -591,14 +597,29 @@ BEGIN
   --    holding cards (bingo_cards). The provider records joins via
   --    fn_record_room_join, but re-joining clients or legacy rooms can
   --    miss it, so derive the roster from the cards themselves.
-  IF v_player_count = 0 AND p_game_table = 'bingo_games' THEN
+  IF p_game_table = 'bingo_games' THEN
+    -- Cards are the authoritative roster; participant rows fill any gaps
+    -- (e.g. legacy rooms). UNION dedupes, and card-holders win over
+    -- participant rows so nobody is counted twice.
     SELECT jsonb_agg(jsonb_build_object(
-             'userId', bc."playerId",
-             'userName', COALESCE(bc."playerName", 'Family Member'),
-             'role', CASE WHEN bc."playerId" = (SELECT g."hostUserId" FROM public.bingo_games g WHERE g."id" = p_game_id) THEN 'host' ELSE 'player' END))
+             'userId', x."userId",
+             'userName', COALESCE(x."userName", 'Family Member'),
+             'role', CASE WHEN x."userId" = (SELECT g."hostUserId" FROM public.bingo_games g WHERE g."id" = p_game_id) THEN 'host' ELSE 'player' END))
     INTO v_participants
-    FROM public.bingo_cards bc
-    WHERE bc."gameId" = p_game_id;
+    FROM (
+      SELECT bc."playerId" AS "userId", bc."playerName" AS "userName"
+        FROM public.bingo_cards bc
+       WHERE bc."gameId" = p_game_id
+      UNION
+      SELECT gp."userId", gp."userName"
+        FROM "game_participants" gp
+       WHERE gp."gameTable" = 'bingo_games'
+         AND gp."gameId" = p_game_id
+         AND gp."leftAt" IS NULL
+         AND NOT EXISTS (SELECT 1 FROM public.bingo_cards bc2
+                          WHERE bc2."gameId" = p_game_id
+                            AND bc2."playerId" = gp."userId")
+    ) x;
     v_player_count := jsonb_array_length(COALESCE(v_participants, '[]'::jsonb));
   END IF;
 

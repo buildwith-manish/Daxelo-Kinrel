@@ -684,13 +684,16 @@ class BingoNotifier extends StateNotifier<BingoState> {
       });
       final data = (res as Map?)?.cast<String, dynamic>();
       if (data == null) return;
-      // Merge the authoritative numbersCalled straight in — the realtime
-      // echo may arrive before/after, both are identical now that the
-      // payloads carry full rows.
+      // Merge the authoritative numbersCalled + lastCallAt straight in —
+      // the realtime echo may arrive before/after, both carry full rows.
       final calledList = (data['numbersCalled'] as List?)
               ?.map((e) => (e as num).toInt())
               .toList() ??
           state.game?.numbersCalled;
+      final rawLastCall = data['lastCallAt'];
+      final lastCallAt = rawLastCall is String
+          ? DateTime.tryParse(rawLastCall)
+          : state.game?.lastCallAt;
       final status = data['status'] as String?;
       final game = state.game;
       if (game != null && calledList != null) {
@@ -706,7 +709,7 @@ class BingoNotifier extends StateNotifier<BingoState> {
           winnerPlayerId: game.winnerPlayerId,
           winnerPlayerName: game.winnerPlayerName,
           maxPlayers: game.maxPlayers,
-          lastCallAt: game.lastCallAt,
+          lastCallAt: lastCallAt ?? game.lastCallAt,
           startedAt: game.startedAt,
           completedAt: game.completedAt,
           createdAt: game.createdAt,
