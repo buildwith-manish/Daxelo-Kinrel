@@ -97,6 +97,69 @@ final gamingLeaderboardProvider = FutureProvider.autoDispose
 });
 
 // ─────────────────────────────────────────────────────────────────────────
+// Participation-based leaderboard (v3) — orders by games_played DESC,
+// splits into ranked + notYetPlayed. Used by the home preview + the full
+// leaderboard screen. The old points-based v2 is kept for backward
+// compatibility (Family Cup still uses points internally).
+// ─────────────────────────────────────────────────────────────────────────
+
+/// A v3 leaderboard result: ranked rows + members who haven't played yet.
+class ParticipationLeaderboard {
+  const ParticipationLeaderboard({
+    this.ranked = const [],
+    this.notYetPlayed = const [],
+  });
+  final List<LeaderboardEntry> ranked;
+  final List<NotYetPlayedMember> notYetPlayed;
+}
+
+class NotYetPlayedMember {
+  const NotYetPlayedMember({
+    required this.userId,
+    required this.userName,
+    this.avatarUrl,
+  });
+  final String userId;
+  final String userName;
+  final String? avatarUrl;
+
+  factory NotYetPlayedMember.fromJson(Map<String, dynamic> json) {
+    return NotYetPlayedMember(
+      userId: (json['userId'] as String?) ?? '',
+      userName: (json['userName'] as String?) ?? 'Family Member',
+      avatarUrl: json['avatarUrl'] as String?,
+    );
+  }
+}
+
+final participationLeaderboardProvider = FutureProvider.autoDispose
+    .family<ParticipationLeaderboard, LeaderboardKey>((ref, key) async {
+  final client = ref.watch(supabaseProvider);
+  if (client == null) return const ParticipationLeaderboard();
+  final myId = client.auth.currentUser?.id;
+  try {
+    final raw = await client.rpc('fn_get_family_leaderboard_v3', params: {
+      'p_family_id': key.familyId,
+      'p_period': key.period,
+      'p_game_table': key.gameTable,
+      'p_limit': 100,
+      'p_requesting_user_id': myId,
+    });
+    final map = _asMap(raw);
+    final ranked = _asList(map['ranked'])
+        .map(LeaderboardEntry.fromJson)
+        .toList();
+    final notYetPlayed = _asList(map['notYetPlayed'])
+        .map(NotYetPlayedMember.fromJson)
+        .where((m) => m.userId.isNotEmpty)
+        .toList();
+    return ParticipationLeaderboard(ranked: ranked, notYetPlayed: notYetPlayed);
+  } catch (_) {
+    return const ParticipationLeaderboard();
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────
 // Challenges
 // ─────────────────────────────────────────────────────────────────────────
 

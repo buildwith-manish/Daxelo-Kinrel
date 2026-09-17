@@ -179,8 +179,18 @@ const List<String> kMomentReactionTypes = ['heart', 'clap'];
 /// flips the local state, then calls fn_toggle_moment_reaction. On
 /// failure, the local state is reverted.
 class FamilyMomentCard extends ConsumerStatefulWidget {
-  const FamilyMomentCard({super.key, required this.moment});
+  const FamilyMomentCard({
+    super.key,
+    required this.moment,
+    required this.familyId,
+  });
   final FamilyMoment moment;
+
+  /// The family the moment belongs to — required so the reaction toggle
+  /// RPC can pass `p_family_id` for the RLS family-membership check. The
+  /// moment model itself doesn't carry this (FamilyActivityLog stores it
+  /// as a column, not in metadata).
+  final String familyId;
 
   @override
   ConsumerState<FamilyMomentCard> createState() => _FamilyMomentCardState();
@@ -237,7 +247,7 @@ class _FamilyMomentCardState extends ConsumerState<FamilyMomentCard> {
         // metadata or pass through. The toggle RPC accepts it for the RLS
         // check; we use metadata.familyId when present, else fall back to
         // an empty string (the RPC will reject if the family check fails).
-        'p_family_id': (widget.moment.metadata['familyId'] as String?) ?? '',
+        'p_family_id': widget.familyId,
         'p_reaction_type': reactionType,
       });
       // Confirm with server response — if it failed, revert.
@@ -285,20 +295,38 @@ class _FamilyMomentCardState extends ConsumerState<FamilyMomentCard> {
     final description = m.descriptionFor(myId);
     if (!m.shouldRenderFor(myId)) return const SizedBox.shrink();
 
+    // Milestone moments get a slightly larger card treatment — they're
+    // rarer and more significant. The spec says "warm gold icon, slightly
+    // larger card treatment since these are rarer/more significant".
+    final isMilestone = m.action == 'game_milestone_reached';
+    final cardBorder = isMilestone
+        ? KinrelColors.gold.withValues(alpha: 0.35)
+        : Colors.white.withValues(alpha: 0.05);
+    final cardBorderWidth = isMilestone ? 1.5 : 1.0;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+      padding: EdgeInsets.fromLTRB(14, isMilestone ? 16 : 14, 14, 10),
       decoration: BoxDecoration(
         color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        borderRadius: BorderRadius.circular(isMilestone ? 18 : 16),
+        border: Border.all(color: cardBorder, width: cardBorderWidth),
+        boxShadow: isMilestone
+            ? [
+                BoxShadow(
+                  color: KinrelColors.gold.withValues(alpha: 0.12),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _MomentAvatar(name: m.actorName ?? 'Family'),
+              _MomentAvatar(name: m.actorName ?? 'Family', enlarged: isMilestone),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -311,23 +339,32 @@ class _FamilyMomentCardState extends ConsumerState<FamilyMomentCard> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 13,
+                        fontSize: isMilestone ? 14 : 13,
                         fontWeight: FontWeight.w700,
                         color: KinrelColors.textWhite,
                       ),
                     ),
-                    Text(
-                      _timeAgo(m.createdAt),
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.monoFont,
-                        fontSize: 10,
-                        color: KinrelColors.textDim,
+                    // Per-entry timestamp is now shown ONLY for entries
+                    // less than 60 minutes old ("just now" / "Nm ago").
+                    // Older entries are grouped by date header above them
+                    // (MomentDateGroup), so we don't repeat "1d ago" on
+                    // every single row.
+                    if (_shouldShowInlineTimestamp(m.createdAt))
+                      Text(
+                        _timeAgoShort(m.createdAt),
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.monoFont,
+                          fontSize: 10,
+                          color: KinrelColors.textDim,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
-              _MomentActionIcon(action: m.action),
+              _MomentActionIcon(
+                action: m.action,
+                enlarged: isMilestone,
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -335,7 +372,7 @@ class _FamilyMomentCardState extends ConsumerState<FamilyMomentCard> {
             description,
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
-              fontSize: 13.5,
+              fontSize: isMilestone ? 14 : 13.5,
               height: 1.35,
               color: KinrelColors.textSilver,
             ),
@@ -354,26 +391,37 @@ class _FamilyMomentCardState extends ConsumerState<FamilyMomentCard> {
         .slideY(begin: 0.03, end: 0, duration: 250.ms);
   }
 
-  String _timeAgo(DateTime? t) {
+  /// Inline timestamp is only shown for entries < 60 minutes old ("just
+  /// now" / "Nm ago"). Older entries get a date-group header above them
+  /// (Today / Yesterday / Sep 15) so we don't repeat "1d ago" on every
+  /// single row.
+  bool _shouldShowInlineTimestamp(DateTime? t) {
+    if (t == null) return false;
+    return DateTime.now().difference(t).inMinutes < 60;
+  }
+
+  String _timeAgoShort(DateTime? t) {
     if (t == null) return '';
     final d = DateTime.now().difference(t);
     if (d.inMinutes < 1) return 'just now';
     if (d.inMinutes < 60) return '${d.inMinutes}m ago';
-    if (d.inHours < 24) return '${d.inHours}h ago';
-    if (d.inDays < 7) return '${d.inDays}d ago';
-    return '${d.inDays ~/ 7}w ago';
+    // Older entries don't show an inline timestamp — they get a date
+    // group header instead.
+    return '';
   }
 }
 
 class _MomentAvatar extends StatelessWidget {
-  const _MomentAvatar({required this.name});
+  const _MomentAvatar({required this.name, this.enlarged = false});
   final String name;
+  final bool enlarged;
 
   @override
   Widget build(BuildContext context) {
+    final size = enlarged ? 42.0 : 36.0;
     return Container(
-      width: 36,
-      height: 36,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
@@ -390,7 +438,7 @@ class _MomentAvatar extends StatelessWidget {
           name.isEmpty ? '?' : name.substring(0, 1).toUpperCase(),
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
-            fontSize: 14,
+            fontSize: enlarged ? 16 : 14,
             fontWeight: FontWeight.w800,
             color: KinrelColors.textWhite,
           ),
@@ -401,37 +449,47 @@ class _MomentAvatar extends StatelessWidget {
 }
 
 class _MomentActionIcon extends StatelessWidget {
-  const _MomentActionIcon({required this.action});
+  const _MomentActionIcon({required this.action, this.enlarged = false});
   final String action;
+  final bool enlarged;
 
   @override
   Widget build(BuildContext context) {
     final iconData = _iconFor(action);
     final color = _colorFor(action);
+    final boxSize = enlarged ? 32.0 : 28.0;
+    final iconSize = enlarged ? 16.0 : 14.0;
     return Container(
-      width: 28,
-      height: 28,
+      width: boxSize,
+      height: boxSize,
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(9),
       ),
       child: Center(
-        child: KinrelIcon(iconData, size: 14, color: color),
+        child: KinrelIcon(iconData, size: iconSize, color: color),
       ),
     );
   }
 
   KinrelIconData _iconFor(String action) {
+    // Icon/color mapping per the UX refinements spec:
+    //   • Badge earned → gold trophy icon
+    //   • Match won → orange spark icon
+    //   • Challenge completed → purple checkmark/star icon
+    //   • Milestone → warm gold icon (slightly larger card treatment
+    //     is applied in the build method via _isMilestone)
+    //   • Sportsmanship → heart icon
     switch (action) {
       case 'game_match_completed':
-        return KinrelIconData.controller;
+        return KinrelIconData.sparkle; // orange spark — "match won"
       case 'game_badge_earned':
       case 'game_cup_won':
-        return KinrelIconData.medal;
+        return KinrelIconData.trophy; // gold trophy — "badge earned"
       case 'game_challenge_completed':
-        return KinrelIconData.flag;
+        return KinrelIconData.star; // purple star — "challenge completed"
       case 'game_milestone_reached':
-        return KinrelIconData.trophy;
+        return KinrelIconData.trophy; // warm gold trophy — "milestone"
       case 'game_sportsmanship':
         return KinrelIconData.heart;
       default:
@@ -566,6 +624,129 @@ class _ReactionButton extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Date grouping — groups moments by date for the MomentDateGroup widget.
+//
+// The spec: "Group entries by date with a header row: 'Today', 'Yesterday',
+// or the actual date for older entries — rendered once per group, not
+// repeated per-entry as '1d ago' on every single line."
+//
+// `groupMomentsByDate` is a top-level function so it can be unit-tested
+// without spinning up the widget tree.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// A date group of moments — header label + the moments that fall on
+/// that date (reverse-chronological within the group).
+class MomentDateGroup {
+  const MomentDateGroup({required this.headerLabel, required this.moments});
+  final String headerLabel;
+  final List<FamilyMoment> moments;
+}
+
+/// Groups a flat list of moments (already sorted reverse-chronologically
+/// by createdAt) into date groups with human-readable headers.
+///
+/// Headers:
+///   • "Today" — moments from today
+///   • "Yesterday" — moments from yesterday
+///   • "Sep 15" — month abbreviation + day, for older entries
+///   • "Sep 15, 2025" — with year, for entries from a previous year
+///
+/// Moments with null createdAt are bucketed under "Earlier" at the end.
+List<MomentDateGroup> groupMomentsByDate(List<FamilyMoment> moments) {
+  if (moments.isEmpty) return const <MomentDateGroup>[];
+
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final yesterday = today.subtract(const Duration(days: 1));
+
+  final groups = <String, List<FamilyMoment>>{};
+  final order = <String>[];
+
+  for (final m in moments) {
+    final t = m.createdAt;
+    final String key;
+    if (t == null) {
+      key = 'Earlier';
+    } else {
+      final d = DateTime(t.year, t.month, t.day);
+      if (d == today) {
+        key = 'Today';
+      } else if (d == yesterday) {
+        key = 'Yesterday';
+      } else if (d.year == today.year) {
+        key = '${_monthAbbrev(d.month)} ${d.day}';
+      } else {
+        key = '${_monthAbbrev(d.month)} ${d.day}, ${d.year}';
+      }
+    }
+    if (!groups.containsKey(key)) {
+      groups[key] = <FamilyMoment>[];
+      order.add(key);
+    }
+    groups[key]!.add(m);
+  }
+
+  // Build the final list, preserving the order keys were first seen
+  // (which matches reverse-chronological input order).
+  return order
+      .map((key) => MomentDateGroup(
+            headerLabel: key,
+            moments: groups[key]!,
+          ))
+      .toList();
+}
+
+String _monthAbbrev(int month) {
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  if (month < 1 || month > 12) return '';
+  return months[month - 1];
+}
+
+/// Renders a date group: a header row + the list of FamilyMomentCards
+/// for that date.
+///
+/// Used in BOTH the home preview (capped at 3 entries total) and the
+/// full "View all" activity feed screen — ensures consistent card style
+/// everywhere per the spec.
+class MomentDateGroupWidget extends StatelessWidget {
+  const MomentDateGroupWidget({
+    super.key,
+    required this.group,
+    required this.familyId,
+  });
+
+  final MomentDateGroup group;
+  final String familyId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 8),
+          child: Text(
+            group.headerLabel,
+            style: TextStyle(
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+              color: KinrelColors.textDim,
+            ),
+          ),
+        ),
+        for (final m in group.moments)
+          FamilyMomentCard(moment: m, familyId: familyId),
+      ],
     );
   }
 }

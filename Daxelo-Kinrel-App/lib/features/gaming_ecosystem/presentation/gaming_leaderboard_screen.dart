@@ -16,6 +16,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../../games/presentation/widgets/not_yet_played_prompt.dart';
 import '../data/game_registry.dart';
 import '../data/gaming_providers.dart';
 import '../../games/shared/icons/kinrel_icons.dart';
@@ -43,7 +44,9 @@ class _GamingLeaderboardScreenState
       period: _period,
       gameTable: _gameTable,
     );
-    final entriesAsync = ref.watch(gamingLeaderboardProvider(key));
+    // Use the v3 participation-based leaderboard directly (ranked by
+    // games_played DESC, with a separate notYetPlayed section).
+    final lbAsync = ref.watch(participationLeaderboardProvider(key));
     final dashAsync = ref.watch(gamingDashboardProvider(widget.familyId));
     final myUserId =
         dashAsync.asData?.value.me.userId ?? '';
@@ -114,7 +117,7 @@ class _GamingLeaderboardScreenState
 
           // ── Entries ────────────────────────────────────────────────
           Expanded(
-            child: entriesAsync.when(
+            child: lbAsync.when(
               loading: () => const Center(
                   child: CircularProgressIndicator(color: KinrelColors.orange)),
               error: (e, _) => Center(
@@ -124,65 +127,91 @@ class _GamingLeaderboardScreenState
                   message: 'Pull down to try again.',
                 ),
               ),
-              data: (entries) => RefreshIndicator(
-                color: KinrelColors.orange,
-                backgroundColor: KinrelColors.darkCard,
-                onRefresh: () async {
-                  ref.invalidate(gamingLeaderboardProvider(key));
-                  await ref.read(gamingLeaderboardProvider(key).future);
-                },
-                child: entries.isEmpty
-                    ? ListView(children: [
-                        const SizedBox(height: 80),
-                        GamingEmptyCard(
-                          emoji: '🏁',
-                          title: _period == 'weekly'
-                              ? 'No games this week yet'
-                              : _period == 'monthly'
-                                  ? 'No games this month yet'
-                                  : 'Your family hasn\'t played yet',
-                          message:
-                              'Play a game together — every match earns points '
-                              'for everyone who shows up.',
-                        ),
-                      ])
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-                        itemCount: entries.length + 1,
-                        itemBuilder: (context, i) {
-                          if (i == 0) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: GamingPodium(
-                                entries: entries,
-                                myUserId: myUserId,
-                                onTap: (e) => context.push(
-                                    '/family/${widget.familyId}/gaming/player/${e.userId}'),
-                              ),
-                            );
-                          }
-                          final e = entries[i - 1];
-                          return GamingRankRow(
-                            rank: i,
-                            userName: e.userName,
-                            points: e.points,
-                            matches: e.matches,
-                            // Streak only renders for the viewer's own row
-                            // (the row widget gates the chip on isMe; the
-                            // backend also returns 0 for everyone else).
-                            streak: e.userId == myUserId &&
-                                    _period == 'all_time'
-                                ? e.streakCurrent
-                                : 0,
-                            isMe: e.userId == myUserId,
-                            onTap: () => context.push(
+              data: (lb) {
+                final ranked = lb.ranked;
+                final notPlayed = lb.notYetPlayed;
+                if (ranked.isEmpty && notPlayed.isEmpty) {
+                  return ListView(children: [
+                    const SizedBox(height: 80),
+                    GamingEmptyCard(
+                      emoji: '🏁',
+                      title: _period == 'weekly'
+                          ? 'No games this week yet'
+                          : _period == 'monthly'
+                              ? 'No games this month yet'
+                              : 'Your family hasn\'t played yet',
+                      message: 'Play a game together — every match counts '
+                          'for everyone who shows up.',
+                    ),
+                  ]);
+                }
+                return RefreshIndicator(
+                  color: KinrelColors.orange,
+                  backgroundColor: KinrelColors.darkCard,
+                  onRefresh: () async {
+                    ref.invalidate(participationLeaderboardProvider(key));
+                    await ref.read(
+                        participationLeaderboardProvider(key).future);
+                  },
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+                    children: [
+                      if (ranked.length >= 2)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: GamingPodium(
+                            entries: ranked,
+                            myUserId: myUserId,
+                            onTap: (e) => context.push(
                                 '/family/${widget.familyId}/gaming/player/${e.userId}'),
-                          )
-                              .animate()
-                              .fadeIn(delay: (30 * i).ms, duration: 250.ms);
-                        },
-                      ),
-              ),
+                          ),
+                        ),
+                      for (var i = 0; i < ranked.length; i++)
+                        GamingRankRow(
+                          rank: i + 1,
+                          userName: ranked[i].userName,
+                          points: ranked[i].points,
+                          matches: ranked[i].matches,
+                          streak: ranked[i].userId == myUserId &&
+                                  _period == 'all_time'
+                              ? ranked[i].streakCurrent
+                              : 0,
+                          isMe: ranked[i].userId == myUserId,
+                          hideScoreChip: true,
+                          onTap: () => context.push(
+                              '/family/${widget.familyId}/gaming/player/${ranked[i].userId}'),
+                        )
+                            .animate()
+                            .fadeIn(delay: (30 * i).ms, duration: 250.ms),
+                      if (notPlayed.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8, left: 2),
+                          child: Text(
+                            'Not playing yet',
+                            style: TextStyle(
+                              fontFamily: KinrelTypography.displayFont,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.6,
+                              color: KinrelColors.amber,
+                            ),
+                          ),
+                        ),
+                        for (final m in notPlayed)
+                          NotYetPlayedPrompt(
+                            member: NotYetPlayedMemberData(
+                              userId: m.userId,
+                              userName: m.userName,
+                              avatarUrl: m.avatarUrl,
+                            ),
+                            familyId: widget.familyId,
+                          ),
+                      ],
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ],
