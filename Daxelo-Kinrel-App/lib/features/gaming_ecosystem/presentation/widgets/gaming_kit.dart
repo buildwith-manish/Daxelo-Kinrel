@@ -479,8 +479,16 @@ class GamingPodium extends StatelessWidget {
   }
 }
 
-/// A single leaderboard row — motivating, non-toxic:
-/// rank, name, points, matches, streak; losses are never highlighted.
+/// A single leaderboard row — motivating, non-toxic.
+///
+/// Privacy contract (matches the backend `fn_get_family_leaderboard_v2`):
+///   • Rank, points, matches (games played) — visible to all family members.
+///   • Streak — only shown for the viewing user's OWN row. The backend
+///     returns 0 for every other row; we additionally gate the chip on
+///     [isMe] so a stale local cache cannot leak it.
+///   • Wins / losses / win percentage — NEVER rendered. The account owner
+///     sees their own full stats on their profile screen; on the leaderboard
+///     nobody sees them, including themselves (this surface is shared).
 class GamingRankRow extends StatelessWidget {
   const GamingRankRow({
     super.key,
@@ -488,8 +496,13 @@ class GamingRankRow extends StatelessWidget {
     required this.userName,
     required this.points,
     required this.matches,
-    required this.wins,
+    @Deprecated('Wins are no longer surfaced on the shared leaderboard. '
+        'The field is retained for backward-compatible call sites but is '
+        'never rendered. Use [isMe] + the player profile screen for the '
+        'owner\'s own win count.')
+    this.wins = 0,
     this.streak = 0,
+    @Deprecated('winRateLabel is no longer rendered on the shared leaderboard.')
     this.winRateLabel,
     this.isMe = false,
     this.onTap,
@@ -499,9 +512,9 @@ class GamingRankRow extends StatelessWidget {
   final String userName;
   final int points;
   final int matches;
-  final int wins;
+  final int wins; // ignored — kept for backward-compatible call sites
   final int streak;
-  final String? winRateLabel;
+  final String? winRateLabel; // ignored — kept for backward-compatible call sites
   final bool isMe;
   final VoidCallback? onTap;
 
@@ -534,9 +547,38 @@ class GamingRankRow extends StatelessWidget {
     );
   }
 
+  /// Participation-focused subtitle. Never mentions wins/losses/win%.
+  /// For the viewer's own row with 0 games, becomes a soft nudge CTA.
+  String _participationLine() => participationLineFor(matches: matches, isMe: isMe);
+
+  /// Pure (non-Widget) helper that builds the participation subtitle.
+  /// Extracted so unit tests can verify the privacy + reframe contract
+  /// without having to spin up the Flutter test runner (which would
+  /// require building native assets).
+  ///
+  /// Contract:
+  ///   • Never contains the substrings "win", "loss", "%".
+  ///   • For 0-match non-self rows, returns a soft nudge CTA instead of
+  ///     any count that could be framed as a loss record.
+  ///   • For 0-match self rows, returns an inviting CTA to play tonight.
+  static String participationLineFor({required int matches, required bool isMe}) {
+    if (matches == 0) {
+      return isMe
+          ? 'Play your first match tonight'
+          : 'New to the Arena — invite them to play';
+    }
+    if (matches == 1) return 'Played 1 game together';
+    return 'Played $matches games together';
+  }
+
   @override
   Widget build(BuildContext context) {
     final highlight = isMe;
+    // Streak is only rendered for the viewer's OWN row. The backend already
+    // returns 0 for everyone else, but we double-gate on [isMe] so that a
+    // stale local cache or future API change can never leak another
+    // member's streak on a shared surface.
+    final showStreak = isMe && streak >= 2;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -590,7 +632,7 @@ class GamingRankRow extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (streak >= 2) ...[
+                          if (showStreak) ...[
                             const SizedBox(width: 6),
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -622,8 +664,7 @@ class GamingRankRow extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '$matches games played · $wins wins'
-                        '${winRateLabel != null ? ' · $winRateLabel' : ''}',
+                        _participationLine(),
                         style: TextStyle(
                           fontFamily: KinrelTypography.bodyFont,
                           fontSize: 11,

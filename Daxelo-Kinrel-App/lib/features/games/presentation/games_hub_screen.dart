@@ -221,9 +221,6 @@ class _GamingDashboardBody extends ConsumerWidget {
           FamilyPresenceStrip(familyId: familyId),
           const SizedBox(height: 14),
 
-          // ── Family Game Night streak (ritual layer) ─────────────────
-          _PlayStreakBanner(familyId: familyId),
-
           dashAsync.when(
             loading: () => const _DashboardSkeleton(),
             error: (e, _) => GamingEmptyCard(
@@ -234,42 +231,26 @@ class _GamingDashboardBody extends ConsumerWidget {
             data: (dash) => Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── 1. Family Cup banner ─────────────────────────────
-                if (dash.season != null) ...[
-                  _SeasonBanner(familyId: familyId, dashboard: dash),
+                // ── Above-the-fold: 3 PRIMARY cards only ─────────────
+                // Per the participation-over-competition reframe, the
+                // home screen leads with exactly 3 cards so nobody is
+                // overwhelmed by 7 simultaneous competing metrics:
+                //   (1) Streak + Cup countdown combined
+                //   (2) One CTA to play now
+                //   (3) Collapsed leaderboard preview (rank + points)
+
+                // (1) Streak + Cup countdown — combined card.
+                _StreakAndCupCard(familyId: familyId, dashboard: dash),
+                const SizedBox(height: 14),
+
+                // (2) Play Now CTA.
+                if (dash.suggestions.isNotEmpty) ...[
+                  _PlayNowCta(familyId: familyId, dashboard: dash),
                   const SizedBox(height: 14),
                 ],
 
-                // ── 2. Quick stats row ───────────────────────────────
-                _QuickStatsRow(familyId: familyId, dashboard: dash),
-                const SizedBox(height: 18),
-
-                // ── 3. Challenges ────────────────────────────────────
-                if (dash.challenges.isNotEmpty) ...[
-                  GamingSectionHeader(
-                    title: 'This Week\'s Challenges',
-                    subtitle: 'Small goals that bring the family together',
-                    icon: Icons.flag_outlined,
-                    actionLabel: 'View all',
-                    onAction: () => context.push(
-                        '/family/$familyId/gaming/challenges'),
-                  ),
-                  _ChallengeCarousel(familyId: familyId, dashboard: dash),
-                  const SizedBox(height: 18),
-                ],
-
-                // ── 4. Smart match suggestions ───────────────────────
-                if (dash.suggestions.isNotEmpty) ...[
-                  GamingSectionHeader(
-                    title: 'Play Now',
-                    subtitle: 'Family online — start a match together',
-                    icon: Icons.bolt_rounded,
-                  ),
-                  _SmartSuggestions(familyId: familyId, dashboard: dash),
-                  const SizedBox(height: 18),
-                ],
-
-                // ── 5. Leaderboard preview ───────────────────────────
+                // (3) Collapsed leaderboard preview — rank + points only,
+                //     expandable via the "View all" action.
                 if (dash.leaderboard.isNotEmpty) ...[
                   GamingSectionHeader(
                     title: 'Family Leaderboard',
@@ -283,7 +264,48 @@ class _GamingDashboardBody extends ConsumerWidget {
                   const SizedBox(height: 18),
                 ],
 
-                // ── 6. Games grid (categorised) ──────────────────────
+                // ── Below the fold: secondary surfaces ───────────────
+                // The full Quick Stats row (rank · streak · games · badges)
+                // is intentionally NOT rendered above the fold anymore —
+                // those four metrics are already represented inside the
+                // streak/cup card and the leaderboard preview. Keeping
+                // them below the fold keeps the above-the-fold surface to
+                // exactly 3 primary cards.
+
+                // Full Family Game Night streak card (with breathing flame
+                // + best-streak facts) — secondary surface below the fold.
+                _PlayStreakBanner(familyId: familyId),
+                const SizedBox(height: 18),
+
+                _QuickStatsRow(familyId: familyId, dashboard: dash),
+                const SizedBox(height: 18),
+
+                // ── Challenges (below the fold) ──────────────────────
+                if (dash.challenges.isNotEmpty) ...[
+                  GamingSectionHeader(
+                    title: 'This Week\'s Challenges',
+                    subtitle: 'Small goals that bring the family together',
+                    icon: Icons.flag_outlined,
+                    actionLabel: 'View all',
+                    onAction: () => context.push(
+                        '/family/$familyId/gaming/challenges'),
+                  ),
+                  _ChallengeCarousel(familyId: familyId, dashboard: dash),
+                  const SizedBox(height: 18),
+                ],
+
+                // Full Play Now list (more suggestions) — below the fold.
+                if (dash.suggestions.length > 1) ...[
+                  GamingSectionHeader(
+                    title: 'More to Play',
+                    subtitle: 'Family online — start a match together',
+                    icon: Icons.bolt_rounded,
+                  ),
+                  _SmartSuggestions(familyId: familyId, dashboard: dash),
+                  const SizedBox(height: 18),
+                ],
+
+                // ── Games grid (categorised) ──────────────────────────
                 GamingSectionHeader(
                   title: 'Family Games',
                   subtitle:
@@ -297,7 +319,7 @@ class _GamingDashboardBody extends ConsumerWidget {
                 ),
                 const SizedBox(height: 18),
 
-                // ── 7. Activity preview ──────────────────────────────
+                // ── Activity preview ──────────────────────────────────
                 if (dash.activity.isNotEmpty) ...[
                   GamingSectionHeader(
                     title: 'Family Moments',
@@ -311,7 +333,7 @@ class _GamingDashboardBody extends ConsumerWidget {
                   const SizedBox(height: 18),
                 ],
 
-                // ── 8. Milestones strip ──────────────────────────────
+                // ── Milestones strip ──────────────────────────────────
                 _MilestoneStrip(familyId: familyId, dashboard: dash),
               ],
             ),
@@ -525,9 +547,287 @@ class _StreakCardState extends State<_StreakCard>
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// 1. Season banner
+// 0b. Combined Streak + Cup card — the #1 above-the-fold surface.
+//
+//     Folds the previous two separate cards (Family Game Night streak
+//     + Family Cup season banner) into a single above-the-fold card so
+//     the home screen presents exactly 3 primary cards (streak/cup,
+//     play-now CTA, leaderboard preview) instead of 7 competing metrics.
+//
+//     The card is collaborative by design: "Family Game Night streak"
+//     means anyone playing keeps it alive — never a personal loss record.
 // ═══════════════════════════════════════════════════════════════════════
 
+class _StreakAndCupCard extends ConsumerWidget {
+  const _StreakAndCupCard({required this.familyId, required this.dashboard});
+  final String familyId;
+  final GamingDashboard dashboard;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final streakAsync = ref.watch(familyPlayStreakProvider(familyId));
+    return streakAsync.maybeWhen(
+      data: (s) {
+        final season = dashboard.season;
+        final me = dashboard.me;
+        // Compose the headline.
+        String streakLine;
+        if (s.currentStreakDays >= 2) {
+          streakLine = s.playedToday
+              ? '${s.currentStreakDays}-day Family Game Night streak — flame burning bright!'
+              : '${s.currentStreakDays}-day Family Game Night streak — play tonight to keep it alive';
+        } else if (s.currentStreakDays == 1) {
+          streakLine = 'Streak started — play tonight to make it 2 in a row';
+        } else if (s.matchesThisWeek > 0) {
+          streakLine = 'Your family played this week — start a streak tonight';
+        } else {
+          streakLine = 'Start a Family Game Night streak tonight';
+        }
+        final cupLine = season != null
+            ? (me.points > 0
+                ? '${season.daysRemaining}d left in ${season.name} · you\'re #${me.rank > 0 ? me.rank : '—'} with ${me.points} pts'
+                : '${season.daysRemaining}d left in ${season.name} · play to earn Cup points')
+            : null;
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: s.playedToday
+                  ? const [Color(0xFF2B1A0E), Color(0xFF1D1409)]
+                  : const [Color(0xFF3B1D0A), Color(0xFF241207)],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: s.playedToday
+                  ? KinrelColors.amber.withValues(alpha: 0.35)
+                  : KinrelColors.orange.withValues(alpha: 0.5),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (s.playedToday
+                        ? KinrelColors.amber
+                        : KinrelColors.orange)
+                    .withValues(alpha: 0.18),
+                blurRadius: 26,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Flame medallion (no animation here — the dedicated streak
+              // banner below the fold still has the breathing flame).
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    center: const Alignment(-0.2, -0.3),
+                    colors: [
+                      (s.playedToday
+                              ? KinrelColors.amber
+                              : KinrelColors.orange)
+                          .withValues(alpha: 0.55),
+                      (s.playedToday
+                              ? KinrelColors.amber
+                              : KinrelColors.orange)
+                          .withValues(alpha: 0.12),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: (s.playedToday
+                            ? KinrelColors.amber
+                            : KinrelColors.orange)
+                        .withValues(alpha: 0.6),
+                  ),
+                ),
+                child: const Center(
+                  child: KinrelIcon(KinrelIconData.flame,
+                      size: 22, color: KinrelColors.brightGold),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      streakLine,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: KinrelColors.textWhite,
+                        height: 1.25,
+                      ),
+                    ),
+                    if (cupLine != null) ...[
+                      const SizedBox(height: 4),
+                      GestureDetector(
+                        onTap: () =>
+                            context.push('/family/$familyId/gaming/season'),
+                        child: Row(
+                          children: [
+                            const KinrelIcon(KinrelIconData.trophy,
+                                size: 13, color: KinrelColors.brightGold),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                cupLine,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.bodyFont,
+                                  fontSize: 11.5,
+                                  color: KinrelColors.textSilver,
+                                ),
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right,
+                                size: 16, color: KinrelColors.gold),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        )
+            .animate()
+            .fadeIn(duration: 350.ms)
+            .slideY(begin: -0.03, end: 0, duration: 350.ms);
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 0c. Play Now CTA — the #2 above-the-fold surface.
+//
+//     A single primary CTA that takes the viewer straight into a match
+//     with a family member who's online. Replaces the longer "Play Now"
+//     suggestions list as the above-the-fold version (the full list is
+//     still rendered below the fold via _SmartSuggestions when expanded).
+// ═══════════════════════════════════════════════════════════════════════
+
+class _PlayNowCta extends StatelessWidget {
+  const _PlayNowCta({required this.familyId, required this.dashboard});
+  final String familyId;
+  final GamingDashboard dashboard;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = dashboard.suggestions.first;
+    final game = gameByTable(s.gameTable);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () {
+          if (game == null) return;
+          context.push(gameRoute(game, familyId));
+        },
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: KinrelGradients.ignite,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: KinrelColors.orange.withValues(alpha: 0.35),
+                blurRadius: 22,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: game != null
+                        ? GameIcon(gameId: game.gameId, size: 44)
+                        : const Center(
+                            child: KinrelIcon(KinrelIconData.controller,
+                                size: 20, color: Colors.white),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Play ${s.gameName} with ${s.userName}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        s.reason,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 11.5,
+                          color: Colors.white.withValues(alpha: 0.88),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Play',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.bodyFont,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: KinrelColors.orange,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    )
+        .animate()
+        .fadeIn(delay: 100.ms, duration: 350.ms)
+        .slideY(begin: 0.04, end: 0, duration: 350.ms);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 1. Season banner  (kept for the season screen; no longer rendered on hub)
+// ═══════════════════════════════════════════════════════════════════════
+
+// ignore: unused_element
 class _SeasonBanner extends StatelessWidget {
   const _SeasonBanner({required this.familyId, required this.dashboard});
   final String familyId;
@@ -929,9 +1229,9 @@ class _LeaderboardPreview extends StatelessWidget {
               userName: row.userName,
               points: row.points,
               matches: row.matches,
-              wins: row.wins,
-              streak: row.streakCurrent,
-              winRateLabel: row.matches > 0 ? row.winRateLabel : null,
+              // Streak is only surfaced for the viewer's own row. The row
+              // widget also double-gates this on isMe.
+              streak: row.userId == myUserId ? row.streakCurrent : 0,
               isMe: row.userId == myUserId,
               onTap: () => context
                   .push('/family/$familyId/gaming/player/${row.userId}'),

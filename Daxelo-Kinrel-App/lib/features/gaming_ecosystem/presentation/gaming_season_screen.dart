@@ -100,7 +100,6 @@ class GamingSeasonScreen extends ConsumerWidget {
                     userName: s.userName,
                     points: s.points,
                     matches: s.gamesPlayed,
-                    wins: s.wins,
                     isMe: s.userId == dash.me.userId,
                     onTap: () => context
                         .push('/family/$familyId/gaming/player/${s.userId}'),

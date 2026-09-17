@@ -74,13 +74,19 @@ class GamingPlayerProfileScreen extends ConsumerWidget {
               _StatGrid(profile: p),
               const SizedBox(height: 16),
               if (p.favoriteGame != null) ...[
-                _FavoriteGameCard(favorite: p.favoriteGame!, familyId: familyId),
+                _FavoriteGameCard(
+                  favorite: p.favoriteGame!,
+                  familyId: familyId,
+                  isSelf: p.isSelf,
+                ),
                 const SizedBox(height: 16),
               ],
               if (p.perGame.isNotEmpty) ...[
                 GamingSectionHeader(
                   title: 'Game by Game',
-                  subtitle: 'Where their hours of joy went',
+                  subtitle: p.isSelf
+                      ? 'Where their hours of joy went'
+                      : 'Where they love to show up',
                   icon: Icons.insights_outlined,
                 ),
                 _PerGameList(profile: p, familyId: familyId),
@@ -113,9 +119,15 @@ class GamingPlayerProfileScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
               ],
+              // Recent matches — only rendered when there's something to
+              // show. For non-self profiles the backend already filters
+              // this list to ONLY matches the viewer participated in, so
+              // the section silently disappears if you never played with
+              // them (rather than showing a "hidden" lock icon that would
+              // confirm matches exist you can't see).
               if (p.recentMatches.isNotEmpty) ...[
                 GamingSectionHeader(
-                  title: 'Recent Matches',
+                  title: p.isSelf ? 'Recent Matches' : 'Matches You Played Together',
                   icon: Icons.history,
                 ),
                 ...p.recentMatches.take(5).map((m) => Padding(
@@ -136,17 +148,22 @@ class GamingPlayerProfileScreen extends ConsumerWidget {
                               ),
                             ),
                           ),
-                          Text(
-                            m.result.toUpperCase(),
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.monoFont,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              color: m.result == 'win'
-                                  ? KinrelColors.success
-                                  : KinrelColors.textDim,
+                          // The result chip is only rendered for the
+                          // account owner's own profile. For other members,
+                          // even on matches you both played, we show only
+                          // the time-ago (the score is theirs to disclose).
+                          if (p.isSelf)
+                            Text(
+                              m.result.toUpperCase(),
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.monoFont,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: m.result == 'win'
+                                    ? KinrelColors.success
+                                    : KinrelColors.textDim,
+                              ),
                             ),
-                          ),
                           const SizedBox(width: 8),
                           Text(
                             gamingTimeAgo(m.finishedAt),
@@ -224,7 +241,11 @@ class _ProfileHero extends StatelessWidget {
                           _HeroChip(
                               emoji: '🥇', label: 'Family rank #${profile.rank}'),
                         const SizedBox(width: 6),
-                        if (profile.streakCurrent > 0)
+                        // Streak is only surfaced for the account owner.
+                        // The backend already returns 0 for non-self profiles,
+                        // but we double-gate on isSelf so a stale cache can
+                        // never leak another member's streak.
+                        if (profile.isSelf && profile.streakCurrent > 0)
                           _HeroChip(
                               emoji: '🔥',
                               label: '${profile.streakCurrent} streak'),
@@ -353,18 +374,47 @@ class _StatGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Privacy: wins / loss / win% are only rendered for the account owner.
+    // For other family members we surface participation metrics instead
+    // (matches, badges, cheers, days-active) — never anything that implies
+    // a loss record.
+    if (profile.isSelf) {
+      return Row(
+        children: [
+          Expanded(
+            child: GamingStatChip(
+                emoji: '🎮', value: '${profile.matches}', label: 'MATCHES'),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: GamingStatChip(
+                emoji: '🏆',
+                value: '${profile.wins}',
+                label: 'WINS · ${profile.winRateLabel}'),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: GamingStatChip(
+                emoji: '🏅',
+                value: '${profile.badges.length}',
+                label: 'BADGES'),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: GamingStatChip(
+                emoji: '💚',
+                value: '${profile.sportsmanship}',
+                label: 'CHEERS'),
+          ),
+        ],
+      );
+    }
+    // Non-self profile — participation-only stat grid. No wins, no win%.
     return Row(
       children: [
         Expanded(
           child: GamingStatChip(
-              emoji: '🎮', value: '${profile.matches}', label: 'MATCHES'),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: GamingStatChip(
-              emoji: '🏆',
-              value: '${profile.wins}',
-              label: 'WINS · ${profile.winRateLabel}'),
+              emoji: '🎮', value: '${profile.matches}', label: 'GAMES'),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -380,19 +430,33 @@ class _StatGrid extends StatelessWidget {
               value: '${profile.sportsmanship}',
               label: 'CHEERS'),
         ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: GamingStatChip(
+              emoji: '📅',
+              value: '${profile.daysActiveThisWeek}',
+              label: 'THIS WEEK'),
+        ),
       ],
     );
   }
 }
 
 class _FavoriteGameCard extends StatelessWidget {
-  const _FavoriteGameCard({required this.favorite, required this.familyId});
+  const _FavoriteGameCard({required this.favorite, required this.familyId, this.isSelf = true});
   final GameStat favorite;
   final String familyId;
+  final bool isSelf;
 
   @override
   Widget build(BuildContext context) {
     final game = gameByTable(favorite.gameTable);
+    // For non-self profiles we never display the win count — only the
+    // participation count ("X matches together"). The favorite game itself
+    // is safe to surface (it's derived from play frequency, not outcomes).
+    final subtitle = isSelf
+        ? '${favorite.matches} matches · ${favorite.wins} wins'
+        : '${favorite.matches} matches played together';
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -434,7 +498,7 @@ class _FavoriteGameCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${favorite.matches} matches · ${favorite.wins} wins',
+                  subtitle,
                   style: TextStyle(
                     fontFamily: KinrelTypography.bodyFont,
                     fontSize: 11,
@@ -509,10 +573,24 @@ class _PerGameList extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 3),
+                        // For non-self profiles we render a participation
+                        // progress bar (matches out of the family max) —
+                        // never a win-rate bar. The backend already strips
+                        // wins/losses/draws to 0 for non-self, so even if
+                        // this code path were to slip through, the bar
+                        // would render as 0/0 = empty.
                         GamingProgressBar(
-                          progress: g.matches == 0
-                              ? 0
-                              : (g.wins / g.matches).clamp(0.0, 1.0),
+                          progress: profile.isSelf
+                              ? (g.matches == 0
+                                  ? 0
+                                  : (g.wins / g.matches).clamp(0.0, 1.0))
+                              : (g.matches == 0
+                                  ? 0
+                                  : (g.matches /
+                                          (profile.matches > 0
+                                              ? profile.matches
+                                              : 1))
+                                      .clamp(0.0, 1.0)),
                           height: 5,
                         ),
                       ],
@@ -520,7 +598,9 @@ class _PerGameList extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    '${g.wins}W / ${g.matches}M',
+                    profile.isSelf
+                        ? '${g.wins}W / ${g.matches}M'
+                        : '${g.matches} played',
                     style: TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 11,
