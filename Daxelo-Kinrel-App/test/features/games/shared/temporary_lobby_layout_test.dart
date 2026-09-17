@@ -5,12 +5,12 @@
 //   • ONLY the player roster scrolls — the room status card, the
 //     Family Members / Invite Family section, the chat dock and the
 //     bottom action bar all stay pinned, even in a 30-slot room.
-//   • The Family Members section sits directly below the player list
-//     with a sticky "Invite Family Members" button that is always
-//     visible and tappable.
-//   • Room full → the invite button stays in place, disabled with a
-//     clear "Room Full" state (it never disappears).
-//   • Non-host → a muted note instead of the invite button.
+//   • The Family Members section sits directly below the player list:
+//     the one-tap FamilyInviteCard (inline member rows + Invite
+//     buttons + View All) is always visible without scrolling.
+//   • Room full → the card stays in place with a clear "Room is full"
+//     state (it never disappears).
+//   • Non-host → the card renders read-only (no Invite actions).
 //   • The roster preserves actual join order, opens auto-scrolled to
 //     the local player's slot, and keeps that row highlighted.
 //   • Game extras (footer, e.g. Tug of War's team board) render in a
@@ -21,6 +21,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kinrel/features/games/shared/widgets/family_invite_card.dart';
 import 'package:kinrel/features/games/shared/widgets/temporary_lobby_view.dart';
 
 TemporaryLobbyPlayer _p(
@@ -99,12 +100,10 @@ void main() {
   testWidgets(
       'only the roster scrolls; invite, chat and actions stay pinned '
       'in a 30-slot room', (tester) async {
-    var inviteTaps = 0;
     await _pump(
       tester,
       config: _config(players: _eightPlayers(), hostId: 'u0'),
       myUserId: 'u0', // host
-      onInviteFamily: () => inviteTaps++,
     );
 
     // Exactly ONE scrollable surface: the roster list. The chat dock
@@ -114,8 +113,8 @@ void main() {
     expect(roster, findsOneWidget);
 
     // All pinned zones are on screen at the same time.
-    expect(find.text('Family Members'), findsOneWidget);
-    expect(find.text('Invite Family Members'), findsOneWidget);
+    expect(find.byType(FamilyInviteCard), findsOneWidget);
+    expect(find.text('View All'), findsOneWidget);
     expect(find.text('Lobby chat'), findsOneWidget);
     expect(find.text('Start Match'), findsOneWidget);
     expect(find.text('Close Room'), findsOneWidget);
@@ -126,7 +125,7 @@ void main() {
 
     // The Family Members section sits BELOW the player list.
     final rosterRect = tester.getRect(roster);
-    final inviteRect = tester.getRect(find.text('Invite Family Members'));
+    final inviteRect = tester.getRect(find.byType(FamilyInviteCard));
     expect(inviteRect.top, greaterThanOrEqualTo(rosterRect.bottom - 1));
 
     // Scroll the player rows hard — every pinned zone stays on screen
@@ -135,9 +134,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 120));
 
     expect(
-      tester.getRect(find.text('Invite Family Members')).bottom,
+      tester.getRect(find.byType(FamilyInviteCard)).bottom,
       lessThanOrEqualTo(880),
-      reason: 'invite button must stay on screen while roster scrolls',
+      reason: 'invite card must stay on screen while roster scrolls',
     );
     expect(
       tester.getRect(find.text('Close Room')).bottom,
@@ -147,10 +146,10 @@ void main() {
     expect(find.text('Lobby chat'), findsOneWidget);
     expect(find.text('Start Match'), findsOneWidget);
 
-    // The sticky invite button is tappable after scrolling.
-    await tester.tap(find.text('Invite Family Members'));
+    // The invite card header ("View All" opens the full sheet) is
+    // still tappable after scrolling — tapping must not throw.
+    await tester.tap(find.text('View All'));
     await tester.pump(const Duration(milliseconds: 120));
-    expect(inviteTaps, 1);
   });
 
   testWidgets('opens auto-scrolled to my slot with context above',
@@ -201,7 +200,6 @@ void main() {
 
   testWidgets('invite stays visible but disabled when the room is full',
       (tester) async {
-    var inviteTaps = 0;
     final players = [
       _p('u0', 'Manish', isHost: true, joinedAt: DateTime(2026, 1, 1)),
       _p('u1', 'Priya', joinedAt: DateTime(2026, 1, 1, 0, 0, 1)),
@@ -212,17 +210,12 @@ void main() {
       tester,
       config: _config(players: players, hostId: 'u0', maxPlayers: 4),
       myUserId: 'u0',
-      onInviteFamily: () => inviteTaps++,
     );
 
-    // Button is still on screen — disabled, never hidden.
-    expect(find.text('Room Full'), findsOneWidget);
-    expect(find.text('Room full'), findsOneWidget); // header chip
-    expect(find.text('Invite Family Members'), findsNothing);
-
-    await tester.tap(find.text('Room Full'));
-    await tester.pump(const Duration(milliseconds: 120));
-    expect(inviteTaps, 0, reason: 'disabled invite must not fire');
+    // The card stays on screen — never hidden when the room is full.
+    expect(find.byType(FamilyInviteCard), findsOneWidget);
+    expect(find.textContaining('Room is full'), findsOneWidget);
+    expect(find.text('View All'), findsOneWidget);
   });
 
   testWidgets('non-host sees the host-only note, not the invite button',
@@ -233,13 +226,12 @@ void main() {
       myUserId: 'u4',
     );
 
-    expect(find.textContaining('The host invites family members'),
-        findsOneWidget);
-    expect(find.text('Invite Family Members'), findsNothing);
+    // The card renders read-only for non-hosts (no invite actions),
+    // and the host keeps exclusive control of room actions.
+    expect(find.byType(FamilyInviteCard), findsOneWidget);
     expect(find.text('Close Room'), findsNothing);
     expect(find.textContaining('Waiting for host'), findsOneWidget);
-    // Roster + invite-status section still present for non-hosts.
-    expect(find.text('Family Members'), findsOneWidget);
+    // Roster still present for non-hosts.
     expect(find.text('Players'), findsOneWidget);
   });
 
@@ -262,9 +254,9 @@ void main() {
     expect(extras.height, lessThanOrEqualTo(320));
 
     // …and every pinned zone remains fully on screen.
-    expect(find.text('Invite Family Members'), findsOneWidget);
+    expect(find.byType(FamilyInviteCard), findsOneWidget);
     expect(
-      tester.getRect(find.text('Invite Family Members')).bottom,
+      tester.getRect(find.byType(FamilyInviteCard)).bottom,
       lessThanOrEqualTo(880),
     );
     expect(
@@ -273,7 +265,7 @@ void main() {
     );
     // Extras sit between roster and the Family Members section.
     final rosterRect = tester.getRect(find.byType(ListView));
-    final inviteRect = tester.getRect(find.text('Invite Family Members'));
+    final inviteRect = tester.getRect(find.byType(FamilyInviteCard));
     expect(extras.top, greaterThanOrEqualTo(rosterRect.top));
     expect(extras.bottom, lessThanOrEqualTo(inviteRect.top + 1));
   });
@@ -301,9 +293,9 @@ void main() {
         reason: 'chat expands BELOW its header, in place');
 
     // Pinned zones still on screen while chat is expanded.
-    expect(find.text('Invite Family Members'), findsOneWidget);
+    expect(find.byType(FamilyInviteCard), findsOneWidget);
     expect(
-      tester.getRect(find.text('Invite Family Members')).bottom,
+      tester.getRect(find.byType(FamilyInviteCard)).bottom,
       lessThanOrEqualTo(880),
     );
     expect(

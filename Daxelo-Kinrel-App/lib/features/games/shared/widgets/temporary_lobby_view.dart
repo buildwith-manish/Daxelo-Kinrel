@@ -59,9 +59,10 @@ import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../shared/widgets/dk_components.dart';
 import '../../game_motion_tokens.dart';
+import '../icons/kinrel_icons.dart';
 import '../multiplayer/widgets/room_close_dialog.dart';
+import 'family_invite_card.dart';
 import 'lobby_chat_panel.dart';
-import 'pending_invites_section.dart';
 import 'room_exit_barrier.dart';
 
 /// One player row in the lobby.
@@ -100,14 +101,15 @@ extension TemporaryLobbyStatusX on TemporaryLobbyStatus {
     }
   }
 
-  String get emoji {
+  /// Kinrel custom icon for the status (no emoji glyphs).
+  KinrelIconData get icon {
     switch (this) {
       case TemporaryLobbyStatus.waiting:
-        return '👋';
+        return KinrelIconData.users;
       case TemporaryLobbyStatus.starting:
-        return '🚀';
+        return KinrelIconData.zap;
       case TemporaryLobbyStatus.finished:
-        return '🏆';
+        return KinrelIconData.trophy;
     }
   }
 }
@@ -709,10 +711,8 @@ class _RoomHeaderCard extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: Center(
-                  child: Text(
-                    config.status.emoji,
-                    style: const TextStyle(fontSize: 22),
-                  ),
+                  child: KinrelIcon(config.status.icon,
+                      size: 22, color: color),
                 ),
               ),
               const SizedBox(width: KinrelSpacing.md),
@@ -1407,184 +1407,22 @@ class _FamilyInviteSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final open = _openSlots;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      padding: const EdgeInsets.all(KinrelSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ── Section header: label + open-slots chip ──────────────
-          Row(
-            children: [
-              Text(
-                'Family Members',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.textDim,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: open > 0
-                      ? KinrelColors.orange.withValues(alpha: 0.14)
-                      : KinrelColors.textDim.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(KinrelRadius.xs),
-                  border: Border.all(
-                    color: open > 0
-                        ? KinrelColors.orange.withValues(alpha: 0.5)
-                        : KinrelColors.border,
-                  ),
-                ),
-                child: Text(
-                  open > 0 ? '$open open' : 'Room full',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: open > 0 ? KinrelColors.orange : KinrelColors.textDim,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: KinrelSpacing.md),
-
-          // ── Sticky invite action ─────────────────────────────────
-          if (isHost && onInviteFamily != null)
-            _InviteFamilyRow(
-              onTap: onInviteFamily!,
-              enabled: open > 0,
-            )
-          else
-            _HostOnlyInviteNote(),
-
-          // ── Compact live invite statuses ────────────────────────
-          PendingInvitesSection(gameId: config.gameId, compact: true),
-        ],
-      ),
-    );
-  }
-}
-
-/// Full-width sticky invite row — the previous design's "Invite
-/// family" row, promoted to a prominent button that never scrolls
-/// away. Disabled (never hidden) when the room is full.
-class _InviteFamilyRow extends StatelessWidget {
-  const _InviteFamilyRow({
-    required this.onTap,
-    required this.enabled,
-  });
-
-  final VoidCallback onTap;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    final fg = enabled ? KinrelColors.orange : KinrelColors.textDim;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: enabled
-            ? () {
-                GameMotionTokens.tap();
-                onTap();
-              }
-            : null,
-        borderRadius: BorderRadius.circular(KinrelRadius.md),
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-              horizontal: KinrelSpacing.md, vertical: 13),
-          decoration: BoxDecoration(
-            color: enabled
-                ? KinrelColors.orange.withValues(alpha: 0.14)
-                : KinrelColors.darkElevated,
-            borderRadius: BorderRadius.circular(KinrelRadius.md),
-            border: Border.all(
-              color: enabled
-                  ? KinrelColors.orange.withValues(alpha: 0.55)
-                  : KinrelColors.border,
-              width: 1.2,
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                enabled ? Icons.person_add_alt_1 : Icons.lock_outline,
-                color: fg,
-                size: 18,
-              ),
-              const SizedBox(width: KinrelSpacing.sm),
-              Expanded(
-                child: Text(
-                  enabled ? 'Invite Family Members' : 'Room Full',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: fg,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ),
-              Icon(
-                Icons.chevron_right,
-                color: fg.withValues(alpha: 0.7),
-                size: 18,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Muted note shown to non-hosts in the Family Members section.
-class _HostOnlyInviteNote extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: KinrelSpacing.md, vertical: 10),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkElevated,
-        borderRadius: BorderRadius.circular(KinrelRadius.md),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.info_outline,
-              size: 15, color: KinrelColors.textDim),
-          const SizedBox(width: KinrelSpacing.sm),
-          Expanded(
-            child: Text(
-              'The host invites family members — anyone with the room '
-              'code can join.',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 11,
-                color: KinrelColors.textDim,
-                height: 1.35,
-              ),
-            ),
-          ),
-        ],
-      ),
+    // ONE-TAP invitations: the inline FamilyInviteCard renders the
+    // invitable family members directly below the player list with a
+    // per-member Invite button (no extra screen to open), live
+    // Pending / Joining statuses, and a "View All" affordance for the
+    // full multi-select + Entire-Family sheet. Non-hosts see the same
+    // list read-only — statuses stay visible for everyone.
+    return FamilyInviteCard(
+      familyId: config.familyId,
+      gameTable: config.gameTable,
+      gameId: config.gameId,
+      roomCode: config.derivedRoomCode,
+      currentPlayerIds: config.players.map((p) => p.userId).toSet(),
+      maxPlayers: config.maxPlayers,
+      currentPlayers: config.players.length,
+      canInvite: isHost,
+      onInviteSent: onInviteFamily == null ? null : () {},
     );
   }
 }

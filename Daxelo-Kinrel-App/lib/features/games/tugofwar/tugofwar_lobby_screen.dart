@@ -22,9 +22,7 @@ import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart'
     show GameType;
 import '../shared/widgets/invite_family_sheet.dart';
-import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/lobby_kit/lobby_kit.dart';
-import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
 import '../shared/services/temporary_room_service.dart'
     show kRoomClosedMessage;
@@ -437,22 +435,11 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
         onCancelRoom: () =>
             ref.read(tugOfWarProvider(widget.familyId).notifier).leaveGame(),
         onInviteFamily: isHost ? () => _openInviteSheet(state) : null,
-        footer: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: KinrelSpacing.md),
-            TugTeamBoard(
-              state: state,
-              myUserId: myId,
-            ),
-            PendingInvitesSection(gameId: game.id),
-            LobbyChatPanel(
-              gameTable: 'tugofwar_games',
-              gameId: game.id,
-              familyId: widget.familyId,
-            ),
-          ],
+        // Game extras only — the shared lobby provides the Family
+        // Members invite card and the lobby chat dock itself.
+        footer: TugTeamBoard(
+          state: state,
+          myUserId: myId,
         ),
       ),
     );

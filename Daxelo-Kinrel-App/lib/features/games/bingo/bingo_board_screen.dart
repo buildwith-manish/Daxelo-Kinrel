@@ -25,6 +25,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/game_board_shell.dart';
 import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
@@ -477,7 +478,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                       if (isWinner)
                         const Padding(
                           padding: EdgeInsets.only(left: 6),
-                          child: Icon(Icons.emoji_events,
+                          child: KinrelIcon(KinrelIconData.trophy,
                               size: 16, color: KinrelColors.orange),
                         ),
                     ],
@@ -1240,8 +1241,8 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
   Widget _winnerBanner(bool isWinner, String winnerName, bool isDraw) {
     return Column(
       children: [
-        Icon(
-          isDraw ? Icons.grid_on_rounded : Icons.emoji_events,
+        KinrelIcon(
+          isDraw ? KinrelIconData.handshake : KinrelIconData.trophy,
           size: 60,
           color: isDraw ? KinrelColors.textDim : KinrelColors.gold,
         )

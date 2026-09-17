@@ -31,6 +31,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 import '../game_motion_tokens.dart';
+import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/reactions_bar.dart';
 import 'tugofwar_models.dart';
 import 'tugofwar_provider.dart';
@@ -246,11 +247,13 @@ class _TugOfWarGameScreenState extends ConsumerState<TugOfWarGameScreen>
 }
 
 /// Team accent colors shared across the game screen widgets.
+/// Team A (Ember) = warm red · Team B (Azure) = blue — matches the
+/// lobby team board (P1 joins Team Ember/red, P2 Team Azure/blue).
 class TugTeamBoardColors {
   TugTeamBoardColors._();
 
-  static const Color a = KinrelColors.orange; // Team Ember
-  static const Color b = KinrelColors.blue; // Team Azure
+  static const Color a = Color(0xFFEF4444); // Team Ember — red
+  static const Color b = KinrelColors.blue; // Team Azure — blue
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -558,11 +561,8 @@ class _TeamCard extends StatelessWidget {
                   ),
                 ),
               ),
-              Icon(
-                Icons.people_outline,
-                size: 11,
-                color: KinrelColors.textDim,
-              ),
+              KinrelIcon(KinrelIconData.users,
+                  size: 11, color: KinrelColors.textDim),
               const SizedBox(width: 2),
               Text(
                 '${stats.size}',
@@ -674,11 +674,7 @@ class _TeamCard extends StatelessWidget {
               padding: const EdgeInsets.only(top: 4),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.local_fire_department_outlined,
-                    size: 10,
-                    color: color,
-                  ),
+                  KinrelIcon(KinrelIconData.flame, size: 10, color: color),
                   const SizedBox(width: 3),
                   Expanded(
                     child: Text(
@@ -1052,8 +1048,8 @@ class _WinnerBanner extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(
-            isDraw ? Icons.handshake_outlined : Icons.emoji_events,
+          KinrelIcon(
+            isDraw ? KinrelIconData.handshake : KinrelIconData.trophy,
             size: 52,
             color: isDraw ? KinrelColors.gold : winnerColor,
           ),
@@ -1137,7 +1133,7 @@ class _MvpRow extends StatelessWidget {
       children: [
         Expanded(
           child: _MvpCard(
-            icon: Icons.fitness_center,
+            icon: KinrelIconData.flame,
             title: 'Most Taps',
             player: mostTaps,
             value: '${mostTaps.pullCount}',
@@ -1146,7 +1142,7 @@ class _MvpRow extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: _MvpCard(
-            icon: Icons.bolt,
+            icon: KinrelIconData.zap,
             title: 'Fastest',
             player: fastest,
             value:
@@ -1156,7 +1152,7 @@ class _MvpRow extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: _MvpCard(
-            icon: Icons.emoji_events_outlined,
+            icon: KinrelIconData.medal,
             title: 'MVP',
             player: strongest,
             value: '${(bestShare * 100).round()}%',
@@ -1175,7 +1171,7 @@ class _MvpCard extends StatelessWidget {
     required this.value,
   });
 
-  final IconData icon;
+  final KinrelIconData icon;
   final String title;
   final TugOfWarPlayer player;
   final String value;
@@ -1194,7 +1190,7 @@ class _MvpCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(icon, size: 20, color: color),
+          KinrelIcon(icon, size: 20, color: color),
           const SizedBox(height: 4),
           Text(
             title,
@@ -1456,10 +1452,8 @@ class _RematchRow extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                Icon(
-                  iWon
-                      ? Icons.celebration_outlined
-                      : Icons.refresh,
+                KinrelIcon(
+                  iWon ? KinrelIconData.party : KinrelIconData.clock,
                   size: 14,
                   color: iWon ? KinrelColors.gold : KinrelColors.textDim,
                 ),

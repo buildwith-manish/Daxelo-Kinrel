@@ -90,6 +90,7 @@ class FamilyInviteCard extends ConsumerStatefulWidget {
     required this.currentPlayerIds,
     required this.maxPlayers,
     required this.currentPlayers,
+    this.canInvite = true,
     this.onInviteSent,
   });
 
@@ -103,6 +104,12 @@ class FamilyInviteCard extends ConsumerStatefulWidget {
   final Set<String> currentPlayerIds;
   final int maxPlayers;
   final int currentPlayers;
+
+  /// Only the HOST can send invites (matches the room-owner model of
+  /// every other invite surface). Non-hosts still see the member list
+  /// and live statuses — read-only.
+  final bool canInvite;
+
   final VoidCallback? onInviteSent;
 
   @override
@@ -137,6 +144,7 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
   /// One-tap invite — same delivery pipeline as InviteFamilySheet's
   /// single-tap path (durable row + socket event + private DM).
   Future<void> _sendInvite(FamilyInviteMember m) async {
+    if (!widget.canInvite) return;
     if (_sendingTo.contains(m.user.id) || _isRoomFull) return;
     if (widget.currentPlayerIds.contains(m.user.id)) return;
     final gameType = gameTypeForTable(widget.gameTable);
@@ -233,6 +241,7 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
   }
 
   void _openFullSheet() {
+    if (!widget.canInvite) return;
     final gameType = gameTypeForTable(widget.gameTable);
     if (gameType == null) return;
     InviteFamilySheet.show(
@@ -379,7 +388,7 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
                 member: invitable[i],
                 status: inviteState[invitable[i].user.id]?.status,
                 sending: _sendingTo.contains(invitable[i].user.id),
-                disabled: _isRoomFull,
+                disabled: _isRoomFull || !widget.canInvite,
                 onInvite: () => _sendInvite(invitable[i]),
               ),
             ],
@@ -388,7 +397,7 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
                   height: 1, color: KinrelColors.border.withValues(alpha: 0.5)),
             // "+N more" row → full sheet.
             InkWell(
-              onTap: _openFullSheet,
+              onTap: widget.canInvite ? _openFullSheet : null,
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                     horizontal: KinrelSpacing.md, vertical: 9),
@@ -413,7 +422,9 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
                         fontFamily: KinrelTypography.bodyFont,
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
-                        color: KinrelColors.orange,
+                        color: widget.canInvite
+                            ? KinrelColors.orange
+                            : KinrelColors.textDim,
                       ),
                     ),
                   ],

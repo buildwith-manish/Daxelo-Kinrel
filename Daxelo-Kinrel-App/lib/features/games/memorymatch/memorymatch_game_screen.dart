@@ -34,6 +34,7 @@ import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 import '../game_motion_tokens.dart';
 import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
+import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/reactions_bar.dart';
 import 'memorymatch_card_faces.dart';
 import 'memorymatch_models.dart';
@@ -1054,17 +1055,10 @@ class _ResultsView extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          Icon(
-            iWon ? Icons.emoji_events : Icons.workspace_premium_outlined,
+          KinrelIcon(
+            iWon ? KinrelIconData.trophy : KinrelIconData.medal,
             size: iWon ? 46 : 40,
             color: Colors.white,
-            shadows: [
-              Shadow(
-                color: Colors.black.withValues(alpha: 0.35),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
           ),
           const SizedBox(height: 6),
           Text(
