@@ -26,13 +26,17 @@
 //     "Tied Game!" (multiple winners)
 //   • Replay + Back to Hub actions (caller decides the routing)
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../shared/widgets/dk_components.dart';
+import 'game_confetti.dart';
 
 /// One reaction type with its emoji + count.
 class WinReaction {
@@ -44,6 +48,38 @@ class WinReaction {
   final int count;
 }
 
+/// Per-winner stats row shown above the winner name on the celebration
+/// screen. Powers the "⭐ Family Win #23 🎉 8 Wins This Month" stat strip.
+///
+/// If null, the stats row is hidden. The caller typically obtains this via
+/// the winnerStatsProvider (which invokes the fn_get_user_win_stats RPC).
+class WinnerStats {
+  const WinnerStats({
+    this.familyWinNumber,
+    this.monthlyWins,
+    this.totalWins,
+    this.currentStreak,
+  });
+
+  /// Running win count inside this family ("this is your 23rd win").
+  final int? familyWinNumber;
+
+  /// Wins this calendar month.
+  final int? monthlyWins;
+
+  /// Total wins across all families (career).
+  final int? totalWins;
+
+  /// Current win streak.
+  final int? currentStreak;
+
+  bool get isEmpty =>
+      familyWinNumber == null &&
+      monthlyWins == null &&
+      totalWins == null &&
+      currentStreak == null;
+}
+
 /// Configuration for the WinCelebration widget.
 class WinCelebrationConfig {
   const WinCelebrationConfig({
@@ -51,6 +87,8 @@ class WinCelebrationConfig {
     required this.reactions,
     this.gameName,
     this.subtitle,
+    this.winnerStats,
+    this.shareText,
   });
 
   /// Names of the winner(s). If empty, shows "Game Over". If one entry,
@@ -67,6 +105,15 @@ class WinCelebrationConfig {
 
   /// Optional custom subtitle (overrides gameName).
   final String? subtitle;
+
+  /// Per-winner stats (family win #, monthly wins, ...). When non-null
+  /// and non-empty, the celebration renders a stat strip above the
+  /// winner name.
+  final WinnerStats? winnerStats;
+
+  /// Optional pre-built share text. If null, a default share text is
+  /// generated from the winner names + game name.
+  final String? shareText;
 }
 
 /// Universal victory screen for every multiplayer game.
@@ -81,6 +128,7 @@ class WinCelebrationConfig {
 ///         WinReaction(emoji: '🔥', count: 5),
 ///       ],
 ///       gameName: 'Bingo',
+///       winnerStats: WinnerStats(familyWinNumber: 23, monthlyWins: 8),
 ///     ),
 ///     onPlayAgain: () => notifier.leaveGame()..then((_) => context.go('/family/$fid/bingo/lobby')),
 ///     onBackToHub: () => notifier.leaveGame()..then((_) => context.go('/games?familyId=$fid')),
@@ -111,21 +159,56 @@ class WinCelebration extends StatelessWidget {
     return 'Match Complete';
   }
 
+  String get _defaultShareText {
+    final names = config.winnerNames;
+    final head = names.isEmpty
+        ? 'Game Over'
+        : names.length == 1
+            ? '${names.first} won!'
+            : 'Tied game between ${names.join(", ")}!';
+    final stats = config.winnerStats;
+    final tail = (stats != null && stats.familyWinNumber != null)
+        ? ' (Family Win #${stats.familyWinNumber})'
+        : '';
+    final game = config.gameName != null ? ' • ${config.gameName} on Kinrel' : ' • Kinrel';
+    return '🎉 $head$tail$game';
+  }
+
+  Future<void> _shareResult(BuildContext context) async {
+    final text = config.shareText ?? _defaultShareText;
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Result copied to clipboard — share it with your family!'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {
+      // Clipboard not available — silently ignore.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(KinrelSpacing.xl),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            KinrelColors.orange.withValues(alpha: 0.18),
-            KinrelColors.darkSurface,
-          ],
-        ),
-      ),
-      child: Column(
+    return Stack(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(KinrelSpacing.xl),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                KinrelColors.orange.withValues(alpha: 0.18),
+                KinrelColors.darkSurface,
+              ],
+            ),
+          ),
+          child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -139,7 +222,7 @@ class WinCelebration extends StatelessWidget {
                 end: const Offset(1.0, 1.0),
               )
               .then(delay: 200.ms)
-              .shake(duration: 400.ms, hz: 4, amount: 0.4),
+              .shakeX(duration: 400.ms, hz: 4, amount: 0.4),
 
           const SizedBox(height: KinrelSpacing.lg),
 
@@ -174,6 +257,15 @@ class WinCelebration extends StatelessWidget {
           )
               .animate()
               .fadeIn(duration: 500.ms, delay: 400.ms),
+
+          // Winner stats row (Family Win #N · Monthly Wins)
+          if (config.winnerStats != null && !config.winnerStats!.isEmpty) ...[
+            const SizedBox(height: KinrelSpacing.md),
+            _WinnerStatsRow(stats: config.winnerStats!)
+                .animate()
+                .fadeIn(duration: 500.ms, delay: 500.ms)
+                .slideY(begin: 0.2, end: 0, duration: 500.ms, delay: 500.ms),
+          ],
 
           // Tied game — show all winner names
           if (config.winnerNames.length > 1) ...[
@@ -217,7 +309,7 @@ class WinCelebration extends StatelessWidget {
 
           const SizedBox(height: KinrelSpacing.xl),
 
-          // Action buttons
+          // Action buttons — Play Again + Share Result + Back to Hub
           Row(
             children: [
               Expanded(
@@ -232,11 +324,11 @@ class WinCelebration extends StatelessWidget {
               const SizedBox(width: KinrelSpacing.sm),
               Expanded(
                 child: DKButton(
-                  label: 'Back to Hub',
+                  label: 'Share Result',
                   variant: DKButtonVariant.secondary,
-                  icon: Icons.home_outlined,
+                  icon: Icons.share_outlined,
                   fullWidth: true,
-                  onPressed: onBackToHub,
+                  onPressed: () => _shareResult(context),
                 ),
               ),
             ],
@@ -244,72 +336,277 @@ class WinCelebration extends StatelessWidget {
               .animate()
               .fadeIn(duration: 500.ms, delay: 900.ms)
               .slideY(begin: 0.2, end: 0, duration: 500.ms, delay: 900.ms),
+          const SizedBox(height: KinrelSpacing.sm),
+          DKButton(
+            label: 'Back to Hub',
+            variant: DKButtonVariant.secondary,
+            icon: Icons.home_outlined,
+            fullWidth: true,
+            onPressed: onBackToHub,
+          )
+              .animate()
+              .fadeIn(duration: 500.ms, delay: 1000.ms),
         ],
+          ),
+        ),
+        // Physics-based confetti celebration — fires automatically on
+        // mount, hibernates once every particle has landed.
+        const Positioned.fill(
+          child: GameConfetti(burstCount: 3),
+        ),
+      ],
+    );
+  }
+}
+
+/// Winner stats row: ⭐ Family Win #23 🎉 8 Wins This Month
+class _WinnerStatsRow extends StatelessWidget {
+  const _WinnerStatsRow({required this.stats});
+  final WinnerStats stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final chips = <_StatChip>[];
+    if (stats.familyWinNumber != null) {
+      chips.add(_StatChip(
+        emoji: '⭐',
+        label: 'Family Win #${stats.familyWinNumber}',
+        color: KinrelColors.amber,
+      ));
+    }
+    if (stats.monthlyWins != null) {
+      chips.add(_StatChip(
+        emoji: '🎉',
+        label: '${stats.monthlyWins} Wins This Month',
+        color: KinrelColors.tealAccent,
+      ));
+    }
+    if (stats.currentStreak != null && stats.currentStreak! > 0) {
+      chips.add(_StatChip(
+        emoji: '🔥',
+        label: '${stats.currentStreak}-Win Streak',
+        color: KinrelColors.orange,
+      ));
+    }
+    if (stats.totalWins != null) {
+      chips.add(_StatChip(
+        emoji: '🏆',
+        label: '${stats.totalWins} Career Wins',
+        color: KinrelColors.textDim,
+      ));
+    }
+    if (chips.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: KinrelSpacing.lg, vertical: KinrelSpacing.md),
+      decoration: BoxDecoration(
+        color: KinrelColors.darkCard,
+        borderRadius: BorderRadius.circular(KinrelRadius.lg),
+        border: Border.all(color: KinrelColors.border),
+      ),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: KinrelSpacing.md,
+        runSpacing: KinrelSpacing.sm,
+        children: chips,
       ),
     );
   }
 }
 
-/// Animated trophy + confetti burst icon.
+class _StatChip extends StatelessWidget {
+  const _StatChip({
+    required this.emoji,
+    required this.label,
+    required this.color,
+  });
+  final String emoji;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(emoji, style: const TextStyle(fontSize: 16)),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontFamily: KinrelTypography.monoFont,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Animated trophy with rotating light rays + floating confetti emojis.
 class _TrophyBurst extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Glow background
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: RadialGradient(
-                colors: [
-                  KinrelColors.orange.withValues(alpha: 0.4),
-                  KinrelColors.orange.withValues(alpha: 0.0),
-                ],
+      child: SizedBox(
+        width: 150,
+        height: 150,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Rotating light rays behind the trophy.
+            const _TrophyRays(),
+            // Glow background
+            Container(
+              width: 104,
+              height: 104,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    KinrelColors.orange.withValues(alpha: 0.45),
+                    KinrelColors.orange.withValues(alpha: 0.0),
+                  ],
+                ),
               ),
             ),
-          ),
-          // Trophy
-          const Icon(
-            Icons.emoji_events_rounded,
-            size: 72,
-            color: KinrelColors.orange,
-          ),
-          // Surrounding confetti emojis (decorative)
-          ..._confettiSpots,
-        ],
+            // Trophy
+            const Icon(
+              Icons.emoji_events_rounded,
+              size: 72,
+              color: KinrelColors.orange,
+              shadows: [
+                Shadow(color: Color(0xB3000000), blurRadius: 12),
+              ],
+            ),
+            // Floating accent emojis around the trophy.
+            ..._confettiSpots,
+          ],
+        ),
       ),
     );
   }
 
   List<Widget> get _confettiSpots {
-    // 6 small emojis orbiting the trophy at fixed positions.
+    // 6 small emojis around the trophy, gently floating up and down.
     final emojis = ['🎉', '✨', '⭐', '🎊', '💫', '🏆'];
     final positions = [
-      const Offset(-50, -40),
-      const Offset(50, -40),
-      const Offset(-60, 0),
-      const Offset(60, 0),
-      const Offset(-50, 40),
-      const Offset(50, 40),
+      const Offset(-56, -44),
+      const Offset(56, -44),
+      const Offset(-64, 6),
+      const Offset(64, 6),
+      const Offset(-52, 50),
+      const Offset(52, 50),
     ];
-    List<Widget> spots = [];
-    for (int i = 0; i < emojis.length; i++) {
+    final List<Widget> spots = [];
+    for (var i = 0; i < emojis.length; i++) {
+      final dy = i.isEven ? -5.0 : 5.0;
       spots.add(
         Transform.translate(
           offset: positions[i],
           child: Text(
             emojis[i],
-            style: const TextStyle(fontSize: 18),
-          ),
+            style: const TextStyle(fontSize: 18, shadows: [
+              Shadow(color: Color(0x88000000), blurRadius: 6),
+            ]),
+          )
+              .animate(onPlay: (c) => c.repeat(reverse: true))
+              .moveY(
+                begin: dy,
+                end: -dy,
+                duration: 1400.ms,
+                curve: Curves.easeInOut,
+                delay: (i * 120).ms,
+              ),
         ),
       );
     }
     return spots;
   }
+}
+
+/// Slowly rotating golden rays behind the trophy — a classic
+/// "winner spotlight" treatment.
+class _TrophyRays extends StatefulWidget {
+  const _TrophyRays();
+
+  @override
+  State<_TrophyRays> createState() => _TrophyRaysState();
+}
+
+class _TrophyRaysState extends State<_TrophyRays>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _rot = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 14000),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _rot.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _rot,
+      builder: (context, _) {
+        return CustomPaint(
+          size: const Size(150, 150),
+          painter: _RaysPainter(rotation: _rot.value),
+        );
+      },
+    );
+  }
+}
+
+class _RaysPainter extends CustomPainter {
+  _RaysPainter({required this.rotation});
+
+  final double rotation;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.width / 2;
+    final rng = math.Random(3); // Fixed seed — stable ray widths.
+
+    // Rays fade from a warm glow at the trophy out to nothing.
+    final paint = Paint()
+      ..shader = RadialGradient(
+        center: Alignment.center,
+        radius: 1.0,
+        colors: [
+          KinrelColors.brightGold.withValues(alpha: 0.0),
+          KinrelColors.brightGold.withValues(alpha: 0.22),
+          KinrelColors.brightGold.withValues(alpha: 0.0),
+        ],
+        stops: const [0.30, 0.55, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
+
+    for (var i = 0; i < 12; i++) {
+      final base = (i / 12) * math.pi * 2 + rotation * math.pi * 2;
+      final halfWidth = 0.035 + rng.nextDouble() * 0.025;
+      final path = Path()
+        ..moveTo(center.dx, center.dy)
+        ..arcTo(
+          Rect.fromCircle(center: center, radius: radius),
+          base - halfWidth,
+          halfWidth * 2,
+          false,
+        )
+        ..close();
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RaysPainter oldDelegate) =>
+      oldDelegate.rotation != rotation;
 }
 
 /// Row of reaction tallies: ❤️ 12   👏 8   🔥 5   😂 3   🎉 2

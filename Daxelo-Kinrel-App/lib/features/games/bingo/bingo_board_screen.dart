@@ -6,6 +6,9 @@
 //   • Scrollable history of all called numbers
 //   • BINGO! button (enabled when client detects potential win)
 //   • Inline results view with winner confetti
+// Premium finish: casino felt GameBoardShell card frame, hand-placed
+// daub stamps on marked cells, glowing "last called" pill, and a
+// triple-volley GameConfetti celebration on bingo wins.
 // Route: /family/$familyId/bingo/board/:gameId
 
 import 'dart:async';
@@ -22,11 +25,15 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
-import '../shared/services/temporary_room_service.dart';
+import '../shared/icons/kinrel_icons.dart';
+import '../shared/widgets/game_board_shell.dart';
+import '../shared/widgets/game_confetti.dart';
 import '../shared/widgets/leave_game_dialog.dart';
 import '../shared/widgets/badges_toast.dart';
+import '../shared/widgets/reactions_bar.dart';
 import 'bingo_models.dart';
 import 'bingo_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
 class BingoBoardScreen extends ConsumerStatefulWidget {
   const BingoBoardScreen({
@@ -47,7 +54,10 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
   late final AnimationController _shakeController;
   int? _lastSeenCalledNumber;
   Timer? _shakeTimer;
+  Timer? _countdownTimer;
   bool _badgesChecked = false;
+  bool _shakeTriggered = false;
+  int _secondsToNextCall = 0;
 
   @override
   void initState() {
@@ -60,12 +70,33 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final state = ref.read(bingoProvider(widget.familyId));
-      if (state.game == null) {
-        ref.read(bingoProvider(widget.familyId).notifier).joinGame(widget.gameId);
-      }
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _joinWithRetry());
+  }
+
+  /// Deep-linking straight onto this screen can mount the notifier
+  /// before Supabase finishes wiring into Riverpod — joinGame would
+  /// bail with "Not signed in" and never retry. Bounded retry (same
+  /// pattern as Ghost Painter's cold-start fix).
+  Future<void> _joinWithRetry() async {
+    const maxAttempts = 6;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (!mounted) return;
+      final client = ref.read(supabaseProvider);
+      if (client?.auth.currentUser != null) break;
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+    }
+    if (!mounted) return;
+    final state = ref.read(bingoProvider(widget.familyId));
+    // Join when there's no game OR when the provider still holds a
+    // DIFFERENT game (e.g. navigating from one board straight to
+    // another — the shared family-scoped notifier survives the route
+    // swap, so the stale game would otherwise render forever).
+    if (state.game?.id != widget.gameId) {
+      await ref
+          .read(bingoProvider(widget.familyId).notifier)
+          .joinGame(widget.gameId);
+    }
+    _startCountdown();
   }
 
   @override
@@ -73,6 +104,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
     _numberPulseController.dispose();
     _shakeController.dispose();
     _shakeTimer?.cancel();
+    _countdownTimer?.cancel();
     super.dispose();
   }
 
@@ -87,6 +119,24 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
   void _triggerShake() {
     _shakeController.forward(from: 0);
     GameMotionTokens.error();
+  }
+
+  /// Live countdown to the next called number, from the authoritative
+  /// lastCallAt + callIntervalSeconds. Runs once per second while the
+  /// board is visible; harmless when the game isn't running.
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final game = ref.read(bingoProvider(widget.familyId)).game;
+      if (game == null || !game.isInProgress) {
+        if (_secondsToNextCall != 0) setState(() => _secondsToNextCall = 0);
+        return;
+      }
+      setState(() {
+        _secondsToNextCall = game.secondsToNextCall;
+      });
+    });
   }
 
   @override
@@ -132,13 +182,11 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
             );
             if (shouldLeave != true) return;
             if (!context.mounted) return;
+            // Leaving tears down only THIS player's presence. Mid-game
+            // rooms are NEVER deleted here — the server-side caller
+            // keeps the match alive for everyone else (v2 fix: any player
+            // closing the app used to hard-delete the room for all).
             ref.read(bingoProvider(widget.familyId).notifier).leaveGame();
-            if (state.game?.id != null) {
-              ref.read(temporaryRoomServiceProvider).endGame(
-                    gameTable: 'bingo_games',
-                    gameId: state.game!.id,
-                  );
-            }
             if (context.canPop()) {
               context.pop();
             } else {
@@ -171,7 +219,9 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
             )
           : state.isWaiting
               ? _waitingRoom(state, myId)
-              : _boardView(state, myId),
+              : state.amSpectator || state.myCard == null
+                  ? _spectatorView(state, myId)
+                  : _boardView(state, myId),
     );
   }
 
@@ -259,7 +309,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
     return SafeArea(
       child: Column(
         children: [
-          // Last called number display
+          // Last called number display + next-call countdown
           _calledNumberDisplay(lastNumber),
           // Called number history (scrollable horizontal)
           _numberHistory(game.numbersCalled),
@@ -285,6 +335,20 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                     ),
                   ),
           ),
+          // Missed-marks nudge (called numbers not yet daubed)
+          if (state.unmarkedCalledCount > 0 && !game.isCompleted)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                '${state.unmarkedCalledCount} called number${state.unmarkedCalledCount == 1 ? '' : 's'} waiting for your daub',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.warning,
+                ),
+              ),
+            ),
           // BINGO button + claim feedback
           _bingoButton(state, canClaim, myId),
           const SizedBox(height: KinrelSpacing.base),
@@ -293,8 +357,154 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
     );
   }
 
+  // ── Spectator view ─────────────────────────────────────────────
+
+  Widget _spectatorView(BingoState state, String? myId) {
+    final game = state.game!;
+    final lastNumber = game.lastCalledNumber;
+
+    return SafeArea(
+      child: Column(
+        children: [
+          _calledNumberDisplay(lastNumber),
+          _numberHistory(game.numbersCalled),
+          // Spectator banner
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(
+                horizontal: KinrelSpacing.base, vertical: KinrelSpacing.sm),
+            color: KinrelColors.darkCard,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.visibility_outlined,
+                    size: 14, color: KinrelColors.textDim),
+                const SizedBox(width: 6),
+                Text(
+                  "You're watching — cheer them on!",
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 12,
+                    color: KinrelColors.textDim,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Roster with live daub progress
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(KinrelSpacing.base),
+              itemCount: state.allCards.length,
+              itemBuilder: (context, i) {
+                final card = state.allCards[i];
+                final called = game.numbersCalled
+                    .where((n) => card.hasNumber(n))
+                    .length;
+                final marked = card.markedNumbers
+                    .where((n) => game.numbersCalled.contains(n))
+                    .length;
+                final isWinner = game.winnerPlayerId == card.playerId;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: KinrelSpacing.sm),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: KinrelSpacing.md, vertical: KinrelSpacing.md),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.darkCard,
+                    borderRadius: BorderRadius.circular(KinrelRadius.md),
+                    border: Border.all(
+                      color: isWinner
+                          ? KinrelColors.orange
+                          : KinrelColors.border,
+                      width: isWinner ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      DKAvatar(
+                        initials: card.playerName.isNotEmpty
+                            ? card.playerName[0].toUpperCase()
+                            : '?',
+                      ),
+                      const SizedBox(width: KinrelSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              card.playerId == myId
+                                  ? '${card.playerName} (You)'
+                                  : card.playerName,
+                              style: TextStyle(
+                                fontFamily: KinrelTypography.bodyFont,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: KinrelColors.textWhite,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(999),
+                              child: SizedBox(
+                                height: 5,
+                                child: Stack(
+                                  children: [
+                                    Container(
+                                        color: KinrelColors.darkElevated),
+                                    FractionallySizedBox(
+                                      widthFactor: called == 0
+                                          ? 0
+                                          : (marked / called).clamp(0.0, 1.0),
+                                      child: Container(
+                                          color: KinrelColors.orange),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: KinrelSpacing.sm),
+                      Text(
+                        '$marked/$called',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.monoFont,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
+                      if (isWinner)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 6),
+                          child: KinrelIcon(KinrelIconData.trophy,
+                              size: 16, color: KinrelColors.orange),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(KinrelSpacing.base),
+            child: ReactionsBar(
+              gameTable: 'bingo_games',
+              gameId: game.id,
+              familyId: widget.familyId,
+              size: ReactionsBarSize.lg,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _calledNumberDisplay(int? lastNumber) {
     final letter = lastNumber != null ? letterForNumber(lastNumber) : '';
+    final game = ref.watch(bingoProvider(widget.familyId)).game;
+    final counting = game?.isInProgress ?? false;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(
@@ -309,15 +519,50 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
       ),
       child: Column(
         children: [
-          Text(
-            'LAST CALLED',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: KinrelColors.textDim,
-              letterSpacing: 1.5,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'LAST CALLED',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textDim,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              if (counting) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: KinrelColors.darkElevated,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: KinrelColors.border),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.timer_outlined,
+                          size: 11, color: KinrelColors.textDim),
+                      const SizedBox(width: 3),
+                      Text(
+                        _secondsToNextCall > 0
+                            ? 'next in ${_secondsToNextCall}s'
+                            : 'calling…',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.monoFont,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: KinrelColors.textDim,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 4),
           ScaleTransition(
@@ -327,32 +572,67 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                 curve: Curves.elasticOut,
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  letter,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 48,
-                    fontWeight: FontWeight.w800,
-                    color: KinrelColors.orange,
-                    height: 1,
-                  ),
+            // Called-number pill — glows with the accent so the eye
+            // lands on it the instant a number drops.
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              decoration: BoxDecoration(
+                color: KinrelColors.darkElevated,
+                borderRadius: BorderRadius.circular(KinrelRadius.xl),
+                border: Border.all(
+                  color: KinrelColors.orange.withValues(alpha: 0.65),
+                  width: 1.5,
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  lastNumber != null ? '$lastNumber' : '—',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 56,
-                    fontWeight: FontWeight.w900,
-                    color: KinrelColors.textWhite,
-                    height: 1,
+                boxShadow: lastNumber != null
+                    ? [
+                        BoxShadow(
+                          color: KinrelColors.orangeGlowIntense,
+                          blurRadius: 22,
+                          spreadRadius: 1,
+                          offset: const Offset(0, 4),
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.35),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    letter,
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 48,
+                      fontWeight: FontWeight.w800,
+                      color: KinrelColors.orange,
+                      height: 1,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Text(
+                    lastNumber != null ? '$lastNumber' : '—',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 56,
+                      fontWeight: FontWeight.w900,
+                      color: KinrelColors.textWhite,
+                      height: 1,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -388,6 +668,15 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                 color: isLatest ? KinrelColors.orange : KinrelColors.border,
                 width: isLatest ? 2 : 1,
               ),
+              boxShadow: isLatest
+                  ? [
+                      BoxShadow(
+                        color: KinrelColors.orangeGlowIntense,
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
             ),
             child: Center(
               child: Text(
@@ -408,40 +697,67 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
     );
   }
 
+  /// Per-column accent tints for the B-I-N-G-O header letters —
+  /// each column gets its own warm/cool accent while staying inside
+  /// the Kinrel palette.
+  static const List<Color> _columnTints = [
+    KinrelColors.orange,
+    KinrelColors.amber,
+    KinrelColors.brightGold,
+    KinrelColors.tealAccent,
+    KinrelColors.coral,
+  ];
+
   Widget _bingoCard(BingoCard card, BingoGame game) {
-    return Container(
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.orange, width: 2),
-      ),
+    // Casino-grade card: felt table shell with accent rim + bevel.
+    return GameBoardShell(
+      accent: KinrelColors.orange,
+      surface: BoardSurface.felt,
+      radius: 24,
+      padding: 8,
       child: Column(
         children: [
-          // B-I-N-G-O header
+          // B-I-N-G-O header — dark rail with per-column accent tints
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8),
             decoration: BoxDecoration(
-              color: KinrelColors.orange,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(KinrelRadius.lg - 2),
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [KinrelColors.darkElevated, KinrelColors.darkCard],
+              ),
+              border: Border(
+                bottom: BorderSide(
+                  color: KinrelColors.orange.withValues(alpha: 0.45),
+                  width: 1.5,
+                ),
               ),
             ),
             child: Row(
-              children: bingoColumnLetters.map((letter) {
-                return Expanded(
-                  child: Center(
-                    child: Text(
-                      letter,
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.displayFont,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
+              children: [
+                for (var col = 0; col < bingoColumnLetters.length; col++)
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        bingoColumnLetters[col],
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 2,
+                          color: _columnTints[col],
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              offset: const Offset(0, 1.5),
+                              blurRadius: 2,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                );
-              }).toList(),
+              ],
             ),
           ),
           // 5x5 grid
@@ -468,40 +784,115 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
     );
   }
 
+  /// Deterministic per-cell daub tilt in radians (~±5°) — every
+  /// stamp looks hand-placed but stays stable across rebuilds.
+  double _daubTilt(int index) => (((index * 37) % 11) - 5) * math.pi / 180;
+
   Widget _cell(BingoCard card, BingoGame game, int row, int col) {
+    final index = row * 5 + col;
     final isFree = row == 2 && col == 2;
     final cellValue = card.cardNumbers[row][col];
     final isMarked = card.isCellMarked(row, col);
     final isCalled = cellValue != null && game.numbersCalled.contains(cellValue);
     final canTap = !isFree && cellValue != null && isCalled && !isMarked;
 
+    // Cell surface: uncalled cells read as subtly raised paper
+    // (white top-light); called-but-unmarked cells sit slightly
+    // dimmed so the glowing "last called" pill and the daub stamps
+    // carry the visual hierarchy.
+    final BoxDecoration surface;
+    if (isMarked) {
+      surface = BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.30),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      );
+    } else if (isCalled) {
+      surface = BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.black.withValues(alpha: 0.24),
+            Colors.black.withValues(alpha: 0.36),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: KinrelColors.amber.withValues(alpha: 0.45),
+          width: 1.25,
+        ),
+      );
+    } else {
+      surface = BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withValues(alpha: 0.04),
+            Colors.black.withValues(alpha: 0.12),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+      );
+    }
+
     return GestureDetector(
       onTap: canTap
           ? () => ref
               .read(bingoProvider(widget.familyId).notifier)
-              .toggleMark(cellValue!)
+              .toggleMark(cellValue)
           : null,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: GameMotionTokens.fast,
         margin: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          color: isFree
-              ? KinrelColors.orange
-              : (isMarked
-                    ? KinrelColors.success.withValues(alpha: 0.3)
-                    : (isCalled
-                          ? KinrelColors.orange.withValues(alpha: 0.15)
-                          : KinrelColors.darkElevated)),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: isMarked
-                ? KinrelColors.success
-                : (isCalled ? KinrelColors.orange.withValues(alpha: 0.5) : KinrelColors.border),
-            width: isMarked ? 2 : 1,
-          ),
-        ),
+        decoration: surface,
         child: Stack(
           children: [
+            // Daub stamp — filled circle badge with a slight tilt,
+            // accent gradient fill, white ring and drop shadow.
+            if (isMarked)
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: Transform.rotate(
+                    angle: _daubTilt(index),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: isFree
+                            ? KinrelGradients.igniteGradient
+                            : LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Color.lerp(
+                                    KinrelColors.orange,
+                                    Colors.white,
+                                    0.30,
+                                  )!,
+                                  KinrelColors.orange,
+                                  KinrelColors.ember,
+                                ],
+                              ),
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            blurRadius: 5,
+                            offset: const Offset(0, 2),
+                          ),
+                          BoxShadow(
+                            color: KinrelColors.orangeGlowIntense,
+                            blurRadius: 7,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             Center(
               child: isFree
                   ? Text(
@@ -510,7 +901,15 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                         fontFamily: KinrelTypography.displayFont,
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
+                        letterSpacing: 1,
                         color: Colors.white,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            offset: const Offset(0, 1),
+                            blurRadius: 2,
+                          ),
+                        ],
                       ),
                     )
                   : Text(
@@ -520,24 +919,22 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
                         color: isMarked
-                            ? KinrelColors.success
+                            ? Colors.white
                             : (isCalled
-                                  ? KinrelColors.textWhite
+                                  ? KinrelColors.textSilver
                                   : KinrelColors.textDim),
+                        shadows: isMarked
+                            ? [
+                                Shadow(
+                                  color: Colors.black.withValues(alpha: 0.45),
+                                  offset: const Offset(0, 1),
+                                  blurRadius: 2,
+                                ),
+                              ]
+                            : null,
                       ),
                     ),
             ),
-            // Checkmark stamp when marked
-            if (isMarked && !isFree)
-              Positioned(
-                right: 2,
-                top: 2,
-                child: Icon(
-                  Icons.check_circle,
-                  size: 14,
-                  color: KinrelColors.success,
-                ),
-              ),
           ],
         ),
       )
@@ -552,11 +949,15 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
   }
 
   Widget _bingoButton(BingoState state, bool canClaim, String? myId) {
-    // If claim was invalid, shake the button
-    if (state.lastClaimValid == false) {
+    // If claim was invalid, shake the button ONCE per claim (the flag
+    // resets whenever the feedback banner clears).
+    if (state.lastClaimValid == false && !_shakeTriggered) {
+      _shakeTriggered = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _triggerShake();
       });
+    } else if (state.lastClaimValid != false) {
+      _shakeTriggered = false;
     }
 
     final isClaiming = state.isClaiming;
@@ -748,6 +1149,7 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
   Widget _resultsView(BingoState state, String? myId) {
     final game = state.game!;
     final isWinner = game.winnerPlayerId == myId;
+    final isDraw = game.winnerPlayerId == null;
     final winnerName = game.winnerPlayerName ?? 'Player';
 
     return DKScaffold(
@@ -767,58 +1169,83 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(KinrelSpacing.base),
+      body: Stack(
         children: [
-          const SizedBox(height: KinrelSpacing.lg),
-          _winnerBanner(isWinner, winnerName)
-              .animate()
-              .fadeIn(duration: 400.ms)
-              .scale(
-                begin: const Offset(0.92, 0.92),
-                end: const Offset(1.0, 1.0),
-                duration: 400.ms,
-                curve: Curves.easeOutBack,
+          ListView(
+            padding: const EdgeInsets.all(KinrelSpacing.base),
+            children: [
+              const SizedBox(height: KinrelSpacing.lg),
+              _winnerBanner(isWinner, winnerName, isDraw)
+                  .animate()
+                  .fadeIn(duration: 400.ms)
+                  .scale(
+                    begin: const Offset(0.92, 0.92),
+                    end: const Offset(1.0, 1.0),
+                    duration: 400.ms,
+                    curve: Curves.easeOutBack,
+                  ),
+              const SizedBox(height: KinrelSpacing.xl),
+              // Stats
+              _statsCard(game),
+              MatchEcosystemSummary(
+                gameTable: 'bingo_games',
+                gameId: widget.gameId,
+                familyId: widget.familyId,
               ),
-          const SizedBox(height: KinrelSpacing.xl),
-          // Stats
-          _statsCard(game),
-          const SizedBox(height: KinrelSpacing.xxl),
-          DKButton(
-            label: 'Play Again',
-            variant: DKButtonVariant.gradient,
-            fullWidth: true,
-            icon: Icons.refresh_rounded,
-            onPressed: () {
-              ref.read(bingoProvider(widget.familyId).notifier).leaveGame();
-              if (context.mounted) {
-                context.pushReplacement(
-                  '/family/${widget.familyId}/bingo/lobby',
-                );
-              }
-            },
+              const SizedBox(height: KinrelSpacing.xxl),
+              DKButton(
+                label: 'Play Again',
+                variant: DKButtonVariant.gradient,
+                fullWidth: true,
+                icon: Icons.refresh_rounded,
+                onPressed: () {
+                  ref.read(bingoProvider(widget.familyId).notifier).leaveGame();
+                  if (context.mounted) {
+                    context.pushReplacement(
+                      '/family/${widget.familyId}/bingo/lobby',
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: KinrelSpacing.sm),
+              DKButton(
+                label: 'Back to Hub',
+                variant: DKButtonVariant.secondary,
+                fullWidth: true,
+                onPressed: () {
+                  ref.read(bingoProvider(widget.familyId).notifier).leaveGame();
+                  if (context.mounted) {
+                    context.go('/games?familyId=${widget.familyId}');
+                  }
+                },
+              ),
+            ],
           ),
-          const SizedBox(height: KinrelSpacing.sm),
-          DKButton(
-            label: 'Back to Hub',
-            variant: DKButtonVariant.secondary,
-            fullWidth: true,
-            onPressed: () {
-              ref.read(bingoProvider(widget.familyId).notifier).leaveGame();
-              if (context.mounted) {
-                context.go('/games?familyId=${widget.familyId}');
-              }
-            },
-          ),
+          // A bingo win is THE celebration — triple confetti volley in
+          // the accent-tinted palette.
+          if (isWinner)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: GameConfetti(
+                  colors: confettiPaletteFor(KinrelColors.orange),
+                  burstCount: 3,
+                  density: 2,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _winnerBanner(bool isWinner, String winnerName) {
+  Widget _winnerBanner(bool isWinner, String winnerName, bool isDraw) {
     return Column(
       children: [
-        const Text('🏆', style: TextStyle(fontSize: 64))
+        KinrelIcon(
+          isDraw ? KinrelIconData.handshake : KinrelIconData.trophy,
+          size: 60,
+          color: isDraw ? KinrelColors.textDim : KinrelColors.gold,
+        )
             .animate(onPlay: (c) => c.forward())
             .fadeIn(duration: 500.ms)
             .scale(
@@ -829,7 +1256,11 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
             ),
         const SizedBox(height: KinrelSpacing.sm),
         Text(
-          isWinner ? 'You Won!' : 'Winner!',
+          isDraw
+              ? 'Board Ran Out!'
+              : isWinner
+                  ? 'You Won!'
+                  : 'Winner!',
           style: TextStyle(
             fontFamily: KinrelTypography.displayFont,
             fontSize: 32,
@@ -840,12 +1271,17 @@ class _BingoBoardScreenState extends ConsumerState<BingoBoardScreen>
         ),
         const SizedBox(height: 4),
         Text(
-          isWinner ? '$winnerName (You)' : winnerName,
+          isDraw
+              ? 'Nobody shouted BINGO — all 75 numbers were called'
+              : isWinner
+                  ? '$winnerName (You)'
+                  : winnerName,
+          textAlign: TextAlign.center,
           style: TextStyle(
             fontFamily: KinrelTypography.bodyFont,
-            fontSize: 22,
+            fontSize: isDraw ? 14 : 22,
             fontWeight: FontWeight.w600,
-            color: KinrelColors.orange,
+            color: isDraw ? KinrelColors.textDim : KinrelColors.orange,
           ),
         ),
       ],

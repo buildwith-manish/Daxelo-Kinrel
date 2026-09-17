@@ -27,6 +27,11 @@ class NameplaceLetterPickScreen extends ConsumerStatefulWidget {
 }
 
 class _NameplaceLetterPickScreenState extends ConsumerState<NameplaceLetterPickScreen> {
+  /// Transient pressed-letter state — drives the accent ring + scale-in
+  /// feedback on the tile the chooser taps (UI-only; picking still runs
+  /// through the provider exactly as before).
+  String? _pressedLetter;
+
   @override
   void initState() {
     super.initState();
@@ -68,7 +73,6 @@ class _NameplaceLetterPickScreenState extends ConsumerState<NameplaceLetterPickS
 
   Widget _letterPickerView(state) {
     final game = state.game!;
-    final chooser = state.players.where((p) => p.userId == game.currentLetterChooserId).firstOrNull;
     return ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
       Text('You\'re picking the letter!', textAlign: TextAlign.center,
         style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
@@ -82,16 +86,46 @@ class _NameplaceLetterPickScreenState extends ConsumerState<NameplaceLetterPickS
         itemCount: validLetters.length,
         itemBuilder: (context, index) {
           final letter = validLetters[index];
-          return GestureDetector(
-            onTap: () { GameMotionTokens.tap(); ref.read(nameplaceProvider(widget.familyId).notifier).pickLetter(letter); },
-            child: Container(
-              decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(10), border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3), width: 1)),
-              child: Center(child: Text(letter, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w800, color: KinrelColors.orange))),
-            ),
-          );
+          return _letterBlock(letter)
+            .animate().fadeIn(duration: 200.ms, delay: (index * 12).ms);
         },
       ),
     ]);
+  }
+
+  /// Premium "letter block" — rounded square with an ivory → warm gray
+  /// radial gradient, the letter in dark ink display type, and a drop
+  /// shadow. The pressed (selected) block gets an accent ring + a
+  /// playful scale-in.
+  Widget _letterBlock(String letter) {
+    final pressed = _pressedLetter == letter;
+    return GestureDetector(
+      onTapDown: (_) { GameMotionTokens.tap(); setState(() => _pressedLetter = letter); },
+      onTapCancel: () { if (mounted) setState(() => _pressedLetter = null); },
+      onTap: () => ref.read(nameplaceProvider(widget.familyId).notifier).pickLetter(letter),
+      child: AnimatedScale(
+        scale: pressed ? 1.12 : 1.0,
+        duration: GameMotionTokens.fast,
+        curve: Curves.easeOutBack,
+        child: AnimatedContainer(
+          duration: GameMotionTokens.fast,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            gradient: const RadialGradient(
+              center: Alignment(-0.4, -0.4),
+              radius: 1.25,
+              colors: [Color(0xFFFFFDF6), Color(0xFFE7E0D4)],
+            ),
+            border: Border.all(color: pressed ? KinrelColors.orange : const Color(0xFFD9D3C7), width: pressed ? 2 : 1),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 6, offset: const Offset(0, 3)),
+              if (pressed) BoxShadow(color: KinrelColors.orange.withValues(alpha: 0.55), blurRadius: 12, spreadRadius: 2),
+            ],
+          ),
+          child: Center(child: Text(letter, style: const TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF2A2118)))),
+        ),
+      ),
+    );
   }
 
   Widget _waitingView(state) {

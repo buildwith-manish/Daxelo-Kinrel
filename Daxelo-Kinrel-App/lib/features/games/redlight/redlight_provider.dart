@@ -524,12 +524,21 @@ class RedlightNotifier extends StateNotifier<RedlightState> {
     }
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      // Fetch the round row
+      // Fetch the round row. maybeSingle → a deleted (closed) room
+      // returns null instead of throwing, so we can show a friendly
+      // message and prompt the user to create a new room.
       final roundResp = await client
           .from('redlight_rounds')
           .select()
           .eq('id', roundId)
-          .single();
+          .maybeSingle();
+      if (isRoomRowClosed(roundResp)) {
+        state = state.copyWith(
+          isLoading: false,
+          error: kRoomClosedMessage,
+        );
+        return false;
+      }
       final round = RedlightRound.fromJson(
         roundResp as Map<String, dynamic>,
       );

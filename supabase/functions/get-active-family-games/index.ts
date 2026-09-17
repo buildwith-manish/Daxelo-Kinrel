@@ -116,11 +116,20 @@ Deno.serve(async (req) => {
   const results: any[] = [];
 
   await Promise.all(TABLES.map(async (cfg) => {
+    // Active games = still-open rooms. Rooms that were closed keep their
+    // status value until they are reaped, so BOTH closedAt and cancelledAt
+    // must be null for a room to count as active. This is the safety net
+    // that guarantees a closed room can never reappear in this list —
+    // together with the hard-delete room-close RPCs
+    // (fn_cancel_game_room / fn_cancel_waiting_room / fn_end_game), which
+    // remove closed rooms from the database entirely.
     const { data, error } = await supabase
       .from(cfg.table)
-      .select("id, familyId, hostUserName, status, spectatorsEnabled, createdAt, startedAt")
+      .select("id, familyId, hostUserName, status, spectatorsEnabled, createdAt, startedAt, cancelledAt, closedAt")
       .eq("familyId", familyId)
       .in("status", cfg.activeStatuses)
+      .is("cancelledAt", null)
+      .is("closedAt", null)
       .order("createdAt", { ascending: false })
       .limit(20);
 

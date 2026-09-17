@@ -8,6 +8,13 @@
 // Usage in any lobby:
 //   PendingInvitesSection(gameId: state.game!.id)
 //
+// In the shared TemporaryLobbyView the section is mounted INSIDE the
+// pinned Family Members card in `compact` mode: a single bounded
+// summary row ("2 pending · 1 accepted") with no outer margin — the
+// full per-member list lives in the invite sheet, one tap above. This
+// keeps the pinned invite section a stable, predictable height (the
+// roster is the lobby's only scrollable surface).
+//
 // The section watches gameInviteStatusProvider(gameId) so it updates in
 // real-time when recipients tap Accept / Decline in their dialog.
 
@@ -22,9 +29,21 @@ import '../providers/game_invite_status_provider.dart';
 import 'invite_status_badge.dart';
 
 class PendingInvitesSection extends ConsumerWidget {
-  const PendingInvitesSection({super.key, required this.gameId});
+  const PendingInvitesSection({
+    super.key,
+    required this.gameId,
+    this.compact = false,
+  });
 
   final String gameId;
+
+  /// Bounded-height mode for the lobby's pinned Family Members card:
+  /// renders only the one-line summary ("N pending · M accepted") with
+  /// no outer margin and no per-member rows — the invite sheet (opened
+  /// by the sticky Invite Family Members button right above) shows the
+  /// full list with live statuses. Default (false) renders the full
+  /// list — used inside scrollable lobby bodies.
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -49,7 +68,9 @@ class PendingInvitesSection extends ConsumerWidget {
     final expired = state.countByStatus(InviteMemberStatus.expired);
 
     return Container(
-      margin: const EdgeInsets.only(top: KinrelSpacing.lg),
+      margin: compact
+          ? EdgeInsets.zero
+          : const EdgeInsets.only(top: KinrelSpacing.lg),
       padding: const EdgeInsets.all(KinrelSpacing.md),
       decoration: BoxDecoration(
         color: KinrelColors.darkSurface,
@@ -87,8 +108,14 @@ class PendingInvitesSection extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: KinrelSpacing.sm),
-          ...records.map(_recordRow),
+          // Compact mode stops at the bounded summary row above — the
+          // full per-member list (with live status badges) lives in
+          // the invite sheet, opened by the sticky Invite Family
+          // Members button directly above this section.
+          if (!compact) ...[
+            const SizedBox(height: KinrelSpacing.sm),
+            ...records.map(_recordRow),
+          ],
         ],
       ),
     );

@@ -377,20 +377,35 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
   Widget _phaseBanner(RedlightState state) {
     final isGreen = state.phase == RedlightPhase.green;
     final isRed = state.phase == RedlightPhase.red;
-    final bgColor = isGreen
-        ? KinrelColors.success
-        : isRed
-        ? KinrelColors.error
-        : KinrelColors.darkElevated;
     final label = isGreen
         ? 'GO!'
         : isRed
         ? 'FREEZE!'
         : (state.isCountdown ? 'GET READY' : 'WAITING');
+    final icon = isGreen
+        ? Icons.directions_run_rounded
+        : isRed
+        ? Icons.front_hand_rounded
+        : Icons.hourglass_top_rounded;
 
     final durationMs = state.phaseRemainingMs ?? 0;
     final totalMs = isGreen ? 5000 : (isRed ? 3000 : 1);
     final progress = durationMs > 0 ? (durationMs / totalMs).clamp(0.0, 1.0) : 0.0;
+
+    // Cinematic phase gradients: green = teal→emerald, red = deep red→coral.
+    final Gradient? bg = isGreen
+        ? const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0D9488), Color(0xFF10B981)],
+          )
+        : isRed
+        ? const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF991B1B), Color(0xFFF87171)],
+          )
+        : null;
 
     return AnimatedContainer(
       duration: GameMotionTokens.fast,
@@ -400,26 +415,57 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
         vertical: KinrelSpacing.md,
         horizontal: KinrelSpacing.base,
       ),
-      decoration: BoxDecoration(color: bgColor),
+      decoration: BoxDecoration(
+        color: bg == null ? KinrelColors.darkElevated : null,
+        gradient: bg,
+        boxShadow: isGreen || isRed
+            ? [
+                BoxShadow(
+                  color: (isGreen ? const Color(0xFF10B981) : const Color(0xFFEF4444))
+                      .withValues(alpha: 0.45),
+                  blurRadius: 24,
+                  offset: const Offset(0, 6),
+                ),
+              ]
+            : null,
+      ),
       child: Column(
         children: [
-          AnimatedSwitcher(
-            duration: GameMotionTokens.fast,
-            child: Text(
-              label,
-              key: ValueKey(label),
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 32,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-                letterSpacing: 2,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Glassy status icon chip
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withValues(alpha: 0.18),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1),
+                ),
+                child: Icon(icon, size: 19, color: Colors.white),
               ),
-            ),
+              const SizedBox(width: KinrelSpacing.md),
+              AnimatedSwitcher(
+                duration: GameMotionTokens.fast,
+                child: Text(
+                  label,
+                  key: ValueKey(label),
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 2,
+                    shadows: [Shadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 6)],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
           ClipRRect(
-            borderRadius: BorderRadius.circular(2),
+            borderRadius: BorderRadius.circular(3),
             child: LinearProgressIndicator(
               value: isGreen || isRed ? progress : 0,
               minHeight: 4,
@@ -499,7 +545,11 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
         : KinrelColors.success;
     final displayProgress = showProgress ? e.progress : 0.0;
     final progressLabel = showProgress ? '${e.progress.toStringAsFixed(0)}%' : '???';
+    final clamped = (displayProgress / 100).clamp(0.0, 1.0);
 
+    // Lane treatment: inset track with a glowing runner head. The
+    // current leader (near the finish) gets a gold border.
+    final isLeader = e.alive && clamped > 0.85;
     return Container(
       margin: const EdgeInsets.only(bottom: KinrelSpacing.sm),
       padding: const EdgeInsets.all(KinrelSpacing.md),
@@ -507,7 +557,11 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
         color: KinrelColors.darkCard,
         borderRadius: BorderRadius.circular(KinrelRadius.lg),
         border: Border.all(
-          color: isMe ? KinrelColors.orange : KinrelColors.border,
+          color: isMe
+              ? KinrelColors.orange
+              : isLeader
+                  ? KinrelColors.gold.withValues(alpha: 0.8)
+                  : KinrelColors.border,
           width: isMe ? 2 : 1,
         ),
       ),
@@ -542,19 +596,53 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
                       ),
                     ),
                     if (!e.alive)
-                      const Text('💀', style: TextStyle(fontSize: 14)),
+                      const Icon(Icons.close_rounded, size: 14, color: KinrelColors.error),
                   ],
                 ),
                 const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(KinrelRadius.xs),
-                  child: LinearProgressIndicator(
-                    value: (displayProgress / 100).clamp(0.0, 1.0),
-                    minHeight: 10,
-                    backgroundColor: KinrelColors.darkElevated,
-                    valueColor: AlwaysStoppedAnimation<Color>(barColor),
-                  ),
-                ),
+                // Track lane — inset groove with glowing progress fill
+                // and a runner glyph riding the progress head.
+                LayoutBuilder(builder: (context, c) {
+                  final trackW = c.maxWidth;
+                  return SizedBox(
+                    height: 12,
+                    child: Stack(clipBehavior: Clip.none, children: [
+                      // Inset groove
+                      Container(
+                        height: 12,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(KinrelRadius.full),
+                          color: KinrelColors.darkBackground,
+                          boxShadow: const [
+                            BoxShadow(color: Colors.black45, blurRadius: 3, offset: Offset(0, 1.5)),
+                          ],
+                        ),
+                      ),
+                      // Progress fill
+                      FractionallySizedBox(
+                        widthFactor: clamped,
+                        child: Container(
+                          height: 12,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(KinrelRadius.full),
+                            gradient: LinearGradient(colors: [barColor.withValues(alpha: 0.55), barColor]),
+                            boxShadow: [BoxShadow(color: barColor.withValues(alpha: 0.5), blurRadius: 6)],
+                          ),
+                        ),
+                      ),
+                      // Runner head glyph
+                      if (e.alive && clamped > 0.02)
+                        Positioned(
+                          left: (trackW * clamped - 8).clamp(0.0, trackW - 16),
+                          top: -6,
+                          child: Text(
+                            '🏃',
+                            style: TextStyle(fontSize: 14, shadows: [Shadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 3)]),
+                          ).animate(onPlay: (c2) => c2.repeat(reverse: true)).moveY(begin: 0, end: -2.5, duration: 260.ms),
+                        ),
+                    ]),
+                  );
+                }),
               ],
             ),
           ),
@@ -606,9 +694,21 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
                     : KinrelColors.warning,
                 width: 2,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: (pu.type == PowerupType.shield
+                          ? KinrelColors.info
+                          : KinrelColors.warning)
+                      .withValues(alpha: 0.45),
+                  blurRadius: 14,
+                  spreadRadius: 1,
+                ),
+              ],
             ),
             child: Center(
-              child: Text(pu.type.emoji, style: const TextStyle(fontSize: 18)),
+              child: Text(pu.type.emoji, style: const TextStyle(fontSize: 18))
+                  .animate(onPlay: (c) => c.repeat(reverse: true))
+                  .moveY(begin: 0, end: -3, duration: 600.ms, curve: Curves.easeInOut),
             ),
           ),
         ),
@@ -663,7 +763,14 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
           height: 80,
           decoration: BoxDecoration(
             color: bg,
+            gradient: isGreen ? KinrelGradients.igniteGradient : null,
             borderRadius: BorderRadius.circular(KinrelRadius.xl),
+            border: Border.all(
+              color: isGreen
+                  ? Colors.white.withValues(alpha: 0.25)
+                  : Colors.white.withValues(alpha: 0.06),
+              width: 1,
+            ),
             boxShadow: isGreen
                 ? [
                     BoxShadow(
@@ -675,19 +782,35 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
                 : null,
           ),
           child: Center(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: myEliminated
-                    ? KinrelColors.textDim
-                    : (isGreen || isRed)
-                    ? Colors.white
-                    : KinrelColors.textDim,
-                letterSpacing: 1.5,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (isGreen)
+                  Padding(
+                    padding: const EdgeInsets.only(right: KinrelSpacing.sm),
+                    child: Icon(Icons.bolt_rounded,
+                        size: 26, color: Colors.white.withValues(alpha: 0.9)),
+                  ),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: myEliminated
+                        ? KinrelColors.textDim
+                        : (isGreen || isRed)
+                        ? Colors.white
+                        : KinrelColors.textDim,
+                    letterSpacing: 1.5,
+                    shadows: [
+                      Shadow(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 5),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),

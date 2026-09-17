@@ -1,417 +1,78 @@
 // lib/features/games/checkers/checkers_lobby_screen.dart
 //
-// Checkers — Lobby screen to pick an opponent from family members.
+// Checkers — Create Room lobby.
 // Route: /family/$familyId/checkers/lobby
+//
+// v3 (Create Room flow): the "Select Opponent" step is gone. Checkers
+// now uses the same flow as every other multiplayer game — one "Create
+// Room" button creates the room immediately (host plays Red), the host
+// invites family members from the waiting room, and the first member
+// to join plays Black automatically.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/brand_colors.dart';
-import '../../../core/constants/brand_spacing.dart';
-import '../../../core/constants/brand_typography.dart';
-import '../../../core/network/socket_service.dart';
-import '../../../core/services/supabase_service.dart';
-import '../../../shared/widgets/dk_components.dart';
-import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
-import '../shared/multiplayer/multiplayer.dart';
-import '../shared/widgets/spectator_toggle.dart';
-import '../../family/presentation/add_member_source.dart';
+import '../shared/widgets/board_game_room_lobby.dart';
+import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import 'checkers_provider.dart';
 
-class CheckersLobbyScreen extends ConsumerStatefulWidget {
+class CheckersLobbyScreen extends ConsumerWidget {
   const CheckersLobbyScreen({super.key, required this.familyId});
   final String familyId;
 
   @override
-  ConsumerState<CheckersLobbyScreen> createState() =>
-      _CheckersLobbyScreenState();
-}
-
-class _CheckersLobbyScreenState extends ConsumerState<CheckersLobbyScreen> {
-  List<Map<String, dynamic>> _familyMembers = [];
-  bool _loading = true;
-  String? _error;
-  String? _selectedOpponentId;
-  String _selectedOpponentName = '';
-  bool _creating = false;
-  bool _spectatorsEnabled = true;
-  int _autoCloseMinutes = 5;
-
-  RoomControllerKey get _roomKey =>
-      RoomControllerKey(RoomConfig.checkers, widget.familyId);
-
-  @override
-  void initState() {
-    super.initState();
-    _loadFamilyMembers();
-  }
-
-  Future<void> _loadFamilyMembers() async {
-    final client = ref.read(supabaseProvider);
-    final myId = client?.auth.currentUser?.id;
-    if (client == null || myId == null) {
-      setState(() {
-        _loading = false;
-        _error = 'Not signed in';
-      });
-      return;
-    }
-    try {
-      // Use the Find-on-Kinrel-linked members RPC so only real linked
-      // Kinrel accounts are listed (matches the Family-Space invite flow).
-      final resp = await client.rpc(
-        'fn_get_linked_family_members',
-        params: {'p_family_id': widget.familyId},
-      ).timeout(const Duration(seconds: 15));
-
-      final rows = (resp as List).cast<Map<String, dynamic>>();
-      final members = rows.map((r) {
-        final user = KinrelUser.fromJson(r);
-        return {
-          'userId': user.id,
-          'name': user.name,
-          'username': user.username,
-          'avatarUrl': user.avatarUrl,
-          'photoThumb': user.photoThumb,
-        };
-      }).toList();
-      setState(() {
-        _familyMembers = members;
-        _loading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _loading = false;
-        _error = '$e';
-      });
-    }
-  }
-
-  Future<void> _createGame() async {
-    if (_selectedOpponentId == null) return;
-    setState(() => _creating = true);
-    final notifier = ref.read(checkersProvider(widget.familyId).notifier);
-    final gameId = await notifier.createGame(
-      opponentId: _selectedOpponentId!,
-      opponentName: _selectedOpponentName,
-    );
-    if (mounted) {
-      // Send a real-time invite so the opponent sees a "Checkers" challenge
-      // dialog and can jump straight into the board.
-      if (gameId != null) {
-        final client = ref.read(supabaseProvider);
-        final myId = client?.auth.currentUser?.id ?? '';
-        final myName =
-            (client?.auth.currentUser?.userMetadata?['name'] as String?) ??
-                'A family member';
-        final code = gameId.replaceAll('-', '').substring(0, 6).toUpperCase();
-        final invite = GameInvite(
-          inviteId:
-              'inv_${DateTime.now().millisecondsSinceEpoch}_${_selectedOpponentId!.substring(0, 8)}',
-          gameType: GameType.checkers,
-          gameId: gameId,
-          roomCode: code,
-          familyId: widget.familyId,
-          fromUserId: myId,
-          fromName: myName,
-          maxPlayers: 2,
-          currentPlayers: 1,
-          message: '$myName challenged you to Checkers',
-          timestamp: DateTime.now().toUtc(),
-        );
-        try {
-          await ref.read(socketServiceProvider).sendGameInvite(
-                toUserId: _selectedOpponentId!,
-                invite: invite,
-              );
-        } catch (_) {
-          // best-effort — game was created, opponent will see it via Realtime
-        }
-        // Attach the shared multiplayer room-lifecycle framework
-        // (auto-close deadline, spectator flag, host-ready, host join).
-        // Must happen BEFORE pushReplacement so the board screen sees
-        // the room columns set on the game row.
-        await ref.read(roomControllerProvider(_roomKey).notifier)
-            .attachToExistingGame(
-          gameId,
-          spectatorsEnabled: _spectatorsEnabled,
-          autoCloseMinutes: _autoCloseMinutes,
-        );
-        if (!mounted) return;
-        context.pushReplacement(
-          '/family/${widget.familyId}/checkers/board/$gameId',
-        );
-      }
-      setState(() => _creating = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final myName =
-        ref.read(supabaseProvider)?.auth.currentUser?.userMetadata?['name']
-            as String? ??
-        'You';
-
-    return DKScaffold(
-      backgroundColor: KinrelColors.darkSurface,
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
-        ),
-        title: Text(
-          'Checkers',
-          style: TextStyle(
-            fontFamily: KinrelTypography.displayFont,
-            fontWeight: FontWeight.w600,
-            color: KinrelColors.textWhite,
-          ),
-        ),
-        backgroundColor: KinrelColors.darkCard,
-        foregroundColor: KinrelColors.textWhite,
-        elevation: 0,
-      ),
-      body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: KinrelColors.orange),
-            )
-          : _error != null
-          ? DKErrorState(message: _error!, onRetry: _loadFamilyMembers)
-          : _familyMembers.isEmpty
-          ? DKEmptyState(
-              icon: Icons.group_outlined,
-              title: 'No family members to challenge',
-              subtitle:
-                  'Invite family members to your family first, then come back to play Checkers.',
-            )
-          : ListView(
-              padding: const EdgeInsets.all(KinrelSpacing.base),
-              children: [
-                Text(
-                  'Challenge a Family Member',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: KinrelColors.textWhite,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'You\'ll play as Red (moves first). Your opponent plays as Black.',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 12,
-                    color: KinrelColors.textDim,
-                  ),
-                ),
-                const SizedBox(height: KinrelSpacing.lg),
-
-                // Rules summary
-                _rulesCard(),
-                const SizedBox(height: KinrelSpacing.lg),
-                // Spectator toggle
-                SpectatorToggle(
-                  value: _spectatorsEnabled,
-                  onChanged: (v) => setState(() => _spectatorsEnabled = v),
-                ),
-                const SizedBox(height: KinrelSpacing.md),
-                // Auto-close duration selector
-                Text(
-                  'Auto-close room after',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: KinrelColors.textDim,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: KinrelSpacing.sm),
-                Wrap(
-                  spacing: KinrelSpacing.sm,
-                  runSpacing: KinrelSpacing.sm,
-                  children: [
-                    _autoCloseOption(3, '3 min'),
-                    _autoCloseOption(5, '5 min'),
-                    _autoCloseOption(10, '10 min'),
-                    _autoCloseOption(15, '15 min'),
-                  ],
-                ),
-                const SizedBox(height: KinrelSpacing.lg),
-
-                Text(
-                  'SELECT OPPONENT',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: KinrelColors.textDim,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-                const SizedBox(height: KinrelSpacing.sm),
-
-                ..._familyMembers.map((m) {
-                  final isSelected = _selectedOpponentId == m['userId'];
-                  return GestureDetector(
-                    onTap: () {
-                      GameMotionTokens.tap();
-                      setState(() {
-                        _selectedOpponentId = m['userId'] as String;
-                        _selectedOpponentName = m['name'] as String;
-                      });
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: KinrelSpacing.sm),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: KinrelSpacing.md,
-                        vertical: KinrelSpacing.md,
-                      ),
-                      decoration: BoxDecoration(
-                        color: KinrelColors.darkCard,
-                        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-                        border: Border.all(
-                          color: isSelected
-                              ? KinrelColors.orange
-                              : KinrelColors.border,
-                          width: isSelected ? 2 : 1,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          DKAvatar(
-                            initials: (m['name'] as String)
-                                .isNotEmpty
-                                ? (m['name'] as String)[0].toUpperCase()
-                                : '?',
-                            borderColor: isSelected
-                                ? KinrelColors.orange
-                                : null,
-                          ),
-                          const SizedBox(width: KinrelSpacing.md),
-                          Expanded(
-                            child: Text(
-                              m['name'] as String,
-                              style: TextStyle(
-                                fontFamily: KinrelTypography.bodyFont,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: isSelected
-                                    ? KinrelColors.textWhite
-                                    : KinrelColors.textDim,
-                              ),
-                            ),
-                          ),
-                          if (isSelected)
-                            Icon(
-                              Icons.check_circle,
-                              color: KinrelColors.orange,
-                              size: 20,
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
-
-                const SizedBox(height: KinrelSpacing.xl),
-                DKButton(
-                  label: _selectedOpponentId == null
-                      ? 'Select an opponent'
-                      : 'Challenge $_selectedOpponentName',
-                  variant: DKButtonVariant.gradient,
-                  fullWidth: true,
-                  isLoading: _creating,
-                  onPressed: _selectedOpponentId == null ? null : _createGame,
-                ),
-              ],
-            ),
-    );
-  }
-
-  Widget _rulesCard() {
-    return Container(
-      padding: const EdgeInsets.all(KinrelSpacing.md),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.info_outline, color: KinrelColors.info, size: 18),
-              const SizedBox(width: KinrelSpacing.sm),
-              Text(
-                'How to Play',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: KinrelColors.textWhite,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: KinrelSpacing.sm),
-          _ruleLine('• Pieces move diagonally forward 1 square'),
-          const SizedBox(height: 4),
-          _ruleLine('• Capture by jumping over an opponent\'s piece'),
-          const SizedBox(height: 4),
-          _ruleLine('• Captures are mandatory — you must take them'),
-          const SizedBox(height: 4),
-          _ruleLine('• Multi-jumps: keep jumping if more captures available'),
-          const SizedBox(height: 4),
-          _ruleLine('• Reach the far row → become a King (moves any direction)'),
-          const SizedBox(height: 4),
-          _ruleLine('• Win by capturing all pieces or blocking all moves'),
+  Widget build(BuildContext context, WidgetRef ref) {
+    return BoardGameRoomLobbyScreen(
+      familyId: familyId,
+      spec: BoardGameRoomSpec(
+        gameId: 'checkers',
+        title: 'Checkers',
+        tagline: 'Jump, capture, crown your kings',
+        gameTable: 'checkers_games',
+        routeSegment: 'checkers',
+        gameType: GameType.checkers,
+        maxPlayers: 2,
+        facts: const [
+          LobbyFact(icon: Icons.person_outline, label: '1 v 1'),
+          LobbyFact(icon: Icons.timer_outlined, label: '~10 min'),
         ],
-      ),
-    );
-  }
-
-  Widget _autoCloseOption(int minutes, String label) {
-    final selected = minutes == _autoCloseMinutes;
-    return GestureDetector(
-      onTap: () => setState(() => _autoCloseMinutes = minutes),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            vertical: KinrelSpacing.sm, horizontal: KinrelSpacing.md),
-        decoration: BoxDecoration(
-          color: KinrelColors.darkCard,
-          borderRadius: BorderRadius.circular(KinrelRadius.lg),
-          border: Border.all(
-            color: selected ? KinrelColors.orange : KinrelColors.border,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            fontSize: 12,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-            color: selected ? KinrelColors.orange : KinrelColors.textDim,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _ruleLine(String text) {
-    return Text(
-      text,
-      style: TextStyle(
-        fontFamily: KinrelTypography.bodyFont,
-        fontSize: 12,
-        color: KinrelColors.textDim,
-        height: 1.4,
+        rules: const [
+          LobbyRule('Pieces move diagonally forward 1 square.'),
+          LobbyRule('Capture by jumping over an opponent\'s piece.'),
+          LobbyRule('Captures are mandatory — you must take them.'),
+          LobbyRule('Multi-jumps: keep jumping if more captures available.'),
+          LobbyRule('Reach the far row → become a King (moves any direction).'),
+          LobbyRule('Win by capturing all pieces or blocking all moves.'),
+        ],
+        waitingRoomNote:
+            'You play Red and move first. The first family member to join '
+            'the room plays Black — no side picking needed.',
+        watchRoom: (ref, familyId) {
+          final s = ref.watch(checkersProvider(familyId));
+          // A completed game is not a room — "Play Again" from the
+          // results screen always lands on a fresh Create Room setup.
+          final roomOpen = s.game != null && !s.isCompleted;
+          return BoardRoomSnapshot(
+            gameId: roomOpen ? s.game?.id : null,
+            hostUserId: roomOpen ? s.game?.hostUserId : null,
+            isWaiting: roomOpen && s.isWaiting,
+            isInProgress: roomOpen && s.isInProgress,
+            isCompleted: false,
+            isLoading: s.isLoading,
+            error: roomOpen ? s.error : null,
+            autoCloseDeadline: roomOpen ? s.game?.autoCloseDeadline : null,
+          );
+        },
+        onCreateRoom: (ref, familyId, {required spectatorsEnabled}) => ref
+            .read(checkersProvider(familyId).notifier)
+            .createRoom(spectatorsEnabled: spectatorsEnabled),
+        onJoinRoom: (ref, familyId, gameId) =>
+            ref.read(checkersProvider(familyId).notifier).joinRoom(gameId),
+        onStartMatch: (ref, familyId) =>
+            ref.read(checkersProvider(familyId).notifier).startMatch(),
+        onLeaveRoom: (ref, familyId) =>
+            ref.read(checkersProvider(familyId).notifier).leaveRoom(),
       ),
     );
   }

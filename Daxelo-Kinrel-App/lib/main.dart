@@ -57,6 +57,7 @@ import 'core/app_startup.dart';
 import 'core/family/family_provider.dart';
 import 'core/viewer/viewer_provider.dart' show invalidateViewerCache;
 import 'features/games/shared/widgets/game_invite_listener.dart';
+import 'features/presence/presence_heartbeat.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -987,8 +988,10 @@ class _KinrelAppState extends ConsumerState<KinrelApp>
               children: [
                 const OfflineBanner(),
                 Expanded(
-                  child: GameInviteListener(
-                    child: child ?? const SizedBox.shrink(),
+                  child: PresenceHeartbeat(
+                    child: GameInviteListener(
+                      child: child ?? const SizedBox.shrink(),
+                    ),
                   ),
                 ),
               ],

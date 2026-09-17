@@ -1,5 +1,8 @@
-import '../../../core/widgets/person_avatar.dart';
 // lib/features/games/twotruths/twotruths_lobby_screen.dart
+//
+// v2 (premium lobby system): setup phase renders the shared
+// LobbySetupScreen — compact hero, visible mode/rounds/timer settings,
+// spectator toggle, collapsible How to Play, pinned Create Game CTA.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,9 +14,8 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
-import '../shared/widgets/pending_invites_section.dart';
-import '../shared/widgets/lobby_chat_panel.dart';
-import '../shared/widgets/spectator_toggle.dart';
+import '../shared/widgets/lobby_join_handler.dart';
+import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
 import 'twotruths_models.dart';
@@ -30,8 +32,8 @@ class _TtLobbyScreenState extends ConsumerState<TtLobbyScreen> {
 
   @override
   void initState() { super.initState(); WidgetsBinding.instance.addPostFrameCallback((_) {
-    final joinId = GoRouterState.of(context).uri.queryParameters['join'];
-    if (joinId != null && joinId.isNotEmpty) ref.read(ttProvider(widget.familyId).notifier).joinGame(joinId);
+    joinRoomWhenReady(context: context, ref: ref,
+      onJoin: (id) => ref.read(ttProvider(widget.familyId).notifier).joinGame(id));
   }); }
 
   Future<void> _createGame() async { setState(() => _creating = true); await ref.read(ttProvider(widget.familyId).notifier).createGame(mode: _mode, totalRounds: _totalRounds, roundTimerSeconds: _timer); if (mounted) setState(() => _creating = false); }
@@ -52,7 +54,7 @@ class _TtLobbyScreenState extends ConsumerState<TtLobbyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(ttProvider(widget.familyId)); final notifier = ref.read(ttProvider(widget.familyId).notifier);
+    final state = ref.watch(ttProvider(widget.familyId));
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     final isHost = state.game?.hostUserId == myId || state.game == null; final hasGame = state.game != null;
     ref.listen<TtState>(ttProvider(widget.familyId), (prev, next) {
@@ -62,8 +64,16 @@ class _TtLobbyScreenState extends ConsumerState<TtLobbyScreen> {
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { if (state.game != null) notifier.leaveGame(); if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
-        title: Text('Two Truths and a Lie', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          // Plain pop — the route-level onExit guard (app_router.dart)
+          // intercepts this while a room is active and shows the
+          // confirmation dialog first.
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
+        ),
+        title: hasGame
+            ? Text('Two Truths and a Lie', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))
+            : null,
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [
           if (hasGame && isHost)
@@ -93,43 +103,73 @@ class _TtLobbyScreenState extends ConsumerState<TtLobbyScreen> {
   }
 
   Widget _setupView() {
-    return ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
-      Text('Game Mode', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),
-      const SizedBox(height: 8),
-      GestureDetector(onTap: () { GameMotionTokens.tap(); setState(() => _mode = TtMode.playerAuthored); },
-        child: Container(padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: _mode == TtMode.playerAuthored ? KinrelColors.orange : KinrelColors.border, width: _mode == TtMode.playerAuthored ? 2 : 1)),
-          child: Row(children: [Icon(Icons.person, color: _mode == TtMode.playerAuthored ? KinrelColors.orange : KinrelColors.textDim, size: 20), const SizedBox(width: 8),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Player-Authored', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: _mode == TtMode.playerAuthored ? KinrelColors.textWhite : KinrelColors.textDim)),
-              Text('You write all 3 statements (2 true, 1 lie)', style: TextStyle(fontSize: 11, color: KinrelColors.textDim))]))]))),
-      GestureDetector(onTap: () { GameMotionTokens.tap(); setState(() => _mode = TtMode.aiLie); },
-        child: Container(padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: _mode == TtMode.aiLie ? KinrelColors.orange : KinrelColors.border, width: _mode == TtMode.aiLie ? 2 : 1)),
-          child: Row(children: [Icon(Icons.smart_toy, color: _mode == TtMode.aiLie ? KinrelColors.orange : KinrelColors.textDim, size: 20), const SizedBox(width: 8),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('AI Lie Mode', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: _mode == TtMode.aiLie ? KinrelColors.textWhite : KinrelColors.textDim)),
-              Text('You write 2 truths, AI generates the lie', style: TextStyle(fontSize: 11, color: KinrelColors.textDim))]))]))),
-      const SizedBox(height: 20),
-      Text('Total Rounds: $_totalRounds', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),
-      Slider(value: _totalRounds.toDouble(), min: 1, max: 12, divisions: 11, activeColor: KinrelColors.orange, label: '$_totalRounds', onChanged: (v) => setState(() => _totalRounds = v.round())),
-      const SizedBox(height: 8),
-      Text('Guess Timer: ${_timer}s', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),
-      Slider(value: _timer.toDouble(), min: 15, max: 90, divisions: 15, activeColor: KinrelColors.orange, label: '${_timer}s', onChanged: (v) => setState(() => _timer = v.round())),
-      const SizedBox(height: 20),
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: KinrelColors.border)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('How to Play', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
-          const SizedBox(height: 8),
-          Text('• Each round, one player submits 3 statements (2 true, 1 lie)\n• Others guess which is the lie\n• Correct guess = 1pt. Each fooled player = 1pt for submitter\n• Highest total after $_totalRounds rounds wins!',
-            style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim, height: 1.5)),
-        ])),
-      const SizedBox(height: 20),
-            SpectatorToggle(
-        value: _spectatorsEnabled,
-        onChanged: (v) => setState(() => _spectatorsEnabled = v),
+    return LobbySetupScreen(
+      gameId: 'twotruths',
+      title: 'Two Truths and a Lie',
+      tagline: 'Bluff your family, spot the fib, score the points',
+      facts: [
+        LobbyFact(icon: Icons.layers_outlined, label: '$_totalRounds rounds'),
+        LobbyFact(icon: Icons.timer_outlined, label: '$_timer s guesses'),
+      ],
+      settings: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LobbySection(
+            label: 'Game Mode',
+            child: LobbyChoiceGrid<TtMode>(
+              options: const [
+                LobbyOption(
+                  value: TtMode.playerAuthored,
+                  label: 'Player-Authored',
+                  icon: Icons.person,
+                  caption: 'You write all 3 statements (2 true, 1 lie)',
+                ),
+                LobbyOption(
+                  value: TtMode.aiLie,
+                  label: 'AI Lie',
+                  icon: Icons.smart_toy,
+                  caption: 'You write 2 truths, AI generates the lie',
+                ),
+              ],
+              selected: _mode,
+              onSelect: (m) => setState(() => _mode = m),
+            ),
+          ),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbySliderRow(
+            label: 'Total Rounds',
+            valueLabel: '$_totalRounds',
+            value: _totalRounds,
+            min: 1,
+            max: 12,
+            divisions: 11,
+            onChanged: (v) => setState(() => _totalRounds = v),
+          ),
+          const SizedBox(height: KinrelSpacing.sm),
+          LobbySliderRow(
+            label: 'Guess Timer',
+            valueLabel: '$_timer s',
+            value: _timer,
+            min: 15,
+            max: 90,
+            divisions: 15,
+            onChanged: (v) => setState(() => _timer = v),
+          ),
+        ],
       ),
-      const SizedBox(height: KinrelSpacing.md),
-      DKButton(label: 'Create Game', variant: DKButtonVariant.gradient, fullWidth: true, isLoading: _creating, onPressed: _createGame),
-    ]);
+      rules: const [
+        LobbyRule('Each round, one player submits 3 statements (2 true, 1 lie).'),
+        LobbyRule('Others guess which is the lie.'),
+        LobbyRule('Correct guess = 1pt. Each fooled player = 1pt for submitter.'),
+      ],
+      rulesFootnote: 'Highest total after $_totalRounds rounds wins!',
+      spectatorsEnabled: _spectatorsEnabled,
+      onSpectatorsChanged: (v) => setState(() => _spectatorsEnabled = v),
+      ctaLabel: 'Create Game',
+      ctaHint: 'Up to 11 family members can join',
+      ctaLoading: _creating,
+      onCtaPressed: _createGame,
+    );
   }
 
   Widget _lobbyView(TtState state, bool isHost) {
@@ -198,18 +238,6 @@ class _TtLobbyScreenState extends ConsumerState<TtLobbyScreen> {
                 );
               }
             : null,
-        footer: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            PendingInvitesSection(gameId: game.id),
-            const SizedBox(height: KinrelSpacing.md),
-            LobbyChatPanel(
-              gameTable: 'twotruths_games',
-              gameId: game.id,
-              familyId: widget.familyId,
-            ),
-          ],
-        ),
     ),
     );
   }

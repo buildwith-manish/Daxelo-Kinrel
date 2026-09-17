@@ -7,6 +7,8 @@
 // Generated with a consistent style: rounded squircle, glossy 3D, solid
 // background matching GameIconTokens.colors, professional app store quality.
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 /// Base widget for all game icons.
@@ -53,6 +55,8 @@ class GameIcon extends StatelessWidget {
       'truthordare': Color(0xFFEF4444), 'twotruths': Color(0xFFD946EF),
       'dotsboxes': Color(0xFF06B6D4), 'hot-seat': Color(0xFFF59E0B),
       'relation-riddles': Color(0xFF8B5CF6), 'truth-streak': Color(0xFFE8612A),
+      'tug-of-war': Color(0xFFE8612A),
+      'memory-match': Color(0xFFA855F7),
     };
     return map[id] ?? const Color(0xFFE8612A);
   }
@@ -77,6 +81,8 @@ class GameIcon extends StatelessWidget {
       case 'hot-seat':         return _HotSeatIcon(color);
       case 'relation-riddles':  return _RiddleIcon(color);
       case 'truth-streak':     return _TruthStreakIcon(color);
+      case 'tug-of-war':       return _TugOfWarIcon(color);
+      case 'memory-match':     return _MemoryMatchIcon(color);
       default:                 return _DefaultGameIcon(color);
     }
   }
@@ -488,6 +494,162 @@ class _DefaultGameIcon extends _GameIconPainter {
   void paint(Canvas canvas, Size size) {
     final s = size.width;
     canvas.drawCircle(Offset(s * 0.5, s * 0.5), s * 0.3, fillPaint);
+  }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ── Tug of War: sagging rope + center pennant + outward pull arrows ──
+
+class _TugOfWarIcon extends _GameIconPainter {
+  _TugOfWarIcon(super.color);
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width;
+
+    // The rope — a sagging curve across the middle.
+    final ropePath = Path()
+      ..moveTo(s * 0.08, s * 0.34)
+      ..quadraticBezierTo(s * 0.5, s * 0.72, s * 0.92, s * 0.34);
+    canvas.drawPath(
+      ropePath,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * 0.055
+        ..strokeCap = StrokeCap.round,
+    );
+    // Rope texture — a lighter highlight strand.
+    final strand = Path()
+      ..moveTo(s * 0.08, s * 0.31)
+      ..quadraticBezierTo(s * 0.5, s * 0.69, s * 0.92, s * 0.31);
+    canvas.drawPath(
+      strand,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.35)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * 0.018
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // Center pennant on a short pole at the rope's low point.
+    final poleX = s * 0.5;
+    final poleBase = s * 0.615;
+    canvas.drawLine(
+      Offset(poleX, poleBase),
+      Offset(poleX, s * 0.26),
+      Paint()
+        ..color = Colors.white
+        ..strokeWidth = s * 0.028
+        ..strokeCap = StrokeCap.round,
+    );
+    final flag = Path()
+      ..moveTo(poleX + s * 0.015, s * 0.27)
+      ..lineTo(poleX + s * 0.21, s * 0.325)
+      ..lineTo(poleX + s * 0.015, s * 0.385)
+      ..close();
+    canvas.drawPath(flag, Paint()..color = Colors.white);
+
+    // Pull arrows — outward tension on both ends.
+    final arrow = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = s * 0.045
+      ..strokeCap = StrokeCap.round;
+    // Left arrow: line + chevron head.
+    canvas.drawLine(
+        Offset(s * 0.22, s * 0.16), Offset(s * 0.07, s * 0.16), arrow);
+    canvas.drawLine(
+        Offset(s * 0.12, s * 0.10), Offset(s * 0.07, s * 0.16), arrow);
+    canvas.drawLine(
+        Offset(s * 0.07, s * 0.16), Offset(s * 0.12, s * 0.22), arrow);
+    // Right arrow.
+    canvas.drawLine(
+        Offset(s * 0.78, s * 0.16), Offset(s * 0.93, s * 0.16), arrow);
+    canvas.drawLine(
+        Offset(s * 0.88, s * 0.10), Offset(s * 0.93, s * 0.16), arrow);
+    canvas.drawLine(
+        Offset(s * 0.93, s * 0.16), Offset(s * 0.88, s * 0.22), arrow);
+  }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ── Memory Match: two tilted cards, the front one showing a star ──
+
+class _MemoryMatchIcon extends _GameIconPainter {
+  _MemoryMatchIcon(super.color);
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width;
+
+    // Back card — slightly rotated, face down (plain).
+    final backCard = Path()
+      ..addRRect(RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(s * 0.40, s * 0.52),
+          width: s * 0.52,
+          height: s * 0.68,
+        ),
+        Radius.circular(s * 0.09),
+      ));
+    canvas.save();
+    canvas.translate(s * 0.40, s * 0.52);
+    canvas.rotate(-0.22);
+    canvas.translate(-s * 0.40, -s * 0.52);
+    canvas.drawPath(backCard, Paint()..color = color.withValues(alpha: 0.55));
+    canvas.drawPath(
+      backCard,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * 0.022,
+    );
+    canvas.restore();
+
+    // Front card — face up with a star.
+    final frontCard = Path()
+      ..addRRect(RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(s * 0.62, s * 0.54),
+          width: s * 0.52,
+          height: s * 0.68,
+        ),
+        Radius.circular(s * 0.09),
+      ));
+    canvas.save();
+    canvas.translate(s * 0.62, s * 0.54);
+    canvas.rotate(0.16);
+    canvas.translate(-s * 0.62, -s * 0.54);
+    canvas.drawPath(frontCard, Paint()..color = color);
+    canvas.drawPath(
+      frontCard,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.7)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * 0.022,
+    );
+
+    // A white star on the face-up card.
+    final star = Path();
+    final cx = s * 0.62;
+    final cy = s * 0.54;
+    final outer = s * 0.13;
+    final inner = s * 0.055;
+    for (var i = 0; i < 10; i++) {
+      final r = i.isEven ? outer : inner;
+      final a = -math.pi / 2 + i * math.pi / 5;
+      final x = cx + r * math.cos(a);
+      final y = cy + r * math.sin(a);
+      if (i == 0) {
+        star.moveTo(x, y);
+      } else {
+        star.lineTo(x, y);
+      }
+    }
+    star.close();
+    canvas.drawPath(star, Paint()..color = Colors.white);
+    canvas.restore();
   }
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;

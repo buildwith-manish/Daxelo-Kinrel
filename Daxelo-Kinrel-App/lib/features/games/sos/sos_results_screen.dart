@@ -13,8 +13,14 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../shared/icons/kinrel_icons.dart';
+import '../shared/widgets/game_confetti.dart';
 import 'sos_models.dart';
 import 'sos_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
+
+/// SOS brand accent (amber) — mirrors the game card on the family hub.
+const Color _sosAccent = Color(0xFFF59E0B);
 
 class SosResultsScreen extends ConsumerWidget {
   const SosResultsScreen({
@@ -76,9 +82,11 @@ class SosResultsScreen extends ConsumerWidget {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(KinrelSpacing.base),
+      body: Stack(
         children: [
+          ListView(
+            padding: const EdgeInsets.all(KinrelSpacing.base),
+            children: [
           const SizedBox(height: KinrelSpacing.lg),
           // Winner banner
           _winnerBanner(
@@ -125,6 +133,11 @@ class SosResultsScreen extends ConsumerWidget {
                   .slideY(begin: 0.08, end: 0, duration: 250.ms),
           ],
 
+          MatchEcosystemSummary(
+            gameTable: 'sos_games',
+            gameId: gameId,
+            familyId: familyId,
+          ),
           const SizedBox(height: KinrelSpacing.xxl),
           DKButton(
             label: 'Play Again',
@@ -150,6 +163,20 @@ class SosResultsScreen extends ConsumerWidget {
               }
             },
           ),
+            ],
+          ),
+          // Celebrate the winner with a physics confetti volley (ties
+          // stay calm — no confetti).
+          if (!isTie)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: GameConfetti(
+                  colors: confettiPaletteFor(_sosAccent),
+                  burstCount: 2,
+                  density: 2,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -166,7 +193,8 @@ class SosResultsScreen extends ConsumerWidget {
     if (isTie) {
       return Column(
         children: [
-          const Text('🤝', style: TextStyle(fontSize: 64)),
+          const KinrelIcon(KinrelIconData.handshake,
+            size: 64, color: KinrelColors.tealAccent),
           const SizedBox(height: KinrelSpacing.sm),
           Text(
             "It's a tie!",
@@ -186,7 +214,8 @@ class SosResultsScreen extends ConsumerWidget {
       final teamColor = Color(winnerTeam.colorValue);
       return Column(
         children: [
-          const Text('🏆', style: TextStyle(fontSize: 64))
+          const KinrelIcon(KinrelIconData.trophy,
+            size: 64, color: KinrelColors.brightGold)
               .animate(onPlay: (c) => c.forward())
               .fadeIn(duration: 500.ms)
               .scale(
@@ -212,7 +241,7 @@ class SosResultsScreen extends ConsumerWidget {
             style: TextStyle(
               fontFamily: KinrelTypography.displayFont,
               fontSize: 24,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w800,
               color: teamColor,
             ),
           ),
@@ -225,7 +254,8 @@ class SosResultsScreen extends ConsumerWidget {
     final winnerName = winner?.userName ?? 'Player';
     return Column(
       children: [
-        const Text('🏆', style: TextStyle(fontSize: 64))
+        const KinrelIcon(KinrelIconData.trophy,
+            size: 64, color: KinrelColors.brightGold)
             .animate(onPlay: (c) => c.forward())
             .fadeIn(duration: 500.ms)
             .scale(
@@ -249,10 +279,10 @@ class SosResultsScreen extends ConsumerWidget {
         Text(
           isMyWin ? '$winnerName (You)' : winnerName,
           style: TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
-            color: KinrelColors.orange,
+            fontFamily: KinrelTypography.displayFont,
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+            color: _sosAccent,
           ),
         ),
       ],
@@ -303,9 +333,9 @@ class SosResultsScreen extends ConsumerWidget {
                 Text(
                   '${teamScores[teams[i]]} SOS',
                   style: TextStyle(
-                    fontFamily: KinrelTypography.monoFont,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+                    fontFamily: KinrelTypography.displayFont,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
                     color: Color(teams[i].colorValue),
                   ),
                 ),
@@ -366,10 +396,10 @@ class SosResultsScreen extends ConsumerWidget {
           Text(
             '${player.score} SOS',
             style: TextStyle(
-              fontFamily: KinrelTypography.monoFont,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: KinrelColors.orange,
+              fontFamily: KinrelTypography.displayFont,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: _sosAccent,
             ),
           ),
         ],

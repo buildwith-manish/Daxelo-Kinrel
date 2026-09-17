@@ -9,11 +9,15 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/icons/kinrel_icons.dart';
+import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
-import '../shared/widgets/leave_game_dialog.dart';
+import '../shared/widgets/game_board_shell.dart';
+import '../shared/widgets/game_confetti.dart';
 import 'tictactoe_game_logic.dart';
 import 'tictactoe_models.dart';
 import 'tictactoe_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
 
 class TttBoardScreen extends ConsumerStatefulWidget {
   const TttBoardScreen({super.key, required this.familyId, required this.gameId});
@@ -23,6 +27,11 @@ class TttBoardScreen extends ConsumerStatefulWidget {
 }
 
 class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
+  /// One-time guard for the waiting-room redirect: a 'waiting' game row
+  /// (Create Room flow — match not started yet) is owned by the LOBBY's
+  /// waiting room, not the board. Send the user there.
+  bool _didWaitingRedirect = false;
+
   @override
   void initState() { super.initState(); WidgetsBinding.instance.addPostFrameCallback((_) { if (ref.read(tttProvider(widget.familyId)).game == null) ref.read(tttProvider(widget.familyId).notifier).loadGame(widget.gameId); }); }
 
@@ -31,43 +40,57 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
     final state = ref.watch(tttProvider(widget.familyId));
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
 
-    if (state.isCompleted) return _resultsView(state, myId);
+    // Waiting room owns the pre-match phase — redirect once.
+    final waitingGameId =
+        state.isWaiting && state.game?.id != null ? state.game!.id : null;
+    if (waitingGameId != null && !_didWaitingRedirect) {
+      _didWaitingRedirect = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.pushReplacement(
+          '/family/${widget.familyId}/tictactoe/lobby?join=$waitingGameId',
+        );
+      });
+    }
 
-    return DKScaffold(
+    // RoomKeepAlive: keep the room framework (host heartbeat + room
+    // realtime) alive for the whole lifetime of this screen — the
+    // challenge lobby that attached the RoomController is replaced by
+    // this route; without a watch the autoDispose controller dies and
+    // the server-side reaper auto-closes the room ~60-75s in.
+    Widget view = RoomKeepAlive(
+      roomKey: RoomControllerKey(RoomConfig.tictactoe, widget.familyId),
+      child: DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
-          onPressed: () async {
-            final state = ref.read(tttProvider(widget.familyId));
-            final shouldLeave = await LeaveGameDialog.show(
-              context,
-              isHost: false,
-              gameName: 'Tic-Tac-Toe',
-            );
-            if (shouldLeave != true) return;
-            if (!context.mounted) return;
-            ref.read(tttProvider(widget.familyId).notifier).leaveGame();
-            if (state.game?.id != null) {
-              ref.read(temporaryRoomServiceProvider).endGame(
-                    gameTable: 'tictactoe_games',
-                    gameId: state.game!.id,
-                  );
-            }
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/family/${widget.familyId}');
-            }
-          },
+          // Plain pop — the route-level onExit guard (app_router.dart)
+          // intercepts this while a game room is active and shows the
+          // confirmation dialog first.
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
         title: Text('Tic-Tac-Toe', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
       ),
       body: state.isLoading && state.game == null ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
+        // Room closed by the host → terminal state, offer a clean exit
+        // back to the games hub instead of an infinite spinner.
+        : state.error != null && state.game == null ? DKErrorState(
+            message: state.error!,
+            actionLabel: state.error == kRoomClosedMessage ? 'Back to Games' : null,
+            icon: state.error == kRoomClosedMessage ? Icons.meeting_room_rounded : null,
+            onRetry: state.error == kRoomClosedMessage
+                ? () => context.go('/games?familyId=${widget.familyId}')
+                : () => ref.read(tttProvider(widget.familyId).notifier).loadGame(widget.gameId),
+          )
         : state.game == null ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
         : _gameView(state, myId),
+      ),
     );
+
+    if (state.isCompleted) return _resultsView(state, myId);
+    return view;
   }
 
   Widget _gameView(TttState state, String? myId) {
@@ -130,15 +153,17 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
   }
 
   Widget _board(TttState state, List<String?> board, List<int>? winLine, bool isMyTurn, Mark? myMark) {
-    return Container(
-      decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(20), border: Border.all(color: KinrelColors.orange.withValues(alpha: 0.3), width: 2),
-        boxShadow: [BoxShadow(color: KinrelColors.orangeGlowSubtle, blurRadius: 12)]),
-      child: ClipRRect(borderRadius: BorderRadius.circular(18), child: GridView.builder(
+    return GameBoardShell(
+      accent: KinrelColors.orange,
+      surface: BoardSurface.slate,
+      radius: 24,
+      padding: 8,
+      child: GridView.builder(
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3),
         itemCount: 9,
         itemBuilder: (context, index) => _cell(index, board, winLine, isMyTurn, myMark),
-      )),
+      ),
     );
   }
 
@@ -147,13 +172,20 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
     final isWinCell = winLine?.contains(index) ?? false;
     final canTap = value == null && isMyTurn && winLine == null;
 
-    // Original piece design: X = orange diamond, O = purple circle
+    // Original piece design: X = orange cross, O = violet ring — now
+    // with layered depth (gradient strokes + grounded shadows).
     return GestureDetector(
       onTap: canTap ? () => ref.read(tttProvider(widget.familyId).notifier).placeMark(index) : null,
-      child: Container(
+      child: AnimatedContainer(
+        duration: GameMotionTokens.fast,
         decoration: BoxDecoration(
-          border: Border.all(color: KinrelColors.border.withValues(alpha: 0.3), width: 0.5),
-          color: isWinCell ? KinrelColors.success.withValues(alpha: 0.2) : (canTap ? KinrelColors.orange.withValues(alpha: 0.05) : null),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.045), width: 0.5),
+          color: isWinCell
+              ? KinrelColors.success.withValues(alpha: 0.16)
+              : (canTap ? KinrelColors.orange.withValues(alpha: 0.05) : null),
+          boxShadow: isWinCell
+              ? [BoxShadow(color: KinrelColors.success.withValues(alpha: 0.35), blurRadius: 18, spreadRadius: 2)]
+              : null,
         ),
         child: Center(child: _pieceWidget(value, isWinCell)),
       ),
@@ -164,17 +196,32 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
     if (value == null) return const SizedBox.shrink();
     final isX = value == 'X';
     final color = isX ? KinrelColors.orange : const Color(0xFF8B5CF6);
+    final light = Color.lerp(color, Colors.white, 0.45)!;
 
-    // Original design: X = cross shape with two rotated bars, O = ring
+    // X = cross with gradient strokes + drop shadow; O = double ring.
     if (isX) {
-      return SizedBox(width: 40, height: 40, child: Stack(alignment: Alignment.center, children: [
-        Transform.rotate(angle: 0.785, child: Container(width: 36, height: 6, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3), boxShadow: isWin ? [BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 8)] : null))),
-        Transform.rotate(angle: -0.785, child: Container(width: 36, height: 6, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3), boxShadow: isWin ? [BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 8)] : null))),
+      return SizedBox(width: 42, height: 42, child: Stack(alignment: Alignment.center, children: [
+        Transform.rotate(angle: 0.785, child: Container(width: 38, height: 6.5, decoration: BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [light, color]),
+          borderRadius: BorderRadius.circular(3.5),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 5, offset: const Offset(0, 2.5))] +
+              (isWin ? [BoxShadow(color: color.withValues(alpha: 0.65), blurRadius: 12)] : <BoxShadow>[]),
+        ))),
+        Transform.rotate(angle: -0.785, child: Container(width: 38, height: 6.5, decoration: BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [light, color]),
+          borderRadius: BorderRadius.circular(3.5),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 5, offset: const Offset(0, 2.5))] +
+              (isWin ? [BoxShadow(color: color.withValues(alpha: 0.65), blurRadius: 12)] : <BoxShadow>[]),
+        ))),
       ])).animate().scale(begin: const Offset(0.3, 0.3), end: const Offset(1.0, 1.0), duration: 300.ms, curve: Curves.elasticOut);
     } else {
-      return Container(width: 34, height: 34,
-        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: color, width: 5),
-          boxShadow: isWin ? [BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 8)] : null),
+      return Container(width: 36, height: 36,
+        decoration: BoxDecoration(shape: BoxShape.circle,
+          gradient: RadialGradient(center: const Alignment(-0.35, -0.35), colors: [Color.lerp(color, Colors.white, 0.22)!, color, Color.lerp(color, Colors.black, 0.35)!]),
+          border: Border.all(color: light, width: 4.5),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.45), blurRadius: 5, offset: const Offset(0, 2.5))] +
+              (isWin ? [BoxShadow(color: color.withValues(alpha: 0.65), blurRadius: 12)] : <BoxShadow>[]),
+        ),
       ).animate().scale(begin: const Offset(0.3, 0.3), end: const Offset(1.0, 1.0), duration: 300.ms, curve: Curves.elasticOut);
     }
   }
@@ -189,10 +236,11 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
       appBar: AppBar(automaticallyImplyLeading: false,
         title: Text('Results', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: Colors.transparent, foregroundColor: KinrelColors.textWhite, elevation: 0),
-      body: ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
+      body: Stack(children: [
+        ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
         const SizedBox(height: KinrelSpacing.lg),
         Column(children: [
-          Text('🏆', style: TextStyle(fontSize: 64)).animate(onPlay: (c) => c.forward()).fadeIn(duration: 500.ms).scale(begin: const Offset(0.5, 0.5), end: const Offset(1.0, 1.0), duration: 500.ms, curve: Curves.elasticOut),
+          KinrelIcon(KinrelIconData.trophy, size: 64, color: KinrelColors.brightGold).animate(onPlay: (c) => c.forward()).fadeIn(duration: 500.ms).scale(begin: const Offset(0.5, 0.5), end: const Offset(1.0, 1.0), duration: 500.ms, curve: Curves.elasticOut),
           const SizedBox(height: KinrelSpacing.sm),
           Text(isWinner ? 'You Won!' : 'Winner!', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 32, fontWeight: FontWeight.w800, color: KinrelColors.textWhite, letterSpacing: 2)),
           const SizedBox(height: 4),
@@ -200,6 +248,11 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
           const SizedBox(height: KinrelSpacing.sm),
           Text('${game.roundsWonX} — ${game.roundsWonO}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 16, color: KinrelColors.textDim)),
         ]).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.92, 0.92), end: const Offset(1.0, 1.0), duration: 400.ms, curve: Curves.easeOutBack),
+        MatchEcosystemSummary(
+          gameTable: 'tictactoe_games',
+          gameId: game.id,
+          familyId: widget.familyId,
+        ),
         const SizedBox(height: KinrelSpacing.xxl),
         DKButton(label: 'Play Again', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.refresh_rounded,
           onPressed: () {
@@ -220,6 +273,11 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
             }
             if (context.mounted) context.go('/games?familyId=${widget.familyId}');
           }),
+        ]),
+        if (isWinner)
+          const Positioned.fill(
+            child: IgnorePointer(child: GameConfetti(burstCount: 2, density: 2)),
+          ),
       ]),
     );
   }

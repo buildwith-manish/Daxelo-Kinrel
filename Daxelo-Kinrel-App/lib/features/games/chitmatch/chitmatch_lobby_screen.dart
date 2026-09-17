@@ -11,6 +11,10 @@ import '../../../core/widgets/person_avatar.dart';
 //   2. `setup` (host tapped "Start Setup", players are submitting words)
 //      — uses the existing `_wordSubmissionView` so the unique
 //      word-submission flow is preserved.
+//
+// v2 (premium lobby system): setup phase renders the shared
+// LobbySetupScreen — compact hero, visible player count + round timer,
+// spectator toggle, collapsible How to Play, pinned Create Game CTA.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,12 +28,11 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
-import '../shared/widgets/pending_invites_section.dart';
-import '../shared/widgets/lobby_chat_panel.dart';
-import '../shared/widgets/spectator_toggle.dart';
+import '../shared/widgets/lobby_join_handler.dart';
+import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
+import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
-import 'chitmatch_models.dart';
 import 'chitmatch_provider.dart';
 
 class ChitmatchLobbyScreen extends ConsumerStatefulWidget {
@@ -52,10 +55,12 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final joinId = GoRouterState.of(context).uri.queryParameters['join'];
-      if (joinId != null && joinId.isNotEmpty) {
-        ref.read(chitmatchProvider(widget.familyId).notifier).joinGame(joinId);
-      }
+      joinRoomWhenReady(
+        context: context,
+        ref: ref,
+        onJoin: (id) =>
+            ref.read(chitmatchProvider(widget.familyId).notifier).joinGame(id),
+      );
     });
   }
 
@@ -137,11 +142,16 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () {
-          if (state.game != null) notifier.leaveGame();
-          if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); }
-        }),
-        title: Text('TripleMatch', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          // Plain pop — the route-level onExit guard (app_router.dart)
+          // intercepts this while a room is active and shows the
+          // confirmation dialog first.
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
+        ),
+        title: hasGame
+            ? Text('TripleMatch', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))
+            : null,
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [
           if (hasGame && isHost)
@@ -169,7 +179,13 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
       body: state.isLoading
         ? const Center(child: CircularProgressIndicator(color: KinrelColors.orange))
         : state.error != null && !hasGame
-          ? DKErrorState(message: state.error!, onRetry: () => notifier.createGame(playerCount: _playerCount, roundTimerSeconds: _roundTimer))
+          ? DKErrorState(
+              message: state.error!,
+              // Closed room → the button creates a NEW room (per spec the
+              // closed one is deleted and must never reappear).
+              actionLabel: state.error == kRoomClosedMessage ? 'Create New Room' : null,
+              icon: state.error == kRoomClosedMessage ? Icons.meeting_room_rounded : null,
+              onRetry: () => notifier.createGame(playerCount: _playerCount, roundTimerSeconds: _roundTimer))
           : !hasGame
             ? _setupView(state)
             : state.game!.isWaiting
@@ -181,28 +197,51 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
   }
 
   Widget _setupView(ChitmatchState state) {
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
-      children: [
-        _sectionLabel('Number of Players'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _playerCountSelector(),
-        const SizedBox(height: KinrelSpacing.lg),
-        _sectionLabel('Round Timer: ${_roundTimer}s'),
-        const SizedBox(height: KinrelSpacing.sm),
-        Slider(value: _roundTimer.toDouble(), min: 10, max: 60, divisions: 10, activeColor: KinrelColors.orange, label: '${_roundTimer}s', onChanged: (v) => setState(() => _roundTimer = v.round())),
-        const SizedBox(height: KinrelSpacing.lg),
-        _sectionLabel('How to Play'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _rulesCard(),
-        const SizedBox(height: KinrelSpacing.xl),
-        SpectatorToggle(
-          value: _spectatorsEnabled,
-          onChanged: (v) => setState(() => _spectatorsEnabled = v),
-        ),
-        const SizedBox(height: KinrelSpacing.md),
-        DKButton(label: 'Create Game', variant: DKButtonVariant.gradient, fullWidth: true, isLoading: _creating, onPressed: _createGame),
+    return LobbySetupScreen(
+      gameId: 'chitmatch',
+      title: 'TripleMatch',
+      tagline: 'Write a word, swap the chits, match three first',
+      facts: [
+        LobbyFact(icon: Icons.group_outlined, label: '$_playerCount players'),
+        LobbyFact(icon: Icons.timer_outlined, label: '$_roundTimer s rounds'),
       ],
+      settings: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LobbySection(
+            label: 'Number of Players',
+            child: LobbyNumberRow(
+              numbers: const [4, 6, 8, 10, 12],
+              selected: _playerCount,
+              onSelect: (n) => setState(() => _playerCount = n),
+            ),
+          ),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbySliderRow(
+            label: 'Round Timer',
+            valueLabel: '$_roundTimer s',
+            value: _roundTimer,
+            min: 10,
+            max: 60,
+            divisions: 10,
+            onChanged: (v) => setState(() => _roundTimer = v),
+          ),
+        ],
+      ),
+      rules: const [
+        LobbyRule('Each player submits a word. 3 chits per word are created.'),
+        LobbyRule('All chits are shuffled. Each player gets 3 random chits.'),
+        LobbyRule('Each round, everyone selects 1 chit to pass clockwise.'),
+        LobbyRule('Passes resolve simultaneously — all at once!'),
+        LobbyRule('First to 3 matching chits wins. Joint winners possible!'),
+      ],
+      rulesFootnote: 'Don\'t respond in $_roundTimer s? Auto-selected for you.',
+      spectatorsEnabled: _spectatorsEnabled,
+      onSpectatorsChanged: (v) => setState(() => _spectatorsEnabled = v),
+      ctaLabel: 'Create Game',
+      ctaHint: '${_playerCount - 1} family members can join (4-$_playerCount total)',
+      ctaLoading: _creating,
+      onCtaPressed: _createGame,
     );
   }
 
@@ -274,18 +313,6 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
                 );
               }
             : null,
-        footer: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            PendingInvitesSection(gameId: game.id),
-            const SizedBox(height: KinrelSpacing.md),
-            LobbyChatPanel(
-              gameTable: 'chitmatch_games',
-              gameId: game.id,
-              familyId: widget.familyId,
-            ),
-          ],
-        ),
     ),
     );
   }
@@ -326,7 +353,7 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
         ],
         const SizedBox(height: KinrelSpacing.xl),
         // Show how many players have submitted
-        _sectionLabel('Word Submissions'),
+        Text('WORD SUBMISSIONS', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 11, fontWeight: FontWeight.w700, color: KinrelColors.textDim, letterSpacing: 1.2)),
         const SizedBox(height: KinrelSpacing.sm),
         ...state.players.map((p) {
           final submitted = p.submittedWord != null && p.submittedWord!.isNotEmpty;
@@ -354,58 +381,6 @@ class _ChitmatchLobbyScreenState extends ConsumerState<ChitmatchLobbyScreen> {
   }
 
   String? _myId(ChitmatchState state) => ref.read(supabaseProvider)?.auth.currentUser?.id;
-
-  Widget _playerCountSelector() {
-    return Wrap(spacing: KinrelSpacing.sm, runSpacing: KinrelSpacing.sm,
-      children: [4, 6, 8, 10, 12].map((n) {
-        final selected = n == _playerCount;
-        return GestureDetector(onTap: () { GameMotionTokens.tap(); setState(() => _playerCount = n); },
-          child: Container(width: 50, padding: const EdgeInsets.symmetric(vertical: KinrelSpacing.sm),
-            decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.md), border: Border.all(color: selected ? KinrelColors.orange : KinrelColors.border, width: selected ? 2 : 1)),
-            child: Center(child: Text('$n', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 16, fontWeight: FontWeight.w700, color: selected ? KinrelColors.orange : KinrelColors.textDim))),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _rulesCard() {
-    return Container(padding: const EdgeInsets.all(KinrelSpacing.md), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.lg), border: Border.all(color: KinrelColors.border)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _ruleLine('1.', 'Each player submits a word. 3 chits per word are created.'),
-        const SizedBox(height: 6),
-        _ruleLine('2.', 'All chits are shuffled. Each player gets 3 random chits.'),
-        const SizedBox(height: 6),
-        _ruleLine('3.', 'Each round, everyone selects 1 chit to pass clockwise.'),
-        const SizedBox(height: 6),
-        _ruleLine('4.', 'Passes resolve simultaneously — all at once!'),
-        const SizedBox(height: 6),
-        _ruleLine('5.', 'First to 3 matching chits wins. Joint winners possible!'),
-        const SizedBox(height: 6),
-        _ruleLine('★', 'Don\'t respond in ${_roundTimer}s? Auto-selected for you.', highlight: true),
-      ]),
-    );
-  }
-
-  Widget _sectionLabel(String text) => Text(text, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim, letterSpacing: 0.5));
-  Widget _ruleLine(String num, String text, {bool highlight = false}) => Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    SizedBox(width: 24, child: Text(num, style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: highlight ? KinrelColors.orange : KinrelColors.textDim))),
-    Expanded(child: Text(text, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: highlight ? KinrelColors.textWhite : KinrelColors.textDim, height: 1.4))),
-  ]);
-
-  Widget _playerTile(ChitmatchPlayerModel p, String? hostUserId) {
-    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-    final isMe = p.userId == myId;
-    return Container(margin: const EdgeInsets.only(bottom: KinrelSpacing.sm), padding: const EdgeInsets.symmetric(horizontal: KinrelSpacing.md, vertical: KinrelSpacing.md),
-      decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.lg), border: Border.all(color: isMe ? KinrelColors.orange : KinrelColors.border, width: isMe ? 2 : 1)),
-      child: Row(children: [
-        DKAvatar(initials: PersonAvatar.initialsFor(p.userName)),
-        const SizedBox(width: KinrelSpacing.md),
-        Expanded(child: Text(isMe ? '${p.userName} (You)' : p.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
-        if (p.userId == hostUserId) Text('👑', style: TextStyle(fontSize: 14)),
-      ]),
-    );
-  }
 
   Widget _waitingIndicator() => Container(padding: const EdgeInsets.all(KinrelSpacing.lg), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(KinrelRadius.lg), border: Border.all(color: KinrelColors.border)),
     child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [

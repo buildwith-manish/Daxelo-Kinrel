@@ -1,5 +1,8 @@
-import '../../../core/widgets/person_avatar.dart';
 // lib/features/games/dotsboxes/dotsboxes_lobby_screen.dart
+//
+// v2 (premium lobby system): setup phase renders the shared
+// LobbySetupScreen — compact hero, visible grid-size choice, spectator
+// toggle, collapsible How to Play, pinned Create Game CTA.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,9 +14,8 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
-import '../shared/widgets/pending_invites_section.dart';
-import '../shared/widgets/lobby_chat_panel.dart';
-import '../shared/widgets/spectator_toggle.dart';
+import '../shared/widgets/lobby_join_handler.dart';
+import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
 import 'dotsboxes_provider.dart';
@@ -29,8 +31,8 @@ class _DotsboxesLobbyScreenState extends ConsumerState<DotsboxesLobbyScreen> {
 
   @override
   void initState() { super.initState(); WidgetsBinding.instance.addPostFrameCallback((_) {
-    final joinId = GoRouterState.of(context).uri.queryParameters['join'];
-    if (joinId != null && joinId.isNotEmpty) ref.read(dbProvider(widget.familyId).notifier).joinGame(joinId);
+    joinRoomWhenReady(context: context, ref: ref,
+      onJoin: (id) => ref.read(dbProvider(widget.familyId).notifier).joinGame(id));
   }); }
 
   Future<void> _createGame() async { setState(() => _creating = true); await ref.read(dbProvider(widget.familyId).notifier).createGame(gridSize: _gridSize); if (mounted) setState(() => _creating = false); }
@@ -53,7 +55,7 @@ class _DotsboxesLobbyScreenState extends ConsumerState<DotsboxesLobbyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(dbProvider(widget.familyId)); final notifier = ref.read(dbProvider(widget.familyId).notifier);
+    final state = ref.watch(dbProvider(widget.familyId));
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     final isHost = state.game?.hostUserId == myId || state.game == null; final hasGame = state.game != null;
 
@@ -65,8 +67,16 @@ class _DotsboxesLobbyScreenState extends ConsumerState<DotsboxesLobbyScreen> {
     return DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { if (state.game != null) notifier.leaveGame(); if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } }),
-        title: Text('Dots and Boxes', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          // Plain pop — the route-level onExit guard (app_router.dart)
+          // intercepts this while a room is active and shows the
+          // confirmation dialog first.
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
+        ),
+        title: hasGame
+            ? Text('Dots and Boxes', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))
+            : null,
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [
           if (hasGame && isHost)
@@ -97,32 +107,39 @@ class _DotsboxesLobbyScreenState extends ConsumerState<DotsboxesLobbyScreen> {
   }
 
   Widget _setupView() {
-    return ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
-      Text('Grid Size', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 13, fontWeight: FontWeight.w600, color: KinrelColors.textDim)),
-      const SizedBox(height: 8),
-      Wrap(spacing: 8, children: [5, 9].map((n) {
-        final sel = n == _gridSize;
-        return GestureDetector(onTap: () { GameMotionTokens.tap(); setState(() => _gridSize = n); },
-          child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(10), border: Border.all(color: sel ? KinrelColors.orange : KinrelColors.border, width: sel ? 2 : 1)),
-            child: Text('${n}×$n boxes', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 13, fontWeight: FontWeight.w600, color: sel ? KinrelColors.orange : KinrelColors.textDim))));
-      }).toList()),
-      const SizedBox(height: 20),
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: KinrelColors.border)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('How to Play', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
-          const SizedBox(height: 8),
-          Text('• Take turns drawing lines between adjacent dots\n• Complete the 4th side of a box to capture it\n• Capturing a box = bonus turn (keep drawing!)\n• Chain captures: multiple boxes in one move\n• Most boxes when grid is full wins!',
-            style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim, height: 1.5)),
-        ])),
-      const SizedBox(height: 20),
-            SpectatorToggle(
-        value: _spectatorsEnabled,
-        onChanged: (v) => setState(() => _spectatorsEnabled = v),
+    return LobbySetupScreen(
+      gameId: 'dotsboxes',
+      title: 'Dots and Boxes',
+      tagline: 'Draw lines, steal boxes, chain your way to victory',
+      facts: [
+        const LobbyFact(icon: Icons.group_outlined, label: '2–4 players'),
+        LobbyFact(icon: Icons.grid_on_outlined, label: '$_gridSize×$_gridSize grid'),
+      ],
+      settings: LobbySection(
+        label: 'Grid Size',
+        child: LobbyChoiceGrid<int>(
+          options: const [
+            LobbyOption(value: 5, label: '5×5', caption: 'Quick duel'),
+            LobbyOption(value: 9, label: '9×9', caption: 'Marathon match'),
+          ],
+          selected: _gridSize,
+          onSelect: (n) => setState(() => _gridSize = n),
+        ),
       ),
-      const SizedBox(height: KinrelSpacing.md),
-      DKButton(label: 'Create Game', variant: DKButtonVariant.gradient, fullWidth: true, isLoading: _creating, onPressed: _createGame),
-    ]);
+      rules: const [
+        LobbyRule('Take turns drawing lines between adjacent dots.'),
+        LobbyRule('Complete the 4th side of a box to capture it.'),
+        LobbyRule('Capturing a box = bonus turn (keep drawing!).'),
+        LobbyRule('Chain captures: multiple boxes in one move.'),
+        LobbyRule('Most boxes when grid is full wins!'),
+      ],
+      spectatorsEnabled: _spectatorsEnabled,
+      onSpectatorsChanged: (v) => setState(() => _spectatorsEnabled = v),
+      ctaLabel: 'Create Game',
+      ctaHint: '1-3 family members can join (2-4 total)',
+      ctaLoading: _creating,
+      onCtaPressed: _createGame,
+    );
   }
 
   Widget _lobbyView(DbState state, bool isHost) {
@@ -191,18 +208,6 @@ class _DotsboxesLobbyScreenState extends ConsumerState<DotsboxesLobbyScreen> {
                 );
               }
             : null,
-        footer: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            PendingInvitesSection(gameId: game.id),
-            const SizedBox(height: KinrelSpacing.md),
-            LobbyChatPanel(
-              gameTable: 'dotsboxes_games',
-              gameId: game.id,
-              familyId: widget.familyId,
-            ),
-          ],
-        ),
     ),
     );
   }

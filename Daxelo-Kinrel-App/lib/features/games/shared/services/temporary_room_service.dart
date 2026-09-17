@@ -40,6 +40,8 @@ const kGamePlayerTableMap = <String, String>{
   'truthordare_games': 'truthordare_players',
   'twotruths_games': 'twotruths_players',
   'redlight_rounds': 'redlight_players',
+  'tugofwar_games': 'tugofwar_players',
+  'memorymatch_games': 'memorymatch_players',
 };
 
 /// Player tables known to exist (bingo_players does NOT — bingo uses
@@ -55,6 +57,8 @@ const kPlayerTableExists = <String>{
   'truthordare_players',
   'twotruths_players',
   'redlight_players',
+  'tugofwar_players',
+  'memorymatch_players',
 };
 
 /// Returns the player table for a given game table, or null if the game
@@ -63,6 +67,22 @@ String? playerTableFor(String gameTable) {
   final t = kGamePlayerTableMap[gameTable];
   if (t == null) return null;
   return kPlayerTableExists.contains(t) ? t : null;
+}
+
+/// Message shown whenever a join/invite targets a room that no longer
+/// exists. Per the room-close spec, a closed room is deleted from the
+/// database immediately — so the correct next step for the user is to
+/// create a new room, never to re-enter the old one.
+const String kRoomClosedMessage =
+    'This room has already been closed and deleted. Create a new room to play.';
+
+/// Returns true when a raw Supabase game row belongs to a room that is
+/// closed (cancelledAt / closedAt set) or that no longer exists (null
+/// row). Used by every game's joinGame()/loadGame() so a closed room can
+/// never be re-entered from a stale invite, chat card, or deep link.
+bool isRoomRowClosed(Map<String, dynamic>? row) {
+  if (row == null) return true; // row gone → room was deleted
+  return row['cancelledAt'] != null || row['closedAt'] != null;
 }
 
 class TemporaryRoomService {

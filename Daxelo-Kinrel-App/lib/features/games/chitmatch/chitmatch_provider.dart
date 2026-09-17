@@ -155,7 +155,9 @@ class ChitmatchNotifier extends StateNotifier<ChitmatchState> {
     }
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final gameResp = await client.from('chitmatch_games').select().eq('id', gameId).single();
+      // Closed / deleted room → friendly error, prompt a new room.
+      final gameResp = await client.from('chitmatch_games').select().eq('id', gameId).maybeSingle();
+      if (isRoomRowClosed(gameResp)) { state = state.copyWith(isLoading: false, error: kRoomClosedMessage); return false; }
       final game = ChitmatchGame.fromJson(gameResp as Map<String, dynamic>);
       _gameId = gameId;
 

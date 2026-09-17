@@ -117,7 +117,7 @@ class RoomSpectator {
 }
 
 /// A single system event in the room's event log (join / leave / ready /
-/// spectator_join / cancel / auto_close / chat).
+/// spectator_join / cancel / auto_close / chat / countdown / match_start).
 @immutable
 class RoomEvent {
   const RoomEvent({
@@ -137,7 +137,8 @@ class RoomEvent {
   final String gameId;
   final String familyId;
   final String eventType; // join|leave|ready|not_ready|spectator_join|
-                          // spectator_leave|cancel|auto_close|chat|system
+                          // spectator_leave|cancel|auto_close|chat|
+                          // countdown|match_start|system
   final DateTime createdAt;
   final String? userId;
   final String? userName;
@@ -145,6 +146,9 @@ class RoomEvent {
 
   /// True if this is a chat message (text or emoji) rather than a system event.
   bool get isChat => eventType == 'chat';
+
+  /// True if this is a 'countdown' event (host started the 5-4-3-2-1).
+  bool get isCountdown => eventType == 'countdown';
 
   /// True if this is a system message that should be shown italicized in
   /// the lobby chat panel (e.g. "John joined the room.").
@@ -154,7 +158,9 @@ class RoomEvent {
       eventType == 'spectator_join' ||
       eventType == 'spectator_leave' ||
       eventType == 'cancel' ||
-      eventType == 'auto_close';
+      eventType == 'auto_close' ||
+      eventType == 'countdown' ||
+      eventType == 'match_start';
 
   /// Returns a human-readable system message for this event.
   /// Returns null for chat events (the payload['content'] is the message).
@@ -182,6 +188,10 @@ class RoomEvent {
         return 'Room closed by host.';
       case 'auto_close':
         return 'Room auto-closed (time expired).';
+      case 'countdown':
+        return 'Match starts in ${(payload['seconds'] ?? 5)}…';
+      case 'match_start':
+        return 'Match started!';
       default:
         return null;
     }
@@ -206,8 +216,12 @@ class RoomEvent {
   }
 }
 
-/// The room's status (lobby / active / finished / cancelled).
-enum RoomStatus { lobby, active, finished, cancelled, unknown }
+/// The room's status (lobby / countdown / active / finished / cancelled).
+///
+/// `countdown` is the 5-second window between "host taps Start Match" and
+/// "match actually begins" — every client shows a 5-4-3-2-1 overlay so
+/// nobody misses the start.
+enum RoomStatus { lobby, countdown, active, finished, cancelled, unknown }
 
 /// The full state of a multiplayer room.
 @immutable
@@ -220,6 +234,7 @@ class RoomState {
     this.status = RoomStatus.unknown,
     this.spectatorsEnabled = true,
     this.autoCloseDeadline,
+    this.countdownEndsAt,
     this.cancelledAt,
     this.closedAt,
     this.participants = const [],
@@ -244,6 +259,14 @@ class RoomState {
   /// the room is closed automatically (by the cron RPC or by the local
   /// countdown hitting zero, whichever fires first).
   final DateTime? autoCloseDeadline;
+
+  /// Server-authoritative match-start countdown deadline. When this
+  /// timestamp passes, the host's client calls the game's own start
+  /// callback to transition the game row from lobby → active. All
+  /// connected clients tick against the same deadline so the overlay
+  /// stays in sync.
+  final DateTime? countdownEndsAt;
+
   final DateTime? cancelledAt;
   final DateTime? closedAt;
 
@@ -262,6 +285,7 @@ class RoomState {
 
   bool get hasGame => gameId != null;
   bool get isLobby => status == RoomStatus.lobby;
+  bool get isCountdown => status == RoomStatus.countdown;
   bool get isActive => status == RoomStatus.active;
   bool get isFinished => status == RoomStatus.finished;
   bool get isCancelled => status == RoomStatus.cancelled;
@@ -317,6 +341,44 @@ class RoomState {
     return delta < 0 ? 0 : delta;
   }
 
+  /// Number of seconds until the match-start countdown ends. Returns null
+  /// if no countdown is active. Returns 0 if the countdown has expired
+  /// (the host's client should fire the game's start callback now).
+  int? get secondsUntilCountdownEnds {
+    final deadline = countdownEndsAt;
+    if (deadline == null) return null;
+    final now = DateTime.now();
+    final delta = deadline.difference(now).inSeconds;
+    return delta < 0 ? 0 : delta;
+  }
+
+  /// Number of online (non-spectator) participants.
+  int get onlineParticipantCount =>
+      participants.where((p) => p.isOnline).length;
+
+  /// Number of spectators currently watching.
+  int get spectatorCount => spectators.length;
+
+  /// A short human-readable status string for the lobby header.
+  /// Examples:
+  ///   "Waiting for 1 more player • Invite family members"
+  ///   "Room ready • All players joined"
+  ///   "Match starts in 5…"
+  String lobbySubtitle({required int minPlayers}) {
+    if (isCountdown) {
+      final s = secondsUntilCountdownEnds ?? 0;
+      return 'Match starts in $s\u2026';
+    }
+    final missing = minPlayers - playerCount;
+    if (missing > 0) {
+      return 'Waiting for $missing more player${missing == 1 ? '' : 's'} \u2022 Invite family members';
+    }
+    if (!allRequiredReady) {
+      return 'Waiting for players to ready up \u2022 $readyCount of $playerCount ready';
+    }
+    return 'Room ready \u2022 All players joined';
+  }
+
   RoomState copyWith({
     String? gameId,
     bool clearGameId = false,
@@ -327,6 +389,8 @@ class RoomState {
     bool? spectatorsEnabled,
     DateTime? autoCloseDeadline,
     bool clearAutoCloseDeadline = false,
+    DateTime? countdownEndsAt,
+    bool clearCountdownEndsAt = false,
     DateTime? cancelledAt,
     bool clearCancelledAt = false,
     DateTime? closedAt,
@@ -352,6 +416,9 @@ class RoomState {
         spectatorsEnabled: spectatorsEnabled ?? this.spectatorsEnabled,
         autoCloseDeadline:
             clearAutoCloseDeadline ? null : (autoCloseDeadline ?? this.autoCloseDeadline),
+        countdownEndsAt: clearCountdownEndsAt
+            ? null
+            : (countdownEndsAt ?? this.countdownEndsAt),
         cancelledAt: clearCancelledAt ? null : (cancelledAt ?? this.cancelledAt),
         closedAt: clearClosedAt ? null : (closedAt ?? this.closedAt),
         participants: participants ?? this.participants,

@@ -1,5 +1,7 @@
 // lib/features/games/ghost_painter/ghost_painter_models.dart
 
+import 'dart:convert';
+
 class GhostPainterRound {
   const GhostPainterRound({
     required this.id,
@@ -48,11 +50,24 @@ class GhostPainterStroke {
   final int sequenceOrder;
 
   factory GhostPainterStroke.fromJson(Map<String, dynamic> json) {
-    final rawPoints = json['strokeData'] as List? ?? [];
+    // The strokeData column is jsonb, but older clients wrote the
+    // points as a JSON-encoded STRING — accept both forms so rounds
+    // with historical strokes still load.
+    var rawPoints = json['strokeData'];
+    if (rawPoints is String) {
+      try {
+        rawPoints = jsonDecode(rawPoints);
+      } catch (_) {
+        rawPoints = const [];
+      }
+    }
+    final points = (rawPoints as List? ?? const [])
+        .map((p) => OffsetPoint.fromJson(Map<String, dynamic>.from(p as Map)))
+        .toList();
     return GhostPainterStroke(
       id: json['id'] ?? '',
       roundId: json['roundId'] ?? '',
-      points: rawPoints.map((p) => OffsetPoint.fromJson(p as Map<String, dynamic>)).toList(),
+      points: points,
       sequenceOrder: json['sequenceOrder'] ?? 0,
     );
   }

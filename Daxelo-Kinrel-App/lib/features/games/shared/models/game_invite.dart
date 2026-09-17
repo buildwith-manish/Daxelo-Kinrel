@@ -27,6 +27,8 @@ enum GameType {
   sos,
   antakshari,
   redlight, // Freeze & Dash
+  tugOfWar, // Tug of War
+  memoryMatch, // Memory Match
 }
 
 extension GameTypeX on GameType {
@@ -61,6 +63,10 @@ extension GameTypeX on GameType {
         return 'antakshari';
       case GameType.redlight:
         return 'freeze-dash';
+      case GameType.tugOfWar:
+        return 'tug-of-war';
+      case GameType.memoryMatch:
+        return 'memory-match';
     }
   }
 
@@ -95,6 +101,10 @@ extension GameTypeX on GameType {
         return 'Antakshari';
       case GameType.redlight:
         return 'Freeze & Dash';
+      case GameType.tugOfWar:
+        return 'Tug of War';
+      case GameType.memoryMatch:
+        return 'Memory Match';
     }
   }
 
@@ -206,8 +216,12 @@ class GameInvite {
         if (message != null) 'message': message,
       };
 
-  /// Deep-link path that navigates the recipient into the host's lobby
-  /// with the room code pre-applied via the `?join=<gameId>` query param.
+  /// Deep-link path that navigates the recipient into the host's game:
+  /// EVERY game (including the board games — chess, checkers, carrom,
+  /// tictactoe) joins via the lobby's `?join=<gameId>` flow. The lobby
+  /// takes the joiner straight into the shared waiting room, where
+  /// they take the free opponent slot automatically; if the match is
+  /// already running they land there as a spectator.
   String get joinRoute =>
       '/family/$familyId/${gameType.routeSegment}/lobby?join=$gameId';
 }

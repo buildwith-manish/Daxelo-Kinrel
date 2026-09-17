@@ -1,22 +1,39 @@
 // lib/features/games/shared/multiplayer/widgets/cancel_room_button.dart
 //
-// Large, visible "Cancel Room" button for the host. Sits at the bottom
-// of every lobby's lobby view. Tapping it shows a confirmation dialog
-// ("Close Room?" / "Closing the room will remove all players and end
-// the lobby."), and on confirm, calls RoomController.cancelRoom() which
-// deletes the room, removes all players, posts a 'cancel' event (which
-// all connected clients see + navigate back to setup), and returns the
-// host to the setup screen.
+// Large, prominent "Close Room" button for the host. Sits at the bottom
+// of every lobby's lobby view. NEVER immediately closes the room —
+// always shows the shared confirmation dialog first.
 //
 // Per the spec:
-//   • Make the Cancel Room button larger and more visible.
-//   • Clicking Cancel Room:
-//       - Immediately closes the room.
-//       - Deletes the room record.
-//       - Removes all players.
-//       - Removes lobby chat.
-//       - Sends a real-time event to all participants.
-//       - Returns everyone to the game setup screen.
+//   • Make the Close Room button clearly visible at all times for the
+//     host.
+//   • Increase button size and prominence.
+//   • Place it in an easily accessible location.
+//   • Do not hide it behind menus or secondary actions.
+//   • Clicking Close Room must first show a confirmation dialog.
+//
+// Visual design (upgraded from secondary variant to a prominent red
+// error-styled button):
+//   • Full-width
+//   • Larger vertical padding (18px vs 12px default)
+//   • Red background (KinrelColors.error) with subtle glow shadow
+//   • Warning icon (Icons.warning_amber_rounded)
+//   • Bold white text "Close Room"
+//   • Subtitle line below: "Removes all players and spectators"
+//   • Loading spinner while the RPC is in-flight
+//
+// On confirm: calls RoomController.cancelRoom() which:
+//   1. Calls fn_cancel_game_room RPC (host-only check server-side)
+//   2. Server posts the 'cancel' room event (fanned out via realtime so
+//      every connected client leaves immediately)
+//   3. Server HARD-DELETES the game row + game_participants +
+//      game_spectators + game_invites + event log (children cascade)
+//      — the room is gone from the database the moment it is closed,
+//      so it can never reappear when the host taps Play again
+//   4. Local _cleanup() stops heartbeat + auto-close timer + lobby
+//      poll + countdown timer + unsubscribes the realtime channel
+//   5. Local state is cleared to const RoomState()
+//   6. onCancelled callback fires (typically navigates to setup screen)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,8 +41,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/constants/brand_colors.dart';
 import '../../../../../core/constants/brand_spacing.dart';
 import '../../../../../core/constants/brand_typography.dart';
-import '../../../../../shared/widgets/dk_components.dart';
 import '../room_controller.dart';
+import 'room_close_dialog.dart';
 
 class CancelRoomButton extends ConsumerWidget {
   const CancelRoomButton({
@@ -42,85 +59,106 @@ class CancelRoomButton extends ConsumerWidget {
     final state = ref.watch(roomControllerProvider(roomKey));
     final isSubmitting = state.isSubmitting;
 
-    return SizedBox(
+    return Container(
       width: double.infinity,
-      child: Padding(
-        padding: const EdgeInsets.only(top: KinrelSpacing.md),
-        child: DKButton(
-          label: 'Cancel Room',
-          variant: DKButtonVariant.secondary,
-          fullWidth: true,
-          isLoading: isSubmitting,
-          icon: Icons.close,
-          onPressed: () => _confirmCancel(context, ref),
+      margin: const EdgeInsets.only(top: KinrelSpacing.md),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isSubmitting ? null : () => _confirmCancel(context, ref),
+          borderRadius: BorderRadius.circular(KinrelRadius.md),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: KinrelSpacing.lg, vertical: 18),
+            decoration: BoxDecoration(
+              color: isSubmitting
+                  ? KinrelColors.error.withValues(alpha: 0.5)
+                  : KinrelColors.error.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(KinrelRadius.md),
+              border: Border.all(
+                color: KinrelColors.error.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
+              boxShadow: isSubmitting
+                  ? null
+                  : [
+                      BoxShadow(
+                        color: KinrelColors.error.withValues(alpha: 0.2),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (isSubmitting)
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(KinrelColors.error),
+                    ),
+                  )
+                else
+                  Icon(Icons.warning_amber_rounded,
+                      color: KinrelColors.error, size: 22),
+                const SizedBox(width: KinrelSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Close Room',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.displayFont,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: KinrelColors.error,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Removes all players and spectators',
+                        style: TextStyle(
+                          fontFamily: KinrelTypography.bodyFont,
+                          fontSize: 10,
+                          color: KinrelColors.error.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right,
+                    color: KinrelColors.error.withValues(alpha: 0.7),
+                    size: 20),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
   Future<void> _confirmCancel(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: KinrelColors.darkCard,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        ),
-        title: Row(
-          children: [
-            const Icon(Icons.warning_amber_rounded,
-                color: KinrelColors.error, size: 24),
-            const SizedBox(width: KinrelSpacing.sm),
-            Text(
-              'Close Room?',
-              style: TextStyle(
-                fontFamily: KinrelTypography.displayFont,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: KinrelColors.textWhite,
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          'Closing the room will remove all players and end the lobby.',
-          style: TextStyle(
-            fontFamily: KinrelTypography.bodyFont,
-            fontSize: 13,
-            color: KinrelColors.textDim,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(
-              'Cancel',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                color: KinrelColors.textDim,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: KinrelColors.error,
-            ),
-            child: Text(
-              'Close Room',
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontWeight: FontWeight.w700,
-                color: KinrelColors.error,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    // Show the shared confirmation dialog (exact spec text).
+    final confirmed = await showRoomCloseConfirmDialog(context);
     if (confirmed != true) return;
+    if (!context.mounted) return;
+
+    // Perform the cancellation — RoomController.cancelRoom() handles:
+    //   • fn_cancel_game_room RPC (deletes participants + spectators +
+    //     game row + posts 'cancel' event)
+    //   • _cleanup() (stops heartbeat + auto-close timer + lobby poll +
+    //     countdown timer + unsubscribes realtime channel)
+    //   • state = const RoomState() (clears all local cache)
     await ref.read(roomControllerProvider(roomKey).notifier).cancelRoom();
+
+    // Fire the onCancelled callback (typically navigates to setup).
     onCancelled?.call();
   }
 }

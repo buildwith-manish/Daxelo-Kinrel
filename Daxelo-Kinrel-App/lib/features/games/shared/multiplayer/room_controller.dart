@@ -39,6 +39,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../../core/services/supabase_service.dart';
+import '../providers/game_invite_status_provider.dart';
 import 'room_config.dart';
 import 'room_state.dart';
 
@@ -70,6 +71,8 @@ class RoomController extends StateNotifier<RoomState> {
   Timer? _heartbeatTimer;
   Timer? _lobbyPollTimer;
   Timer? _autoCloseTimer;
+  Timer? _countdownTimer;
+  bool _countdownFired = false;
 
   // ── Public API ────────────────────────────────────────────────────
 
@@ -522,8 +525,148 @@ class RoomController extends StateNotifier<RoomState> {
     }
   }
 
-  /// Host: cancel the room. Closes + deletes the room, notifies all
+  /// Host: start the 5-second match countdown.
+  ///
+  /// Validates host + min players + all-required-ready. Then:
+  ///   1. Calls fn_start_match_countdown RPC (posts a 'countdown'
+  ///      game_room_events row, fanned out via realtime to all clients).
+  ///   2. Sets local state to [RoomStatus.countdown] with the same
+  ///      server-returned deadline so the overlay ticks in sync.
+  ///   3. Starts a 1-second ticker that, on deadline expiry, calls
+  ///      [onCountdownComplete] — which the game's own provider
+  ///      supplies to transition the game row lobby → active.
+  ///
+  /// Non-host clients observe the 'countdown' event via realtime and
+  /// render the same overlay; they do not call this method themselves.
+  Future<bool> startMatchWithCountdown({
+    required Future<void> Function() onCountdownComplete,
+    int seconds = 5,
+  }) async {
+    final client = _client;
+    final myId = _myId;
+    final gameId = _gameId;
+    if (client == null || myId == null || gameId == null) return false;
+    if (!state.isHost) return false;
+    if (state.playerCount < _config.minPlayers) return false;
+    if (!state.allRequiredReady) return false;
+    if (state.isCountdown || state.isActive) return false;
+
+    state = state.copyWith(
+      isSubmitting: true,
+      clearError: true,
+      clearFriendlyError: true,
+    );
+    _countdownFired = false;
+
+    try {
+      final result = await client.rpc('fn_start_match_countdown', params: {
+        'p_game_table': gameTable,
+        'p_game_id': gameId,
+        'p_user_id': myId,
+        'p_seconds': seconds,
+      });
+
+      final deadline = result is String
+          ? DateTime.tryParse(result)
+          : (result is DateTime ? result : null);
+      if (deadline == null) {
+        state = state.copyWith(
+          isSubmitting: false,
+          error: 'Countdown failed',
+          friendlyError: 'Couldn\'t start the match. Tap to try again.',
+        );
+        return false;
+      }
+
+      state = state.copyWith(
+        status: RoomStatus.countdown,
+        countdownEndsAt: deadline,
+        isSubmitting: false,
+      );
+      _startCountdownTimer(deadline, onCountdownComplete);
+      return true;
+    } catch (e) {
+      debugPrint('[RoomController] startMatchWithCountdown error: $e');
+      state = state.copyWith(
+        isSubmitting: false,
+      );
+      _setError(e, fallback: 'Couldn\'t start the match. Tap to try again.');
+      return false;
+    }
+  }
+
+  /// Cancel an in-progress countdown (host only). Clears the countdown
+  /// state and stops the local timer. Does NOT post a server event —
+  /// the host can simply restart the countdown later.
+  void cancelCountdown() {
+    if (!state.isHost) return;
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+    _countdownFired = false;
+    if (state.isCountdown) {
+      state = state.copyWith(
+        status: RoomStatus.lobby,
+        clearCountdownEndsAt: true,
+      );
+    }
+  }
+
+  // ── Countdown ticker ──────────────────────────────────────────────
+  //
+  // Local 1-second ticker that mirrors the server's countdown deadline.
+  // When the deadline passes, fires the [onComplete] callback ONCE and
+  // transitions state to [RoomStatus.active] (the game's own provider is
+  // responsible for the actual lobby → active row update via its own
+  // startGame() method, which [onComplete] wraps).
+
+  void _startCountdownTimer(
+    DateTime deadline,
+    Future<void> Function() onComplete,
+  ) {
+    _countdownTimer?.cancel();
+    _countdownFired = false;
+    _countdownTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) {
+        final now = DateTime.now();
+        final delta = deadline.difference(now);
+        if (delta.isNegative || delta.inSeconds == 0) {
+          _countdownTimer?.cancel();
+          _countdownTimer = null;
+          if (!_countdownFired) {
+            _countdownFired = true;
+            // Fire-and-forget; the game's start callback transitions
+            // the game row from lobby → active. The realtime listener
+            // will then sync every client to [RoomStatus.active].
+            unawaited(onComplete());
+          }
+        } else {
+          // Force a state rebuild so the countdown overlay re-renders.
+          state = state.copyWith();
+        }
+      },
+    );
+  }
+
+  void _stopCountdownTimer() {
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+    _countdownFired = false;
+  }
+
+  /// Host: cancel the room. Closes + HARD-DELETES the room, notifies all
   /// participants in real time via the 'cancel' room event.
+  ///
+  /// Per the spec:
+  ///   • Delete the room immediately from the database.
+  ///   • Remove all players.
+  ///   • Remove all spectators.
+  ///   • Close all realtime subscriptions/sockets.
+  ///   • Clear any local room cache.
+  ///   • Navigate back to the game lobby/create room screen.
+  ///   • Closed rooms are permanently removed and cannot reappear —
+  ///     when the host taps Play for this game again they are prompted
+  ///     to create a new room (no closed room is ever restored).
   Future<void> cancelRoom() async {
     final client = _client;
     final myId = _myId;
@@ -531,18 +674,31 @@ class RoomController extends StateNotifier<RoomState> {
     if (client == null || myId == null || gameId == null) return;
     if (!state.isHost) return;
 
-    state = state.copyWith(isSubmitting: true, clearError: true, clearFriendlyError: true);
+    state = state.copyWith(
+        isSubmitting: true, clearError: true, clearFriendlyError: true);
     try {
+      // 1. Server-side: HARD-DELETE the room + all participants +
+      //    spectators + invites + event log + all cascading game data.
+      //    The RPC posts a 'cancel' event FIRST so every connected client
+      //    is notified in real time before the rows disappear.
       await client.rpc('fn_cancel_game_room', params: {
         'p_game_table': gameTable,
         'p_game_id': gameId,
         'p_user_id': myId,
       });
-      // The RPC posts the 'cancel' event, realtime fans it out, and
-      // connected clients (including us) navigate back to the setup
-      // screen via the LobbyView's listener.
+
+      // 2. Local cleanup: stop heartbeat + auto-close timer + lobby poll
+      //    + countdown timer + unsubscribe the realtime channel.
       _cleanup();
+
+      // 3. Clear all local state so the room can never be restored from
+      //    cache. The LobbyView watches state and will re-render the
+      //    setup screen (since hasGame == false).
       state = const RoomState();
+
+      // 4. Invalidate Riverpod caches that may hold stale room data.
+      //    This ensures deleted rooms never reappear from any cache.
+      _invalidateStaleCaches(gameId);
     } catch (e) {
       debugPrint('[RoomController] cancelRoom error: $e');
       state = state.copyWith(isSubmitting: false);
@@ -550,8 +706,25 @@ class RoomController extends StateNotifier<RoomState> {
     }
   }
 
+  /// Invalidate Riverpod providers that may hold stale room data after
+  /// a room is closed. This is the "clear any local room cache" step
+  /// from the spec — without it, the PendingInvitesSection + invite
+  /// status badges + game invite chat sync would keep showing data
+  /// for a deleted room.
+  void _invalidateStaleCaches(String gameId) {
+    try {
+      // Invalidate the game invite status provider (tracks pending/
+      // accepted/declined invites for this gameId).
+      _ref.invalidate(gameInviteStatusProvider(gameId));
+    } catch (_) {
+      // Provider may not be watched — ignore.
+    }
+  }
+
   /// Leave the room (manual exit). If the host leaves, the room is
-  /// closed automatically by the RPC (host_leave → close).
+  /// closed AND hard-deleted by the RPC (host_leave → delete — a room
+  /// without its host must never linger in the database or reappear
+  /// later); non-host players simply free their slot.
   Future<void> leaveRoom() async {
     final client = _client;
     final myId = _myId;
@@ -576,7 +749,10 @@ class RoomController extends StateNotifier<RoomState> {
         });
       }
     } catch (_) {}
+    // Clear local state + invalidate caches (same as cancelRoom — a
+    // departed user should never see stale room data either).
     state = const RoomState();
+    _invalidateStaleCaches(gameId);
   }
 
   /// Send a chat message to the lobby (persisted + broadcast via realtime).
@@ -659,6 +835,57 @@ class RoomController extends StateNotifier<RoomState> {
               // listener will navigate back to the setup screen.
               _cleanup();
               state = const RoomState();
+              return;
+            }
+
+            if (event.eventType == 'countdown') {
+              // Guard against late-arriving countdown events: if the
+              // match has already started (game-row UPDATE arrived
+              // before this event), do NOT regress to countdown state.
+              if (state.isActive || state.isFinished) {
+                return;
+              }
+              // Host (or another host-side event) started the 5-second
+              // countdown. Mirror the server-authoritative deadline so
+              // every client's overlay ticks in sync.
+              final deadlineStr = event.payload['deadline'];
+              final deadline = deadlineStr is String
+                  ? DateTime.tryParse(deadlineStr)
+                  : null;
+              final secs = event.payload['seconds'] is int
+                  ? event.payload['seconds'] as int
+                  : 5;
+              // If the deadline already passed (e.g. event arrived late),
+              // skip showing the countdown — the game row update to
+              // 'active' will arrive imminently via realtime.
+              if (deadline != null &&
+                  deadline.isAfter(DateTime.now())) {
+                state = state.copyWith(
+                  status: RoomStatus.countdown,
+                  countdownEndsAt: deadline,
+                );
+                // Non-host clients do NOT fire the start callback —
+                // the host's client owns that. Non-host clients just
+                // observe the countdown + wait for the game-row UPDATE
+                // (lobby → active) to arrive via realtime.
+                if (!state.isHost) {
+                  _startCountdownTimer(deadline, () async {
+                    // No-op for non-hosts. Just let the timer expire so
+                    // the overlay hides. The active state will arrive
+                    // via the game-row realtime listener.
+                  });
+                }
+                // Safety: clear countdown state after (secs + 2) seconds
+                // in case the active-status update never arrives.
+                Future.delayed(Duration(seconds: secs + 2), () {
+                  if (state.isCountdown) {
+                    state = state.copyWith(
+                      status: RoomStatus.lobby,
+                      clearCountdownEndsAt: true,
+                    );
+                  }
+                });
+              }
               return;
             }
 
@@ -1013,6 +1240,7 @@ class RoomController extends StateNotifier<RoomState> {
   void _cleanup() {
     _stopHeartbeat();
     _stopAutoCloseTimer();
+    _stopCountdownTimer();
     _stopLobbyPoll();
     _channel?.unsubscribe();
     _channel = null;

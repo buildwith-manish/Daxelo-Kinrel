@@ -8,6 +8,9 @@
 //   • Captured pieces display + move history
 //   • Smooth piece-slide animation
 //   • Inline results view with confetti
+// Premium finish: wooden GameBoardShell table frame, directionally-lit
+// cream/brown squares, depth-shadowed glyphs, a pulsing danger glow on
+// the checked king's square, and physics GameConfetti for the winner.
 // Route: /family/$familyId/chess/board/:gameId
 
 import 'package:chess/chess.dart' as chess;
@@ -21,11 +24,21 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
-import '../game_motion_tokens.dart';
+import '../shared/icons/kinrel_icons.dart';
+import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
-import '../shared/widgets/leave_game_dialog.dart';
+import '../shared/widgets/game_board_shell.dart';
+import '../shared/widgets/game_confetti.dart';
 import 'chess_models.dart';
 import 'chess_provider.dart';
+import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
+
+/// Directionally-lit wooden squares (warm cream light / rich brown dark),
+/// lit from the top-left like a real table board.
+final List<BoxDecoration> _chessSquareShades = boardSquareShades(
+  lightSquare: const Color(0xFFC9B48F),
+  darkSquare: const Color(0xFF6B4A2F),
+);
 
 class ChessBoardScreen extends ConsumerStatefulWidget {
   const ChessBoardScreen({
@@ -41,6 +54,11 @@ class ChessBoardScreen extends ConsumerStatefulWidget {
 }
 
 class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
+  /// One-time guard for the waiting-room redirect: a 'waiting' game row
+  /// (Create Room flow — match not started yet) is owned by the LOBBY's
+  /// waiting room, not the board. Send the user there.
+  bool _didWaitingRedirect = false;
+
   @override
   void initState() {
     super.initState();
@@ -57,49 +75,35 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
     final state = ref.watch(chessProvider(widget.familyId));
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
 
-    if (state.isCompleted) {
-      return _resultsView(state, myId);
+    // Waiting room owns the pre-match phase — redirect once.
+    final waitingGameId =
+        state.isWaiting && state.game?.id != null ? state.game!.id : null;
+    if (waitingGameId != null && !_didWaitingRedirect) {
+      _didWaitingRedirect = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.pushReplacement(
+          '/family/${widget.familyId}/chess/lobby?join=$waitingGameId',
+        );
+      });
     }
 
-    return DKScaffold(
+    // Keep the room framework (host heartbeat + room realtime) alive for
+    // the whole lifetime of this screen — the challenge lobby that
+    // attached the RoomController is replaced by this route, and without
+    // a watch the autoDispose controller dies and the server-side reaper
+    // auto-closes the room ~60-75s into the game.
+    final Widget view = RoomKeepAlive(
+      roomKey: RoomControllerKey(RoomConfig.chess, widget.familyId),
+      child: DKScaffold(
       backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.close_rounded),
-          onPressed: () async {
-            // Show confirmation dialog before leaving — prevents
-            // accidental exits during a live game.
-            final state = ref.read(chessProvider(widget.familyId));
-            final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-            // Chess has no hostUserId column (Pattern A — 2-player direct
-            // challenge), so neither player's leave closes the room for
-            // others. The other player just sees the game end.
-            final shouldLeave = await LeaveGameDialog.show(
-              context,
-              isHost: false, // Pattern A — no host
-              gameName: 'Chess',
-            );
-            if (shouldLeave != true) return;
-            if (!context.mounted) return;
-            ref.read(chessProvider(widget.familyId).notifier).leaveGame();
-            // Eager end-game cleanup — deletes the game row so the
-            // opponent sees the game end immediately.
-            if (state.game?.id != null) {
-              ref.read(temporaryRoomServiceProvider).endGame(
-                    gameTable: 'chess_games',
-                    gameId: state.game!.id,
-                  );
-            }
-            // Mark the unused var as read — `myId` will be needed when
-            // chess eventually grows a hostUserId column.
-            // ignore: unused_local_variable
-            myId;
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/family/${widget.familyId}');
-            }
-          },
+          // Plain pop — the route-level onExit guard (app_router.dart)
+          // intercepts this while a game room is active and shows the
+          // confirmation dialog first.
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
         title: Text(
           'Chess',
@@ -120,16 +124,32 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
           : state.error != null && state.game == null
           ? DKErrorState(
               message: state.error!,
-              onRetry: () => ref
-                  .read(chessProvider(widget.familyId).notifier)
-                  .loadGame(widget.gameId),
+              // Room closed by the host → terminal state, offer a clean
+              // exit back to the games hub instead of a pointless retry.
+              actionLabel:
+                  state.error == kRoomClosedMessage ? 'Back to Games' : null,
+              icon: state.error == kRoomClosedMessage
+                  ? Icons.meeting_room_rounded
+                  : null,
+              onRetry: state.error == kRoomClosedMessage
+                  ? () => context.go('/games?familyId=${widget.familyId}')
+                  : () => ref
+                      .read(chessProvider(widget.familyId).notifier)
+                      .loadGame(widget.gameId),
             )
           : state.game == null
           ? const Center(
               child: CircularProgressIndicator(color: KinrelColors.orange),
             )
           : _gameView(state, myId),
+      ),
     );
+
+    // The completed-game results view doesn't need the room anymore.
+    if (state.isCompleted) {
+      return _resultsView(state, myId);
+    }
+    return view;
   }
 
   Widget _gameView(ChessState state, String? myId) {
@@ -142,14 +162,18 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
 
     // Parse the FEN to get the board
     final logic = chess.Chess.fromFEN(game.boardState);
-    // chess.dart 0.8.1 returns a flat List<Piece?> (64 elements)
-    // Convert to 2D List<List<Piece?>> for easier rendering
-    final flatBoard = logic.board as List;
+    // chess.dart 0.8.1 uses a 0x88 internal board: a FLAT List<Piece?> of
+    // 128 slots where each rank occupies 16 slots (8 playable + 8
+    // off-board). Indexing it as [row * 8 + col] only covered the first
+    // 64 slots — black pieces landed on wrong visual rows and the WHITE
+    // pieces (0x88 slots 96-119) were never read, rendering an army-less
+    // half board. Use the algebraic get(square) API instead, which maps
+    // square names ('a8' … 'h1') correctly for any internal layout.
     final board = List<List<chess.Piece?>>.generate(
       8,
       (row) => List<chess.Piece?>.generate(
         8,
-        (col) => flatBoard[row * 8 + col] as chess.Piece?,
+        (col) => logic.get('${'abcdefgh'[col]}${8 - row}'),
       ),
     );
 
@@ -362,14 +386,13 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
     final inCheck = state.inCheck;
     final currentTurnColor = game.currentTurnColor;
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.orange, width: 2),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(KinrelRadius.lg - 2),
-        child: GridView.builder(
+    // Premium wooden table frame — bevelled rim, grain, accent under-glow.
+    return GameBoardShell(
+      accent: KinrelColors.orange,
+      surface: BoardSurface.wood,
+      radius: 22,
+      padding: 8,
+      child: GridView.builder(
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 8,
@@ -424,7 +447,6 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
             );
           },
         ),
-      ),
     );
   }
 
@@ -440,31 +462,17 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
     required String squareName,
     required bool isMyTurn,
   }) {
-    // Original Kinrel board colors — not standard white/brown
+    // Directionally-lit wooden squares — warm cream / rich brown, lit
+    // from the top-left like a physical board. Selection, last-move and
+    // check overlays render as translucent layers on top so the wood
+    // lighting shows through.
     final isLightSquare = (row + col) % 2 == 0;
-    Color bgColor;
-    if (isLightSquare) {
-      bgColor = const Color(0xFF2A2A3D); // dark elevated
-    } else {
-      bgColor = const Color(0xFF13141E); // dark surface
-    }
-
-    // Highlight selected
-    if (isSelected) {
-      bgColor = KinrelColors.orange.withValues(alpha: 0.4);
-    }
-    // Highlight last move
-    else if (isLastMoveTo) {
-      bgColor = KinrelColors.success.withValues(alpha: 0.2);
-    } else if (isLastMoveFrom) {
-      bgColor = KinrelColors.success.withValues(alpha: 0.1);
-    }
+    final squareShade = _chessSquareShades[isLightSquare ? 0 : 1];
 
     return GestureDetector(
       onTap: () => _onCellTap(squareName, isMyTurn),
       child: Container(
-        decoration: BoxDecoration(
-          color: bgColor,
+        decoration: squareShade.copyWith(
           border: Border.all(
             color: isSelected
                 ? KinrelColors.orange
@@ -476,6 +484,51 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
         ),
         child: Stack(
           children: [
+            // Selection tint over the lit wood.
+            if (isSelected)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: KinrelColors.orange.withValues(alpha: 0.4),
+                ),
+              ),
+            // Last-move tints.
+            if (!isSelected && isLastMoveTo)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: KinrelColors.success.withValues(alpha: 0.2),
+                ),
+              ),
+            if (!isSelected && isLastMoveFrom)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: KinrelColors.success.withValues(alpha: 0.1),
+                ),
+              ),
+            // Checked king's square — pulsing danger glow.
+            if (isKingInCheck)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(
+                        color: KinrelColors.error.withValues(alpha: 0.9),
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: KinrelColors.error.withValues(alpha: 0.55),
+                          blurRadius: 10,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  )
+                      .animate(onPlay: (c) => c.repeat(reverse: true))
+                      .fadeIn(duration: 600.ms, curve: Curves.easeInOut)
+                      .fadeOut(duration: 600.ms, curve: Curves.easeInOut),
+                ),
+              ),
             // Legal destination dot
             if (isLegalDest && piece == null)
               Center(
@@ -508,8 +561,17 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
         ),
       ),
     )
+        // NOTE: every other board uses .scale() here. fadeIn() parked the
+        // cells at opacity 0 whenever they weren't the last-move square —
+        // the entire board rendered invisible. Match the other boards'
+        // pop-in pattern (last-move square scales in from 0.92).
         .animate(target: isLastMoveTo ? 1 : 0)
-        .fadeIn(duration: 200.ms);
+        .scale(
+          begin: const Offset(0.92, 0.92),
+          end: const Offset(1.0, 1.0),
+          duration: 200.ms,
+          curve: Curves.easeOut,
+        );
   }
 
   /// Original piece rendering — Unicode chess glyphs styled with
@@ -540,11 +602,12 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
         style: TextStyle(
           fontSize: 28,
           color: isWhite ? KinrelColors.amber : const Color(0xFF94A3B8),
+          // Soft drop shadow so the glyph "sits" on the board.
           shadows: [
             Shadow(
-              color: Colors.black.withValues(alpha: 0.5),
-              offset: const Offset(1, 1),
-              blurRadius: 2,
+              color: Colors.black.withValues(alpha: 0.55),
+              blurRadius: 3,
+              offset: const Offset(0, 1.5),
             ),
           ],
         ),
@@ -553,42 +616,49 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
   }
 
   /// Unicode chess piece glyphs.
+  ///
+  /// NOTE: we deliberately use the SOLID glyphs (♚♛♜♝♞♟, U+265A–265F) for
+  /// BOTH colors — the two sides are distinguished by the glyph COLOR
+  /// (white = amber, black = slate), not by different characters. The
+  /// outline "white" glyphs (♔♕♖♗♘♙, U+2654–2659) are missing from every
+  /// bundled app font (Outfit / DMSans / NotoSans) AND from the browser
+  /// fallback on some platforms, so they rendered as tofu — the entire
+  /// white army was invisible. The solid glyphs are universally present.
   String _pieceUnicode(chess.Piece piece) {
-    // White pieces (uppercase): ♔♕♖♗♘♙
-    // Black pieces (lowercase): ♚♛♜♝♞♟
     switch (piece.type) {
       case chess.PieceType.KING:
-        return piece.color == chess.Color.WHITE ? '♔' : '♚';
+        return '♚';
       case chess.PieceType.QUEEN:
-        return piece.color == chess.Color.WHITE ? '♕' : '♛';
+        return '♛';
       case chess.PieceType.ROOK:
-        return piece.color == chess.Color.WHITE ? '♖' : '♜';
+        return '♜';
       case chess.PieceType.BISHOP:
-        return piece.color == chess.Color.WHITE ? '♗' : '♝';
+        return '♝';
       case chess.PieceType.KNIGHT:
-        return piece.color == chess.Color.WHITE ? '♘' : '♞';
+        return '♞';
       case chess.PieceType.PAWN:
-        return piece.color == chess.Color.WHITE ? '♙' : '♟';
+        return '♟';
       default:
         return '?';
     }
   }
 
   /// Get the glyph for a piece letter (for captured pieces display).
+  /// Same solid-glyph rule as [_pieceUnicode] — color differentiates sides.
   String _pieceGlyph(String letter, bool isWhite) {
     switch (letter.toUpperCase()) {
       case 'K':
-        return isWhite ? '♔' : '♚';
+        return '♚';
       case 'Q':
-        return isWhite ? '♕' : '♛';
+        return '♛';
       case 'R':
-        return isWhite ? '♖' : '♜';
+        return '♜';
       case 'B':
-        return isWhite ? '♗' : '♝';
+        return '♝';
       case 'N':
-        return isWhite ? '♘' : '♞';
+        return '♞';
       case 'P':
-        return isWhite ? '♙' : '♟';
+        return '♟';
       default:
         return '?';
     }
@@ -686,104 +756,123 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(KinrelSpacing.base),
+      body: Stack(
         children: [
-          const SizedBox(height: KinrelSpacing.lg),
-          Column(
+          ListView(
+            padding: const EdgeInsets.all(KinrelSpacing.base),
             children: [
-              Text(
-                isDraw ? '🤝' : '🏆',
-                style: TextStyle(fontSize: 64),
+              const SizedBox(height: KinrelSpacing.lg),
+              Column(
+                children: [
+                  KinrelIcon(
+                    isDraw
+                        ? KinrelIconData.handshake
+                        : KinrelIconData.trophy,
+                    size: 64,
+                    color: isDraw ? KinrelColors.gold : KinrelColors.orange,
+                  )
+                      .animate(onPlay: (c) => c.forward())
+                      .fadeIn(duration: 500.ms)
+                      .scale(
+                        begin: const Offset(0.5, 0.5),
+                        end: const Offset(1.0, 1.0),
+                        duration: 500.ms,
+                        curve: Curves.elasticOut,
+                      ),
+                  const SizedBox(height: KinrelSpacing.sm),
+                  Text(
+                    isDraw
+                        ? (game.result == ChessResult.stalemate
+                              ? 'Stalemate — Draw!'
+                              : 'Draw!')
+                        : (isWinner ? 'Checkmate — You Won!' : 'Checkmate!'),
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: KinrelColors.textWhite,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  if (!isDraw) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      isWinner ? '$winnerName (You)' : winnerName,
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: KinrelColors.orange,
+                      ),
+                    ),
+                  ],
+                ],
               )
-                  .animate(onPlay: (c) => c.forward())
-                  .fadeIn(duration: 500.ms)
+                  .animate()
+                  .fadeIn(duration: 400.ms)
                   .scale(
-                    begin: const Offset(0.5, 0.5),
+                    begin: const Offset(0.92, 0.92),
                     end: const Offset(1.0, 1.0),
-                    duration: 500.ms,
-                    curve: Curves.elasticOut,
+                    duration: 400.ms,
+                    curve: Curves.easeOutBack,
                   ),
+              MatchEcosystemSummary(
+                gameTable: 'chess_games',
+                gameId: game.id,
+                familyId: widget.familyId,
+              ),
+              const SizedBox(height: KinrelSpacing.xxl),
+              DKButton(
+                label: 'Play Again',
+                variant: DKButtonVariant.gradient,
+                fullWidth: true,
+                icon: Icons.refresh_rounded,
+                onPressed: () {
+                  final gameId = ref.read(chessProvider(widget.familyId)).game?.id;
+                  ref.read(chessProvider(widget.familyId).notifier).leaveGame();
+                  // Eager end-game cleanup (safety-net Timer also fires 30s
+                  // after the game completed in the provider).
+                  if (gameId != null) {
+                    ref.read(temporaryRoomServiceProvider).endGame(
+                          gameTable: 'chess_games',
+                          gameId: gameId,
+                        );
+                  }
+                  if (context.mounted) {
+                    context.pushReplacement(
+                      '/family/${widget.familyId}/chess/lobby',
+                    );
+                  }
+                },
+              ),
               const SizedBox(height: KinrelSpacing.sm),
-              Text(
-                isDraw
-                    ? (game.result == ChessResult.stalemate
-                          ? 'Stalemate — Draw!'
-                          : 'Draw!')
-                    : (isWinner ? 'Checkmate — You Won!' : 'Checkmate!'),
-                style: TextStyle(
-                  fontFamily: KinrelTypography.displayFont,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  color: KinrelColors.textWhite,
-                  letterSpacing: 2,
-                ),
+              DKButton(
+                label: 'Back to Hub',
+                variant: DKButtonVariant.secondary,
+                fullWidth: true,
+                onPressed: () {
+                  final gameId = ref.read(chessProvider(widget.familyId)).game?.id;
+                  ref.read(chessProvider(widget.familyId).notifier).leaveGame();
+                  if (gameId != null) {
+                    ref.read(temporaryRoomServiceProvider).endGame(
+                          gameTable: 'chess_games',
+                          gameId: gameId,
+                        );
+                  }
+                  if (context.mounted) {
+                    context.go('/games?familyId=${widget.familyId}');
+                  }
+                },
               ),
-              if (!isDraw) ...[
-                const SizedBox(height: 4),
-                Text(
-                  isWinner ? '$winnerName (You)' : winnerName,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    color: KinrelColors.orange,
-                  ),
-                ),
-              ],
             ],
-          )
-              .animate()
-              .fadeIn(duration: 400.ms)
-              .scale(
-                begin: const Offset(0.92, 0.92),
-                end: const Offset(1.0, 1.0),
-                duration: 400.ms,
-                curve: Curves.easeOutBack,
+          ),
+          // Confetti for the winner — no confetti on stalemate/draw.
+          if (!isDraw)
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: GameConfetti(burstCount: 2, density: 2),
               ),
-          const SizedBox(height: KinrelSpacing.xxl),
-          DKButton(
-            label: 'Play Again',
-            variant: DKButtonVariant.gradient,
-            fullWidth: true,
-            icon: Icons.refresh_rounded,
-            onPressed: () {
-              final gameId = ref.read(chessProvider(widget.familyId)).game?.id;
-              ref.read(chessProvider(widget.familyId).notifier).leaveGame();
-              // Eager end-game cleanup (safety-net Timer also fires 30s
-              // after the game completed in the provider).
-              if (gameId != null) {
-                ref.read(temporaryRoomServiceProvider).endGame(
-                      gameTable: 'chess_games',
-                      gameId: gameId,
-                    );
-              }
-              if (context.mounted) {
-                context.pushReplacement(
-                  '/family/${widget.familyId}/chess/lobby',
-                );
-              }
-            },
-          ),
-          const SizedBox(height: KinrelSpacing.sm),
-          DKButton(
-            label: 'Back to Hub',
-            variant: DKButtonVariant.secondary,
-            fullWidth: true,
-            onPressed: () {
-              final gameId = ref.read(chessProvider(widget.familyId)).game?.id;
-              ref.read(chessProvider(widget.familyId).notifier).leaveGame();
-              if (gameId != null) {
-                ref.read(temporaryRoomServiceProvider).endGame(
-                      gameTable: 'chess_games',
-                      gameId: gameId,
-                    );
-              }
-              if (context.mounted) {
-                context.go('/games?familyId=${widget.familyId}');
-              }
-            },
-          ),
+            ),
         ],
       ),
     );

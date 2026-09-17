@@ -98,12 +98,20 @@ class ChessGame {
     this.startedAt,
     this.completedAt,
     required this.createdAt,
+    this.hostUserId,
+    this.hostUserName,
+    this.spectatorsEnabled = true,
+    this.autoCloseDeadline,
   });
 
   final String id;
   final String familyId;
   final String playerWhiteId;
   final String playerWhiteName;
+
+  /// Black's user id — EMPTY while the room is waiting for an opponent
+  /// to join (Create Room flow: the host creates the room first, the
+  /// first family member to join takes this slot).
   final String playerBlackId;
   final String playerBlackName;
   final ChessColor currentTurnColor;
@@ -116,6 +124,14 @@ class ChessGame {
   final DateTime? startedAt;
   final DateTime? completedAt;
   final DateTime createdAt;
+
+  /// Room-framework columns (Create Room flow). The host is the room
+  /// creator; the room auto-closes when autoCloseDeadline passes with
+  /// no activity while waiting.
+  final String? hostUserId;
+  final String? hostUserName;
+  final bool spectatorsEnabled;
+  final DateTime? autoCloseDeadline;
 
   factory ChessGame.fromJson(Map<String, dynamic> json) => ChessGame(
     id: json['id'] ?? '',
@@ -141,11 +157,23 @@ class ChessGame {
         : null,
     createdAt:
         DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
+    hostUserId: json['hostUserId'],
+    hostUserName: json['hostUserName'],
+    spectatorsEnabled: json['spectatorsEnabled'] == null
+        ? true
+        : json['spectatorsEnabled'] == true,
+    autoCloseDeadline: json['autoCloseDeadline'] is String
+        ? DateTime.tryParse(json['autoCloseDeadline'] as String)
+        : null,
   );
 
   bool get isWaiting => status == ChessStatus.waiting;
   bool get isInProgress => status == ChessStatus.inProgress;
   bool get isCompleted => status == ChessStatus.completed;
+
+  /// True while the room is still waiting for an opponent to join
+  /// (Create Room flow — Black's slot is empty).
+  bool get needsOpponent => playerBlackId.isEmpty;
 
   /// Which player ID is the given color?
   String? playerIdForColor(ChessColor color) {

@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
+import '../shared/data/game_invite_chat_sync.dart';
+import '../shared/services/room_presence_heartbeat.dart';
 import '../shared/services/temporary_room_service.dart';
 import 'tictactoe_game_logic.dart';
 import 'tictactoe_models.dart';
@@ -35,25 +37,169 @@ class TttNotifier extends StateNotifier<TttState> {
   String get _myName => _client?.auth.currentUser?.userMetadata?['name'] as String? ?? 'Player';
   RealtimeChannel? _channel; String? _gameId;
 
-  Future<String?> createGame({required String opponentId, required String opponentName, int bestOf = 1}) async {
+  /// DB presence heartbeat — keeps the players' game_participants rows
+  /// fresh so the disconnect reaper never hard-deletes a live room.
+  RoomPresenceHeartbeat? _heartbeat;
+
+  /// Host: create a new room (Create Room flow).
+  ///
+  /// The room is created immediately with ONLY the host attached (X)
+  /// and status 'waiting' — no opponent is picked up front. The first
+  /// family member to join takes O automatically via [joinRoom].
+  Future<String?> createRoom({required bool spectatorsEnabled, int bestOf = 1}) async {
     final client = _client; final myId = _myId;
     if (client == null || myId == null) { state = state.copyWith(error: 'Not signed in'); return null; }
     state = state.copyWith(isLoading: true, clearError: true);
     try {
+      final deadline = DateTime.now().add(const Duration(minutes: 5));
       final resp = await client.from('tictactoe_games').insert({
-        'familyId': familyId, 'playerXId': myId, 'playerXName': _myName, 'playerOId': opponentId, 'playerOName': opponentName,
+        'familyId': familyId, 'hostUserId': myId, 'hostUserName': _myName,
+        'playerXId': myId, 'playerXName': _myName,
+        // playerOId stays NULL until an opponent joins the room.
         'currentTurnPlayerId': myId, 'bestOf': bestOf, 'roundsWonX': 0, 'roundsWonO': 0, 'currentRound': 1,
-        'status': 'in_progress', 'startedAt': DateTime.now().toIso8601String(),
+        'status': 'waiting',
+        'spectatorsEnabled': spectatorsEnabled, 'hostReady': true,
+        'autoCloseDeadline': deadline.toIso8601String(),
       }).select().single();
       final game = TttGame.fromJson(resp as Map<String, dynamic>);
       _gameId = game.id;
-      // Create round 1
+      // Create round 1 (kept empty while the room waits for a joiner).
       await client.from('tictactoe_rounds').insert({'gameId': game.id, 'roundNumber': 1, 'boardState': createEmptyBoard()});
+
+      // Register the host in the shared room bookkeeping (roster +
+      // 'join' lobby event + ecosystem archive).
+      await client.rpc('fn_record_room_join', params: {
+        'p_game_table': 'tictactoe_games',
+        'p_game_id': game.id,
+        'p_family_id': familyId,
+        'p_user_id': myId,
+        'p_user_name': _myName,
+        'p_role': 'host',
+      });
+
       state = state.copyWith(game: game, isLoading: false);
       _subscribeToRealtime(game.id);
       await _refreshRounds(game.id);
       return game.id;
-    } catch (e) { debugPrint('[TTT] createGame error: $e'); state = state.copyWith(isLoading: false, error: '$e'); return null; }
+    } catch (e) { debugPrint('[TTT] createRoom error: $e'); state = state.copyWith(isLoading: false, error: '$e'); return null; }
+  }
+
+  /// Non-host: join an existing room.
+  ///
+  /// • Room closed / deleted → friendly error (create a new room).
+  /// • Waiting + O's slot free → take it (first member to join wins
+  ///   the slot — no manual side picking).
+  /// • Waiting + slot taken → 'Game is full' (1v1).
+  /// • Match already running → spectate read-only.
+  Future<bool> joinRoom(String gameId) async {
+    final client = _client; final myId = _myId;
+    if (client == null || myId == null) { state = state.copyWith(error: 'Not signed in'); return false; }
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      var gameResp = await client.from('tictactoe_games').select().eq('id', gameId).maybeSingle();
+      if (isRoomRowClosed(gameResp)) { state = state.copyWith(isLoading: false, error: kRoomClosedMessage); return false; }
+      var game = TttGame.fromJson(gameResp as Map<String, dynamic>);
+      _gameId = gameId;
+
+      final alreadyPlayer = game.playerXId == myId || game.playerOId == myId;
+
+      if (!alreadyPlayer) {
+        if (game.isWaiting) {
+          if (game.needsOpponent) {
+            // Take the opponent slot.
+            await client.from('tictactoe_games').update({
+              'playerOId': myId, 'playerOName': _myName,
+            }).eq('id', gameId);
+            await client.rpc('fn_record_room_join', params: {
+              'p_game_table': 'tictactoe_games',
+              'p_game_id': gameId,
+              'p_family_id': familyId,
+              'p_user_id': myId,
+              'p_user_name': _myName,
+              'p_role': 'player',
+            });
+            await _ref.read(temporaryRoomServiceProvider).touchActivity(
+                  gameTable: 'tictactoe_games', gameId: gameId);
+            // Re-fetch so the local state carries the filled slot.
+            gameResp = await client.from('tictactoe_games').select().eq('id', gameId).maybeSingle();
+            if (gameResp != null) { game = TttGame.fromJson(gameResp); }
+          } else {
+            state = state.copyWith(isLoading: false, error: 'Game is full');
+            return false;
+          }
+        } else if (game.isInProgress) {
+          // Match already running — watch from the sidelines.
+          await client.rpc('fn_spectate_game', params: {
+            'p_game_table': 'tictactoe_games',
+            'p_game_id': gameId,
+            'p_family_id': familyId,
+            'p_user_id': myId,
+            'p_user_name': _myName,
+          });
+        }
+      }
+
+      state = state.copyWith(game: game, isLoading: false);
+      _subscribeToRealtime(gameId);
+      await _refreshRounds(gameId);
+      // Keep the persistent game-invite chat card in sync. Best-effort.
+      final playerCount = 1 + (game.needsOpponent ? 0 : 1);
+      unawaited(syncGameInviteChatCards(client: client, gameId: gameId, currentPlayers: playerCount));
+      return true;
+    } catch (e) { debugPrint('[TTT] joinRoom error: $e'); state = state.copyWith(isLoading: false, error: '$e'); return false; }
+  }
+
+  /// Host: start the match from the waiting room. Returns a
+  /// user-readable error message, or null on success.
+  Future<String?> startMatch() async {
+    final client = _client; final gameId = _gameId; final game = state.game; final myId = _myId;
+    if (client == null || gameId == null || game == null) return 'No active room';
+    if (game.hostUserId != null && game.hostUserId != myId) return 'Only the host can start';
+    if (game.needsOpponent) return 'Waiting for an opponent to join';
+    try {
+      await client.from('tictactoe_games').update({
+        'status': 'in_progress', 'startedAt': DateTime.now().toIso8601String(),
+      }).eq('id', gameId);
+      // Lobby chat log entry — same event the room framework posts.
+      try {
+        await client.from('game_room_events').insert({
+          'gameTable': 'tictactoe_games', 'gameId': gameId, 'familyId': familyId,
+          'userId': myId, 'userName': _myName, 'eventType': 'match_start', 'payload': {},
+        });
+      } catch (_) {}
+      return null;
+    } catch (e) { debugPrint('[TTT] startMatch error: $e'); return 'Could not start the match'; }
+  }
+
+  /// Leave the waiting room. Host → the room is closed and deleted for
+  /// everyone; guest → their slot is freed for another family member.
+  Future<void> leaveRoom() async {
+    final client = _client; final gameId = _gameId; final myId = _myId; final game = state.game;
+    if (client == null || gameId == null || myId == null) { _reset(); return; }
+    try {
+      if (game != null && game.isWaiting) {
+        if (game.hostUserId == myId) {
+          await _ref.read(temporaryRoomServiceProvider).cancelWaitingRoom(
+                gameTable: 'tictactoe_games', gameId: gameId);
+        } else {
+          await client.rpc('fn_leave_game_room', params: {
+            'p_game_table': 'tictactoe_games', 'p_game_id': gameId, 'p_user_id': myId,
+          });
+        }
+      }
+    } catch (_) {}
+    _reset();
+  }
+
+  /// Drop all local room state (after leave/close) so the lobby falls
+  /// back to the fresh setup screen — a closed room can never reappear.
+  void _reset() {
+    _channel?.unsubscribe();
+    _channel = null;
+    _heartbeat?.stop();
+    _heartbeat = null;
+    _gameId = null;
+    state = const TttState();
   }
 
   Future<bool> loadGame(String gameId) async {
@@ -61,7 +207,11 @@ class TttNotifier extends StateNotifier<TttState> {
     if (client == null) { state = state.copyWith(error: 'Not signed in'); return false; }
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final gameResp = await client.from('tictactoe_games').select().eq('id', gameId).single();
+      // maybeSingle → a deleted (closed) room returns null instead of
+      // throwing, so we can show a friendly "room closed" message and
+      // send the user back to create a new room.
+      final gameResp = await client.from('tictactoe_games').select().eq('id', gameId).maybeSingle();
+      if (isRoomRowClosed(gameResp)) { state = const TttState(error: kRoomClosedMessage); return false; }
       final game = TttGame.fromJson(gameResp as Map<String, dynamic>);
       _gameId = gameId;
       final roundsResp = await client.from('tictactoe_rounds').select().eq('gameId', gameId).order('roundNumber', ascending: true);
@@ -150,7 +300,7 @@ class TttNotifier extends StateNotifier<TttState> {
     } catch (e) { debugPrint('[TTT] placeMark error: $e'); state = state.copyWith(isSubmitting: false, error: '$e'); return false; }
   }
 
-  void leaveGame() { _channel?.unsubscribe(); _channel = null; _gameId = null; }
+  void leaveGame() { _channel?.unsubscribe(); _channel = null; _heartbeat?.stop(); _heartbeat = null; _gameId = null; }
 
   /// Schedule the temporary room (and all temporary player associations)
   /// for deletion 30s after the game ends. The hourly pg_cron job is the
@@ -167,10 +317,30 @@ class TttNotifier extends StateNotifier<TttState> {
   void _subscribeToRealtime(String gameId) {
     _channel?.unsubscribe();
     final client = _client; if (client == null) return;
+    // Keep the participant row fresh while this screen owns the room.
+    final hbId = _myId;
+    if (hbId != null) {
+      _heartbeat?.stop();
+      _heartbeat = RoomPresenceHeartbeat('tictactoe_games')..start(client, gameId, hbId);
+    }
     _channel = client.channel('ttt_game:$gameId')
       .onPostgresChanges(event: PostgresChangeEvent.update, schema: 'public', table: 'tictactoe_games',
         filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'id', value: gameId),
         callback: (payload) { final updated = TttGame.fromJson(payload.newRecord); if (updated.isCompleted) GameMotionTokens.celebrate(); state = state.copyWith(game: updated); })
+      // ── Game row DELETE = the room was closed by the host (or the
+      //    opponent left) → fn_end_game hard-deleted it. Show a friendly
+      //    "room closed" state instead of hanging on a dead board.
+      .onPostgresChanges(event: PostgresChangeEvent.delete, schema: 'public', table: 'tictactoe_games',
+        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'id', value: gameId),
+        callback: (payload) {
+          debugPrint('[TTT] game row deleted — room closed');
+          _channel?.unsubscribe(); _channel = null; _gameId = null;
+          // Completed games are archived + deleted server-side right
+          // after the results screen renders — keep the in-memory
+          // state so the results view survives the cleanup delete.
+          if (state.game?.isCompleted ?? false) return;
+          state = const TttState(error: kRoomClosedMessage);
+        })
       .onPostgresChanges(event: PostgresChangeEvent.update, schema: 'public', table: 'tictactoe_rounds',
         filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'gameId', value: gameId),
         callback: (payload) async {
@@ -208,7 +378,7 @@ class TttNotifier extends StateNotifier<TttState> {
   }
 
   @override
-  void dispose() { _channel?.unsubscribe(); super.dispose(); }
+  void dispose() { _channel?.unsubscribe(); _heartbeat?.stop(); super.dispose(); }
 }
 
 final tttProvider = StateNotifierProvider.autoDispose.family<TttNotifier, TttState, String>((ref, familyId) => TttNotifier(ref, familyId));

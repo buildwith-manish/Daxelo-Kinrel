@@ -206,11 +206,19 @@ class AntakshariNotifier extends StateNotifier<AntakshariState> {
     }
     state = state.copyWith(isLoading: true, clearError: true);
     try {
+      // Closed / deleted room → friendly error, prompt a new room.
       final gameResp = await client
           .from('antakshari_games')
           .select()
           .eq('id', gameId)
-          .single();
+          .maybeSingle();
+      if (isRoomRowClosed(gameResp)) {
+        state = state.copyWith(
+          isLoading: false,
+          error: kRoomClosedMessage,
+        );
+        return false;
+      }
       final game = AntakshariGame.fromJson(
         gameResp as Map<String, dynamic>,
       );

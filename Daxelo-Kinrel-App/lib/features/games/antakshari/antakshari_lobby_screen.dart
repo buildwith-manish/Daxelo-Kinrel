@@ -5,6 +5,8 @@
 //
 // This screen orchestrates two phases:
 //   1. Setup view — host picks game mode, max players, timer, etc.
+//      (shared LobbySetupScreen: hero + modes + sliders + spectator +
+//      collapsible How to Play + pinned Create Game CTA).
 //   2. Lobby view — uses the shared `TemporaryLobbyView` widget to
 //      prioritize players / ready / Start Match over the room code.
 //
@@ -25,11 +27,11 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
-import '../shared/widgets/lobby_chat_panel.dart';
-import '../shared/widgets/pending_invites_section.dart';
+import '../shared/widgets/lobby_join_handler.dart';
+import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
+import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
-import '../shared/widgets/spectator_toggle.dart';
 import 'antakshari_models.dart';
 import 'antakshari_provider.dart';
 
@@ -55,10 +57,12 @@ class _AntakshariLobbyScreenState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final joinId = GoRouterState.of(context).uri.queryParameters['join'];
-      if (joinId != null && joinId.isNotEmpty) {
-        ref.read(antakshariProvider(widget.familyId).notifier).joinGame(joinId);
-      }
+      joinRoomWhenReady(
+        context: context,
+        ref: ref,
+        onJoin: (id) =>
+            ref.read(antakshariProvider(widget.familyId).notifier).joinGame(id),
+      );
     });
   }
 
@@ -142,9 +146,6 @@ class _AntakshariLobbyScreenState
     final notifier = ref.read(antakshariProvider(widget.familyId).notifier);
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     final isHost = state.game?.hostUserId == myId || state.game == null;
-    final canStart = state.game == null
-        ? true
-        : (isHost && state.players.length >= 2);
 
     // Auto-navigate to game screen when game starts
     ref.listen<AntakshariState>(antakshariProvider(widget.familyId),
@@ -166,19 +167,21 @@ class _AntakshariLobbyScreenState
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (state.game != null) notifier.leaveGame();
-            if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); }
-          },
+          // Plain pop — the route-level onExit guard (app_router.dart)
+          // intercepts this while a room is active and shows the
+          // confirmation dialog first.
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/family/${widget.familyId}'); } },
         ),
-        title: Text(
-          'Antakshari',
-          style: TextStyle(
-            fontFamily: KinrelTypography.displayFont,
-            fontWeight: FontWeight.w600,
-            color: KinrelColors.textWhite,
-          ),
-        ),
+        title: hasGame
+            ? Text(
+                'Antakshari',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.displayFont,
+                  fontWeight: FontWeight.w600,
+                  color: KinrelColors.textWhite,
+                ),
+              )
+            : null,
         backgroundColor: KinrelColors.darkCard,
         foregroundColor: KinrelColors.textWhite,
         elevation: 0,
@@ -220,59 +223,104 @@ class _AntakshariLobbyScreenState
           : state.error != null && !hasGame
           ? DKErrorState(
               message: state.error!,
+              // Closed room → the button creates a NEW room (per spec the
+              // closed one is deleted and must never reappear).
+              actionLabel:
+                  state.error == kRoomClosedMessage ? 'Create New Room' : null,
+              icon: state.error == kRoomClosedMessage
+                  ? Icons.meeting_room_rounded
+                  : null,
               onRetry: _createGame,
             )
           : hasGame
-              ? _lobbyView(state, notifier, isHost, canStart)
+              ? _lobbyView(state, notifier, isHost)
               : _setupView(state),
     );
   }
 
   Widget _setupView(AntakshariState state) {
-    return ListView(
-      padding: const EdgeInsets.all(KinrelSpacing.base),
-      children: [
-        _sectionLabel('Game Mode'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _modeSelector(),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        _sectionLabel('Max Players'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _maxPlayersSelector(),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        _sectionLabel('Turn Timer: ${_turnTimer}s'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _turnTimerSlider(),
-        const SizedBox(height: KinrelSpacing.lg),
-
-        if (_mode == AntakshariGameMode.roundLimited) ...[
-          _sectionLabel('Round Limit: $_roundLimit'),
-          const SizedBox(height: KinrelSpacing.sm),
-          _roundLimitSlider(),
-          const SizedBox(height: KinrelSpacing.lg),
-        ],
-
-        // Rules card
-        _sectionLabel('How to Play'),
-        const SizedBox(height: KinrelSpacing.sm),
-        _rulesCard(),
-        const SizedBox(height: KinrelSpacing.xl),
-
-        SpectatorToggle(
-          value: _spectatorsEnabled,
-          onChanged: (v) => setState(() => _spectatorsEnabled = v),
-        ),
-        const SizedBox(height: KinrelSpacing.md),
-        DKButton(
-          label: 'Create Game',
-          variant: DKButtonVariant.gradient,
-          fullWidth: true,
-          isLoading: _creating,
-          onPressed: _createGame,
-        ),
+    return LobbySetupScreen(
+      gameId: 'antakshari',
+      title: 'Antakshari',
+      tagline: 'Sing, connect the letters, keep the chain alive',
+      facts: [
+        LobbyFact(icon: Icons.groups_outlined, label: 'Up to $_maxPlayers'),
+        LobbyFact(
+            icon: Icons.timer_outlined, label: '$_turnTimer${_mode == AntakshariGameMode.roundLimited ? 's · $_roundLimit rounds' : 's turns'}'),
       ],
+      settings: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LobbySection(
+            label: 'Game Mode',
+            child: LobbyChoiceGrid<AntakshariGameMode>(
+              options: [
+                LobbyOption(
+                  value: AntakshariGameMode.standard,
+                  label: 'Standard',
+                  icon: Icons.person_outline,
+                  caption: 'Last player standing wins',
+                ),
+                LobbyOption(
+                  value: AntakshariGameMode.roundLimited,
+                  label: 'Round Limited',
+                  icon: Icons.groups_outlined,
+                  caption: 'Survivors after N rounds win jointly',
+                ),
+              ],
+              selected: _mode,
+              onSelect: (m) => setState(() => _mode = m),
+            ),
+          ),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbySection(
+            label: 'Max Players',
+            child: LobbyNumberRow(
+              numbers: const [6, 8, 12, 16, 20],
+              selected: _maxPlayers,
+              onSelect: (n) => setState(() => _maxPlayers = n),
+            ),
+          ),
+          const SizedBox(height: KinrelSpacing.md),
+          LobbySliderRow(
+            label: 'Turn Timer',
+            valueLabel: '$_turnTimer s',
+            value: _turnTimer,
+            min: 15,
+            max: 60,
+            divisions: 9,
+            onChanged: (v) => setState(() => _turnTimer = v),
+          ),
+          if (_mode == AntakshariGameMode.roundLimited) ...[
+            const SizedBox(height: KinrelSpacing.sm),
+            LobbySliderRow(
+              label: 'Round Limit',
+              valueLabel: '$_roundLimit rounds',
+              value: _roundLimit,
+              min: 3,
+              max: 10,
+              divisions: 7,
+              onChanged: (v) => setState(() => _roundLimit = v),
+            ),
+          ],
+        ],
+      ),
+      rules: [
+        const LobbyRule('Players take turns singing a song line via voice/video call.'),
+        const LobbyRule('Your song must start with the last letter of the previous player\'s song.'),
+        const LobbyRule('After singing, type the letter your song ended on.'),
+        const LobbyRule('Others can Challenge — 3+ challenges in 10s = you\'re out.'),
+        LobbyRule('Don\'t sing in $_turnTimer s = eliminated.'),
+      ],
+      rulesFootnote: _mode == AntakshariGameMode.standard
+          ? 'Standard: last player standing wins.'
+          : 'Round-limited: all survivors after $_roundLimit rounds win jointly.',
+      spectatorsEnabled: _spectatorsEnabled,
+      onSpectatorsChanged: (v) => setState(() => _spectatorsEnabled = v),
+      ctaLabel: 'Create Game',
+      ctaHint: 'Up to ${_maxPlayers - 1} family members can join',
+      ctaLoading: _creating,
+      onCtaPressed: _createGame,
     );
   }
 
@@ -280,7 +328,6 @@ class _AntakshariLobbyScreenState
     AntakshariState state,
     AntakshariNotifier notifier,
     bool isHost,
-    bool canStart,
   ) {
     final game = state.game!;
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
@@ -347,228 +394,7 @@ class _AntakshariLobbyScreenState
                 );
               }
             : null,
-        footer: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            PendingInvitesSection(gameId: game.id),
-            const SizedBox(height: KinrelSpacing.md),
-            LobbyChatPanel(
-              gameTable: 'antakshari_games',
-              gameId: game.id,
-              familyId: widget.familyId,
-            ),
-          ],
-        ),
     ),
-    );
-  }
-
-  Widget _sectionLabel(String text) => Text(
-    text,
-    style: TextStyle(
-      fontFamily: KinrelTypography.displayFont,
-      fontSize: 13,
-      fontWeight: FontWeight.w600,
-      color: KinrelColors.textDim,
-      letterSpacing: 0.5,
-    ),
-  );
-
-  Widget _modeSelector() {
-    return Wrap(
-      spacing: KinrelSpacing.sm,
-      runSpacing: KinrelSpacing.sm,
-      children: AntakshariGameMode.values.map((m) {
-        final selected = m == _mode;
-        return GestureDetector(
-          onTap: () {
-            GameMotionTokens.tap();
-            setState(() => _mode = m);
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-              vertical: KinrelSpacing.sm,
-              horizontal: KinrelSpacing.md,
-            ),
-            decoration: BoxDecoration(
-              color: KinrelColors.darkCard,
-              borderRadius: BorderRadius.circular(KinrelRadius.lg),
-              border: Border.all(
-                color: selected ? KinrelColors.orange : KinrelColors.border,
-                width: selected ? 2 : 1,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      m == AntakshariGameMode.standard
-                          ? Icons.person_outline
-                          : Icons.groups_outlined,
-                      size: 18,
-                      color: selected
-                          ? KinrelColors.orange
-                          : KinrelColors.textDim,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      m.label,
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 13,
-                        color: selected
-                            ? KinrelColors.textWhite
-                            : KinrelColors.textDim,
-                        fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  m.description,
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.bodyFont,
-                    fontSize: 10,
-                    color: KinrelColors.textDim,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _maxPlayersSelector() {
-    return Wrap(
-      spacing: KinrelSpacing.sm,
-      runSpacing: KinrelSpacing.sm,
-      children: [6, 8, 12, 16, 20].map((n) {
-        final selected = n == _maxPlayers;
-        return GestureDetector(
-          onTap: () {
-            GameMotionTokens.tap();
-            setState(() => _maxPlayers = n);
-          },
-          child: Container(
-            width: 50,
-            padding: const EdgeInsets.symmetric(vertical: KinrelSpacing.sm),
-            decoration: BoxDecoration(
-              color: KinrelColors.darkCard,
-              borderRadius: BorderRadius.circular(KinrelRadius.md),
-              border: Border.all(
-                color: selected ? KinrelColors.orange : KinrelColors.border,
-                width: selected ? 2 : 1,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                '$n',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.monoFont,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: selected
-                      ? KinrelColors.orange
-                      : KinrelColors.textDim,
-                ),
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _turnTimerSlider() {
-    return Slider(
-      value: _turnTimer.toDouble(),
-      min: 15,
-      max: 60,
-      divisions: 9,
-      activeColor: KinrelColors.orange,
-      label: '${_turnTimer}s',
-      onChanged: (v) => setState(() => _turnTimer = v.round()),
-    );
-  }
-
-  Widget _roundLimitSlider() {
-    return Slider(
-      value: _roundLimit.toDouble(),
-      min: 3,
-      max: 10,
-      divisions: 7,
-      activeColor: KinrelColors.orange,
-      label: '$_roundLimit rounds',
-      onChanged: (v) => setState(() => _roundLimit = v.round()),
-    );
-  }
-
-  Widget _rulesCard() {
-    return Container(
-      padding: const EdgeInsets.all(KinrelSpacing.md),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(KinrelRadius.lg),
-        border: Border.all(color: KinrelColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _ruleLine('1.', 'Players take turns singing a song line via voice/video call.'),
-          const SizedBox(height: 6),
-          _ruleLine('2.', 'Your song must start with the last letter of the previous player\'s song.'),
-          const SizedBox(height: 6),
-          _ruleLine('3.', 'After singing, type the letter your song ended on.'),
-          const SizedBox(height: 6),
-          _ruleLine('4.', 'Others can Challenge — 3+ challenges in 10s = you\'re out.'),
-          const SizedBox(height: 6),
-          _ruleLine('5.', 'Don\'t sing in ${_turnTimer}s = eliminated.'),
-          const SizedBox(height: 6),
-          _ruleLine('★', _mode == AntakshariGameMode.standard
-              ? 'Standard: last player standing wins.'
-              : 'Round-limited: all survivors after $_roundLimit rounds win jointly.',
-            highlight: true,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _ruleLine(String num, String text, {bool highlight = false}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 24,
-          child: Text(
-            num,
-            style: TextStyle(
-              fontFamily: KinrelTypography.monoFont,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: highlight ? KinrelColors.orange : KinrelColors.textDim,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 12,
-              color: highlight ? KinrelColors.textWhite : KinrelColors.textDim,
-              height: 1.4,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

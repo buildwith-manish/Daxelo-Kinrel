@@ -200,11 +200,19 @@ class LudoNotifier extends StateNotifier<LudoState> {
     }
     state = state.copyWith(isLoading: true, clearError: true);
     try {
+      // Closed / deleted room → friendly error, prompt a new room.
       final gameResp = await client
           .from('ludo_games')
           .select()
           .eq('id', gameId)
-          .single();
+          .maybeSingle();
+      if (isRoomRowClosed(gameResp)) {
+        state = state.copyWith(
+          isLoading: false,
+          error: kRoomClosedMessage,
+        );
+        return false;
+      }
       final game = LudoGame.fromJson(gameResp as Map<String, dynamic>);
       _gameId = game.id;
 
