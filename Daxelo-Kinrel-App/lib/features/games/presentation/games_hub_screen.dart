@@ -735,16 +735,27 @@ class _ChallengeCarousel extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          '${c.icon} ${c.title}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: KinrelColors.textWhite,
-                          ),
+                        Row(
+                          children: [
+                            if (kinrelIconFromEmoji(c.icon) != null) ...[
+                              KinrelIcon(kinrelIconFromEmoji(c.icon)!,
+                                  size: 13, color: color),
+                              const SizedBox(width: 5),
+                            ],
+                            Expanded(
+                              child: Text(
+                                c.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.bodyFont,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: KinrelColors.textWhite,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 4),
                         Text(

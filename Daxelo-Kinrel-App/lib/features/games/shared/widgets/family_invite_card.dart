@@ -176,6 +176,9 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
       timestamp: DateTime.now().toUtc(),
     );
 
+    // 1. Durable invite row — the source of truth. Triggers the FCM
+    //    push and lets the recipient's DB-realtime leg surface the
+    //    Accept/Decline dialog even when the socket is down.
     bool rowInserted = false;
     try {
       if (client != null) {
@@ -196,26 +199,9 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
         });
         rowInserted = true;
       }
-      await socket.sendGameInvite(toUserId: m.user.id, invite: invite);
-      ref.read(gameInviteStatusProvider(widget.gameId).notifier).markPending(
-            userId: m.user.id,
-            name: m.user.name,
-            username: m.user.username,
-            avatarUrl: m.user.avatarUrl,
-            photoThumb: m.user.photoThumb,
-          );
-      widget.onInviteSent?.call();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Invite sent to ${m.user.name}'),
-            duration: const Duration(seconds: 2),
-            backgroundColor: KinrelColors.darkElevated,
-          ),
-        );
-      }
     } catch (e) {
       if (mounted) {
+        setState(() => _sendingTo.remove(m.user.id));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Couldn\'t send invite to ${m.user.name}'),
@@ -223,19 +209,47 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
           ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _sendingTo.remove(m.user.id));
-      // Private invite DM — best-effort, tied to the durable row.
-      if (rowInserted && client != null) {
-        try {
-          await sendGameInviteDm(
-            client: client,
-            toUserId: m.user.id,
-            inviteJson: invite.toJson(),
-          );
-        } catch (_) {
-          // Never blocks the invite itself.
-        }
+      return;
+    }
+
+    // 2. The status chip reflects the DURABLE row — set before the
+    //    best-effort legs so a socket hiccup never hides the feedback.
+    ref.read(gameInviteStatusProvider(widget.gameId).notifier).markPending(
+          userId: m.user.id,
+          name: m.user.name,
+          username: m.user.username,
+          avatarUrl: m.user.avatarUrl,
+          photoThumb: m.user.photoThumb,
+        );
+    widget.onInviteSent?.call();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Invite sent to ${m.user.name}'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: KinrelColors.darkElevated,
+        ),
+      );
+    }
+
+    // 3. Socket.IO realtime event — best-effort acceleration.
+    try {
+      await socket.sendGameInvite(toUserId: m.user.id, invite: invite);
+    } catch (_) {
+      // The durable row already guarantees delivery.
+    }
+
+    // 4. Private invite DM — best-effort, tied to the durable row.
+    if (mounted) setState(() => _sendingTo.remove(m.user.id));
+    if (rowInserted && client != null) {
+      try {
+        await sendGameInviteDm(
+          client: client,
+          toUserId: m.user.id,
+          inviteJson: invite.toJson(),
+        );
+      } catch (_) {
+        // Never blocks the invite itself.
       }
     }
   }
