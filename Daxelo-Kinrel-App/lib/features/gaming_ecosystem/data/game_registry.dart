@@ -268,6 +268,18 @@ const kGameCatalog = <GameCatalogEntry>[
     category: GameCategory.indianClassics,
     sortOrder: 30,
   ),
+  GameCatalogEntry(
+    gameId: 'ashta-chamma',
+    name: 'Ashta Chamma',
+    description: 'Traditional Indian strategy — cowrie shells, captures, '
+        'and the race home',
+    gameTable: 'ashta_chamma_games',
+    route: '/family/{familyId}/ashta-chamma/lobby',
+    accent: 0xFFE11D48,
+    playersLabel: '2–4 players',
+    category: GameCategory.indianClassics,
+    sortOrder: 40,
+  ),
 ];
 
 /// All catalog entries sorted for hub display (featured first).

@@ -29,6 +29,7 @@ enum GameType {
   redlight, // Freeze & Dash
   tugOfWar, // Tug of War
   memoryMatch, // Memory Match
+  ashtaChamma, // Ashta Chamma (Chowka Bhara)
 }
 
 extension GameTypeX on GameType {
@@ -67,6 +68,8 @@ extension GameTypeX on GameType {
         return 'tug-of-war';
       case GameType.memoryMatch:
         return 'memory-match';
+      case GameType.ashtaChamma:
+        return 'ashta-chamma';
     }
   }
 
@@ -105,6 +108,8 @@ extension GameTypeX on GameType {
         return 'Tug of War';
       case GameType.memoryMatch:
         return 'Memory Match';
+      case GameType.ashtaChamma:
+        return 'Ashta Chamma';
     }
   }
 
