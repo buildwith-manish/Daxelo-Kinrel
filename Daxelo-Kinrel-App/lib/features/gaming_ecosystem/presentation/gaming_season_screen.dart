@@ -13,6 +13,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/gaming_providers.dart';
+import '../../games/shared/icons/kinrel_icons.dart';
 import 'widgets/gaming_kit.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -117,7 +118,8 @@ class GamingSeasonScreen extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    const Text('👑', style: TextStyle(fontSize: 24)),
+                    const KinrelIcon(KinrelIconData.crown,
+                        size: 24, color: KinrelColors.brightGold),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -168,7 +170,8 @@ class _CupHero extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Text('🏆', style: TextStyle(fontSize: 46)),
+          const KinrelIcon(KinrelIconData.trophy,
+              size: 46, color: KinrelColors.brightGold),
           const SizedBox(height: 10),
           Text(
             seasonName,
@@ -220,11 +223,11 @@ class _PointsExplainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget pointRow(String emoji, String label, String value) => Padding(
+    Widget pointRow(KinrelIconData icon, String label, String value) => Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 16)),
+              KinrelIcon(icon, size: 16, color: KinrelColors.orange),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -258,10 +261,10 @@ class _PointsExplainer extends StatelessWidget {
       ),
       child: Column(
         children: [
-          pointRow('🏆', 'Win a match', '+3 pts'),
-          pointRow('🤝', 'Draw a match', '+1 pt'),
-          pointRow('🎮', 'Play a match (any result)', '+1 pt'),
-          pointRow('💚', 'Earn sportsmanship cheers', 'badge progress'),
+          pointRow(KinrelIconData.trophy, 'Win a match', '+3 pts'),
+          pointRow(KinrelIconData.handshake, 'Draw a match', '+1 pt'),
+          pointRow(KinrelIconData.controller, 'Play a match (any result)', '+1 pt'),
+          pointRow(KinrelIconData.heart, 'Earn sportsmanship cheers', 'badge progress'),
         ],
       ),
     );

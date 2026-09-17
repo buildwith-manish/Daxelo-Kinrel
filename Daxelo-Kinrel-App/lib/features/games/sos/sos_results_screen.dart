@@ -13,6 +13,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/game_confetti.dart';
 import 'sos_models.dart';
 import 'sos_provider.dart';
@@ -192,7 +193,8 @@ class SosResultsScreen extends ConsumerWidget {
     if (isTie) {
       return Column(
         children: [
-          const Text('🤝', style: TextStyle(fontSize: 64)),
+          const KinrelIcon(KinrelIconData.handshake,
+            size: 64, color: KinrelColors.tealAccent),
           const SizedBox(height: KinrelSpacing.sm),
           Text(
             "It's a tie!",
@@ -212,7 +214,8 @@ class SosResultsScreen extends ConsumerWidget {
       final teamColor = Color(winnerTeam.colorValue);
       return Column(
         children: [
-          const Text('🏆', style: TextStyle(fontSize: 64))
+          const KinrelIcon(KinrelIconData.trophy,
+            size: 64, color: KinrelColors.brightGold)
               .animate(onPlay: (c) => c.forward())
               .fadeIn(duration: 500.ms)
               .scale(
@@ -251,7 +254,8 @@ class SosResultsScreen extends ConsumerWidget {
     final winnerName = winner?.userName ?? 'Player';
     return Column(
       children: [
-        const Text('🏆', style: TextStyle(fontSize: 64))
+        const KinrelIcon(KinrelIconData.trophy,
+            size: 64, color: KinrelColors.brightGold)
             .animate(onPlay: (c) => c.forward())
             .fadeIn(duration: 500.ms)
             .scale(

@@ -27,6 +27,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/icons/kinrel_icons.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/game_board_shell.dart';
 import '../shared/widgets/game_confetti.dart';
@@ -967,7 +968,8 @@ class _LudoBoardScreenState extends ConsumerState<LudoBoardScreen>
               const SizedBox(height: KinrelSpacing.lg),
               Column(
                 children: [
-                  const Text('🏆', style: TextStyle(fontSize: 64))
+                  const KinrelIcon(KinrelIconData.trophy,
+                    size: 64, color: KinrelColors.brightGold)
                       .animate(onPlay: (c) => c.forward())
                       .fadeIn(duration: 500.ms)
                       .scale(

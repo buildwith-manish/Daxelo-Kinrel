@@ -13,6 +13,7 @@ import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/gaming_providers.dart';
+import '../../games/shared/icons/kinrel_icons.dart';
 import 'widgets/gaming_kit.dart';
 
 class GamingMilestonesScreen extends ConsumerWidget {
@@ -71,7 +72,7 @@ class GamingMilestonesScreen extends ConsumerWidget {
               ),
               for (final t in _togetherTargets)
                 _MilestoneRow(
-                  emoji: _togetherEmoji(t),
+                  icon: _togetherIcon(t),
                   title: _togetherTitle(t),
                   current: data.totalMatches,
                   target: t,
@@ -84,7 +85,7 @@ class GamingMilestonesScreen extends ConsumerWidget {
               ),
               for (final t in const [5, 10])
                 _MilestoneRow(
-                  emoji: t == 5 ? '🧭' : '🗺️',
+                  icon: t == 5 ? KinrelIconData.compass : KinrelIconData.map,
                   title: 'Try $t different games together',
                   current: data.distinctGames,
                   target: t,
@@ -95,7 +96,7 @@ class GamingMilestonesScreen extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
-                    'Last family match ${gamingTimeAgo(data.lastMatchAt)} — the journey continues 💛',
+                    'Last family match ${gamingTimeAgo(data.lastMatchAt)} — the journey continues',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: KinrelTypography.bodyFont,
@@ -111,22 +112,23 @@ class GamingMilestonesScreen extends ConsumerWidget {
     );
   }
 
-  String _togetherEmoji(int t) {
+  /// Kinrel custom icon per milestone tier (was an emoji string).
+  KinrelIconData _togetherIcon(int t) {
     switch (t) {
       case 1:
-        return '🌱';
+        return KinrelIconData.seedling;
       case 10:
-        return '💛';
+        return KinrelIconData.heart;
       case 25:
-        return '🔥';
+        return KinrelIconData.flame;
       case 50:
-        return '🎯';
+        return KinrelIconData.target;
       case 100:
-        return '🏆';
+        return KinrelIconData.trophy;
       case 250:
-        return '👑';
+        return KinrelIconData.crown;
       default:
-        return '🌟';
+        return KinrelIconData.sparkle;
     }
   }
 
@@ -162,7 +164,8 @@ class _JourneyHero extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Text('🎯', style: TextStyle(fontSize: 34)),
+          const KinrelIcon(KinrelIconData.compass,
+              size: 34, color: KinrelColors.amber),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -198,14 +201,14 @@ class _JourneyHero extends StatelessWidget {
 
 class _MilestoneRow extends StatelessWidget {
   const _MilestoneRow({
-    required this.emoji,
+    required this.icon,
     required this.title,
     required this.current,
     required this.target,
     this.unit = 'games',
   });
 
-  final String emoji;
+  final KinrelIconData icon;
   final String title;
   final int current;
   final int target;
@@ -247,7 +250,8 @@ class _MilestoneRow extends StatelessWidget {
               child: reached
                   ? const Icon(Icons.check_rounded,
                       color: KinrelColors.textDark, size: 22)
-                  : Text(emoji, style: const TextStyle(fontSize: 19)),
+                  : KinrelIcon(icon,
+                      size: 20, color: KinrelColors.amber),
             ),
           ),
           const SizedBox(width: 12),

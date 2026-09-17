@@ -12,6 +12,7 @@
 //   )
 
 import 'package:flutter/material.dart';
+import '../icons/kinrel_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/brand_colors.dart';
@@ -140,7 +141,8 @@ class _BadgesOverlayState extends State<_BadgesOverlay>
             ),
             child: Row(
               children: [
-                const Text('🎉', style: TextStyle(fontSize: 28)),
+                const KinrelIcon(KinrelIconData.party,
+                size: 28, color: KinrelColors.brightGold),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(

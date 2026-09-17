@@ -38,6 +38,7 @@ import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/network/socket_service.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../icons/kinrel_icons.dart';
 
 class LobbyChatPanel extends ConsumerStatefulWidget {
   const LobbyChatPanel({
@@ -46,8 +47,8 @@ class LobbyChatPanel extends ConsumerStatefulWidget {
     required this.gameId,
     required this.familyId,
     this.isSpectator = false,
-    this.maxHeight = 240,
-    this.initiallyExpanded = true,
+    this.maxHeight = 210,
+    this.initiallyExpanded = false,
   });
 
   /// e.g. 'bingo_games', 'redlight_rounds'
@@ -58,8 +59,9 @@ class LobbyChatPanel extends ConsumerStatefulWidget {
   final double maxHeight;
 
   /// If false, the chat starts collapsed (only the header + unread count
-  /// is shown). User taps to expand. Useful for lobby screens with a lot
-  /// of other content.
+  /// is shown). User taps to expand. The lobby pins this panel in the
+  /// FIXED bottom region, so collapsed-by-default keeps the player list
+  /// readable while still making chat one tap away.
   final bool initiallyExpanded;
 
   @override
@@ -108,7 +110,14 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
   Timer? _typingEmitThrottle;
   bool _lastEmittedTyping = false;
 
-  static const _quickEmojis = ['👍', '😂', '🔥', '👋'];
+  /// Quick-tap chips — friendly one-tap messages, no emoji glyphs
+  /// (the Kinrel custom icon system handles all iconography).
+  static const _quickChips = [
+    'Ready!',
+    'Let\'s Go!',
+    'Good Luck!',
+    'Haha!',
+  ];
   static const _maxMessages = 100;
 
   @override
@@ -475,14 +484,31 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                 children: [
                   _messages.isEmpty
                       ? Center(
-                          child: Text(
-                            'Say hi 👋 or send a quick reaction',
-                            style: TextStyle(
-                              fontFamily: KinrelTypography.bodyFont,
-                              fontSize: 11,
-                              color: KinrelColors.textDim,
-                              fontStyle: FontStyle.italic,
-                            ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const KinrelIcon(KinrelIconData.sparkle,
+                                  size: 22, color: KinrelColors.orange),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Nobody has spoken yet.',
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.bodyFont,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: KinrelColors.textSilver,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Start the family conversation.',
+                                style: TextStyle(
+                                  fontFamily: KinrelTypography.bodyFont,
+                                  fontSize: 11,
+                                  color: KinrelColors.textDim,
+                                ),
+                              ),
+                            ],
                           ),
                         )
                       : ListView.builder(
@@ -571,7 +597,7 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                   ],
                 ),
               ),
-            // Emoji bar + text input
+            // Quick chips + text input
             Container(
               padding: const EdgeInsets.symmetric(
                   horizontal: KinrelSpacing.sm, vertical: 4),
@@ -579,56 +605,93 @@ class _LobbyChatPanelState extends ConsumerState<LobbyChatPanel> {
                 border: Border(
                     top: BorderSide(color: KinrelColors.border, width: 1)),
               ),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  ..._quickEmojis.map((e) => IconButton(
-                        icon: Text(e, style: const TextStyle(fontSize: 18)),
-                        onPressed: () => _send(type: 'emoji', content: e),
+                  // One-tap family-friendly chips.
+                  SizedBox(
+                    height: 30,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        for (final chip in _quickChips)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: GestureDetector(
+                              onTap: () =>
+                                  _send(type: 'text', content: chip),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: KinrelColors.orange
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                      color: KinrelColors.orange
+                                          .withValues(alpha: 0.45)),
+                                ),
+                                child: Text(
+                                  chip,
+                                  style: TextStyle(
+                                    fontFamily: KinrelTypography.bodyFont,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: KinrelColors.orange,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _textCtrl,
+                          onChanged: _onTextChanged,
+                          style: TextStyle(
+                            fontFamily: KinrelTypography.bodyFont,
+                            fontSize: 12,
+                            color: KinrelColors.textWhite,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Type a message…',
+                            hintStyle: TextStyle(
+                              fontFamily: KinrelTypography.bodyFont,
+                              fontSize: 12,
+                              color: KinrelColors.textDim,
+                            ),
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            filled: true,
+                            fillColor: KinrelColors.darkCard,
+                            border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(KinrelRadius.sm),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          onSubmitted: (v) =>
+                              _send(type: 'text', content: v),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: const Icon(Icons.send,
+                            color: KinrelColors.orange, size: 16),
+                        onPressed: () =>
+                            _send(type: 'text', content: _textCtrl.text),
                         padding: const EdgeInsets.all(4),
                         constraints: const BoxConstraints(
                             minWidth: 32, minHeight: 32),
-                        tooltip: 'Send $e',
-                      )),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: TextField(
-                      controller: _textCtrl,
-                      onChanged: _onTextChanged,
-                      style: TextStyle(
-                        fontFamily: KinrelTypography.bodyFont,
-                        fontSize: 12,
-                        color: KinrelColors.textWhite,
+                        tooltip: 'Send',
                       ),
-                      decoration: InputDecoration(
-                        hintText: 'Type a message…',
-                        hintStyle: TextStyle(
-                          fontFamily: KinrelTypography.bodyFont,
-                          fontSize: 12,
-                          color: KinrelColors.textDim,
-                        ),
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        filled: true,
-                        fillColor: KinrelColors.darkCard,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(KinrelRadius.sm),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      onSubmitted: (v) => _send(type: 'text', content: v),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    icon: const Icon(Icons.send,
-                        color: KinrelColors.orange, size: 16),
-                    onPressed: () =>
-                        _send(type: 'text', content: _textCtrl.text),
-                    padding: const EdgeInsets.all(4),
-                    constraints: const BoxConstraints(
-                        minWidth: 32, minHeight: 32),
-                    tooltip: 'Send',
+                    ],
                   ),
                 ],
               ),

@@ -22,6 +22,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
+import '../../../games/shared/icons/kinrel_icons.dart';
 
 /// Tier accent colors — bronze → platinum.
 class GamingTierColors {
@@ -194,6 +195,10 @@ class GamingProgressBar extends StatelessWidget {
 }
 
 /// Compact stat chip — icon + value + label.
+///
+/// Icon priority: [kinrelIcon] (Kinrel custom icon) → [icon] (Material)
+/// → [emoji] (mapped through [kinrelIconFromEmoji] — server data still
+/// arrives as emoji strings; it is NEVER rendered as a raw glyph).
 class GamingStatChip extends StatelessWidget {
   const GamingStatChip({
     super.key,
@@ -202,10 +207,12 @@ class GamingStatChip extends StatelessWidget {
     required this.label,
     this.color,
     this.emoji,
+    this.kinrelIcon,
   });
 
   final IconData? icon;
   final String? emoji;
+  final KinrelIconData? kinrelIcon;
   final String value;
   final String label;
   final Color? color;
@@ -213,6 +220,18 @@ class GamingStatChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = color ?? KinrelColors.orange;
+    final mappedEmojiIcon = kinrelIconFromEmoji(emoji);
+    Widget? leading;
+    if (kinrelIcon != null) {
+      leading = KinrelIcon(kinrelIcon!, size: 18, color: c);
+    } else if (mappedEmojiIcon != null) {
+      leading = KinrelIcon(mappedEmojiIcon, size: 18, color: c);
+    } else if (icon != null) {
+      leading = Icon(icon, size: 18, color: c);
+    } else if (emoji != null) {
+      // Unrecognized server emoji → neutral sparkle (never a raw glyph).
+      leading = KinrelIcon(KinrelIconData.sparkle, size: 18, color: c);
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -223,11 +242,10 @@ class GamingStatChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (emoji != null)
-            Text(emoji!, style: const TextStyle(fontSize: 18))
-          else if (icon != null)
-            Icon(icon, size: 18, color: c),
-          const SizedBox(width: 8),
+          if (leading != null) ...[
+            leading,
+            const SizedBox(width: 8),
+          ],
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -277,6 +295,11 @@ class GamingBadgeChip extends StatelessWidget {
   final double size;
   final bool showName;
 
+  /// Badge glyph — server data still sends emoji strings; they are
+  /// mapped to the Kinrel icon system, never rendered raw.
+  KinrelIconData get _badgeIcon =>
+      kinrelIconFromEmoji(icon) ?? KinrelIconData.medal;
+
   @override
   Widget build(BuildContext context) {
     final tierColor = GamingTierColors.of(tier);
@@ -307,12 +330,10 @@ class GamingBadgeChip extends StatelessWidget {
                 : null,
           ),
           child: Center(
-            child: Text(
-              icon,
-              style: TextStyle(
-                fontSize: size * 0.4,
-                color: earned ? null : Colors.white.withValues(alpha: 0.25),
-              ),
+            child: KinrelIcon(
+              _badgeIcon,
+              size: size * 0.46,
+              color: earned ? Colors.white : Colors.white.withValues(alpha: 0.28),
             ),
           ),
         ),
@@ -360,7 +381,7 @@ class GamingPodium extends StatelessWidget {
     final second = top.length > 1 ? top[1] : null;
     final third = top.length > 2 ? top[2] : null;
 
-    Widget slot(dynamic e, double height, Color color, String medal) {
+    Widget slot(dynamic e, double height, Color color, int rank) {
       final name = (e.userName as String?) ?? 'Family';
       final points = (e.points as num?)?.toInt() ?? 0;
       final isMe = (e.userId as String?) == myUserId;
@@ -380,7 +401,27 @@ class GamingPodium extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Text(medal, style: TextStyle(fontSize: height > 70 ? 22 : 16)),
+              // Rank medal — Kinrel custom icon in a tier-colored disc.
+              Container(
+                width: height > 70 ? 30 : 24,
+                height: height > 70 ? 30 : 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color.withValues(alpha: 0.16),
+                  border: Border.all(color: color, width: 1.6),
+                ),
+                child: Center(
+                  child: Text(
+                    '$rank',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: height > 70 ? 14 : 11,
+                      fontWeight: FontWeight.w800,
+                      color: color,
+                    ),
+                  ),
+                ),
+              ),
               const SizedBox(height: 4),
               Text(
                 name,
@@ -425,13 +466,13 @@ class GamingPodium extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (second != null) slot(second, 52, const Color(0xFFCBD5E1), '🥈'),
+          if (second != null) slot(second, 52, const Color(0xFFCBD5E1), 2),
           const SizedBox(width: 8),
-          slot(first, 78, KinrelColors.brightGold, '🥇')
+          slot(first, 78, KinrelColors.brightGold, 1)
               .animate()
               .scale(delay: 150.ms, duration: 400.ms, curve: Curves.easeOutBack),
           const SizedBox(width: 8),
-          if (third != null) slot(third, 40, const Color(0xFFD97706), '🥉'),
+          if (third != null) slot(third, 40, const Color(0xFFD97706), 3),
         ],
       ),
     );
@@ -464,7 +505,34 @@ class GamingRankRow extends StatelessWidget {
   final bool isMe;
   final VoidCallback? onTap;
 
-  static const _medals = {1: '🥇', 2: '🥈', 3: '🥉'};
+  /// Top-3 rank rendering — a Kinrel medal disc with the rank number.
+  Widget _rankBadge(int rank) {
+    final color = rank == 1
+        ? KinrelColors.brightGold
+        : rank == 2
+            ? const Color(0xFFCBD5E1)
+            : const Color(0xFFD97706);
+    return Container(
+      width: 26,
+      height: 26,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color.withValues(alpha: 0.16),
+        border: Border.all(color: color, width: 1.6),
+      ),
+      child: Center(
+        child: Text(
+          '$rank',
+          style: TextStyle(
+            fontFamily: KinrelTypography.displayFont,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: color,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -492,8 +560,8 @@ class GamingRankRow extends StatelessWidget {
               children: [
                 SizedBox(
                   width: 40,
-                  child: _medals.containsKey(rank)
-                      ? Text(_medals[rank]!, style: const TextStyle(fontSize: 20))
+                  child: rank <= 3
+                      ? _rankBadge(rank)
                       : Text(
                           '#$rank',
                           style: TextStyle(
@@ -531,13 +599,22 @@ class GamingRankRow extends StatelessWidget {
                                 color: KinrelColors.error.withValues(alpha: 0.18),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Text(
-                                '🔥 $streak',
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.monoFont,
-                                  fontSize: 10,
-                                  color: KinrelColors.warning,
-                                ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const KinrelIcon(KinrelIconData.flame,
+                                      size: 11, color: KinrelColors.warning),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '$streak',
+                                    style: TextStyle(
+                                      fontFamily: KinrelTypography.monoFont,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: KinrelColors.warning,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -615,8 +692,13 @@ class GamingActivityTile extends StatelessWidget {
               color: c.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: c.withValues(alpha: 0.3)),
+            ),            child: Center(
+              child: KinrelIcon(
+                kinrelIconFromEmoji(icon) ?? KinrelIconData.sparkle,
+                size: 19,
+                color: c,
+              ),
             ),
-            child: Center(child: Text(icon, style: const TextStyle(fontSize: 17))),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -651,20 +733,31 @@ class GamingActivityTile extends StatelessWidget {
 }
 
 /// Friendly empty state for gaming sections.
+///
+/// Icon priority: [kinrelIcon] → [kinrelIconFromEmoji]([emoji]) →
+/// sparkle fallback. Emoji strings from server data are never rendered
+/// as raw glyphs.
 class GamingEmptyCard extends StatelessWidget {
   const GamingEmptyCard({
     super.key,
     required this.emoji,
     required this.title,
     required this.message,
+    this.kinrelIcon,
+    this.color,
   });
 
   final String emoji;
+  final KinrelIconData? kinrelIcon;
   final String title;
   final String message;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
+    final c = color ?? KinrelColors.textDim;
+    final icon =
+        kinrelIcon ?? kinrelIconFromEmoji(emoji) ?? KinrelIconData.sparkle;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -675,7 +768,7 @@ class GamingEmptyCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 34)),
+          KinrelIcon(icon, size: 34, color: c),
           const SizedBox(height: 10),
           Text(
             title,

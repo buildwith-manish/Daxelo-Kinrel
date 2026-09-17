@@ -275,13 +275,10 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
               gameTable: 'tugofwar_games',
               gameId: gameId,
             );
-        // Balanced mode: rebalance unassigned players right away.
-        if (game.teamMode == TugOfWarTeamMode.auto) {
-          await _tryRpc('fn_tugofwar_assign_teams', {
-            'p_game_id': gameId,
-            'p_mode': 'auto',
-          });
-        }
+        // Teams are assigned automatically by the database trigger
+        // trg_tugofwar_assign_team_on_join (alternate A/B in join order) —
+        // no client-side RPC needed, and the assignment is visible the
+        // moment the player lands in the lobby.
       } else if (!alreadyJoined) {
         // Match already running — watch from the sidelines.
         await _spectate(gameId);
@@ -332,40 +329,9 @@ class TugOfWarNotifier extends StateNotifier<TugOfWarState> {
     }
   }
 
-  /// Player picks their own side (manual mode, before start).
-  Future<bool> setTeam(TugTeam team) async {
-    final gameId = _gameId;
-    if (gameId == null) return false;
-    GameMotionTokens.tap();
-    final ok = await _tryRpc('fn_tugofwar_set_team', {
-      'p_game_id': gameId,
-      'p_team': team.wire,
-    });
-    if (ok) {
-      // Optimistic update; Realtime confirms.
-      final myId = _myId;
-      final next = state.players
-          .map((p) =>
-              p.userId == myId ? p.copyWith(team: team) : p)
-          .toList();
-      state = state.copyWith(players: next);
-    }
-    return ok;
-  }
-
-  /// Host: rebalance unassigned players ('auto') or shuffle everyone
-  /// ('random').
-  Future<bool> assignTeams(TugOfWarTeamMode mode) async {
-    final gameId = _gameId;
-    if (gameId == null) return false;
-    GameMotionTokens.tap();
-    final ok = await _tryRpc('fn_tugofwar_assign_teams', {
-      'p_game_id': gameId,
-      'p_mode': mode == TugOfWarTeamMode.random ? 'random' : 'auto',
-    });
-    if (ok) await _refreshPlayers(gameId);
-    return ok;
-  }
+  // NOTE: setTeam()/assignTeams() were removed — teams are now assigned
+  // automatically by the trg_tugofwar_assign_team_on_join database
+  // trigger (alternating A/B in join order) the moment a player joins.
 
   /// Toggle the ready flag in the waiting lobby.
   Future<void> toggleReady(bool isReady) async {

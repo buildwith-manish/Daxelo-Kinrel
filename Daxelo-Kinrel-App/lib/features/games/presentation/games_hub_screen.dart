@@ -40,6 +40,7 @@ import '../../gaming_ecosystem/data/gaming_providers.dart';
 import '../../gaming_ecosystem/presentation/widgets/gaming_kit.dart';
 import '../services/game_asset_manager.dart';
 import '../shared/icons/game_icons.dart';
+import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/family_presence_strip.dart';
 
 class GamesHubScreen extends ConsumerStatefulWidget {
@@ -159,7 +160,8 @@ class _NoFamilyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('👨‍👩‍👧‍👦', style: TextStyle(fontSize: 44)),
+            const KinrelIcon(KinrelIconData.users,
+                size: 44, color: KinrelColors.orange),
             const SizedBox(height: 12),
             Text(
               'Create your family to unlock the Arena',
@@ -452,7 +454,8 @@ class _StreakCardState extends State<_StreakCard>
                 ),
               ),
               child: const Center(
-                child: Text('🔥', style: TextStyle(fontSize: 24)),
+                child: KinrelIcon(KinrelIconData.flame,
+                    size: 24, color: KinrelColors.brightGold),
               ),
             ),
           ),
@@ -563,7 +566,8 @@ class _SeasonBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Text('🏆', style: TextStyle(fontSize: 30)),
+            const KinrelIcon(KinrelIconData.trophy,
+                size: 30, color: KinrelColors.brightGold),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -815,7 +819,12 @@ class _SmartSuggestions extends StatelessWidget {
                           height: 48,
                           child: game != null
                               ? GameIcon(gameId: game.gameId, size: 48)
-                              : const Center(child: Text('🎮', style: TextStyle(fontSize: 22))),
+                              : const Center(
+                                  child: KinrelIcon(
+                                      KinrelIconData.controller,
+                                      size: 22,
+                                      color: KinrelColors.orange),
+                                ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -987,8 +996,12 @@ class _CategorySection extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
               child: Row(
                 children: [
-                  Text(category.emoji,
-                      style: const TextStyle(fontSize: 15)),
+                  KinrelIcon(
+                    kinrelIconFromEmoji(category.emoji) ??
+                        KinrelIconData.controller,
+                    size: 15,
+                    color: KinrelColors.orange,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -1351,7 +1364,8 @@ class _MilestoneStrip extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Text('🎯', style: TextStyle(fontSize: 18)),
+                const KinrelIcon(KinrelIconData.flag,
+                    size: 18, color: KinrelColors.amber),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(

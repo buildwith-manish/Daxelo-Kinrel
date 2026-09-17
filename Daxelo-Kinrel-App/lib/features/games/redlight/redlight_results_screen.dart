@@ -13,6 +13,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/game_confetti.dart';
 import 'redlight_models.dart';
 import 'redlight_provider.dart';
@@ -302,7 +303,8 @@ class RedlightResultsScreen extends ConsumerWidget {
   Widget _winnerCard(_ResultRow winner, bool isMe) {
     return Column(
       children: [
-        const Text('🏆', style: TextStyle(fontSize: 64))
+        const KinrelIcon(KinrelIconData.trophy,
+            size: 64, color: KinrelColors.brightGold)
             .animate(onPlay: (c) => c.forward())
             .fadeIn(duration: 500.ms)
             .scale(

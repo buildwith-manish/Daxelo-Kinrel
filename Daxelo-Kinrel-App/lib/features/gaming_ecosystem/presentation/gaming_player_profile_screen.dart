@@ -14,6 +14,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../data/game_registry.dart';
 import '../data/gaming_models.dart';
 import '../data/gaming_providers.dart';
+import '../../games/shared/icons/kinrel_icons.dart';
 import 'widgets/gaming_kit.dart';
 
 class GamingPlayerProfileScreen extends ConsumerWidget {
@@ -286,13 +287,24 @@ class _HeroChip extends StatelessWidget {
         color: KinrelColors.darkElevated,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(
-        '$emoji $label',
-        style: TextStyle(
-          fontFamily: KinrelTypography.monoFont,
-          fontSize: 10,
-          color: KinrelColors.textSilver,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          KinrelIcon(
+            kinrelIconFromEmoji(emoji) ?? KinrelIconData.sparkle,
+            size: 11,
+            color: KinrelColors.amber,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: KinrelTypography.monoFont,
+              fontSize: 10,
+              color: KinrelColors.textSilver,
+            ),
+          ),
+        ],
       ),
     );
   }

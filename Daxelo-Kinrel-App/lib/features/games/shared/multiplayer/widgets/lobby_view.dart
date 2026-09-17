@@ -610,7 +610,7 @@ class _LobbyHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Family Game Night \u{1F3AE}',
+                  'Family Game Night',
                   style: TextStyle(
                     fontFamily: KinrelTypography.displayFont,
                     fontSize: 15,

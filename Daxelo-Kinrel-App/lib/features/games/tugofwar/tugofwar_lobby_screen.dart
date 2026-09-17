@@ -3,10 +3,11 @@
 // Tug of War — lobby: room setup + team assembly.
 //
 // Setup phase renders the shared LobbySetupScreen (room name, match length,
-// room size, team assignment mode, spectators, How to Play). Waiting-room
-// phase renders TemporaryLobbyView with a TeamBoard footer: players pick
-// sides, the host can auto-balance or shuffle, and uneven teams trigger a
-// confirmation before the match starts.
+// room size, spectators, How to Play). Waiting-room phase renders
+// TemporaryLobbyView with a compact read-only TeamBoard footer: teams are
+// assigned AUTOMATICALLY (alternating Ember/Azure in join order, via the
+// database trigger) the moment each player joins — no Join Team buttons,
+// no balancing tools, zero friction.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,13 +19,17 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
-import '../shared/models/game_invite.dart';
+import '../shared/models/game_invite.dart'
+    show GameType;
 import '../shared/widgets/invite_family_sheet.dart';
+import '../shared/widgets/lobby_chat_panel.dart';
 import '../shared/widgets/lobby_kit/lobby_kit.dart';
+import '../shared/widgets/pending_invites_section.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
 import '../shared/services/temporary_room_service.dart'
     show kRoomClosedMessage;
 import '../shared/widgets/temporary_lobby_view.dart';
+import '../shared/icons/kinrel_icons.dart';
 import 'tugofwar_models.dart';
 import 'tugofwar_provider.dart';
 
@@ -42,7 +47,6 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
 
   int _durationSec = 60;
   int _maxPlayers = 6;
-  TugOfWarTeamMode _teamMode = TugOfWarTeamMode.auto;
   bool _spectatorsEnabled = true;
   bool _creating = false;
 
@@ -69,7 +73,9 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
     await notifier.createGame(
       matchDurationSec: _durationSec,
       maxPlayers: _maxPlayers,
-      teamMode: _teamMode,
+      // Teams are ALWAYS auto-assigned (alternating Ember/Azure by join
+      // order) — manual selection was removed per the lobby UX overhaul.
+      teamMode: TugOfWarTeamMode.auto,
       roomName: _roomNameController.text,
       spectatorsEnabled: _spectatorsEnabled,
     );
@@ -80,48 +86,6 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
     final notifier = ref.read(tugOfWarProvider(widget.familyId).notifier);
     final result = await notifier.startMatch();
     if (!mounted || result == null) return;
-    if (result == 'uneven') {
-      final proceed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: KinrelColors.darkElevated,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(KinrelRadius.lg),
-          ),
-          title: Text(
-            'Teams are uneven. Continue?',
-            style: TextStyle(
-              fontFamily: KinrelTypography.displayFont,
-              fontWeight: FontWeight.w600,
-              color: KinrelColors.textWhite,
-            ),
-          ),
-          content: Text(
-            'Strength is measured per player, so uneven teams still get a '
-            'fair fight — but equal sides are more fun!',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 13,
-              color: KinrelColors.textDim,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Even Them Out'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Start Anyway'),
-            ),
-          ],
-        ),
-      );
-      if (proceed == true && mounted) {
-        await notifier.startMatch(force: true);
-      }
-      return;
-    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(result),
@@ -354,27 +318,13 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
           ),
           const SizedBox(height: KinrelSpacing.md),
           LobbySection(
-            label: 'Team Assignment',
-            child: LobbyChoiceGrid<TugOfWarTeamMode>(
-              selected: _teamMode,
-              onSelect: (v) => setState(() => _teamMode = v),
-              options: const [
-                LobbyOption(
-                  value: TugOfWarTeamMode.auto,
-                  label: 'Balanced',
-                  caption: 'Auto-balances as players join',
-                ),
-                LobbyOption(
-                  value: TugOfWarTeamMode.manual,
-                  label: 'Pick Your Own',
-                  caption: 'Everyone chooses a side',
-                ),
-                LobbyOption(
-                  value: TugOfWarTeamMode.random,
-                  label: 'Random',
-                  caption: 'Host shuffles the teams',
-                ),
-              ],
+            label: 'Teams',
+            child: LobbyInfoNote(
+              icon: Icons.bolt,
+              text:
+                  'Teams are assigned automatically as family members join — '
+                  'alternating Ember (red) and Azure (blue), always balanced. '
+                  'Nothing to pick!',
             ),
           ),
         ],
@@ -382,6 +332,8 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
       rules: const [
         LobbyRule('Tap the giant PULL button as fast as you can — every tap '
             'adds force to your team.'),
+        LobbyRule('You\'re placed on a team automatically the moment you '
+            'join — Ember (red) or Azure (blue).'),
         LobbyRule('Pull the center flag past your opponent\'s victory line '
             'to win instantly.'),
         LobbyRule('Strength is measured per player: total taps ÷ team size. '
@@ -390,7 +342,7 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
             'takes the win.'),
         LobbyRule('If a whole team leaves, the other side wins by walkover.'),
         LobbyRule('Spectators can\'t pull — but they can cheer with '
-            'emoji reactions!'),
+            'live reactions!'),
       ],
       rulesFootnote: 'Fair play: taps faster than 15/sec are ignored.',
       spectatorsEnabled: _spectatorsEnabled,
@@ -468,7 +420,7 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
       players: lobbyPlayers,
       maxPlayers: game.maxPlayers,
       status: lobbyStatus,
-      subtitle: '${_durationLabel(game.matchDurationSec)} · ${game.teamMode.label}',
+      subtitle: _durationLabel(game.matchDurationSec),
     );
 
     return RoomLifecycleListener(
@@ -486,21 +438,19 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
             ref.read(tugOfWarProvider(widget.familyId).notifier).leaveGame(),
         onInviteFamily: isHost ? () => _openInviteSheet(state) : null,
         footer: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const SizedBox(height: KinrelSpacing.md),
             TugTeamBoard(
               state: state,
               myUserId: myId,
-              isHost: isHost,
-              onJoinTeam: (team) => ref
-                  .read(tugOfWarProvider(widget.familyId).notifier)
-                  .setTeam(team),
-              onAutoBalance: () => ref
-                  .read(tugOfWarProvider(widget.familyId).notifier)
-                  .assignTeams(TugOfWarTeamMode.auto),
-              onShuffle: () => ref
-                  .read(tugOfWarProvider(widget.familyId).notifier)
-                  .assignTeams(TugOfWarTeamMode.random),
+            ),
+            PendingInvitesSection(gameId: game.id),
+            LobbyChatPanel(
+              gameTable: 'tugofwar_games',
+              gameId: game.id,
+              familyId: widget.familyId,
             ),
           ],
         ),
@@ -508,31 +458,33 @@ class _TugOfWarLobbyScreenState extends ConsumerState<TugOfWarLobbyScreen> {
     );
   }
 }
-
 // ────────────────────────────────────────────────────────────────────
-// Team board — the heart of the tug of war lobby
+// Team board — compact, read-only, auto-assigned teams
 // ────────────────────────────────────────────────────────────────────
 
+/// Team accent colors shared across the Tug of War surfaces.
+/// Team A (Ember) = warm red · Team B (Azure) = blue.
+class TugTeamBoardColors {
+  TugTeamBoardColors._();
+
+  static const Color a = Color(0xFFEF4444); // Team Ember — red
+  static const Color b = KinrelColors.blue; // Team Azure — blue
+}
+
+/// The lobby team board: shows each side's roster with a "you're on
+/// this team" banner. Fully read-only — teams are assigned by the
+/// database trigger the moment each player joins (alternating
+/// Ember/Azure in join order), so there are no Join buttons and no
+/// host balancing tools.
 class TugTeamBoard extends StatelessWidget {
   const TugTeamBoard({
     super.key,
     required this.state,
     required this.myUserId,
-    required this.isHost,
-    required this.onJoinTeam,
-    required this.onAutoBalance,
-    required this.onShuffle,
   });
 
   final TugOfWarState state;
   final String? myUserId;
-  final bool isHost;
-  final ValueChanged<TugTeam> onJoinTeam;
-  final VoidCallback onAutoBalance;
-  final VoidCallback onShuffle;
-
-  static const Color teamAColor = KinrelColors.orange;
-  static const Color teamBColor = KinrelColors.blue;
 
   @override
   Widget build(BuildContext context) {
@@ -541,11 +493,10 @@ class TugTeamBoard extends StatelessWidget {
 
     final rosterA = state.teamRoster(TugTeam.a);
     final rosterB = state.teamRoster(TugTeam.b);
-    final unassigned =
-        state.players.where((p) => p.team == null).toList();
     final myTeam = state.teamFor(myUserId);
-    final canPick = game.teamMode != TugOfWarTeamMode.auto || myTeam == null;
-    final uneven = rosterA.length != rosterB.length;
+    final myColor = myTeam == TugTeam.b
+        ? TugTeamBoardColors.b
+        : TugTeamBoardColors.a;
 
     return Container(
       padding: const EdgeInsets.all(KinrelSpacing.md),
@@ -557,62 +508,76 @@ class TugTeamBoard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.flag_outlined,
-                  size: 16, color: KinrelColors.textDim),
-              const SizedBox(width: 6),
-              Text(
-                'TEAMS',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.monoFont,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.4,
-                  color: KinrelColors.textDim,
-                ),
+          // ── "Joined Team …" banner (immediate feedback on join) ──
+          if (myTeam != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: KinrelSpacing.md),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: KinrelSpacing.md, vertical: 8),
+              decoration: BoxDecoration(
+                color: myColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(KinrelRadius.md),
+                border: Border.all(color: myColor.withValues(alpha: 0.5)),
               ),
-              const Spacer(),
-              if (uneven)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: KinrelColors.warning.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                        color: KinrelColors.warning.withValues(alpha: 0.5)),
+              child: Row(
+                children: [
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: myColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: myColor.withValues(alpha: 0.7),
+                          blurRadius: 8,
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Text(
-                    'UNEVEN ${rosterA.length}v${rosterB.length}',
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'You joined ${myTeam.label}',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.bodyFont,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: KinrelColors.textWhite,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'auto-assigned',
                     style: TextStyle(
                       fontFamily: KinrelTypography.monoFont,
                       fontSize: 9,
                       fontWeight: FontWeight.w700,
-                      color: KinrelColors.warning,
+                      letterSpacing: 0.6,
+                      color: myColor.withValues(alpha: 0.9),
                     ),
                   ),
-                ),
-            ],
-          ),
-          const SizedBox(height: KinrelSpacing.md),
+                ],
+              ),
+            ),
+
+          // ── Both rosters side by side ─────────────────────────────
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: _TeamColumn(
                   team: TugTeam.a,
-                  color: teamAColor,
+                  color: TugTeamBoardColors.a,
                   players: rosterA,
                   myUserId: myUserId,
-                  canJoin: canPick && myTeam != TugTeam.a,
-                  onJoin: () => onJoinTeam(TugTeam.a),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Column(
                   children: [
+                    const SizedBox(height: 14),
                     Text(
                       'VS',
                       style: TextStyle(
@@ -628,90 +593,32 @@ class TugTeamBoard extends StatelessWidget {
               Expanded(
                 child: _TeamColumn(
                   team: TugTeam.b,
-                  color: teamBColor,
+                  color: TugTeamBoardColors.b,
                   players: rosterB,
                   myUserId: myUserId,
-                  canJoin: canPick && myTeam != TugTeam.b,
-                  onJoin: () => onJoinTeam(TugTeam.b),
                 ),
               ),
             ],
           ),
-          if (unassigned.isNotEmpty) ...[
-            const SizedBox(height: KinrelSpacing.md),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final p in unassigned)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: KinrelColors.darkElevated,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                          color: KinrelColors.border.withValues(alpha: 0.7)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          p.userId == game.hostUserId
-                              ? Icons.star
-                              : Icons.person_outline,
-                          size: 12,
-                          color: KinrelColors.textDim,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          p.userName,
-                          style: TextStyle(
-                            fontFamily: KinrelTypography.bodyFont,
-                            fontSize: 11,
-                            color: KinrelColors.textDim,
-                          ),
-                        ),
-                      ],
-                    ),
+
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const KinrelIcon(KinrelIconData.zap,
+                  size: 12, color: KinrelColors.textDim),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  'Teams alternate automatically as family joins — always balanced.',
+                  style: TextStyle(
+                    fontFamily: KinrelTypography.bodyFont,
+                    fontSize: 10,
+                    color: KinrelColors.textDim.withValues(alpha: 0.8),
                   ),
-              ],
-            ),
-          ],
-          if (isHost && game.isWaiting) ...[
-            const SizedBox(height: KinrelSpacing.md),
-            Row(
-              children: [
-                Expanded(
-                  child: _HostToolButton(
-                    icon: Icons.balance_outlined,
-                    label: 'Auto-Balance',
-                    onTap: onAutoBalance,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _HostToolButton(
-                    icon: Icons.shuffle,
-                    label: 'Shuffle',
-                    onTap: onShuffle,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          if (game.teamMode == TugOfWarTeamMode.auto && unassigned.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: KinrelSpacing.sm),
-              child: Text(
-                'Balanced mode assigns new joiners automatically.',
-                style: TextStyle(
-                  fontFamily: KinrelTypography.bodyFont,
-                  fontSize: 10,
-                  color: KinrelColors.textDim.withValues(alpha: 0.7),
                 ),
               ),
-            ),
+            ],
+          ),
         ],
       ),
     );
@@ -724,16 +631,12 @@ class _TeamColumn extends StatelessWidget {
     required this.color,
     required this.players,
     required this.myUserId,
-    required this.canJoin,
-    required this.onJoin,
   });
 
   final TugTeam team;
   final Color color;
   final List<TugOfWarPlayer> players;
   final String? myUserId;
-  final bool canJoin;
-  final VoidCallback onJoin;
 
   @override
   Widget build(BuildContext context) {
@@ -779,15 +682,25 @@ class _TeamColumn extends StatelessWidget {
                   ),
                 ),
               ),
+              Text(
+                '${players.length}',
+                style: TextStyle(
+                  fontFamily: KinrelTypography.monoFont,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
           if (players.isEmpty)
             Text(
-              'No one yet',
+              'Waiting for a family member…',
               style: TextStyle(
                 fontFamily: KinrelTypography.bodyFont,
-                fontSize: 11,
+                fontSize: 10.5,
+                fontStyle: FontStyle.italic,
                 color: KinrelColors.textDim.withValues(alpha: 0.6),
               ),
             )
@@ -825,50 +738,6 @@ class _TeamColumn extends StatelessWidget {
                   ),
               ],
             ),
-          const SizedBox(height: 8),
-          Text(
-            '${players.length} player${players.length == 1 ? '' : 's'}',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 10,
-              color: KinrelColors.textDim,
-            ),
-          ),
-          if (canJoin) ...[
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: () {
-                GameMotionTokens.tap();
-                onJoin();
-              },
-              child: Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(KinrelRadius.sm),
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.4),
-                      blurRadius: 8,
-                    ),
-                  ],
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  'JOIN',
-                  style: TextStyle(
-                    fontFamily: KinrelTypography.displayFont,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -939,52 +808,6 @@ class _TeamAvatar extends StatelessWidget {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _HostToolButton extends StatelessWidget {
-  const _HostToolButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        GameMotionTokens.tap();
-        onTap();
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-        decoration: BoxDecoration(
-          color: KinrelColors.darkElevated,
-          borderRadius: BorderRadius.circular(KinrelRadius.sm),
-          border: Border.all(color: KinrelColors.border),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 14, color: KinrelColors.textDim),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: KinrelTypography.bodyFont,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: KinrelColors.textDim,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

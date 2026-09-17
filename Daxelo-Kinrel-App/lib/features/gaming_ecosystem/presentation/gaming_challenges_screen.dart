@@ -19,6 +19,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/gaming_models.dart';
 import '../data/gaming_providers.dart';
+import '../../games/shared/icons/kinrel_icons.dart';
 import 'widgets/gaming_kit.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -119,7 +120,8 @@ class _IntroCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Text('🎯', style: TextStyle(fontSize: 30)),
+          const KinrelIcon(KinrelIconData.flag,
+              size: 30, color: KinrelColors.orange),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -207,10 +209,22 @@ class _ChallengeCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
+                        if (kinrelIconFromEmoji(challenge.icon) != null) ...[
+                          KinrelIcon(
+                            kinrelIconFromEmoji(challenge.icon)!,
+                            size: 15,
+                            color: done ? KinrelColors.brightGold : color,
+                          ),
+                          const SizedBox(width: 5),
+                        ],
+                        if (challenge.familyWide) ...[
+                          const KinrelIcon(KinrelIconData.users,
+                              size: 13, color: KinrelColors.tealAccent),
+                          const SizedBox(width: 4),
+                        ],
                         Expanded(
                           child: Text(
-                            '${challenge.icon} ${challenge.title}'
-                            '${challenge.familyWide ? ' · 👨‍👩‍👧‍👦' : ''}',
+                            challenge.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(

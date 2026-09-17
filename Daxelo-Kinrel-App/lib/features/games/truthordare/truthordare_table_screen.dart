@@ -10,6 +10,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
+import '../shared/icons/kinrel_icons.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/game_board_shell.dart';
 import '../shared/widgets/leave_game_dialog.dart';
@@ -89,7 +90,8 @@ class _TodTableScreenState extends ConsumerState<TodTableScreen> with SingleTick
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  const Text('✨', style: TextStyle(fontSize: 18)),
+                  const KinrelIcon(KinrelIconData.sparkle,
+                  size: 18, color: KinrelColors.amber),
                   const SizedBox(width: 8),
                   Text(
                     'FAMILY MOMENTS',

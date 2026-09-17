@@ -27,6 +27,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../data/gaming_models.dart';
 import '../data/gaming_providers.dart';
+import '../../games/shared/icons/kinrel_icons.dart';
 import 'widgets/gaming_kit.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -119,7 +120,8 @@ class _RewardsBanner extends ConsumerWidget {
     for (final pc in eco.completedChallenges) {
       for (final c in pc.challenges) {
         rows.add(_RewardRow(
-          leading: Text(c.icon, style: const TextStyle(fontSize: 24)),
+          leading: KinrelIcon(kinrelIconFromEmoji(c.icon) ?? KinrelIconData.flag,
+              size: 24, color: const Color(0xFF8B5CF6)),
           accent: const Color(0xFF8B5CF6),
           title: 'Challenge complete: ${c.title}',
           subtitle: '+${c.rewardPoints} bonus points',
@@ -130,7 +132,8 @@ class _RewardsBanner extends ConsumerWidget {
     // Family milestones.
     for (final m in eco.milestones) {
       rows.add(_RewardRow(
-        leading: const Text('🏆', style: TextStyle(fontSize: 24)),
+        leading: const KinrelIcon(KinrelIconData.trophy,
+            size: 24, color: KinrelColors.brightGold),
         accent: KinrelColors.gold,
         title: 'Family milestone unlocked!',
         subtitle: m.description,
@@ -163,7 +166,8 @@ class _RewardsBanner extends ConsumerWidget {
         children: [
           Row(
             children: [
-              const Text('✨', style: TextStyle(fontSize: 18)),
+              const KinrelIcon(KinrelIconData.sparkle,
+                  size: 18, color: KinrelColors.brightGold),
               const SizedBox(width: 8),
               Text(
                 'FAMILY MOMENTS FROM THIS MATCH',
@@ -196,11 +200,14 @@ class _RewardsBanner extends ConsumerWidget {
   Widget _personalBestIcon(String metric) {
     switch (metric) {
       case 'fastest_win':
-        return const Text('⚡', style: TextStyle(fontSize: 24));
+        return const KinrelIcon(KinrelIconData.zap,
+            size: 24, color: KinrelColors.amber);
       case 'accuracy_pct':
-        return const Text('🎯', style: TextStyle(fontSize: 24));
+        return const KinrelIcon(KinrelIconData.target,
+            size: 24, color: KinrelColors.tealAccent);
       default:
-        return const Text('📈', style: TextStyle(fontSize: 24));
+        return const KinrelIcon(KinrelIconData.chart,
+            size: 24, color: KinrelColors.orange);
     }
   }
 
@@ -397,7 +404,8 @@ class _SuperlativesSection extends ConsumerWidget {
         children: [
           Row(
             children: [
-              const Text('🏅', style: TextStyle(fontSize: 16)),
+              const KinrelIcon(KinrelIconData.medal,
+                  size: 16, color: KinrelColors.orange),
               const SizedBox(width: 8),
               Text(
                 'MATCH SUPERLATIVES',
@@ -418,7 +426,7 @@ class _SuperlativesSection extends ConsumerWidget {
             children: [
               for (final p in topScorers)
                 _SuperlativeChip(
-                  emoji: '🎯',
+                  icon: KinrelIconData.target,
                   label:
                       '${p.userName.isEmpty ? 'You' : p.userName} · top score (${_fmtNum(p.score ?? 0)} $unit)',
                   mine: p.userId == myId,
@@ -426,7 +434,7 @@ class _SuperlativesSection extends ConsumerWidget {
               for (final p in sharpest)
                 if (maxAcc! > 0)
                   _SuperlativeChip(
-                    emoji: '🧠',
+                    icon: KinrelIconData.brain,
                     label:
                         '${p.userName.isEmpty ? 'You' : p.userName} · sharpest (${p.accuracyPct}%)',
                     mine: p.userId == myId,
@@ -441,12 +449,12 @@ class _SuperlativesSection extends ConsumerWidget {
 
 class _SuperlativeChip extends StatelessWidget {
   const _SuperlativeChip({
-    required this.emoji,
+    required this.icon,
     required this.label,
     this.mine = false,
   });
 
-  final String emoji;
+  final KinrelIconData icon;
   final String label;
   final bool mine;
 
@@ -472,7 +480,9 @@ class _SuperlativeChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 13)),
+          KinrelIcon(icon,
+              size: 13,
+              color: mine ? KinrelColors.orange : KinrelColors.textDim),
           const SizedBox(width: 6),
           Text(
             label,
@@ -540,7 +550,8 @@ class _SportsmanshipSectionState extends ConsumerState<_SportsmanshipSection> {
         children: [
           Row(
             children: [
-              const Text('💚', style: TextStyle(fontSize: 16)),
+              const KinrelIcon(KinrelIconData.heart,
+                  size: 16, color: KinrelColors.success),
               const SizedBox(width: 8),
               Text(
                 'SAY WELL PLAYED',
@@ -581,21 +592,21 @@ class _SportsmanshipSectionState extends ConsumerState<_SportsmanshipSection> {
             ),
           ),
           _CheerChip(
-            emoji: '🤝',
+            icon: KinrelIconData.handshake,
             label: 'GG',
             sent: sent,
             onTap: () => _cheer(player, 'gg'),
           ),
           const SizedBox(width: 6),
           _CheerChip(
-            emoji: '👏',
+            icon: KinrelIconData.party,
             label: 'Well played',
             sent: sent,
             onTap: () => _cheer(player, 'well_played'),
           ),
           const SizedBox(width: 6),
           _CheerChip(
-            emoji: '🎉',
+            icon: KinrelIconData.sparkle,
             label: 'Fun game',
             sent: sent,
             onTap: () => _cheer(player, 'fun_game'),
@@ -625,8 +636,11 @@ class _SportsmanshipSectionState extends ConsumerState<_SportsmanshipSection> {
           backgroundColor: KinrelColors.darkElevated,
           content: Row(
             children: [
-              Text(newBadges.first.icon,
-                  style: const TextStyle(fontSize: 20)),
+              KinrelIcon(
+                  kinrelIconFromEmoji(newBadges.first.icon) ??
+                      KinrelIconData.medal,
+                  size: 20,
+                  color: KinrelColors.brightGold),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -649,13 +663,13 @@ class _SportsmanshipSectionState extends ConsumerState<_SportsmanshipSection> {
 
 class _CheerChip extends StatelessWidget {
   const _CheerChip({
-    required this.emoji,
+    required this.icon,
     required this.label,
     required this.sent,
     required this.onTap,
   });
 
-  final String emoji;
+  final KinrelIconData icon;
   final String label;
   final bool sent;
   final VoidCallback onTap;
@@ -681,7 +695,9 @@ class _CheerChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 12)),
+            KinrelIcon(icon,
+                size: 12,
+                color: sent ? KinrelColors.success : KinrelColors.textDim),
             const SizedBox(width: 4),
             Text(
               sent ? 'Sent' : label,

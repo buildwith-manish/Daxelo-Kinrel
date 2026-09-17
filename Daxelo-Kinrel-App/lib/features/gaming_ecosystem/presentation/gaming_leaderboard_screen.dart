@@ -18,6 +18,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../data/game_registry.dart';
 import '../data/gaming_providers.dart';
+import '../../games/shared/icons/kinrel_icons.dart';
 import 'widgets/gaming_kit.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -243,6 +244,7 @@ class _GameFilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final chipColor = selected ? KinrelColors.orange : KinrelColors.textDim;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: GestureDetector(
@@ -262,16 +264,26 @@ class _GameFilterChip extends StatelessWidget {
                   : Colors.white.withValues(alpha: 0.07),
             ),
           ),
-          child: Text(
-            '$icon $label',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 11.5,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              color: selected ? KinrelColors.orange : KinrelColors.textDim,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              KinrelIcon(
+                  kinrelIconFromEmoji(icon) ?? KinrelIconData.controller,
+                  size: 13,
+                  color: chipColor),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: KinrelTypography.bodyFont,
+                  fontSize: 11.5,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? KinrelColors.orange : KinrelColors.textDim,
+                ),
+              ),
+            ],
           ),
         ),
       ),

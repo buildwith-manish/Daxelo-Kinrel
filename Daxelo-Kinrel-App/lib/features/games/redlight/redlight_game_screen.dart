@@ -596,7 +596,7 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
                       ),
                     ),
                     if (!e.alive)
-                      const Text('💀', style: TextStyle(fontSize: 14)),
+                      const Icon(Icons.close_rounded, size: 14, color: KinrelColors.error),
                   ],
                 ),
                 const SizedBox(height: 6),
