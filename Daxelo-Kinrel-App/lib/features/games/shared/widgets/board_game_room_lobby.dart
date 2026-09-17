@@ -44,6 +44,7 @@ import '../models/game_invite.dart' show GameType;
 import '../multiplayer/room_state.dart' show RoomParticipant;
 import '../services/temporary_room_service.dart';
 import 'invite_family_sheet.dart';
+import 'lobby_join_handler.dart';
 import 'lobby_kit/lobby_kit.dart';
 import 'room_lifecycle_listener.dart';
 import 'temporary_lobby_view.dart';
@@ -403,14 +404,21 @@ class _BoardGameRoomLobbyScreenState
     WidgetsBinding.instance.addPostFrameCallback((_) => _handleJoinParam());
   }
 
-  /// Deep-link (?join=<gameId>) — invite accept, chat invite card, room
-  /// code link and the active-games list all land here.
+  /// Deep-link (`?join=<gameId>`) — invite accept, chat invite card, room
+  /// code link and the active-games list all land here. Retries until the
+  /// Supabase session is wired (cold-boot deep links can mount this screen
+  /// before auth is restored — without the retry the join was silently
+  /// dropped and the member landed on the setup screen).
   Future<void> _handleJoinParam() async {
     if (_didAutoJoin || !mounted) return;
     final joinId = GoRouterState.of(context).uri.queryParameters['join'];
     if (joinId == null || joinId.isEmpty) return;
     _didAutoJoin = true;
-    await _spec.onJoinRoom(ref, _familyId, joinId);
+    joinRoomWhenReady(
+      context: context,
+      ref: ref,
+      onJoin: (id) => _spec.onJoinRoom(ref, _familyId, id),
+    );
   }
 
   Future<void> _createRoom() async {

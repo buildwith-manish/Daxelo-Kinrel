@@ -20,6 +20,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
+import '../shared/widgets/lobby_join_handler.dart';
 import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
 import '../shared/services/temporary_room_service.dart';
@@ -50,10 +51,12 @@ class _RedlightLobbyScreenState extends ConsumerState<RedlightLobbyScreen> {
     super.initState();
     // If a roundId was passed via query (join flow), auto-join.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final joinId = GoRouterState.of(context).uri.queryParameters['join'];
-      if (joinId != null && joinId.isNotEmpty) {
-        ref.read(redlightProvider(widget.familyId).notifier).joinRound(joinId);
-      }
+      joinRoomWhenReady(
+        context: context,
+        ref: ref,
+        onJoin: (id) =>
+            ref.read(redlightProvider(widget.familyId).notifier).joinRound(id),
+      );
     });
   }
 

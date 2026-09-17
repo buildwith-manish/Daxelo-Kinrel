@@ -14,6 +14,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
 import '../shared/models/game_invite.dart';
 import '../shared/widgets/invite_family_sheet.dart';
+import '../shared/widgets/lobby_join_handler.dart';
 import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import '../shared/widgets/temporary_lobby_view.dart';
 import '../shared/widgets/room_lifecycle_listener.dart';
@@ -31,8 +32,8 @@ class _TtLobbyScreenState extends ConsumerState<TtLobbyScreen> {
 
   @override
   void initState() { super.initState(); WidgetsBinding.instance.addPostFrameCallback((_) {
-    final joinId = GoRouterState.of(context).uri.queryParameters['join'];
-    if (joinId != null && joinId.isNotEmpty) ref.read(ttProvider(widget.familyId).notifier).joinGame(joinId);
+    joinRoomWhenReady(context: context, ref: ref,
+      onJoin: (id) => ref.read(ttProvider(widget.familyId).notifier).joinGame(id));
   }); }
 
   Future<void> _createGame() async { setState(() => _creating = true); await ref.read(ttProvider(widget.familyId).notifier).createGame(mode: _mode, totalRounds: _totalRounds, roundTimerSeconds: _timer); if (mounted) setState(() => _creating = false); }
