@@ -27,8 +27,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/services/supabase_service.dart';
-import '../../../gaming_ecosystem/data/gaming_models.dart';
-import '../../games/shared/icons/kinrel_icons.dart';
+import '../../shared/icons/kinrel_icons.dart';
 
 /// Extended ActivityEntry that includes reaction counts + the viewer's
 /// own reactions (from fn_get_family_gaming_activity_v2).

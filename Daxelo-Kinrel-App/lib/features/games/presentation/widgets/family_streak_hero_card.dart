@@ -29,7 +29,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../gaming_ecosystem/data/gaming_models.dart';
 import '../../../gaming_ecosystem/data/gaming_providers.dart';
-import '../../games/shared/icons/kinrel_icons.dart';
+import '../../shared/icons/kinrel_icons.dart';
 import 'family_stats_detail_sheet.dart';
 
 /// Single source of truth for the streak hero card's headline copy.

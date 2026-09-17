@@ -31,7 +31,7 @@ import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../gaming_ecosystem/data/game_registry.dart';
-import '../../games/shared/icons/kinrel_icons.dart';
+import '../../shared/icons/kinrel_icons.dart';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Model

@@ -25,9 +25,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../gaming_ecosystem/data/gaming_models.dart';
-import '../../../gaming_ecosystem/data/gaming_providers.dart';
 import '../../../gaming_ecosystem/presentation/widgets/gaming_kit.dart';
-import '../../games/shared/icons/kinrel_icons.dart';
+import '../../shared/icons/kinrel_icons.dart';
 
 class FamilyStatsDetailSheet extends ConsumerWidget {
   const FamilyStatsDetailSheet({
@@ -101,7 +100,7 @@ class FamilyStatsDetailSheet extends ConsumerWidget {
                       _StatGrid(dashboard: dash, streak: streak),
                       const SizedBox(height: 18),
                       if (dash.season != null) ...[
-                        _CupStandingCard(dashboard: dash),
+                        _CupStandingCard(familyId: familyId, dashboard: dash),
                         const SizedBox(height: 18),
                       ],
                       if (dash.challenges.isNotEmpty) ...[
@@ -115,7 +114,7 @@ class FamilyStatsDetailSheet extends ConsumerWidget {
                             context.push('/family/$familyId/gaming/challenges');
                           },
                         ),
-                        _ChallengeCarousel(dashboard: dash),
+                        _ChallengeCarousel(familyId: familyId, dashboard: dash),
                         const SizedBox(height: 18),
                       ],
                       _QuickLinksRow(familyId: familyId),
@@ -192,7 +191,8 @@ class _StatGrid extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────
 
 class _CupStandingCard extends StatelessWidget {
-  const _CupStandingCard({required this.dashboard});
+  const _CupStandingCard({required this.familyId, required this.dashboard});
+  final String familyId;
   final GamingDashboard dashboard;
 
   @override
@@ -271,7 +271,8 @@ class _CupStandingCard extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────
 
 class _ChallengeCarousel extends StatelessWidget {
-  const _ChallengeCarousel({required this.dashboard});
+  const _ChallengeCarousel({required this.familyId, required this.dashboard});
+  final String familyId;
   final GamingDashboard dashboard;
 
   @override
