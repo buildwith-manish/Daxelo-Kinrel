@@ -23,6 +23,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/data/game_invite_chat_sync.dart';
+import '../shared/services/room_presence_heartbeat.dart';
 import '../shared/services/temporary_room_service.dart';
 import 'chess_models.dart';
 
@@ -107,6 +108,11 @@ class ChessNotifier extends StateNotifier<ChessState> {
       _client?.auth.currentUser?.userMetadata?['name'] as String? ?? 'Player';
 
   RealtimeChannel? _channel;
+
+  /// DB presence heartbeat — keeps the host/opponent's
+  /// game_participants row fresh so the room framework's disconnect
+  /// reaper never hard-deletes a live match (see RoomPresenceHeartbeat).
+  RoomPresenceHeartbeat? _heartbeat;
   String? _gameId;
   chess.Chess? _logic;
 
@@ -363,6 +369,8 @@ class ChessNotifier extends StateNotifier<ChessState> {
   void _reset() {
     _channel?.unsubscribe();
     _channel = null;
+    _heartbeat?.stop();
+    _heartbeat = null;
     _gameId = null;
     _logic = null;
     state = const ChessState();
@@ -746,6 +754,16 @@ class ChessNotifier extends StateNotifier<ChessState> {
     final client = _client;
     if (client == null) return;
 
+    // Keep the participant row fresh while this screen owns the room
+    // (players only — spectators have no participant row and the RPC
+    // is a harmless no-op for them).
+    final myId = _myId;
+    if (myId != null) {
+      _heartbeat?.stop();
+      _heartbeat = RoomPresenceHeartbeat('chess_games')
+        ..start(client, gameId, myId);
+    }
+
     // Belt & braces: the socket-level access token is normally set by
     // supabase's own auth listener, but a channel's join payload
     // captures socket.accessToken at subscribe() time — re-asserting
@@ -838,6 +856,7 @@ class ChessNotifier extends StateNotifier<ChessState> {
   @override
   void dispose() {
     _channel?.unsubscribe();
+    _heartbeat?.stop();
     super.dispose();
   }
 }

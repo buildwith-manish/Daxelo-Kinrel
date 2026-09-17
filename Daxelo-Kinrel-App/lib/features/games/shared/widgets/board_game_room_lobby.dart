@@ -34,6 +34,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'dart:async';
+
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_spacing.dart';
 import '../../../../core/constants/brand_typography.dart';
@@ -42,6 +44,7 @@ import '../../../../shared/widgets/dk_components.dart';
 import '../../game_motion_tokens.dart';
 import '../models/game_invite.dart' show GameType;
 import '../multiplayer/room_state.dart' show RoomParticipant;
+import '../services/room_presence_heartbeat.dart';
 import '../services/temporary_room_service.dart';
 import 'invite_family_sheet.dart';
 import 'lobby_join_handler.dart';
@@ -98,12 +101,28 @@ class BoardRoomParticipantsNotifier
 
   RealtimeChannel? _channel;
 
+  /// DB presence heartbeat — without it the room framework's disconnect
+  /// reaper hard-deletes the room once the host's game_participants row
+  /// goes stale (60s). Same 20s fn_player_heartbeat loop RoomController
+  /// runs for the Pattern B games.
+  RoomPresenceHeartbeat? _heartbeat;
+
   SupabaseClient? get _client => _ref.read(supabaseProvider);
   String? get _myId => _client?.auth.currentUser?.id;
 
   Future<void> _init() async {
     await _fetch();
     _subscribe();
+    _startHeartbeat();
+  }
+
+  void _startHeartbeat() {
+    final client = _client;
+    final myId = _myId;
+    if (client == null || myId == null) return;
+    _heartbeat?.stop();
+    _heartbeat = RoomPresenceHeartbeat(_key.gameTable)
+      ..start(client, _key.gameId, myId);
   }
 
   Future<void> _fetch() async {
@@ -248,6 +267,8 @@ class BoardRoomParticipantsNotifier
   void dispose() {
     _channel?.unsubscribe();
     _channel = null;
+    _heartbeat?.stop();
+    _heartbeat = null;
     super.dispose();
   }
 }

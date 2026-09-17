@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/data/game_invite_chat_sync.dart';
+import '../shared/services/room_presence_heartbeat.dart';
 import '../shared/services/temporary_room_service.dart';
 import 'tictactoe_game_logic.dart';
 import 'tictactoe_models.dart';
@@ -35,6 +36,10 @@ class TttNotifier extends StateNotifier<TttState> {
   String? get _myId => _client?.auth.currentUser?.id;
   String get _myName => _client?.auth.currentUser?.userMetadata?['name'] as String? ?? 'Player';
   RealtimeChannel? _channel; String? _gameId;
+
+  /// DB presence heartbeat — keeps the players' game_participants rows
+  /// fresh so the disconnect reaper never hard-deletes a live room.
+  RoomPresenceHeartbeat? _heartbeat;
 
   /// Host: create a new room (Create Room flow).
   ///
@@ -191,6 +196,8 @@ class TttNotifier extends StateNotifier<TttState> {
   void _reset() {
     _channel?.unsubscribe();
     _channel = null;
+    _heartbeat?.stop();
+    _heartbeat = null;
     _gameId = null;
     state = const TttState();
   }
@@ -293,7 +300,7 @@ class TttNotifier extends StateNotifier<TttState> {
     } catch (e) { debugPrint('[TTT] placeMark error: $e'); state = state.copyWith(isSubmitting: false, error: '$e'); return false; }
   }
 
-  void leaveGame() { _channel?.unsubscribe(); _channel = null; _gameId = null; }
+  void leaveGame() { _channel?.unsubscribe(); _channel = null; _heartbeat?.stop(); _heartbeat = null; _gameId = null; }
 
   /// Schedule the temporary room (and all temporary player associations)
   /// for deletion 30s after the game ends. The hourly pg_cron job is the
@@ -310,6 +317,12 @@ class TttNotifier extends StateNotifier<TttState> {
   void _subscribeToRealtime(String gameId) {
     _channel?.unsubscribe();
     final client = _client; if (client == null) return;
+    // Keep the participant row fresh while this screen owns the room.
+    final hbId = _myId;
+    if (hbId != null) {
+      _heartbeat?.stop();
+      _heartbeat = RoomPresenceHeartbeat('tictactoe_games')..start(client, gameId, hbId);
+    }
     _channel = client.channel('ttt_game:$gameId')
       .onPostgresChanges(event: PostgresChangeEvent.update, schema: 'public', table: 'tictactoe_games',
         filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'id', value: gameId),
@@ -361,7 +374,7 @@ class TttNotifier extends StateNotifier<TttState> {
   }
 
   @override
-  void dispose() { _channel?.unsubscribe(); super.dispose(); }
+  void dispose() { _channel?.unsubscribe(); _heartbeat?.stop(); super.dispose(); }
 }
 
 final tttProvider = StateNotifierProvider.autoDispose.family<TttNotifier, TttState, String>((ref, familyId) => TttNotifier(ref, familyId));

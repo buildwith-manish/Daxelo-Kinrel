@@ -19,6 +19,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/data/game_invite_chat_sync.dart';
+import '../shared/services/room_presence_heartbeat.dart';
 import '../shared/services/temporary_room_service.dart';
 import 'carrom_constants.dart';
 import 'carrom_game_logic.dart';
@@ -108,6 +109,10 @@ class CarromNotifier extends StateNotifier<CarromState> {
       _client?.auth.currentUser?.userMetadata?['name'] as String? ?? 'Player';
 
   RealtimeChannel? _channel;
+
+  /// DB presence heartbeat — keeps the players' game_participants rows
+  /// fresh so the disconnect reaper never hard-deletes a live room.
+  RoomPresenceHeartbeat? _heartbeat;
   String? _gameId;
   CarromPhysicsEngine? _physics;
   Timer? _simTimer;
@@ -349,6 +354,8 @@ class CarromNotifier extends StateNotifier<CarromState> {
     _simTimer = null;
     _channel?.unsubscribe();
     _channel = null;
+    _heartbeat?.stop();
+    _heartbeat = null;
     _gameId = null;
     state = const CarromState();
   }
@@ -685,6 +692,14 @@ class CarromNotifier extends StateNotifier<CarromState> {
     final client = _client;
     if (client == null) return;
 
+    // Keep the participant row fresh while this screen owns the room.
+    final myId = _myId;
+    if (myId != null) {
+      _heartbeat?.stop();
+      _heartbeat = RoomPresenceHeartbeat('carrom_games')
+        ..start(client, gameId, myId);
+    }
+
     _channel = client
         .channel('carrom_game:$gameId')
         .onPostgresChanges(
@@ -748,6 +763,7 @@ class CarromNotifier extends StateNotifier<CarromState> {
     _simTimer?.cancel();
     _physics?.dispose();
     _channel?.unsubscribe();
+    _heartbeat?.stop();
     super.dispose();
   }
 }
