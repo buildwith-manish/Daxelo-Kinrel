@@ -611,10 +611,10 @@ class ChessNotifier extends StateNotifier<ChessState> {
       bool gameEnded = false;
 
       if (logic.in_checkmate) {
-        // Checkmate — current player's opponent wins
-        final winnerColor = game.currentTurnColor == ChessColor.white
-            ? ChessColor.black
-            : ChessColor.white;
+        // Checkmate — the side to move AFTER this move is checkmated and
+        // loses. The winner is therefore the player who just moved
+        // (game.currentTurnColor = the mover's color) — NOT the opposite.
+        final winnerColor = game.currentTurnColor;
         result = winnerColor == ChessColor.white
             ? 'white_win'
             : 'black_win';
@@ -844,6 +844,12 @@ class ChessNotifier extends StateNotifier<ChessState> {
             _channel = null;
             _gameId = null;
             _logic = null;
+            // A COMPLETED game is archived + cleaned up server-side
+            // shortly after the results screen renders — that delete is
+            // EXPECTED and must not clobber the results view (it reads
+            // the in-memory game state). Only a live room being closed
+            // (host left / cancelled) shows the room-closed error.
+            if (state.game?.isCompleted ?? false) return;
             state = const ChessState(error: kRoomClosedMessage);
           },
         )

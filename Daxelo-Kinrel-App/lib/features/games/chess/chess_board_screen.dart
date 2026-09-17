@@ -24,6 +24,7 @@ import '../../../core/constants/brand_spacing.dart';
 import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
+import '../shared/icons/kinrel_icons.dart';
 import '../shared/multiplayer/multiplayer.dart';
 import '../shared/services/temporary_room_service.dart';
 import '../shared/widgets/game_board_shell.dart';
@@ -763,9 +764,12 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
               const SizedBox(height: KinrelSpacing.lg),
               Column(
                 children: [
-                  Text(
-                    isDraw ? '🤝' : '🏆',
-                    style: TextStyle(fontSize: 64),
+                  KinrelIcon(
+                    isDraw
+                        ? KinrelIconData.handshake
+                        : KinrelIconData.trophy,
+                    size: 64,
+                    color: isDraw ? KinrelColors.gold : KinrelColors.orange,
                   )
                       .animate(onPlay: (c) => c.forward())
                       .fadeIn(duration: 500.ms)

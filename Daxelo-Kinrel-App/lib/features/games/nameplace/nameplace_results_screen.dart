@@ -16,6 +16,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../game_motion_tokens.dart';
+import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/game_confetti.dart';
 import 'nameplace_provider.dart';
 import '../../gaming_ecosystem/presentation/match_ecosystem_summary.dart';
@@ -176,7 +177,7 @@ class _NameplaceResultsScreenState extends ConsumerState<NameplaceResultsScreen>
         ListView(padding: const EdgeInsets.all(KinrelSpacing.base), children: [
         const SizedBox(height: KinrelSpacing.lg),
         Column(children: [
-          Text(winners.length > 1 ? '🏆' : '🏆', style: TextStyle(fontSize: 64))
+          KinrelIcon(KinrelIconData.trophy, size: 64, color: KinrelColors.orange)
             .animate(onPlay: (c) => c.forward()).fadeIn(duration: 500.ms).scale(begin: const Offset(0.5, 0.5), end: const Offset(1.0, 1.0), duration: 500.ms, curve: Curves.elasticOut),
           const SizedBox(height: KinrelSpacing.sm),
           Text(isMyWin ? (winners.length > 1 ? 'Joint Winners!' : 'You Won!') : (winners.length > 1 ? 'Joint Winners!' : 'Winner!'),

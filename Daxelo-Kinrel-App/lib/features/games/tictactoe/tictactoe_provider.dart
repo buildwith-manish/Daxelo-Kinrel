@@ -335,6 +335,10 @@ class TttNotifier extends StateNotifier<TttState> {
         callback: (payload) {
           debugPrint('[TTT] game row deleted — room closed');
           _channel?.unsubscribe(); _channel = null; _gameId = null;
+          // Completed games are archived + deleted server-side right
+          // after the results screen renders — keep the in-memory
+          // state so the results view survives the cleanup delete.
+          if (state.game?.isCompleted ?? false) return;
           state = const TttState(error: kRoomClosedMessage);
         })
       .onPostgresChanges(event: PostgresChangeEvent.update, schema: 'public', table: 'tictactoe_rounds',
