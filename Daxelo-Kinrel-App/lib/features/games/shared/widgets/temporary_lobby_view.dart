@@ -1311,13 +1311,16 @@ class _EmptySlotTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: KinrelSpacing.sm),
-          Text(
-            'Open slot',
-            style: TextStyle(
-              fontFamily: KinrelTypography.bodyFont,
-              fontSize: 13,
-              color: KinrelColors.textDim.withValues(alpha: 0.7),
-              fontStyle: FontStyle.italic,
+          Expanded(
+            child: Text(
+              'Waiting for family member…',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: KinrelTypography.bodyFont,
+                fontSize: 13,
+                color: KinrelColors.textDim.withValues(alpha: 0.7),
+                fontStyle: FontStyle.italic,
+              ),
             ),
           ),
         ],
@@ -1401,9 +1404,6 @@ class _FamilyInviteSection extends StatelessWidget {
   final TemporaryLobbyConfig config;
   final bool isHost;
   final VoidCallback? onInviteFamily;
-
-  int get _openSlots =>
-      (config.maxPlayers - config.players.length).clamp(0, config.maxPlayers);
 
   @override
   Widget build(BuildContext context) {

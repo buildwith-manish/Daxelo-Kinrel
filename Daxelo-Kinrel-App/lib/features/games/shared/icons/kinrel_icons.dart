@@ -398,14 +398,30 @@ class _KinrelIconPainter extends CustomPainter {
         break;
 
       case KinrelIconData.brain:
+        // Two mirrored lobes + central divide, pure cubic curves.
         path([
-          'M12 4.2 a3.6 3.6 0 0 0 -3.6 3.6 c-1.8 .3 -3.2 1.9 -3.2 3.8 0 1.2 .5 2.2 1.4 3 -.2 .5 -.3 1.1 -.3 1.6 a3.9 3.9 0 0 0 3.9 3.9 c.7 0 1.3 -.2 1.8 -.4',
+          'M11.5 4.4',
+          'C9.1 4.4 7.2 6.2 7.2 8.5',
+          'C5.4 9 4 10.6 4 12.5',
+          'C4 13.9 4.8 15.2 6 15.9',
+          'C5.8 16.4 5.7 16.9 5.7 17.5',
+          'C5.7 19.6 7.4 21.3 9.5 21.3',
+          'C10.3 21.3 11 21 11.5 20.6',
         ]);
         path([
-          'M12 4.2 a3.6 3.6 0 0 1 3.6 3.6 c1.8 .3 3.2 1.9 3.2 3.8 0 1.2 -.5 2.2 -1.4 3 .2 .5 .3 1.1 .3 1.6 a3.9 3.9 0 0 1 -3.9 3.9 c-.7 0 -1.3 -.2 -1.8 -.4',
+          'M11.5 4.4',
+          'C13.9 4.4 15.8 6.2 15.8 8.5',
+          'C17.6 9 19 10.6 19 12.5',
+          'C19 13.9 18.2 15.2 17 15.9',
+          'C17.2 16.4 17.3 16.9 17.3 17.5',
+          'C17.3 19.6 15.6 21.3 13.5 21.3',
+          'C12.7 21.3 12 21 11.5 20.6',
         ]);
-        line(12, 4.2, 12, 19.6);
-        path(['M9.2 9.4 q1.4 -.8 2.8 0', 'M12 14.6 q1.4 .8 2.8 0']);
+        // Central divide.
+        path(['M11.5 4.4 V20.6']);
+        // Cortical squiggles.
+        path(['M8.5 9.7 q1.2 -.8 2.4 0']);
+        path(['M13.1 14.7 q1.2 .8 2.4 0']);
         break;
 
       case KinrelIconData.zap:
@@ -475,16 +491,18 @@ class _KinrelIconPainter extends CustomPainter {
         break;
 
       case KinrelIconData.party:
-        // Cone.
+        // Cone (filled, opening to the top-right).
         path([
-          'M3.6 20.4 L8.8 4.2 l4.2 12.2 Z',
+          'M3.8 20.6 L8.9 4.6 L12.9 16 Z',
         ], p: fill);
-        // Streamers.
-        path(['M14.6 5.4 l1.8 -1.8', 'M17.6 9.2 l2.4 -.9', 'M16 13 l2.4 1.4']);
+        // Streamers bursting out of the cone mouth.
+        path(['M14.4 5.6 l1.9 -1.9']);
+        path(['M17.5 9.3 l2.4 -.9']);
+        path(['M16 13.1 l2.5 1.5']);
         // Confetti dots.
-        circle(14.2, 9.6, 0.8, fill);
-        circle(19.4, 5.2, 0.8, fill);
-        circle(20, 15.8, 0.8, fill);
+        circle(14.4, 10, 0.85, fill);
+        circle(19.8, 5.4, 0.85, fill);
+        circle(20, 16.4, 0.85, fill);
         break;
 
       case KinrelIconData.compass:
@@ -544,95 +562,208 @@ class _KinrelIconPainter extends CustomPainter {
     canvas.drawRect(rect, Paint()..color = color);
   }
 
-  /// Parses a compact SVG-like command list. Supports M/L/H/V/C/Q/A/Z
-  /// (absolute commands only — good enough for hand-authored icons).
+  /// Parses a compact SVG-like command stream.
+  ///
+  /// Supported: M/L/H/V/C/Q/A/Z in absolute and relative forms, plus
+  /// the SVG "implicit repetition" rule — a command with more numbers
+  /// than it consumes repeats itself for each argument group
+  /// (e.g. 'l1 2 3 4' is two line segments). Each element of [ops]
+  /// may hold one command or a whole run.
   static Path _parse(Iterable<String> ops, double s) {
     final p = Path();
     double cx = 0, cy = 0, startX = 0, startY = 0;
-    for (final raw in ops) {
-      final op = raw.trim();
-      if (op.isEmpty) continue;
-      final cmd = op[0];
-      final args = op.length > 1
-          ? op
-              .substring(1)
-              .trim()
-              .split(RegExp(r'[\s,]+'))
-              .map(double.parse)
-              .toList()
-          : <double>[];
+    var hasMoved = false;
+
+    void apply(String cmd, List<double> a) {
       switch (cmd) {
         case 'M':
-          cx = args[0];
-          cy = args[1];
+        case 'm':
+          if (cmd == 'm' && hasMoved) {
+            cx += a[0];
+            cy += a[1];
+          } else {
+            cx = a[0];
+            cy = a[1];
+          }
+          hasMoved = true;
           startX = cx;
           startY = cy;
           p.moveTo(cx * s, cy * s);
           break;
         case 'L':
-          cx = args[0];
-          cy = args[1];
+          cx = a[0];
+          cy = a[1];
           p.lineTo(cx * s, cy * s);
           break;
         case 'l':
-          cx += args[0];
-          cy += args[1];
+          cx += a[0];
+          cy += a[1];
           p.lineTo(cx * s, cy * s);
           break;
         case 'H':
-          cx = args[0];
+          cx = a[0];
+          p.lineTo(cx * s, cy * s);
+          break;
+        case 'h':
+          cx += a[0];
           p.lineTo(cx * s, cy * s);
           break;
         case 'V':
-          cy = args[0];
+          cy = a[0];
+          p.lineTo(cx * s, cy * s);
+          break;
+        case 'v':
+          cy += a[0];
           p.lineTo(cx * s, cy * s);
           break;
         case 'C':
-          p.cubicTo(args[0] * s, args[1] * s, args[2] * s, args[3] * s,
-              args[4] * s, args[5] * s);
-          cx = args[4];
-          cy = args[5];
+          p.cubicTo(a[0] * s, a[1] * s, a[2] * s, a[3] * s, a[4] * s,
+              a[5] * s);
+          cx = a[4];
+          cy = a[5];
           break;
         case 'c':
-          p.relativeCubicTo(args[0] * s, args[1] * s, args[2] * s, args[3] * s,
-              args[4] * s, args[5] * s);
-          cx += args[4];
-          cy += args[5];
+          p.relativeCubicTo(a[0] * s, a[1] * s, a[2] * s, a[3] * s,
+              a[4] * s, a[5] * s);
+          cx += a[4];
+          cy += a[5];
           break;
         case 'Q':
-          p.quadraticBezierTo(args[0] * s, args[1] * s, args[2] * s, args[3] * s);
-          cx = args[2];
-          cy = args[3];
+          p.quadraticBezierTo(a[0] * s, a[1] * s, a[2] * s, a[3] * s);
+          cx = a[2];
+          cy = a[3];
           break;
         case 'q':
-          p.relativeQuadraticBezierTo(
-              args[0] * s, args[1] * s, args[2] * s, args[3] * s);
-          cx += args[2];
-          cy += args[3];
+          p.relativeQuadraticBezierTo(a[0] * s, a[1] * s, a[2] * s,
+              a[3] * s);
+          cx += a[2];
+          cy += a[3];
           break;
         case 'A':
-          // Approximate arc with quadratic curves through the end point.
-          final rx = args[0], ry = args[1];
-          final x2 = args[5], y2 = args[6];
-          // Control point: bulge toward the arc's outer edge.
-          final midX = (cx + x2) / 2, midY = (cy + y2) / 2;
-          final dx = x2 - cx, dy = y2 - cy;
-          final len = (dx * dx + dy * dy) == 0 ? 1 : math.sqrt(dx * dx + dy * dy);
-          final bulge = (rx + ry) / 2 * 0.55;
-          final ctrlX = midX + (-dy / len) * bulge;
-          final ctrlY = midY + (dx / len) * bulge;
-          p.quadraticBezierTo(ctrlX * s, ctrlY * s, x2 * s, y2 * s);
+          _ellipticalArc(p, s, cx, cy, a[0], a[1], a[2], a[3] == 1,
+              a[4] == 1, a[5], a[6]);
+          cx = a[5];
+          cy = a[6];
+          break;
+        case 'a':
+          final x2 = cx + a[5];
+          final y2 = cy + a[6];
+          _ellipticalArc(p, s, cx, cy, a[0], a[1], a[2], a[3] == 1,
+              a[4] == 1, x2, y2);
           cx = x2;
           cy = y2;
           break;
-        case 'Z':
+      }
+    }
+
+    const argCounts = <String, int>{
+      'M': 2, 'L': 2, 'l': 2, 'H': 1, 'h': 1, 'V': 1, 'v': 1,
+      'C': 6, 'c': 6, 'Q': 4, 'q': 4, 'A': 7, 'a': 7,
+    };
+    final cmdRe =
+        RegExp(r'([MLHVCSQTAZmlhvcsqtaz])((?:[^MLHVCSQTAZmlhvcsqtaz])*)');
+
+    for (final raw in ops) {
+      for (final m in cmdRe.allMatches(raw.trim())) {
+        final cmd = m.group(1)!;
+        if (cmd == 'Z' || cmd == 'z') {
           p.close();
           cx = startX;
           cy = startY;
-          break;
+          continue;
+        }
+        final argStr = m.group(2)?.trim() ?? '';
+        if (argStr.isEmpty) continue;
+        final args = argStr
+            .split(RegExp(r'[\s,]+'))
+            .map(double.parse)
+            .toList();
+        final want = argCounts[cmd]!;
+        // After a moveto, extra argument pairs are implicit line
+        // segments (absolute M -> L, relative m -> l).
+        final implicit = cmd == 'M'
+            ? 'L'
+            : cmd == 'm'
+                ? 'l'
+                : cmd;
+        var i = 0;
+        while (i + want <= args.length) {
+          apply(i == 0 ? cmd : implicit, args.sublist(i, i + want));
+          i += want;
+        }
       }
     }
     return p;
+  }
+
+  /// Converts one SVG elliptical arc (x-axis rotation assumed 0 — every
+  /// hand-authored icon path uses unrotated arcs) into a sequence of
+  /// cubic Bézier segments (≤ 90° each), using the standard
+  /// center-parameterization algorithm (SVG spec F.6.5).
+  static void _ellipticalArc(Path p, double s, double x0, double y0,
+      double rx, double ry, double xRot, bool largeArc, bool sweep,
+      double x1, double y1) {
+    if (rx == 0 || ry == 0 || (x0 == x1 && y0 == y1)) {
+      p.lineTo(x1 * s, y1 * s);
+      return;
+    }
+    rx = rx.abs();
+    ry = ry.abs();
+
+    // Step 1: compute the center in the scaled-ellipse frame.
+    final dx2 = (x0 - x1) / 2;
+    final dy2 = (y0 - y1) / 2;
+    final lambda = (dx2 * dx2) / (rx * rx) + (dy2 * dy2) / (ry * ry);
+    if (lambda > 1) {
+      final scale = math.sqrt(lambda);
+      rx *= scale;
+      ry *= scale;
+    }
+    final sign = largeArc != sweep ? 1 : -1;
+    final num = rx * rx * ry * ry - rx * rx * dy2 * dy2 - ry * ry * dx2 * dx2;
+    final den = rx * rx * dy2 * dy2 + ry * ry * dx2 * dx2;
+    final co = sign * math.sqrt(num < 0 ? 0 : num / den);
+    final cxp = co * rx * dy2 / ry;
+    final cyp = -co * ry * dx2 / rx;
+    final cx = cxp + (x0 + x1) / 2;
+    final cy = cyp + (y0 + y1) / 2;
+
+    // Step 2: start/end angles on the ellipse.
+    double angle(double ux, double uy, double vx, double vy) {
+      final dot = ux * vx + uy * vy;
+      final len = math.sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy));
+      var a = math.acos((dot / len).clamp(-1.0, 1.0));
+      if (ux * vy - uy * vx < 0) a = -a;
+      return a;
+    }
+
+    final theta1 =
+        angle(1, 0, (dx2 - cxp) / rx, (dy2 - cyp) / ry);
+    var dTheta = angle((dx2 - cxp) / rx, (dy2 - cyp) / ry,
+        (-dx2 - cxp) / rx, (-dy2 - cyp) / ry);
+    if (!sweep && dTheta > 0) dTheta -= 2 * math.pi;
+    if (sweep && dTheta < 0) dTheta += 2 * math.pi;
+
+    // Step 3: emit ≤ 90° cubic segments.
+    final segments = (dTheta.abs() / (math.pi / 2)).ceil();
+    final delta = dTheta / segments;
+    const k = 4 / 3;
+    final tanQuarter = math.tan(delta / 4);
+    var th = theta1;
+    for (var i = 0; i < segments; i++) {
+      final th2 = th + delta;
+      final c1 = math.cos(th), s1 = math.sin(th);
+      final c2 = math.cos(th2), s2 = math.sin(th2);
+      // Control points in ellipse space (rotation 0).
+      final cp1x = cx + rx * (c1 - k * tanQuarter * s1);
+      final cp1y = cy + ry * (s1 + k * tanQuarter * c1);
+      final cp2x = cx + rx * (c2 + k * tanQuarter * s2);
+      final cp2y = cy + ry * (s2 - k * tanQuarter * c2);
+      final ex = cx + rx * c2;
+      final ey = cy + ry * s2;
+      p.cubicTo(cp1x * s, cp1y * s, cp2x * s, cp2y * s, ex * s, ey * s);
+      th = th2;
+    }
   }
 
   static void _star(Canvas canvas, Offset c, double r, Paint paint) {
