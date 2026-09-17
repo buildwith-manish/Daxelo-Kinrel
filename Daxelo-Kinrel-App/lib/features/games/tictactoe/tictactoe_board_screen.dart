@@ -27,6 +27,11 @@ class TttBoardScreen extends ConsumerStatefulWidget {
 }
 
 class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
+  /// One-time guard for the waiting-room redirect: a 'waiting' game row
+  /// (Create Room flow — match not started yet) is owned by the LOBBY's
+  /// waiting room, not the board. Send the user there.
+  bool _didWaitingRedirect = false;
+
   @override
   void initState() { super.initState(); WidgetsBinding.instance.addPostFrameCallback((_) { if (ref.read(tttProvider(widget.familyId)).game == null) ref.read(tttProvider(widget.familyId).notifier).loadGame(widget.gameId); }); }
 
@@ -34,6 +39,19 @@ class _TttBoardScreenState extends ConsumerState<TttBoardScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(tttProvider(widget.familyId));
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+
+    // Waiting room owns the pre-match phase — redirect once.
+    final waitingGameId =
+        state.isWaiting && state.game?.id != null ? state.game!.id : null;
+    if (waitingGameId != null && !_didWaitingRedirect) {
+      _didWaitingRedirect = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.pushReplacement(
+          '/family/${widget.familyId}/tictactoe/lobby?join=$waitingGameId',
+        );
+      });
+    }
 
     // RoomKeepAlive: keep the room framework (host heartbeat + room
     // realtime) alive for the whole lifetime of this screen — the

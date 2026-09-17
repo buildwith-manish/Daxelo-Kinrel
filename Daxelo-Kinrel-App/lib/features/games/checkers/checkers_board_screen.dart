@@ -64,6 +64,11 @@ class CheckersBoardScreen extends ConsumerStatefulWidget {
 
 class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
     with TickerProviderStateMixin {
+  /// One-time guard for the waiting-room redirect: a 'waiting' game row
+  /// (Create Room flow — match not started yet) is owned by the LOBBY's
+  /// waiting room, not the board. Send the user there.
+  bool _didWaitingRedirect = false;
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +81,19 @@ class _CheckersBoardScreenState extends ConsumerState<CheckersBoardScreen>
   Widget build(BuildContext context) {
     final state = ref.watch(checkersProvider(widget.familyId));
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+
+    // Waiting room owns the pre-match phase — redirect once.
+    final waitingGameId =
+        state.isWaiting && state.game?.id != null ? state.game!.id : null;
+    if (waitingGameId != null && !_didWaitingRedirect) {
+      _didWaitingRedirect = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.pushReplacement(
+          '/family/${widget.familyId}/checkers/lobby?join=$waitingGameId',
+        );
+      });
+    }
 
     // Show results inline when game completes
     //

@@ -237,8 +237,7 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
     // Navigate the recipient into the host's game.
     // Use the root navigator's context (same reason as the dialog).
     debugPrint('➡️ GameInviteListener: accept → ${invite.joinRoute} '
-        '(gameType=${invite.gameType.name}, '
-        'challengeGame=${invite.gameType.isChallengeGame})');
+        '(gameType=${invite.gameType.name})');
     final navContext = rootNavigatorKey.currentContext ?? context;
     GoRouter.of(navContext).go(invite.joinRoute);
   }

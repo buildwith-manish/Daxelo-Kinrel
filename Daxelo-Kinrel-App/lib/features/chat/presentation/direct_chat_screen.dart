@@ -757,15 +757,12 @@ class _DirectMessageBubble extends StatelessWidget {
     final inviteMessage = payload['message'] as String?;
 
     final displayName = _gameDisplayName(gameSegment);
-    // Challenge games (chess/checkers/carrom/tictactoe) have the
-    // opponent attached at creation — Join lands directly on the board.
-    // Temporary-room games join via the lobby's ?join= flow.
-    final isChallengeGame = const {
-      'chess', 'checkers', 'carrom', 'tictactoe',
-    }.contains(gameSegment);
-    final joinRoute = isChallengeGame
-        ? '/family/$familyId/$gameSegment/board/$gameId'
-        : '/family/$familyId/$gameSegment/lobby?join=$gameId';
+    // EVERY game (including the board games — chess, checkers, carrom,
+    // tictactoe) joins via the lobby's ?join= flow: the joiner lands in
+    // the shared waiting room and takes the free opponent slot
+    // automatically, or spectates if the match is already running.
+    final joinRoute =
+        '/family/$familyId/$gameSegment/lobby?join=$gameId';
 
     return Align(
       alignment: Alignment.centerLeft,

@@ -11,8 +11,16 @@ extension TttStatusX on TttStatus {
 }
 
 class TttGame {
-  const TttGame({required this.id, required this.familyId, required this.playerXId, required this.playerXName, required this.playerOId, required this.playerOName, required this.currentTurnPlayerId, required this.bestOf, required this.roundsWonX, required this.roundsWonO, required this.currentRound, required this.status, this.overallWinnerId, this.overallWinnerName, this.startedAt, this.completedAt, required this.createdAt});
-  final String id; final String familyId; final String playerXId; final String playerXName; final String playerOId; final String playerOName; final String currentTurnPlayerId; final int bestOf; final int roundsWonX; final int roundsWonO; final int currentRound; final TttStatus status; final String? overallWinnerId; final String? overallWinnerName; final DateTime? startedAt; final DateTime? completedAt; final DateTime createdAt;
+  const TttGame({required this.id, required this.familyId, required this.playerXId, required this.playerXName, required this.playerOId, required this.playerOName, required this.currentTurnPlayerId, required this.bestOf, required this.roundsWonX, required this.roundsWonO, required this.currentRound, required this.status, this.overallWinnerId, this.overallWinnerName, this.startedAt, this.completedAt, required this.createdAt, this.hostUserId, this.hostUserName, this.spectatorsEnabled = true, this.autoCloseDeadline});
+  final String id; final String familyId; final String playerXId; final String playerXName;
+
+  /// O's user id — EMPTY while the room is waiting for an opponent to
+  /// join (Create Room flow: the host creates the room first, the
+  /// first family member to join takes this slot).
+  final String playerOId; final String playerOName; final String currentTurnPlayerId; final int bestOf; final int roundsWonX; final int roundsWonO; final int currentRound; final TttStatus status; final String? overallWinnerId; final String? overallWinnerName; final DateTime? startedAt; final DateTime? completedAt; final DateTime createdAt;
+
+  /// Room-framework columns (Create Room flow).
+  final String? hostUserId; final String? hostUserName; final bool spectatorsEnabled; final DateTime? autoCloseDeadline;
 
   factory TttGame.fromJson(Map<String, dynamic> json) => TttGame(
     id: json['id'] ?? '', familyId: json['familyId'] ?? '', playerXId: json['playerXId'] ?? '', playerXName: json['playerXName'] ?? 'Player 1',
@@ -21,11 +29,18 @@ class TttGame {
     status: TttStatusX.fromString(json['status']), overallWinnerId: json['overallWinnerId'], overallWinnerName: json['overallWinnerName'],
     startedAt: json['startedAt'] != null ? DateTime.tryParse(json['startedAt']) : null, completedAt: json['completedAt'] != null ? DateTime.tryParse(json['completedAt']) : null,
     createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
+    hostUserId: json['hostUserId'], hostUserName: json['hostUserName'],
+    spectatorsEnabled: json['spectatorsEnabled'] == null ? true : json['spectatorsEnabled'] == true,
+    autoCloseDeadline: json['autoCloseDeadline'] is String ? DateTime.tryParse(json['autoCloseDeadline'] as String) : null,
   );
 
   bool get isWaiting => status == TttStatus.waiting;
   bool get isInProgress => status == TttStatus.inProgress;
   bool get isCompleted => status == TttStatus.completed;
+
+  /// True while the room is still waiting for an opponent to join
+  /// (Create Room flow — O's slot is empty).
+  bool get needsOpponent => playerOId.isEmpty;
 
   Mark? markForPlayer(String? userId) { if (userId == playerXId) return Mark.x; if (userId == playerOId) return Mark.o; return null; }
   String? idForMark(Mark m) => m == Mark.x ? playerXId : playerOId;

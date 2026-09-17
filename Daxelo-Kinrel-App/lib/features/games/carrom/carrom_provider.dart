@@ -18,6 +18,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
+import '../shared/data/game_invite_chat_sync.dart';
 import '../shared/services/temporary_room_service.dart';
 import 'carrom_constants.dart';
 import 'carrom_game_logic.dart';
@@ -114,11 +115,13 @@ class CarromNotifier extends StateNotifier<CarromState> {
 
   // ── Public API ───────────────────────────────────────────────────
 
-  /// Create a new game challenging [opponentId].
-  Future<String?> createGame({
-    required String opponentId,
-    required String opponentName,
-  }) async {
+  /// Host: create a new room (Create Room flow).
+  ///
+  /// The room is created immediately with ONLY the host attached
+  /// (Player One, white) and status 'waiting' — no opponent is picked
+  /// up front. The first family member to join takes Player Two
+  /// (black) automatically via [joinRoom].
+  Future<String?> createRoom({required bool spectatorsEnabled}) async {
     final client = _client;
     final myId = _myId;
     if (client == null || myId == null) {
@@ -129,38 +132,225 @@ class CarromNotifier extends StateNotifier<CarromState> {
     try {
       final initialBoard = createInitialBoard();
       final strikerPos = defaultStrikerPosition(1);
+      final deadline = DateTime.now().add(const Duration(minutes: 5));
 
-      final body = {
+      final resp = await client.from('carrom_games').insert({
         'familyId': familyId,
+        'hostUserId': myId,
+        'hostUserName': _myName,
         'playerOneId': myId,
         'playerOneName': _myName,
-        'playerTwoId': opponentId,
-        'playerTwoName': opponentName,
+        // playerTwoId stays NULL until an opponent joins the room.
         'currentTurnPlayerId': myId,
-        'status': 'in_progress',
+        'status': 'waiting',
         'playerOneColor': CarromCoinType.white.name,
         'playerTwoColor': CarromCoinType.black.name,
         'boardState': initialBoard.map((c) => c.toJson()).toList(),
         'strikerX': strikerPos.x,
         'strikerY': strikerPos.y,
         'queenStatus': CarromQueenStatus.onBoard.name,
-      };
-      final resp = await client
-          .from('carrom_games')
-          .insert(body)
-          .select()
-          .single();
+        'spectatorsEnabled': spectatorsEnabled,
+        'hostReady': true,
+        'autoCloseDeadline': deadline.toIso8601String(),
+      }).select().single();
       final game = CarromGame.fromJson(resp as Map<String, dynamic>);
       _gameId = game.id;
+
+      // Register the host in the shared room bookkeeping (roster +
+      // 'join' lobby event + ecosystem archive).
+      await client.rpc('fn_record_room_join', params: {
+        'p_game_table': 'carrom_games',
+        'p_game_id': game.id,
+        'p_family_id': familyId,
+        'p_user_id': myId,
+        'p_user_name': _myName,
+        'p_role': 'host',
+      });
 
       state = state.copyWith(game: game, isLoading: false);
       _subscribeToRealtime(game.id);
       return game.id;
     } catch (e) {
-      debugPrint('[Carrom] createGame error: $e');
+      debugPrint('[Carrom] createRoom error: $e');
       state = state.copyWith(isLoading: false, error: '$e');
       return null;
     }
+  }
+
+  /// Non-host: join an existing room.
+  ///
+  /// • Room closed / deleted → friendly error (create a new room).
+  /// • Waiting + Player Two's slot free → take it (first member to
+  ///   join wins the slot — no manual side picking).
+  /// • Waiting + slot taken → 'Game is full' (1v1).
+  /// • Match already running → spectate read-only.
+  Future<bool> joinRoom(String gameId) async {
+    final client = _client;
+    final myId = _myId;
+    if (client == null || myId == null) {
+      state = state.copyWith(error: 'Not signed in');
+      return false;
+    }
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      var gameResp = await client
+          .from('carrom_games')
+          .select()
+          .eq('id', gameId)
+          .maybeSingle();
+      if (isRoomRowClosed(gameResp)) {
+        state = state.copyWith(isLoading: false, error: kRoomClosedMessage);
+        return false;
+      }
+      var game = CarromGame.fromJson(gameResp as Map<String, dynamic>);
+      _gameId = game.id;
+
+      final alreadyPlayer =
+          game.playerOneId == myId || game.playerTwoId == myId;
+
+      if (!alreadyPlayer) {
+        if (game.isWaiting) {
+          if (!game.needsOpponent) {
+            state = state.copyWith(
+                isLoading: false, error: 'Game is full');
+            return false;
+          }
+          // Take the opponent slot.
+          await client.from('carrom_games').update({
+            'playerTwoId': myId,
+            'playerTwoName': _myName,
+          }).eq('id', gameId);
+          await client.rpc('fn_record_room_join', params: {
+            'p_game_table': 'carrom_games',
+            'p_game_id': gameId,
+            'p_family_id': familyId,
+            'p_user_id': myId,
+            'p_user_name': _myName,
+            'p_role': 'player',
+          });
+          await _ref.read(temporaryRoomServiceProvider).touchActivity(
+                gameTable: 'carrom_games',
+                gameId: gameId,
+              );
+          // Re-fetch so the local state carries the filled slot.
+          gameResp = await client
+              .from('carrom_games')
+              .select()
+              .eq('id', gameId)
+              .maybeSingle();
+          if (gameResp != null) {
+            game = CarromGame.fromJson(gameResp);
+          }
+        } else if (game.isInProgress) {
+          // Match already running — watch from the sidelines.
+          await client.rpc('fn_spectate_game', params: {
+            'p_game_table': 'carrom_games',
+            'p_game_id': gameId,
+            'p_family_id': familyId,
+            'p_user_id': myId,
+            'p_user_name': _myName,
+          });
+        }
+      }
+
+      state = state.copyWith(game: game, isLoading: false);
+      _subscribeToRealtime(gameId);
+      // Keep the persistent game-invite chat card in sync. Best-effort.
+      final playerCount = 1 + (game.needsOpponent ? 0 : 1);
+      unawaited(
+        syncGameInviteChatCards(
+          client: client,
+          gameId: gameId,
+          currentPlayers: playerCount,
+        ),
+      );
+      return true;
+    } catch (e) {
+      debugPrint('[Carrom] joinRoom error: $e');
+      state = state.copyWith(isLoading: false, error: '$e');
+      return false;
+    }
+  }
+
+  /// Host: start the match from the waiting room. Returns a
+  /// user-readable error message, or null on success.
+  Future<String?> startMatch() async {
+    final client = _client;
+    final gameId = _gameId;
+    final game = state.game;
+    final myId = _myId;
+    if (client == null || gameId == null || game == null) {
+      return 'No active room';
+    }
+    if (game.hostUserId != null && game.hostUserId != myId) {
+      return 'Only the host can start';
+    }
+    if (game.needsOpponent) {
+      return 'Waiting for an opponent to join';
+    }
+    try {
+      await client.from('carrom_games').update({
+        'status': 'in_progress',
+        'startedAt': DateTime.now().toIso8601String(),
+      }).eq('id', gameId);
+      // Lobby chat log entry — same event the room framework posts.
+      try {
+        await client.from('game_room_events').insert({
+          'gameTable': 'carrom_games',
+          'gameId': gameId,
+          'familyId': familyId,
+          'userId': myId,
+          'userName': _myName,
+          'eventType': 'match_start',
+          'payload': {},
+        });
+      } catch (_) {}
+      return null;
+    } catch (e) {
+      debugPrint('[Carrom] startMatch error: $e');
+      return 'Could not start the match';
+    }
+  }
+
+  /// Leave the waiting room. Host → the room is closed and deleted for
+  /// everyone; guest → their slot is freed for another family member.
+  Future<void> leaveRoom() async {
+    final client = _client;
+    final gameId = _gameId;
+    final myId = _myId;
+    final game = state.game;
+    if (client == null || gameId == null || myId == null) {
+      _reset();
+      return;
+    }
+    try {
+      if (game != null && game.isWaiting) {
+        if (game.hostUserId == myId) {
+          await _ref.read(temporaryRoomServiceProvider).cancelWaitingRoom(
+                gameTable: 'carrom_games',
+                gameId: gameId,
+              );
+        } else {
+          await client.rpc('fn_leave_game_room', params: {
+            'p_game_table': 'carrom_games',
+            'p_game_id': gameId,
+            'p_user_id': myId,
+          });
+        }
+      }
+    } catch (_) {}
+    _reset();
+  }
+
+  /// Drop all local room state (after leave/close) so the lobby falls
+  /// back to the fresh setup screen — a closed room can never reappear.
+  void _reset() {
+    _simTimer?.cancel();
+    _simTimer = null;
+    _channel?.unsubscribe();
+    _channel = null;
+    _gameId = null;
+    state = const CarromState();
   }
 
   /// Load an existing game (for the board screen).

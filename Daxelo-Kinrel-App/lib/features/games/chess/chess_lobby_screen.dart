@@ -1,19 +1,19 @@
 // lib/features/games/chess/chess_lobby_screen.dart
 //
-// Chess — Lobby screen to pick an opponent from family members.
+// Chess — Create Room lobby.
 // Route: /family/$familyId/chess/lobby
 //
-// v2 (premium lobby system): the four board games share ONE challenge
-// lobby (ChallengeLobbyScreen). Chess now supplies only its identity,
-// rules and provider call — the unified layout (compact hero, opponent
-// list, room options, collapsible How to Play, pinned Challenge CTA)
-// lives in the shared screen.
+// v3 (Create Room flow): the "Select Opponent" step is gone. Chess now
+// uses the same flow as every other multiplayer game — one "Create
+// Room" button creates the room immediately (host plays White), the
+// host invites family members from the waiting room, and the first
+// member to join takes the Black side automatically.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/models/game_invite.dart';
-import '../shared/multiplayer/multiplayer.dart';
+import '../shared/widgets/board_game_room_lobby.dart';
 import '../shared/widgets/lobby_kit/lobby_kit.dart';
 import 'chess_provider.dart';
 
@@ -23,17 +23,16 @@ class ChessLobbyScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ChallengeLobbyScreen(
+    return BoardGameRoomLobbyScreen(
       familyId: familyId,
-      spec: ChallengeLobbySpec(
+      spec: BoardGameRoomSpec(
         gameId: 'chess',
         title: 'Chess',
         tagline: 'The classic duel of kings',
-        versusNote:
-            'You play as White and move first. Your opponent plays as Black.',
-        gameType: GameType.chess,
+        gameTable: 'chess_games',
         routeSegment: 'chess',
-        roomConfig: RoomConfig.chess,
+        gameType: GameType.chess,
+        maxPlayers: 2,
         facts: const [
           LobbyFact(icon: Icons.person_outline, label: '1 v 1'),
           LobbyFact(icon: Icons.timer_outlined, label: '~15 min'),
@@ -44,11 +43,34 @@ class ChessLobbyScreen extends ConsumerWidget {
           LobbyRule('Castling, en passant, and pawn promotion all work.'),
           LobbyRule('Checkmate to win; stalemate = draw.'),
         ],
-        onCreateGame: (ref, familyId, args) =>
-            ref.read(chessProvider(familyId).notifier).createGame(
-                  opponentId: args.opponentId,
-                  opponentName: args.opponentName,
-                ),
+        waitingRoomNote:
+            'You play White and move first. The first family member to '
+            'join the room plays Black — no side picking needed.',
+        watchRoom: (ref, familyId) {
+          final s = ref.watch(chessProvider(familyId));
+          // A completed game is not a room — "Play Again" from the
+          // results screen always lands on a fresh Create Room setup.
+          final roomOpen = s.game != null && !s.isCompleted;
+          return BoardRoomSnapshot(
+            gameId: roomOpen ? s.game?.id : null,
+            hostUserId: roomOpen ? s.game?.hostUserId : null,
+            isWaiting: roomOpen && s.isWaiting,
+            isInProgress: roomOpen && s.isInProgress,
+            isCompleted: false,
+            isLoading: s.isLoading,
+            error: roomOpen ? s.error : null,
+            autoCloseDeadline: roomOpen ? s.game?.autoCloseDeadline : null,
+          );
+        },
+        onCreateRoom: (ref, familyId, {required spectatorsEnabled}) => ref
+            .read(chessProvider(familyId).notifier)
+            .createRoom(spectatorsEnabled: spectatorsEnabled),
+        onJoinRoom: (ref, familyId, gameId) =>
+            ref.read(chessProvider(familyId).notifier).joinRoom(gameId),
+        onStartMatch: (ref, familyId) =>
+            ref.read(chessProvider(familyId).notifier).startMatch(),
+        onLeaveRoom: (ref, familyId) =>
+            ref.read(chessProvider(familyId).notifier).leaveRoom(),
       ),
     );
   }

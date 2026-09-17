@@ -878,12 +878,49 @@ final routerProvider = Provider<GoRouter>((ref) {
     leave: (fid) => ref.read(ttProvider(fid).notifier).leaveGame(),
   );
 
+  // Board games (Create Room flow): the lobby hosts the waiting room —
+  // leaving it closes the room (host) or frees the opponent slot
+  // (guest), exactly like every other multiplayer game.
+  final chessLobbyExit = guardGameRoomExit(
+    gameTable: 'chess_games',
+    readState: (fid) => ref.read(chessProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(chessProvider(fid).notifier).leaveRoom(),
+  );
+
+  final checkersLobbyExit = guardGameRoomExit(
+    gameTable: 'checkers_games',
+    readState: (fid) => ref.read(checkersProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(checkersProvider(fid).notifier).leaveRoom(),
+  );
+
+  final carromLobbyExit = guardGameRoomExit(
+    gameTable: 'carrom_games',
+    readState: (fid) => ref.read(carromProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(carromProvider(fid).notifier).leaveRoom(),
+  );
+
+  final tictactoeLobbyExit = guardGameRoomExit(
+    gameTable: 'tictactoe_games',
+    readState: (fid) => ref.read(tttProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(tttProvider(fid).notifier).leaveRoom(),
+  );
+
   // Board-based games: the board screen IS the room. Leaving mid-game
   // deletes the game row (fn_end_game) so the opponent sees it end.
+  // A WAITING game is not owned by the board — the lobby's waiting
+  // room is (the board auto-redirects there), so no exit dialog then.
   final tictactoeBoardExit = guardGameRoomExit(
     gameTable: 'tictactoe_games',
     readState: (fid) => ref.read(tttProvider(fid)),
-    hasRoom: (s) => s.game != null && !s.isCompleted,
+    hasRoom: (s) => s.game != null && s.game!.isInProgress,
     isHost: (s) => s.game?.playerXId == _myUserId(),
     leave: (fid) async {
       final s = ref.read(tttProvider(fid));
@@ -901,7 +938,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final chessBoardExit = guardGameRoomExit(
     gameTable: 'chess_games',
     readState: (fid) => ref.read(chessProvider(fid)),
-    hasRoom: (s) => s.game != null && !s.isCompleted,
+    hasRoom: (s) => s.game != null && s.game!.isInProgress,
     isHost: (s) => s.game?.playerWhiteId == _myUserId(),
     leave: (fid) async {
       final s = ref.read(chessProvider(fid));
@@ -919,7 +956,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final checkersBoardExit = guardGameRoomExit(
     gameTable: 'checkers_games',
     readState: (fid) => ref.read(checkersProvider(fid)),
-    hasRoom: (s) => s.game != null && !s.isCompleted,
+    hasRoom: (s) => s.game != null && s.game!.isInProgress,
     isHost: (s) => s.game?.playerOneId == _myUserId(),
     leave: (fid) async {
       final s = ref.read(checkersProvider(fid));
@@ -937,7 +974,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final carromBoardExit = guardGameRoomExit(
     gameTable: 'carrom_games',
     readState: (fid) => ref.read(carromProvider(fid)),
-    hasRoom: (s) => s.game != null && !s.isCompleted,
+    hasRoom: (s) => s.game != null && s.game!.isInProgress,
     isHost: (s) => s.game?.playerOneId == _myUserId(),
     leave: (fid) async {
       final s = ref.read(carromProvider(fid));
@@ -1772,6 +1809,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Checkers Game ────────────────────────────────────────────────
       GoRoute(
         path: '/family/:id/checkers/lobby',
+        onExit: checkersLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: CheckersLobbyScreen(familyId: state.pathParameters['id']!),
@@ -1812,6 +1850,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Carrom Game ─────────────────────────────────────────────────
       GoRoute(
         path: '/family/:id/carrom/lobby',
+        onExit: carromLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: CarromLobbyScreen(familyId: state.pathParameters['id']!),
@@ -1832,6 +1871,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Chess Game ──────────────────────────────────────────────────
       GoRoute(
         path: '/family/:id/chess/lobby',
+        onExit: chessLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: ChessLobbyScreen(familyId: state.pathParameters['id']!),
@@ -1912,6 +1952,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ── Tic-Tac-Toe Game ───────────────────────────────────────────
       GoRoute(
         path: '/family/:id/tictactoe/lobby',
+        onExit: tictactoeLobbyExit,
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: TttLobbyScreen(familyId: state.pathParameters['id']!),

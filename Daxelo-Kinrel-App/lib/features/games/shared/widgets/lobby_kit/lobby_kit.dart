@@ -14,9 +14,12 @@
 //   • HowToPlayCard        — collapsible rules (progressive disclosure)
 //   • LobbySetupScreen     — full setup body + PINNED primary CTA
 //   • LobbyPinnedCtaBar    — the always-visible action bar
-//   • ChallengeLobbyScreen — shared head-to-head lobby (board games)
+//
+// (The old ChallengeLobbyScreen — "Select Opponent" before creation —
+// was removed: every game, including the 4 board games, now uses the
+// Create Room flow via BoardGameRoomLobbyScreen /
+// shared/widgets/board_game_room_lobby.dart.)
 
-export 'challenge_lobby_screen.dart';
 export 'how_to_play_card.dart';
 export 'lobby_hero.dart';
 export 'lobby_sections.dart';

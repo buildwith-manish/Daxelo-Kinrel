@@ -124,17 +124,6 @@ extension GameTypeX on GameType {
     }
     return null;
   }
-
-  /// Board games where the opponent is attached when the game row is
-  /// created (challenge flow). Accepting an invite for one of these
-  /// should land the recipient directly on the game board — the lobby /
-  /// challenge setup screen would be wrong (the game already has both
-  /// players).
-  bool get isChallengeGame =>
-      this == GameType.chess ||
-      this == GameType.checkers ||
-      this == GameType.carrom ||
-      this == GameType.tictactoe;
 }
 
 /// A real-time game invite, sent from a host to a linked family member.
@@ -228,13 +217,13 @@ class GameInvite {
       };
 
   /// Deep-link path that navigates the recipient into the host's game:
-  ///   • challenge games (chess/checkers/carrom/tictactoe — opponent
-  ///     already attached at creation) → the board directly,
-  ///   • temporary-room games → the lobby with the room code pre-applied
-  ///     via the `?join=<gameId>` query param.
-  String get joinRoute => gameType.isChallengeGame
-      ? '/family/$familyId/${gameType.routeSegment}/board/$gameId'
-      : '/family/$familyId/${gameType.routeSegment}/lobby?join=$gameId';
+  /// EVERY game (including the board games — chess, checkers, carrom,
+  /// tictactoe) joins via the lobby's `?join=<gameId>` flow. The lobby
+  /// takes the joiner straight into the shared waiting room, where
+  /// they take the free opponent slot automatically; if the match is
+  /// already running they land there as a spectator.
+  String get joinRoute =>
+      '/family/$familyId/${gameType.routeSegment}/lobby?join=$gameId';
 }
 
 /// Server-relayed event: recipient tapped "Accept" on their invite dialog.

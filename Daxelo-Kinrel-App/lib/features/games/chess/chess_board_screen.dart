@@ -53,6 +53,11 @@ class ChessBoardScreen extends ConsumerStatefulWidget {
 }
 
 class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
+  /// One-time guard for the waiting-room redirect: a 'waiting' game row
+  /// (Create Room flow — match not started yet) is owned by the LOBBY's
+  /// waiting room, not the board. Send the user there.
+  bool _didWaitingRedirect = false;
+
   @override
   void initState() {
     super.initState();
@@ -68,6 +73,19 @@ class _ChessBoardScreenState extends ConsumerState<ChessBoardScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(chessProvider(widget.familyId));
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+
+    // Waiting room owns the pre-match phase — redirect once.
+    final waitingGameId =
+        state.isWaiting && state.game?.id != null ? state.game!.id : null;
+    if (waitingGameId != null && !_didWaitingRedirect) {
+      _didWaitingRedirect = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.pushReplacement(
+          '/family/${widget.familyId}/chess/lobby?join=$waitingGameId',
+        );
+      });
+    }
 
     // Keep the room framework (host heartbeat + room realtime) alive for
     // the whole lifetime of this screen — the challenge lobby that

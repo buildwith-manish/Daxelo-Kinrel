@@ -42,12 +42,20 @@ class CarromGame {
     this.startedAt,
     this.completedAt,
     required this.createdAt,
+    this.hostUserId,
+    this.hostUserName,
+    this.spectatorsEnabled = true,
+    this.autoCloseDeadline,
   });
 
   final String id;
   final String familyId;
   final String playerOneId;
   final String playerOneName;
+
+  /// Player Two's user id — EMPTY while the room is waiting for an
+  /// opponent to join (Create Room flow: the host creates the room
+  /// first, the first family member to join takes this slot).
   final String playerTwoId;
   final String playerTwoName;
   final String currentTurnPlayerId;
@@ -67,6 +75,12 @@ class CarromGame {
   final DateTime? startedAt;
   final DateTime? completedAt;
   final DateTime createdAt;
+
+  /// Room-framework columns (Create Room flow).
+  final String? hostUserId;
+  final String? hostUserName;
+  final bool spectatorsEnabled;
+  final DateTime? autoCloseDeadline;
 
   factory CarromGame.fromJson(Map<String, dynamic> json) => CarromGame(
     id: json['id'] ?? '',
@@ -99,11 +113,23 @@ class CarromGame {
         : null,
     createdAt:
         DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
+    hostUserId: json['hostUserId'],
+    hostUserName: json['hostUserName'],
+    spectatorsEnabled: json['spectatorsEnabled'] == null
+        ? true
+        : json['spectatorsEnabled'] == true,
+    autoCloseDeadline: json['autoCloseDeadline'] is String
+        ? DateTime.tryParse(json['autoCloseDeadline'] as String)
+        : null,
   );
 
   bool get isWaiting => status == CarromStatus.waiting;
   bool get isInProgress => status == CarromStatus.inProgress;
   bool get isCompleted => status == CarromStatus.completed;
+
+  /// True while the room is still waiting for an opponent to join
+  /// (Create Room flow — Player Two's slot is empty).
+  bool get needsOpponent => playerTwoId.isEmpty;
 
   int? playerNumberFor(String? userId) {
     if (userId == null) return null;
