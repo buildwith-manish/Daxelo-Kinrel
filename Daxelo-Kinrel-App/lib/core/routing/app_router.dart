@@ -86,6 +86,7 @@ import '../../features/calendar/presentation/event_create_screen.dart';
 import '../../features/calendar/presentation/event_detail_screen.dart';
 import '../../features/calendar/models/calendar_models.dart';
 import '../../features/games/presentation/games_hub_screen.dart';
+import '../../features/games/presentation/all_games_screen.dart';
 import '../../features/gaming_ecosystem/presentation/gaming_leaderboard_screen.dart';
 import '../../features/gaming_ecosystem/presentation/gaming_challenges_screen.dart';
 import '../../features/gaming_ecosystem/presentation/gaming_achievements_screen.dart';
@@ -1645,6 +1646,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: GamingSeasonScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/gaming/all-games',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: AllGamesScreen(
             familyId: state.pathParameters['id']!,
           ),
         ),

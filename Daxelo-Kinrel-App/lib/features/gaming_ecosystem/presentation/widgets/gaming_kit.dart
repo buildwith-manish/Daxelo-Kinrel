@@ -506,6 +506,7 @@ class GamingRankRow extends StatelessWidget {
     this.winRateLabel,
     this.isMe = false,
     this.onTap,
+    this.pointsLabelOverride,
   });
 
   final int rank;
@@ -517,6 +518,13 @@ class GamingRankRow extends StatelessWidget {
   final String? winRateLabel; // ignored — kept for backward-compatible call sites
   final bool isMe;
   final VoidCallback? onTap;
+
+  /// Optional override for the right-side points chip label. When non-null,
+  /// replaces the numeric `'$points'` rendering — used for the zero-state
+  /// "Just joined" string so a member with 0 games never sees a bare `0`
+  /// on a shared leaderboard surface. When null, the numeric points value
+  /// is rendered as before.
+  final String? pointsLabelOverride;
 
   /// Top-3 rank rendering — a Kinrel medal disc with the rank number.
   Widget _rankBadge(int rank) {
@@ -685,10 +693,10 @@ class GamingRankRow extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
-                    '$points',
+                    pointsLabelOverride ?? '$points',
                     style: TextStyle(
                       fontFamily: KinrelTypography.monoFont,
-                      fontSize: 13,
+                      fontSize: pointsLabelOverride != null ? 10 : 13,
                       fontWeight: FontWeight.w700,
                       color: rank <= 3 ? KinrelColors.textDark : KinrelColors.textWhite,
                     ),
