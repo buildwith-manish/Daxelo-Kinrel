@@ -410,7 +410,16 @@ class _BoardGameRoomLobbyScreenState
     extends ConsumerState<BoardGameRoomLobbyScreen> {
   bool _spectatorsEnabled = true;
   bool _creating = false;
-  bool _didAutoJoin = false;
+
+  /// The join id currently being attempted (or already applied). The
+  /// screen stays mounted across ?join= changes (GoRouter page keys do
+  /// not include query params), so a NEW join id on the same route —
+  /// e.g. the user declines one invite, then taps another — must
+  /// re-trigger the join instead of being swallowed by a one-shot latch.
+  String? _activeJoinId;
+
+  /// Router reference for the route-change listener (see initState).
+  GoRouter? _router;
 
   /// Snapshot seen by the previous build — drives the one-time
   /// "match started" navigation without needing a provider bridge.
@@ -422,19 +431,54 @@ class _BoardGameRoomLobbyScreenState
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _handleJoinParam());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // React to ?join= changes while this screen stays mounted: GoRouter
+      // page keys do not include query params, so navigating from one
+      // invite link to another remounts NOTHING — without this listener
+      // the second join id would be silently ignored.
+      _router = GoRouter.of(context);
+      _router?.routerDelegate.addListener(_onRouteChanged);
+      _handleJoinParam();
+    });
+  }
+
+  @override
+  void dispose() {
+    _router?.routerDelegate.removeListener(_onRouteChanged);
+    _router = null;
+    super.dispose();
+  }
+
+  void _onRouteChanged() {
+    if (!mounted || _router == null) return;
+    final uri = _router!.routerDelegate.currentConfiguration.uri;
+    // Only react while OUR lobby route is the current route — this
+    // screen can stay mounted beneath other pushed routes.
+    if (uri.path != '/family/$_familyId/${_spec.routeSegment}/lobby') {
+      return;
+    }
+    // Read the join id from the delegate (already updated when the
+    // listener fires) — the page-state association can lag a frame
+    // behind on query-only changes.
+    _joinRoom(uri.queryParameters['join']);
   }
 
   /// Deep-link (`?join=<gameId>`) — invite accept, chat invite card, room
-  /// code link and the active-games list all land here. Retries until the
-  /// Supabase session is wired (cold-boot deep links can mount this screen
-  /// before auth is restored — without the retry the join was silently
-  /// dropped and the member landed on the setup screen).
+  /// code link and the active-games list all land here.
   Future<void> _handleJoinParam() async {
-    if (_didAutoJoin || !mounted) return;
-    final joinId = GoRouterState.of(context).uri.queryParameters['join'];
-    if (joinId == null || joinId.isEmpty) return;
-    _didAutoJoin = true;
+    if (!mounted) return;
+    _joinRoom(GoRouterState.of(context).uri.queryParameters['join']);
+  }
+
+  void _joinRoom(String? joinId) {
+    if (!mounted || joinId == null || joinId.isEmpty) return;
+    if (joinId == _activeJoinId) return;
+    _activeJoinId = joinId;
+    // Retries until the Supabase session is wired (cold-boot deep links
+    // can mount this screen before auth is restored — without the retry
+    // the join was silently dropped and the member landed on the setup
+    // screen).
     joinRoomWhenReady(
       context: context,
       ref: ref,
