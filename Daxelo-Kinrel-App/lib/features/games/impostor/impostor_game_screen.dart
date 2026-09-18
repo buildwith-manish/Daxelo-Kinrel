@@ -142,7 +142,7 @@ class _RoleRevealCardState extends State<_RoleRevealCard> {
           Text('Tap to reveal your role', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 16, fontWeight: FontWeight.w700, color: KinrelColors.textWhite)),
           const SizedBox(height: 4),
           Text('Make sure no one else is looking!', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textDim)),
-        ]));
+        ])));
     return Container(padding: const EdgeInsets.all(28), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(20), border: Border.all(color: isImpostor ? KinrelColors.error.withValues(alpha: 0.4) : KinrelColors.success.withValues(alpha: 0.4))),
       child: Column(children: [
         Text(isImpostor ? '🕵️' : '🛡️', style: const TextStyle(fontSize: 48)),
