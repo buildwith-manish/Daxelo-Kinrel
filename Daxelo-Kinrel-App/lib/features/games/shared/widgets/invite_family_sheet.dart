@@ -1898,6 +1898,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
       case GameType.ashtaChamma: return 'ashta_chamma_games';
       case GameType.connect4: return 'connect4_games';
       case GameType.impostor: return 'impostor_games';
+      case GameType.colorTrap: return 'color_trap_games';
     }
   }
 }

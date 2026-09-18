@@ -113,6 +113,9 @@ import '../../features/games/retention/rewards_shop_screen.dart';
 import '../../features/games/impostor/impostor_lobby_screen.dart';
 import '../../features/games/impostor/impostor_game_screen.dart';
 import '../../features/games/impostor/impostor_provider.dart';
+import '../../features/games/color_trap/color_trap_lobby_screen.dart';
+import '../../features/games/color_trap/color_trap_game_screen.dart';
+import '../../features/games/color_trap/color_trap_provider.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
 import '../../features/games/redlight/redlight_game_screen.dart';
 import '../../features/games/redlight/redlight_results_screen.dart';
@@ -903,6 +906,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
     isHost: (s) => s.game?.hostUserId == _myUserId(),
     leave: (fid) => ref.read(impostorProvider(fid).notifier).leaveGame(),
+  );
+
+  final colorTrapLobbyExit = guardGameRoomExit(
+    gameTable: 'color_trap_games',
+    readState: (fid) => ref.read(colorTrapProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(colorTrapProvider(fid).notifier).leaveGame(),
   );
 
   final twotruthsLobbyExit = guardGameRoomExit(
@@ -1813,6 +1824,26 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: ImpostorGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Color Trap ────────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/color-trap/lobby',
+        onExit: colorTrapLobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: ColorTrapLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/color-trap/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: ColorTrapGameScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),

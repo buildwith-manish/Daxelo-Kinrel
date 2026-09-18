@@ -302,6 +302,17 @@ const kGameCatalog = <GameCatalogEntry>[
     category: GameCategory.indianClassics,
     sortOrder: 40,
   ),
+  GameCatalogEntry(
+    gameId: 'color-trap',
+    name: 'Color Trap',
+    description: 'Last player standing — move to the safe color or fall!',
+    gameTable: 'color_trap_games',
+    route: '/family/{familyId}/color-trap/lobby',
+    accent: 0xFFF59E0B,
+    playersLabel: '2–8 players',
+    category: GameCategory.partyNight,
+    sortOrder: 90,
+  ),
 ];
 
 /// All catalog entries sorted for hub display (featured first).

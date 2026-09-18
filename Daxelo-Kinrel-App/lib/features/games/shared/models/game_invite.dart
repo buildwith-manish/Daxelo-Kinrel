@@ -32,6 +32,7 @@ enum GameType {
   ashtaChamma, // Ashta Chamma (Chowka Bhara)
   connect4, // Connect 4
   impostor, // Who's the Impostor?
+  colorTrap, // Color Trap
 }
 
 extension GameTypeX on GameType {
@@ -76,6 +77,8 @@ extension GameTypeX on GameType {
         return 'connect4';
       case GameType.impostor:
         return 'impostor';
+      case GameType.colorTrap:
+        return 'color-trap';
     }
   }
 
@@ -120,6 +123,8 @@ extension GameTypeX on GameType {
         return 'Connect 4';
       case GameType.impostor:
         return 'Who\'s the Impostor?';
+      case GameType.colorTrap:
+        return 'Color Trap';
     }
   }
 
