@@ -95,7 +95,7 @@ class PredictionNotifier extends StateNotifier<PredictionState> {
         bool submitted = false;
         String? myPred;
         PredictionConfidence? myConf;
-        if (myId != null && round.status == PredictionStatus.open || round.status == PredictionStatus.locked) {
+        if (myId != null && (round.status == PredictionStatus.open || round.status == PredictionStatus.locked)) {
           final subsResp = await client.from('prediction_submissions').select().eq('roundId', round.id).eq('userId', myId).maybeSingle();
           if (subsResp != null) {
             submitted = true;
