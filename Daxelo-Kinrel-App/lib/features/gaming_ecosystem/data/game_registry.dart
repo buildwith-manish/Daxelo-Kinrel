@@ -335,6 +335,17 @@ const kGameCatalog = <GameCatalogEntry>[
     category: GameCategory.quickDuels,
     sortOrder: 60,
   ),
+  GameCatalogEntry(
+    gameId: 'secret-heist',
+    name: 'Secret Heist',
+    description: 'Bluff, steal, outsmart — hidden-role heist',
+    gameTable: 'secret_heist_games',
+    route: '/family/{familyId}/secret-heist/lobby',
+    accent: 0xFF10B981,
+    playersLabel: '3–8 players',
+    category: GameCategory.partyNight,
+    sortOrder: 110,
+  ),
 ];
 
 /// All catalog entries sorted for hub display (featured first).

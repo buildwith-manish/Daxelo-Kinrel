@@ -35,6 +35,7 @@ enum GameType {
   colorTrap, // Color Trap
   freezeAuction, // Freeze Auction
   flickArena, // Flick Arena
+  secretHeist, // Secret Heist
 }
 
 extension GameTypeX on GameType {
@@ -85,6 +86,8 @@ extension GameTypeX on GameType {
         return 'freeze-auction';
       case GameType.flickArena:
         return 'flick-arena';
+      case GameType.secretHeist:
+        return 'secret-heist';
     }
   }
 
@@ -135,6 +138,8 @@ extension GameTypeX on GameType {
         return 'Freeze Auction';
       case GameType.flickArena:
         return 'Flick Arena';
+      case GameType.secretHeist:
+        return 'Secret Heist';
     }
   }
 

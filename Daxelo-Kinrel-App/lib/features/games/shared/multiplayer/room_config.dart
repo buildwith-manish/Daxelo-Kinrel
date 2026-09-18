@@ -31,6 +31,7 @@ enum GameTableKind {
   tugofwarGames,     // tugofwar_games
   memoryMatchGames,  // memorymatch_games
   flickArenaGames,   // flick_arena_games
+  secretHeistGames,  // secret_heist_games
 }
 
 extension GameTableKindX on GameTableKind {
@@ -54,6 +55,7 @@ extension GameTableKindX on GameTableKind {
       case GameTableKind.tugofwarGames:     return 'tugofwar_games';
       case GameTableKind.memoryMatchGames:  return 'memorymatch_games';
       case GameTableKind.flickArenaGames:   return 'flick_arena_games';
+      case GameTableKind.secretHeistGames:  return 'secret_heist_games';
     }
   }
 
@@ -81,6 +83,7 @@ extension GameTableKindX on GameTableKind {
       case GameTableKind.tugofwarGames:     return 'tugofwar_players';
       case GameTableKind.memoryMatchGames:  return 'memorymatch_players';
       case GameTableKind.flickArenaGames:   return null; // inline player slots
+      case GameTableKind.secretHeistGames:  return 'secret_heist_players';
     }
   }
 }
@@ -300,6 +303,16 @@ class RoomConfig {
     gameTable: GameTableKind.flickArenaGames,
     minPlayers: 2,
     maxPlayers: 4, // 1v1 (Solo Duel) or 2v2 (Team Battle)
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
+    cancelledStatusValue: 'cancelled',
+  );
+
+  static const secretHeist = RoomConfig(
+    gameTable: GameTableKind.secretHeistGames,
+    minPlayers: 3,
+    maxPlayers: 8,
     lobbyStatusValue: 'waiting',
     activeStatusValue: 'in_progress',
     finishedStatusValue: 'completed',

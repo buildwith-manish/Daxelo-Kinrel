@@ -1901,6 +1901,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
       case GameType.colorTrap: return 'color_trap_games';
       case GameType.freezeAuction: return 'freeze_auction_games';
       case GameType.flickArena: return 'flick_arena_games';
+      case GameType.secretHeist: return 'secret_heist_games';
     }
   }
 }

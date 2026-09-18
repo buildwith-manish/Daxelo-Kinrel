@@ -122,6 +122,9 @@ import '../../features/games/freeze_auction/freeze_auction_provider.dart';
 import '../../features/games/flick_arena/flick_arena_lobby_screen.dart';
 import '../../features/games/flick_arena/flick_arena_game_screen.dart';
 import '../../features/games/flick_arena/flick_arena_provider.dart';
+import '../../features/games/secret_heist/secret_heist_lobby_screen.dart';
+import '../../features/games/secret_heist/secret_heist_game_screen.dart';
+import '../../features/games/secret_heist/secret_heist_provider.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
 import '../../features/games/redlight/redlight_game_screen.dart';
 import '../../features/games/redlight/redlight_results_screen.dart';
@@ -936,6 +939,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
     isHost: (s) => s.game?.hostUserId == _myUserId(),
     leave: (fid) => ref.read(flickArenaProvider(fid).notifier).leaveRoom(),
+  );
+
+  final secretHeistLobbyExit = guardGameRoomExit(
+    gameTable: 'secret_heist_games',
+    readState: (fid) => ref.read(secretHeistProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(secretHeistProvider(fid).notifier).leaveGame(),
   );
 
   final twotruthsLobbyExit = guardGameRoomExit(
@@ -1907,6 +1918,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: FlickArenaGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Secret Heist ───────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/secret-heist/lobby',
+        onExit: secretHeistLobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SecretHeistLobbyScreen(
+              familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/secret-heist/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SecretHeistGameScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),
