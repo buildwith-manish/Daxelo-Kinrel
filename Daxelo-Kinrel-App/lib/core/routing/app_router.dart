@@ -110,6 +110,9 @@ import '../../features/games/connect4/connect4_lobby_screen.dart';
 import '../../features/games/connect4/connect4_game_screen.dart';
 import '../../features/games/connect4/connect4_provider.dart';
 import '../../features/games/retention/rewards_shop_screen.dart';
+import '../../features/games/impostor/impostor_lobby_screen.dart';
+import '../../features/games/impostor/impostor_game_screen.dart';
+import '../../features/games/impostor/impostor_provider.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
 import '../../features/games/redlight/redlight_game_screen.dart';
 import '../../features/games/redlight/redlight_results_screen.dart';
@@ -892,6 +895,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
     isHost: (s) => s.game?.hostUserId == _myUserId(),
     leave: (fid) => ref.read(connect4Provider(fid).notifier).leaveGame(),
+  );
+
+  final impostorLobbyExit = guardGameRoomExit(
+    gameTable: 'impostor_games',
+    readState: (fid) => ref.read(impostorProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(impostorProvider(fid).notifier).leaveGame(),
   );
 
   final twotruthsLobbyExit = guardGameRoomExit(
@@ -1782,6 +1793,26 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: Connect4GameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Who's the Impostor? ─────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/impostor/lobby',
+        onExit: impostorLobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: ImpostorLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/impostor/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: ImpostorGameScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),

@@ -31,6 +31,7 @@ enum GameType {
   memoryMatch, // Memory Match
   ashtaChamma, // Ashta Chamma (Chowka Bhara)
   connect4, // Connect 4
+  impostor, // Who's the Impostor?
 }
 
 extension GameTypeX on GameType {
@@ -73,6 +74,8 @@ extension GameTypeX on GameType {
         return 'ashta-chamma';
       case GameType.connect4:
         return 'connect4';
+      case GameType.impostor:
+        return 'impostor';
     }
   }
 
@@ -115,6 +118,8 @@ extension GameTypeX on GameType {
         return 'Ashta Chamma';
       case GameType.connect4:
         return 'Connect 4';
+      case GameType.impostor:
+        return 'Who\'s the Impostor?';
     }
   }
 
