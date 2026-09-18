@@ -33,6 +33,7 @@ enum GameType {
   connect4, // Connect 4
   impostor, // Who's the Impostor?
   colorTrap, // Color Trap
+  freezeAuction, // Freeze Auction
 }
 
 extension GameTypeX on GameType {
@@ -79,6 +80,8 @@ extension GameTypeX on GameType {
         return 'impostor';
       case GameType.colorTrap:
         return 'color-trap';
+      case GameType.freezeAuction:
+        return 'freeze-auction';
     }
   }
 
@@ -125,6 +128,8 @@ extension GameTypeX on GameType {
         return 'Who\'s the Impostor?';
       case GameType.colorTrap:
         return 'Color Trap';
+      case GameType.freezeAuction:
+        return 'Freeze Auction';
     }
   }
 

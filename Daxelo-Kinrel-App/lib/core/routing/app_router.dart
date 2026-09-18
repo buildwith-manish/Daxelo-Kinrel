@@ -116,6 +116,9 @@ import '../../features/games/impostor/impostor_provider.dart';
 import '../../features/games/color_trap/color_trap_lobby_screen.dart';
 import '../../features/games/color_trap/color_trap_game_screen.dart';
 import '../../features/games/color_trap/color_trap_provider.dart';
+import '../../features/games/freeze_auction/freeze_auction_lobby_screen.dart';
+import '../../features/games/freeze_auction/freeze_auction_game_screen.dart';
+import '../../features/games/freeze_auction/freeze_auction_provider.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
 import '../../features/games/redlight/redlight_game_screen.dart';
 import '../../features/games/redlight/redlight_results_screen.dart';
@@ -914,6 +917,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
     isHost: (s) => s.game?.hostUserId == _myUserId(),
     leave: (fid) => ref.read(colorTrapProvider(fid).notifier).leaveGame(),
+  );
+
+  final freezeAuctionLobbyExit = guardGameRoomExit(
+    gameTable: 'freeze_auction_games',
+    readState: (fid) => ref.read(freezeAuctionProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(freezeAuctionProvider(fid).notifier).leaveGame(),
   );
 
   final twotruthsLobbyExit = guardGameRoomExit(
@@ -1844,6 +1855,26 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: ColorTrapGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Freeze Auction ─────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/freeze-auction/lobby',
+        onExit: freezeAuctionLobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FreezeAuctionLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/freeze-auction/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FreezeAuctionGameScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),

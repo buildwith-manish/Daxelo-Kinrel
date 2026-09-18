@@ -313,6 +313,17 @@ const kGameCatalog = <GameCatalogEntry>[
     category: GameCategory.partyNight,
     sortOrder: 90,
   ),
+  GameCatalogEntry(
+    gameId: 'freeze-auction',
+    name: 'Freeze Auction',
+    description: 'Bid on mystery crates — rewards or traps await!',
+    gameTable: 'freeze_auction_games',
+    route: '/family/{familyId}/freeze-auction/lobby',
+    accent: 0xFFF59E0B,
+    playersLabel: '2–8 players',
+    category: GameCategory.partyNight,
+    sortOrder: 100,
+  ),
 ];
 
 /// All catalog entries sorted for hub display (featured first).

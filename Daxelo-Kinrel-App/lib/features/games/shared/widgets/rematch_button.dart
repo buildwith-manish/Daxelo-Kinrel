@@ -140,6 +140,7 @@ class RematchButton extends ConsumerWidget {
       case GameType.connect4: return 'connect4_games';
       case GameType.impostor: return 'impostor_games';
       case GameType.colorTrap: return 'color_trap_games';
+      case GameType.freezeAuction: return 'freeze_auction_games';
     }
   }
 }
