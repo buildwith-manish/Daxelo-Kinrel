@@ -41,6 +41,8 @@ import '../shared/widgets/family_presence_strip.dart';
 import 'widgets/family_streak_hero_card.dart';
 import 'widgets/family_moment_card.dart';
 import 'widgets/play_with_row.dart';
+import 'widgets/quick_picks_row.dart';
+import 'widgets/not_yet_played_prompt.dart';
 
 class GamesHubScreen extends ConsumerStatefulWidget {
   const GamesHubScreen({super.key, this.familyId});
@@ -219,6 +221,15 @@ class _GamingDashboardBody extends ConsumerWidget {
           // Replaces the flat game-icon grid as the primary above-the-fold
           // content. People motivate more than icons.
           PlayWithRow(familyId: familyId),
+          const SizedBox(height: 18),
+
+          // ═══════════════════════════════════════════════════════════════
+          // ZONE 2b: QUICK PICKS — game discovery row
+          // ═══════════════════════════════════════════════════════════════
+          // Curated horizontal-scroll row of games the family has played
+          // most in the last 30 days, with a default backfill. Excludes
+          // any game already suggested in the Play With row above.
+          QuickPicksRow(familyId: familyId),
           const SizedBox(height: 8),
 
           // "Browse all games →" link to the secondary All Games screen.
@@ -229,8 +240,8 @@ class _GamingDashboardBody extends ConsumerWidget {
           // ZONE 3: FAMILY MOMENTS — promoted to second position, restyled
           // ═══════════════════════════════════════════════════════════════
           // Moved up from the bottom of the scroll. Restyled as a feed
-          // with avatar + reactions. Tapping "View all" opens the full
-          // activity feed screen.
+          // with avatar + reactions + date group headers. Tapping "View
+          // all" opens the full activity feed screen.
           GamingSectionHeader(
             title: 'Family Moments',
             subtitle: 'Every game becomes a memory',
@@ -243,7 +254,7 @@ class _GamingDashboardBody extends ConsumerWidget {
           const SizedBox(height: 22),
 
           // ═══════════════════════════════════════════════════════════════
-          // ZONE 4 (below fold): leaderboard preview + milestones
+          // ZONE 4 (below fold): participation-based leaderboard + milestones
           // ═══════════════════════════════════════════════════════════════
           dashAsync.when(
             loading: () => const _DashboardSkeleton(),
@@ -258,7 +269,10 @@ class _GamingDashboardBody extends ConsumerWidget {
                 if (dash.leaderboard.isNotEmpty) ...[
                   GamingSectionHeader(
                     title: 'Family Leaderboard',
-                    subtitle: 'Friendly competition — everyone earns points',
+                    // Updated subtitle: participation-framed (no more
+                    // "earns points" language since we removed the points
+                    // chip from the leaderboard UI).
+                    subtitle: 'Every game counts — see who\'s playing the most',
                     icon: Icons.leaderboard_outlined,
                     actionLabel: 'View all',
                     onAction: () => context.push(
@@ -330,11 +344,14 @@ class _BrowseAllGamesLink extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Zone 3 helper: Family Moments preview — top 3 moments with reactions.
+// Zone 3 helper: Family Moments preview — top 3 moments with reactions,
+// grouped by date via MomentDateGroupWidget.
 //
 // Fetches via familyMomentsProvider (fn_get_family_gaming_activity_v2),
 // which returns reaction counts + the viewer's own reactions per moment.
-// Each moment is rendered with the new FamilyMomentCard widget.
+// Each moment is rendered with the FamilyMomentCard widget, wrapped in
+// MomentDateGroupWidget so the date header (Today / Yesterday / Sep 15)
+// renders once per group — not repeated per-entry as "1d ago".
 // ═══════════════════════════════════════════════════════════════════════
 
 class _FamilyMomentsPreview extends ConsumerWidget {
@@ -369,10 +386,15 @@ class _FamilyMomentsPreview extends ConsumerWidget {
           );
         }
         // Take top 3 — the home surface shows a preview; the full feed is
-        // one tap away via "View all".
+        // one tap away via "View all". Then group by date so the header
+        // renders once per group.
+        final previewMoments = moments.take(3).toList();
+        final groups = groupMomentsByDate(previewMoments);
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final m in moments.take(3)) FamilyMomentCard(moment: m),
+            for (final g in groups)
+              MomentDateGroupWidget(group: g, familyId: familyId),
           ],
         );
       },
@@ -386,47 +408,107 @@ class _FamilyMomentsPreview extends ConsumerWidget {
 // "0 pts" so the home surface never shows a bare zero).
 // ═══════════════════════════════════════════════════════════════════════
 
-class _LeaderboardPreview extends StatelessWidget {
+class _LeaderboardPreview extends ConsumerWidget {
   const _LeaderboardPreview({required this.familyId, required this.dashboard});
   final String familyId;
   final GamingDashboard dashboard;
 
   @override
-  Widget build(BuildContext context) {
-    final entries = dashboard.leaderboard;
-    final myUserId = dashboard.me.userId;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: KinrelColors.darkCard,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Use the v3 participation-based leaderboard: ranked rows sorted by
+    // games_played DESC (NOT points), plus a separate notYetPlayed list
+    // for members who haven't played any games. The points chip is
+    // hidden entirely on ranked rows — the spec removes it.
+    final key = LeaderboardKey(familyId: familyId, period: 'all_time');
+    final async = ref.watch(participationLeaderboardProvider(key));
+
+    return async.when(
+      loading: () => Container(
+        height: 120,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: KinrelColors.darkCard,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: KinrelColors.orange,
+            ),
+          ),
+        ),
       ),
-      child: Column(
-        children: [
-          if (entries.length >= 2) GamingPodium(entries: entries, myUserId: myUserId),
-          const SizedBox(height: 6),
-          ...entries.asMap().entries.take(4).map((e) {
-            final i = e.key;
-            final row = e.value;
-            // Zero-state fix: members with 0 games show "Just joined"
-            // instead of "0 pts" — never a bare zero on the home surface.
-            final justJoined = row.matches == 0;
-            return GamingRankRow(
-              rank: i + 1,
-              userName: row.userName,
-              points: row.points,
-              matches: row.matches,
-              // Streak is only surfaced for the viewer's own row.
-              streak: row.userId == myUserId ? row.streakCurrent : 0,
-              isMe: row.userId == myUserId,
-              pointsLabelOverride: justJoined ? 'Just joined' : null,
-              onTap: () => context
-                  .push('/family/$familyId/gaming/player/${row.userId}'),
-            );
-          }),
-        ],
-      ),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (lb) {
+        final myUserId = dashboard.me.userId;
+        final ranked = lb.ranked.take(4).toList();
+        if (ranked.isEmpty && lb.notYetPlayed.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: KinrelColors.darkCard,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (ranked.length >= 2)
+                GamingPodium(entries: ranked, myUserId: myUserId),
+              if (ranked.length >= 2) const SizedBox(height: 6),
+              for (var i = 0; i < ranked.length; i++)
+                GamingRankRow(
+                  rank: i + 1,
+                  userName: ranked[i].userName,
+                  points: ranked[i].points,
+                  matches: ranked[i].matches,
+                  // Streak is only surfaced for the viewer's own row.
+                  streak: ranked[i].userId == myUserId
+                      ? ranked[i].streakCurrent
+                      : 0,
+                  isMe: ranked[i].userId == myUserId,
+                  // Participation-based leaderboard: hide the points chip
+                  // entirely. The row shows "Played N games together" via
+                  // the participation line.
+                  hideScoreChip: true,
+                  onTap: () => context.push(
+                      '/family/$familyId/gaming/player/${ranked[i].userId}'),
+                ),
+              if (lb.notYetPlayed.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6, left: 2),
+                  child: Text(
+                    'Not playing yet',
+                    style: TextStyle(
+                      fontFamily: KinrelTypography.displayFont,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.6,
+                      color: KinrelColors.amber,
+                    ),
+                  ),
+                ),
+                for (final m in lb.notYetPlayed.take(3))
+                  NotYetPlayedPrompt(
+                    member: NotYetPlayedMemberData(
+                      userId: m.userId,
+                      userName: m.userName,
+                      avatarUrl: m.avatarUrl,
+                    ),
+                    familyId: familyId,
+                  ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }

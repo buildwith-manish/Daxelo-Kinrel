@@ -507,6 +507,7 @@ class GamingRankRow extends StatelessWidget {
     this.isMe = false,
     this.onTap,
     this.pointsLabelOverride,
+    this.hideScoreChip = false,
   });
 
   final int rank;
@@ -525,6 +526,12 @@ class GamingRankRow extends StatelessWidget {
   /// on a shared leaderboard surface. When null, the numeric points value
   /// is rendered as before.
   final String? pointsLabelOverride;
+
+  /// When true, the right-side points chip is NOT rendered at all. Used by
+  /// the participation-based leaderboard (v3) where the spec removes the
+  /// numeric score chip entirely — the row shows just rank + name +
+  /// "Played N games together" text inline.
+  final bool hideScoreChip;
 
   /// Top-3 rank rendering — a Kinrel medal disc with the rank number.
   Widget _rankBadge(int rank) {
@@ -682,26 +689,31 @@ class GamingRankRow extends StatelessWidget {
                     ],
                   ),
                 ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    gradient: rank <= 3
-                        ? KinrelGradients.achievementGradient
-                        : null,
-                    color: rank <= 3 ? null : KinrelColors.darkElevated,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    pointsLabelOverride ?? '$points',
-                    style: TextStyle(
-                      fontFamily: KinrelTypography.monoFont,
-                      fontSize: pointsLabelOverride != null ? 10 : 13,
-                      fontWeight: FontWeight.w700,
-                      color: rank <= 3 ? KinrelColors.textDark : KinrelColors.textWhite,
+                // Right-side score chip. Hidden entirely when
+                // [hideScoreChip] is true (participation-based leaderboard
+                // v3 — the spec removes the numeric score chip and shows
+                // "Played N games together" inline instead).
+                if (!hideScoreChip)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: rank <= 3
+                          ? KinrelGradients.achievementGradient
+                          : null,
+                      color: rank <= 3 ? null : KinrelColors.darkElevated,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      pointsLabelOverride ?? '$points',
+                      style: TextStyle(
+                        fontFamily: KinrelTypography.monoFont,
+                        fontSize: pointsLabelOverride != null ? 10 : 13,
+                        fontWeight: FontWeight.w700,
+                        color: rank <= 3 ? KinrelColors.textDark : KinrelColors.textWhite,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
