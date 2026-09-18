@@ -60,6 +60,7 @@ class GameIcon extends StatelessWidget {
       'ashta-chamma': Color(0xFFE11D48),
       'connect4': Color(0xFF0EA5E9),
       'impostor': Color(0xFF8B5CF6),
+      'color-trap': Color(0xFFF59E0B),
     };
     return map[id] ?? const Color(0xFFE8612A);
   }
@@ -89,6 +90,7 @@ class GameIcon extends StatelessWidget {
       case 'ashta-chamma':     return _AshtaChammaIcon(color);
       case 'connect4':         return _Connect4Icon(color);
       case 'impostor':         return _DefaultGameIcon(color);
+      case 'color-trap':        return _DefaultGameIcon(color);
       default:                 return _DefaultGameIcon(color);
     }
   }
