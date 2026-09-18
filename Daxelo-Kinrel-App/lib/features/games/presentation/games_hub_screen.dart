@@ -38,6 +38,8 @@ import '../../gaming_ecosystem/data/gaming_providers.dart';
 import '../../gaming_ecosystem/presentation/widgets/gaming_kit.dart';
 import '../shared/icons/kinrel_icons.dart';
 import '../shared/widgets/family_presence_strip.dart';
+import '../retention/coin_balance_chip.dart';
+import '../retention/live_presence_strip.dart';
 import 'widgets/family_streak_hero_card.dart';
 import 'widgets/family_moment_card.dart';
 import 'widgets/play_with_row.dart';
@@ -199,9 +201,16 @@ class _GamingDashboardBody extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(
             KinrelSpacing.base, KinrelSpacing.base, KinrelSpacing.base, 120),
         children: [
-          // ── Family presence (who's around right now) ────────────────
-          // Compact strip — stays at the very top as a social-proof hint.
-          FamilyPresenceStrip(familyId: familyId),
+          // ── Live presence + coin balance ──────────────────────────
+          // Replaces the old static presence strip with a live avatar
+          // row + coin balance chip. The coin chip is also tappable to
+          // open the Rewards Shop.
+          Row(
+            children: [
+              Expanded(child: LivePresenceStrip(familyId: familyId)),
+              CoinBalanceChip(familyId: familyId),
+            ],
+          ),
           const SizedBox(height: 14),
 
           // ═══════════════════════════════════════════════════════════════
