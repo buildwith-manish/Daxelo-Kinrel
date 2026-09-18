@@ -392,7 +392,7 @@ class ImpostorEngine {
     required String wordPackId,
     int clueSeconds = kImpostorDefaultClueSeconds,
     int voteSeconds = kImpostorDefaultVoteSeconds,
-    [Random? rng]
+    Random? rng,
   }) {
     assert(playerCount >= kImpostorMinPlayers &&
         playerCount <= kImpostorMaxPlayers);
@@ -431,7 +431,7 @@ class ImpostorEngine {
   }
 
   /// Generate a random word from the pack (for testing/preview).
-  static String generateWord(String wordPackId, [Random? rng]) {
+  static String generateWord(String wordPackId, {Random? rng}) {
     final pack = ImpostorWordPack.byId(wordPackId);
     final r = rng ?? Random();
     return pack.words[r.nextInt(pack.words.length)];
@@ -558,7 +558,7 @@ class ImpostorEngine {
   }
 
   /// Advance to the next round (or finish the match).
-  static ImpostorGameState nextRound(ImpostorGameState state, [Random? rng]) {
+  static ImpostorGameState nextRound(ImpostorGameState state, {Random? rng}) {
     final round = state.currentRound;
     if (round == null || round.phase != ImpostorPhase.result) return state;
 

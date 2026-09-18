@@ -1,5 +1,6 @@
 // lib/features/games/impostor/impostor_game_screen.dart
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -77,7 +78,7 @@ class _GameView extends ConsumerWidget {
     final game = state.game!; final board = game.boardState;
     if (board == null) return const Center(child: CircularProgressIndicator(color: KinrelColors.orange));
     final round = board.currentRound; if (round == null) return const SizedBox.shrink();
-    final myId = ref.read(supabaseService).auth.currentUser?.id;
+    final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     final myPlayerIndex = state.players.toList().asMap().entries.where((e) => e.value.userId == myId).map((e) => e.key).firstWhere((_) => true, orElse: () => -1);
     final isMyTurn = round.phase == ImpostorPhase.clue && myPlayerIndex == round.currentCluePlayerIndex;
     return Column(children: [
@@ -323,7 +324,7 @@ class _ResultsView extends StatelessWidget {
             Padding(padding: const EdgeInsets.only(bottom: 6),
               child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(14)),
                 child: Row(children: [
-                  Text(entry.value == board.scores.values.reduce(max) ? '🥇' : '🏅', style: const TextStyle(fontSize: 18)),
+                  Text(entry.value == board.scores.values.reduce(math.max) ? '🥇' : '🏅', style: const TextStyle(fontSize: 18)),
                   const SizedBox(width: 8),
                   Expanded(child: Text(entry.key < players.length ? players[entry.key].userName : 'Player ${entry.key + 1}', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
                   Text('${entry.value} pts', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 14, fontWeight: FontWeight.w800, color: KinrelColors.orange)),
