@@ -103,6 +103,9 @@ import '../../features/games/tugofwar/tugofwar_provider.dart';
 import '../../features/games/memorymatch/memorymatch_lobby_screen.dart';
 import '../../features/games/memorymatch/memorymatch_game_screen.dart';
 import '../../features/games/memorymatch/memorymatch_provider.dart';
+import '../../features/games/ashtachamma/ashtachamma_lobby_screen.dart';
+import '../../features/games/ashtachamma/ashtachamma_game_screen.dart';
+import '../../features/games/ashtachamma/ashtachamma_provider.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
 import '../../features/games/redlight/redlight_game_screen.dart';
 import '../../features/games/redlight/redlight_results_screen.dart';
@@ -869,6 +872,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
     isHost: (s) => s.game?.hostUserId == _myUserId(),
     leave: (fid) => ref.read(memoryMatchProvider(fid).notifier).leaveGame(),
+  );
+
+  final ashtaChammaLobbyExit = guardGameRoomExit(
+    gameTable: 'ashta_chamma_games',
+    readState: (fid) => ref.read(ashtaChammaProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(ashtaChammaProvider(fid).notifier).leaveGame(),
   );
 
   final twotruthsLobbyExit = guardGameRoomExit(
@@ -1710,6 +1721,26 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: MemoryMatchGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Ashta Chamma (Chowka Bhara) ─────────────────────────────
+      GoRoute(
+        path: '/family/:id/ashta-chamma/lobby',
+        onExit: ashtaChammaLobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: AshtaChammaLobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/ashta-chamma/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: AshtaChammaGameScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),

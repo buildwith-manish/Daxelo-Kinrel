@@ -57,6 +57,7 @@ class GameIcon extends StatelessWidget {
       'relation-riddles': Color(0xFF8B5CF6), 'truth-streak': Color(0xFFE8612A),
       'tug-of-war': Color(0xFFE8612A),
       'memory-match': Color(0xFFA855F7),
+      'ashta-chamma': Color(0xFFE11D48),
     };
     return map[id] ?? const Color(0xFFE8612A);
   }
@@ -83,6 +84,7 @@ class GameIcon extends StatelessWidget {
       case 'truth-streak':     return _TruthStreakIcon(color);
       case 'tug-of-war':       return _TugOfWarIcon(color);
       case 'memory-match':     return _MemoryMatchIcon(color);
+      case 'ashta-chamma':     return _AshtaChammaIcon(color);
       default:                 return _DefaultGameIcon(color);
     }
   }
@@ -651,6 +653,97 @@ class _MemoryMatchIcon extends _GameIconPainter {
     canvas.drawPath(star, Paint()..color = Colors.white);
     canvas.restore();
   }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ── Ashta Chamma: cross board with a cowrie shell ─────────────────
+
+class _AshtaChammaIcon extends _GameIconPainter {
+  _AshtaChammaIcon(super.color);
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width;
+
+    // 5×5 grid cross — the traditional Ashta Chamma board shape.
+    // Draw the cross arms (top, bottom, left, right) as filled rects.
+    final armW = s * 0.16;
+    final armL = s * 0.34;
+    final cx = s * 0.5;
+    final cy = s * 0.5;
+
+    // Background board square (the full 5×5 outline).
+    final boardRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: Offset(cx, cy), width: s * 0.82, height: s * 0.82),
+      Radius.circular(s * 0.10),
+    );
+    canvas.drawRRect(
+        boardRect, Paint()..color = color.withValues(alpha: 0.18));
+    canvas.drawRRect(
+      boardRect,
+      Paint()
+        ..color = color.withValues(alpha: 0.6)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * 0.022,
+    );
+
+    // Cross arms — the path the pieces travel.
+    final armPaint = Paint()..color = color.withValues(alpha: 0.35);
+    // Vertical arm
+    canvas.drawRect(
+      Rect.fromCenter(center: Offset(cx, cy), width: armW, height: armL * 2),
+      armPaint,
+    );
+    // Horizontal arm
+    canvas.drawRect(
+      Rect.fromCenter(center: Offset(cx, cy), width: armL * 2, height: armW),
+      armPaint,
+    );
+
+    // Center square — the "home" / finish.
+    final centerRect = Rect.fromCenter(
+      center: Offset(cx, cy),
+      width: armW * 0.9,
+      height: armW * 0.9,
+    );
+    canvas.drawRect(centerRect, Paint()..color = color);
+
+    // A cowrie shell in the foreground — the dice.
+    final shellCx = s * 0.78;
+    final shellCy = s * 0.78;
+    final shellR = s * 0.13;
+    final shellPath = Path()
+      ..addOval(Rect.fromCircle(
+        center: Offset(shellCx, shellCy),
+        radius: shellR,
+      ));
+    canvas.drawPath(shellPath, Paint()..color = Colors.white);
+    // Shell slit
+    canvas.drawLine(
+      Offset(shellCx - shellR * 0.6, shellCy),
+      Offset(shellCx + shellR * 0.6, shellCy),
+      Paint()
+        ..color = color
+        ..strokeWidth = s * 0.025
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // A small piece (token) on the board.
+    final pieceCx = s * 0.32;
+    final pieceCy = s * 0.32;
+    final pieceR = s * 0.07;
+    canvas.drawCircle(
+      Offset(pieceCx, pieceCy),
+      pieceR,
+      Paint()..color = color,
+    );
+    canvas.drawCircle(
+      Offset(pieceCx, pieceCy),
+      pieceR * 0.5,
+      Paint()..color = Colors.white.withValues(alpha: 0.8),
+    );
+  }
+
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
