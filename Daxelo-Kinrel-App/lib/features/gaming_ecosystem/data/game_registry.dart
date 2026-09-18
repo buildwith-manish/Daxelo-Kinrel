@@ -209,6 +209,17 @@ const kGameCatalog = <GameCatalogEntry>[
     category: GameCategory.partyNight,
     sortOrder: 70,
   ),
+  GameCatalogEntry(
+    gameId: 'impostor',
+    name: 'Who\'s the Impostor?',
+    description: 'Social deduction — blend in or get caught!',
+    gameTable: 'impostor_games',
+    route: '/family/{familyId}/impostor/lobby',
+    accent: 0xFF8B5CF6,
+    playersLabel: '3–10 players',
+    category: GameCategory.partyNight,
+    sortOrder: 80,
+  ),
 
   // ── Board Classics ─────────────────────────────────────────────────────
   GameCatalogEntry(
