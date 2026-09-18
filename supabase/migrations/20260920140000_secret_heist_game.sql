@@ -719,3 +719,301 @@ $$;
 INSERT INTO "Badge" ("id","slug","name","nameHi","description","icon","category","tier","threshold","isSecret","createdAt") VALUES
   (gen_random_uuid()::text,'master-thief','Master Thief','मास्टर थीफ','Win 5 Secret Heist games','💰','games','gold',5,false,now())
 ON CONFLICT ("slug") DO NOTHING;
+-- Patch the fn_secretheist_submit_action and fn_secretheist_resolve
+-- functions to use jsonb_array_elements_text instead of unnest(jsonb).
+-- The original migration used unnest(playerOrder) but playerOrder is a
+-- JSONB array, and PostgreSQL doesn't have unnest(jsonb).
+
+-- Helper: get a player's index in playerOrder from their userId.
+CREATE OR REPLACE FUNCTION public.fn__sh_player_idx(p_player_order jsonb, p_user_id text) RETURNS int
+LANGUAGE sql IMMUTABLE AS $$
+  SELECT (idx - 1)::int
+  FROM jsonb_array_elements_text(p_player_order) WITH ORDINALITY AS t(uid, idx)
+  WHERE uid = p_user_id
+  LIMIT 1
+$$;
+
+-- Rewrite fn_secretheist_submit_action to use the helper.
+CREATE OR REPLACE FUNCTION public.fn_secretheist_submit_action(
+  p_game_id text,
+  p_action text,
+  p_amount int DEFAULT 0
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_game record;
+  v_board jsonb;
+  v_round jsonb;
+  v_rounds jsonb;
+  v_current int;
+  v_player_idx int;
+  v_player_count int;
+  v_existing record;
+  v_action_seconds int;
+  v_locked_count int;
+  v_chaos boolean;
+  v_valid_actions text[] := ARRAY['steal','protect','spy','trap','hack'];
+BEGIN
+  SELECT * INTO v_game FROM "secret_heist_games" WHERE id = p_game_id;
+  IF NOT FOUND OR v_game.status <> 'in_progress' THEN RETURN jsonb_build_object('ok', false, 'reason', 'not_in_progress'); END IF;
+  v_board := v_game."boardState";
+  v_player_idx := public.fn__sh_player_idx(v_game."playerOrder", auth.uid()::text);
+  IF v_player_idx IS NULL THEN RETURN jsonb_build_object('ok', false, 'reason', 'not_in_game'); END IF;
+  v_current := (v_board->>'currentRound')::int;
+  v_round := v_board->'rounds'->(v_current - 1);
+  IF v_round->>'phase' <> 'choosing' THEN RETURN jsonb_build_object('ok', false, 'reason', 'not_choosing_phase'); END IF;
+
+  v_chaos := (v_board->>'chaosMode')::boolean;
+  IF v_chaos THEN
+    v_valid_actions := ARRAY['steal','protect','spy','trap','hack','double_steal','alarm_bait'];
+  END IF;
+  IF NOT (p_action = ANY(v_valid_actions)) THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'invalid_action');
+  END IF;
+
+  IF p_action IN ('steal','hack','double_steal') THEN
+    IF p_amount < 10 THEN RETURN jsonb_build_object('ok', false, 'reason', 'amount_too_small'); END IF;
+    IF p_amount > 50 THEN RETURN jsonb_build_object('ok', false, 'reason', 'amount_too_large'); END IF;
+  END IF;
+
+  SELECT * INTO v_existing FROM "secret_heist_actions"
+    WHERE "gameId" = p_game_id AND "userId" = auth.uid()::text AND "roundNumber" = v_current LIMIT 1;
+  IF v_existing.id IS NULL THEN
+    INSERT INTO "secret_heist_actions" ("gameId","userId","roundNumber","action","amount")
+    VALUES (p_game_id, auth.uid()::text, v_current, p_action, p_amount);
+  ELSE
+    UPDATE "secret_heist_actions" SET "action" = p_action, "amount" = p_amount, "submittedAt" = now()
+    WHERE "id" = v_existing.id;
+  END IF;
+
+  SELECT count(*) INTO v_locked_count FROM "secret_heist_actions"
+    WHERE "gameId" = p_game_id AND "roundNumber" = v_current;
+
+  v_round := jsonb_set(v_round, '{lockedCount}', v_locked_count::text::jsonb);
+  v_rounds := jsonb_set(v_board->'rounds', ARRAY[(v_current - 1)::text], v_round);
+  v_board := jsonb_set(v_board, '{rounds}', v_rounds);
+
+  v_player_count := (v_board->>'playerCount')::int;
+  v_action_seconds := (v_board->>'actionSeconds')::int;
+
+  IF v_locked_count >= v_player_count THEN
+    v_round := jsonb_set(v_round, '{phase}', '"resolving"');
+    v_rounds := jsonb_set(v_board->'rounds', ARRAY[(v_current - 1)::text], v_round);
+    v_board := jsonb_set(v_board, '{rounds}', v_rounds);
+    UPDATE "secret_heist_games" SET "boardState" = v_board, "lastActivityAt" = now() WHERE id = p_game_id;
+    PERFORM public.fn_secretheist_resolve(p_game_id);
+    RETURN jsonb_build_object('ok', true, 'resolved', true);
+  END IF;
+
+  UPDATE "secret_heist_games" SET "boardState" = v_board, "lastActivityAt" = now() WHERE id = p_game_id;
+  RETURN jsonb_build_object('ok', true);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.fn_secretheist_submit_action(text, text, int) TO authenticated;
+
+-- Rewrite fn_secretheist_resolve to use the helper for player index lookups.
+CREATE OR REPLACE FUNCTION public.fn_secretheist_resolve(p_game_id text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_game record;
+  v_board jsonb;
+  v_round jsonb;
+  v_rounds jsonb;
+  v_current int;
+  v_player_count int;
+  v_total_rounds int;
+  v_players jsonb;
+  v_vault_coins int;
+  v_action_seconds int;
+  v_action_rec record;
+  v_chaos boolean;
+  v_events jsonb := '[]'::jsonb;
+  v_revealed jsonb := '[]'::jsonb;
+  v_vault_lost int := 0;
+  v_steals_success int := 0;
+  v_steals_blocked int := 0;
+  v_traps_triggered int := 0;
+  v_hacks_success int := 0;
+  v_hacks_backfire int := 0;
+  v_alarms int := 0;
+  v_protected_buffer int := 0;
+  v_alarm_triggered boolean := false;
+  v_player_idx int;
+  v_coins int;
+  v_amount int;
+  v_user_id text;
+  v_suspicion int;
+  v_rolls float;
+  v_trap_user_ids text[];
+  v_new_round jsonb;
+  v_max_coins int;
+  v_winner_idx int;
+  v_tie boolean;
+  v_s int;
+  v_i int;
+BEGIN
+  SELECT * INTO v_game FROM "secret_heist_games" WHERE id = p_game_id;
+  IF NOT FOUND OR v_game.status <> 'in_progress' THEN RETURN jsonb_build_object('ok', false, 'reason', 'not_in_progress'); END IF;
+  v_board := v_game."boardState";
+  v_current := (v_board->>'currentRound')::int;
+  v_total_rounds := (v_board->>'totalRounds')::int;
+  v_player_count := (v_board->>'playerCount')::int;
+  v_vault_coins := (v_board->>'vaultCoins')::int;
+  v_players := v_board->'players';
+  v_action_seconds := (v_board->>'actionSeconds')::int;
+  v_chaos := (v_board->>'chaosMode')::boolean;
+
+  -- Protects
+  FOR v_action_rec IN SELECT * FROM "secret_heist_actions" WHERE "gameId" = p_game_id AND "roundNumber" = v_current AND "action" = 'protect' LOOP
+    v_protected_buffer := v_protected_buffer + 30;
+    v_revealed := v_revealed || jsonb_build_object('userId', v_action_rec."userId", 'action', 'protect', 'amount', 30, 'outcome', 'active');
+  END LOOP;
+
+  -- Traps
+  v_trap_user_ids := ARRAY[]::text[];
+  FOR v_action_rec IN SELECT * FROM "secret_heist_actions" WHERE "gameId" = p_game_id AND "roundNumber" = v_current AND "action" = 'trap' LOOP
+    v_trap_user_ids := array_append(v_trap_user_ids, v_action_rec."userId");
+    v_revealed := v_revealed || jsonb_build_object('userId', v_action_rec."userId", 'action', 'trap', 'outcome', 'set');
+  END LOOP;
+
+  -- Hacks (and chaos variants)
+  FOR v_action_rec IN SELECT * FROM "secret_heist_actions" WHERE "gameId" = p_game_id AND "roundNumber" = v_current AND "action" IN ('hack','double_steal','alarm_bait') LOOP
+    v_user_id := v_action_rec."userId";
+    v_amount := v_action_rec."amount";
+    v_player_idx := public.fn__sh_player_idx(v_game."playerOrder", v_user_id);
+    v_rolls := random();
+    IF v_action_rec."action" = 'double_steal' THEN
+      IF v_rolls < 0.65 THEN
+        v_hacks_success := v_hacks_success + 1;
+        v_steals_success := v_steals_success + 1;
+        v_vault_lost := v_vault_lost + v_amount * 2;
+        v_coins := (v_players->v_player_idx->>'coins')::int + v_amount * 2;
+        v_players := jsonb_set(v_players, ARRAY[v_player_idx::text, 'coins'], v_coins::text::jsonb);
+        v_revealed := v_revealed || jsonb_build_object('userId', v_user_id, 'action', 'double_steal', 'amount', v_amount * 2, 'outcome', 'success');
+        v_events := v_events || jsonb_build_object('type', 'hack_success', 'userId', v_user_id, 'amount', v_amount * 2);
+      ELSE
+        v_hacks_backfire := v_hacks_backfire + 1;
+        v_coins := GREATEST((v_players->v_player_idx->>'coins')::int - v_amount, 0);
+        v_players := jsonb_set(v_players, ARRAY[v_player_idx::text, 'coins'], v_coins::text::jsonb);
+        v_revealed := v_revealed || jsonb_build_object('userId', v_user_id, 'action', 'double_steal', 'outcome', 'backfire');
+        v_events := v_events || jsonb_build_object('type', 'hack_backfire', 'userId', v_user_id, 'amount', v_amount);
+      END IF;
+    ELSIF v_action_rec."action" = 'alarm_bait' THEN
+      IF v_rolls < 0.5 THEN
+        v_alarm_triggered := true;
+        v_alarms := v_alarms + 1;
+        v_revealed := v_revealed || jsonb_build_object('userId', v_user_id, 'action', 'alarm_bait', 'outcome', 'alarm_triggered');
+        v_events := v_events || jsonb_build_object('type', 'alarm_triggered', 'userId', v_user_id);
+      ELSE
+        v_coins := (v_players->v_player_idx->>'coins')::int + 15;
+        v_players := jsonb_set(v_players, ARRAY[v_player_idx::text, 'coins'], v_coins::text::jsonb);
+        v_revealed := v_revealed || jsonb_build_object('userId', v_user_id, 'action', 'alarm_bait', 'outcome', 'bait_success', 'amount', 15);
+      END IF;
+    ELSE -- 'hack'
+      IF v_rolls < 0.5 THEN
+        v_hacks_success := v_hacks_success + 1;
+        v_steals_success := v_steals_success + 1;
+        v_vault_lost := v_vault_lost + v_amount * 2;
+        v_coins := (v_players->v_player_idx->>'coins')::int + v_amount * 2;
+        v_players := jsonb_set(v_players, ARRAY[v_player_idx::text, 'coins'], v_coins::text::jsonb);
+        v_revealed := v_revealed || jsonb_build_object('userId', v_user_id, 'action', 'hack', 'amount', v_amount * 2, 'outcome', 'success');
+        v_events := v_events || jsonb_build_object('type', 'hack_success', 'userId', v_user_id, 'amount', v_amount * 2);
+      ELSIF v_rolls < 0.8 THEN
+        v_hacks_backfire := v_hacks_backfire + 1;
+        v_coins := GREATEST((v_players->v_player_idx->>'coins')::int - v_amount, 0);
+        v_players := jsonb_set(v_players, ARRAY[v_player_idx::text, 'coins'], v_coins::text::jsonb);
+        v_revealed := v_revealed || jsonb_build_object('userId', v_user_id, 'action', 'hack', 'outcome', 'backfire');
+        v_events := v_events || jsonb_build_object('type', 'hack_backfire', 'userId', v_user_id, 'amount', v_amount);
+      ELSE
+        v_alarm_triggered := true;
+        v_alarms := v_alarms + 1;
+        v_revealed := v_revealed || jsonb_build_object('userId', v_user_id, 'action', 'hack', 'outcome', 'alarm');
+        v_events := v_events || jsonb_build_object('type', 'alarm_triggered', 'userId', v_user_id);
+      END IF;
+    END IF;
+  END LOOP;
+
+  -- Steals
+  IF NOT v_alarm_triggered THEN
+    FOR v_action_rec IN SELECT * FROM "secret_heist_actions" WHERE "gameId" = p_game_id AND "roundNumber" = v_current AND "action" = 'steal' ORDER BY random() LOOP
+      v_user_id := v_action_rec."userId";
+      v_amount := v_action_rec."amount";
+      v_player_idx := public.fn__sh_player_idx(v_game."playerOrder", v_user_id);
+
+      IF array_length(v_trap_user_ids, 1) > 0 THEN
+        IF random() < 0.4 THEN
+          v_traps_triggered := v_traps_triggered + 1;
+          v_steals_blocked := v_steals_blocked + 1;
+          v_coins := GREATEST((v_players->v_player_idx->>'coins')::int - 10, 0);
+          v_players := jsonb_set(v_players, ARRAY[v_player_idx::text, 'coins'], v_coins::text::jsonb);
+          v_suspicion := (v_players->v_player_idx->>'suspicion')::int + 1;
+          v_players := jsonb_set(v_players, ARRAY[v_player_idx::text, 'suspicion'], v_suspicion::text::jsonb);
+          v_revealed := v_revealed || jsonb_build_object('userId', v_user_id, 'action', 'steal', 'amount', v_amount, 'outcome', 'trapped');
+          v_events := v_events || jsonb_build_object('type', 'trap_triggered', 'userId', v_user_id, 'penalty', 10);
+          CONTINUE;
+        END IF;
+      END IF;
+
+      IF v_protected_buffer >= v_amount THEN
+        v_protected_buffer := v_protected_buffer - v_amount;
+        v_steals_blocked := v_steals_blocked + 1;
+        v_revealed := v_revealed || jsonb_build_object('userId', v_user_id, 'action', 'steal', 'amount', v_amount, 'outcome', 'blocked');
+        v_events := v_events || jsonb_build_object('type', 'steal_blocked', 'userId', v_user_id, 'amount', v_amount);
+      ELSE
+        v_steals_success := v_steals_success + 1;
+        v_vault_lost := v_vault_lost + v_amount;
+        v_coins := (v_players->v_player_idx->>'coins')::int + v_amount;
+        v_players := jsonb_set(v_players, ARRAY[v_player_idx::text, 'coins'], v_coins::text::jsonb);
+        v_suspicion := (v_players->v_player_idx->>'suspicion')::int + 1;
+        v_players := jsonb_set(v_players, ARRAY[v_player_idx::text, 'suspicion'], v_suspicion::text::jsonb);
+        v_revealed := v_revealed || jsonb_build_object('userId', v_user_id, 'action', 'steal', 'amount', v_amount, 'outcome', 'success');
+        v_events := v_events || jsonb_build_object('type', 'steal_success', 'userId', v_user_id, 'amount', v_amount);
+      END IF;
+    END LOOP;
+  ELSE
+    FOR v_action_rec IN SELECT * FROM "secret_heist_actions" WHERE "gameId" = p_game_id AND "roundNumber" = v_current AND "action" = 'steal' LOOP
+      v_steals_blocked := v_steals_blocked + 1;
+      v_revealed := v_revealed || jsonb_build_object('userId', v_action_rec."userId", 'action', 'steal', 'amount', v_action_rec."amount", 'outcome', 'alarm_blocked');
+    END LOOP;
+  END IF;
+
+  -- Spies
+  FOR v_action_rec IN SELECT * FROM "secret_heist_actions" WHERE "gameId" = p_game_id AND "roundNumber" = v_current AND "action" = 'spy' LOOP
+    v_revealed := v_revealed || jsonb_build_object('userId', v_action_rec."userId", 'action', 'spy', 'outcome', 'intel_gathered');
+    v_events := v_events || jsonb_build_object('type', 'spy_used', 'userId', v_action_rec."userId");
+  END LOOP;
+
+  v_vault_coins := GREATEST(v_vault_coins - v_vault_lost, 0);
+
+  -- Decay suspicion
+  FOR v_i IN 0..v_player_count - 1 LOOP
+    v_s := (v_players->v_i->>'suspicion')::int;
+    IF v_s > 0 THEN
+      v_players := jsonb_set(v_players, ARRAY[v_i::text, 'suspicion'], GREATEST(v_s - 1, 0)::text::jsonb);
+    END IF;
+  END LOOP;
+
+  v_round := v_board->'rounds'->(v_current - 1);
+  v_round := jsonb_set(v_round, '{phase}', '"revealing"');
+  v_round := jsonb_set(v_round, '{vaultLost}', v_vault_lost::text::jsonb);
+  v_round := jsonb_set(v_round, '{stealsSuccessful}', v_steals_success::text::jsonb);
+  v_round := jsonb_set(v_round, '{stealsBlocked}', v_steals_blocked::text::jsonb);
+  v_round := jsonb_set(v_round, '{trapsTriggered}', v_traps_triggered::text::jsonb);
+  v_round := jsonb_set(v_round, '{hacksSucceeded}', v_hacks_success::text::jsonb);
+  v_round := jsonb_set(v_round, '{hacksBackfired}', v_hacks_backfire::text::jsonb);
+  v_round := jsonb_set(v_round, '{alarmsTriggered}', v_alarms::text::jsonb);
+  v_round := jsonb_set(v_round, '{events}', v_events);
+  v_round := jsonb_set(v_round, '{revealedActions}', v_revealed);
+
+  v_rounds := jsonb_set(v_board->'rounds', ARRAY[(v_current - 1)::text], v_round);
+  v_board := jsonb_set(v_board, '{rounds}', v_rounds);
+  v_board := jsonb_set(v_board, '{vaultCoins}', v_vault_coins::text::jsonb);
+  v_board := jsonb_set(v_board, '{players}', v_players);
+
+  UPDATE "secret_heist_games" SET "boardState" = v_board, "lastActivityAt" = now() WHERE id = p_game_id;
+  RETURN jsonb_build_object('ok', true);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.fn_secretheist_resolve(text) TO authenticated;
+
+-- Also patch fn_secretheist_intel to use the helper (it doesn't use unnest
+-- but let's leave it as-is — it's fine).
