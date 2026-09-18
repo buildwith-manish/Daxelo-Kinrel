@@ -35,21 +35,19 @@ import '../../../games/shared/widgets/active_games_list.dart';
 import '../../../games/shared/widgets/family_leaderboard_widget.dart';
 import '../../../notifications/providers/notifications_provider.dart';
 import '../../../occasions/providers/occasion_reminders_provider.dart';
-import '../../../truth_streak/presentation/truth_streak_card.dart';
+import '../../../prediction_battle/prediction_card.dart';
 import '../family_detail_screen.dart' show FamilyDetail, premiumGamesRowBridge, AddPersonSheetBridge;
 import 'design_system.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
-// SECTION 2: TRUTH STREAK MOMENT
+// SECTION 2: PREDICTION BATTLE MOMENT (replaces Truth Streak)
 //
-// The one place allowed a "moment" — terracotta gradient, single flame
-// line-icon, Display-type question. Everything else stays restrained
-// so this pops.
+// The one place allowed a "moment" — purple/gold gradient, sparkle icon.
+// Everything else stays restrained so this pops.
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Wrapper that applies the premium "moment" treatment to the existing
-/// TruthStreakCard. We don't rewrite TruthStreakCard — we wrap it so
-/// the provider logic stays untouched and only the visual frame changes.
+/// Wrapper that applies the premium "moment" treatment to the
+/// PredictionBattleCard.
 class TruthStreakMoment extends StatelessWidget {
   const TruthStreakMoment({super.key, required this.familyId});
 
@@ -59,7 +57,7 @@ class TruthStreakMoment extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: FamilyHubSpace.md),
-      child: TruthStreakCard(familyId: familyId),
+      child: PredictionBattleCard(familyId: familyId),
     );
   }
 }
