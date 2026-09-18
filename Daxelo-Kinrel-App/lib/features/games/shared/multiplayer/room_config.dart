@@ -30,6 +30,7 @@ enum GameTableKind {
   redlightRounds,    // redlight_rounds
   tugofwarGames,     // tugofwar_games
   memoryMatchGames,  // memorymatch_games
+  flickArenaGames,   // flick_arena_games
 }
 
 extension GameTableKindX on GameTableKind {
@@ -52,6 +53,7 @@ extension GameTableKindX on GameTableKind {
       case GameTableKind.redlightRounds:    return 'redlight_rounds';
       case GameTableKind.tugofwarGames:     return 'tugofwar_games';
       case GameTableKind.memoryMatchGames:  return 'memorymatch_games';
+      case GameTableKind.flickArenaGames:   return 'flick_arena_games';
     }
   }
 
@@ -78,6 +80,7 @@ extension GameTableKindX on GameTableKind {
       case GameTableKind.redlightRounds:    return 'redlight_players';
       case GameTableKind.tugofwarGames:     return 'tugofwar_players';
       case GameTableKind.memoryMatchGames:  return 'memorymatch_players';
+      case GameTableKind.flickArenaGames:   return null; // inline player slots
     }
   }
 }
@@ -287,6 +290,16 @@ class RoomConfig {
     gameTable: GameTableKind.memoryMatchGames,
     minPlayers: 2,
     maxPlayers: 4, // individual competition — 2, 3 or 4 players
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
+    cancelledStatusValue: 'cancelled',
+  );
+
+  static const flickArena = RoomConfig(
+    gameTable: GameTableKind.flickArenaGames,
+    minPlayers: 2,
+    maxPlayers: 4, // 1v1 (Solo Duel) or 2v2 (Team Battle)
     lobbyStatusValue: 'waiting',
     activeStatusValue: 'in_progress',
     finishedStatusValue: 'completed',

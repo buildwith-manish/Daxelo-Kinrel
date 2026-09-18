@@ -119,6 +119,9 @@ import '../../features/games/color_trap/color_trap_provider.dart';
 import '../../features/games/freeze_auction/freeze_auction_lobby_screen.dart';
 import '../../features/games/freeze_auction/freeze_auction_game_screen.dart';
 import '../../features/games/freeze_auction/freeze_auction_provider.dart';
+import '../../features/games/flick_arena/flick_arena_lobby_screen.dart';
+import '../../features/games/flick_arena/flick_arena_game_screen.dart';
+import '../../features/games/flick_arena/flick_arena_provider.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
 import '../../features/games/redlight/redlight_game_screen.dart';
 import '../../features/games/redlight/redlight_results_screen.dart';
@@ -925,6 +928,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
     isHost: (s) => s.game?.hostUserId == _myUserId(),
     leave: (fid) => ref.read(freezeAuctionProvider(fid).notifier).leaveGame(),
+  );
+
+  final flickArenaLobbyExit = guardGameRoomExit(
+    gameTable: 'flick_arena_games',
+    readState: (fid) => ref.read(flickArenaProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(flickArenaProvider(fid).notifier).leaveRoom(),
   );
 
   final twotruthsLobbyExit = guardGameRoomExit(
@@ -1875,6 +1886,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: FreezeAuctionGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Flick Arena ───────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/flick-arena/lobby',
+        onExit: flickArenaLobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FlickArenaLobbyScreen(
+              familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/flick-arena/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: FlickArenaGameScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),

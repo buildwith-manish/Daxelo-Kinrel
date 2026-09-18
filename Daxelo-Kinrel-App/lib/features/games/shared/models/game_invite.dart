@@ -34,6 +34,7 @@ enum GameType {
   impostor, // Who's the Impostor?
   colorTrap, // Color Trap
   freezeAuction, // Freeze Auction
+  flickArena, // Flick Arena
 }
 
 extension GameTypeX on GameType {
@@ -82,6 +83,8 @@ extension GameTypeX on GameType {
         return 'color-trap';
       case GameType.freezeAuction:
         return 'freeze-auction';
+      case GameType.flickArena:
+        return 'flick-arena';
     }
   }
 
@@ -130,6 +133,8 @@ extension GameTypeX on GameType {
         return 'Color Trap';
       case GameType.freezeAuction:
         return 'Freeze Auction';
+      case GameType.flickArena:
+        return 'Flick Arena';
     }
   }
 

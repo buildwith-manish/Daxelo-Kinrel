@@ -324,6 +324,17 @@ const kGameCatalog = <GameCatalogEntry>[
     category: GameCategory.partyNight,
     sortOrder: 100,
   ),
+  GameCatalogEntry(
+    gameId: 'flick-arena',
+    name: 'Flick Arena',
+    description: 'Flick discs into the goal — physics strategy',
+    gameTable: 'flick_arena_games',
+    route: '/family/{familyId}/flick-arena/lobby',
+    accent: 0xFF22D3EE,
+    playersLabel: '2–4 players',
+    category: GameCategory.quickDuels,
+    sortOrder: 60,
+  ),
 ];
 
 /// All catalog entries sorted for hub display (featured first).
