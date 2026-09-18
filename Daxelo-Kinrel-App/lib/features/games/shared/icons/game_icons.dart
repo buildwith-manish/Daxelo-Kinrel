@@ -58,6 +58,7 @@ class GameIcon extends StatelessWidget {
       'tug-of-war': Color(0xFFE8612A),
       'memory-match': Color(0xFFA855F7),
       'ashta-chamma': Color(0xFFE11D48),
+      'connect4': Color(0xFF0EA5E9),
     };
     return map[id] ?? const Color(0xFFE8612A);
   }
@@ -85,6 +86,7 @@ class GameIcon extends StatelessWidget {
       case 'tug-of-war':       return _TugOfWarIcon(color);
       case 'memory-match':     return _MemoryMatchIcon(color);
       case 'ashta-chamma':     return _AshtaChammaIcon(color);
+      case 'connect4':         return _Connect4Icon(color);
       default:                 return _DefaultGameIcon(color);
     }
   }
@@ -742,6 +744,62 @@ class _AshtaChammaIcon extends _GameIconPainter {
       pieceR * 0.5,
       Paint()..color = Colors.white.withValues(alpha: 0.8),
     );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ── Connect 4: blue board with red + yellow discs ─────────────────
+
+class _Connect4Icon extends _GameIconPainter {
+  _Connect4Icon(super.color);
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width;
+
+    // Blue board background
+    final boardRRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: Offset(s * 0.5, s * 0.5), width: s * 0.80, height: s * 0.72),
+      Radius.circular(s * 0.10),
+    );
+    canvas.drawRRect(boardRRect, Paint()..color = color);
+
+    // Grid of holes with discs — 4 columns × 3 rows (simplified icon)
+    const cols = 4;
+    const rows = 3;
+    final cellW = s * 0.80 / cols;
+    final cellH = s * 0.72 / rows;
+    final startX = s * 0.5 - s * 0.40 + cellW / 2;
+    final startY = s * 0.5 - s * 0.36 + cellH / 2;
+    final discR = s * 0.06;
+
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        final cx = startX + c * cellW;
+        final cy = startY + r * cellH;
+        // Empty hole (dark circle)
+        canvas.drawCircle(
+          Offset(cx, cy),
+          discR * 1.1,
+          Paint()..color = const Color(0xFF1A1B26),
+        );
+        // Place some red and yellow discs (checker pattern for icon)
+        if ((r + c) % 3 == 0) {
+          canvas.drawCircle(
+            Offset(cx, cy),
+            discR,
+            Paint()..color = const Color(0xFFEF4444), // Red
+          );
+        } else if ((r + c) % 3 == 1) {
+          canvas.drawCircle(
+            Offset(cx, cy),
+            discR,
+            Paint()..color = const Color(0xFFF59E0B), // Yellow
+          );
+        }
+      }
+    }
   }
 
   @override

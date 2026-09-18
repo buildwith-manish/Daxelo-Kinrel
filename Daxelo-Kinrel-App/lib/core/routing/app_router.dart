@@ -106,6 +106,9 @@ import '../../features/games/memorymatch/memorymatch_provider.dart';
 import '../../features/games/ashtachamma/ashtachamma_lobby_screen.dart';
 import '../../features/games/ashtachamma/ashtachamma_game_screen.dart';
 import '../../features/games/ashtachamma/ashtachamma_provider.dart';
+import '../../features/games/connect4/connect4_lobby_screen.dart';
+import '../../features/games/connect4/connect4_game_screen.dart';
+import '../../features/games/connect4/connect4_provider.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
 import '../../features/games/redlight/redlight_game_screen.dart';
 import '../../features/games/redlight/redlight_results_screen.dart';
@@ -880,6 +883,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
     isHost: (s) => s.game?.hostUserId == _myUserId(),
     leave: (fid) => ref.read(ashtaChammaProvider(fid).notifier).leaveGame(),
+  );
+
+  final connect4LobbyExit = guardGameRoomExit(
+    gameTable: 'connect4_games',
+    readState: (fid) => ref.read(connect4Provider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(connect4Provider(fid).notifier).leaveGame(),
   );
 
   final twotruthsLobbyExit = guardGameRoomExit(
@@ -1741,6 +1752,26 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: AshtaChammaGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Connect 4 ───────────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/connect4/lobby',
+        onExit: connect4LobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: Connect4LobbyScreen(familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/connect4/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: Connect4GameScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),

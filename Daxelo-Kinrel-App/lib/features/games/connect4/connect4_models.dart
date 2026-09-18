@@ -1,65 +1,44 @@
-// lib/features/games/ashtachamma/ashtachamma_models.dart
+// lib/features/games/connect4/connect4_models.dart
 //
-// Ashta Chamma — wire models for the multiplayer board game.
-//
-// Mirrors the structure of memorymatch_models.dart. The game state is
-// serialized as JSON and synced via Supabase Realtime. The Dart models
-// parse the JSONB returned by the ashta_chamma_games RPCs
-// (fn_ashtachamma_start, fn_ashtachamma_roll, fn_ashtachamma_move,
-// fn_ashtachamma_finish, etc.).
-//
-// The pure game logic lives in ashtachamma_engine.dart. These models are
-// the "wire" representation — what gets sent over the network.
+// Connect 4 — wire models for the multiplayer game.
+// Mirrors memorymatch_models.dart / ashtachamma_models.dart.
 
-import 'ashtachamma_engine.dart';
+import 'connect4_engine.dart';
 
-enum AshtaChammaStatus { waiting, inProgress, completed }
+enum Connect4Status { waiting, inProgress, completed }
 
-extension AshtaChammaStatusX on AshtaChammaStatus {
+extension Connect4StatusX on Connect4Status {
   String get wire {
     switch (this) {
-      case AshtaChammaStatus.waiting:
+      case Connect4Status.waiting:
         return 'waiting';
-      case AshtaChammaStatus.inProgress:
+      case Connect4Status.inProgress:
         return 'in_progress';
-      case AshtaChammaStatus.completed:
+      case Connect4Status.completed:
         return 'completed';
     }
   }
 
-  static AshtaChammaStatus fromString(String? s) {
+  static Connect4Status fromString(String? s) {
     switch (s) {
       case 'in_progress':
-        return AshtaChammaStatus.inProgress;
+        return Connect4Status.inProgress;
       case 'completed':
-        return AshtaChammaStatus.completed;
+        return Connect4Status.completed;
       case 'waiting':
       default:
-        return AshtaChammaStatus.waiting;
+        return Connect4Status.waiting;
     }
   }
 }
 
-/// The two phases of a turn: the player must roll the dice, then move
-/// a piece (or pass if no legal moves).
-enum AshtaChammaPhase { roll, move }
-
-extension AshtaChammaPhaseX on AshtaChammaPhase {
-  String get wire => this == AshtaChammaPhase.move ? 'move' : 'roll';
-
-  static AshtaChammaPhase fromString(String? s) =>
-      s == 'move' ? AshtaChammaPhase.move : AshtaChammaPhase.roll;
-}
-
-/// One player in an Ashta Chamma match. Mirrors MemoryMatchPlayer.
-class AshtaChammaPlayer {
-  const AshtaChammaPlayer({
+class Connect4Player {
+  const Connect4Player({
     required this.id,
     required this.gameId,
     required this.userId,
     required this.userName,
     required this.joinedAt,
-    required this.turnOrder,
     this.isReady = false,
     this.leftAt,
   });
@@ -69,20 +48,18 @@ class AshtaChammaPlayer {
   final String userId;
   final String userName;
   final DateTime joinedAt;
-  final int turnOrder;
   final bool isReady;
   final DateTime? leftAt;
 
   bool get isActive => leftAt == null;
 
-  factory AshtaChammaPlayer.fromJson(Map<String, dynamic> json) {
-    return AshtaChammaPlayer(
+  factory Connect4Player.fromJson(Map<String, dynamic> json) {
+    return Connect4Player(
       id: (json['id'] ?? '') as String,
       gameId: (json['gameId'] ?? '') as String,
       userId: (json['userId'] ?? '') as String,
       userName: (json['userName'] ?? 'Player') as String,
       joinedAt: DateTime.tryParse(json['joinedAt'] ?? '') ?? DateTime.now(),
-      turnOrder: (json['turnOrder'] as num?)?.toInt() ?? 0,
       isReady: (json['isReady'] ?? false) as bool,
       leftAt: json['leftAt'] != null
           ? DateTime.tryParse(json['leftAt'] as String)
@@ -91,32 +68,28 @@ class AshtaChammaPlayer {
   }
 }
 
-/// Final ranking entry (computed server-side at completion).
-class AshtaChammaPlacement {
-  const AshtaChammaPlacement({
+class Connect4Placement {
+  const Connect4Placement({
     required this.userId,
     required this.userName,
     required this.place,
-    required this.piecesHome,
-    required this.captures,
-    required this.turnDurationMs,
+    required this.discs,
+    required this.moves,
   });
 
   final String userId;
   final String userName;
   final int place;
-  final int piecesHome;
-  final int captures;
-  final int turnDurationMs;
+  final int discs;
+  final int moves;
 
-  factory AshtaChammaPlacement.fromJson(Map<String, dynamic> json) {
-    return AshtaChammaPlacement(
+  factory Connect4Placement.fromJson(Map<String, dynamic> json) {
+    return Connect4Placement(
       userId: (json['userId'] ?? '') as String,
       userName: (json['userName'] ?? 'Player') as String,
       place: (json['place'] ?? 0) as int,
-      piecesHome: (json['piecesHome'] ?? 0) as int,
-      captures: (json['captures'] ?? 0) as int,
-      turnDurationMs: (json['turnDurationMs'] ?? 0) as int,
+      discs: (json['discs'] ?? 0) as int,
+      moves: (json['moves'] ?? 0) as int,
     );
   }
 
@@ -126,17 +99,14 @@ class AshtaChammaPlacement {
         return '🥇';
       case 2:
         return '🥈';
-      case 3:
-        return '🥉';
       default:
         return '🏅';
     }
   }
 }
 
-/// The full game row from `ashta_chamma_games`. Mirrors MemoryMatchGame.
-class AshtaChammaGame {
-  const AshtaChammaGame({
+class Connect4Game {
+  const Connect4Game({
     required this.id,
     required this.familyId,
     required this.hostUserId,
@@ -149,11 +119,7 @@ class AshtaChammaGame {
     this.currentPlayerId,
     this.currentTurnIndex = 0,
     this.turnEndsAt,
-    this.phase = AshtaChammaPhase.roll,
-    this.lastDiceValue = 0,
     this.boardState,
-    this.consecutiveSixes = 0,
-    this.scores = const {},
     this.placements = const [],
     this.winnerUserIds = const [],
     this.endReason,
@@ -166,7 +132,7 @@ class AshtaChammaGame {
   final String familyId;
   final String hostUserId;
   final String hostUserName;
-  final AshtaChammaStatus status;
+  final Connect4Status status;
   final int maxPlayers;
   final DateTime createdAt;
   final String? roomName;
@@ -174,28 +140,18 @@ class AshtaChammaGame {
   final String? currentPlayerId;
   final int currentTurnIndex;
   final DateTime? turnEndsAt;
-  final AshtaChammaPhase phase;
-  final int lastDiceValue;
-
-  /// The full serializable game state (pieces, current player, move
-  /// history). Stored as JSONB on the game row. See AshtaChammaGameState
-  /// in the engine file.
-  final AshtaChammaGameState? boardState;
-
-  final int consecutiveSixes;
-  final Map<String, int> scores;
-  final List<AshtaChammaPlacement> placements;
+  final Connect4GameState? boardState;
+  final List<Connect4Placement> placements;
   final List<String> winnerUserIds;
   final String? endReason;
   final DateTime? startedAt;
   final DateTime? completedAt;
   final bool spectatorsEnabled;
 
-  bool get isWaiting => status == AshtaChammaStatus.waiting;
-  bool get isInProgress => status == AshtaChammaStatus.inProgress;
-  bool get isCompleted => status == AshtaChammaStatus.completed;
+  bool get isWaiting => status == Connect4Status.waiting;
+  bool get isInProgress => status == Connect4Status.inProgress;
+  bool get isCompleted => status == Connect4Status.completed;
 
-  /// Seconds left in the current turn (null when not running).
   int? get turnSecondsRemaining {
     if (!isInProgress || turnEndsAt == null) return null;
     final left = turnEndsAt!.difference(DateTime.now()).inSeconds;
@@ -204,36 +160,30 @@ class AshtaChammaGame {
 
   String get endReasonLabel {
     switch (endReason) {
-      case 'all_home':
-        return 'All pieces reached home!';
+      case 'four_in_a_row':
+        return 'Four in a row!';
+      case 'draw':
+        return 'Board full — it\'s a draw!';
       case 'walkover':
-        return 'The others left — last player standing';
+        return 'Opponent left — you win by default';
       default:
         return 'Game complete';
     }
   }
 
-  factory AshtaChammaGame.fromJson(Map<String, dynamic> json) {
+  factory Connect4Game.fromJson(Map<String, dynamic> json) {
     final order = <String>[];
     final rawOrder = json['playerOrder'];
     if (rawOrder is List) {
       order.addAll(rawOrder.whereType<String>());
     }
 
-    final scores = <String, int>{};
-    final rawScores = json['scores'];
-    if (rawScores is Map) {
-      rawScores.forEach((k, v) {
-        if (k is String && v is num) scores[k] = v.toInt();
-      });
-    }
-
-    final placements = <AshtaChammaPlacement>[];
+    final placements = <Connect4Placement>[];
     final rawPlacements = json['placements'];
     if (rawPlacements is List) {
       for (final p in rawPlacements) {
         if (p is Map<String, dynamic>) {
-          placements.add(AshtaChammaPlacement.fromJson(p));
+          placements.add(Connect4Placement.fromJson(p));
         }
       }
     }
@@ -244,19 +194,19 @@ class AshtaChammaGame {
       winners.addAll(rawWinners.whereType<String>());
     }
 
-    AshtaChammaGameState? boardState;
+    Connect4GameState? boardState;
     final rawBoard = json['boardState'];
     if (rawBoard is Map<String, dynamic>) {
-      boardState = AshtaChammaGameState.fromJson(rawBoard);
+      boardState = Connect4GameState.fromJson(rawBoard);
     }
 
-    return AshtaChammaGame(
+    return Connect4Game(
       id: (json['id'] ?? '') as String,
       familyId: (json['familyId'] ?? '') as String,
       hostUserId: (json['hostUserId'] ?? '') as String,
       hostUserName: (json['hostUserName'] ?? 'Host') as String,
-      status: AshtaChammaStatusX.fromString(json['status'] as String?),
-      maxPlayers: (json['maxPlayers'] ?? 4) as int,
+      status: Connect4StatusX.fromString(json['status'] as String?),
+      maxPlayers: (json['maxPlayers'] ?? 2) as int,
       createdAt:
           DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
       roomName: json['roomName'] as String?,
@@ -266,11 +216,7 @@ class AshtaChammaGame {
       turnEndsAt: json['turnEndsAt'] != null
           ? DateTime.tryParse(json['turnEndsAt'] as String)
           : null,
-      phase: AshtaChammaPhaseX.fromString(json['phase'] as String?),
-      lastDiceValue: (json['lastDiceValue'] as num?)?.toInt() ?? 0,
       boardState: boardState,
-      consecutiveSixes: (json['consecutiveSixes'] as num?)?.toInt() ?? 0,
-      scores: scores,
       placements: placements,
       winnerUserIds: winners,
       endReason: json['endReason'] as String?,

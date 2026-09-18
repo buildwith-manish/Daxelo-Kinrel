@@ -30,6 +30,7 @@ enum GameType {
   tugOfWar, // Tug of War
   memoryMatch, // Memory Match
   ashtaChamma, // Ashta Chamma (Chowka Bhara)
+  connect4, // Connect 4
 }
 
 extension GameTypeX on GameType {
@@ -70,6 +71,8 @@ extension GameTypeX on GameType {
         return 'memory-match';
       case GameType.ashtaChamma:
         return 'ashta-chamma';
+      case GameType.connect4:
+        return 'connect4';
     }
   }
 
@@ -110,6 +113,8 @@ extension GameTypeX on GameType {
         return 'Memory Match';
       case GameType.ashtaChamma:
         return 'Ashta Chamma';
+      case GameType.connect4:
+        return 'Connect 4';
     }
   }
 

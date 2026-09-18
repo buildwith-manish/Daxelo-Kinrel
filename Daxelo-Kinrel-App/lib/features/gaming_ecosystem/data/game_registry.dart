@@ -118,6 +118,17 @@ const kGameCatalog = <GameCatalogEntry>[
     category: GameCategory.quickDuels,
     sortOrder: 40,
   ),
+  GameCatalogEntry(
+    gameId: 'connect4',
+    name: 'Connect 4',
+    description: 'Drop discs, connect four, win the column!',
+    gameTable: 'connect4_games',
+    route: '/family/{familyId}/connect4/lobby',
+    accent: 0xFF0EA5E9,
+    playersLabel: '2 players',
+    category: GameCategory.quickDuels,
+    sortOrder: 50,
+  ),
 
   // ── Party Night (big groups, laughter) ─────────────────────────────────
   GameCatalogEntry(
