@@ -109,6 +109,7 @@ import '../../features/games/ashtachamma/ashtachamma_provider.dart';
 import '../../features/games/connect4/connect4_lobby_screen.dart';
 import '../../features/games/connect4/connect4_game_screen.dart';
 import '../../features/games/connect4/connect4_provider.dart';
+import '../../features/games/retention/rewards_shop_screen.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
 import '../../features/games/redlight/redlight_game_screen.dart';
 import '../../features/games/redlight/redlight_results_screen.dart';
@@ -1677,6 +1678,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: AllGamesScreen(
+            familyId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/gaming/rewards',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: RewardsShopScreen(
             familyId: state.pathParameters['id']!,
           ),
         ),
