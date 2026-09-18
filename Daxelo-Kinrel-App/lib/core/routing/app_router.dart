@@ -77,7 +77,7 @@ import '../../features/shared_list/presentation/shared_list_screen.dart';
 import '../../features/chat/presentation/chat_inbox_screen.dart';
 import '../../features/chat/presentation/archived_chats_screen.dart';
 import '../../features/chat/presentation/wallpaper_settings_screen.dart';
-import '../../features/truth_streak/presentation/truth_streak_screen.dart';
+import '../../features/prediction_battle/prediction_battle_screen.dart';
 import '../../features/hot_seat/presentation/hot_seat_screen.dart';
 import '../../features/relation_riddles/presentation/relation_riddle_screen.dart';
 import '../../features/calendar/presentation/family_calendar_screen.dart'
@@ -1502,12 +1502,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // ── Truth Streak (daily family question game) ───────────────
+      // ── Prediction Battle (replaces Truth Streak) ───────────────
       GoRoute(
-        path: '/family/:id/truth-streak',
+        path: '/family/:id/prediction-battle',
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
-          child: TruthStreakScreen(familyId: state.pathParameters['id']!),
+          child: PredictionBattleScreen(familyId: state.pathParameters['id']!),
         ),
       ),
 

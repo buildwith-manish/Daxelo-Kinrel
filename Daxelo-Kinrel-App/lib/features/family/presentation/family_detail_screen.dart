@@ -39,7 +39,7 @@ import '../../../core/utils/error_boundary.dart';
 import '../../../core/utils/smart_preloader.dart';
 import '../../../core/utils/share_helper.dart';
 import '../../profile/data/profile_provider.dart';
-import '../../truth_streak/presentation/truth_streak_card.dart';
+import '../../prediction_battle/prediction_card.dart';
 import '../../thinking/presentation/family_ring_widget.dart';
 import '../../games/services/game_asset_manager.dart';
 import '../../games/shared/icons/game_icons.dart';
@@ -289,10 +289,10 @@ class _FamilyDetailScreenState extends ConsumerState<FamilyDetailScreen> {
 
                   const SliverToBoxAdapter(child: SizedBox(height: 4)),
 
-                  // 2. Truth Streak — the "moment" (only elevated card).
+                  // 2. Prediction Battle — the "moment" (replaces Truth Streak).
                   SliverToBoxAdapter(
                     child: staggerFade(
-                      TruthStreakMoment(familyId: widget.familyId),
+                      PredictionBattleCard(familyId: widget.familyId),
                       1,
                     ),
                   ),
