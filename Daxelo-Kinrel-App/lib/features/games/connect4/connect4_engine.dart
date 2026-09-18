@@ -152,7 +152,7 @@ class Connect4GameState {
       };
 
   factory Connect4GameState.fromJson(Map<String, dynamic> json) {
-    final board = <List<int>>[];
+    var board = <List<int>>[];
     final rawBoard = json['board'];
     if (rawBoard is List) {
       for (final row in rawBoard) {
