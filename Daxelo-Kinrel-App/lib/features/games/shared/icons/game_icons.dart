@@ -61,6 +61,7 @@ class GameIcon extends StatelessWidget {
       'connect4': Color(0xFF0EA5E9),
       'impostor': Color(0xFF8B5CF6),
       'color-trap': Color(0xFFF59E0B),
+      'freeze-auction': Color(0xFFF59E0B),
     };
     return map[id] ?? const Color(0xFFE8612A);
   }
@@ -91,6 +92,7 @@ class GameIcon extends StatelessWidget {
       case 'connect4':         return _Connect4Icon(color);
       case 'impostor':         return _DefaultGameIcon(color);
       case 'color-trap':        return _DefaultGameIcon(color);
+      case 'freeze-auction':    return _DefaultGameIcon(color);
       default:                 return _DefaultGameIcon(color);
     }
   }
