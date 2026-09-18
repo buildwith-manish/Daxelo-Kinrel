@@ -78,11 +78,17 @@ final gamingLeaderboardProvider = FutureProvider.autoDispose
     .family<List<LeaderboardEntry>, LeaderboardKey>((ref, key) async {
   final client = ref.watch(supabaseProvider);
   if (client == null) return const <LeaderboardEntry>[];
+  final myId = client.auth.currentUser?.id;
+  // Pass the requester id so the RPC can strip wins/losses/winRate for
+  // non-self rows and only expose streakCurrent for the viewer's own row.
+  // If the user is somehow not signed in, fall back to NULL — the RPC will
+  // then strip ALL rows defensively.
   final raw = await client.rpc('fn_get_family_leaderboard_v2', params: {
     'p_family_id': key.familyId,
     'p_period': key.period,
     'p_game_table': key.gameTable,
     'p_limit': 100,
+    'p_requesting_user_id': myId,
   });
   final map = _asMap(raw);
   return _asList(map['entries'])
@@ -134,6 +140,11 @@ final gamingMatchHistoryProvider = FutureProvider.autoDispose
   if (client == null) return const <MatchHistoryEntry>[];
   final myId = client.auth.currentUser?.id;
   if (myId == null) return const <MatchHistoryEntry>[];
+  // fn_get_match_history is now auth-gated server-side: it only returns
+  // matches in which the requesting user (auth.uid()) participated. The
+  // p_user_id parameter is preserved for backward compatibility but is
+  // effectively ignored — a family member can no longer enumerate another
+  // member's match history.
   final raw = await client.rpc('fn_get_match_history', params: {
     'p_user_id': myId,
     'p_family_id': key.familyId,
@@ -143,6 +154,50 @@ final gamingMatchHistoryProvider = FutureProvider.autoDispose
   return _asList(_asMap(raw)['matches'])
       .map(MatchHistoryEntry.fromJson)
       .toList();
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Single-match detail (participant-gated)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Wraps the new `match_history_for_participant` RPC. Returns the full match
+// detail (winner, score, per-player results) ONLY if the requesting user
+// was a participant. Returns null otherwise — the UI must NOT render any
+// placeholder row when this returns null, so the match's existence is not
+// confirmed to non-participants.
+//
+// Usage:
+//   final detail = await ref.read(matchDetailProvider(MatchDetailKey(
+//     familyId: familyId, matchId: matchId)).future);
+//   if (detail == null) return SizedBox.shrink(); // not a participant
+class MatchDetailKey {
+  const MatchDetailKey({required this.familyId, required this.matchId});
+  final String familyId;
+  final String matchId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is MatchDetailKey &&
+      other.familyId == familyId &&
+      other.matchId == matchId;
+
+  @override
+  int get hashCode => Object.hash(familyId, matchId);
+}
+
+final matchDetailProvider = FutureProvider.autoDispose
+    .family<MatchDetail?, MatchDetailKey>((ref, key) async {
+  final client = ref.watch(supabaseProvider);
+  if (client == null) return null;
+  final myId = client.auth.currentUser?.id;
+  if (myId == null) return null;
+  final raw = await client.rpc('match_history_for_participant', params: {
+    'p_match_id': key.matchId,
+    'p_requesting_user_id': myId,
+  });
+  final map = _asMap(raw);
+  if (map.isEmpty || map['matchId'] == null) return null;
+  return MatchDetail.fromJson(map);
 });
 
 // ─────────────────────────────────────────────────────────────────────────

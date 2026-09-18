@@ -506,6 +506,7 @@ class PlayerGamingProfile {
     required this.userName,
     this.avatarUrl,
     this.username,
+    this.isSelf = false,
     this.matches = 0,
     this.wins = 0,
     this.losses = 0,
@@ -529,6 +530,11 @@ class PlayerGamingProfile {
   final String userName;
   final String? avatarUrl;
   final String? username;
+
+  /// True when this profile belongs to the signed-in viewer. The backend
+  /// strips wins/losses/draws/winRate/streakBest for non-self profiles — UI
+  /// must use [isSelf] to decide whether to render those fields at all.
+  final bool isSelf;
   final int matches;
   final int wins;
   final int losses;
@@ -559,6 +565,7 @@ class PlayerGamingProfile {
       userName: (json['userName'] as String?) ?? 'Family Member',
       avatarUrl: json['avatarUrl'] as String?,
       username: json['username'] as String?,
+      isSelf: json['isSelf'] as bool? ?? false,
       matches: (json['matches'] as num?)?.toInt() ?? 0,
       wins: (json['wins'] as num?)?.toInt() ?? 0,
       losses: (json['losses'] as num?)?.toInt() ?? 0,
@@ -580,6 +587,85 @@ class PlayerGamingProfile {
       badges: _list(json['badges'], BadgeInfo.fromJson),
       recentMatches: _list(json['recentMatches'], RecentMatch.fromJson),
       recentActivity: _list(json['recentActivity'], ActivityEntry.fromJson),
+    );
+  }
+}
+
+/// Full match detail returned by `match_history_for_participant`.
+///
+/// Only ever populated when the requesting user was a participant in the
+/// match — otherwise the RPC returns an empty object and the provider
+/// surfaces `null`. UI must NOT render any placeholder row when null.
+class MatchDetail {
+  const MatchDetail({
+    required this.matchId,
+    required this.gameTable,
+    required this.familyId,
+    required this.finishedAt,
+    required this.startedAt,
+    required this.durationSeconds,
+    required this.playerCount,
+    required this.resultKind,
+    required this.winnerUserIds,
+    required this.winnerNames,
+    required this.players,
+  });
+
+  final String matchId;
+  final String gameTable;
+  final String familyId;
+  final DateTime? finishedAt;
+  final DateTime? startedAt;
+  final int durationSeconds;
+  final int playerCount;
+
+  /// 'win' | 'draw' | 'played' — null/empty when stripped for non-participant.
+  final String? resultKind;
+  final List<String> winnerUserIds;
+  final List<String> winnerNames;
+  final List<MatchDetailPlayer> players;
+
+  factory MatchDetail.fromJson(Map<String, dynamic> json) {
+    return MatchDetail(
+      matchId: (json['matchId'] as String?) ?? '',
+      gameTable: (json['gameTable'] as String?) ?? '',
+      familyId: (json['familyId'] as String?) ?? '',
+      finishedAt: json['finishedAt'] == null
+          ? null
+          : DateTime.tryParse(json['finishedAt'].toString()),
+      startedAt: json['startedAt'] == null
+          ? null
+          : DateTime.tryParse(json['startedAt'].toString()),
+      durationSeconds: (json['durationSeconds'] as num?)?.toInt() ?? 0,
+      playerCount: (json['playerCount'] as num?)?.toInt() ?? 0,
+      resultKind: json['resultKind'] as String?,
+      winnerUserIds: (json['winnerUserIds'] as List? ?? [])
+          .map((e) => e.toString())
+          .toList(),
+      winnerNames: (json['winnerNames'] as List? ?? [])
+          .map((e) => e.toString())
+          .toList(),
+      players: _list(json['players'], MatchDetailPlayer.fromJson),
+    );
+  }
+}
+
+class MatchDetailPlayer {
+  const MatchDetailPlayer({
+    required this.userId,
+    required this.userName,
+    required this.result,
+  });
+
+  final String userId;
+  final String userName;
+  final String? result;
+
+  factory MatchDetailPlayer.fromJson(Map<String, dynamic> json) {
+    return MatchDetailPlayer(
+      userId: (json['userId'] as String?) ?? '',
+      userName: (json['userName'] as String?) ?? 'Family Member',
+      result: json['result'] as String?,
     );
   }
 }

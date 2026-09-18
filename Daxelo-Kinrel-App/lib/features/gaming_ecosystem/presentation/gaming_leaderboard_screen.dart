@@ -167,12 +167,13 @@ class _GamingLeaderboardScreenState
                             userName: e.userName,
                             points: e.points,
                             matches: e.matches,
-                            wins: e.wins,
-                            streak: _period == 'all_time'
+                            // Streak only renders for the viewer's own row
+                            // (the row widget gates the chip on isMe; the
+                            // backend also returns 0 for everyone else).
+                            streak: e.userId == myUserId &&
+                                    _period == 'all_time'
                                 ? e.streakCurrent
                                 : 0,
-                            winRateLabel:
-                                e.matches > 0 ? e.winRateLabel : null,
                             isMe: e.userId == myUserId,
                             onTap: () => context.push(
                                 '/family/${widget.familyId}/gaming/player/${e.userId}'),
