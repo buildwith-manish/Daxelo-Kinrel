@@ -401,6 +401,17 @@ const kGameCatalog = <GameCatalogEntry>[
     category: GameCategory.partyNight,
     sortOrder: 160,
   ),
+  GameCatalogEntry(
+    gameId: 'stickman-heist',
+    name: 'Stickman Heist',
+    description: 'Treasure hunt shooter — steal, chase, escape',
+    gameTable: 'stickman_heist_games',
+    route: '/family/{familyId}/stickman-heist/lobby',
+    accent: 0xFFEF4444,
+    playersLabel: '2–8 players',
+    category: GameCategory.quickDuels,
+    sortOrder: 70,
+  ),
 ];
 
 /// All catalog entries sorted for hub display (featured first).

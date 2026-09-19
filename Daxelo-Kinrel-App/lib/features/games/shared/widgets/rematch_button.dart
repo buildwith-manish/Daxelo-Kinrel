@@ -147,6 +147,7 @@ class RematchButton extends ConsumerWidget {
       case GameType.codeClues: return 'code_clues_games';
       case GameType.nightFalls: return 'night_falls_games';
       case GameType.sketchTelephone: return 'sketch_telephone_games';
+      case GameType.stickmanHeist: return 'stickman_heist_games';
     }
   }
 }

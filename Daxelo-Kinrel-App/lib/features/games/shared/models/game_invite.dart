@@ -41,6 +41,7 @@ enum GameType {
   codeClues, // Code Clues (Codenames-style word association)
   nightFalls, // Night Falls (Werewolf)
   sketchTelephone, // Sketch Telephone (Gartic Phone-style drawing chain)
+  stickmanHeist, // Stickman Heist (real-time top-down treasure-hunt shooter)
 }
 
 extension GameTypeX on GameType {
@@ -103,6 +104,8 @@ extension GameTypeX on GameType {
         return 'night-falls';
       case GameType.sketchTelephone:
         return 'sketch-telephone';
+      case GameType.stickmanHeist:
+        return 'stickman-heist';
     }
   }
 
@@ -165,6 +168,8 @@ extension GameTypeX on GameType {
         return 'Night Falls';
       case GameType.sketchTelephone:
         return 'Sketch Telephone';
+      case GameType.stickmanHeist:
+        return 'Stickman Heist';
     }
   }
 

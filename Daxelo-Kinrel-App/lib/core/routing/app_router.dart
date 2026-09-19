@@ -139,6 +139,9 @@ import '../../features/games/sketch_telephone/sketch_telephone_provider.dart';
 import '../../features/games/word_forge/word_forge_lobby_screen.dart';
 import '../../features/games/word_forge/word_forge_game_screen.dart';
 import '../../features/games/word_forge/word_forge_provider.dart';
+import '../../features/games/stickman_heist/stickman_heist_lobby_screen.dart';
+import '../../features/games/stickman_heist/stickman_heist_game_screen.dart';
+import '../../features/games/stickman_heist/stickman_heist_provider.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
 import '../../features/games/redlight/redlight_game_screen.dart';
 import '../../features/games/redlight/redlight_results_screen.dart';
@@ -998,6 +1001,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
     isHost: (s) => s.game?.hostUserId == _myUserId(),
     leave: (fid) => ref.read(wordForgeProvider(fid).notifier).leaveGame(),
+  );
+
+  final stickmanHeistLobbyExit = guardGameRoomExit(
+    gameTable: 'stickman_heist_games',
+    readState: (fid) => ref.read(stickmanHeistProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(stickmanHeistProvider(fid).notifier).leaveGame(),
   );
 
   final twotruthsLobbyExit = guardGameRoomExit(
@@ -2032,6 +2043,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: WordForgeGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Stickman Heist ──────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/stickman-heist/lobby',
+        onExit: stickmanHeistLobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: StickmanHeistLobbyScreen(
+              familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/stickman-heist/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: StickmanHeistGameScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),

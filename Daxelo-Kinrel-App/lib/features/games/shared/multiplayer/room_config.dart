@@ -37,6 +37,7 @@ enum GameTableKind {
   nightFallsGames,   // night_falls_games
   sketchTelephoneGames, // sketch_telephone_games
   wordForgeGames,    // word_forge_games
+  stickmanHeistGames, // stickman_heist_games
 }
 
 extension GameTableKindX on GameTableKind {
@@ -66,6 +67,7 @@ extension GameTableKindX on GameTableKind {
       case GameTableKind.nightFallsGames:   return 'night_falls_games';
       case GameTableKind.sketchTelephoneGames: return 'sketch_telephone_games';
       case GameTableKind.wordForgeGames:    return 'word_forge_games';
+      case GameTableKind.stickmanHeistGames: return 'stickman_heist_games';
     }
   }
 
@@ -99,6 +101,7 @@ extension GameTableKindX on GameTableKind {
       case GameTableKind.nightFallsGames:   return 'night_falls_players';
       case GameTableKind.sketchTelephoneGames: return 'sketch_telephone_players';
       case GameTableKind.wordForgeGames:    return 'word_forge_players';
+      case GameTableKind.stickmanHeistGames: return 'stickman_heist_players';
     }
   }
 }
@@ -377,6 +380,16 @@ class RoomConfig {
   static const wordForge = RoomConfig(
     gameTable: GameTableKind.wordForgeGames,
     minPlayers: 3,
+    maxPlayers: 8,
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
+    cancelledStatusValue: 'cancelled',
+  );
+
+  static const stickmanHeist = RoomConfig(
+    gameTable: GameTableKind.stickmanHeistGames,
+    minPlayers: 2,
     maxPlayers: 8,
     lobbyStatusValue: 'waiting',
     activeStatusValue: 'in_progress',
