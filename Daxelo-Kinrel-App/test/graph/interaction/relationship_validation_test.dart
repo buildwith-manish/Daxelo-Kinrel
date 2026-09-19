@@ -22,7 +22,7 @@ void main() {
 
     test('TEST 2: duplicate rejected (ERROR)', () {
       final edges = [
-        (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'wife'),
+        (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'wife', labelAtoB: '', labelBtoA: '', direction: ''),
       ];
       final result = validateRelationship(
         fromPersonId: 'A',
@@ -111,7 +111,7 @@ void main() {
       // And `A→B 'father'` means "A's father is B" → B is A's father.
       // Same canonical edge → duplicate.
       final edges2 = [
-        (fromId: 'B', toId: 'A', edgeId: 'e1', relationshipKey: 'son'),
+        (fromId: 'B', toId: 'A', edgeId: 'e1', relationshipKey: 'son', labelAtoB: '', labelBtoA: '', direction: ''),
       ];
       final result2 = validateRelationship(
         fromPersonId: 'A',
@@ -132,7 +132,7 @@ void main() {
       // Setup: A already has B as father (edge A→B 'father').
       // Test: Adding C as A's father should be rejected as duplicate_parent.
       final edges = [
-        (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'father'),
+        (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'father', labelAtoB: '', labelBtoA: '', direction: ''),
       ];
       final result = validateRelationship(
         fromPersonId: 'A',
@@ -149,7 +149,7 @@ void main() {
       // parent (father or mother — we don't know which). Adding C as B's
       // father should be rejected because B already has a parent.
       final edges = [
-        (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'son'),
+        (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'son', labelAtoB: '', labelBtoA: '', direction: ''),
       ];
       final result = validateRelationship(
         fromPersonId: 'B',
@@ -168,7 +168,7 @@ void main() {
       // biological family). The validator blocks same-gender duplicates
       // (two fathers or two mothers) but allows opposite-gender pairs.
       final edges = [
-        (fromId: 'B', toId: 'A', edgeId: 'e1', relationshipKey: 'mother'),
+        (fromId: 'B', toId: 'A', edgeId: 'e1', relationshipKey: 'mother', labelAtoB: '', labelBtoA: '', direction: ''),
       ];
       final result = validateRelationship(
         fromPersonId: 'B',
@@ -184,7 +184,7 @@ void main() {
       // v5.0: Two fathers is blocked — the user must remove the existing
       // father before adding a new one.
       final edges = [
-        (fromId: 'B', toId: 'A', edgeId: 'e1', relationshipKey: 'father'),
+        (fromId: 'B', toId: 'A', edgeId: 'e1', relationshipKey: 'father', labelAtoB: '', labelBtoA: '', direction: ''),
       ];
       final result = validateRelationship(
         fromPersonId: 'B',
@@ -201,7 +201,7 @@ void main() {
       // father) — these are different children, so no duplicate. The
       // new edge should be accepted.
       final edges = [
-        (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'father'),
+        (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'father', labelAtoB: '', labelBtoA: '', direction: ''),
       ];
       final result = validateRelationship(
         fromPersonId: 'C',
@@ -405,7 +405,7 @@ void main() {
       final testCases = <(String, String, List<({String fromId, String toId, String edgeId, String relationshipKey})>)>[
         ('self_relationship', 'father', const []),
         ('duplicate_relationship', 'wife', [
-          (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'wife'),
+          (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'wife', labelAtoB: '', labelBtoA: '', direction: ''),
         ]),
       ];
 

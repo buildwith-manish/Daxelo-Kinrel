@@ -475,5 +475,4 @@ void invalidateGamingProviders(Ref ref) {
   ref.invalidate(participationLeaderboardProvider);
   ref.invalidate(gamingMilestonesProvider);
   ref.invalidate(familyPlayStreakProvider);
-  ref.invalidate(familyMomentsProvider);
 }

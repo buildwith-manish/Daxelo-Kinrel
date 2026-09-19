@@ -69,19 +69,19 @@ void main() {
 
   final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[
     // Anchor's immediate family
-    (fromId: 'person-1', toId: 'person-0', edgeId: 'e1', relationshipKey: 'father'),
-    (fromId: 'person-2', toId: 'person-0', edgeId: 'e2', relationshipKey: 'mother'),
-    (fromId: 'person-1', toId: 'person-2', edgeId: 'e3', relationshipKey: 'wife'),
+    (fromId: 'person-1', toId: 'person-0', edgeId: 'e1', relationshipKey: 'father', labelAtoB: '', labelBtoA: '', direction: ''),
+    (fromId: 'person-2', toId: 'person-0', edgeId: 'e2', relationshipKey: 'mother', labelAtoB: '', labelBtoA: '', direction: ''),
+    (fromId: 'person-1', toId: 'person-2', edgeId: 'e3', relationshipKey: 'wife', labelAtoB: '', labelBtoA: '', direction: ''),
     // Anchor's children
-    (fromId: 'person-0', toId: 'person-3', edgeId: 'e4', relationshipKey: 'son'),
-    (fromId: 'person-0', toId: 'person-4', edgeId: 'e5', relationshipKey: 'daughter'),
+    (fromId: 'person-0', toId: 'person-3', edgeId: 'e4', relationshipKey: 'son', labelAtoB: '', labelBtoA: '', direction: ''),
+    (fromId: 'person-0', toId: 'person-4', edgeId: 'e5', relationshipKey: 'daughter', labelAtoB: '', labelBtoA: '', direction: ''),
     // Father's (person-1) large descendant subtree (30 persons)
     for (var i = 10; i < 20; i++)
-      (fromId: 'person-1', toId: 'person-$i', edgeId: 'e${i + 10}', relationshipKey: 'son'),
+      (fromId: 'person-1', toId: 'person-$i', edgeId: 'e${i + 10}', relationshipKey: 'son', labelAtoB: '', labelBtoA: '', direction: ''),
     for (var i = 20; i < 30; i++)
-      (fromId: 'person-${10 + (i - 20)}', toId: 'person-$i', edgeId: 'e${i + 20}', relationshipKey: 'son'),
+      (fromId: 'person-${10 + (i - 20)}', toId: 'person-$i', edgeId: 'e${i + 20}', relationshipKey: 'son', labelAtoB: '', labelBtoA: '', direction: ''),
     for (var i = 30; i < 40; i++)
-      (fromId: 'person-${20 + (i - 30)}', toId: 'person-$i', edgeId: 'e${i + 30}', relationshipKey: 'son'),
+      (fromId: 'person-${20 + (i - 30)}', toId: 'person-$i', edgeId: 'e${i + 30}', relationshipKey: 'son', labelAtoB: '', labelBtoA: '', direction: ''),
   ];
 
   // v5.174 compatibility: deriveCoupleUnions requires edges WITH labelAtoB.
