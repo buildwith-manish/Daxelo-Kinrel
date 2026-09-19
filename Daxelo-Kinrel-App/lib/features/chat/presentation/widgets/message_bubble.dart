@@ -45,6 +45,9 @@ class MessageBubble extends ConsumerWidget {
     this.isFirstInGroup = true,
     this.isLastInGroup = true,
     this.animateIn = false,
+    /// Feature 6: callback when the user taps the quoted reply preview.
+    /// The chat_screen wires this to scroll to the original message.
+    this.onReplyPreviewTap,
   });
 
   final ChatMessage message;
@@ -68,6 +71,11 @@ class MessageBubble extends ConsumerWidget {
 
   /// v127: Whether to play the send-in animation (scale + fade).
   final bool animateIn;
+
+  /// Feature 6: called when the user taps the quoted reply preview
+  /// above the bubble. The chat_screen uses this to scroll to the
+  /// original message being replied to. Null = no tap handler.
+  final VoidCallback? onReplyPreviewTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -186,8 +194,16 @@ class MessageBubble extends ConsumerWidget {
                       ? CrossAxisAlignment.end
                       : CrossAxisAlignment.start,
                   children: [
-                    // Reply preview (if replying to a message)
-                    if (message.replyToId != null) _buildReplyPreview(),
+                    // Reply preview (if replying to a message).
+                    // Feature 6: tapping the quote scrolls to the original
+                    // message (wired via onReplyPreviewTap in chat_screen).
+                    if (message.replyToId != null)
+                      onReplyPreviewTap != null
+                          ? GestureDetector(
+                              onTap: onReplyPreviewTap,
+                              child: _buildReplyPreview(),
+                            )
+                          : _buildReplyPreview(),
                     // v131 PREMIUM: Redesigned bubble system.
                     // Design language: soft gradient fills for depth,
                     // organic asymmetric corners (22px base / 6px tail)

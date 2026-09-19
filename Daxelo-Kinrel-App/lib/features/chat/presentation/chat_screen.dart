@@ -400,6 +400,50 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
+  /// Feature 6: scroll to a specific message by ID. Used when the user
+  /// taps the quoted reply preview above a bubble — jumps to the original
+  /// message being replied to.
+  ///
+  /// The ListView is reverse: true (newest at top, index 0 = newest).
+  /// We find the message's index in the flat (newest-first) list, then
+  /// estimate the scroll offset as index * ~72px (average bubble height
+  /// including spacing). This is approximate — for very long chats the
+  /// estimate may be off by a few bubbles, but the user can fine-tune
+  /// with a manual scroll. A future improvement would use
+  /// Scrollable.ensureVisible with a GlobalKey per message.
+  void _scrollToMessage(String messageId) {
+    final messages = ref.read(chatProvider(widget.familyId)).messages;
+    final index = messages.indexWhere((m) => m.id == messageId);
+    if (index == -1) {
+      // Message not in the current viewport (e.g. very old message not
+      // loaded yet). Show a snackbar telling the user to scroll up.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Message is older than loaded history — scroll up to find it.'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+    if (!_scrollController.hasClients) return;
+    // Estimate: each message bubble is ~72px tall (bubble + spacing).
+    // The list is reversed, so offset 0 = newest (index 0).
+    const estimatedBubbleHeight = 72.0;
+    final targetOffset = index * estimatedBubbleHeight;
+    // Clamp to the max scroll extent so we don't overshoot.
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    final clamped = targetOffset.clamp(0.0, maxExtent);
+    _scrollController.animateTo(
+      clamped,
+      duration: KinrelMotion.normal,
+      curve: KinrelMotion.easeOut,
+    );
+  }
+
   void _sendMessage() {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
@@ -2424,6 +2468,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     },
                     onReact: () => _showReactionPicker(msg.id),
                     onLongPress: () => _showMessageActions(msg),
+                    /// Feature 6: tap the quoted reply preview to scroll
+                    /// to the original message. We pass a callback only
+                    /// when replyToId is set (avoids creating a closure
+                    /// for every bubble).
+                    onReplyPreviewTap: msg.replyToId != null
+                        ? () => _scrollToMessage(msg.replyToId!)
+                        : null,
                   ),
                 ),
               );
