@@ -361,7 +361,7 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_game record; v_board jsonb; v_players jsonb; v_player jsonb;
   v_current_idx int; v_power text; v_rows jsonb; v_row jsonb;
-  v_current_row int; v_i int; v_events jsonb;
+  v_current_row int; v_i int; v_events jsonb; v_user_id text;
 BEGIN
   SELECT * INTO v_game FROM "crystal_bridge_games" WHERE id = p_game_id;
   IF NOT FOUND OR v_game.status <> 'in_progress' THEN RETURN jsonb_build_object('ok', false, 'reason', 'not_in_progress'); END IF;
