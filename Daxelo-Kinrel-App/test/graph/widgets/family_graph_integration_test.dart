@@ -67,7 +67,7 @@ void main() {
     for (var i = 0; i < 40; i++) 'person-$i',
   };
 
-  final edges = <({String fromId, String toId, String edgeId, String relationshipKey})>[
+  final edges = <({String fromId, String toId, String edgeId, String relationshipKey, String labelAtoB, String labelBtoA, String direction})>[
     // Anchor's immediate family
     (fromId: 'person-1', toId: 'person-0', edgeId: 'e1', relationshipKey: 'father', labelAtoB: '', labelBtoA: '', direction: ''),
     (fromId: 'person-2', toId: 'person-0', edgeId: 'e2', relationshipKey: 'mother', labelAtoB: '', labelBtoA: '', direction: ''),

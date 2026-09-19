@@ -402,7 +402,7 @@ void main() {
     test('all validation error codes produce a catchable exception', () {
       // Verify that every code the validator can return maps to a
       // RelationshipValidationException that the typed catch will catch.
-      final testCases = <(String, String, List<({String fromId, String toId, String edgeId, String relationshipKey})>)>[
+      final testCases = <(String, String, List<({String fromId, String toId, String edgeId, String relationshipKey, String labelAtoB, String labelBtoA, String direction})>)>[
         ('self_relationship', 'father', const []),
         ('duplicate_relationship', 'wife', [
           (fromId: 'A', toId: 'B', edgeId: 'e1', relationshipKey: 'wife', labelAtoB: '', labelBtoA: '', direction: ''),
