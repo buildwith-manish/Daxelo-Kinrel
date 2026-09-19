@@ -568,4 +568,136 @@ class SKn extends S {
 
   @override
   String get familyMapLegendTierCityDesc => 'ನಗರ ಕೇಂದ್ರ';
+
+  @override
+  String chatTypingSingle(String name) {
+    return '$name ಟೈಪ್ ಮಾಡುತ್ತಿದ್ದಾರೆ';
+  }
+
+  @override
+  String chatTypingTwo(String name1, String name2) {
+    return '$name1 ಮತ್ತು $name2 ಟೈಪ್ ಮಾಡುತ್ತಿದ್ದಾರೆ';
+  }
+
+  @override
+  String chatTypingMany(String name) {
+    return '$name ಮತ್ತು ಇತರರು ಟೈಪ್ ಮಾಡುತ್ತಿದ್ದಾರೆ';
+  }
+
+  @override
+  String get chatActiveNow => 'ಈಗ ಆನ್‌ಲೈನ್';
+
+  @override
+  String chatNActive(int count) {
+    return '$count ಆನ್‌ಲೈನ್';
+  }
+
+  @override
+  String get chatLastSeenJustNow => 'ಈಗಷ್ಟೇ ನೋಡಿದರು';
+
+  @override
+  String chatLastSeenMinutes(int count) {
+    return '$count ನಿಮಿಷಗಳ ಹಿಂದೆ ನೋಡಿದರು';
+  }
+
+  @override
+  String chatLastSeenHours(int count) {
+    return '$count ಗಂಟೆಗಳ ಹಿಂದೆ ನೋಡಿದರು';
+  }
+
+  @override
+  String chatLastSeenDays(int count) {
+    return '$count ದಿನಗಳ ಹಿಂದೆ ನೋಡಿದರು';
+  }
+
+  @override
+  String get chatOffline => 'ಆಫ್‌ಲೈನ್';
+
+  @override
+  String get chatEmptyStateTitle => 'ಸಂಭಾಷಣೆ ಪ್ರಾರಂಭಿಸಿ';
+
+  @override
+  String chatEmptyStateSubtitle(String familyName, int count) {
+    return '$familyName ಕುಟುಂಬದಲ್ಲಿ ($count ಸದಸ್ಯರು)';
+  }
+
+  @override
+  String chatEmptyStateSubtitleNoCount(String familyName) {
+    return '$familyName ಕುಟುಂಬದಲ್ಲಿ';
+  }
+
+  @override
+  String get chatSuggestionNamaste => 'ಎಲ್ಲರಿಗೂ ನಮಸ್ಕಾರ 🙏';
+
+  @override
+  String get chatSuggestionHowIsEveryone => 'ಎಲ್ಲರೂ ಹೇಗಿದ್ದೀರಿ?';
+
+  @override
+  String chatSuggestionGoodMorning(String familyName) {
+    return 'ಶುಭೋದಯ, $familyName ಕುಟುಂಬ! ☀️';
+  }
+
+  @override
+  String chatBirthdayToday(String name) {
+    return 'ಇಂದು $name ಅವರ ಹುಟ್ಟುಹಬ್ಬ! 🎂';
+  }
+
+  @override
+  String chatBirthdayTomorrow(String name) {
+    return 'ನಾಳೆ $name ಅವರ ಹುಟ್ಟುಹಬ್ಬ 🎂';
+  }
+
+  @override
+  String chatBirthdayInDays(String name, int count) {
+    return '$count ದಿನಗಳಲ್ಲಿ $name ಅವರ ಹುಟ್ಟುಹಬ್ಬ 🎂';
+  }
+
+  @override
+  String get chatSearchPlaceholder => 'ಸಂದೇಶಗಳನ್ನು ಹುಡುಕಿ...';
+
+  @override
+  String get chatSearchNoResults => 'ಯಾವುದೇ ಸಂದೇಶಗಳು ಕಂಡುಬಂದಿಲ್ಲ';
+
+  @override
+  String chatSearchResultsCount(int count) {
+    return '$count ಫಲಿತಾಂಶಗಳು';
+  }
+
+  @override
+  String get chatMessageSending => 'ಕಳುಹಿಡುತ್ತಿದೆ...';
+
+  @override
+  String get chatMessageFailed => 'ಕಳುಹಿಸಲು ವಿಫಲವಾಗಿದೆ';
+
+  @override
+  String get chatMessageFailedRetry => 'ಮರುಪ್ರಯತ್ನಿಸಲು ಟ್ಯಾಪ್ ಮಾಡಿ';
+
+  @override
+  String get chatReplyToOriginalNotFound =>
+      'ಸಂದೇಶ ಲೋಡ್ ಮಾಡಿದ ಇತಿಹಾಸಕ್ಕಿಂತ ಹಳೆಯದು — ಕಂಡುಹಿಡಿಯಲು ಮೇಲಕ್ಕೆ ಸ್ಕ್ರೋಲ್ ಮಾಡಿ.';
+
+  @override
+  String chatSystemMessageUserJoined(String name) {
+    return '$name ರೂಮ್ ಸೇರಿದರು';
+  }
+
+  @override
+  String chatSystemMessageUserLeft(String name) {
+    return '$name ರೂಮ್ ಬಿಟ್ಟು ಹೋದರು';
+  }
+
+  @override
+  String chatSystemMessageUserDisconnected(String name) {
+    return '$name ಸಂಪರ್ಕ ಕಡಿತಗೊಂಡಿದೆ';
+  }
+
+  @override
+  String chatSystemMessageRoomClosed(String name) {
+    return '$name ರೂಮ್ ಮುಚ್ಚಿದರು';
+  }
+
+  @override
+  String chatSystemMessageUserReacted(String name, String emoji) {
+    return '$name ಪ್ರತಿಕ್ರಿಯಿಸಿದರು $emoji';
+  }
 }

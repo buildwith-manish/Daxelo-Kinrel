@@ -571,4 +571,136 @@ class STa extends S {
 
   @override
   String get familyMapLegendTierCityDesc => 'நகர மையம்';
+
+  @override
+  String chatTypingSingle(String name) {
+    return '$name தட்டச்சு செய்கிறார்';
+  }
+
+  @override
+  String chatTypingTwo(String name1, String name2) {
+    return '$name1 மற்றும் $name2 தட்டச்சு செய்கிறார்கள்';
+  }
+
+  @override
+  String chatTypingMany(String name) {
+    return '$name மற்றும் பிறர் தட்டச்சு செய்கிறார்கள்';
+  }
+
+  @override
+  String get chatActiveNow => 'இப்போது ஆன்லைன்';
+
+  @override
+  String chatNActive(int count) {
+    return '$count ஆன்லைன்';
+  }
+
+  @override
+  String get chatLastSeenJustNow => 'இப்போது பார்த்தார்';
+
+  @override
+  String chatLastSeenMinutes(int count) {
+    return '$count நிமிடங்களுக்கு முன் பார்த்தார்';
+  }
+
+  @override
+  String chatLastSeenHours(int count) {
+    return '$count மணிநேரங்களுக்கு முன் பார்த்தார்';
+  }
+
+  @override
+  String chatLastSeenDays(int count) {
+    return '$count நாட்களுக்கு முன் பார்த்தார்';
+  }
+
+  @override
+  String get chatOffline => 'ஆஃப்லைன்';
+
+  @override
+  String get chatEmptyStateTitle => 'உரையாடலைத் தொடங்குங்கள்';
+
+  @override
+  String chatEmptyStateSubtitle(String familyName, int count) {
+    return '$familyName குடும்பத்தில் ($count உறுப்பினர்கள்)';
+  }
+
+  @override
+  String chatEmptyStateSubtitleNoCount(String familyName) {
+    return '$familyName குடும்பத்தில்';
+  }
+
+  @override
+  String get chatSuggestionNamaste => 'அனைவருக்கும் வணக்கம் 🙏';
+
+  @override
+  String get chatSuggestionHowIsEveryone => 'எல்லோரும் எப்படி இருக்கிறீர்கள்?';
+
+  @override
+  String chatSuggestionGoodMorning(String familyName) {
+    return 'காலை வணக்கம், $familyName குடும்பம்! ☀️';
+  }
+
+  @override
+  String chatBirthdayToday(String name) {
+    return 'இன்று $name பிறந்தநாள்! 🎂';
+  }
+
+  @override
+  String chatBirthdayTomorrow(String name) {
+    return 'நாளை $name பிறந்தநாள் 🎂';
+  }
+
+  @override
+  String chatBirthdayInDays(String name, int count) {
+    return '$count நாட்களில் $name பிறந்தநாள் 🎂';
+  }
+
+  @override
+  String get chatSearchPlaceholder => 'செய்திகளைத் தேடுங்கள்...';
+
+  @override
+  String get chatSearchNoResults => 'செய்திகள் எதுவும் இல்லை';
+
+  @override
+  String chatSearchResultsCount(int count) {
+    return '$count முடிவுகள்';
+  }
+
+  @override
+  String get chatMessageSending => 'அனுப்புகிறது...';
+
+  @override
+  String get chatMessageFailed => 'அனுப்ப முடியவில்லை';
+
+  @override
+  String get chatMessageFailedRetry => 'மீண்டும் முயற்சிக்க தட்டவும்';
+
+  @override
+  String get chatReplyToOriginalNotFound =>
+      'செய்தி ஏற்றப்பட்ட வரலாற்றை விட பழையது — கண்டுபிடிக்க மேலே உருட்டவும்.';
+
+  @override
+  String chatSystemMessageUserJoined(String name) {
+    return '$name ரூமில் சேர்ந்தார்';
+  }
+
+  @override
+  String chatSystemMessageUserLeft(String name) {
+    return '$name ரூமை விட்டு வெளியேறினார்';
+  }
+
+  @override
+  String chatSystemMessageUserDisconnected(String name) {
+    return '$name துண்டிக்கப்பட்டார்';
+  }
+
+  @override
+  String chatSystemMessageRoomClosed(String name) {
+    return '$name ரூமை மூடினார்';
+  }
+
+  @override
+  String chatSystemMessageUserReacted(String name, String emoji) {
+    return '$name எதிர்வினை தெரிவித்தார் $emoji';
+  }
 }

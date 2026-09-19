@@ -568,4 +568,136 @@ class SBn extends S {
 
   @override
   String get familyMapLegendTierCityDesc => 'শহর কেন্দ্র';
+
+  @override
+  String chatTypingSingle(String name) {
+    return '$name টাইপ করছে';
+  }
+
+  @override
+  String chatTypingTwo(String name1, String name2) {
+    return '$name1 এবং $name2 টাইপ করছে';
+  }
+
+  @override
+  String chatTypingMany(String name) {
+    return '$name এবং অন্যরা টাইপ করছে';
+  }
+
+  @override
+  String get chatActiveNow => 'এখন অনলাইন';
+
+  @override
+  String chatNActive(int count) {
+    return '$count অনলাইন';
+  }
+
+  @override
+  String get chatLastSeenJustNow => 'এইমাত্র দেখা গেছে';
+
+  @override
+  String chatLastSeenMinutes(int count) {
+    return '$count মিনিট আগে দেখা গেছে';
+  }
+
+  @override
+  String chatLastSeenHours(int count) {
+    return '$count ঘন্টা আগে দেখা গেছে';
+  }
+
+  @override
+  String chatLastSeenDays(int count) {
+    return '$count দিন আগে দেখা গেছে';
+  }
+
+  @override
+  String get chatOffline => 'অফলাইন';
+
+  @override
+  String get chatEmptyStateTitle => 'কথোপকথন শুরু করুন';
+
+  @override
+  String chatEmptyStateSubtitle(String familyName, int count) {
+    return '$familyName পরিবারে ($count সদস্য)';
+  }
+
+  @override
+  String chatEmptyStateSubtitleNoCount(String familyName) {
+    return '$familyName পরিবারে';
+  }
+
+  @override
+  String get chatSuggestionNamaste => 'সবাইকে নমস্কার 🙏';
+
+  @override
+  String get chatSuggestionHowIsEveryone => 'সবাই কেমন আছো?';
+
+  @override
+  String chatSuggestionGoodMorning(String familyName) {
+    return 'সুপ্রভাত, $familyName পরিবার! ☀️';
+  }
+
+  @override
+  String chatBirthdayToday(String name) {
+    return 'আজ $name-এর জন্মদিন! 🎂';
+  }
+
+  @override
+  String chatBirthdayTomorrow(String name) {
+    return 'আগামীকাল $name-এর জন্মদিন 🎂';
+  }
+
+  @override
+  String chatBirthdayInDays(String name, int count) {
+    return '$count দিনে $name-এর জন্মদিন 🎂';
+  }
+
+  @override
+  String get chatSearchPlaceholder => 'বার্তা খুঁজুন...';
+
+  @override
+  String get chatSearchNoResults => 'কোনো বার্তা পাওয়া যায়নি';
+
+  @override
+  String chatSearchResultsCount(int count) {
+    return '$count ফলাফল';
+  }
+
+  @override
+  String get chatMessageSending => 'পাঠানো হচ্ছে...';
+
+  @override
+  String get chatMessageFailed => 'পাঠাতে ব্যর্থ';
+
+  @override
+  String get chatMessageFailedRetry => 'আবার চেষ্টা করতে ট্যাপ করুন';
+
+  @override
+  String get chatReplyToOriginalNotFound =>
+      'বার্তাটি লোড করা ইতিহাসের চেয়ে পুরোনো — খুঁজে পেতে উপরে স্ক্রোল করুন।';
+
+  @override
+  String chatSystemMessageUserJoined(String name) {
+    return '$name রুমে যোগ দিয়েছে';
+  }
+
+  @override
+  String chatSystemMessageUserLeft(String name) {
+    return '$name রুম ছেড়েছে';
+  }
+
+  @override
+  String chatSystemMessageUserDisconnected(String name) {
+    return '$name সংযোগ বিচ্ছিন্ন হয়েছে';
+  }
+
+  @override
+  String chatSystemMessageRoomClosed(String name) {
+    return '$name রুম বন্ধ করেছে';
+  }
+
+  @override
+  String chatSystemMessageUserReacted(String name, String emoji) {
+    return '$name প্রতিক্রিয়া দেখিয়েছে $emoji';
+  }
 }

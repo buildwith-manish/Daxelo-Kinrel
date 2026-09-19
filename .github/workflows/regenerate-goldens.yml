@@ -1,0 +1,87 @@
+# ─────────────────────────────────────────────────────────────────
+# Daxelo Kinrel — Regenerate Golden Test Baselines
+# ─────────────────────────────────────────────────────────────────
+# Golden files must be generated on Linux CI (canonical rendering
+# environment — see the header comment in
+# test/features/family_map/golden/family_map_golden_test.dart).
+# Cross-platform font/anti-aliasing differences cause spurious
+# 0.0x% pixel diffs when goldens are regenerated on dev machines.
+#
+# Usage:
+#   Actions → "Regenerate Goldens" → Run workflow
+#   → download the `regenerated-goldens` artifact
+#   → verify the diff is limited to expected pixel drift
+#   → commit the updated PNGs to test/features/family_map/golden/
+#
+name: Regenerate Goldens
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_path:
+        description: 'Test path (file or directory) to regenerate goldens for'
+        required: false
+        default: 'test/features/family_map/golden/'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    name: flutter test --update-goldens
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: Daxelo-Kinrel-App
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          cache: true
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Generate code (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Update goldens
+        run: flutter test --update-goldens "${{ github.event.inputs.test_path }}"
+
+      - name: Collect changed goldens
+        id: changed
+        run: |
+          cd "${{ github.workspace }}"
+          mkdir -p /tmp/regenerated
+          CHANGED=$(git status --porcelain -- 'Daxelo-Kinrel-App/test/**/goldens/**' | awk '{print $2}')
+          if [ -n "$CHANGED" ]; then
+            echo "$CHANGED" | while read -r f; do
+              mkdir -p "/tmp/regenerated/$(dirname "$f")"
+              cp "$f" "/tmp/regenerated/$f"
+            done
+            echo "count=$(echo "$CHANGED" | wc -l)" >> "$GITHUB_OUTPUT"
+          else
+            echo "count=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload regenerated goldens
+        if: steps.changed.outputs.count != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: regenerated-goldens
+          path: /tmp/regenerated/Daxelo-Kinrel-App/test/
+          retention-days: 7
+
+      - name: Summary
+        run: |
+          echo "### Golden regeneration complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Regenerated files: ${{ steps.changed.outputs.count }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.changed.outputs.count }}" != "0" ]; then
+            echo "- Download the \`regenerated-goldens\` artifact, verify the pixel diff, and commit the PNGs." >> $GITHUB_STEP_SUMMARY
+          fi

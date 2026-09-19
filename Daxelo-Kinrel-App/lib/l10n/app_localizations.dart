@@ -1112,6 +1112,192 @@ abstract class S {
   /// In en, this message translates to:
   /// **'city centroid'**
   String get familyMapLegendTierCityDesc;
+
+  /// Shown when one user is typing in the chat
+  ///
+  /// In en, this message translates to:
+  /// **'{name} is typing'**
+  String chatTypingSingle(String name);
+
+  /// Shown when two users are typing in the chat
+  ///
+  /// In en, this message translates to:
+  /// **'{name1} and {name2} are typing'**
+  String chatTypingTwo(String name1, String name2);
+
+  /// Shown when 3+ users are typing in the chat
+  ///
+  /// In en, this message translates to:
+  /// **'{name} and others are typing'**
+  String chatTypingMany(String name);
+
+  /// Presence label shown when exactly 1 member is online
+  ///
+  /// In en, this message translates to:
+  /// **'Active now'**
+  String get chatActiveNow;
+
+  /// Presence label shown when 2+ members are online
+  ///
+  /// In en, this message translates to:
+  /// **'{count} active'**
+  String chatNActive(int count);
+
+  /// Last seen label for < 1 minute ago
+  ///
+  /// In en, this message translates to:
+  /// **'Last seen just now'**
+  String get chatLastSeenJustNow;
+
+  /// Last seen label for minutes ago
+  ///
+  /// In en, this message translates to:
+  /// **'Last seen {count}m ago'**
+  String chatLastSeenMinutes(int count);
+
+  /// Last seen label for hours ago
+  ///
+  /// In en, this message translates to:
+  /// **'Last seen {count}h ago'**
+  String chatLastSeenHours(int count);
+
+  /// Last seen label for days ago
+  ///
+  /// In en, this message translates to:
+  /// **'Last seen {count}d ago'**
+  String chatLastSeenDays(int count);
+
+  /// Presence label when user is offline with no last-seen data
+  ///
+  /// In en, this message translates to:
+  /// **'Offline'**
+  String get chatOffline;
+
+  /// Headline shown in the empty chat state
+  ///
+  /// In en, this message translates to:
+  /// **'Start the conversation'**
+  String get chatEmptyStateTitle;
+
+  /// Subtitle shown in the empty chat state
+  ///
+  /// In en, this message translates to:
+  /// **'in the {familyName} family ({count} members)'**
+  String chatEmptyStateSubtitle(String familyName, int count);
+
+  /// Subtitle shown in the empty chat state when member count is 0
+  ///
+  /// In en, this message translates to:
+  /// **'in the {familyName} family'**
+  String chatEmptyStateSubtitleNoCount(String familyName);
+
+  /// Quick-reply suggestion in empty chat state
+  ///
+  /// In en, this message translates to:
+  /// **'Namaste everyone 🙏'**
+  String get chatSuggestionNamaste;
+
+  /// Quick-reply suggestion in empty chat state
+  ///
+  /// In en, this message translates to:
+  /// **'How is everyone doing?'**
+  String get chatSuggestionHowIsEveryone;
+
+  /// Quick-reply suggestion in empty chat state
+  ///
+  /// In en, this message translates to:
+  /// **'Good morning, {familyName} family! ☀️'**
+  String chatSuggestionGoodMorning(String familyName);
+
+  /// Upcoming event chip when birthday is today
+  ///
+  /// In en, this message translates to:
+  /// **'{name}\'s birthday is today! 🎂'**
+  String chatBirthdayToday(String name);
+
+  /// Upcoming event chip when birthday is tomorrow
+  ///
+  /// In en, this message translates to:
+  /// **'{name}\'s birthday tomorrow 🎂'**
+  String chatBirthdayTomorrow(String name);
+
+  /// Upcoming event chip when birthday is in N days
+  ///
+  /// In en, this message translates to:
+  /// **'{name}\'s birthday in {count} days 🎂'**
+  String chatBirthdayInDays(String name, int count);
+
+  /// Placeholder text in the chat search bar
+  ///
+  /// In en, this message translates to:
+  /// **'Search messages...'**
+  String get chatSearchPlaceholder;
+
+  /// Shown when search returns no results
+  ///
+  /// In en, this message translates to:
+  /// **'No messages found'**
+  String get chatSearchNoResults;
+
+  /// Shown above search results
+  ///
+  /// In en, this message translates to:
+  /// **'{count} results'**
+  String chatSearchResultsCount(int count);
+
+  /// Accessibility label for the sending-status clock icon
+  ///
+  /// In en, this message translates to:
+  /// **'Sending...'**
+  String get chatMessageSending;
+
+  /// Accessibility label for the failed-status error icon
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send'**
+  String get chatMessageFailed;
+
+  /// Hint shown next to a failed message
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to retry'**
+  String get chatMessageFailedRetry;
+
+  /// Shown when tapping a reply quote whose original isn't in the loaded history
+  ///
+  /// In en, this message translates to:
+  /// **'Message is older than loaded history — scroll up to find it.'**
+  String get chatReplyToOriginalNotFound;
+
+  /// System chat message when a user joins a game room
+  ///
+  /// In en, this message translates to:
+  /// **'{name} joined the room'**
+  String chatSystemMessageUserJoined(String name);
+
+  /// System chat message when a user leaves a game room
+  ///
+  /// In en, this message translates to:
+  /// **'{name} left the room'**
+  String chatSystemMessageUserLeft(String name);
+
+  /// System chat message when a user disconnects
+  ///
+  /// In en, this message translates to:
+  /// **'{name} disconnected'**
+  String chatSystemMessageUserDisconnected(String name);
+
+  /// System chat message when host closes the room
+  ///
+  /// In en, this message translates to:
+  /// **'{name} closed the room'**
+  String chatSystemMessageRoomClosed(String name);
+
+  /// System chat message when a user reacts
+  ///
+  /// In en, this message translates to:
+  /// **'{name} reacted {emoji}'**
+  String chatSystemMessageUserReacted(String name, String emoji);
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

@@ -569,4 +569,136 @@ class SUr extends S {
 
   @override
   String get familyMapLegendTierCityDesc => 'شہر کا مرکز';
+
+  @override
+  String chatTypingSingle(String name) {
+    return '$name is typing';
+  }
+
+  @override
+  String chatTypingTwo(String name1, String name2) {
+    return '$name1 and $name2 are typing';
+  }
+
+  @override
+  String chatTypingMany(String name) {
+    return '$name and others are typing';
+  }
+
+  @override
+  String get chatActiveNow => 'Active now';
+
+  @override
+  String chatNActive(int count) {
+    return '$count active';
+  }
+
+  @override
+  String get chatLastSeenJustNow => 'Last seen just now';
+
+  @override
+  String chatLastSeenMinutes(int count) {
+    return 'Last seen ${count}m ago';
+  }
+
+  @override
+  String chatLastSeenHours(int count) {
+    return 'Last seen ${count}h ago';
+  }
+
+  @override
+  String chatLastSeenDays(int count) {
+    return 'Last seen ${count}d ago';
+  }
+
+  @override
+  String get chatOffline => 'Offline';
+
+  @override
+  String get chatEmptyStateTitle => 'Start the conversation';
+
+  @override
+  String chatEmptyStateSubtitle(String familyName, int count) {
+    return 'in the $familyName family ($count members)';
+  }
+
+  @override
+  String chatEmptyStateSubtitleNoCount(String familyName) {
+    return 'in the $familyName family';
+  }
+
+  @override
+  String get chatSuggestionNamaste => 'Namaste everyone 🙏';
+
+  @override
+  String get chatSuggestionHowIsEveryone => 'How is everyone doing?';
+
+  @override
+  String chatSuggestionGoodMorning(String familyName) {
+    return 'Good morning, $familyName family! ☀️';
+  }
+
+  @override
+  String chatBirthdayToday(String name) {
+    return '$name\'s birthday is today! 🎂';
+  }
+
+  @override
+  String chatBirthdayTomorrow(String name) {
+    return '$name\'s birthday tomorrow 🎂';
+  }
+
+  @override
+  String chatBirthdayInDays(String name, int count) {
+    return '$name\'s birthday in $count days 🎂';
+  }
+
+  @override
+  String get chatSearchPlaceholder => 'Search messages...';
+
+  @override
+  String get chatSearchNoResults => 'No messages found';
+
+  @override
+  String chatSearchResultsCount(int count) {
+    return '$count results';
+  }
+
+  @override
+  String get chatMessageSending => 'Sending...';
+
+  @override
+  String get chatMessageFailed => 'Failed to send';
+
+  @override
+  String get chatMessageFailedRetry => 'Tap to retry';
+
+  @override
+  String get chatReplyToOriginalNotFound =>
+      'Message is older than loaded history — scroll up to find it.';
+
+  @override
+  String chatSystemMessageUserJoined(String name) {
+    return '$name joined the room';
+  }
+
+  @override
+  String chatSystemMessageUserLeft(String name) {
+    return '$name left the room';
+  }
+
+  @override
+  String chatSystemMessageUserDisconnected(String name) {
+    return '$name disconnected';
+  }
+
+  @override
+  String chatSystemMessageRoomClosed(String name) {
+    return '$name closed the room';
+  }
+
+  @override
+  String chatSystemMessageUserReacted(String name, String emoji) {
+    return '$name reacted $emoji';
+  }
 }

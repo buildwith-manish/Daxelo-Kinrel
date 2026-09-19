@@ -37,7 +37,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/isar_database.dart' show isarProvider;
 import '../../../core/network/socket_service.dart';
-import '../../../core/services/supabase_service.dart';
 
 /// The type of chat action queued for sync.
 enum ChatSyncActionType {
@@ -106,7 +105,7 @@ class ChatSyncQueueService {
   /// Enqueue a send-message action. The [idempotencyKey] should be a
   /// client-generated unique ID (e.g. 'cm_<timestamp>_<random>') that
   /// the server uses for dedup on retry.
-  Future<int> enqueueSendMessage({
+  Future<void> enqueueSendMessage({
     required String familyId,
     required String idempotencyKey,
     required String content,
@@ -127,7 +126,7 @@ class ChatSyncQueueService {
 
   /// Enqueue an add-reaction action. Idempotent via the server's
   /// ChatReaction @@unique([messageId, userId, emoji]) constraint.
-  Future<int> enqueueAddReaction({
+  Future<void> enqueueAddReaction({
     required String familyId,
     required String messageId,
     required String emoji,
@@ -146,7 +145,7 @@ class ChatSyncQueueService {
   }
 
   /// Enqueue a mark-read action. Idempotent via ChatReadReceipt unique.
-  Future<int> enqueueMarkRead({
+  Future<void> enqueueMarkRead({
     required String familyId,
     String? messageId,
   }) async {
@@ -160,13 +159,19 @@ class ChatSyncQueueService {
     );
   }
 
-  Future<int> _enqueue({
+  Future<void> _enqueue({
     required ChatSyncActionType type,
     required String familyId,
     required String idempotencyKey,
     required Map<String, dynamic> payload,
   }) async {
-    final id = await _db.upsertPendingOperation(
+    // QA fix 2026-09-19: upsertPendingOperation returns Future<void> (it is
+    // an insertOrReplace upsert with no returning row id), so _enqueue cannot
+    // return an int — the previous `final id = ...; return id;` compiled the
+    // void result into Future<int> (use_of_void_result + return_of_invalid
+    // _type). Callers ignore the return value, so Future<void> is the honest
+    // signature.
+    await _db.upsertPendingOperation(
       PendingOperationsCompanion.insert(
         operationType: type.name,
         collection: familyId,
@@ -176,9 +181,8 @@ class ChatSyncQueueService {
       ),
     );
     debugPrint(
-      '[ChatSyncQueue] Enqueued ${type.name} for family $familyId (id=$id, key=$idempotencyKey)',
+      '[ChatSyncQueue] Enqueued ${type.name} for family $familyId (key=$idempotencyKey)',
     );
-    return id;
   }
 
   /// Get all queued actions for a family, oldest first.

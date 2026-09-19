@@ -20,7 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/brand_colors.dart';
 import '../../../../core/constants/brand_typography.dart';
 import '../../../../core/networking/dio_client.dart';
-import '../../../core/network/socket_service.dart';
+import '../../../../core/network/socket_service.dart';
 
 /// A single pinned message.
 class PinnedMessage {
@@ -93,7 +93,8 @@ class PinnedMessagesBar extends ConsumerStatefulWidget {
 }
 
 class _PinnedMessagesBarState extends ConsumerState<PinnedMessagesBar> {
-  List<PinnedMessage> _pinned = [];
+  // QA lint fix 2026-09-19: _pinned was write-only (assigned at load, never
+  // read — the bar renders from the widget's props, not this field).
   int _currentIndex = 0;
 
   @override
@@ -129,7 +130,6 @@ class _PinnedMessagesBarState extends ConsumerState<PinnedMessagesBar> {
       error: (_, __) => const SizedBox.shrink(),
       data: (pinned) {
         if (pinned.isEmpty) return const SizedBox.shrink();
-        _pinned = pinned;
         if (_currentIndex >= pinned.length) _currentIndex = 0;
         final msg = pinned[_currentIndex];
         return _buildBar(context, msg, pinned.length);

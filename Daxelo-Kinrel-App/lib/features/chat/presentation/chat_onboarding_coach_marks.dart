@@ -87,7 +87,12 @@ Future<void> loadHasSeenChatOnboarding(Ref ref) async {
 
 /// Mark the onboarding as seen (persisted to SharedPreferences).
 /// Called after the user completes or skips the onboarding.
-Future<void> markChatOnboardingSeen(Ref ref) async {
+///
+/// QA fix 2026-09-19: the only call site is the ConsumerState's `_complete`
+/// which passes its `WidgetRef` — the previous `Ref` parameter made the call
+/// a compile error (argument_type_not_assignable). WidgetRef is the correct
+/// type for widget-level ref access.
+Future<void> markChatOnboardingSeen(WidgetRef ref) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setBool(_kHasSeenChatOnboardingKey, true);
   ref.read(hasSeenChatOnboardingProvider.notifier).state = true;

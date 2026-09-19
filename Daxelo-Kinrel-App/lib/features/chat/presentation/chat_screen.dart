@@ -52,6 +52,9 @@ import '../providers/chat_provider.dart';
 import '../providers/chat_onboarding_provider.dart';
 import '../providers/chat_socket_engagement_provider.dart';
 import 'chat_onboarding_coach_marks.dart';
+// QA fix 2026-09-19: socketServiceProvider (emitUnpinMessage at the unpin call
+// site) requires this import — it was missing from the chat-engagement merge.
+import '../../../core/network/socket_service.dart';
 import 'sticker_panel.dart';
 // Phase 22 / Task 3 — @mention picker overlay + highlight renderer.
 import 'widgets/mention_picker.dart';

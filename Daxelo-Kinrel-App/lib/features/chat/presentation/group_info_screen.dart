@@ -47,6 +47,28 @@ class GroupParticipant {
   final DateTime joinedAt;
   final bool isOnline;
   final DateTime? lastSeenAt;
+
+  // QA fix 2026-09-19: fromJson was declared as a STATIC member of
+  // `extension on GroupParticipant` — static extension members cannot be
+  // invoked through the extended type name (`GroupParticipant.fromJson`),
+  // so the call site in GroupInfo.fromJson failed to compile
+  // (undefined_method). Moved into the class as a proper factory.
+  factory GroupParticipant.fromJson(Map<String, dynamic> json) {
+    return GroupParticipant(
+      userId: json['userId'] as String? ?? '',
+      name: json['name'] as String? ?? 'Unknown',
+      username: json['username'] as String?,
+      avatarUrl: json['avatarUrl'] as String?,
+      role: json['role'] as String? ?? 'member',
+      joinedAt: json['joinedAt'] != null
+          ? DateTime.parse(json['joinedAt'] as String)
+          : DateTime.now(),
+      isOnline: json['isOnline'] as bool? ?? false,
+      lastSeenAt: json['lastSeenAt'] != null
+          ? DateTime.parse(json['lastSeenAt'] as String)
+          : null,
+    );
+  }
 }
 
 /// Snapshot of the group chat info returned by GET /chat/info.
@@ -74,25 +96,6 @@ class GroupInfo {
       participants: ((json['participants'] as List?) ?? [])
           .map((e) => GroupParticipant.fromJson(e as Map<String, dynamic>))
           .toList(),
-    );
-  }
-}
-
-extension on GroupParticipant {
-  static GroupParticipant fromJson(Map<String, dynamic> json) {
-    return GroupParticipant(
-      userId: json['userId'] as String? ?? '',
-      name: json['name'] as String? ?? 'Unknown',
-      username: json['username'] as String?,
-      avatarUrl: json['avatarUrl'] as String?,
-      role: json['role'] as String? ?? 'member',
-      joinedAt: json['joinedAt'] != null
-          ? DateTime.parse(json['joinedAt'] as String)
-          : DateTime.now(),
-      isOnline: json['isOnline'] as bool? ?? false,
-      lastSeenAt: json['lastSeenAt'] != null
-          ? DateTime.parse(json['lastSeenAt'] as String)
-          : null,
     );
   }
 }
