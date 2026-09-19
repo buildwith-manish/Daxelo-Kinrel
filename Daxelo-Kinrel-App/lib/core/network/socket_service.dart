@@ -538,6 +538,279 @@ class SocketService {
         debugPrint('[SocketService] Error handling game:reaction: $e');
       }
     });
+
+    // ────────────────────────────────────────────────────────────────────
+    // PACK 13: Family chat engagement events (typing / read receipts /
+    // reactions / streaks / presence). These events come from the new
+    // ChatGateway on the NestJS backend and complement the existing
+    // Supabase Realtime subscriptions the chat_provider already uses.
+    // ────────────────────────────────────────────────────────────────────
+    socket.on('chat:messageReceived', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatMessageCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:messageReceived error: $e');
+      }
+    });
+
+    socket.on('chat:messageSent', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatMessageSentCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:messageSent error: $e');
+      }
+    });
+
+    socket.on('chat:userTyping', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatTypingCallbacks) {
+          cb({...json, 'isTyping': true});
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:userTyping error: $e');
+      }
+    });
+
+    socket.on('chat:userStoppedTyping', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatTypingCallbacks) {
+          cb({...json, 'isTyping': false});
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:userStoppedTyping error: $e');
+      }
+    });
+
+    socket.on('chat:readReceipt', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatReadReceiptCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:readReceipt error: $e');
+      }
+    });
+
+    socket.on('chat:reactionAdded', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatReactionCallbacks) {
+          cb({...json, 'action': 'added'});
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:reactionAdded error: $e');
+      }
+    });
+
+    socket.on('chat:reactionRemoved', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatReactionCallbacks) {
+          cb({...json, 'action': 'removed'});
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:reactionRemoved error: $e');
+      }
+    });
+
+    socket.on('chat:streakUpdated', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatStreakCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:streakUpdated error: $e');
+      }
+    });
+
+    socket.on('presenceUpdate', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _presenceCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] presenceUpdate error: $e');
+      }
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // PACK 13: Family chat engagement API
+  // ──────────────────────────────────────────────────────────────────────
+  //
+  // These methods wrap the chat:* Socket.IO events emitted by the new
+  // ChatGateway on the NestJS backend. The Flutter chat_provider already
+  // uses Supabase Realtime for message INSERT/UPDATE/DELETE; the socket
+  // events below add sub-second typing indicators, instant read receipts,
+  // reaction echoes, streak broadcasts, and presence updates that don't
+  // require a Supabase Realtime round-trip.
+
+  final Set<void Function(Map<String, dynamic>)> _chatMessageCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatMessageSentCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatTypingCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatReadReceiptCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatReactionCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatStreakCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _presenceCallbacks = {};
+
+  /// Subscribe to incoming chat messages from the family room.
+  /// Payload: { message: ChatMessage }
+  VoidCallback onChatMessage(void Function(Map<String, dynamic>) cb) {
+    _chatMessageCallbacks.add(cb);
+    return () => _chatMessageCallbacks.remove(cb);
+  }
+
+  /// Subscribe to acks for messages this client sent.
+  /// Payload: { message: ChatMessage (with persisted id) }
+  VoidCallback onChatMessageSent(void Function(Map<String, dynamic>) cb) {
+    _chatMessageSentCallbacks.add(cb);
+    return () => _chatMessageSentCallbacks.remove(cb);
+  }
+
+  /// Subscribe to typing indicator updates.
+  /// Payload: { userId, userName, familyId, isTyping, timestamp }
+  /// Auto-clears after 3 seconds of no new events (handled client-side
+  /// by the chat_provider, which sets a 3s timer on each 'typing=true').
+  VoidCallback onChatTyping(void Function(Map<String, dynamic>) cb) {
+    _chatTypingCallbacks.add(cb);
+    return () => _chatTypingCallbacks.remove(cb);
+  }
+
+  /// Subscribe to read-receipt updates.
+  /// Payload: { familyId, messageIds[], readByUserId, readAt }
+  VoidCallback onChatReadReceipt(void Function(Map<String, dynamic>) cb) {
+    _chatReadReceiptCallbacks.add(cb);
+    return () => _chatReadReceiptCallbacks.remove(cb);
+  }
+
+  /// Subscribe to reaction add/remove events.
+  /// Payload: { messageId, userId, emoji, action: 'added'|'removed',
+  ///            counts: [{emoji, count, userIds}], timestamp }
+  VoidCallback onChatReaction(void Function(Map<String, dynamic>) cb) {
+    _chatReactionCallbacks.add(cb);
+    return () => _chatReactionCallbacks.remove(cb);
+  }
+
+  /// Subscribe to chat streak updates.
+  /// Payload: { chatId, currentStreak, longestStreak, lastMessageAt }
+  VoidCallback onChatStreak(void Function(Map<String, dynamic>) cb) {
+    _chatStreakCallbacks.add(cb);
+    return () => _chatStreakCallbacks.remove(cb);
+  }
+
+  /// Subscribe to presence (online/offline) updates for any user.
+  /// Payload: { userId, status: 'online'|'offline', lastSeenAt }
+  VoidCallback onPresenceUpdate(void Function(Map<String, dynamic>) cb) {
+    _presenceCallbacks.add(cb);
+    return () => _presenceCallbacks.remove(cb);
+  }
+
+  /// Join a family's chat room (so you receive chat:* events for that family).
+  void joinFamilyChatRoom({required String familyId}) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:joinFamily', {'familyId': familyId});
+  }
+
+  /// Leave a family's chat room.
+  void leaveFamilyChatRoom({required String familyId}) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:leaveFamily', {'familyId': familyId});
+  }
+
+  /// Send a chat message via Socket.IO. The server persists + broadcasts.
+  /// Returns when the socket emit completes (NOT when the server acks —
+  /// listen via [onChatMessageSent] for the persisted message echo).
+  void emitChatMessage({
+    required String familyId,
+    required String content,
+    String messageType = 'text',
+    String? replyToId,
+    String? senderPersonId,
+    String? senderInitials,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) {
+      throw StateError('Socket not connected');
+    }
+    socket.emit('chat:sendMessage', {
+      'familyId': familyId,
+      'content': content,
+      'messageType': messageType,
+      if (replyToId != null) 'replyToId': replyToId,
+      if (senderPersonId != null) 'senderPersonId': senderPersonId,
+      if (senderInitials != null) 'senderInitials': senderInitials,
+    });
+  }
+
+  /// Broadcast a typing indicator. Pass isTyping=false to clear.
+  /// The server auto-clears after 3 seconds of inactivity.
+  void emitChatTyping({
+    required String familyId,
+    required bool isTyping,
+    String? userName,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:typing', {
+      'familyId': familyId,
+      'isTyping': isTyping,
+      if (userName != null) 'userName': userName,
+    });
+  }
+
+  /// Mark messages as read. If [messageId] is null, marks ALL unread
+  /// messages in the family as read by this user.
+  void emitMarkAsRead({required String familyId, String? messageId}) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:markAsRead', {
+      'familyId': familyId,
+      if (messageId != null) 'messageId': messageId,
+    });
+  }
+
+  /// Add an emoji reaction to a message. Idempotent — adding the same emoji
+  /// twice is a no-op on the server.
+  void emitAddReaction({
+    required String familyId,
+    required String messageId,
+    required String emoji,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:addReaction', {
+      'familyId': familyId,
+      'messageId': messageId,
+      'emoji': emoji,
+    });
+  }
+
+  /// Remove an emoji reaction from a message.
+  void emitRemoveReaction({
+    required String familyId,
+    required String messageId,
+    required String emoji,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:removeReaction', {
+      'familyId': familyId,
+      'messageId': messageId,
+      'emoji': emoji,
+    });
   }
 
   // ── In-lobby chat / reactions API ────────────────────────────────────

@@ -52,6 +52,7 @@ import '../../../shared/widgets/dk_components.dart';
 import '../data/chat_enhancement_service.dart';
 import '../data/chat_lock_service.dart';
 import '../providers/chat_provider.dart';
+import '../providers/chat_socket_engagement_provider.dart';
 import 'voice_message_player.dart';
 import 'sticker_panel.dart';
 // Phase 22 / Task 3 — @mention picker overlay + highlight renderer.
@@ -530,6 +531,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatProvider(widget.familyId));
+    // Pack 13: Socket.IO engagement state (typing / streak / presence /
+    // read receipts / reactions). Additive to the Supabase Realtime state
+    // in chatState — gives sub-second updates for the engagement signals.
+    final engagement = ref.watch(chatEngagementProvider(widget.familyId));
     final rawMessages = chatState.messages;
 
     // v112: Filter out messages that were deleted-for-me or
@@ -616,8 +621,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         child: bodyContent,
                       ),
                     ),
-                    // Typing indicator
-                    if (chatState.isTyping) _buildTypingIndicator(chatState),
+                    // Typing indicator — shows if EITHER the Supabase
+                    // Realtime typing status OR the Socket.IO engagement
+                    // layer reports someone typing. The engagement layer
+                    // is preferred when both fire (it has the more recent
+                    // event + a richer multi-user label).
+                    if (chatState.isTyping || engagement.isSomeoneTyping)
+                      _buildTypingIndicator(chatState, engagement),
                     // Reply preview bar
                     if (chatState.replyToMessage != null)
                       _buildReplyPreview(chatState.replyToMessage!),
@@ -2366,7 +2376,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   // ── Typing Indicator ─────────────────────────────────────────────
 
-  Widget _buildTypingIndicator(ChatState chatState) {
+  Widget _buildTypingIndicator(ChatState chatState, ChatEngagementState engagement) {
+    // Prefer the Socket.IO engagement layer's label (supports multiple typers
+    // and is sub-second fresh). Fall back to the Supabase polling result.
+    final label = engagement.isSomeoneTyping
+        ? engagement.typingLabel
+        : '${chatState.typingUserName ?? 'Someone'} is typing';
+    final firstInitial = engagement.isSomeoneTyping
+        ? (engagement.typingUserNames.values.isNotEmpty
+            ? engagement.typingUserNames.values.first
+            : 'Someone')
+        : (chatState.typingUserName ?? 'Someone');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Row(
@@ -2381,7 +2401,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
             child: Center(
               child: Text(
-                ((chatState.typingUserName != null && chatState.typingUserName!.isNotEmpty) ? chatState.typingUserName!.substring(0, 1) : '?').toUpperCase(),
+                ((firstInitial.isNotEmpty) ? firstInitial.substring(0, 1) : '?').toUpperCase(),
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 9,
@@ -2393,7 +2413,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
           const SizedBox(width: 8),
           Text(
-            '${chatState.typingUserName ?? 'Someone'} is typing',
+            label,
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,

@@ -720,6 +720,9 @@ model Family {
   // v5.129 Sibling Backfill (§3): review-queue flags on this family's edges.
   relationshipReviewFlags       RelationshipReviewFlag[]
 
+  // ── Pack 13: Chat Engagement ──────────────────────────────────────────
+  chatMessages ChatMessage[]
+
   @@index([name])
   @@index([familyCode])
   @@index([username])
@@ -3811,4 +3814,216 @@ model KinshipVocabulary {
   @@index([languageCode, category])
   @@index([canonicalId])
   @@index([languageCode, variantRank, category])
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Pack 13: Chat Engagement (typing / read receipts / reactions / streaks / presence / push)
+// ══════════════════════════════════════════════════════════════════════
+//
+// These models map to the existing chat tables that were created directly in
+// Supabase (via SQL migrations) and are already used by the Flutter app
+// through Supabase Realtime + RPCs. The Prisma models below give the NestJS
+// backend typed access to the same tables so the new Socket.IO gateway,
+// streak service, presence service, and push-notification cron can read /
+// write them without going through Supabase REST.
+//
+// NOTE: the table + column names use camelCase (quoted identifiers in
+// Postgres) to match what already exists in Supabase. We use @@map to be
+// explicit, and @map on every column so Prisma generates correct SQL even
+// when the field name on the TS side differs.
+
+/// A chat message in a family group chat.
+///
+/// `readBy` (text[]) and `readAt` (nullable timestamptz) were added in
+/// Feature 1 to give the backend a fast array-based read-receipt check
+/// (in addition to the existing per-row `ChatReadReceipt` table that the
+/// Flutter app already uses). `notified` was added in Feature 5 so the
+/// batched-push cron can mark messages as already-notified.
+model ChatMessage {
+  id                   String    @id
+  familyId             String
+  senderId             String
+  senderPersonId       String?
+  senderName           String
+  senderInitials       String?
+  content              String    @default("")
+  messageType          String    @default("text") // text, photo, voiceNote, familyEvent, sticker, gameInvite, poll, gif, document, location
+  messageSubType       String    @default("text")
+  replyToId            String?
+  replyToContent       String?
+  replyToSenderName    String?
+  isRead               Boolean   @default(false)
+  isEdited             Boolean   @default(false)
+  isDeleted            Boolean   @default(false)
+  isDeletedForEveryone Boolean   @default(false)
+  isStarred            Boolean   @default(false)
+  isPinned             Boolean   @default(false)
+  messageStatus        String    @default("sent") // sent | delivered | read
+  deletedForMe         Json      @default("[]")
+  mentions             Json      @default("[]")
+  mediaUrl             String?
+  mediaType            String?
+  mediaFileName        String?
+  mediaSize            BigInt?
+  thumbnailUrl         String?
+  voiceMessageDuration Int?
+  durationSeconds      Int?
+  forwardedFrom        String?
+  groupId              String?
+  gameId               String?
+  gameType             String?
+  roomCode             String?
+  gameMaxPlayers       Int?
+  gameCurrentPlayers   Int?
+  gameInviteStatus     String?
+  eventTitle           String?
+  eventDate            String?
+  pollQuestion         String?
+  pollOptions          Json?
+  pollVoteCounts       Json?
+  pollVoterIds         Json?
+  pollCreatedAt        DateTime?
+  editedAt             DateTime?
+  deletedAt            DateTime?
+
+  // ── Feature 1: read receipts ────────────────────────────────────────
+  /// Array of userIds who have read this message. Updated by markAsRead.
+  /// Mirrors the per-row ChatReadReceipt table for fast "who read this?"
+  /// queries without a JOIN — but the canonical source of truth is still
+  /// ChatReadReceipt (this array is a denormalized cache).
+  readBy String[] @default([])
+
+  /// Timestamp of the most recent read receipt. Null until the first user
+  /// (other than the sender) reads the message.
+  readAt DateTime?
+
+  // ── Feature 5: smart batched push notifications ─────────────────────
+  /// True once the batched-push cron has already sent an FCM notification
+  /// for this message. Prevents duplicate pushes on the next cron run.
+  notified Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  family    Family         @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  replyTo   ChatMessage?   @relation("ChatMessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   ChatMessage[]  @relation("ChatMessageReply")
+  reactions ChatReaction[]
+  receipts  ChatReadReceipt[]
+
+  @@index([familyId, createdAt])
+  @@index([senderId])
+  @@index([messageStatus])
+  @@index([isPinned])
+  @@index([isStarred])
+  @@index([notified])
+  @@map("ChatMessage")
+}
+
+/// A single emoji reaction on a chat message. Unique per (message, user, emoji)
+/// so one user can leave multiple different emojis on the same message but
+/// cannot leave the same emoji twice.
+model ChatReaction {
+  id        String   @id
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@map("ChatReaction")
+}
+
+/// Per-user read receipt for a chat message. The Flutter app already uses
+/// this table via the `fn_mark_messages_read` Supabase RPC. The NestJS
+/// `markAsRead` service method writes here AND updates the denormalized
+/// `ChatMessage.readBy` / `ChatMessage.readAt` fields so both clients that
+/// poll the array and clients that JOIN this table see consistent state.
+model ChatReadReceipt {
+  id        String   @id
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+  @@map("ChatReadReceipt")
+}
+
+/// Per-family typing indicator. A row per (familyId, userId). Updated
+/// whenever the user types (set isTyping=true) or stops (set isTyping=false).
+/// The Flutter app polls this with a 5-second freshness window.
+model ChatTypingStatus {
+  id        String   @id
+  familyId  String
+  userId    String
+  isTyping  Boolean  @default(false)
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([familyId, userId])
+  @@index([familyId])
+  @@map("ChatTypingStatus")
+}
+
+// ── Feature 3: Chat Streaks ───────────────────────────────────────────
+//
+// Tracks consecutive-day messaging streaks per family chat. A streak
+// increments when a message is sent within 24 hours of the previous one;
+// resets to 1 if the gap exceeds 24 hours. Displayed in the Flutter chat
+// header with a flame icon to drive daily engagement.
+//
+// NOTE: this table does NOT exist in Supabase yet — it is created by the
+// Feature 3 migration.
+
+model ChatStreak {
+  id             String   @id @default(cuid())
+  chatId         String   @unique // familyId for family group chats
+  currentStreak  Int      @default(1)
+  longestStreak  Int      @default(1)
+  lastMessageAt  DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  @@index([currentStreak])
+  @@map("ChatStreak")
+}
+
+// ── Feature 4: Presence ────────────────────────────────────────────────
+//
+// `UserPresence` is a per-user online/offline snapshot. The NestJS
+// PresenceService updates this row on Socket.IO connect/disconnect AND
+// keeps an in-memory Map (or Redis if configured) for sub-millisecond
+// lookups during `presenceUpdate` broadcasts.
+//
+// `MemberPresence` is a per-family view (same data, partitioned by family
+// membership) that the Flutter app already queries to render online dots
+// in the chat list. We add a Prisma model so the NestJS side can read it.
+
+model UserPresence {
+  userId     String   @id
+  isOnline   Boolean  @default(false)
+  lastSeenAt DateTime?
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@map("UserPresence")
+}
+
+model MemberPresence {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  familyId   String
+  userId     String
+  status     String   @default("offline") // online | offline | away
+  lastSeenAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@unique([familyId, userId])
+  @@index([familyId])
+  @@map("MemberPresence")
 }
