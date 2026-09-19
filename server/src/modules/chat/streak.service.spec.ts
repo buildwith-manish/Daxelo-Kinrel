@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { StreakService } from './streak.service';
+import { ChatAnalyticsService } from '../analytics/chat-analytics.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -27,11 +28,16 @@ describe('StreakService', () => {
     $transaction: jest.fn((cb) => cb(mockPrisma)),
   };
 
+  const mockAnalyticsService = {
+    trackStreakEvent: jest.fn().mockResolvedValue(true),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         StreakService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: ChatAnalyticsService, useValue: mockAnalyticsService },
       ],
     }).compile();
     service = module.get<StreakService>(StreakService);

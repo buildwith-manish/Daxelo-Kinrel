@@ -3,15 +3,20 @@ import {
   Get,
   Query,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
+import { ChatAnalyticsService } from '../analytics/chat-analytics.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly analyticsService: ChatAnalyticsService,
+  ) {}
 
   /**
    * GET /api/admin
@@ -84,5 +89,53 @@ export class AdminController {
   @Get('moderation/rules')
   async getModerationRules(@CurrentUser('role') role: string) {
     return this.adminService.getModerationRules(role);
+  }
+
+  // ── Pack 13.3: Chat Analytics ──────────────────────────────────────
+  //
+  // Admin-only endpoints to query aggregate event counts. Used by
+  // product/data teams to measure chat engagement (messages sent,
+  // reactions, streaks, etc.) without a dashboard UI — just queryable
+  // JSON returned by these endpoints.
+
+  /**
+   * GET /api/admin/analytics/events?eventName=X&from=2026-09-01&to=2026-09-30
+   * Returns daily aggregate counts per event.
+   * Admin-only — non-admin users get 403.
+   */
+  @Get('analytics/events')
+  async getAnalyticsEvents(
+    @CurrentUser('role') role: string,
+    @Query('eventName') eventName?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    if (role !== 'admin') {
+      throw new ForbiddenException('Admin access required');
+    }
+    return this.analyticsService.getDailyCounts({
+      eventName: eventName || undefined,
+      from: from ? new Date(from) : undefined,
+      to: to ? new Date(to) : undefined,
+    });
+  }
+
+  /**
+   * GET /api/admin/analytics/event-count?eventName=X&userId=Y
+   * Returns the total count of a specific event, optionally filtered
+   * by userId. Used by the Flutter onboarding flow to check if a user
+   * has sent their first message (first_message_in_chat event count).
+   */
+  @Get('analytics/event-count')
+  async getEventCount(
+    @CurrentUser('role') role: string,
+    @Query('eventName') eventName: string,
+    @Query('userId') userId?: string,
+  ) {
+    if (role !== 'admin') {
+      throw new ForbiddenException('Admin access required');
+    }
+    const count = await this.analyticsService.getEventCount(eventName, userId);
+    return { eventName, userId: userId ?? null, count };
   }
 }

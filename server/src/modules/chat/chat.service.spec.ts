@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ChatService } from './chat.service';
 import { StreakService } from './streak.service';
+import { ChatAnalyticsService } from '../analytics/chat-analytics.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
@@ -34,7 +35,7 @@ describe('ChatService', () => {
       create: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
-      count: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
     },
     chatReadReceipt: { createMany: jest.fn() },
     chatTypingStatus: { upsert: jest.fn(), findMany: jest.fn() },
@@ -46,12 +47,26 @@ describe('ChatService', () => {
     getStreak: jest.fn(),
   };
 
+  const mockAnalyticsService = {
+    track: jest.fn().mockResolvedValue(true),
+    trackMessageSent: jest.fn().mockResolvedValue(true),
+    trackReactionAdded: jest.fn().mockResolvedValue(true),
+    trackVoiceNoteSent: jest.fn().mockResolvedValue(true),
+    trackSearchUsed: jest.fn().mockResolvedValue(true),
+    trackFirstMessageInChat: jest.fn().mockResolvedValue(true),
+    trackNotificationTapped: jest.fn().mockResolvedValue(true),
+    trackStreakEvent: jest.fn().mockResolvedValue(true),
+    getDailyCounts: jest.fn(),
+    getEventCount: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ChatService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: StreakService, useValue: mockStreakService },
+        { provide: ChatAnalyticsService, useValue: mockAnalyticsService },
       ],
     }).compile();
     service = module.get<ChatService>(ChatService);

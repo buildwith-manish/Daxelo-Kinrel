@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StreakService } from './streak.service';
+import { ChatAnalyticsService } from '../analytics/chat-analytics.service';
 import { AddReactionDto, RemoveReactionDto } from './dto/chat.dto';
 
 /**
@@ -26,6 +27,7 @@ export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly streakService: StreakService,
+    private readonly analyticsService: ChatAnalyticsService,
   ) {}
 
   /** Throws ForbiddenException if the user is not a member of the family. */
@@ -138,7 +140,7 @@ export class ChatService {
     // here so IDs are unique across both NestJS and Supabase-RPC writes.
     const id = `cm_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
-    return this.prisma.chatMessage.create({
+    const message = await this.prisma.chatMessage.create({
       data: {
         id,
         familyId,
@@ -160,6 +162,40 @@ export class ChatService {
       },
       include: { reactions: true },
     });
+
+    // ── Feature 1: Analytics instrumentation ────────────────────────────
+    // Fire-and-forget. Track the message_sent event + voice_note_sent if
+    // applicable. Also check if this is the first-ever message in the chat
+    // (for the onboarding flow) — we do this via a count query.
+    this.analyticsService
+      .trackMessageSent(userId, familyId, id, {
+        messageType: opts.messageType ?? 'text',
+        hasReply: !!opts.replyToId,
+        hasMedia: !!opts.mediaUrl,
+      })
+      .catch(() => {});
+
+    if ((opts.messageType ?? 'text') === 'voiceNote' || (opts.mediaType === 'voice')) {
+      this.analyticsService
+        .trackVoiceNoteSent(userId, familyId, id, 0)
+        .catch(() => {});
+    }
+
+    // Check if this is the first-ever message in the chat (for onboarding).
+    // We do this as a count query AFTER the insert — if count === 1, this
+    // is the first message. Fire-and-forget.
+    this.prisma.chatMessage
+      .count({ where: { familyId, isDeletedForEveryone: false } })
+      .then((count) => {
+        if (count === 1) {
+          this.analyticsService
+            .trackFirstMessageInChat(userId, familyId, id)
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+
+    return message;
   }
 
   /**
@@ -416,6 +452,11 @@ export class ChatService {
       },
     });
 
+    // Feature 1: Analytics — track search_used
+    this.analyticsService
+      .trackSearchUsed(userId, familyId, trimmed, messages.length)
+      .catch(() => {});
+
     return {
       results: messages,
       total,
@@ -508,6 +549,11 @@ export class ChatService {
       `markAsRead: ${ids.length} message(s) marked read for user ${userId} in family ${familyId}`,
     );
 
+    // Feature 1: Analytics — track message_read (one event per batch)
+    this.analyticsService
+      .track('message_read', userId, { messageCount: ids.length }, familyId)
+      .catch(() => {});
+
     return { markedReadIds: ids, senderIds };
   }
 
@@ -596,6 +642,10 @@ export class ChatService {
           emoji: dto.emoji,
         },
       });
+      // Feature 1: Analytics — track reaction_added
+      this.analyticsService
+        .trackReactionAdded(userId, familyId, dto.messageId, dto.emoji)
+        .catch(() => {});
       return { action: 'added', reactionId: id };
     } catch (err: any) {
       // Prisma throws P2002 on unique-constraint violation — the reaction

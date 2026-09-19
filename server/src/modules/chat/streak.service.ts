@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ChatAnalyticsService } from '../analytics/chat-analytics.service';
 
 /**
  * StreakService — tracks consecutive-day messaging streaks per family chat.
@@ -29,7 +30,10 @@ export class StreakService {
   /// exceeds this, the streak resets. Default 24h.
   private readonly windowHours = Number(process.env.STREAK_WINDOW_HOURS ?? 24);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly analyticsService: ChatAnalyticsService,
+  ) {}
 
   /**
    * Record a message-send event for a chat and return the updated streak.
@@ -150,10 +154,18 @@ export class StreakService {
         this.logger.log(
           `Streak for chat ${chatId} increased to ${newCurrent} (longest: ${newLongest})`,
         );
+        // Feature 1: Analytics — track streak_continued
+        this.analyticsService
+          .trackStreakEvent(chatId, newCurrent, 'continued')
+          .catch(() => {});
       } else if (streakReset) {
         this.logger.log(
           `Streak for chat ${chatId} reset to 1 (was ${existing.currentStreak}, gap ${Math.round(gapMs / 3600000)}h)`,
         );
+        // Feature 1: Analytics — track streak_broken
+        this.analyticsService
+          .trackStreakEvent(chatId, existing.currentStreak, 'broken')
+          .catch(() => {});
       }
 
       return {

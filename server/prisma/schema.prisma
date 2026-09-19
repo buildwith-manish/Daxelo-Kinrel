@@ -4027,3 +4027,33 @@ model MemberPresence {
   @@index([familyId])
   @@map("MemberPresence")
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// Pack 13.3: Analytics & Instrumentation
+// ══════════════════════════════════════════════════════════════════════
+//
+// Generic event tracking table for chat engagement analytics. The
+// ChatAnalyticsService.track() method writes here fire-and-forget from
+// the chat flow so analytics never blocks user-facing operations.
+//
+// Tracked events (see ChatAnalyticsService for the full list):
+//   message_sent, streak_continued, streak_broken, reaction_added,
+//   voice_note_sent, search_used, first_message_in_chat,
+//   notification_tapped, message_read, mention_sent
+//
+// Queryable via GET /api/admin/analytics/events?eventName=X&from=Y&to=Z
+// (admin-only — see AdminModule for the guard).
+
+model Event {
+  id        String   @id @default(cuid())
+  eventName String
+  userId    String
+  chatId    String?
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([eventName, createdAt])
+  @@index([userId, createdAt])
+  @@index([chatId, createdAt])
+  @@map("Event")
+}
