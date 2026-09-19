@@ -538,6 +538,474 @@ class SocketService {
         debugPrint('[SocketService] Error handling game:reaction: $e');
       }
     });
+
+    // ────────────────────────────────────────────────────────────────────
+    // PACK 13: Family chat engagement events (typing / read receipts /
+    // reactions / streaks / presence). These events come from the new
+    // ChatGateway on the NestJS backend and complement the existing
+    // Supabase Realtime subscriptions the chat_provider already uses.
+    // ────────────────────────────────────────────────────────────────────
+    socket.on('chat:messageReceived', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatMessageCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:messageReceived error: $e');
+      }
+    });
+
+    socket.on('chat:messageSent', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatMessageSentCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:messageSent error: $e');
+      }
+    });
+
+    // Feature 1: delivery confirmation. Server emits this when a
+    // recipient's socket confirms receipt of a message. The sender's
+    // client uses it to flip the checkmark from single-tick (sent) to
+    // double-tick (delivered).
+    socket.on('chat:messageDelivered', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatMessageDeliveredCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:messageDelivered error: $e');
+      }
+    });
+
+    // Feature 1: message send failure. Server emits this when
+    // sendMessage throws (DB error, auth failure, etc.). The client
+    // matches by tempId to flip the optimistic message to 'failed'.
+    socket.on('chat:messageFailed', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatMessageFailedCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:messageFailed error: $e');
+      }
+    });
+
+    socket.on('chat:userTyping', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatTypingCallbacks) {
+          cb({...json, 'isTyping': true});
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:userTyping error: $e');
+      }
+    });
+
+    socket.on('chat:userStoppedTyping', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatTypingCallbacks) {
+          cb({...json, 'isTyping': false});
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:userStoppedTyping error: $e');
+      }
+    });
+
+    socket.on('chat:readReceipt', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatReadReceiptCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:readReceipt error: $e');
+      }
+    });
+
+    socket.on('chat:reactionAdded', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatReactionCallbacks) {
+          cb({...json, 'action': 'added'});
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:reactionAdded error: $e');
+      }
+    });
+
+    socket.on('chat:reactionRemoved', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatReactionCallbacks) {
+          cb({...json, 'action': 'removed'});
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:reactionRemoved error: $e');
+      }
+    });
+
+    // Feature 2: @mention received — emitted to a specific mentioned user
+    // when someone @mentions them in a message. Drives a distinct push
+    // notification + in-app banner separate from the general message
+    // broadcast.
+    socket.on('chat:mentionReceived', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatMentionCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:mentionReceived error: $e');
+      }
+    });
+
+    // Feature 3: message pinned/unpinned — broadcast to the family room
+    // so all clients update their pinned bar in real time.
+    socket.on('chat:messagePinned', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatPinnedCallbacks) {
+          cb({...json, 'isPinned': true});
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:messagePinned error: $e');
+      }
+    });
+
+    socket.on('chat:messageUnpinned', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatPinnedCallbacks) {
+          cb({...json, 'isPinned': false});
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:messageUnpinned error: $e');
+      }
+    });
+
+    // Feature 5: rate limit exceeded — emitted when the user hits a chat
+    // rate limit (too many messages, reactions, or typing events). The
+    // Flutter client shows a snackbar with the retryAfterMs hint.
+    socket.on('chat:rateLimitExceeded', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatRateLimitCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:rateLimitExceeded error: $e');
+      }
+    });
+
+    socket.on('chat:streakUpdated', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _chatStreakCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] chat:streakUpdated error: $e');
+      }
+    });
+
+    socket.on('presenceUpdate', (data) {
+      try {
+        final json = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        for (final cb in _presenceCallbacks) {
+          cb(json);
+        }
+      } catch (e) {
+        debugPrint('[SocketService] presenceUpdate error: $e');
+      }
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // PACK 13: Family chat engagement API
+  // ──────────────────────────────────────────────────────────────────────
+  //
+  // These methods wrap the chat:* Socket.IO events emitted by the new
+  // ChatGateway on the NestJS backend. The Flutter chat_provider already
+  // uses Supabase Realtime for message INSERT/UPDATE/DELETE; the socket
+  // events below add sub-second typing indicators, instant read receipts,
+  // reaction echoes, streak broadcasts, and presence updates that don't
+  // require a Supabase Realtime round-trip.
+
+  final Set<void Function(Map<String, dynamic>)> _chatMessageCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatMessageSentCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatMessageDeliveredCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatMessageFailedCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatTypingCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatReadReceiptCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatReactionCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatMentionCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatPinnedCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatRateLimitCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _chatStreakCallbacks = {};
+  final Set<void Function(Map<String, dynamic>)> _presenceCallbacks = {};
+
+  /// Subscribe to incoming chat messages from the family room.
+  /// Payload: { message: ChatMessage }
+  VoidCallback onChatMessage(void Function(Map<String, dynamic>) cb) {
+    _chatMessageCallbacks.add(cb);
+    return () => _chatMessageCallbacks.remove(cb);
+  }
+
+  /// Subscribe to acks for messages this client sent.
+  /// Payload: { message: ChatMessage (with persisted id) }
+  VoidCallback onChatMessageSent(void Function(Map<String, dynamic>) cb) {
+    _chatMessageSentCallbacks.add(cb);
+    return () => _chatMessageSentCallbacks.remove(cb);
+  }
+
+  /// Feature 1: subscribe to delivery confirmations.
+  /// Payload: { messageId, familyId, deliveredToUserId, timestamp }
+  /// Fires when a recipient's socket confirms receipt of your message.
+  /// Use it to flip the checkmark from single-tick (sent) to double-tick (delivered).
+  VoidCallback onChatMessageDelivered(void Function(Map<String, dynamic>) cb) {
+    _chatMessageDeliveredCallbacks.add(cb);
+    return () => _chatMessageDeliveredCallbacks.remove(cb);
+  }
+
+  /// Feature 1: subscribe to send-failure events.
+  /// Payload: { familyId, tempId, error, timestamp }
+  /// Fires when sendMessage throws on the server side. Match by tempId
+  /// to flip the optimistic message to 'failed' + show a retry button.
+  VoidCallback onChatMessageFailed(void Function(Map<String, dynamic>) cb) {
+    _chatMessageFailedCallbacks.add(cb);
+    return () => _chatMessageFailedCallbacks.remove(cb);
+  }
+
+  /// Feature 1: emit a delivery confirmation back to the server when
+  /// this client receives a message via 'chat:messageReceived'. The
+  /// server forwards it to the sender so they see the double-tick.
+  void emitMessageDelivered({required String familyId, required String messageId}) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:messageDelivered', {
+      'familyId': familyId,
+      'messageId': messageId,
+    });
+  }
+
+  /// Subscribe to typing indicator updates.
+  /// Payload: { userId, userName, familyId, isTyping, timestamp }
+  /// Auto-clears after 3 seconds of no new events (handled client-side
+  /// by the chat_provider, which sets a 3s timer on each 'typing=true').
+  VoidCallback onChatTyping(void Function(Map<String, dynamic>) cb) {
+    _chatTypingCallbacks.add(cb);
+    return () => _chatTypingCallbacks.remove(cb);
+  }
+
+  /// Subscribe to read-receipt updates.
+  /// Payload: { familyId, messageIds[], readByUserId, readAt }
+  VoidCallback onChatReadReceipt(void Function(Map<String, dynamic>) cb) {
+    _chatReadReceiptCallbacks.add(cb);
+    return () => _chatReadReceiptCallbacks.remove(cb);
+  }
+
+  /// Subscribe to reaction add/remove events.
+  /// Payload: { messageId, userId, emoji, action: 'added'|'removed',
+  ///            counts: [{emoji, count, userIds}], timestamp }
+  VoidCallback onChatReaction(void Function(Map<String, dynamic>) cb) {
+    _chatReactionCallbacks.add(cb);
+    return () => _chatReactionCallbacks.remove(cb);
+  }
+
+  /// Feature 2: subscribe to @mention received events.
+  /// Payload: { messageId, familyId, mentionedUserId, mentionedByName,
+  ///            content, timestamp }
+  /// Fires when another user @mentions this user in a message.
+  VoidCallback onChatMentionReceived(void Function(Map<String, dynamic>) cb) {
+    _chatMentionCallbacks.add(cb);
+    return () => _chatMentionCallbacks.remove(cb);
+  }
+
+  /// Feature 2: send a message with @mentions via Socket.IO.
+  /// [mentions] is an array of {userId, name, start, end} refs pointing
+  /// at the @Name spans in [content]. The server emits a targeted
+  /// 'chat:mentionReceived' event to each mentioned user.
+  void emitChatMessageWithMentions({
+    required String familyId,
+    required String content,
+    required List<Map<String, dynamic>> mentions,
+    String messageType = 'text',
+    String? replyToId,
+    String? senderPersonId,
+    String? senderInitials,
+    String? tempId,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) {
+      throw StateError('Socket not connected');
+    }
+    socket.emit('chat:sendMessageWithMentions', {
+      'familyId': familyId,
+      'content': content,
+      'mentions': mentions,
+      'messageType': messageType,
+      if (replyToId != null) 'replyToId': replyToId,
+      if (senderPersonId != null) 'senderPersonId': senderPersonId,
+      if (senderInitials != null) 'senderInitials': senderInitials,
+      if (tempId != null) 'tempId': tempId,
+    });
+  }
+
+  /// Subscribe to chat streak updates.
+  /// Payload: { chatId, currentStreak, longestStreak, lastMessageAt }
+  VoidCallback onChatStreak(void Function(Map<String, dynamic>) cb) {
+    _chatStreakCallbacks.add(cb);
+    return () => _chatStreakCallbacks.remove(cb);
+  }
+
+  /// Feature 3: subscribe to message pin/unpin events.
+  /// Payload: { messageId, familyId, isPinned, pinnedBy?, pinnedAt?,
+  ///            timestamp }
+  /// Fires when any participant pins or unpins a message in the family
+  /// chat room. Use to update the pinned bar at the top of the chat screen.
+  VoidCallback onChatMessagePinned(void Function(Map<String, dynamic>) cb) {
+    _chatPinnedCallbacks.add(cb);
+    return () => _chatPinnedCallbacks.remove(cb);
+  }
+
+  /// Feature 3: pin a message via Socket.IO. The server broadcasts
+  /// 'chat:messagePinned' to the family room after persisting.
+  void emitPinMessage({required String familyId, required String messageId}) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:pinMessage', {'familyId': familyId, 'messageId': messageId});
+  }
+
+  /// Feature 3: unpin a message via Socket.IO.
+  void emitUnpinMessage({required String familyId, required String messageId}) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:unpinMessage', {'familyId': familyId, 'messageId': messageId});
+  }
+
+  /// Feature 5: subscribe to rate-limit-exceeded events.
+  /// Payload: { action, familyId, retryAfterMs, message, timestamp }
+  /// Fires when the user sends too many messages/reactions/typing events.
+  /// The Flutter client shows a snackbar with the retryAfterMs hint.
+  VoidCallback onChatRateLimitExceeded(void Function(Map<String, dynamic>) cb) {
+    _chatRateLimitCallbacks.add(cb);
+    return () => _chatRateLimitCallbacks.remove(cb);
+  }
+
+  /// Subscribe to presence (online/offline) updates for any user.
+  /// Payload: { userId, status: 'online'|'offline', lastSeenAt }
+  VoidCallback onPresenceUpdate(void Function(Map<String, dynamic>) cb) {
+    _presenceCallbacks.add(cb);
+    return () => _presenceCallbacks.remove(cb);
+  }
+
+  /// Join a family's chat room (so you receive chat:* events for that family).
+  void joinFamilyChatRoom({required String familyId}) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:joinFamily', {'familyId': familyId});
+  }
+
+  /// Leave a family's chat room.
+  void leaveFamilyChatRoom({required String familyId}) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:leaveFamily', {'familyId': familyId});
+  }
+
+  /// Send a chat message via Socket.IO. The server persists + broadcasts.
+  /// Returns when the socket emit completes (NOT when the server acks —
+  /// listen via [onChatMessageSent] for the persisted message echo).
+  void emitChatMessage({
+    required String familyId,
+    required String content,
+    String messageType = 'text',
+    String? replyToId,
+    String? senderPersonId,
+    String? senderInitials,
+    /// Feature 1: client-generated optimistic ID. Echoed back in the
+    /// 'chat:messageFailed' event so the client can match the failure
+    /// to its local optimistic message + flip status to 'failed'.
+    String? tempId,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) {
+      throw StateError('Socket not connected');
+    }
+    socket.emit('chat:sendMessage', {
+      'familyId': familyId,
+      'content': content,
+      'messageType': messageType,
+      if (replyToId != null) 'replyToId': replyToId,
+      if (senderPersonId != null) 'senderPersonId': senderPersonId,
+      if (senderInitials != null) 'senderInitials': senderInitials,
+      if (tempId != null) 'tempId': tempId,
+    });
+  }
+
+  /// Broadcast a typing indicator. Pass isTyping=false to clear.
+  /// The server auto-clears after 3 seconds of inactivity.
+  void emitChatTyping({
+    required String familyId,
+    required bool isTyping,
+    String? userName,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:typing', {
+      'familyId': familyId,
+      'isTyping': isTyping,
+      if (userName != null) 'userName': userName,
+    });
+  }
+
+  /// Mark messages as read. If [messageId] is null, marks ALL unread
+  /// messages in the family as read by this user.
+  void emitMarkAsRead({required String familyId, String? messageId}) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:markAsRead', {
+      'familyId': familyId,
+      if (messageId != null) 'messageId': messageId,
+    });
+  }
+
+  /// Add an emoji reaction to a message. Idempotent — adding the same emoji
+  /// twice is a no-op on the server.
+  void emitAddReaction({
+    required String familyId,
+    required String messageId,
+    required String emoji,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:addReaction', {
+      'familyId': familyId,
+      'messageId': messageId,
+      'emoji': emoji,
+    });
+  }
+
+  /// Remove an emoji reaction from a message.
+  void emitRemoveReaction({
+    required String familyId,
+    required String messageId,
+    required String emoji,
+  }) {
+    final socket = _socket;
+    if (socket == null || !socket.connected) return;
+    socket.emit('chat:removeReaction', {
+      'familyId': familyId,
+      'messageId': messageId,
+      'emoji': emoji,
+    });
   }
 
   // ── In-lobby chat / reactions API ────────────────────────────────────

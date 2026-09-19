@@ -45,6 +45,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/constants/brand_spacing.dart';
 import '../../../core/family/family_provider.dart';
 import '../../../core/kinship/kinship_edge_style.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../family/data/relationship_label_provider.dart';
 import '../../../core/utils/web_keyboard_height.dart';
 import '../../../core/services/supabase_service.dart';
@@ -52,6 +53,9 @@ import '../../../shared/widgets/dk_components.dart';
 import '../data/chat_enhancement_service.dart';
 import '../data/chat_lock_service.dart';
 import '../providers/chat_provider.dart';
+import '../providers/chat_onboarding_provider.dart';
+import '../providers/chat_socket_engagement_provider.dart';
+import 'chat_onboarding_coach_marks.dart';
 import 'voice_message_player.dart';
 import 'sticker_panel.dart';
 // Phase 22 / Task 3 — @mention picker overlay + highlight renderer.
@@ -67,7 +71,9 @@ import 'widgets/message_info_sheet.dart';
 import 'widgets/gif_search_sheet.dart';
 import 'widgets/sticker_pack_sheet.dart';
 import 'widgets/chat_meta.dart';
+import 'widgets/empty_chat_state.dart';
 import 'widgets/message_bubble.dart';
+import 'widgets/pinned_messages_bar.dart';
 import '../../family/presentation/family_space_floating_nav.dart';
 import '../../profile/presentation/member_profile_sheet.dart';
 import '../../games/shared/icons/game_icons.dart';
@@ -398,6 +404,52 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
+  /// Feature 6: scroll to a specific message by ID. Used when the user
+  /// taps the quoted reply preview above a bubble — jumps to the original
+  /// message being replied to.
+  ///
+  /// The ListView is reverse: true (newest at top, index 0 = newest).
+  /// We find the message's index in the flat (newest-first) list, then
+  /// estimate the scroll offset as index * ~72px (average bubble height
+  /// including spacing). This is approximate — for very long chats the
+  /// estimate may be off by a few bubbles, but the user can fine-tune
+  /// with a manual scroll. A future improvement would use
+  /// Scrollable.ensureVisible with a GlobalKey per message.
+  void _scrollToMessage(String messageId) {
+    final messages = ref.read(chatProvider(widget.familyId)).messages;
+    final index = messages.indexWhere((m) => m.id == messageId);
+    if (index == -1) {
+      // Message not in the current viewport (e.g. very old message not
+      // loaded yet). Show a snackbar telling the user to scroll up.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            // Feature 7: localized snackbar
+            content: Text(S.of(context)?.chatReplyToOriginalNotFound ??
+                'Message is older than loaded history — scroll up to find it.'),
+            backgroundColor: KinrelColors.darkCard,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+    if (!_scrollController.hasClients) return;
+    // Estimate: each message bubble is ~72px tall (bubble + spacing).
+    // The list is reversed, so offset 0 = newest (index 0).
+    const estimatedBubbleHeight = 72.0;
+    final targetOffset = index * estimatedBubbleHeight;
+    // Clamp to the max scroll extent so we don't overshoot.
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    final clamped = targetOffset.clamp(0.0, maxExtent);
+    _scrollController.animateTo(
+      clamped,
+      duration: KinrelMotion.normal,
+      curve: KinrelMotion.easeOut,
+    );
+  }
+
   void _sendMessage() {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
@@ -530,6 +582,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatProvider(widget.familyId));
+    // Pack 13: Socket.IO engagement state (typing / streak / presence /
+    // read receipts / reactions). Additive to the Supabase Realtime state
+    // in chatState — gives sub-second updates for the engagement signals.
+    final engagement = ref.watch(chatEngagementProvider(widget.familyId));
     final rawMessages = chatState.messages;
 
     // v112: Filter out messages that were deleted-for-me or
@@ -562,25 +618,68 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       );
     } else if (chatState.error != null && messages.isEmpty) {
       bodyContent = _buildErrorState(chatState.error!);
+    } else if (messages.isEmpty) {
+      // Feature 3: Empty state with kinship-aware greeting suggestions.
+      // Shown when the chat has zero messages (not loading, no error).
+      // The widget fetches upcoming birthdays + relationship-aware
+      // suggestions from GET /families/:id/chat/nudge.
+      bodyContent = EmptyChatState(
+        familyId: widget.familyId,
+        onSuggestionTap: (suggestion) {
+          // One-tap send: call the chatProvider's sendMessage directly
+          // with the suggestion text. This gives the user a one-tap
+          // "send greeting" flow without typing.
+          ref
+              .read(chatProvider(widget.familyId).notifier)
+              .sendMessage(suggestion, groupId: widget.groupId);
+        },
+      );
     } else {
-      bodyContent = Stack(
+      bodyContent = Column(
         children: [
-          _buildMessagesList(messages, chatState),
-          // Scroll-to-bottom FAB
-          if (_showScrollFab) _buildScrollFab(),
-          // Inline error banner (non-blocking) if a send failed
-          if (chatState.error != null && messages.isNotEmpty)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: _buildInlineErrorBanner(chatState.error!),
+          // Feature 3: Pinned messages bar (shown above the message list).
+          // Hidden when there are no pinned messages. Tapping scrolls to
+          // the pinned message; long-press unpins (with confirmation).
+          PinnedMessagesBar(
+            familyId: widget.familyId,
+            onMessageTap: (messageId) => _scrollToMessage(messageId),
+            onUnpin: (messageId) {
+              ref.read(socketServiceProvider).emitUnpinMessage(
+                familyId: widget.familyId,
+                messageId: messageId,
+              );
+            },
+          ),
+          Expanded(
+            child: Stack(
+              children: [
+                _buildMessagesList(messages, chatState),
+                // Scroll-to-bottom FAB
+                if (_showScrollFab) _buildScrollFab(),
+                // Inline error banner (non-blocking) if a send failed
+                if (chatState.error != null && messages.isNotEmpty)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: _buildInlineErrorBanner(chatState.error!),
+                  ),
+              ],
             ),
+          ),
         ],
       );
     }
 
-    return DKScaffold(
+    // Feature 7: check if the onboarding coach marks should be shown.
+    // Triggered after the user sends their first message ever (based on
+    // the first_message_in_chat analytics event) AND hasn't seen the
+    // coach marks yet (hasSeenChatOnboarding flag in SharedPreferences).
+    final showOnboarding = ref.watch(shouldShowChatOnboardingProvider(widget.familyId));
+
+    return Stack(
+      children: [
+        DKScaffold(
       // v132: The background is now rendered by ChatBackground (a
       // multi-layer ambient gradient + optional blurred wallpaper).
       // The Scaffold background is a flat dark color that only shows
@@ -616,8 +715,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         child: bodyContent,
                       ),
                     ),
-                    // Typing indicator
-                    if (chatState.isTyping) _buildTypingIndicator(chatState),
+                    // Typing indicator — shows if EITHER the Supabase
+                    // Realtime typing status OR the Socket.IO engagement
+                    // layer reports someone typing. The engagement layer
+                    // is preferred when both fire (it has the more recent
+                    // event + a richer multi-user label).
+                    if (chatState.isTyping || engagement.isSomeoneTyping)
+                      _buildTypingIndicator(chatState, engagement),
                     // Reply preview bar
                     if (chatState.replyToMessage != null)
                       _buildReplyPreview(chatState.replyToMessage!),
@@ -637,6 +741,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       SizedBox(height: _webKeyboardHeight),
                   ],
                 ),
+        ),
+        // Feature 7: onboarding coach-mark overlay (shown once after
+        // the user's first message ever).
+        if (showOnboarding)
+          ChatOnboardingCoachMarks(
+            onComplete: () {
+              // Invalidate the onboarding status provider so it refetches
+              // (the hasSeenChatOnboarding flag is now true, so
+              // shouldShowChatOnboardingProvider returns false).
+              ref.invalidate(chatOnboardingStatusProvider(widget.familyId));
+            },
+          ),
+      ],
     );
   }
 
@@ -1068,42 +1185,154 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                 ),
                               ),
                             ),
+                            // ── Feature 3: Chat streak flame badge ─────
+                            // Shows a flame icon + current streak count
+                            // when streak >= 2 (1-day streaks aren't worth
+                            // showing — every chat has at least 1).
+                            // Sourced from the Socket.IO engagement
+                            // provider, which is updated instantly on
+                            // chat:streakUpdated events.
+                            Builder(builder: (context) {
+                              final streak = ref
+                                  .watch(chatEngagementProvider(widget.familyId))
+                                  .streak;
+                              if (streak < 2) return const SizedBox.shrink();
+                              return Padding(
+                                padding: const EdgeInsets.only(left: 6),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 7, vertical: 2.5),
+                                  decoration: BoxDecoration(
+                                    color: KinrelColors.orange
+                                        .withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(100),
+                                    border: Border.all(
+                                      color: KinrelColors.orange
+                                          .withValues(alpha: 0.35),
+                                      width: 0.6,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '🔥',
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          height: 1.0,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        '$streak',
+                                        style: TextStyle(
+                                          fontFamily: KinrelTypography.bodyFont,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          color: KinrelColors.orange,
+                                          letterSpacing: 0.3,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }),
                             // ── Presence indicator ────────────────────
                             // v134: Refined status — small glowing dot
                             // (with subtle ambient glow, not flat) +
                             // letter-spaced count text. Feels integrated
                             // rather than a generic green dot.
-                            if (chatState.onlineCount > 0) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                width: 5,
-                                height: 5,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: KinrelColors.success,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: KinrelColors.success
-                                          .withValues(alpha: 0.5),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 0),
+                            //
+                            // Feature 4: presence is now driven by the
+                            // Socket.IO engagement provider (instant updates
+                            // via 'presenceUpdate' events) in addition to
+                            // the Supabase-Realtime-based chatState.onlineCount.
+                            // The engagement provider updates within
+                            // milliseconds of a user connecting/disconnecting;
+                            // the Supabase Realtime update arrives 100-500ms
+                            // later. We show "Active now" when 1+ member is
+                            // online (matches WhatsApp/Telegram UX), or fall
+                            // back to "Last seen" via the engagement provider's
+                            // presence map when no one is online.
+                            Builder(builder: (context) {
+                              final eng = ref.watch(
+                                  chatEngagementProvider(widget.familyId));
+                              final onlineCount = eng.presence.values
+                                  .where((p) => p.isOnline)
+                                  .length;
+                              final showOnline = onlineCount > 0 ||
+                                  chatState.onlineCount > 0;
+                              // For the "Last seen X ago" fallback, find the
+                              // most recently seen offline user.
+                              final lastSeenPresence = eng.presence.values
+                                  .where((p) => !p.isOnline && p.lastSeenAt != null)
+                                  .toList()
+                                ..sort((a, b) => b.lastSeenAt!
+                                    .compareTo(a.lastSeenAt!));
+                              // Feature 7: locale-aware presence labels.
+                              final l10n = S.of(context);
+                              if (!showOnline &&
+                                  lastSeenPresence.isNotEmpty &&
+                                  lastSeenPresence.first.lastSeenAt!.year > 1970) {
+                                return Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      lastSeenPresence.first.lastSeenLabelLocalized(l10n),
+                                      style: TextStyle(
+                                        fontFamily: KinrelTypography.bodyFont,
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w500,
+                                        color: KinrelColors.textSilver
+                                            .withValues(alpha: 0.7),
+                                        letterSpacing: 0.2,
+                                      ),
                                     ),
                                   ],
-                                ),
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                '${chatState.onlineCount} active',
-                                style: TextStyle(
-                                  fontFamily: KinrelTypography.bodyFont,
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w500,
-                                  color: KinrelColors.textSilver
-                                      .withValues(alpha: 0.85),
-                                  letterSpacing: 0.2,
-                                ),
-                              ),
-                            ],
+                                );
+                              }
+                              if (!showOnline) return const SizedBox.shrink();
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    width: 5,
+                                    height: 5,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: KinrelColors.success,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: KinrelColors.success
+                                              .withValues(alpha: 0.5),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 0),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    // Feature 7: localized "Active now" / "N active"
+                                    (onlineCount == 1 || chatState.onlineCount == 1)
+                                        ? (l10n?.chatActiveNow ?? 'Active now')
+                                        : (l10n?.chatNActive(onlineCount > 0 ? onlineCount : chatState.onlineCount) ??
+                                            '${onlineCount > 0 ? onlineCount : chatState.onlineCount} active'),
+                                    style: TextStyle(
+                                      fontFamily: KinrelTypography.bodyFont,
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w500,
+                                      color: KinrelColors.textSilver
+                                          .withValues(alpha: 0.85),
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }),
                           ],
                         ),
                       ],
@@ -1116,7 +1345,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 // silver) so they never compete with the identity column.
                 // The members button is dropped — redundant with tapping
                 // the avatar/header which navigates to family detail.
-                // Video + voice + more remain, but more compact.
+                // Feature 5: search icon added before video/voice for
+                // discoverability (also accessible via the more menu).
+                HeaderActionButton(
+                  icon: Icons.search,
+                  size: 20,
+                  onPressed: () {
+                    context.push('/family/${widget.familyId}/chat/search');
+                  },
+                ),
                 HeaderActionButton(
                   icon: Icons.videocam_outlined,
                   size: 20,
@@ -2281,6 +2518,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     },
                     onReact: () => _showReactionPicker(msg.id),
                     onLongPress: () => _showMessageActions(msg),
+                    /// Feature 6: tap the quoted reply preview to scroll
+                    /// to the original message. We pass a callback only
+                    /// when replyToId is set (avoids creating a closure
+                    /// for every bubble).
+                    onReplyPreviewTap: msg.replyToId != null
+                        ? () => _scrollToMessage(msg.replyToId!)
+                        : null,
                   ),
                 ),
               );
@@ -2366,7 +2610,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   // ── Typing Indicator ─────────────────────────────────────────────
 
-  Widget _buildTypingIndicator(ChatState chatState) {
+  Widget _buildTypingIndicator(ChatState chatState, ChatEngagementState engagement) {
+    // Feature 7: use the locale-aware typing label (Hindi/Marathi/Tamil/etc.)
+    // Falls back to English if localization is unavailable.
+    final l10n = S.of(context);
+    // Prefer the Socket.IO engagement layer's label (supports multiple typers
+    // and is sub-second fresh). Fall back to the Supabase polling result.
+    final label = engagement.isSomeoneTyping
+        ? engagement.typingLabelLocalized(l10n)
+        : (l10n?.chatTypingSingle(chatState.typingUserName ?? 'Someone') ??
+            '${chatState.typingUserName ?? 'Someone'} is typing');
+    final firstInitial = engagement.isSomeoneTyping
+        ? (engagement.typingUserNames.values.isNotEmpty
+            ? engagement.typingUserNames.values.first
+            : 'Someone')
+        : (chatState.typingUserName ?? 'Someone');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Row(
@@ -2381,7 +2639,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
             child: Center(
               child: Text(
-                ((chatState.typingUserName != null && chatState.typingUserName!.isNotEmpty) ? chatState.typingUserName!.substring(0, 1) : '?').toUpperCase(),
+                ((firstInitial.isNotEmpty) ? firstInitial.substring(0, 1) : '?').toUpperCase(),
                 style: TextStyle(
                   fontFamily: KinrelTypography.displayFont,
                   fontSize: 9,
@@ -2393,7 +2651,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
           const SizedBox(width: 8),
           Text(
-            '${chatState.typingUserName ?? 'Someone'} is typing',
+            label,
             style: TextStyle(
               fontFamily: KinrelTypography.bodyFont,
               fontSize: 12,

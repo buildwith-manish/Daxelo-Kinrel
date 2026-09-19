@@ -42,6 +42,34 @@ class ReadReceipt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = messageStatus ?? (isRead ? 'read' : 'sent');
+
+    // Feature 1: 'sending' shows a small clock icon (no ticks yet — the
+    // message hasn't reached the server). 'failed' shows a red error
+    // circle with a retry affordance handled by the bubble (tapping the
+    // whole bubble retries, not just the receipt).
+    if (status == 'sending') {
+      return SizedBox(
+        width: 10,
+        height: 10,
+        child: Icon(
+          Icons.access_time,
+          size: 10,
+          color: KinrelColors.textDim.withValues(alpha: 0.7),
+        ),
+      );
+    }
+    if (status == 'failed') {
+      return SizedBox(
+        width: 12,
+        height: 12,
+        child: Icon(
+          Icons.error_outline,
+          size: 12,
+          color: Colors.red.shade400,
+        ),
+      );
+    }
+
     final Color color;
     final bool showDouble;
 
@@ -52,6 +80,7 @@ class ReadReceipt extends StatelessWidget {
       color = KinrelColors.textDim;
       showDouble = true;
     } else {
+      // 'sent' — single tick
       color = KinrelColors.textDim;
       showDouble = false;
     }

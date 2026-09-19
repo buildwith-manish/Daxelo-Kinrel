@@ -29,6 +29,7 @@ import { ModerationModule } from './modules/moderation/moderation.module';
 import { WhatsAppModule } from './modules/whatsapp/whatsapp.module';
 import { ShareModule } from './modules/share/share.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { KinshipModule } from './modules/kinship/kinship.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { AiChatModule } from './modules/ai-chat/ai-chat.module';
@@ -133,6 +134,7 @@ import { TrackcModule } from './trackc/trackc.module';
     WhatsAppModule,
     ShareModule,
     AdminModule,
+    AnalyticsModule,
     KinshipModule,
     ProfileModule,
     AiChatModule,
