@@ -9,7 +9,7 @@ class EnvConfig {
   static const String _fallbackSupabaseUrl =
       'https://promxswvsnvilplmrtsj.supabase.co';
   static const String _fallbackSupabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY';
+      'sb_publishable_LcAMCNq9bh-pDQxtpcW0Rg_-gR0MyTb';
   static const String _fallbackApiBaseUrl =
       'https://daxelo-kinrel-server.onrender.com';
 

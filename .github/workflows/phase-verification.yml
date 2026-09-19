@@ -483,7 +483,7 @@ jobs:
         run: |
           cat > .env <<'EOF'
           SUPABASE_URL=https://promxswvsnvilplmrtsj.supabase.co
-          SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY
+          SUPABASE_ANON_KEY=sb_publishable_LcAMCNq9bh-pDQxtpcW0Rg_-gR0MyTb
           API_BASE_URL=https://daxelo-kinrel-server.onrender.com
           EOF
           sed -i 's/^[[:space:]]*//' .env
@@ -602,7 +602,7 @@ jobs:
         run: |
           cat > .env <<'EOF'
           SUPABASE_URL=https://promxswvsnvilplmrtsj.supabase.co
-          SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY
+          SUPABASE_ANON_KEY=sb_publishable_LcAMCNq9bh-pDQxtpcW0Rg_-gR0MyTb
           API_BASE_URL=https://daxelo-kinrel-server.onrender.com
           EOF
           sed -i 's/^[[:space:]]*//' .env

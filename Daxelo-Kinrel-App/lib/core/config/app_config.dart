@@ -9,13 +9,22 @@ class AppConfig {
   static const String appNameByDaxelo = 'Daxelo KINREL';
   static const String version = '1.0.0';
 
-  // Hardcoded fallbacks — Supabase anon key is safe for client-side use
-  // (only service_role key is secret). These ensure the app ALWAYS has
-  // valid credentials even when .env is missing or env vars are empty.
+  // Hardcoded fallbacks — Supabase publishable key is safe for client-side
+  // use (only service_role/secret keys are secret). These ensure the app
+  // ALWAYS has valid credentials even when .env is missing or env vars are
+  // empty.
+  //
+  // QA fix 2026-09-19: the Supabase gateway began rejecting the LEGACY
+  // anon JWT (401 UNAUTHORIZED_INVALID_API_KEY) mid-session — the app could
+  // not sign in or make any REST call. Migrated to the project's new
+  // publishable key (sb_publishable_…), the platform's designated
+  // replacement. Keep in mind: if this key is ever rotated again, the same
+  // breakage returns — prefer setting SUPABASE_ANON_KEY via .env/dart-define
+  // so it can be changed without a code release.
   static const String _fallbackSupabaseUrl =
       'https://promxswvsnvilplmrtsj.supabase.co';
   static const String _fallbackSupabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByb214c3d2c252aWxwbG1ydHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1OTcxODAsImV4cCI6MjA5NTE3MzE4MH0.70VPcCiCItKPx56cH-Y0DmcvWnrBiegmDkjv-V21taY';
+      'sb_publishable_LcAMCNq9bh-pDQxtpcW0Rg_-gR0MyTb';
   static const String _fallbackApiBaseUrl =
       'https://daxelo-kinrel-server.onrender.com';
 
