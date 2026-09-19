@@ -357,6 +357,49 @@ class LudoNotifier extends StateNotifier<LudoState> {
           isRolling: false,
           lastRollResult: diceValue,
         );
+
+        // No legal move? The turn would be stuck forever — moveToken
+        // rejects everything and lastDiceRoll blocks re-rolling. Give
+        // the player a moment to see the roll, then pass the turn
+        // (mirrors the turn-advance logic in moveToken).
+        final legalTokens = getLegalTokens(state.getMyTokens(myId), diceValue);
+        if (legalTokens.isEmpty) {
+          await Future.delayed(const Duration(seconds: 2));
+          if (!mounted) return true;
+          try {
+            // Re-read the row so we never stomp a turn that already
+            // moved on (forfeit handling, another client, etc.).
+            final freshResp = await client
+                .from('ludo_games')
+                .select()
+                .eq('id', gameId)
+                .maybeSingle();
+            final freshGame = freshResp == null
+                ? null
+                : LudoGame.fromJson(freshResp as Map<String, dynamic>);
+            if (freshGame != null &&
+                freshGame.isInProgress &&
+                freshGame.currentTurnPlayerId == myId &&
+                freshGame.lastDiceRoll == diceValue) {
+              final sortedPlayers = List<LudoPlayer>.from(state.players)
+                ..sort((a, b) => a.turnOrder.compareTo(b.turnOrder));
+              final currentIdx =
+                  sortedPlayers.indexWhere((p) => p.userId == myId);
+              if (sortedPlayers.isNotEmpty && currentIdx >= 0) {
+                final nextIdx =
+                    (currentIdx + 1) % sortedPlayers.length;
+                await client.from('ludo_games').update({
+                  'lastDiceRoll': null,
+                  'consecutiveSixes': 0,
+                  'extraTurnPending': false,
+                  'currentTurnPlayerId': sortedPlayers[nextIdx].userId,
+                }).eq('id', gameId);
+              }
+            }
+          } catch (e) {
+            debugPrint('[Ludo] no-move pass-turn error: $e');
+          }
+        }
       }
       return true;
     } catch (e) {

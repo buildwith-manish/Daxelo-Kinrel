@@ -175,6 +175,18 @@ class ImpostorNotifier extends StateNotifier<ImpostorState> {
       final others = roster.where((p) => p.userId != myId).toList();
       if (others.isNotEmpty) {
         await client.from('impostor_players').upsert(others.map((p) => {'gameId': newGameId, 'userId': p.userId, 'userName': p.userName}).toList(), onConflict: 'gameId,userId');
+        // The batch upsert stamps every row with the same joinedAt, so
+        // ORDER BY joinedAt (used by _refreshPlayers and the server's
+        // playerOrder build) is a coin flip between clients. Stagger the
+        // timestamps by ordinal so the roster order is deterministic.
+        // Best-effort — never blocks the rematch.
+        final base = DateTime.now();
+        for (var i = 0; i < others.length; i++) {
+          if (others[i].userId.isEmpty) continue;
+          try {
+            await client.from('impostor_players').update({'joinedAt': base.add(Duration(seconds: i + 1)).toIso8601String()}).eq('gameId', newGameId).eq('userId', others[i].userId);
+          } catch (_) {}
+        }
         for (final p in others) {
           if (p.userId.isEmpty) continue;
           try { await client.rpc('fn_record_room_join', params: {'p_game_table': 'impostor_games', 'p_game_id': newGameId, 'p_family_id': familyId, 'p_user_id': p.userId, 'p_user_name': p.userName, 'p_role': 'player'}); } catch (_) {}

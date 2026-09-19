@@ -118,6 +118,12 @@ class CarromNotifier extends StateNotifier<CarromState> {
   Timer? _simTimer;
   int _simStepCount = 0;
 
+  /// Coin indices potted during the current turn's simulation. Potted
+  /// bodies are removed from the physics engine mid-simulation, so
+  /// readCoinPositions() no longer reports them — this set is the only
+  /// record used to mark them isPotted when the turn finalizes.
+  final Set<int> _pottedThisTurn = {};
+
   // ── Public API ───────────────────────────────────────────────────
 
   /// Host: create a new room (Create Room flow).
@@ -442,6 +448,7 @@ class CarromNotifier extends StateNotifier<CarromState> {
     );
 
     _simStepCount = 0;
+    _pottedThisTurn.clear();
 
     // Run the simulation in a timer at 60fps
     _simTimer = Timer.periodic(
@@ -470,6 +477,7 @@ class CarromNotifier extends StateNotifier<CarromState> {
     // Check for potted coins mid-simulation and remove them
     final pottedMidSim = _physics!.checkPottedCoins();
     if (pottedMidSim.isNotEmpty) {
+      _pottedThisTurn.addAll(pottedMidSim);
       _physics!.removePottedCoins(pottedMidSim);
     }
 
@@ -516,6 +524,13 @@ class CarromNotifier extends StateNotifier<CarromState> {
           y: y,
           isPotted: updatedCoins[i].isPotted || wasPotted,
         );
+      } else if (!updatedCoins[i].isPotted &&
+          _pottedThisTurn.contains(i)) {
+        // Potted coins are removed from the physics engine
+        // mid-simulation, so they never appear in the final positions
+        // map — mark them potted here or scores / win detection never
+        // see them.
+        updatedCoins[i] = updatedCoins[i].copyWith(isPotted: true);
       }
     }
 

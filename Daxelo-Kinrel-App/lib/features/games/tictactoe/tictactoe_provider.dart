@@ -37,6 +37,16 @@ class TttNotifier extends StateNotifier<TttState> {
   String get _myName => _client?.auth.currentUser?.userMetadata?['name'] as String? ?? 'Player';
   RealtimeChannel? _channel; String? _gameId;
 
+  /// ── QA fix 2026-09-21: dedicated moves channel. The moves realtime
+  /// filter was captured once at subscribe time with a stale/empty round
+  /// id, so `state.moves` never grew and every move was written with
+  /// `moveNumber = 1`. The channel is now re-armed for the current round
+  /// whenever rounds load or a new round starts.
+  RealtimeChannel? _movesChannel;
+
+  /// Cleanup timer (cancelled in dispose — see _scheduleRoomCleanup).
+  Timer? _cleanupTimer;
+
   /// DB presence heartbeat — keeps the players' game_participants rows
   /// fresh so the disconnect reaper never hard-deletes a live room.
   RoomPresenceHeartbeat? _heartbeat;
@@ -49,6 +59,12 @@ class TttNotifier extends StateNotifier<TttState> {
   Future<String?> createRoom({required bool spectatorsEnabled, int bestOf = 1}) async {
     final client = _client; final myId = _myId;
     if (client == null || myId == null) { state = state.copyWith(error: 'Not signed in'); return null; }
+    // ── QA fix 2026-09-21: FULL reset before creating a new room.
+    // "Play Again" previously left the completed match's state on the
+    // provider (notably `winningLine`), and `copyWith` preserved it —
+    // the new board rendered with `canTap = … && winLine == null` false
+    // for EVERY cell, freezing the rematch for both players.
+    _reset();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final deadline = DateTime.now().add(const Duration(minutes: 5));
@@ -94,6 +110,9 @@ class TttNotifier extends StateNotifier<TttState> {
   Future<bool> joinRoom(String gameId) async {
     final client = _client; final myId = _myId;
     if (client == null || myId == null) { state = state.copyWith(error: 'Not signed in'); return false; }
+    // ── QA fix 2026-09-21: reset stale state from a previous match
+    // before joining (same rematch-freeze class as createRoom).
+    _reset();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       var gameResp = await client.from('tictactoe_games').select().eq('id', gameId).maybeSingle();
@@ -196,8 +215,12 @@ class TttNotifier extends StateNotifier<TttState> {
   void _reset() {
     _channel?.unsubscribe();
     _channel = null;
+    _movesChannel?.unsubscribe();
+    _movesChannel = null;
     _heartbeat?.stop();
     _heartbeat = null;
+    _cleanupTimer?.cancel();
+    _cleanupTimer = null;
     _gameId = null;
     state = const TttState();
   }
@@ -232,6 +255,11 @@ class TttNotifier extends StateNotifier<TttState> {
   Future<bool> placeMark(int cellIndex) async {
     final client = _client; final gameId = _gameId; final myId = _myId; final game = state.game;
     if (client == null || gameId == null || myId == null || game == null) return false;
+    // ── QA fix 2026-09-21: block double-taps. Without this guard a
+    // second tap during the first move's DB round-trip passed all
+    // checks on the STALE board and overwrote the first mark.
+    if (state.isSubmitting) return false;
+    if (!game.isInProgress) return false;
     if (!game.isMyTurn(myId)) return false;
     final myMark = game.markForPlayer(myId);
     if (myMark == null) return false;
@@ -240,6 +268,30 @@ class TttNotifier extends StateNotifier<TttState> {
     if (error != null) { GameMotionTokens.error(); state = state.copyWith(error: error); return false; }
 
     state = state.copyWith(isSubmitting: true, clearError: true);
+    // ── QA fix 2026-09-21: optimistic local board update so the tapped
+    // cell is visibly taken immediately and a second tap fails the
+    // validateMove check above even before the realtime echo lands.
+    {
+      final optimisticRound = state.currentRound;
+      if (optimisticRound != null) {
+        final optimisticBoard = List<String?>.from(board);
+        optimisticBoard[cellIndex] = myMark.name;
+        final optimisticRounds = state.rounds
+            .map((r) => r.id == optimisticRound.id
+                ? TttRound(
+                    id: r.id,
+                    gameId: r.gameId,
+                    roundNumber: r.roundNumber,
+                    boardState: optimisticBoard,
+                    result: r.result,
+                    completedAt: r.completedAt,
+                    createdAt: r.createdAt,
+                  )
+                : r)
+            .toList();
+        state = state.copyWith(rounds: optimisticRounds);
+      }
+    }
     try {
       final currentRound = state.currentRound!;
       final moveNumber = state.moves.length + 1;
@@ -267,6 +319,10 @@ class TttNotifier extends StateNotifier<TttState> {
         if (result == RoundResult.oWin) newRoundsWonO++;
 
         final matchWinner = getMatchWinner(newRoundsWonX, newRoundsWonO, game.bestOf);
+        // ── QA fix 2026-09-21: draws now end the series once all rounds
+        // are played. Previously a draw never counted toward the series
+        // and the game kept creating new rounds forever ("Round 2/1").
+        final seriesExhausted = game.currentRound >= game.bestOf;
         if (matchWinner != null) {
           // Match over
           final winnerId = game.idForMark(matchWinner)!;
@@ -277,6 +333,15 @@ class TttNotifier extends StateNotifier<TttState> {
             'roundsWonX': newRoundsWonX, 'roundsWonO': newRoundsWonO, 'overallWinnerId': winnerId, 'overallWinnerName': winnerName,
           }).eq('id', gameId);
           GameMotionTokens.celebrate();
+          _scheduleRoomCleanup(gameId);
+        } else if (seriesExhausted) {
+          // Series over as a DRAW (no majority winner after all rounds).
+          await client.from('tictactoe_games').update({
+            'status': 'completed', 'completedAt': DateTime.now().toIso8601String(),
+            'lastActivityAt': DateTime.now().toIso8601String(),
+            'roundsWonX': newRoundsWonX, 'roundsWonO': newRoundsWonO,
+            'overallWinnerId': null, 'overallWinnerName': null,
+          }).eq('id', gameId);
           _scheduleRoomCleanup(gameId);
         } else {
           // Next round
@@ -300,13 +365,16 @@ class TttNotifier extends StateNotifier<TttState> {
     } catch (e) { debugPrint('[TTT] placeMark error: $e'); state = state.copyWith(isSubmitting: false, error: '$e'); return false; }
   }
 
-  void leaveGame() { _channel?.unsubscribe(); _channel = null; _heartbeat?.stop(); _heartbeat = null; _gameId = null; }
+  void leaveGame() { _channel?.unsubscribe(); _channel = null; _movesChannel?.unsubscribe(); _movesChannel = null; _heartbeat?.stop(); _heartbeat = null; _gameId = null; }
 
   /// Schedule the temporary room (and all temporary player associations)
   /// for deletion 30s after the game ends. The hourly pg_cron job is the
   /// safety net if the user closes the app before this fires.
   void _scheduleRoomCleanup(String gameId) {
-    Timer(const Duration(seconds: 30), () {
+    // ── QA fix 2026-09-21: store + cancel the timer — a bare Timer kept
+    // a handle to this notifier after dispose and threw StateError.
+    _cleanupTimer?.cancel();
+    _cleanupTimer = Timer(const Duration(seconds: 30), () {
       _ref.read(temporaryRoomServiceProvider).endGame(
             gameTable: 'tictactoe_games',
             gameId: gameId,
@@ -358,10 +426,25 @@ class TttNotifier extends StateNotifier<TttState> {
         filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'gameId', value: gameId),
         callback: (payload) {
           final round = TttRound.fromJson(payload.newRecord);
-          if (!state.rounds.any((r) => r.id == round.id)) { state = state.copyWith(rounds: [...state.rounds, round], winningLine: null); }
+          if (!state.rounds.any((r) => r.id == round.id)) {
+            state = state.copyWith(rounds: [...state.rounds, round], clearWinningLine: true, moves: const []);
+            // Re-arm the moves channel for the new round.
+            _subscribeMoves(round.id);
+          }
         })
+      .subscribe();
+  }
+
+  /// (Re)subscribe to move INSERTs for [roundId]. Called after rounds
+  /// load and whenever a new round starts, so the server-side filter
+  /// always matches the CURRENT round.
+  void _subscribeMoves(String roundId) {
+    _movesChannel?.unsubscribe();
+    final client = _client;
+    if (client == null || roundId.isEmpty) return;
+    _movesChannel = client.channel('ttt_moves:$roundId')
       .onPostgresChanges(event: PostgresChangeEvent.insert, schema: 'public', table: 'tictactoe_moves',
-        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'roundId', value: state.currentRound?.id ?? ''),
+        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'roundId', value: roundId),
         callback: (payload) {
           final move = TttMoveRecord.fromJson(payload.newRecord);
           if (!state.moves.any((m) => m.id == move.id)) { state = state.copyWith(moves: [...state.moves, move]); }
@@ -374,11 +457,18 @@ class TttNotifier extends StateNotifier<TttState> {
     try {
       final resp = await client.from('tictactoe_rounds').select().eq('gameId', gameId).order('roundNumber', ascending: true);
       state = state.copyWith(rounds: resp.map((r) => TttRound.fromJson(r as Map<String, dynamic>)).toList());
+      // ── QA fix 2026-09-21: arm the moves channel for the CURRENT round
+      // after the rounds land (the subscribe-then-refresh order used to
+      // bind the filter to an empty round id).
+      final currentRoundId = state.currentRound?.id;
+      if (currentRoundId != null && currentRoundId.isNotEmpty) {
+        _subscribeMoves(currentRoundId);
+      }
     } catch (e) { debugPrint('[TTT] refreshRounds error: $e'); }
   }
 
   @override
-  void dispose() { _channel?.unsubscribe(); _heartbeat?.stop(); super.dispose(); }
+  void dispose() { _channel?.unsubscribe(); _movesChannel?.unsubscribe(); _heartbeat?.stop(); _cleanupTimer?.cancel(); super.dispose(); }
 }
 
 final tttProvider = StateNotifierProvider.autoDispose.family<TttNotifier, TttState, String>((ref, familyId) => TttNotifier(ref, familyId));

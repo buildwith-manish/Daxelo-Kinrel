@@ -383,7 +383,6 @@ class GamingPodium extends StatelessWidget {
 
     Widget slot(dynamic e, double height, Color color, int rank) {
       final name = (e.userName as String?) ?? 'Family';
-      final points = (e.points as num?)?.toInt() ?? 0;
       final isMe = (e.userId as String?) == myUserId;
       return GestureDetector(
         onTap: onTap != null ? () => onTap!(e) : null,
@@ -435,7 +434,11 @@ class GamingPodium extends StatelessWidget {
                 ),
               ),
               Text(
-                '$points pts',
+                // ── QA fix 2026-09-21: the podium ranks by GAMES PLAYED
+                // (participation leaderboard) but used to display "N pts",
+                // which read as "#1 with 0 pts" above "#2 with 15 pts".
+                // Show the ranking metric instead.
+                '${(e.matches as num?)?.toInt() ?? 0} games',
                 style: TextStyle(
                   fontFamily: KinrelTypography.monoFont,
                   fontSize: 10,

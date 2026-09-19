@@ -75,6 +75,33 @@ GameType? gameTypeForTable(String table) {
       return GameType.tugOfWar;
     case 'memorymatch_games':
       return GameType.memoryMatch;
+    // ── QA fix 2026-09-21: the 12 newer game tables were missing from
+    // this mapping, so their one-tap lobby invites silently no-oped
+    // (gameTypeForTable returned null before any insert ran).
+    case 'ashta_chamma_games':
+      return GameType.ashtaChamma;
+    case 'connect4_games':
+      return GameType.connect4;
+    case 'impostor_games':
+      return GameType.impostor;
+    case 'color_trap_games':
+      return GameType.colorTrap;
+    case 'freeze_auction_games':
+      return GameType.freezeAuction;
+    case 'flick_arena_games':
+      return GameType.flickArena;
+    case 'secret_heist_games':
+      return GameType.secretHeist;
+    case 'mind_match_games':
+      return GameType.mindMatch;
+    case 'word_forge_games':
+      return GameType.wordForge;
+    case 'code_clues_games':
+      return GameType.codeClues;
+    case 'night_falls_games':
+      return GameType.nightFalls;
+    case 'sketch_telephone_games':
+      return GameType.sketchTelephone;
     default:
       return null;
   }
@@ -406,7 +433,11 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
                 onInvite: () => _sendInvite(invitable[i]),
               ),
             ],
-            if (invitable.length > kFamilyInviteCardRows)
+            // ── QA fix 2026-09-21: only show the "+N more" row when there
+            // actually ARE hidden members. With fewer invitable members
+            // than the preview row count (kFamilyInviteCardRows), the old
+            // code rendered "-1 more members to invite".
+            if (invitable.length > kFamilyInviteCardRows) ...[
               Divider(
                   height: 1, color: KinrelColors.border.withValues(alpha: 0.5)),
             // "+N more" row → full sheet.
@@ -445,6 +476,7 @@ class _FamilyInviteCardState extends ConsumerState<FamilyInviteCard> {
                 ),
               ),
             ),
+            ], // end "+N more" row (only when there are hidden members)
           ],
         ],
       ),

@@ -469,4 +469,11 @@ void invalidateGamingProviders(Ref ref) {
   ref.invalidate(gamingLeaderboardProvider);
   ref.invalidate(gamingMatchHistoryProvider);
   ref.invalidate(gamingActivityProvider);
+  // ── QA fix 2026-09-21: these providers were missing — the hub showed
+  // stale leaderboard / milestones / streak data until the user pulled
+  // to refresh after finishing a match.
+  ref.invalidate(participationLeaderboardProvider);
+  ref.invalidate(gamingMilestonesProvider);
+  ref.invalidate(familyPlayStreakProvider);
+  ref.invalidate(familyMomentsProvider);
 }

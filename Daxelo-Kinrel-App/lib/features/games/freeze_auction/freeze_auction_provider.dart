@@ -91,11 +91,14 @@ class FreezeAuctionNotifier extends StateNotifier<FreezeAuctionState_> {
     } catch (e) { debugPrint('[FreezeAuction] startGame error: $e'); state = state.copyWith(isStarting: false, error: '$e'); return 'Could not start the game'; }
   }
 
-  Future<void> submitBid(int amount) async {
-    final gameId = _gameId; if (gameId == null) return;
-    try { final client = _client; if (client == null) return;
+  /// Submit a bid for the current round. Returns true only when the RPC
+  /// succeeded — callers use this to lock the local "submitted" flag.
+  Future<bool> submitBid(int amount) async {
+    final gameId = _gameId; if (gameId == null) return false;
+    try { final client = _client; if (client == null) return false;
       await client.rpc('fn_freezeauction_bid', params: {'p_game_id': gameId, 'p_amount': amount});
-    } catch (e) { debugPrint('[FreezeAuction] bid error: $e'); }
+      return true;
+    } catch (e) { debugPrint('[FreezeAuction] bid error: $e'); return false; }
   }
 
   Future<void> advancePhase() async {

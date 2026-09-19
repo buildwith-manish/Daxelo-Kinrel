@@ -511,6 +511,15 @@ class WordForgeNotifier extends StateNotifier<WordForgeState_> {
   void _applyGameRow(WordForgeGame game) {
     final previous = state.game;
     state = state.copyWith(game: game);
+    // Round advanced → myDefinition/myVote are round-scoped but were only
+    // fetched on submit/load. Re-run both so the writing/voting forms
+    // unlock for the new round instead of showing stale round-1 data.
+    if (previous != null &&
+        previous.boardState?.currentRoundNumber !=
+            game.boardState?.currentRoundNumber) {
+      _refreshMyDefinition(game.id);
+      _refreshMyVote(game.id);
+    }
     if (game.isInProgress && _watchdogTimer == null) {
       _watchdogTimer = Timer.periodic(const Duration(seconds: 2), (_) {
         _tryRpc('fn_wordforge_tick', {'p_game_id': game.id});

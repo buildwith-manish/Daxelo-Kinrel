@@ -505,6 +505,13 @@ class SecretHeistNotifier extends StateNotifier<SecretHeistState_> {
   void _applyGameRow(SecretHeistGame game) {
     final previous = state.game;
     state = state.copyWith(game: game);
+    // Round advanced → myAction still points at the previous round's row.
+    // Re-scope it to the new round so the submit form unlocks again.
+    if (previous != null &&
+        previous.boardState?.currentRoundNumber !=
+            game.boardState?.currentRoundNumber) {
+      _refreshMyAction(game.id);
+    }
     if (game.isInProgress && _watchdogTimer == null) {
       _watchdogTimer = Timer.periodic(const Duration(seconds: 2), (_) {
         _tryRpc('fn_secretheist_tick', {'p_game_id': game.id});
@@ -542,11 +549,18 @@ class SecretHeistNotifier extends StateNotifier<SecretHeistState_> {
     final myId = _myId;
     if (client == null || myId == null) return;
     try {
-      final resp = await client
+      // Round-scoped: only the CURRENT round's action counts, so a
+      // resolved round-1 action doesn't block submissions in round 2+.
+      final roundNumber = state.game?.boardState?.currentRoundNumber;
+      var query = client
           .from('secret_heist_actions')
           .select()
           .eq('gameId', gameId)
-          .eq('userId', myId)
+          .eq('userId', myId);
+      if (roundNumber != null) {
+        query = query.eq('roundNumber', roundNumber);
+      }
+      final resp = await query
           .order('submittedAt', ascending: false)
           .limit(1)
           .maybeSingle();

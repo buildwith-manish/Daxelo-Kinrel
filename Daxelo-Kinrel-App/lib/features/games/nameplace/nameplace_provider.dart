@@ -86,6 +86,7 @@ class NameplaceNotifier extends StateNotifier<NameplaceState> {
   RealtimeChannel? _channel;
   Timer? _roundTimer;
   String? _gameId;
+  bool _isPickingLetter = false; // in-flight guard for pickLetter
 
   Future<String?> createGame({int totalRounds = 5, int roundTimerSeconds = 60}) async {
     final client = _client;
@@ -208,27 +209,56 @@ class NameplaceNotifier extends StateNotifier<NameplaceState> {
   Future<void> pickLetter(String letter) async {
     final client = _client;
     final gameId = _gameId;
+    final myId = _myId;
     final game = state.game;
-    if (client == null || gameId == null || game == null) return;
+    if (client == null || gameId == null || myId == null || game == null) return;
 
-    final roundEnds = DateTime.now().add(Duration(seconds: game.roundTimerSeconds));
-    await client.from('nameplace_games').update({
-      'currentLetter': letter,
-      'roundEndsAt': roundEnds.toIso8601String(),
-    }).eq('id', gameId);
+    // Guards — only the current chooser may pick, and only once per
+    // round. Without these, a double-tap inserts two round rows for the
+    // same roundNumber, and the later .single() lookups in
+    // submitAnswers / _resolveRound throw forever (game bricked).
+    if (_isPickingLetter) return;
+    if (game.currentLetterChooserId == null ||
+        game.currentLetterChooserId != myId) return;
+    if (game.currentLetter != null) return; // already picked this round
+    if (state.rounds.any((r) => r.roundNumber == game.currentRound)) return;
 
-    // Insert round record
-    final chooser = state.players.firstWhere((p) => p.userId == game.currentLetterChooserId);
-    await client.from('nameplace_rounds').insert({
-      'gameId': gameId,
-      'roundNumber': game.currentRound,
-      'letter': letter,
-      'letterChooserId': game.currentLetterChooserId!,
-      'letterChooserName': chooser.userName,
-    });
+    _isPickingLetter = true;
+    try {
+      final roundEnds = DateTime.now().add(Duration(seconds: game.roundTimerSeconds));
+      await client.from('nameplace_games').update({
+        'currentLetter': letter,
+        'roundEndsAt': roundEnds.toIso8601String(),
+      }).eq('id', gameId);
 
-    GameMotionTokens.success();
-    _startRoundTimer();
+      // Insert round record
+      final chooser = state.players
+          .where((p) => p.userId == game.currentLetterChooserId)
+          .firstOrNull;
+      await client.from('nameplace_rounds').insert({
+        'gameId': gameId,
+        'roundNumber': game.currentRound,
+        'letter': letter,
+        'letterChooserId': game.currentLetterChooserId!,
+        'letterChooserName': chooser?.userName ?? 'Player',
+      });
+
+      GameMotionTokens.success();
+      _startRoundTimer();
+    } catch (e) {
+      debugPrint('[Nameplace] pickLetter error: $e');
+      // Roll the letter back so the round isn't half-created (a missing
+      // round row bricks submitAnswers' .single() lookup).
+      try {
+        await client.from('nameplace_games').update({
+          'currentLetter': null,
+          'roundEndsAt': null,
+        }).eq('id', gameId);
+      } catch (_) {}
+      state = state.copyWith(error: 'Could not start the round. Try again.');
+    } finally {
+      _isPickingLetter = false;
+    }
   }
 
   /// Player: update an answer for a category (local state only until submit).

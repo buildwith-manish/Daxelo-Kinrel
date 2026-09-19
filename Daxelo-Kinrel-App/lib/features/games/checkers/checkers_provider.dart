@@ -112,6 +112,7 @@ class CheckersNotifier extends StateNotifier<CheckersState> {
   /// fresh so the disconnect reaper never hard-deletes a live room.
   RoomPresenceHeartbeat? _heartbeat;
   String? _gameId;
+  Timer? _cleanupTimer;
 
   // ── Public API ───────────────────────────────────────────────────
 
@@ -427,10 +428,19 @@ class CheckersNotifier extends StateNotifier<CheckersState> {
 
   /// Attempt to move the selected piece to (toRow, toCol).
   Future<bool> makeMove(int toRow, int toCol) async {
+    // Double-tap guard — a second tap while the first move's DB writes
+    // are still in flight must be a no-op (a stale selection can
+    // null-assert in applyMove and corrupt the board).
+    if (state.isSubmitting) return false;
     final game = state.game;
     final client = _client;
     final myId = _myId;
     if (game == null || client == null || myId == null) return false;
+    // Re-check turn + status against the CURRENT state — a realtime
+    // update may have flipped the turn since the piece was selected.
+    if (!game.isInProgress || game.currentTurnPlayerId != myId) {
+      return false;
+    }
     if (state.selectedRow == null || state.selectedCol == null) return false;
 
     final fromRow = state.selectedRow!;
@@ -445,11 +455,34 @@ class CheckersNotifier extends StateNotifier<CheckersState> {
       return false;
     }
 
-    state = state.copyWith(isSubmitting: true, clearError: true);
+    // Re-validate against the CURRENT board — state.legalMoves was
+    // computed at selection time and may be stale.
+    final myPlayerNumber = game.playerNumberFor(myId);
+    if (myPlayerNumber == null) return false;
+    final validationError = validateMove(
+      board: game.boardState,
+      playerId: myPlayerNumber,
+      move: move,
+      forcedPieceRow: game.multiJumpPieceRow,
+      forcedPieceCol: game.multiJumpPieceCol,
+    );
+    if (validationError != null) {
+      GameMotionTokens.error();
+      state = state.copyWith(clearSelection: true, legalMoves: const []);
+      return false;
+    }
+
+    // Lock submissions + drop the selection synchronously BEFORE any
+    // await, so a racing second tap can never re-enter with stale state.
+    state = state.copyWith(
+      isSubmitting: true,
+      clearError: true,
+      clearSelection: true,
+      legalMoves: const [],
+    );
     try {
       // Apply the move locally
       final result = applyMove(game.boardState, move);
-      final myPlayerNumber = game.playerNumberFor(myId)!;
       final opponentPlayerNumber = myPlayerNumber == 1 ? 2 : 1;
 
       // Update captured count
@@ -607,7 +640,8 @@ class CheckersNotifier extends StateNotifier<CheckersState> {
   /// for deletion 30s after the game ends. The hourly pg_cron job is the
   /// safety net if the user closes the app before this fires.
   void _scheduleRoomCleanup(String gameId) {
-    Timer(const Duration(seconds: 30), () {
+    _cleanupTimer?.cancel();
+    _cleanupTimer = Timer(const Duration(seconds: 30), () {
       _ref.read(temporaryRoomServiceProvider).endGame(
             gameTable: 'checkers_games',
             gameId: gameId,
@@ -693,6 +727,7 @@ class CheckersNotifier extends StateNotifier<CheckersState> {
   void dispose() {
     _channel?.unsubscribe();
     _heartbeat?.stop();
+    _cleanupTimer?.cancel();
     super.dispose();
   }
 }

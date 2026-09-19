@@ -169,11 +169,11 @@ class Connect4Notifier extends StateNotifier<Connect4State> {
           .select()
           .eq('id', gameId)
           .maybeSingle();
-      if (gameResp == null) {
-        state = state.copyWith(isLoading: false, error: 'Game not found');
+      if (isRoomRowClosed(gameResp)) {
+        state = state.copyWith(isLoading: false, error: kRoomClosedMessage);
         return false;
       }
-      final game = Connect4Game.fromJson(gameResp);
+      final game = Connect4Game.fromJson(gameResp as Map<String, dynamic>);
       _gameId = gameId;
 
       if (game.isInProgress || game.isCompleted) {

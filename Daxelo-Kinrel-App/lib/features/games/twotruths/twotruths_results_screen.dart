@@ -10,6 +10,7 @@ import '../../../core/constants/brand_typography.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/dk_components.dart';
 import '../shared/icons/kinrel_icons.dart';
+import '../shared/widgets/game_board_shell.dart';
 import '../shared/widgets/game_confetti.dart';
 import 'twotruths_models.dart';
 import 'twotruths_provider.dart';
@@ -31,8 +32,9 @@ class _TtResultsScreenState extends ConsumerState<TtResultsScreen> {
 
     if (game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, body: const Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
     if (game.isCompleted) return _finalResultsView(state, myId);
-    // If round not resolved yet, wait
-    if (!game.roundResolved) return DKScaffold(backgroundColor: KinrelColors.darkSurface, body: const Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
+    // Round in flight (started but not resolved) — route players instead
+    // of spinning forever.
+    if (!game.roundResolved) return _roundInFlightView(state, myId);
 
     final round = state.currentRound;
     if (round == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, body: const Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
@@ -95,6 +97,33 @@ class _TtResultsScreenState extends ConsumerState<TtResultsScreen> {
           onPressed: () => ref.read(ttProvider(widget.familyId).notifier).advanceOrEnd()),
       ]),
     );
+  }
+
+  /// Round in flight (started but not yet resolved). If the current
+  /// round's statements are already in, everyone moves on to guessing;
+  /// otherwise the new submitter gets a "write your statements" prompt
+  /// and the rest wait on them — fixes the round-2+ dead-end where the
+  /// results screen spun forever and nobody routed back to the submit
+  /// flow.
+  Widget _roundInFlightView(TtState state, String? myId) {
+    final game = state.game!;
+    final round = state.currentRound;
+    final statementsIn = round != null && round.roundNumber == game.currentRound;
+    if (statementsIn && mounted) { WidgetsBinding.instance.addPostFrameCallback((_) => context.pushReplacement('/family/${widget.familyId}/twotruths/guess/${widget.gameId}')); }
+    final amSubmitter = game.currentSubmitterId == myId;
+    final submitterName = state.players.where((p) => p.userId == game.currentSubmitterId).firstOrNull?.userName ?? 'Player';
+    return DKScaffold(backgroundColor: KinrelColors.darkSurface, body: Center(child: Padding(padding: const EdgeInsets.all(KinrelSpacing.base), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      if (amSubmitter) ...[
+        Icon(Icons.edit_note_rounded, size: 52, color: KinrelColors.orange),
+        const SizedBox(height: 16),
+        Text("You're up — write your two truths!", textAlign: TextAlign.center, style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 20, fontWeight: FontWeight.w800, color: KinrelColors.textWhite)),
+        const SizedBox(height: 6),
+        Text('Round ${game.currentRound}/${game.totalRounds}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.textDim)),
+        const SizedBox(height: 24),
+        DKButton(label: 'Write Your Statements', variant: DKButtonVariant.gradient, fullWidth: true, icon: Icons.edit_rounded, onPressed: () => context.pushReplacement('/family/${widget.familyId}/twotruths/submit/${widget.gameId}')),
+      ] else
+        GameTurnPill(label: 'Waiting for $submitterName to write their statements…', color: KinrelColors.orange, active: true, trailing: const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: KinrelColors.orange))),
+    ]))));
   }
 
   /// Premium reveal card — layered dark surface with an accent glow in

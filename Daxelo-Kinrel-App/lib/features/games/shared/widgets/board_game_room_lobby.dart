@@ -439,12 +439,21 @@ class _BoardGameRoomLobbyScreenState
       // the second join id would be silently ignored.
       _router = GoRouter.of(context);
       _router?.routerDelegate.addListener(_onRouteChanged);
+      // ── QA fix 2026-09-21: ALSO listen to the RouteInformationProvider.
+      // On same-route, query-only navigations (e.g. accepting a rematch
+      // invite while already sitting on this game's setup screen), the
+      // RouterDelegate listener does not reliably fire / can observe a
+      // stale URI — the join was silently dropped and the invitee stayed
+      // on the setup screen. The provider's `value` is updated BEFORE it
+      // notifies, so it always carries the authoritative current URI.
+      _router?.routeInformationProvider.addListener(_onRouteChanged);
       _handleJoinParam();
     });
   }
 
   @override
   void dispose() {
+    _router?.routeInformationProvider.removeListener(_onRouteChanged);
     _router?.routerDelegate.removeListener(_onRouteChanged);
     _router = null;
     super.dispose();
@@ -452,14 +461,20 @@ class _BoardGameRoomLobbyScreenState
 
   void _onRouteChanged() {
     if (!mounted || _router == null) return;
-    final uri = _router!.routerDelegate.currentConfiguration.uri;
+    // Read from the RouteInformationProvider first — it is the freshest
+    // source (its value is updated BEFORE it notifies) — and fall back to
+    // the delegate's current configuration when the provider is not on
+    // our lobby route (e.g. mid-navigation to another screen).
+    final providerUri = _router!.routeInformationProvider.value.uri;
+    final delegateUri = _router!.routerDelegate.currentConfiguration.uri;
+    final ourPath = '/family/$_familyId/${_spec.routeSegment}/lobby';
+    final uri = providerUri.path == ourPath ? providerUri : delegateUri;
     // Only react while OUR lobby route is the current route — this
     // screen can stay mounted beneath other pushed routes.
-    if (uri.path != '/family/$_familyId/${_spec.routeSegment}/lobby') {
+    if (uri.path != ourPath) {
       return;
     }
-    // Read the join id from the delegate (already updated when the
-    // listener fires) — the page-state association can lag a frame
+    // Read the join id — the page-state association can lag a frame
     // behind on query-only changes.
     _joinRoom(uri.queryParameters['join']);
   }

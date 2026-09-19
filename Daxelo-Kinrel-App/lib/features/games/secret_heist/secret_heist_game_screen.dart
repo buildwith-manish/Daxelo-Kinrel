@@ -68,6 +68,7 @@ class _SecretHeistGameScreenState
   HeistAction? _selectedAction;
   int _selectedAmount = 20;
   bool _submitted = false;
+  int _lastSeenRound = 0;
 
   @override
   void initState() {
@@ -151,6 +152,23 @@ class _SecretHeistGameScreenState
           ),
         ),
       );
+    }
+
+    // New round → unlock the action form for this round.
+    final roundNumber = game.boardState?.currentRoundNumber;
+    if (roundNumber != null && roundNumber != _lastSeenRound) {
+      final isNewRound = _lastSeenRound != 0;
+      _lastSeenRound = roundNumber;
+      if (isNewRound) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              _submitted = false;
+              _selectedAction = null;
+            });
+          }
+        });
+      }
     }
 
     return DKScaffold(

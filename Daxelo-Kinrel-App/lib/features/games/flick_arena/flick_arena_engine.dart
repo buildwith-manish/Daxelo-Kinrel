@@ -147,7 +147,13 @@ FlickArenaState createInitialBoard(FlickArenaMatchType matchType) {
 
   final discs = <FlickDisc>[];
   for (final slot in slots) {
-    final (sx, sy) = FlickArenaBoard.defaultDiscSpawns[slot]!;
+    // Solo Duel: slot 2 spawns at the TOP edge (slot 4's top-right
+    // position, point-symmetric to slot 1's bottom-left) so the two
+    // duelists start on opposite sides — slot 1 (team 1) defends the
+    // bottom goal and shoots up; slot 2 (team 2) defends the top goal.
+    final (sx, sy) = matchType == FlickArenaMatchType.soloDuel && slot == 2
+        ? FlickArenaBoard.defaultDiscSpawns[4]!
+        : FlickArenaBoard.defaultDiscSpawns[slot]!;
     // Two discs per slot — one at the default spawn, one offset slightly
     // so they don't overlap. The offset uses the perpendicular axis to
     // the spawn direction so the pair is visually side-by-side.
@@ -253,8 +259,8 @@ FlickTurnResult evaluateTurn({
   int? goalForTeam;
   bool goalScored = false;
 
-  // Bottom goal: y is very negative → team 1 scores
-  // Top goal: y is very positive → team 2 scores
+  // Bottom goal: y is very negative → team 2 scores
+  // Top goal: y is very positive → team 1 scores
   if (ballAfter.y <
       -FlickArenaBoard.halfHeight + FlickArenaBoard.goalTriggerDepth) {
     // Ball went into the BOTTOM goal → team 2 scores
@@ -265,6 +271,8 @@ FlickTurnResult evaluateTurn({
   } else if (ballAfter.y >
       FlickArenaBoard.halfHeight - FlickArenaBoard.goalTriggerDepth) {
     // Ball went into the TOP goal → team 1 scores
+    // (team 2 starts at the top and shoots downward into the bottom
+    // goal, so the top goal is team 2's own goal — team 1 is credited)
     goalForTeam = FlickArenaBoard.topGoalTeam;
     goalScored = true;
   }

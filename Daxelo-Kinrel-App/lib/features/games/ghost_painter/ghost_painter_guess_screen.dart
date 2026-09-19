@@ -196,8 +196,9 @@ class _GhostPainterGuessScreenState
                   .toList(),
             ),
           ),
-        // Guess input.
-        if (!state.hasGuessed)
+        // Guess input — stays available until the LATEST guess is
+        // correct (a wrong guess must never lock the guesser out).
+        if (state.myGuess?.isCorrect != true)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
             child: AnimatedContainer(
@@ -279,7 +280,7 @@ class _GhostPainterGuessScreenState
               ),
             ),
           ),
-        if (state.hasGuessed && !state.myGuess!.isCorrect)
+        if (state.myGuess?.isCorrect == false)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
             child: Row(

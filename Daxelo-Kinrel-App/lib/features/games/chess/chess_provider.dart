@@ -132,6 +132,11 @@ class ChessNotifier extends StateNotifier<ChessState> {
       state = state.copyWith(error: 'Not signed in');
       return null;
     }
+    // Rematch guard — drop the previous game's local state (moves /
+    // lastMove / game) entirely. The board screen skips loadGame when
+    // state.game != null, so stale history must never survive into the
+    // new room (wrong move list, moveNumber continuing from old count).
+    _reset();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final deadline = DateTime.now().add(const Duration(minutes: 5));
@@ -195,6 +200,9 @@ class ChessNotifier extends StateNotifier<ChessState> {
       state = state.copyWith(error: 'Not signed in');
       return false;
     }
+    // Same rematch leak guard as createRoom — joining a fresh room must
+    // not carry the previous game's moves/lastMove into the new board.
+    _reset();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       var gameResp = await client
@@ -470,6 +478,9 @@ class ChessNotifier extends StateNotifier<ChessState> {
   /// Attempt to move from [from] to [to].
   /// Handles promotion (defaults to Queen).
   Future<bool> makeMove(String from, String to, {String? promotion}) async {
+    // Double-tap guard — a second tap while the first move's DB writes
+    // are still in flight must be a no-op.
+    if (state.isSubmitting) return false;
     final game = state.game;
     final client = _client;
     final myId = _myId;

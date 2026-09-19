@@ -87,6 +87,23 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
       } else if (data.event == AuthChangeEvent.signedOut) {
         _inviteChannel?.unsubscribe();
         _inviteChannel = null;
+      } else if (data.event == AuthChangeEvent.tokenRefreshed) {
+        // ── QA fix 2026-09-21: re-auth the realtime socket with the fresh
+        // token. The game_invites channel joins with the token captured at
+        // subscribe time — when that JWT expired, the channel died with
+        // InvalidJWTToken and never recovered, so the user silently
+        // stopped receiving game invites until a full app restart.
+        final token = client.auth.currentSession?.accessToken;
+        if (token != null) {
+          unawaited(client.realtime.setAuth(token).then((_) {
+            if (!mounted) return;
+            // If the channel already died, resubscribe with the fresh
+            // token (a live channel picks the new auth up via setAuth).
+            if (_inviteChannel == null && client.auth.currentUser != null) {
+              unawaited(_subscribeToInviteRows(client));
+            }
+          }).catchError((_) {}));
+        }
       }
     });
   }
@@ -138,6 +155,25 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
         .subscribe((status, [error]) {
           debugPrint('📡 GameInviteListener: game_invites channel '
               '$status${error != null ? ' ($error)' : ''}');
+          // ── QA fix 2026-09-21: recover from channel death (e.g.
+          // InvalidJWTToken after the captured JWT expired). Without
+          // this, the listener stayed dead until an app restart and
+          // invites were silently missed.
+          if (status == RealtimeSubscribeStatus.channelError ||
+              status == RealtimeSubscribeStatus.closed ||
+              status == RealtimeSubscribeStatus.timedOut) {
+            if (mounted) {
+              _inviteChannel?.unsubscribe();
+              _inviteChannel = null;
+              Future.delayed(const Duration(seconds: 3), () {
+                if (!mounted) return;
+                final c = ref.read(supabaseProvider);
+                if (c?.auth.currentUser != null) {
+                  unawaited(_subscribeToInviteRows(c!));
+                }
+              });
+            }
+          }
         });
     debugPrint('📡 GameInviteListener: game_invites realtime attached');
   }
@@ -239,7 +275,21 @@ class _GameInviteListenerState extends ConsumerState<GameInviteListener> {
     debugPrint('➡️ GameInviteListener: accept → ${invite.joinRoute} '
         '(gameType=${invite.gameType.name})');
     final navContext = rootNavigatorKey.currentContext ?? context;
-    GoRouter.of(navContext).go(invite.joinRoute);
+    // ── QA fix 2026-09-21: when the recipient is ALREADY sitting on the
+    // target lobby route (e.g. they pressed "Play Again" from the results
+    // screen and are on the setup screen), a `go()` with a query-only
+    // change does not remount the lobby — its deep-link join is silently
+    // dropped and the invitee never enters the room. Push a FRESH page
+    // instance instead in that case; otherwise `go()` as before.
+    final router = GoRouter.of(navContext);
+    final currentPath =
+        router.routerDelegate.currentConfiguration.uri.path;
+    final targetPath = Uri.parse(invite.joinRoute).path;
+    if (currentPath == targetPath) {
+      router.push(invite.joinRoute);
+    } else {
+      router.go(invite.joinRoute);
+    }
   }
 
   Future<void> _declineInvite(GameInvite invite) async {

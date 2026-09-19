@@ -72,6 +72,7 @@ class _MindMatchGameScreenState
   Timer? _clockTimer;
   final _answerController = TextEditingController();
   bool _submitted = false;
+  int _lastSeenRound = 0;
 
   @override
   void initState() {
@@ -183,6 +184,18 @@ class _MindMatchGameScreenState
           ),
         ),
       );
+    }
+
+    // New round → unlock the answer form for this round.
+    final roundNumber = game.boardState?.currentRoundNumber;
+    if (roundNumber != null && roundNumber != _lastSeenRound) {
+      final isNewRound = _lastSeenRound != 0;
+      _lastSeenRound = roundNumber;
+      if (isNewRound) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _resetSubmit();
+        });
+      }
     }
 
     return DKScaffold(

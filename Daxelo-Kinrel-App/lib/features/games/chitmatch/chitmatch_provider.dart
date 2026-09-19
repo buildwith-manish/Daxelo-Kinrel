@@ -159,17 +159,27 @@ class ChitmatchNotifier extends StateNotifier<ChitmatchState> {
       final gameResp = await client.from('chitmatch_games').select().eq('id', gameId).maybeSingle();
       if (isRoomRowClosed(gameResp)) { state = state.copyWith(isLoading: false, error: kRoomClosedMessage); return false; }
       final game = ChitmatchGame.fromJson(gameResp as Map<String, dynamic>);
-      _gameId = gameId;
 
       final playersResp = await client.from('chitmatch_players').select().eq('gameId', gameId).order('turnOrder', ascending: true);
       final existingPlayers = playersResp.map((p) => ChitmatchPlayerModel.fromJson(p as Map<String, dynamic>)).toList();
+
+      final alreadyJoined = existingPlayers.any((p) => p.userId == myId);
+      // Mid-game joins are rejected: a NEW player row inserted after the
+      // deal holds an empty `currentHand`, and the host's round resolution
+      // would crash with a RangeError on `hand[selectedIndex]`, freezing
+      // the match. Only the pre-start phases (waiting / setup) accept new
+      // players — existing ones may still reconnect.
+      if (!alreadyJoined && !game.isWaiting && !game.isSetup) {
+        state = state.copyWith(isLoading: false, error: game.isCompleted ? 'This match has already ended' : 'Match already in progress');
+        return false;
+      }
 
       if (existingPlayers.length >= game.playerCount) {
         state = state.copyWith(isLoading: false, error: 'Game is full');
         return false;
       }
 
-      final alreadyJoined = existingPlayers.any((p) => p.userId == myId);
+      _gameId = gameId;
       if (!alreadyJoined) {
         final turnOrder = existingPlayers.length;
         await client.from('chitmatch_players').upsert({
@@ -345,7 +355,10 @@ class ChitmatchNotifier extends StateNotifier<ChitmatchState> {
     if (game == null || !game.isInProgress) return;
     if (game.hostUserId != _myId) return; // only host resolves
 
-    final allSelected = state.players.every((p) => p.selectedChitIndex != null);
+    // Only players actually holding a dealt hand (3 chits) participate —
+    // a stray row with an empty hand can never block resolution.
+    final activePlayers = state.players.where((p) => p.currentHand.length >= 3);
+    final allSelected = activePlayers.isNotEmpty && activePlayers.every((p) => p.selectedChitIndex != null);
     if (allSelected && !state.isResolving) {
       _resolveRound();
     }
@@ -364,15 +377,23 @@ class ChitmatchNotifier extends StateNotifier<ChitmatchState> {
     try {
       final players = state.players;
 
-      // Auto-select for any player who hasn't selected
-      final logicPlayers = players.map((p) => ChitmatchPlayer(
-        userId: p.userId,
-        userName: p.userName,
-        turnOrder: p.turnOrder,
-        submittedWord: p.submittedWord,
-        hand: List<String>.from(p.currentHand),
-        selectedChitIndex: p.selectedChitIndex,
-      )).toList();
+      // Auto-select for any player who hasn't selected. Skip players
+      // without a fully dealt hand (e.g. a stray mid-game-join row) —
+      // resolving an empty hand would crash with a RangeError on
+      // `hand[selectedIndex]` and freeze the round. Out-of-range
+      // selections are treated as unselected so auto-select assigns a
+      // valid index instead of throwing.
+      final logicPlayers = players
+          .where((p) => p.currentHand.length >= 3)
+          .map((p) => ChitmatchPlayer(
+            userId: p.userId,
+            userName: p.userName,
+            turnOrder: p.turnOrder,
+            submittedWord: p.submittedWord,
+            hand: List<String>.from(p.currentHand),
+            selectedChitIndex: p.selectedChitIndex != null && p.selectedChitIndex! < p.currentHand.length ? p.selectedChitIndex : null,
+          ))
+          .toList();
 
       autoSelectUnselected(logicPlayers);
 
@@ -610,6 +631,22 @@ class ChitmatchNotifier extends StateNotifier<ChitmatchState> {
           }
 
           // Host: check if all selected
+          _maybeHostResolve();
+        },
+      )
+      .onPostgresChanges(
+        event: PostgresChangeEvent.delete,
+        schema: 'public',
+        table: 'chitmatch_players',
+        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'gameId', value: gameId),
+        callback: (payload) {
+          final oldRecord = payload.oldRecord;
+          final userId = oldRecord['userId'] as String?;
+          if (userId == null) return;
+          // Departed players leave state immediately — otherwise they
+          // keep "passing" from a frozen hand and block resolution.
+          state = state.copyWith(players: state.players.where((p) => p.userId != userId).toList());
+          // Host: the leaver no longer owes a selection — re-check.
           _maybeHostResolve();
         },
       )

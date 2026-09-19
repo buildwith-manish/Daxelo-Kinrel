@@ -55,7 +55,7 @@ class TtNotifier extends StateNotifier<TtState> {
       final existing = playersResp.map((p) => TtPlayer.fromJson(p as Map<String, dynamic>)).toList();
       if (existing.length >= 12) { state = state.copyWith(isLoading: false, error: 'Game is full'); return false; }
       if (!existing.any((p) => p.userId == myId)) await client.from('twotruths_players').upsert({'gameId': gameId, 'userId': myId, 'userName': _myName, 'turnOrder': existing.length, 'totalScore': 0, 'hasGuessed': false}, onConflict: 'gameId,userId');
-      state = state.copyWith(game: game, isLoading: false); _subscribeToRealtime(gameId); await _refreshPlayers(gameId); await _refreshRounds(gameId);
+      state = state.copyWith(game: game, isLoading: false); _subscribeToRealtime(gameId); await _refreshPlayers(gameId); await _refreshRounds(gameId); _maybeStartHostRoundTimer();
       // Keep the persistent game-invite chat card in the family thread in
       // sync with the new player count ("2/4 players" / "Full") for every
       // family member via realtime. Best-effort, never affects the join.
@@ -188,6 +188,18 @@ class TtNotifier extends StateNotifier<TtState> {
     });
   }
 
+  /// Host safety net — the round countdown normally only arms on the
+  /// roundEndsAt null→non-null realtime transition, which hosts miss when
+  /// they (re)join mid-round. Re-arm it whenever an active countdown is
+  /// visible and no timer is running.
+  void _maybeStartHostRoundTimer() {
+    final game = state.game;
+    if (game == null || !game.isInProgress) return;
+    if (game.hostUserId != _myId) return;
+    if (game.roundEndsAt == null || _roundTimer != null) return;
+    _startRoundTimer();
+  }
+
   void _stopRoundTimer() { _roundTimer?.cancel(); _roundTimer = null; }
 
   /// Leave the game. If the user is the host AND the game is still in
@@ -297,7 +309,7 @@ class TtNotifier extends StateNotifier<TtState> {
 
   Future<void> _refreshRounds(String gameId) async {
     final client = _client; if (client == null) return;
-    try { final resp = await client.from('twotruths_rounds').select().eq('gameId', gameId).order('roundNumber', ascending: true); state = state.copyWith(rounds: resp.map((r) => TtRound.fromJson(r as Map<String, dynamic>)).toList()); } catch (e) { debugPrint('[TT] refreshRounds error: $e'); }
+    try { final resp = await client.from('twotruths_rounds').select().eq('gameId', gameId).order('roundNumber', ascending: true); state = state.copyWith(rounds: resp.map((r) => TtRound.fromJson(r as Map<String, dynamic>)).toList()); _maybeStartHostRoundTimer(); } catch (e) { debugPrint('[TT] refreshRounds error: $e'); }
   }
 
   Future<void> _refreshGuesses(String gameId) async {

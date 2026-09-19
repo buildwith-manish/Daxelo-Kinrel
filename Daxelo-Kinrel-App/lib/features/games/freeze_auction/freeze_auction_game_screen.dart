@@ -26,7 +26,7 @@ class FreezeAuctionGameScreen extends ConsumerStatefulWidget {
 }
 
 class _FreezeAuctionGameScreenState extends ConsumerState<FreezeAuctionGameScreen> {
-  Timer? _clockTimer; final _bidController = TextEditingController(); int? _selectedBid; bool _submitted = false;
+  Timer? _clockTimer; final _bidController = TextEditingController(); int? _selectedBid; bool _submitted = false; int _lastSeenRound = 0;
   @override void initState() { super.initState(); WidgetsBinding.instance.addPostFrameCallback((_) => ref.read(freezeAuctionProvider(widget.familyId).notifier).loadGame(widget.gameId)); _clockTimer = Timer.periodic(const Duration(milliseconds: 500), (_) { if (mounted) setState(() {}); }); }
   @override void dispose() { _clockTimer?.cancel(); _bidController.dispose(); super.dispose(); }
 
@@ -42,13 +42,19 @@ class _FreezeAuctionGameScreenState extends ConsumerState<FreezeAuctionGameScree
     final game = state.game;
     if (state.isLoading && game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave), title: const Text('Freeze Auction'), backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite), body: const Center(child: CircularProgressIndicator(color: KinrelColors.orange)));
     if (game == null) return DKScaffold(backgroundColor: KinrelColors.darkSurface, appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.go('/family/${widget.familyId}')), title: const Text('Freeze Auction'), backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite), body: Center(child: GamingEmptyCard(emoji: '📦', title: 'Game not found', message: 'This game may have ended.')));
+    // New round → unlock the bidding form for this round.
+    final roundNumber = game.boardState?.currentRoundNumber;
+    if (roundNumber != null && roundNumber != _lastSeenRound) {
+      final isNewRound = _lastSeenRound != 0; _lastSeenRound = roundNumber;
+      if (isNewRound) WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) setState(() { _submitted = false; _selectedBid = null; }); });
+    }
     return DKScaffold(backgroundColor: KinrelColors.darkSurface,
       appBar: AppBar(leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: _confirmLeave),
         title: Text(game.roomName?.isNotEmpty == true ? game.roomName! : 'Freeze Auction', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontWeight: FontWeight.w600, color: KinrelColors.textWhite)),
         backgroundColor: KinrelColors.darkCard, foregroundColor: KinrelColors.textWhite, elevation: 0,
         actions: [if (game.isInProgress) Padding(padding: const EdgeInsets.only(right: 14), child: Center(child: _RoundInfo(game: game))), if (game.hostUserId == ref.read(supabaseProvider)?.auth.currentUser?.id && game.isInProgress) IconButton(tooltip: 'Leave', icon: const Icon(Icons.logout, size: 20), onPressed: _confirmLeave)]),
       body: game.isCompleted ? _ResultsView(game: game, familyId: widget.familyId, players: state.players, onRematch: () => ref.read(freezeAuctionProvider(widget.familyId).notifier).rematch(), onExit: () { if (context.canPop()) context.pop(); else context.go('/family/${widget.familyId}'); })
-        : _GameView(state: state, familyId: widget.familyId, bidController: _bidController, selectedBid: _selectedBid, submitted: _submitted, onBidChanged: (v) => setState(() => _selectedBid = v), onSubmitBid: (amount) { ref.read(freezeAuctionProvider(widget.familyId).notifier).submitBid(amount); setState(() => _submitted = true); }, onAdvance: () => ref.read(freezeAuctionProvider(widget.familyId).notifier).advancePhase(), onResetSubmit: () => setState(() { _submitted = false; _selectedBid = null; })));
+        : _GameView(state: state, familyId: widget.familyId, bidController: _bidController, selectedBid: _selectedBid, submitted: _submitted, onBidChanged: (v) => setState(() => _selectedBid = v), onSubmitBid: (amount) async { final ok = await ref.read(freezeAuctionProvider(widget.familyId).notifier).submitBid(amount); if (mounted && ok) setState(() => _submitted = true); }, onAdvance: () => ref.read(freezeAuctionProvider(widget.familyId).notifier).advancePhase(), onResetSubmit: () => setState(() { _submitted = false; _selectedBid = null; })));
   }
 }
 

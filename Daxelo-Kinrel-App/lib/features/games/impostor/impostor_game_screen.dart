@@ -20,6 +20,18 @@ import 'impostor_engine.dart';
 import 'impostor_models.dart';
 import 'impostor_provider.dart';
 
+/// Resolve a board index (impostorIndex, clue/vote playerIndex, scores
+/// key) to a player. Board indices refer to the game's playerOrder set
+/// at start — NOT the local players list (ordered by joinedAt), which
+/// shifts when a pre-start player leaves. Bounds + not-found guards
+/// return a placeholder so a desynced roster can't RangeError the UI.
+ImpostorPlayer _playerAtBoardIndex(List<ImpostorPlayer> players, List<String> playerOrder, int index) {
+  final label = 'Player ${index + 1}';
+  if (index < 0 || index >= playerOrder.length) return ImpostorPlayer(id: '', gameId: '', userId: '', userName: label, joinedAt: DateTime.now());
+  final id = playerOrder[index];
+  return players.firstWhere((p) => p.userId == id, orElse: () => ImpostorPlayer(id: '', gameId: '', userId: id, userName: label, joinedAt: DateTime.now()));
+}
+
 class ImpostorGameScreen extends ConsumerStatefulWidget {
   const ImpostorGameScreen({super.key, required this.familyId, required this.gameId});
   final String familyId; final String gameId;
@@ -79,7 +91,11 @@ class _GameView extends ConsumerWidget {
     if (board == null) return const Center(child: CircularProgressIndicator(color: KinrelColors.orange));
     final round = board.currentRound; if (round == null) return const SizedBox.shrink();
     final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
-    final myPlayerIndex = state.players.toList().asMap().entries.where((e) => e.value.userId == myId).map((e) => e.key).firstWhere((_) => true, orElse: () => -1);
+    // Board indices (impostorIndex, clue/vote playerIndex, scores keys)
+    // refer to the game's playerOrder frozen at start — not the local
+    // players list, which is ordered by joinedAt and shifts when a
+    // pre-start player leaves.
+    final myPlayerIndex = game.playerOrder.indexOf(myId ?? '');
     final isMyTurn = round.phase == ImpostorPhase.clue && myPlayerIndex == round.currentCluePlayerIndex;
     return Column(children: [
       _PhaseBanner(round: round, playerCount: board.playerCount, players: state.players),
@@ -87,7 +103,7 @@ class _GameView extends ConsumerWidget {
         if (round.phase == ImpostorPhase.roleReveal) _RoleRevealCard(round: round, myPlayerIndex: myPlayerIndex, onReady: onAdvance),
         if (round.phase == ImpostorPhase.clue) _CluePhaseView(round: round, players: state.players, myPlayerIndex: myPlayerIndex, isMyTurn: isMyTurn, onSubmitClue: onSubmitClue, game: game),
         if (round.phase == ImpostorPhase.voting) _VotingPhaseView(round: round, players: state.players, myPlayerIndex: myPlayerIndex, onSubmitVote: onSubmitVote, game: game),
-        if (round.phase == ImpostorPhase.result) _RoundResultView(round: round, players: state.players, scores: board.scores, onNext: onAdvance, isLastRound: board.currentRoundNumber >= board.totalRounds),
+        if (round.phase == ImpostorPhase.result) _RoundResultView(round: round, players: state.players, playerOrder: game.playerOrder, scores: board.scores, onNext: onAdvance, isLastRound: board.currentRoundNumber >= board.totalRounds),
       ]))),
       if (state.amSpectator) ReactionsBar(gameTable: 'impostor_games', gameId: game.id, familyId: familyId),
     ]);
@@ -180,7 +196,7 @@ class _CluePhaseViewState extends ConsumerState<_CluePhaseView> {
           child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: KinrelColors.darkCard, borderRadius: BorderRadius.circular(12)),
             child: Row(children: [
               Container(width: 28, height: 28, decoration: BoxDecoration(shape: BoxShape.circle, color: KinrelColors.orange.withValues(alpha: 0.2)),
-                child: Center(child: Text(widget.players[clue.playerIndex].userName.isNotEmpty ? widget.players[clue.playerIndex].userName[0].toUpperCase() : '?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.orange)))),
+                child: Center(child: Text(_playerAtBoardIndex(widget.players, widget.game.playerOrder, clue.playerIndex).userName.isNotEmpty ? _playerAtBoardIndex(widget.players, widget.game.playerOrder, clue.playerIndex).userName[0].toUpperCase() : '?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.orange)))),
               const SizedBox(width: 8),
               Expanded(child: Text(clue.text, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
             ]))),
@@ -201,7 +217,7 @@ class _CluePhaseViewState extends ConsumerState<_CluePhaseView> {
             DKButton(label: 'Submit Clue', variant: DKButtonVariant.primary, fullWidth: true, onPressed: () { if (_controller.text.trim().isNotEmpty) { widget.onSubmitClue(_controller.text); setState(() => _submitted = true); } }),
           ])),
       ] else if (!_submitted) ...[
-        Center(child: Padding(padding: const EdgeInsets.all(20), child: Text('Waiting for ${widget.players[round.currentCluePlayerIndex].userName}...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)))),
+        Center(child: Padding(padding: const EdgeInsets.all(20), child: Text('Waiting for ${_playerAtBoardIndex(widget.players, widget.game.playerOrder, round.currentCluePlayerIndex).userName}...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)))),
       ] else ...[
         Center(child: Padding(padding: const EdgeInsets.all(20), child: Text('Clue submitted! Waiting for others...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)))),
       ],
@@ -222,19 +238,27 @@ class _VotingPhaseViewState extends ConsumerState<_VotingPhaseView> {
     final round = widget.round;
     final myVote = round.votes.any((v) => v.voterIndex == widget.myPlayerIndex);
     if (myVote) _voted = true;
+    // Board indices refer to the game's playerOrder (frozen at start),
+    // not the local players list — resolve via playerOrder and skip
+    // players who have left the room.
+    final candidates = <int, ImpostorPlayer>{
+      for (var i = 0; i < widget.game.playerOrder.length; i++)
+        if (i != widget.myPlayerIndex) i: _playerAtBoardIndex(widget.players, widget.game.playerOrder, i),
+    };
+    candidates.removeWhere((_, p) => !p.isActive);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       GamingSectionHeader(title: _voted ? 'Vote cast — waiting for others' : 'Who is the Impostor?', icon: Icons.how_to_vote_outlined),
       if (!_voted) ...[
-        for (var i = 0; i < widget.players.length; i++)
-          if (i != widget.myPlayerIndex) Padding(padding: const EdgeInsets.only(bottom: 6),
-            child: GestureDetector(onTap: () => setState(() => _selectedTarget = i),
-              child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: _selectedTarget == i ? KinrelColors.error.withValues(alpha: 0.12) : KinrelColors.darkCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: _selectedTarget == i ? KinrelColors.error.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.05))),
+        for (final entry in candidates.entries)
+          Padding(padding: const EdgeInsets.only(bottom: 6),
+            child: GestureDetector(onTap: () => setState(() => _selectedTarget = entry.key),
+              child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: _selectedTarget == entry.key ? KinrelColors.error.withValues(alpha: 0.12) : KinrelColors.darkCard, borderRadius: BorderRadius.circular(12), border: Border.all(color: _selectedTarget == entry.key ? KinrelColors.error.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.05))),
                 child: Row(children: [
                   Container(width: 32, height: 32, decoration: BoxDecoration(shape: BoxShape.circle, color: KinrelColors.orange.withValues(alpha: 0.2)),
-                    child: Center(child: Text(widget.players[i].userName.isNotEmpty ? widget.players[i].userName[0].toUpperCase() : '?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: KinrelColors.orange)))),
+                    child: Center(child: Text(entry.value.userName.isNotEmpty ? entry.value.userName[0].toUpperCase() : '?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: KinrelColors.orange)))),
                   const SizedBox(width: 10),
-                  Expanded(child: Text(widget.players[i].userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
-                  if (_selectedTarget == i) const Icon(Icons.check_circle, color: KinrelColors.error, size: 20),
+                  Expanded(child: Text(entry.value.userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w600, color: KinrelColors.textWhite))),
+                  if (_selectedTarget == entry.key) const Icon(Icons.check_circle, color: KinrelColors.error, size: 20),
                 ])))),
         const SizedBox(height: 12),
         DKButton(label: 'Cast Vote', variant: DKButtonVariant.primary, fullWidth: true, onPressed: _selectedTarget != null ? () { widget.onSubmitVote(_selectedTarget!); setState(() => _voted = true); } : null),
@@ -242,7 +266,7 @@ class _VotingPhaseViewState extends ConsumerState<_VotingPhaseView> {
         Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
           const Text('🗳️', style: TextStyle(fontSize: 40)),
           const SizedBox(height: 8),
-          Text('Vote submitted! Waiting for ${widget.players.length - round.votes.length} more...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)),
+          Text('Vote submitted! Waiting for ${widget.game.playerOrder.length - round.votes.length} more...', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textDim)),
         ]))),
       ],
     ]);
@@ -250,8 +274,8 @@ class _VotingPhaseViewState extends ConsumerState<_VotingPhaseView> {
 }
 
 class _RoundResultView extends StatelessWidget {
-  const _RoundResultView({required this.round, required this.players, required this.scores, required this.onNext, required this.isLastRound});
-  final ImpostorRound round; final List<ImpostorPlayer> players; final Map<int, int> scores; final VoidCallback onNext; final bool isLastRound;
+  const _RoundResultView({required this.round, required this.players, required this.playerOrder, required this.scores, required this.onNext, required this.isLastRound});
+  final ImpostorRound round; final List<ImpostorPlayer> players; final List<String> playerOrder; final Map<int, int> scores; final VoidCallback onNext; final bool isLastRound;
   @override Widget build(BuildContext context) {
     final winnerLabel = switch(round.winner) {
       ImpostorRoundWinner.crew => '🛡️ Crew Wins! The Impostor was caught!',
@@ -275,7 +299,7 @@ class _RoundResultView extends StatelessWidget {
           Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), decoration: BoxDecoration(color: KinrelColors.brightGold.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
             child: Text('Secret Word: ${round.word}', style: TextStyle(fontFamily: KinrelTypography.displayFont, fontSize: 18, fontWeight: FontWeight.w800, color: KinrelColors.brightGold))),
           const SizedBox(height: 8),
-          Text('Impostor was: ${players[round.impostorIndex].userName}', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textSilver)),
+          Text('Impostor was: ${_playerAtBoardIndex(players, playerOrder, round.impostorIndex).userName}', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, color: KinrelColors.textSilver)),
         ])),
       const SizedBox(height: 16),
       // Vote distribution
@@ -283,7 +307,7 @@ class _RoundResultView extends StatelessWidget {
       for (final entry in voteCounts.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))
         Padding(padding: const EdgeInsets.only(bottom: 4),
           child: Row(children: [
-            Expanded(child: Text(players[entry.key].userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
+            Expanded(child: Text(_playerAtBoardIndex(players, playerOrder, entry.key).userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
             Text('${entry.value} ${entry.value == 1 ? "vote" : "votes"}', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: entry.key == round.impostorIndex ? KinrelColors.error : KinrelColors.textDim)),
           ])),
       const SizedBox(height: 16),
@@ -292,7 +316,7 @@ class _RoundResultView extends StatelessWidget {
       for (final entry in scores.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))
         Padding(padding: const EdgeInsets.only(bottom: 4),
           child: Row(children: [
-            Expanded(child: Text(players[entry.key].userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
+            Expanded(child: Text(_playerAtBoardIndex(players, playerOrder, entry.key).userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 12, color: KinrelColors.textSilver))),
             Text('${entry.value} pts', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 12, fontWeight: FontWeight.w700, color: KinrelColors.orange)),
           ])),
       const SizedBox(height: 20),
@@ -326,7 +350,7 @@ class _ResultsView extends StatelessWidget {
                 child: Row(children: [
                   Text(entry.value == board.scores.values.reduce(math.max) ? '🥇' : '🏅', style: const TextStyle(fontSize: 18)),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(entry.key < players.length ? players[entry.key].userName : 'Player ${entry.key + 1}', style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
+                  Expanded(child: Text(_playerAtBoardIndex(players, game.playerOrder, entry.key).userName, style: TextStyle(fontFamily: KinrelTypography.bodyFont, fontSize: 14, fontWeight: FontWeight.w700, color: KinrelColors.textWhite))),
                   Text('${entry.value} pts', style: TextStyle(fontFamily: KinrelTypography.monoFont, fontSize: 14, fontWeight: FontWeight.w800, color: KinrelColors.orange)),
                 ]))),
           const SizedBox(height: 18),

@@ -34,8 +34,10 @@ class _TtSubmitScreenState extends ConsumerState<TtSubmitScreen> {
     final state = ref.watch(ttProvider(widget.familyId)); final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
     final game = state.game;
 
-    // Auto-route: if round exists with statements, go to guess
-    if (state.currentRound != null && mounted && !_submitted) {
+    // Auto-route: if the CURRENT round's statements are in, go to guess.
+    // (rounds.last may still be the previous round's row right after a
+    // round advance — don't bounce the new submitter to a stale guess.)
+    if (state.currentRound != null && state.currentRound!.roundNumber == game?.currentRound && mounted && !_submitted) {
       WidgetsBinding.instance.addPostFrameCallback((_) => context.pushReplacement('/family/${widget.familyId}/twotruths/guess/${widget.gameId}'));
     }
     // If round resolved, go to results

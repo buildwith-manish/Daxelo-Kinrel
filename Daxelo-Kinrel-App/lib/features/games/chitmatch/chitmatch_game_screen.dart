@@ -75,18 +75,26 @@ class _ChitmatchGameScreenState extends ConsumerState<ChitmatchGameScreen> {
           onPressed: () async {
             final state = ref.read(chitmatchProvider(widget.familyId));
             final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+            final gameId = state.game?.id;
+            final iAmHost = state.game?.hostUserId == myId;
+            // "Past the waiting room" = setup / in-progress / completed.
+            final wasInProgress = state.game != null && !state.game!.isWaiting;
             final shouldLeave = await LeaveGameDialog.show(
               context,
-              isHost: (state.game?.hostUserId == myId),
+              isHost: iAmHost,
               gameName: 'Chitmatch',
             );
             if (shouldLeave != true) return;
             if (!context.mounted) return;
             ref.read(chitmatchProvider(widget.familyId).notifier).leaveGame();
-            if (state.game?.id != null) {
+            // Only the HOST leaving past the waiting phase ends the match
+            // for everyone (mirrors truthordare). Non-hosts just drop
+            // their own player row — the room stays open, as the dialog
+            // promises.
+            if (gameId != null && iAmHost && wasInProgress) {
               ref.read(temporaryRoomServiceProvider).endGame(
                     gameTable: 'chitmatch_games',
-                    gameId: state.game!.id,
+                    gameId: gameId,
                   );
             }
             if (context.canPop()) {

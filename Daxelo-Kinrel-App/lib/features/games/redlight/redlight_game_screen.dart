@@ -88,18 +88,26 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
           onPressed: () async {
             final state = ref.read(redlightProvider(widget.familyId));
             final myId = ref.read(supabaseProvider)?.auth.currentUser?.id;
+            final roundId = state.round?.id;
+            final iAmHost = state.round?.hostUserId == myId;
+            // "Past the lobby" = countdown / active / finished.
+            final wasInProgress = state.round != null && !state.round!.isLobby;
             final shouldLeave = await LeaveGameDialog.show(
               context,
-              isHost: (state.round?.hostUserId == myId),
+              isHost: iAmHost,
               gameName: 'Freeze & Dash',
             );
             if (shouldLeave != true) return;
             if (!context.mounted) return;
             ref.read(redlightProvider(widget.familyId).notifier).leaveRound();
-            if (state.round?.id != null) {
+            // Only the HOST leaving past the lobby tears the round down
+            // for everyone (mirrors truthordare). Non-hosts just drop
+            // their own player row — the round stays open, as the dialog
+            // promises.
+            if (roundId != null && iAmHost && wasInProgress) {
               ref.read(temporaryRoomServiceProvider).endGame(
                     gameTable: 'redlight_rounds',
-                    gameId: state.round!.id,
+                    gameId: roundId,
                   );
             }
             if (context.canPop()) {
@@ -746,16 +754,18 @@ class _RedlightGameScreenState extends ConsumerState<RedlightGameScreen> {
             : (_) => ref
                   .read(redlightProvider(widget.familyId).notifier)
                   .onRunButtonDown(),
-        onTapUp: myEliminated || !isGreen
-            ? null
-            : (_) => ref
-                  .read(redlightProvider(widget.familyId).notifier)
-                  .onRunButtonUp(),
-        onTapCancel: myEliminated || !isGreen
-            ? null
-            : () => ref
-                  .read(redlightProvider(widget.familyId).notifier)
-                  .onRunButtonUp(),
+        // Release/cancel stay wired in EVERY phase — if GREEN flips to
+        // RED while the finger is down, a null-ed handler would swallow
+        // the release and the local progress timer would keep ticking
+        // (phantom auto-run on the next GREEN). onRunButtonUp always
+        // stops the local run state; the server already rejects ticks
+        // that arrive out of phase.
+        onTapUp: (_) => ref
+              .read(redlightProvider(widget.familyId).notifier)
+              .onRunButtonUp(),
+        onTapCancel: () => ref
+              .read(redlightProvider(widget.familyId).notifier)
+              .onRunButtonUp(),
         child: AnimatedContainer(
           duration: GameMotionTokens.fast,
           curve: GameMotionTokens.bounce,

@@ -42,6 +42,21 @@ const kGamePlayerTableMap = <String, String>{
   'redlight_rounds': 'redlight_players',
   'tugofwar_games': 'tugofwar_players',
   'memorymatch_games': 'memorymatch_players',
+  // ── QA fix 2026-09-21: the newer games were missing, so their lobby
+  // Ready toggle silently no-oped (playerTableFor returned null and the
+  // RPC was never called — the optimistic local toggle then reverted on
+  // the next refetch, and hosts saw "0 of N Ready" forever).
+  'connect4_games': 'connect4_players',
+  'impostor_games': 'impostor_players',
+  'ashta_chamma_games': 'ashta_chamma_players',
+  'color_trap_games': 'color_trap_players',
+  'freeze_auction_games': 'freeze_auction_players',
+  'secret_heist_games': 'secret_heist_players',
+  'mind_match_games': 'mind_match_players',
+  'code_clues_games': 'code_clues_players',
+  'night_falls_games': 'night_falls_players',
+  'sketch_telephone_games': 'sketch_telephone_players',
+  'word_forge_games': 'word_forge_players',
 };
 
 /// Player tables known to exist (bingo_players does NOT — bingo uses
@@ -59,6 +74,18 @@ const kPlayerTableExists = <String>{
   'redlight_players',
   'tugofwar_players',
   'memorymatch_players',
+  // ── QA fix 2026-09-21: newer games' player tables.
+  'connect4_players',
+  'impostor_players',
+  'ashta_chamma_players',
+  'color_trap_players',
+  'freeze_auction_players',
+  'secret_heist_players',
+  'mind_match_players',
+  'code_clues_players',
+  'night_falls_players',
+  'sketch_telephone_players',
+  'word_forge_players',
 };
 
 /// Returns the player table for a given game table, or null if the game

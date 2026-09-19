@@ -11,6 +11,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/brand_colors.dart';
 import '../../../core/constants/brand_typography.dart';
@@ -36,6 +37,7 @@ class _GhostPainterDrawScreenState
   final List<Offset> _currentStroke = [];
   final List<List<Offset>> _allStrokes = [];
   int _strokeSequence = 0;
+  bool _bouncedToGuess = false;
 
   String? get _myId => ref.read(supabaseProvider)?.auth.currentUser?.id;
   String get _myName =>
@@ -86,6 +88,20 @@ class _GhostPainterDrawScreenState
   Widget build(BuildContext context) {
     final state = ref.watch(ghostPainterProvider(widget.familyId));
     final round = state.activeRound;
+
+    // The studio is drawer-only: while a round is live, anyone who is
+    // NOT the drawer gets bounced to the guess gallery — the canvas and
+    // the secret word must never render for guessers.
+    final myId = _myId;
+    if (round != null && round.isActive && myId != null && round.drawerPersonId != myId) {
+      if (!_bouncedToGuess) {
+        _bouncedToGuess = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) context.pushReplacement('/family/${widget.familyId}/ghost-painter/guess');
+        });
+      }
+      return const Scaffold(backgroundColor: Color(0xFF12122A));
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFF12122A),

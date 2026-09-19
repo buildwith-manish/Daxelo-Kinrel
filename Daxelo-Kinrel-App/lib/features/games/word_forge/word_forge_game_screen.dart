@@ -86,6 +86,7 @@ class _WordForgeGameScreenState
   final _definitionController = TextEditingController();
   bool _submitted = false;
   bool _voted = false;
+  int _lastSeenRound = 0;
 
   @override
   void initState() {
@@ -208,6 +209,21 @@ class _WordForgeGameScreenState
           ),
         ),
       );
+    }
+
+    // New round → unlock the writing + voting forms for this round.
+    final roundNumber = game.boardState?.currentRoundNumber;
+    if (roundNumber != null && roundNumber != _lastSeenRound) {
+      final isNewRound = _lastSeenRound != 0;
+      _lastSeenRound = roundNumber;
+      if (isNewRound) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _resetSubmit();
+            _resetVote();
+          }
+        });
+      }
     }
 
     return DKScaffold(

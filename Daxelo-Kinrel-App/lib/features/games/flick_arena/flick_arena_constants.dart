@@ -32,12 +32,12 @@ class FlickArenaBoard {
   /// Bottom goal: y < -halfHeight + goalTriggerDepth
   static const double goalTriggerDepth = 0.05;
 
-  /// Top goal → team 2 scores (ball goes into top goal).
-  /// Bottom goal → team 1 scores.
+  /// Top goal → team 1 scores (ball goes into top goal).
+  /// Bottom goal → team 2 scores.
   /// (Reasoning: team 1 starts at the bottom and shoots upward into the
   /// top goal; team 2 starts at the top and shoots downward.)
-  static const int topGoalTeam = 2;
-  static const int bottomGoalTeam = 1;
+  static const int topGoalTeam = 1;
+  static const int bottomGoalTeam = 2;
 
   /// Default disc spawn positions per slot (1..4). Layout from the brief:
   ///   ┌──── goal ────┐   ← top (team 2 side)

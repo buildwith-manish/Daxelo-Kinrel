@@ -620,6 +620,31 @@ class AntakshariNotifier extends StateNotifier<AntakshariState> {
       'eliminatedAt': DateTime.now().toIso8601String(),
     }).eq('gameId', gameId).eq('userId', game.currentTurnPlayerId!);
 
+    // Mirror the elimination into local state immediately — the realtime
+    // echo may not have arrived by the time _advanceToNextPlayer reads
+    // state.activePlayers, and its `active.length == 1` win check would
+    // otherwise fire for the just-eliminated player.
+    final eliminatedId = game.currentTurnPlayerId!;
+    final eliminatedAt = DateTime.now();
+    state = state.copyWith(
+      players: state.players
+          .map((p) => p.userId == eliminatedId
+              ? AntakshariPlayer(
+                  id: p.id,
+                  gameId: p.gameId,
+                  userId: p.userId,
+                  userName: p.userName,
+                  turnOrder: p.turnOrder,
+                  isEliminated: true,
+                  eliminatedAt: eliminatedAt,
+                  joinedAt: p.joinedAt,
+                  isReady: p.isReady,
+                  readyAt: p.readyAt,
+                )
+              : p)
+          .toList(),
+    );
+
     // Advance to next player (same required letter — the eliminated player
     // didn't complete their turn, so the chain letter doesn't change)
     await _advanceToNextPlayer(

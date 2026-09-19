@@ -88,9 +88,14 @@ class TodNotifier extends StateNotifier<TodState> {
 
   /// Spinner: spin the bottle. Host-authoritative selection.
   Future<void> spinBottle() async {
+    // Double-spin guard: a second insert for a roundNumber that already
+    // has a row would break the `.single()` round lookups and brick the
+    // game (two spin animations can race after a double-tap).
+    if (state.isSpinning) return;
     final client = _client; final gameId = _gameId; final game = state.game;
     if (client == null || gameId == null || game == null) return;
     if (game.currentSpinnerId != _myId) return;
+    if (state.rounds.any((r) => r.roundNumber == game.roundNumber)) return; // round already exists
     state = state.copyWith(isSpinning: true, clearError: true);
     try {
       final players = state.players.map((p) => (userId: p.userId, timesSelected: p.timesSelected)).toList();
@@ -311,6 +316,32 @@ class TodNotifier extends StateNotifier<TodState> {
         callback: (payload) { final p = TodPlayer.fromJson(payload.newRecord); if (!state.players.any((x) => x.userId == p.userId)) state = state.copyWith(players: [...state.players, p]); })
       .onPostgresChanges(event: PostgresChangeEvent.update, schema: 'public', table: 'truthordare_players', filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'gameId', value: gameId),
         callback: (payload) { final updated = TodPlayer.fromJson(payload.newRecord); final next = state.players.map((p) => p.userId == updated.userId ? updated : p).toList(); state = state.copyWith(players: next); })
+      .onPostgresChanges(event: PostgresChangeEvent.delete, schema: 'public', table: 'truthordare_players', filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'gameId', value: gameId),
+        callback: (payload) async {
+          final goneId = payload.oldRecord['userId'] as String?;
+          if (goneId == null) return;
+          // Drop them locally so the next spin can never target them.
+          state = state.copyWith(players: state.players.where((p) => p.userId != goneId).toList());
+          final game = state.game; final round = state.currentRound;
+          if (game == null || !game.isInProgress) return;
+          final wasSelected = round != null && round.selectedPlayerId == goneId && !round.completed;
+          final wasSpinner = game.currentSpinnerId == goneId;
+          if (!wasSelected && !wasSpinner) return;
+          final client = _client;
+          if (client == null || game.hostUserId != _myId) return; // host-authoritative handover
+          try {
+            if (wasSelected && round != null) {
+              // The round can never finish without its selected player — skip it.
+              await client.from('truthordare_rounds').update({'completed': true}).eq('id', round.id);
+            }
+            // Promote the host (or the first remaining seat) so the bottle keeps moving.
+            final remaining = List<TodPlayer>.from(state.players)..sort((a, b) => a.seatPosition.compareTo(b.seatPosition));
+            final nextSpinner = remaining.any((p) => p.userId == game.hostUserId) ? game.hostUserId : (remaining.isNotEmpty ? remaining.first.userId : game.hostUserId);
+            final gameUpdate = <String, dynamic>{'currentSpinnerId': nextSpinner};
+            if (wasSelected) gameUpdate['roundNumber'] = game.roundNumber + 1; // advance past the abandoned round
+            await client.from('truthordare_games').update(gameUpdate).eq('id', game.id);
+          } catch (_) {}
+        })
       .onPostgresChanges(event: PostgresChangeEvent.insert, schema: 'public', table: 'truthordare_rounds', filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'gameId', value: gameId),
         callback: (payload) { final r = TodRound.fromJson(payload.newRecord); if (!state.rounds.any((x) => x.id == r.id)) state = state.copyWith(rounds: [...state.rounds, r], currentRound: r); })
       .onPostgresChanges(event: PostgresChangeEvent.update, schema: 'public', table: 'truthordare_rounds', filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'gameId', value: gameId),

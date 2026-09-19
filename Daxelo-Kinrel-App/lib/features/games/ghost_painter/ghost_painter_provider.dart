@@ -118,7 +118,10 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
           .order('guessedAt', ascending: true);
       final guesses = guessesResp.map((g) => GhostPainterGuess.fromJson(g as Map<String, dynamic>)).toList();
       final myId = _myId;
-      final myGuess = guesses.where((g) => g.userId == myId).firstOrNull;
+      // Latest guess (guesses are ordered by guessedAt ascending) — the
+      // guess screen keeps the input visible until the latest guess is
+      // correct, so this must not pin to the first-ever guess.
+      final myGuess = guesses.where((g) => g.userId == myId).lastOrNull;
       state = GhostPainterState(activeRound: round, strokes: strokes, guesses: guesses, myGuess: myGuess, isLoading: false);
       _subscribeToRealtime(round.id);
       _startCountdownIfNeeded(round);
@@ -223,6 +226,11 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
   /// Batch stroke writes — called from the draw screen every ~100ms
   void queueStroke(List<OffsetPoint> points, int sequenceOrder) {
     if (points.isEmpty) return;
+    // Only the round's drawer may author strokes — a guesser (or a
+    // stale screen) can never write ink into someone else's round.
+    final round = state.activeRound;
+    final myId = _myId;
+    if (round == null || myId == null || round.drawerPersonId != myId) return;
     _pendingStrokes.add({
       'roundId': state.activeRound?.id,
       // Insert as a native jsonb ARRAY — jsonEncode would store a
@@ -254,9 +262,11 @@ class GhostPainterNotifier extends StateNotifier<GhostPainterState> {
     if (client == null || myId == null || roundId == null) return false;
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
-      final promptWord = state.activeRound!.promptWord.toLowerCase();
-      final guessLower = text.toLowerCase().trim();
-      final isCorrect = guessLower == promptWord || guessLower.contains(promptWord) || promptWord.contains(guessLower);
+      final promptWord = state.activeRound!.promptWord.trim().toLowerCase();
+      final guessLower = text.trim().toLowerCase();
+      // Exact match only — substring matching was exploitable (guessing
+      // "e" won "elephant").
+      final isCorrect = guessLower == promptWord;
       final resp = await client.from('ghost_painter_guesses').insert({
         'roundId': roundId,
         'userId': myId,

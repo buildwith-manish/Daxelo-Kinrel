@@ -317,6 +317,21 @@ class SosNotifier extends StateNotifier<SosState> {
           .map((p) => SosPlayer.fromJson(p as Map<String, dynamic>))
           .toList();
 
+      // Max-players cap — SosMode.maxPlayers limits the roster (host
+      // included). Players already on the roster can always rejoin
+      // (reconnect); anyone else gets a friendly "full" error instead
+      // of breaking turn/team parity.
+      final alreadyPlayer = existingPlayers.any((p) => p.userId == myId);
+      if (!alreadyPlayer && existingPlayers.length >= game.mode.maxPlayers) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Game is full',
+          friendlyError: 'This room is full.',
+          connectionStatus: SosConnectionStatus.error,
+        );
+        return false;
+      }
+
       // Compute my turn order (next available slot)
       final existingOrders = existingPlayers
           .map((p) => p.turnOrder)
@@ -571,10 +586,29 @@ class SosNotifier extends StateNotifier<SosState> {
     final gameId = _gameId;
     if (client == null || gameId == null) return;
 
+    // Re-fetch the players so the winner computation sees the final
+    // scores — the mover's own SOS-point update above hasn't reached
+    // us via realtime yet (same pattern as dotsboxes). Falls back to
+    // the local list if the fetch fails.
+    var finalPlayers = state.players;
+    try {
+      final playersResp = await client
+          .from('sos_players')
+          .select()
+          .eq('gameId', gameId)
+          .order('turnOrder', ascending: true);
+      final fetched = playersResp
+          .map((p) => SosPlayer.fromJson(p as Map<String, dynamic>))
+          .toList();
+      if (fetched.isNotEmpty) finalPlayers = fetched;
+    } catch (e) {
+      debugPrint('[SOS] finishGame player refresh error: $e');
+    }
+
     // Compute winner
     final winner = computeWinner(
       game: game,
-      players: state.players,
+      players: finalPlayers,
       scores: const [],
     );
 
