@@ -128,6 +128,18 @@ import '../../features/games/secret_heist/secret_heist_provider.dart';
 import '../../features/games/mind_match/mind_match_lobby_screen.dart';
 import '../../features/games/mind_match/mind_match_game_screen.dart';
 import '../../features/games/mind_match/mind_match_provider.dart';
+import '../../features/games/code_clues/code_clues_lobby_screen.dart';
+import '../../features/games/code_clues/code_clues_game_screen.dart';
+import '../../features/games/code_clues/code_clues_provider.dart';
+import '../../features/games/night_falls/night_falls_lobby_screen.dart';
+import '../../features/games/night_falls/night_falls_game_screen.dart';
+import '../../features/games/night_falls/night_falls_provider.dart';
+import '../../features/games/sketch_telephone/sketch_telephone_lobby_screen.dart';
+import '../../features/games/sketch_telephone/sketch_telephone_game_screen.dart';
+import '../../features/games/sketch_telephone/sketch_telephone_provider.dart';
+import '../../features/games/word_forge/word_forge_lobby_screen.dart';
+import '../../features/games/word_forge/word_forge_game_screen.dart';
+import '../../features/games/word_forge/word_forge_provider.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
 import '../../features/games/redlight/redlight_game_screen.dart';
 import '../../features/games/redlight/redlight_results_screen.dart';
@@ -958,6 +970,38 @@ final routerProvider = Provider<GoRouter>((ref) {
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
     isHost: (s) => s.game?.hostUserId == _myUserId(),
     leave: (fid) => ref.read(mindMatchProvider(fid).notifier).leaveGame(),
+  );
+
+  final codeCluesLobbyExit = guardGameRoomExit(
+    gameTable: 'code_clues_games',
+    readState: (fid) => ref.read(codeCluesProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(codeCluesProvider(fid).notifier).leaveGame(),
+  );
+
+  final nightFallsLobbyExit = guardGameRoomExit(
+    gameTable: 'night_falls_games',
+    readState: (fid) => ref.read(nightFallsProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(nightFallsProvider(fid).notifier).leaveGame(),
+  );
+
+  final sketchTelephoneLobbyExit = guardGameRoomExit(
+    gameTable: 'sketch_telephone_games',
+    readState: (fid) => ref.read(sketchTelephoneProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(sketchTelephoneProvider(fid).notifier).leaveGame(),
+  );
+
+  final wordForgeLobbyExit = guardGameRoomExit(
+    gameTable: 'word_forge_games',
+    readState: (fid) => ref.read(wordForgeProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(wordForgeProvider(fid).notifier).leaveGame(),
   );
 
   final twotruthsLobbyExit = guardGameRoomExit(
@@ -1971,6 +2015,90 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: MindMatchGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Word Forge ─────────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/word-forge/lobby',
+        onExit: wordForgeLobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: WordForgeLobbyScreen(
+              familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/word-forge/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: WordForgeGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Code Clues ─────────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/code-clues/lobby',
+        onExit: codeCluesLobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: CodeCluesLobbyScreen(
+              familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/code-clues/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: CodeCluesGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Night Falls ─────────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/night-falls/lobby',
+        onExit: nightFallsLobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: NightFallsLobbyScreen(
+              familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/night-falls/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: NightFallsGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Sketch Telephone ────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/sketch-telephone/lobby',
+        onExit: sketchTelephoneLobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SketchTelephoneLobbyScreen(
+              familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/sketch-telephone/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: SketchTelephoneGameScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),

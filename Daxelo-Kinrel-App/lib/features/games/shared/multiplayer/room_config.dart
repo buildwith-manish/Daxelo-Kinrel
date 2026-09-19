@@ -33,6 +33,10 @@ enum GameTableKind {
   flickArenaGames,   // flick_arena_games
   secretHeistGames,  // secret_heist_games
   mindMatchGames,    // mind_match_games
+  codeCluesGames,    // code_clues_games
+  nightFallsGames,   // night_falls_games
+  sketchTelephoneGames, // sketch_telephone_games
+  wordForgeGames,    // word_forge_games
 }
 
 extension GameTableKindX on GameTableKind {
@@ -58,6 +62,10 @@ extension GameTableKindX on GameTableKind {
       case GameTableKind.flickArenaGames:   return 'flick_arena_games';
       case GameTableKind.secretHeistGames:  return 'secret_heist_games';
       case GameTableKind.mindMatchGames:    return 'mind_match_games';
+      case GameTableKind.codeCluesGames:    return 'code_clues_games';
+      case GameTableKind.nightFallsGames:   return 'night_falls_games';
+      case GameTableKind.sketchTelephoneGames: return 'sketch_telephone_games';
+      case GameTableKind.wordForgeGames:    return 'word_forge_games';
     }
   }
 
@@ -87,6 +95,10 @@ extension GameTableKindX on GameTableKind {
       case GameTableKind.flickArenaGames:   return null; // inline player slots
       case GameTableKind.secretHeistGames:  return 'secret_heist_players';
       case GameTableKind.mindMatchGames:    return 'mind_match_players';
+      case GameTableKind.codeCluesGames:    return 'code_clues_players';
+      case GameTableKind.nightFallsGames:   return 'night_falls_players';
+      case GameTableKind.sketchTelephoneGames: return 'sketch_telephone_players';
+      case GameTableKind.wordForgeGames:    return 'word_forge_players';
     }
   }
 }
@@ -325,6 +337,46 @@ class RoomConfig {
   static const mindMatch = RoomConfig(
     gameTable: GameTableKind.mindMatchGames,
     minPlayers: 2,
+    maxPlayers: 8,
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
+    cancelledStatusValue: 'cancelled',
+  );
+
+  static const codeClues = RoomConfig(
+    gameTable: GameTableKind.codeCluesGames,
+    minPlayers: 4,
+    maxPlayers: 8,
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
+    cancelledStatusValue: 'cancelled',
+  );
+
+  static const nightFalls = RoomConfig(
+    gameTable: GameTableKind.nightFallsGames,
+    minPlayers: 5,
+    maxPlayers: 12,
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
+    cancelledStatusValue: 'cancelled',
+  );
+
+  static const sketchTelephone = RoomConfig(
+    gameTable: GameTableKind.sketchTelephoneGames,
+    minPlayers: 4,
+    maxPlayers: 8,
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
+    cancelledStatusValue: 'cancelled',
+  );
+
+  static const wordForge = RoomConfig(
+    gameTable: GameTableKind.wordForgeGames,
+    minPlayers: 3,
     maxPlayers: 8,
     lobbyStatusValue: 'waiting',
     activeStatusValue: 'in_progress',

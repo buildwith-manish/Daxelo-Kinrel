@@ -144,6 +144,10 @@ class RematchButton extends ConsumerWidget {
       case GameType.flickArena: return 'flick_arena_games';
       case GameType.secretHeist: return 'secret_heist_games';
       case GameType.mindMatch: return 'mind_match_games';
+      case GameType.wordForge: return 'word_forge_games';
+      case GameType.codeClues: return 'code_clues_games';
+      case GameType.nightFalls: return 'night_falls_games';
+      case GameType.sketchTelephone: return 'sketch_telephone_games';
     }
   }
 }

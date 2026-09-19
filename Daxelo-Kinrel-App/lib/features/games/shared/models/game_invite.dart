@@ -37,6 +37,10 @@ enum GameType {
   flickArena, // Flick Arena
   secretHeist, // Secret Heist
   mindMatch, // Mind Match
+  wordForge, // Word Forge (Balderdash-style fake definitions)
+  codeClues, // Code Clues (Codenames-style word association)
+  nightFalls, // Night Falls (Werewolf)
+  sketchTelephone, // Sketch Telephone (Gartic Phone-style drawing chain)
 }
 
 extension GameTypeX on GameType {
@@ -91,6 +95,14 @@ extension GameTypeX on GameType {
         return 'secret-heist';
       case GameType.mindMatch:
         return 'mind-match';
+      case GameType.wordForge:
+        return 'word-forge';
+      case GameType.codeClues:
+        return 'code-clues';
+      case GameType.nightFalls:
+        return 'night-falls';
+      case GameType.sketchTelephone:
+        return 'sketch-telephone';
     }
   }
 
@@ -145,6 +157,14 @@ extension GameTypeX on GameType {
         return 'Secret Heist';
       case GameType.mindMatch:
         return 'Mind Match';
+      case GameType.wordForge:
+        return 'Word Forge';
+      case GameType.codeClues:
+        return 'Code Clues';
+      case GameType.nightFalls:
+        return 'Night Falls';
+      case GameType.sketchTelephone:
+        return 'Sketch Telephone';
     }
   }
 
