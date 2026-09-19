@@ -87,15 +87,25 @@ export class ChatPushScheduler {
 
       // 2. For each message, find the recipients (family members who
       //    haven't read it and aren't the sender).
-      // Group by (familyId, recipientUserId) so we can batch.
-      const batches = new Map<
-        string, // `${familyId}:${recipientUserId}`
-        {
+      //
+      // Feature 2: CROSS-CHAT GROUPING. Previously we grouped by
+      // (familyId, recipientUserId) — one push per chat per recipient.
+      // Now we group by recipientUserId ONLY — one push per recipient
+      // across ALL their chats. So if Manish has 3 unread messages in
+      // the "Sharmas" chat + 2 in the "Patels" chat, he gets ONE push:
+      // "3 new messages from Mama ji and 2 others" (deep-link to the
+      // chat with the most recent message).
+      const perRecipient = new Map<
+        string, // recipientUserId
+        Array<{
           familyId: string;
-          recipientUserId: string;
           familyName: string;
-          messages: typeof unnotifiedMessages;
-        }
+          senderId: string;
+          senderName: string;
+          messageId: string;
+          content: string;
+          createdAt: Date;
+        }>
       >();
 
       // Cache family member lookups + family name lookups to avoid N queries.
@@ -118,31 +128,31 @@ export class ChatPushScheduler {
           // Skip users who have already read this message.
           if (msg.readBy.includes(m.userId)) continue;
 
-          const key = `${msg.familyId}:${m.userId}`;
-          let batch = batches.get(key);
-          if (!batch) {
-            let familyName = familyNameCache.get(msg.familyId);
-            if (familyName === undefined) {
-              const fam = await this.prisma.family.findUnique({
-                where: { id: msg.familyId },
-                select: { name: true },
-              });
-              familyName = fam?.name ?? 'your family';
-              familyNameCache.set(msg.familyId, familyName);
-            }
-            batch = {
-              familyId: msg.familyId,
-              recipientUserId: m.userId,
-              familyName,
-              messages: [],
-            };
-            batches.set(key, batch);
+          let familyName = familyNameCache.get(msg.familyId);
+          if (familyName === undefined) {
+            const fam = await this.prisma.family.findUnique({
+              where: { id: msg.familyId },
+              select: { name: true },
+            });
+            familyName = fam?.name ?? 'your family';
+            familyNameCache.set(msg.familyId, familyName);
           }
-          batch.messages.push(msg);
+
+          const list = perRecipient.get(m.userId) ?? [];
+          list.push({
+            familyId: msg.familyId,
+            familyName,
+            senderId: msg.senderId,
+            senderName: msg.senderName,
+            messageId: msg.id,
+            content: msg.content,
+            createdAt: msg.createdAt,
+          });
+          perRecipient.set(m.userId, list);
         }
       }
 
-      if (batches.size === 0) {
+      if (perRecipient.size === 0) {
         // All un-notified messages were already read by everyone — mark
         // them notified so we don't re-process next run.
         const allIds = unnotifiedMessages.map((m) => m.id);
@@ -153,38 +163,64 @@ export class ChatPushScheduler {
         return;
       }
 
-      // 3. Send one FCM push per batch + create an in-app Notification row.
+      // 3. Send ONE FCM push per recipient (across all their chats).
+      // Build a grouped title like:
+      //   • 1 message: "Mama ji: hello beta"
+      //   • N messages, 1 chat: "Mama ji sent 3 messages in Sharmas"
+      //   • N messages, M chats: "3 new messages from Mama ji and 2 others"
       let pushSent = 0;
       let pushSkipped = 0;
       const allNotifiedIds: string[] = [];
 
-      for (const batch of batches.values()) {
-        const messageCount = batch.messages.length;
-        const senderName = batch.messages[0].senderName;
-        const previewContent = batch.messages[0].content.slice(0, 50);
+      for (const [recipientUserId, messages] of perRecipient.entries()) {
+        // Sort by createdAt desc so the most recent message is the preview.
+        messages.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        const totalMessages = messages.length;
+        const distinctChats = new Set(messages.map((m) => m.familyId)).size;
+        const distinctSenders = new Set(messages.map((m) => m.senderId)).size;
+        const latest = messages[0];
+        const previewContent = latest.content.slice(0, 50);
 
-        const title =
-          messageCount === 1
-            ? `${senderName} in ${batch.familyName}`
-            : `${senderName} sent ${messageCount} messages in ${batch.familyName}`;
-        const body =
-          messageCount === 1
-            ? previewContent
-            : `${messageCount} new messages. Latest: ${previewContent}`;
+        let title: string;
+        let body: string;
+        if (totalMessages === 1) {
+          title = `${latest.senderName}`;
+          body = previewContent;
+        } else if (distinctChats === 1) {
+          // All from the same chat — "Mama ji sent 3 messages in Sharmas"
+          title = `${latest.senderName} sent ${totalMessages} messages in ${latest.familyName}`;
+          body = `${totalMessages} new messages. Latest: ${previewContent}`;
+        } else {
+          // Cross-chat grouping — "3 new messages from Mama ji and 2 others"
+          const senderNames = [...new Set(messages.map((m) => m.senderName))].slice(0, 2);
+          const firstSender = senderNames[0];
+          const otherCount = distinctSenders - 1;
+          if (otherCount > 0) {
+            title = `${totalMessages} new messages from ${firstSender} and ${otherCount} other${otherCount !== 1 ? 's' : ''}`;
+          } else {
+            title = `${totalMessages} new messages from ${firstSender}`;
+          }
+          body = `Across ${distinctChats} chat${distinctChats !== 1 ? 's' : ''}. Latest: ${previewContent}`;
+        }
 
         try {
-          const sent = await this.fcmService.sendToUser(batch.recipientUserId, {
+          const sent = await this.fcmService.sendToUser(recipientUserId, {
             title,
             body,
             data: {
               type: 'chat_message_batch',
-              familyId: batch.familyId,
-              familyName: batch.familyName,
-              messageCount: String(messageCount),
-              senderId: batch.messages[0].senderId,
-              senderName,
-              // Deep-link to the family chat screen
-              actionUrl: `kinrel://family/${batch.familyId}/chat`,
+              // Feature 2: deep-link payload. The Flutter
+              // push_notification_service resolves 'chat_message_batch'
+              // type → /family/<familyId>/chat. We point at the chat
+              // with the most recent message so tapping the notification
+              // opens the most relevant conversation.
+              familyId: latest.familyId,
+              familyName: latest.familyName,
+              messageCount: String(totalMessages),
+              distinctChats: String(distinctChats),
+              senderId: latest.senderId,
+              senderName: latest.senderName,
+              actionUrl: `kinrel://family/${latest.familyId}/chat`,
             },
           });
 
@@ -194,37 +230,34 @@ export class ChatPushScheduler {
             pushSkipped++;
           }
 
-          // Create an in-app Notification row so the user sees the
-          // unread count in the app's notification center even if FCM
-          // was unavailable.
+          // Create an in-app Notification row per recipient (one row
+          // summarizing all their unread chats). Best-effort.
           await this.createInAppNotification(
-            batch.recipientUserId,
-            batch.familyId,
+            recipientUserId,
+            latest.familyId,
             title,
             body,
-            batch.messages[0].senderId,
-            batch.messages[0].senderName,
+            latest.senderId,
+            latest.senderName,
           );
         } catch (err: any) {
           this.logger.error(
-            `Batched-push failed for user ${batch.recipientUserId} family ${batch.familyId}: ${err?.message}`,
+            `Batched-push failed for user ${recipientUserId}: ${err?.message}`,
           );
           pushSkipped++;
         }
 
-        // Mark all messages in this batch as notified, regardless of
-        // whether the FCM push succeeded. We don't want to re-push the
-        // same batch every 5 minutes if FCM is down — the in-app
-        // notification row is the fallback.
-        for (const msg of batch.messages) {
-          allNotifiedIds.push(msg.id);
+        // Mark all messages for this recipient as notified.
+        for (const msg of messages) {
+          allNotifiedIds.push(msg.messageId);
         }
       }
 
       await this.markNotified(allNotifiedIds);
 
       this.logger.log(
-        `Batched-push job complete: sent ${pushSent} push(es), skipped ${pushSkipped} (FCM unavailable or failed), marked ${allNotifiedIds.length} message(s) notified=true`,
+        `Batched-push job complete: sent ${pushSent} push(es) to ${perRecipient.size} recipient(s), ` +
+          `skipped ${pushSkipped} (FCM unavailable or failed), marked ${allNotifiedIds.length} message(s) notified=true`,
       );
     } catch (err: any) {
       this.logger.error(

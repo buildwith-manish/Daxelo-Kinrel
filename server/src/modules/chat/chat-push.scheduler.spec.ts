@@ -155,19 +155,24 @@ describe('ChatPushScheduler', () => {
 
     await scheduler.handleBatchedPush();
 
-    // Exactly ONE push for the 3 messages
+    // Exactly ONE push for the 3 messages (single chat, single recipient)
     expect(mockFcm.sendToUser).toHaveBeenCalledTimes(1);
     const pushArgs = mockFcm.sendToUser.mock.calls[0];
     expect(pushArgs[0]).toBe('user-2'); // recipient
+    // Feature 2: single-chat multi-message format is
+    // "Manish sent 3 messages in Sharmas"
     expect(pushArgs[1].title).toContain('3 messages');
+    expect(pushArgs[1].title).toContain('Manish');
     expect(pushArgs[1].body).toContain('3 new messages');
     // Data payload includes the count + deep link
     expect(pushArgs[1].data.messageCount).toBe('3');
     expect(pushArgs[1].data.familyId).toBe('fam-1');
+    expect(pushArgs[1].data.actionUrl).toContain('fam-1');
+    expect(pushArgs[1].data.actionUrl).toContain('/chat');
 
-    // All 3 messages marked notified
+    // All 3 messages marked notified (order may vary — sorted by createdAt desc)
     expect(mockPrisma.chatMessage.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: ['msg-1', 'msg-2', 'msg-3'] } },
+      where: { id: { in: expect.arrayContaining(['msg-1', 'msg-2', 'msg-3']) } },
       data: expect.objectContaining({ notified: true }),
     });
   });
@@ -271,10 +276,77 @@ describe('ChatPushScheduler', () => {
 
     await scheduler.handleBatchedPush();
 
-    // Two separate pushes (one per family-recipient pair)
+    // Two separate pushes (one per recipient — each is in a different family)
     expect(mockFcm.sendToUser).toHaveBeenCalledTimes(2);
     const recipients = mockFcm.sendToUser.mock.calls.map((c) => c[0]);
     expect(recipients).toContain('user-2');
     expect(recipients).toContain('user-4');
+  });
+
+  it('Feature 2: groups messages across MULTIPLE chats for the SAME recipient into ONE push', async () => {
+    // user-2 is a member of BOTH fam-1 and fam-2. With cross-chat grouping,
+    // they should get ONE push summarizing messages from both chats.
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const eightMinAgo = new Date(Date.now() - 8 * 60 * 1000);
+    mockPrisma.chatMessage.findMany.mockResolvedValue([
+      {
+        id: 'msg-a',
+        familyId: 'fam-1',
+        senderId: 'user-1',
+        senderName: 'Manish',
+        content: 'hi from Sharmas',
+        createdAt: tenMinAgo,
+        readBy: [],
+      },
+      {
+        id: 'msg-b',
+        familyId: 'fam-2',
+        senderId: 'user-3',
+        senderName: 'Riya',
+        content: 'hi from Patels',
+        createdAt: eightMinAgo, // more recent
+        readBy: [],
+      },
+    ]);
+    // user-2 is a member of BOTH families
+    mockPrisma.familyMember.findMany.mockImplementation((args: any) => {
+      if (args.where.familyId === 'fam-1') {
+        return Promise.resolve([
+          { userId: 'user-1' }, // sender
+          { userId: 'user-2' }, // shared recipient
+        ]);
+      }
+      return Promise.resolve([
+        { userId: 'user-3' }, // sender
+        { userId: 'user-2' }, // same recipient, different family
+      ]);
+    });
+    mockPrisma.family.findUnique.mockImplementation((args: any) => {
+      if (args.where.id === 'fam-1') return Promise.resolve({ name: 'Sharmas' });
+      return Promise.resolve({ name: 'Patels' });
+    });
+    mockFcm.sendToUser.mockResolvedValue(true);
+    mockPrisma.notification.create.mockResolvedValue({});
+    mockPrisma.chatMessage.updateMany.mockResolvedValue({ count: 2 });
+
+    await scheduler.handleBatchedPush();
+
+    // ONE push to user-2 (NOT one per family)
+    expect(mockFcm.sendToUser).toHaveBeenCalledTimes(1);
+    const pushArgs = mockFcm.sendToUser.mock.calls[0];
+    expect(pushArgs[0]).toBe('user-2');
+    // Cross-chat format: "2 new messages from Riya and 1 other"
+    expect(pushArgs[1].title).toContain('2 new messages');
+    expect(pushArgs[1].body).toContain('2 chats');
+    // Deep-link points to the chat with the most recent message (fam-2)
+    expect(pushArgs[1].data.familyId).toBe('fam-2');
+    expect(pushArgs[1].data.actionUrl).toContain('fam-2');
+    expect(pushArgs[1].data.distinctChats).toBe('2');
+
+    // Both messages marked notified (order may vary)
+    expect(mockPrisma.chatMessage.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: expect.arrayContaining(['msg-a', 'msg-b']) } },
+      data: expect.objectContaining({ notified: true }),
+    });
   });
 });

@@ -95,6 +95,16 @@ String? resolveDeepLink(Map<String, dynamic> data) {
       }
       return null;
 
+    case 'chat_message_batch':
+      // Feature 2: batched push notification (multiple unread messages
+      // across one or more chats). Deep-link to the chat with the most
+      // recent message — the server sets familyId to that chat's ID.
+      final familyId = data['familyId'] as String?;
+      if (familyId != null && familyId.isNotEmpty) {
+        return '/family/$familyId/chat';
+      }
+      return null;
+
     default:
       // Unknown type — try to extract any usable deep link
       final deepLink = data['deepLink'] as String?;
