@@ -58,6 +58,7 @@ const kGamePlayerTableMap = <String, String>{
   'sketch_telephone_games': 'sketch_telephone_players',
   'word_forge_games': 'word_forge_players',
   'stickman_heist_games': 'stickman_heist_players',
+  'crystal_bridge_games': 'crystal_bridge_players',
 };
 
 /// Player tables known to exist (bingo_players does NOT — bingo uses
@@ -88,6 +89,7 @@ const kPlayerTableExists = <String>{
   'sketch_telephone_players',
   'word_forge_players',
   'stickman_heist_players',
+  'crystal_bridge_players',
 };
 
 /// Returns the player table for a given game table, or null if the game

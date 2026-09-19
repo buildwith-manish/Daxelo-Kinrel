@@ -1914,6 +1914,7 @@ class _InviteFamilySheetState extends ConsumerState<InviteFamilySheet> {
       case GameType.nightFalls: return 'night_falls_games';
       case GameType.sketchTelephone: return 'sketch_telephone_games';
       case GameType.stickmanHeist: return 'stickman_heist_games';
+      case GameType.crystalBridge: return 'crystal_bridge_games';
     }
   }
 }

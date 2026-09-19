@@ -412,6 +412,17 @@ const kGameCatalog = <GameCatalogEntry>[
     category: GameCategory.quickDuels,
     sortOrder: 70,
   ),
+  GameCatalogEntry(
+    gameId: 'crystal-bridge',
+    name: 'Crystal Bridge',
+    description: 'Survival · Risk vs Reward — cross the bridge, one crystal saves you',
+    gameTable: 'crystal_bridge_games',
+    route: '/family/{familyId}/crystal-bridge/lobby',
+    accent: 0xFF06B6D4,
+    playersLabel: '2–8 players',
+    category: GameCategory.partyNight,
+    sortOrder: 75,
+  ),
 ];
 
 /// All catalog entries sorted for hub display (featured first).

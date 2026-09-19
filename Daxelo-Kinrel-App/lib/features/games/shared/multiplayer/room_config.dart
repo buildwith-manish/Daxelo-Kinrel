@@ -38,6 +38,7 @@ enum GameTableKind {
   sketchTelephoneGames, // sketch_telephone_games
   wordForgeGames,    // word_forge_games
   stickmanHeistGames, // stickman_heist_games
+  crystalBridgeGames,  // crystal_bridge_games
 }
 
 extension GameTableKindX on GameTableKind {
@@ -68,6 +69,7 @@ extension GameTableKindX on GameTableKind {
       case GameTableKind.sketchTelephoneGames: return 'sketch_telephone_games';
       case GameTableKind.wordForgeGames:    return 'word_forge_games';
       case GameTableKind.stickmanHeistGames: return 'stickman_heist_games';
+      case GameTableKind.crystalBridgeGames:  return 'crystal_bridge_games';
     }
   }
 
@@ -102,6 +104,7 @@ extension GameTableKindX on GameTableKind {
       case GameTableKind.sketchTelephoneGames: return 'sketch_telephone_players';
       case GameTableKind.wordForgeGames:    return 'word_forge_players';
       case GameTableKind.stickmanHeistGames: return 'stickman_heist_players';
+      case GameTableKind.crystalBridgeGames:  return 'crystal_bridge_players';
     }
   }
 }
@@ -389,6 +392,16 @@ class RoomConfig {
 
   static const stickmanHeist = RoomConfig(
     gameTable: GameTableKind.stickmanHeistGames,
+    minPlayers: 2,
+    maxPlayers: 8,
+    lobbyStatusValue: 'waiting',
+    activeStatusValue: 'in_progress',
+    finishedStatusValue: 'completed',
+    cancelledStatusValue: 'cancelled',
+  );
+
+  static const crystalBridge = RoomConfig(
+    gameTable: GameTableKind.crystalBridgeGames,
     minPlayers: 2,
     maxPlayers: 8,
     lobbyStatusValue: 'waiting',

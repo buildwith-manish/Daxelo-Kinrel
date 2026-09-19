@@ -42,6 +42,7 @@ enum GameType {
   nightFalls, // Night Falls (Werewolf)
   sketchTelephone, // Sketch Telephone (Gartic Phone-style drawing chain)
   stickmanHeist, // Stickman Heist (real-time top-down treasure-hunt shooter)
+  crystalBridge, // Crystal Bridge (turn-based bridge-crossing survival)
 }
 
 extension GameTypeX on GameType {
@@ -106,6 +107,8 @@ extension GameTypeX on GameType {
         return 'sketch-telephone';
       case GameType.stickmanHeist:
         return 'stickman-heist';
+      case GameType.crystalBridge:
+        return 'crystal-bridge';
     }
   }
 
@@ -170,6 +173,8 @@ extension GameTypeX on GameType {
         return 'Sketch Telephone';
       case GameType.stickmanHeist:
         return 'Stickman Heist';
+      case GameType.crystalBridge:
+        return 'Crystal Bridge';
     }
   }
 

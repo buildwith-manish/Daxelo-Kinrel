@@ -142,6 +142,9 @@ import '../../features/games/word_forge/word_forge_provider.dart';
 import '../../features/games/stickman_heist/stickman_heist_lobby_screen.dart';
 import '../../features/games/stickman_heist/stickman_heist_game_screen.dart';
 import '../../features/games/stickman_heist/stickman_heist_provider.dart';
+import '../../features/games/crystal_bridge/crystal_bridge_lobby_screen.dart';
+import '../../features/games/crystal_bridge/crystal_bridge_game_screen.dart';
+import '../../features/games/crystal_bridge/crystal_bridge_provider.dart';
 import '../../features/games/redlight/redlight_lobby_screen.dart';
 import '../../features/games/redlight/redlight_game_screen.dart';
 import '../../features/games/redlight/redlight_results_screen.dart';
@@ -1009,6 +1012,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     hasRoom: (s) => s.game != null && s.game!.isWaiting,
     isHost: (s) => s.game?.hostUserId == _myUserId(),
     leave: (fid) => ref.read(stickmanHeistProvider(fid).notifier).leaveGame(),
+  );
+
+  final crystalBridgeLobbyExit = guardGameRoomExit(
+    gameTable: 'crystal_bridge_games',
+    readState: (fid) => ref.read(crystalBridgeProvider(fid)),
+    hasRoom: (s) => s.game != null && s.game!.isWaiting,
+    isHost: (s) => s.game?.hostUserId == _myUserId(),
+    leave: (fid) => ref.read(crystalBridgeProvider(fid).notifier).leaveGame(),
   );
 
   final twotruthsLobbyExit = guardGameRoomExit(
@@ -2064,6 +2075,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _fastFadePage(
           key: state.pageKey,
           child: StickmanHeistGameScreen(
+            familyId: state.pathParameters['id']!,
+            gameId: state.pathParameters['gameId']!,
+          ),
+        ),
+      ),
+
+      // ── Crystal Bridge ───────────────────────────────────────────
+      GoRoute(
+        path: '/family/:id/crystal-bridge/lobby',
+        onExit: crystalBridgeLobbyExit,
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: CrystalBridgeLobbyScreen(
+              familyId: state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/family/:id/crystal-bridge/game/:gameId',
+        pageBuilder: (context, state) => _fastFadePage(
+          key: state.pageKey,
+          child: CrystalBridgeGameScreen(
             familyId: state.pathParameters['id']!,
             gameId: state.pathParameters['gameId']!,
           ),
