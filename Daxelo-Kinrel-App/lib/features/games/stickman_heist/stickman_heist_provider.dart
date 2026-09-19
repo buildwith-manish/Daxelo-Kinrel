@@ -29,9 +29,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/network/socket_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../game_motion_tokens.dart';
 import '../shared/data/game_invite_chat_sync.dart';
+import '../shared/models/game_invite.dart';
 import '../shared/services/room_presence_heartbeat.dart';
 import '../shared/services/temporary_room_service.dart';
 import 'stickman_heist_models.dart';
@@ -544,6 +546,16 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
     final game = state.game;
     final myId = _myId;
     if (client == null || game == null || myId == null) return null;
+    // QA fix 2026-09-19: capture the previous participants BEFORE
+    // createGame() — it overwrites state.players with the NEW game's
+    // roster (host only), so by the time the old code computed `others`
+    // the list was always empty: rematch invites were never inserted,
+    // the opponent never got a dialog, and both players tapping Rematch
+    // created divergent rooms.
+    final others = state.players
+        .where((p) => p.isActive && p.userId != myId)
+        .map((p) => (userId: p.userId, name: p.userName))
+        .toList();
     final newGameId = await createGame(
       mapId: game.mapId,
       respawnsEnabled: game.respawnsEnabled,
@@ -553,34 +565,52 @@ class StickmanHeistNotifier extends StateNotifier<StickmanHeistState_> {
       maxPlayers: game.maxPlayers,
     );
     if (newGameId == null) return null;
-    try {
-      final others = state.players
-          .where((p) => p.isActive && p.userId != myId)
-          .toList();
-      for (final other in others) {
-        try {
-          await client.from('game_invites').insert({
-            'gameTable': 'stickman_heist_games',
-            'gameId': newGameId,
-            'gameType': 'stickman-heist',
-            'familyId': familyId,
-            'roomCode': newGameId
-                .replaceAll('-', '')
-                .substring(0, 6)
-                .toUpperCase(),
-            'invitedUserId': other.userId,
-            'invitedByUserId': myId,
-            'invitedByName': _myName,
-            'maxPlayers': game.maxPlayers,
-            'currentPlayers': 1,
-            'message': '$_myName wants a Stickman Heist rematch!',
-            'status': 'pending',
-            'sourceGameId': game.id,
-          });
-        } catch (_) {}
+    final roomCode =
+        newGameId.replaceAll('-', '').substring(0, 6).toUpperCase();
+    for (final other in others) {
+      // 1. Durable invite row (source of truth; drives the Supabase
+      //    Realtime leg of GameInviteListener + FCM push).
+      try {
+        await client.from('game_invites').insert({
+          'gameTable': 'stickman_heist_games',
+          'gameId': newGameId,
+          'gameType': 'stickman-heist',
+          'familyId': familyId,
+          'roomCode': roomCode,
+          'invitedUserId': other.userId,
+          'invitedByUserId': myId,
+          'invitedByName': _myName,
+          'maxPlayers': game.maxPlayers,
+          'currentPlayers': 1,
+          'message': '$_myName wants a Stickman Heist rematch!',
+          'status': 'pending',
+          'sourceGameId': game.id,
+        });
+      } catch (_) {}
+      // 2. Socket.IO realtime leg — best-effort acceleration so the
+      //    Accept/Decline dialog pops instantly for online opponents
+      //    (same 2-leg design as the lobby one-tap invite).
+      try {
+        await _ref.read(socketServiceProvider).sendGameInvite(
+          toUserId: other.userId,
+          invite: GameInvite(
+            inviteId:
+                'inv_${DateTime.now().millisecondsSinceEpoch}_${other.userId.substring(0, 8)}',
+            gameType: GameType.stickmanHeist,
+            gameId: newGameId,
+            roomCode: roomCode,
+            familyId: familyId,
+            fromUserId: myId,
+            fromName: _myName,
+            maxPlayers: game.maxPlayers,
+            currentPlayers: 1,
+            message: '$_myName wants a Stickman Heist rematch!',
+            timestamp: DateTime.now().toUtc(),
+          ),
+        );
+      } catch (_) {
+        // The durable row above already guarantees delivery.
       }
-    } catch (e) {
-      debugPrint('[StickmanHeist] rematch error: $e');
     }
     return newGameId;
   }
